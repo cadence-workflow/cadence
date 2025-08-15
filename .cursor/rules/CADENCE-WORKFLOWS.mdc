@@ -13,7 +13,7 @@ Follow these rules to ensure deterministic, reliable, and maintainable Cadence w
 
 Never iterate directly over Go maps in Cadence workflows. The iteration order is random and breaks determinism required for workflow replay. Always sort map keys before iterating.
 
-**Good Example:**
+**USE**
 ```go
 keys := make([]string, 0, len(myMap))
 for key := range myMap {
@@ -26,7 +26,7 @@ for _, key := range keys {
 }
 ```
 
-**Bad Example:**
+**NEVER USE**
 ```go
 for key, value := range myMap {
     workflow.GetLogger(ctx).Info("Key:", key, "Value:", value)
@@ -39,7 +39,7 @@ for key, value := range myMap {
 
 Do not use native Go goroutines inside Cadence workflows. Use `workflow.Go` to create Cadence-managed concurrent threads for deterministic execution and replay.
 
-**Good Example:**
+**USE**
 ```go
 workflow.Go(ctx, func(ctx workflow.Context) {
     activityInput := "process this"
@@ -50,7 +50,7 @@ workflow.Go(ctx, func(ctx workflow.Context) {
 })
 ```
 
-**Bad Example:**
+**NEVER USE**
 ```go
 go func() {
     err := YourExternalFunction()
@@ -66,31 +66,24 @@ go func() {
 
 Do not launch many activities or child workflows concurrently without limiting concurrency. Use a non-blocking pattern (similar to array) to control parallelism and avoid overwhelming workers.
 
-**Good Example:**
+**USE**
 ```go
-const maxConcurrent = 3
-var futures []workflow.Future
-sem := 0
+const batchSize = 3
+var futures []func(ctx workflow.Context) workflow.Future
 for _, input := range inputs {
-    if sem == maxConcurrent {
-        if err := futures[0].Get(ctx, nil); err != nil {
-            workflow.GetLogger(ctx).Error("Activity failed", "Error", err)
-        }
-        futures = futures[1:]
-        sem--
-    }
-    future := workflow.ExecuteActivity(ctx, YourActivity, input).Get(ctx, nil)
-    futures = append(futures, future)
-    sem++
+    activityInput := input
+    futures = append(futures, func(ctx workflow.Context) workflow.Future {
+        return workflow.ExecuteActivity(ctx, "Activity Name", activityInput)
+    })
 }
-for _, future := range futures {
-    if err := future.Get(ctx, nil); err != nil {
-        workflow.GetLogger(ctx).Error("Activity failed", "Error", err)
-    }
+batchFuture, err := x.NewBatchFuture(ctx, batchSize, futures)
+if err != nil {
+    return fmt.Errorf("failed to create batch future: %w", err)
 }
+return batchFuture.Get(ctx, nil)
 ```
 
-**Bad Example:**
+**NEVER USE**
 ```go
 for _, input := range inputs {
     workflow.Go(ctx, func(ctx workflow.Context) {
@@ -108,13 +101,13 @@ for _, input := range inputs {
 
 Never use `time.Now()` inside a Cadence workflow. Use `workflow.Now(ctx)` for deterministic, replayable time.
 
-**Good Example:**
+**USE**
 ```go
 now := workflow.Now(ctx)
 workflow.GetLogger(ctx).Info("Current time:", zap.Time("timestamp", now))
 ```
 
-**Bad Example:**
+**NEVER USE**
 ```go
 now := time.Now()
 workflow.GetLogger(ctx).Info("Current time:", zap.Time("timestamp", now))
@@ -126,7 +119,7 @@ workflow.GetLogger(ctx).Info("Current time:", zap.Time("timestamp", now))
 
 Do not use dynamic signal names in workflows. Always use static, predefined signal names to ensure deterministic signal handling and replay.
 
-**Good Example:**
+**USE**
 ```go
 func MyWorkflow(ctx workflow.Context) error {
     signalChan := workflow.GetSignalChannel(ctx, "statusUpdate")
@@ -141,7 +134,7 @@ func MyWorkflow(ctx workflow.Context) error {
 }
 ```
 
-**Bad Example:**
+**NEVER USE**
 ```go
 func MyWorkflow(ctx workflow.Context, userID string) error {
     signalName := "signal_" + userID
@@ -156,7 +149,7 @@ func MyWorkflow(ctx workflow.Context, userID string) error {
 
 Do not reuse the same workflow-id for frequent or continuous runs. This can cause hot shard problems. Use unique or distributed workflow-ids to spread load evenly.
 
-**Good Example:**
+**USE**
 ```go
 workflowOptions := client.StartWorkflowOptions{
     ID:        fmt.Sprintf("order-workflow-%d", time.Now().UnixNano()),
@@ -165,7 +158,7 @@ workflowOptions := client.StartWorkflowOptions{
 we, err := c.ExecuteWorkflow(context.Background(), workflowOptions, OrderWorkflow, orderData)
 ```
 
-**Bad Example:**
+**NEVER USE**
 ```go
 workflowOptions := client.StartWorkflowOptions{
     ID:        "order-workflow",
@@ -180,7 +173,7 @@ we, err := c.ExecuteWorkflow(context.Background(), workflowOptions, OrderWorkflo
 
 Never use `time.Sleep()` in a Cadence workflow. Use `workflow.Sleep(ctx, duration)` for deterministic, replayable sleep.
 
-**Good Example:**
+**USE**
 ```go
 func MyWorkflow(ctx workflow.Context) error {
     workflow.GetLogger(ctx).Info("Sleeping for 10 seconds...")
@@ -193,7 +186,7 @@ func MyWorkflow(ctx workflow.Context) error {
 }
 ```
 
-**Bad Example:**
+**NEVER USE**
 ```go
 func MyWorkflow(ctx workflow.Context) error {
     log.Println("Sleeping for 10 seconds...")
@@ -209,7 +202,7 @@ func MyWorkflow(ctx workflow.Context) error {
 
 Always register workflows and activities with explicit string names and use those names when starting them. This improves decoupling and ensures consistent communication between workers and clients.
 
-**Good Example:**
+**USE**
 ```go
 activity.RegisterWithOptions(MyActivityFunc, activity.RegisterOptions{Name: "MyActivity"})
 workflow.RegisterWithOptions(MyWorkflowFunc, workflow.RegisterOptions{Name: "MyWorkflow"})
@@ -220,7 +213,7 @@ workflowOptions := client.StartWorkflowOptions{
 client.ExecuteWorkflow(ctx, workflowOptions, "MyWorkflow", inputData)
 ```
 
-**Bad Example:**
+**NEVER USE**
 ```go
 workflow.Register(MyWorkflowFunc)
 activity.Register(MyActivityFunc)
