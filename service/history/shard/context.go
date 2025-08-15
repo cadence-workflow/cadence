@@ -1295,7 +1295,6 @@ func (s *contextImpl) allocateTimerIDsLocked(
 	workflowID string,
 	timerTasks []persistence.Task,
 ) error {
-
 	// assign IDs for the timer tasks. They need to be assigned under shard lock.
 	cluster := s.GetClusterMetadata().GetCurrentClusterName()
 	for _, task := range timerTasks {
