@@ -254,7 +254,6 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) Redirect(
 	return policy.withRedirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, call)
 }
 
-// TODO(active-active): Add unit tests for active-active domains covering all branches in activeClusterForActiveActiveDomainRequest
 func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	ctx context.Context,
 	domainEntry *cache.DomainCacheEntry,
