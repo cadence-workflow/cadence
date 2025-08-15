@@ -1211,43 +1211,6 @@ func TestShardClosedGuard(t *testing.T) {
 	}
 }
 
-// Mock task that implements persistence.Task interface for testing
-type mockTimerTask struct {
-	domainID            string
-	workflowID          string
-	runID               string
-	version             int64
-	taskID              int64
-	visibilityTimestamp time.Time
-}
-
-func (m *mockTimerTask) GetTaskCategory() persistence.HistoryTaskCategory {
-	return persistence.HistoryTaskCategoryTimer
-}
-func (m *mockTimerTask) GetTaskKey() persistence.HistoryTaskKey {
-	return persistence.NewHistoryTaskKey(m.visibilityTimestamp, m.taskID)
-}
-func (m *mockTimerTask) GetTaskType() int                    { return 123 }
-func (m *mockTimerTask) GetDomainID() string                 { return m.domainID }
-func (m *mockTimerTask) GetWorkflowID() string               { return m.workflowID }
-func (m *mockTimerTask) GetRunID() string                    { return m.runID }
-func (m *mockTimerTask) GetVersion() int64                   { return m.version }
-func (m *mockTimerTask) SetVersion(version int64)            { m.version = version }
-func (m *mockTimerTask) GetTaskID() int64                    { return m.taskID }
-func (m *mockTimerTask) SetTaskID(id int64)                  { m.taskID = id }
-func (m *mockTimerTask) GetVisibilityTimestamp() time.Time   { return m.visibilityTimestamp }
-func (m *mockTimerTask) SetVisibilityTimestamp(ts time.Time) { m.visibilityTimestamp = ts }
-func (m *mockTimerTask) ByteSize() uint64                    { return 100 }
-func (m *mockTimerTask) ToTransferTaskInfo() (*persistence.TransferTaskInfo, error) {
-	return nil, errors.New("not a transfer task")
-}
-func (m *mockTimerTask) ToTimerTaskInfo() (*persistence.TimerTaskInfo, error) {
-	return nil, errors.New("mock timer task")
-}
-func (m *mockTimerTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
-	return nil, errors.New("not a replication task")
-}
-
 // setupAllocateTimerIDsTest creates common test setup for allocateTimerIDsLocked tests
 func (s *contextTestSuite) setupAllocateTimerIDsTest() *cache.DomainCacheEntry {
 	// Create basic domain cache entry with sensible defaults
@@ -1273,14 +1236,55 @@ func (s *contextTestSuite) setupAllocateTimerIDsTest() *cache.DomainCacheEntry {
 	)
 }
 
-func (s *contextTestSuite) createMockTimerTask(version int64, timestamp time.Time) *mockTimerTask {
-	return &mockTimerTask{
-		domainID:            testDomainID,
-		workflowID:          testWorkflowID,
-		runID:               "test-run-id",
-		version:             version,
-		visibilityTimestamp: timestamp,
-	}
+type createMockTimerTaskParams struct {
+	Version    int64
+	Timestamp  time.Time
+	DomainID   string
+	WorkflowID string
+	RunID      string
+}
+
+func (s *contextTestSuite) createMockTimerTask(params createMockTimerTaskParams) *persistence.MockTask {
+	mockTask := persistence.NewMockTask(s.controller)
+
+	// Use variables to track changes made by the allocateTimerIDsLocked function
+	var taskID int64
+	var visibilityTimestamp = params.Timestamp
+
+	mockTask.EXPECT().GetDomainID().Return(params.DomainID).AnyTimes()
+	mockTask.EXPECT().GetWorkflowID().Return(params.WorkflowID).AnyTimes()
+	mockTask.EXPECT().GetRunID().Return(params.RunID).AnyTimes()
+	mockTask.EXPECT().GetVersion().Return(params.Version).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTimer).AnyTimes()
+	mockTask.EXPECT().GetTaskType().Return(123).AnyTimes()
+	mockTask.EXPECT().ByteSize().Return(uint64(100)).AnyTimes()
+
+	// Mock GetTaskID to return the current task ID
+	mockTask.EXPECT().GetTaskID().DoAndReturn(func() int64 {
+		return taskID
+	}).AnyTimes()
+
+	// Mock SetTaskID to update the task ID variable
+	mockTask.EXPECT().SetTaskID(gomock.Any()).DoAndReturn(func(id int64) {
+		taskID = id
+	}).AnyTimes()
+
+	// Mock GetVisibilityTimestamp to return the current timestamp
+	mockTask.EXPECT().GetVisibilityTimestamp().DoAndReturn(func() time.Time {
+		return visibilityTimestamp
+	}).AnyTimes()
+
+	// Mock SetVisibilityTimestamp to update the timestamp variable
+	mockTask.EXPECT().SetVisibilityTimestamp(gomock.Any()).DoAndReturn(func(ts time.Time) {
+		visibilityTimestamp = ts
+	}).AnyTimes()
+
+	// Mock GetTaskKey to return the current key based on current values
+	mockTask.EXPECT().GetTaskKey().DoAndReturn(func() persistence.HistoryTaskKey {
+		return persistence.NewHistoryTaskKey(visibilityTimestamp, taskID)
+	}).AnyTimes()
+
+	return mockTask
 }
 
 func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenNoTasksProvidedReturnsSuccessfully() {
@@ -1294,7 +1298,13 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenNoTasksProvidedReturns
 func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenTaskHasEmptyVersionAllocatesTaskID() {
 	domainCacheEntry := s.setupAllocateTimerIDsTest()
 
-	task := s.createMockTimerTask(constants.EmptyVersion, time.Now().Add(time.Hour))
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    constants.EmptyVersion,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
 	originalTaskID := task.GetTaskID()
 
 	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
@@ -1312,7 +1322,13 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenTaskHasVersionAllocate
 		return true
 	}
 
-	task := s.createMockTimerTask(123, time.Now().Add(time.Hour))
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    constants.EmptyVersion,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
 	originalTaskID := task.GetTaskID()
 
 	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
@@ -1340,7 +1356,13 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenTimerQueueV2DisabledUs
 		return false
 	}
 
-	task := s.createMockTimerTask(123, time.Now().Add(time.Hour))
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    constants.EmptyVersion,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
 	originalTaskID := task.GetTaskID()
 
 	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
@@ -1386,7 +1408,13 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenDomainIsActiveActiveUs
 	}, nil).Times(1)
 
 	// Create task with non-empty version to trigger the lookup logic
-	task := s.createMockTimerTask(123, time.Now().Add(time.Hour))
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    123,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
 	originalTaskID := task.GetTaskID()
 
 	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
@@ -1405,7 +1433,13 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenTaskTimestampBeforeRea
 	readCursor := time.Date(2025, 1, 1, 13, 0, 0, 0, time.UTC)
 	s.context.scheduledTaskMaxReadLevelMap[currentCluster] = readCursor
 
-	task := s.createMockTimerTask(constants.EmptyVersion, time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)) // before read cursor
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    constants.EmptyVersion,
+		Timestamp:  time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC), // before read cursor
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
 
 	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
 
@@ -1456,7 +1490,13 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenClusterManagerLookupFa
 	).Return(nil, assert.AnError).Times(1)
 
 	// Create task with non-empty version to trigger the lookup logic
-	task := s.createMockTimerTask(123, time.Now().Add(time.Hour))
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    123,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
 
 	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
 
@@ -1475,7 +1515,13 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenTaskIDGenerationFailsR
 		s.context.taskSequenceNumber = originalTaskSequenceNumber
 	}()
 
-	task := s.createMockTimerTask(constants.EmptyVersion, time.Now().Add(time.Hour))
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    constants.EmptyVersion,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
 
 	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
 
@@ -1503,14 +1549,20 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenMultipleTasksProvidedA
 		return false
 	}
 
-	task1 := s.createMockTimerTask(constants.EmptyVersion, time.Now().Add(time.Hour))
-	task2 := &mockTimerTask{
-		domainID:            testDomainID,
-		workflowID:          testWorkflowID,
-		runID:               "test-run-id-2",
-		version:             456,
-		visibilityTimestamp: time.Now().Add(2 * time.Hour),
-	}
+	task1 := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    constants.EmptyVersion,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id-1",
+	})
+	task2 := s.createMockTimerTask(createMockTimerTaskParams{
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id-2",
+		Version:    456,
+		Timestamp:  time.Now().Add(2 * time.Hour),
+	})
 
 	originalTaskID1 := task1.GetTaskID()
 	originalTaskID2 := task2.GetTaskID()
