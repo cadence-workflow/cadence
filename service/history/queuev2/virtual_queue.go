@@ -340,7 +340,7 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 
 	pendingTaskCount := q.monitor.GetTotalPendingTaskCount()
 	maxTaskCount := q.options.MaxPendingTasksCount()
-	if pendingTaskCount > maxTaskCount {
+	if pendingTaskCount >= maxTaskCount {
 		q.logger.Warn("Too many pending tasks, pause loading tasks for a while", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount))
 		q.pauseController.Pause(q.options.PollBackoffInterval())
 	}
@@ -355,7 +355,17 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 	// emit a metric indicating that the virtual queue is alive
 	q.metricsScope.UpdateGauge(metrics.VirtualQueueRunningGauge, 1.0)
 	sliceToRead := q.sliceToRead.Value.(VirtualSlice)
-	tasks, err := sliceToRead.GetTasks(q.ctx, q.options.PageSize())
+
+	// This logic is to avoid the loop of loading tasks from max virtual queue -> pending task count exceeds critical task count -> unload tasks from max virtual queue
+	// for non-root virtual queue, we know that maxTaskCout < ciriticalTaskCount
+	remainingSize := maxTaskCount - pendingTaskCount
+	if remainingSize <= 0 {
+		remainingSize = 1
+		q.logger.Error("unexpected error, virtual queue is not paused when pending task count exceeds max task cout limit", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount))
+	}
+	pageSize := min(q.options.PageSize(), remainingSize)
+	q.logger.Debug("get tasks from virtual queue", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount), tag.Counter(pageSize))
+	tasks, err := sliceToRead.GetTasks(q.ctx, pageSize)
 	if err != nil {
 		q.logger.Error("Virtual queue failed to get tasks", tag.Error(err))
 		return
