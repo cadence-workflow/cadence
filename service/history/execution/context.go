@@ -425,7 +425,6 @@ func (c *contextImpl) SetWorkflowExecution(mutableState MutableState) {
 func (c *contextImpl) LoadWorkflowExecution(
 	ctx context.Context,
 ) (MutableState, error) {
-
 	// Use empty version to skip incoming task version validation
 	return c.LoadWorkflowExecutionWithTaskVersion(ctx, constants.EmptyVersion)
 }
