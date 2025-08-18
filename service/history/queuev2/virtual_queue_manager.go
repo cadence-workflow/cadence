@@ -79,7 +79,7 @@ type (
 		sync.RWMutex
 		status               int32
 		virtualQueues        map[int64]VirtualQueue
-		createVirtualQueueFn func(VirtualSlice, int64) VirtualQueue
+		createVirtualQueueFn func(int64, ...VirtualSlice) VirtualQueue
 
 		nextForceNewSliceTime time.Time
 	}
@@ -127,14 +127,14 @@ func NewVirtualQueueManager(
 		nonRootQueueOptions: nonRootQueueOptions,
 		status:              common.DaemonStatusInitialized,
 		virtualQueues:       virtualQueues,
-		createVirtualQueueFn: func(s VirtualSlice, queueID int64) VirtualQueue {
+		createVirtualQueueFn: func(queueID int64, s ...VirtualSlice) VirtualQueue {
 			var options *VirtualQueueOptions
 			if queueID == rootQueueID {
 				options = rootQueueOptions
 			} else {
 				options = nonRootQueueOptions
 			}
-			return NewVirtualQueue(processor, redispatcher, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, []VirtualSlice{s}, options)
+			return NewVirtualQueue(processor, redispatcher, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, s, options)
 		},
 	}
 }
@@ -184,7 +184,8 @@ func (m *virtualQueueManagerImpl) GetOrCreateVirtualQueue(queueID int64) Virtual
 	if vq, ok := m.virtualQueues[queueID]; ok {
 		return vq
 	}
-	m.virtualQueues[queueID] = m.createVirtualQueueFn(nil, queueID)
+	m.virtualQueues[queueID] = m.createVirtualQueueFn(queueID)
+	m.virtualQueues[queueID].Start()
 	return m.virtualQueues[queueID]
 }
 
@@ -221,7 +222,7 @@ func (m *virtualQueueManagerImpl) AddNewVirtualSliceToRootQueue(s VirtualSlice) 
 		return
 	}
 
-	m.virtualQueues[rootQueueID] = m.createVirtualQueueFn(s, rootQueueID)
+	m.virtualQueues[rootQueueID] = m.createVirtualQueueFn(rootQueueID, s)
 	m.virtualQueues[rootQueueID].Start()
 }
 

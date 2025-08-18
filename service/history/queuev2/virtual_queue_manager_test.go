@@ -571,7 +571,7 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 				},
 				status:        common.DaemonStatusInitialized,
 				virtualQueues: virtualQueues,
-				createVirtualQueueFn: func(s VirtualSlice, queueID int64) VirtualQueue {
+				createVirtualQueueFn: func(queueID int64, s ...VirtualSlice) VirtualQueue {
 					vq := NewMockVirtualQueue(ctrl)
 					vq.EXPECT().Start()
 					return vq

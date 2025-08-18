@@ -339,15 +339,21 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 	}
 
 	pendingTaskCount := q.monitor.GetTotalPendingTaskCount()
-	if pendingTaskCount > q.options.MaxPendingTasksCount() {
-		q.logger.Warn("Too many pending tasks, pause loading tasks for a while", tag.PendingTaskCount(pendingTaskCount))
+	maxTaskCount := q.options.MaxPendingTasksCount()
+	if pendingTaskCount > maxTaskCount {
+		q.logger.Warn("Too many pending tasks, pause loading tasks for a while", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount))
 		q.pauseController.Pause(q.options.PollBackoffInterval())
 	}
 
 	if q.pauseController.IsPaused() {
+		// emit a metric indicating that the virtual queue is paused
+		q.metricsScope.UpdateGauge(metrics.VirtualQueuePausedGauge, 1.0)
+		q.logger.Debug("virtual queue is paused")
 		return
 	}
 
+	// emit a metric indicating that the virtual queue is alive
+	q.metricsScope.UpdateGauge(metrics.VirtualQueueRunningGauge, 1.0)
 	sliceToRead := q.sliceToRead.Value.(VirtualSlice)
 	tasks, err := sliceToRead.GetTasks(q.ctx, q.options.PageSize())
 	if err != nil {

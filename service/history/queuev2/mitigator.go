@@ -11,6 +11,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/types"
 )
 
 const (
@@ -53,10 +54,11 @@ func NewMitigator(
 	options *MitigatorOptions,
 ) Mitigator {
 	m := &mitigatorImpl{
-		monitor:      monitor,
-		logger:       logger,
-		metricsScope: metricsScope,
-		options:      options,
+		virtualQueueManager: virtualQueueManager,
+		monitor:             monitor,
+		logger:              logger,
+		metricsScope:        metricsScope,
+		options:             options,
 	}
 	m.handlers = map[AlertType]func(Alert){
 		AlertTypeQueuePendingTaskCount: m.handleQueuePendingTaskCount,
@@ -83,6 +85,7 @@ func (m *mitigatorImpl) handleQueuePendingTaskCount(alert Alert) {
 		virtualQueue.UpdateAndGetState()
 	}
 	if m.monitor.GetTotalPendingTaskCount() <= alert.AlertAttributesQueuePendingTaskCount.CriticalPendingTaskCount {
+		m.logger.Debug("mitigating queue alert, skip mitigation because the alert is no longer valid")
 		return
 	}
 	// Second, getting the stats of pending tasks. We need:
@@ -90,10 +93,41 @@ func (m *mitigatorImpl) handleQueuePendingTaskCount(alert Alert) {
 
 	// Third, find virtual slices to split given the target pending task count and the stats of pending tasks
 	targetPendingTaskCount := int(float64(alert.AlertAttributesQueuePendingTaskCount.CriticalPendingTaskCount) * targetLoadFactor)
+	if m.logger.DebugOn() {
+		sliceStatesPerDomain := make(map[string][]*types.VirtualSliceState)
+		for domain, slices := range stats.slicesPerDomain {
+			for _, s := range slices {
+				sliceStatesPerDomain[domain] = append(sliceStatesPerDomain[domain], ToPersistenceVirtualSliceState(s.GetState()))
+			}
+		}
+		for s, domainStats := range stats.pendingTaskCountPerDomainPerSlice {
+			m.logger.Debug("mitigating queue alert, get task stats per slice", tag.Dynamic("slice", ToPersistenceVirtualSliceState(s.GetState())), tag.Dynamic("domain-stats", domainStats))
+		}
+		m.logger.Debug("mitigating queue alert, get task stats",
+			tag.AlertType(int(alert.AlertType)),
+			tag.Dynamic("pending-task-count-per-domain", stats.pendingTaskCountPerDomain),
+			tag.Dynamic("slices-per-domain", sliceStatesPerDomain),
+			tag.Dynamic("pending-task-count", stats.totalPendingTaskCount),
+			tag.Dynamic("target-task-count", targetPendingTaskCount),
+		)
+	}
 	domainsToClearPerSlice := m.findDomainsToClear(stats, targetPendingTaskCount)
+	if m.logger.DebugOn() {
+		for s, domains := range domainsToClearPerSlice {
+			m.logger.Debug("mitigating queue alert, get domains to clear", tag.Dynamic("slice", ToPersistenceVirtualSliceState(s.GetState())), tag.WorkflowDomainIDs(domains))
+		}
+	}
 
 	// Finally, split and clear the slices
 	m.processQueueSplitsAndClear(virtualQueues, domainsToClearPerSlice)
+	if m.logger.DebugOn() {
+		virtualQueues := m.virtualQueueManager.VirtualQueues()
+		state := make(map[int64]*types.VirtualQueueState)
+		for queueID, vq := range virtualQueues {
+			state[queueID] = ToPersistenceVirtualQueueState(vq.GetState())
+		}
+		m.logger.Debug("mitigating queue alert, get queue state after mitigation", tag.Dynamic("queue-state", state))
+	}
 }
 
 // The stats of pending tasks are used to calculate the domains to clear. We need:

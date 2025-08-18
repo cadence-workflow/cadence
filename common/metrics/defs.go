@@ -2697,6 +2697,9 @@ const (
 	WorkflowIDCacheRequestsExternalMaxRequestsPerSecondsTimer
 	WorkflowIDCacheRequestsInternalMaxRequestsPerSecondsTimer
 	WorkflowIDCacheRequestsInternalRatelimitedCounter
+	VirtualQueueCountGauge
+	VirtualQueuePausedGauge
+	VirtualQueueRunningGauge
 	NumHistoryMetrics
 )
 
@@ -3465,6 +3468,9 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		WorkflowIDCacheRequestsExternalMaxRequestsPerSecondsTimer:    {metricName: "workflow_id_external_requests_max_requests_per_seconds", metricType: Timer},
 		WorkflowIDCacheRequestsInternalMaxRequestsPerSecondsTimer:    {metricName: "workflow_id_internal_requests_max_requests_per_seconds", metricType: Timer},
 		WorkflowIDCacheRequestsInternalRatelimitedCounter:            {metricName: "workflow_id_internal_requests_ratelimited", metricType: Counter},
+		VirtualQueueCountGauge:                                       {metricName: "virtual_queue_count", metricType: Gauge},
+		VirtualQueuePausedGauge:                                      {metricName: "virtual_queue_paused", metricType: Gauge},
+		VirtualQueueRunningGauge:                                     {metricName: "virtual_queue_running", metricType: Gauge},
 	},
 	Matching: {
 		PollSuccessPerTaskListCounter:                           {metricName: "poll_success_per_tl", metricRollupName: "poll_success"},
