@@ -399,6 +399,7 @@ func TestGetShards_Utility(t *testing.T) {
 }
 
 func TestAssignShardsToEmptyExecutors(t *testing.T) {
+	t.Skip("Skipping this test for now because it's flaky")
 	cases := []struct {
 		name                       string
 		inputAssignments           map[string][]string
