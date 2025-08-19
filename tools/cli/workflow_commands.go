@@ -483,7 +483,7 @@ func constructStartWorkflowRequest(c *cli.Context) (*types.StartWorkflowExecutio
 
 	memoFields, err := processMemo(c)
 	if err != nil {
-		return nil, commoncli.Problem("Error processing memo: ", err)
+		return nil, commoncli.Problem("error processing memo: ", err)
 	}
 	if len(memoFields) != 0 {
 		startRequest.Memo = &types.Memo{Fields: memoFields}

@@ -2006,86 +2006,146 @@ func Test_ShowHistoryWithID_MissingWorkflowID(t *testing.T) {
 	assert.ErrorContains(t, err, fmt.Sprintf("%s is required", FlagDomain))
 }
 
-func Test_ConstructStartWorkflowRequest_MissingFlags(t *testing.T) {
-	app := NewCliApp(&clientFactoryMock{})
-	set := flag.NewFlagSet("test", 0)
-	c := cli.NewContext(app, set, nil)
-	_, err := constructStartWorkflowRequest(c)
-	assert.ErrorContains(t, err, fmt.Sprintf("%s is required", FlagDomain))
+func Test_ConstructStartWorkflowRequest(t *testing.T) {
+	baseArgs := []clitest.CliArgument{
+		clitest.StringArgument(FlagDomain, "test-domain"),
+		clitest.StringArgument(FlagTaskList, "test-tasklist"),
+		clitest.StringArgument(FlagWorkflowType, "test-workflow-type"),
+	}
 
-	set.String(FlagDomain, "test-domain", "domain")
-	_, err = constructStartWorkflowRequest(c)
-	assert.ErrorContains(t, err, fmt.Sprintf("%s is required", FlagTaskList))
+	tests := []struct {
+		name                 string
+		cliArguments         []clitest.CliArgument
+		expectedError        bool
+		expectedErrorMessage string
+	}{
+		{
+			name:                 "missing domain",
+			cliArguments:         []clitest.CliArgument{},
+			expectedError:        true,
+			expectedErrorMessage: fmt.Sprintf("%s is required", FlagDomain),
+		},
+		{
+			name: "missing task list",
+			cliArguments: []clitest.CliArgument{
+				clitest.StringArgument(FlagDomain, "test-domain"),
+			},
+			expectedError:        true,
+			expectedErrorMessage: fmt.Sprintf("%s is required", FlagTaskList),
+		},
+		{
+			name: "missing workflow type",
+			cliArguments: []clitest.CliArgument{
+				clitest.StringArgument(FlagDomain, "test-domain"),
+				clitest.StringArgument(FlagTaskList, "test-tasklist"),
+			},
+			expectedError:        true,
+			expectedErrorMessage: fmt.Sprintf("%s is required", FlagWorkflowType),
+		},
+		{
+			name:                 "invalid execution timeout",
+			cliArguments:         baseArgs,
+			expectedError:        true,
+			expectedErrorMessage: fmt.Sprintf("%s format is invalid", FlagExecutionTimeout),
+		},
+		{
+			name: "invalid workflowID reuse policy",
+			cliArguments: append(
+				baseArgs,
+				clitest.StringArgument(FlagExecutionTimeout, "10"),
+				clitest.IntArgument(FlagWorkflowIDReusePolicy, -10),
+			),
+			expectedError:        true,
+			expectedErrorMessage: "value is not in supported range",
+		},
+		{
+			name: "process JSON error",
+			cliArguments: append(
+				baseArgs,
+				clitest.StringArgument(FlagExecutionTimeout, "10"),
+				clitest.IntArgument(FlagWorkflowIDReusePolicy, 1),
+				clitest.StringArgument(FlagInput, "invalid json"),
+			),
+			expectedError:        true,
+			expectedErrorMessage: "input is not valid JSON",
+		},
+		{
+			name: "error processing first run at",
+			cliArguments: append(
+				baseArgs,
+				clitest.StringArgument(FlagExecutionTimeout, "10"),
+				clitest.IntArgument(FlagWorkflowIDReusePolicy, 1),
+				clitest.StringArgument(FlagCronSchedule, "* * * * *"),
+				clitest.StringArgument(FirstRunAtTime, "10:00"),
+			),
+			expectedError:        true,
+			expectedErrorMessage: "time format invalid",
+		},
+		{
+			name: "error processing header",
+			cliArguments: append(
+				baseArgs,
+				clitest.StringArgument(FlagExecutionTimeout, "10"),
+				clitest.IntArgument(FlagWorkflowIDReusePolicy, 1),
+				clitest.StringArgument(FlagCronSchedule, "* * * * *"),
+				clitest.StringArgument(FlagHeaderFile, "invalid file"),
+			),
+			expectedError:        true,
+			expectedErrorMessage: "error when process header",
+		},
+		{
+			name: "error processing memo",
+			cliArguments: append(
+				baseArgs,
+				clitest.StringArgument(FlagExecutionTimeout, "10"),
+				clitest.IntArgument(FlagWorkflowIDReusePolicy, 1),
+				clitest.StringArgument(FlagCronSchedule, "* * * * *"),
+				clitest.StringArgument(FlagSearchAttributesKey, "key"),
+				clitest.StringArgument(FlagMemoFile, "invalid file"),
+			),
+			expectedError:        true,
+			expectedErrorMessage: "error processing memo",
+		},
+		{
+			name: "error processing search attributes",
+			cliArguments: append(
+				baseArgs,
+				clitest.StringArgument(FlagExecutionTimeout, "10"),
+				clitest.IntArgument(FlagWorkflowIDReusePolicy, 1),
+				clitest.StringArgument(FlagCronSchedule, "* * * * *"),
+				clitest.StringArgument(FlagSearchAttributesKey, "key"),
+			),
+			expectedError:        true,
+			expectedErrorMessage: "error processing search attributes",
+		},
+		{
+			name: "no error",
+			cliArguments: append(
+				baseArgs,
+				clitest.StringArgument(FlagExecutionTimeout, "10"),
+				clitest.IntArgument(FlagWorkflowIDReusePolicy, 1),
+				clitest.StringArgument(FlagCronSchedule, "* * * * *"),
+				clitest.StringArgument(FlagSearchAttributesKey, "key"),
+				clitest.StringArgument(FlagSearchAttributesVal, "val"),
+			),
+			expectedError:        false,
+			expectedErrorMessage: "",
+		},
+	}
 
-	set.String(FlagTaskList, "test-tasklist", "tasklist")
-	_, err = constructStartWorkflowRequest(c)
-	assert.ErrorContains(t, err, fmt.Sprintf("%s is required", FlagWorkflowType))
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			app := NewCliApp(&clientFactoryMock{})
+			ctx := clitest.NewCLIContext(t, app, tc.cliArguments...)
+			_, err := constructStartWorkflowRequest(ctx)
 
-	set.String(FlagWorkflowType, "test-workflow-type", "workflow_type")
-	_, err = constructStartWorkflowRequest(c)
-	assert.ErrorContains(t, err, fmt.Sprintf("%s format is invalid", FlagExecutionTimeout))
-
-	set.String(FlagExecutionTimeout, "10", "execution_timeout")
-	set.Int(FlagWorkflowIDReusePolicy, 1, "workflowidreusepolicy")
-	_, err = constructStartWorkflowRequest(c)
-	assert.NoError(t, err)
-
-	// invalid workflowID reuse policy
-	ctx := clitest.NewCLIContext(t, app, clitest.StringArgument(FlagDomain, "test-domain"), clitest.StringArgument(FlagTaskList, "test-tasklist"),
-		clitest.StringArgument(FlagWorkflowType, "test-workflow-type"), clitest.StringArgument(FlagExecutionTimeout, "10"),
-		clitest.IntArgument(FlagWorkflowIDReusePolicy, -10))
-	_, err = constructStartWorkflowRequest(ctx)
-	assert.ErrorContains(t, err, "value is not in supported range")
-
-	// process Json error
-	ctx = clitest.NewCLIContext(t, app, clitest.StringArgument(FlagDomain, "test-domain"), clitest.StringArgument(FlagTaskList, "test-tasklist"),
-		clitest.StringArgument(FlagWorkflowType, "test-workflow-type"), clitest.StringArgument(FlagExecutionTimeout, "10"),
-		clitest.IntArgument(FlagWorkflowIDReusePolicy, 1), clitest.StringArgument(FlagInput, "invalid json"))
-	_, err = constructStartWorkflowRequest(ctx)
-	assert.ErrorContains(t, err, "input is not valid JSON")
-
-	// error processing first run at
-	ctx = clitest.NewCLIContext(t, app, clitest.StringArgument(FlagDomain, "test-domain"), clitest.StringArgument(FlagTaskList, "test-tasklist"),
-		clitest.StringArgument(FlagWorkflowType, "test-workflow-type"), clitest.StringArgument(FlagExecutionTimeout, "10"),
-		clitest.IntArgument(FlagWorkflowIDReusePolicy, 1), clitest.StringArgument(FlagCronSchedule, "* * * * *"),
-		clitest.StringArgument(FirstRunAtTime, "10:00"))
-	_, err = constructStartWorkflowRequest(ctx)
-	assert.ErrorContains(t, err, "time format invalid")
-
-	// error processing header
-	ctx = clitest.NewCLIContext(t, app, clitest.StringArgument(FlagDomain, "test-domain"), clitest.StringArgument(FlagTaskList, "test-tasklist"),
-		clitest.StringArgument(FlagWorkflowType, "test-workflow-type"), clitest.StringArgument(FlagExecutionTimeout, "10"),
-		clitest.IntArgument(FlagWorkflowIDReusePolicy, 1), clitest.StringArgument(FlagCronSchedule, "* * * * *"),
-		clitest.StringArgument(FlagHeaderFile, "invalid file"))
-	_, err = constructStartWorkflowRequest(ctx)
-	assert.ErrorContains(t, err, "error when process header")
-
-	// error processing memo
-	ctx = clitest.NewCLIContext(t, app, clitest.StringArgument(FlagDomain, "test-domain"), clitest.StringArgument(FlagTaskList, "test-tasklist"),
-		clitest.StringArgument(FlagWorkflowType, "test-workflow-type"), clitest.StringArgument(FlagExecutionTimeout, "10"),
-		clitest.IntArgument(FlagWorkflowIDReusePolicy, 1), clitest.StringArgument(FlagCronSchedule, "* * * * *"),
-		clitest.StringArgument(FlagMemoFile, "invalid file"), clitest.StringArgument(FlagSearchAttributesKey, "key"))
-	_, err = constructStartWorkflowRequest(ctx)
-	assert.ErrorContains(t, err, "Error processing memo")
-
-	// error processing search attributes
-	ctx = clitest.NewCLIContext(t, app, clitest.StringArgument(FlagDomain, "test-domain"), clitest.StringArgument(FlagTaskList, "test-tasklist"),
-		clitest.StringArgument(FlagWorkflowType, "test-workflow-type"), clitest.StringArgument(FlagExecutionTimeout, "10"),
-		clitest.IntArgument(FlagWorkflowIDReusePolicy, 1), clitest.StringArgument(FlagCronSchedule, "* * * * *"),
-		clitest.StringArgument(FlagSearchAttributesKey, "key"))
-	_, err = constructStartWorkflowRequest(ctx)
-	assert.ErrorContains(t, err, "error processing search attributes")
-
-	ctx = clitest.NewCLIContext(t, app, clitest.StringArgument(FlagDomain, "test-domain"), clitest.StringArgument(FlagTaskList, "test-tasklist"),
-		clitest.StringArgument(FlagWorkflowType, "test-workflow-type"), clitest.StringArgument(FlagExecutionTimeout, "10"),
-		clitest.IntArgument(FlagWorkflowIDReusePolicy, 1), clitest.StringArgument(FlagCronSchedule, "* * * * *"),
-		clitest.StringArgument(FlagSearchAttributesKey, "key"), clitest.StringArgument(FlagSearchAttributesVal, "val"))
-	_, err = constructStartWorkflowRequest(ctx)
-	assert.NoError(t, err)
-}
-
-func Test_NewTest(t *testing.T) {
-
+			if tc.expectedError {
+				assert.ErrorContains(t, err, tc.expectedErrorMessage)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func Test_StartWorkflowHelper_RetryErrorMapping(t *testing.T) {
