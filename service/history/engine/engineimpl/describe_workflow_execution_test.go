@@ -46,11 +46,11 @@ import (
 func TestDescribeWorkflowExecution(t *testing.T) {
 	testDomainUUID := uuid.New()
 	testCases := []struct {
-		name                      string
-		setupMocks                func(*execution.MockCache, *execution.MockContext, *execution.MockMutableState, *shard.MockContext, string)
-		enableCorruptionCheck     bool
-		expectError               bool
-		errorContains             string
+		name                  string
+		setupMocks            func(*execution.MockCache, *execution.MockContext, *execution.MockMutableState, *shard.MockContext, string)
+		enableCorruptionCheck bool
+		expectError           bool
+		errorContains         string
 	}{
 		{
 			name: "Success - happy path",

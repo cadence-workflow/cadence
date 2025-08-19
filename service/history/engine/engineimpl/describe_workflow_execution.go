@@ -74,10 +74,7 @@ func (e *historyEngineImpl) DescribeWorkflowExecution(
 
 // validateDescribeWorkflowExecutionRequest validates the input request
 func validateDescribeWorkflowExecutionRequest(request *types.HistoryDescribeWorkflowExecutionRequest) error {
-	if err := common.ValidateDomainUUID(request.DomainUUID); err != nil {
-		return err
-	}
-	return nil
+	return common.ValidateDomainUUID(request.DomainUUID)
 }
 
 func createDescribeWorkflowExecutionResponse(ctx context.Context, mutableState execution.MutableState, domainCache cache.DomainCache) (*types.DescribeWorkflowExecutionResponse, error) {
