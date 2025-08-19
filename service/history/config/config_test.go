@@ -275,6 +275,7 @@ func TestNewConfig(t *testing.T) {
 		"EnableTransferQueueV2PendingTaskCountAlert":           {dynamicproperties.EnableTransferQueueV2PendingTaskCountAlert, true},
 		"QueueCriticalPendingTaskCount":                        {dynamicproperties.QueueCriticalPendingTaskCount, 100},
 		"QueueMaxVirtualQueueCount":                            {dynamicproperties.QueueMaxVirtualQueueCount, 101},
+		"VirtualSliceForceAppendInterval":                      {dynamicproperties.VirtualSliceForceAppendInterval, time.Second},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {

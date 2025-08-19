@@ -30,6 +30,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -39,20 +40,14 @@ import (
 
 const (
 	rootQueueID = 0
-	// Force creating new slice every forceNewSliceDuration
-	// so that the last slice in the default reader won't grow
-	// infinitely.
-	// The benefit of forcing new slice is:
-	// 1. As long as the last slice won't grow infinitly, task loading
-	// for that slice will complete and it's scope (both range and
-	// predicate) is able to shrink
-	// 2. Current task loading implementation can only unload the entire
-	// slice. If there's only one slice, we may unload all tasks for a
-	// given namespace.
-	forceNewSliceDuration = 5 * time.Minute
 )
 
 type (
+	VirtualQueueManagerOptions struct {
+		RootQueueOptions                *VirtualQueueOptions
+		NonRootQueueOptions             *VirtualQueueOptions
+		VirtualSliceForceAppendInterval dynamicproperties.DurationPropertyFn
+	}
 	VirtualQueueManager interface {
 		common.Daemon
 		VirtualQueues() map[int64]VirtualQueue
@@ -73,8 +68,7 @@ type (
 		timeSource          clock.TimeSource
 		taskLoadRateLimiter quotas.Limiter
 		monitor             Monitor
-		rootQueueOptions    *VirtualQueueOptions
-		nonRootQueueOptions *VirtualQueueOptions
+		options             *VirtualQueueManagerOptions
 
 		sync.RWMutex
 		status               int32
@@ -95,8 +89,7 @@ func NewVirtualQueueManager(
 	timeSource clock.TimeSource,
 	taskLoadRateLimiter quotas.Limiter,
 	monitor Monitor,
-	rootQueueOptions *VirtualQueueOptions,
-	nonRootQueueOptions *VirtualQueueOptions,
+	options *VirtualQueueManagerOptions,
 	virtualQueueStates map[int64][]VirtualSliceState,
 ) VirtualQueueManager {
 	virtualQueues := make(map[int64]VirtualQueue)
@@ -105,13 +98,13 @@ func NewVirtualQueueManager(
 		for i, state := range states {
 			virtualSlices[i] = NewVirtualSlice(state, taskInitializer, queueReader, NewPendingTaskTracker())
 		}
-		var options *VirtualQueueOptions
+		var opts *VirtualQueueOptions
 		if queueID == rootQueueID {
-			options = rootQueueOptions
+			opts = options.RootQueueOptions
 		} else {
-			options = nonRootQueueOptions
+			opts = options.NonRootQueueOptions
 		}
-		virtualQueues[queueID] = NewVirtualQueue(processor, redispatcher, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, virtualSlices, options)
+		virtualQueues[queueID] = NewVirtualQueue(processor, redispatcher, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, virtualSlices, opts)
 	}
 	return &virtualQueueManagerImpl{
 		processor:           processor,
@@ -123,18 +116,17 @@ func NewVirtualQueueManager(
 		timeSource:          timeSource,
 		taskLoadRateLimiter: taskLoadRateLimiter,
 		monitor:             monitor,
-		rootQueueOptions:    rootQueueOptions,
-		nonRootQueueOptions: nonRootQueueOptions,
+		options:             options,
 		status:              common.DaemonStatusInitialized,
 		virtualQueues:       virtualQueues,
 		createVirtualQueueFn: func(queueID int64, s ...VirtualSlice) VirtualQueue {
-			var options *VirtualQueueOptions
+			var opts *VirtualQueueOptions
 			if queueID == rootQueueID {
-				options = rootQueueOptions
+				opts = options.RootQueueOptions
 			} else {
-				options = nonRootQueueOptions
+				opts = options.NonRootQueueOptions
 			}
-			return NewVirtualQueue(processor, redispatcher, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, s, options)
+			return NewVirtualQueue(processor, redispatcher, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, s, opts)
 		},
 	}
 }
@@ -230,7 +222,7 @@ func (m *virtualQueueManagerImpl) appendOrMergeSlice(vq VirtualQueue, s VirtualS
 	now := m.timeSource.Now()
 	if now.After(m.nextForceNewSliceTime) {
 		vq.AppendSlices(s)
-		m.nextForceNewSliceTime = now.Add(forceNewSliceDuration)
+		m.nextForceNewSliceTime = now.Add(m.options.VirtualSliceForceAppendInterval())
 		return
 	}
 	vq.MergeSlices(s)

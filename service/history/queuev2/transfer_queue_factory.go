@@ -158,6 +158,7 @@ func (f *transferQueueFactory) createQueuev2(
 			MaxPendingTasksCount:                 config.QueueMaxPendingTaskCount,
 			PollBackoffInterval:                  config.QueueProcessorPollBackoffInterval,
 			PollBackoffIntervalJitterCoefficient: config.QueueProcessorPollBackoffIntervalJitterCoefficient,
+			VirtualSliceForceAppendInterval:      config.VirtualSliceForceAppendInterval,
 			EnableValidator:                      config.TransferProcessorEnableValidator,
 			ValidationInterval:                   config.TransferProcessorValidationInterval,
 			MaxStartJitterInterval:               dynamicproperties.GetDurationPropertyFn(0),

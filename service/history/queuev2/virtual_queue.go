@@ -348,7 +348,7 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 	if q.pauseController.IsPaused() {
 		// emit a metric indicating that the virtual queue is paused
 		q.metricsScope.UpdateGauge(metrics.VirtualQueuePausedGauge, 1.0)
-		q.logger.Debug("virtual queue is paused")
+		q.logger.Debug("virtual queue is paused", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount))
 		return
 	}
 

@@ -147,14 +147,14 @@ func (s *HistorySimulationSuite) TearDownSuite() {
 }
 
 func (s *HistorySimulationSuite) TestHistorySimulation() {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	var runs []client.WorkflowRun
 	for i := 0; i < 100; i++ {
 		// set a short timeout so that timer tasks can be executed before complete
 		workflowOptions := client.StartWorkflowOptions{
 			TaskList:                        s.taskList,
-			ExecutionStartToCloseTimeout:    5 * time.Second,
+			ExecutionStartToCloseTimeout:    120 * time.Second,
 			DecisionTaskStartToCloseTimeout: 5 * time.Second,
 		}
 		we, err := s.wfClient.ExecuteWorkflow(ctx, workflowOptions, workflow.NoopWorkflow)
@@ -169,5 +169,5 @@ func (s *HistorySimulationSuite) TestHistorySimulation() {
 	for _, we := range runs {
 		s.NoError(we.Get(ctx, nil))
 	}
-	time.Sleep(20 * time.Second)
+	time.Sleep(120 * time.Second)
 }

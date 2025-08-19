@@ -2,6 +2,7 @@ package queuev2
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -195,15 +196,17 @@ func TestVirtualQueueManager_VirtualQueues(t *testing.T) {
 
 			// Create manager instance
 			manager := &virtualQueueManagerImpl{
-				processor:        mockProcessor,
-				taskInitializer:  mockTaskInitializer,
-				redispatcher:     mockRedispatcher,
-				queueReader:      mockQueueReader,
-				logger:           mockLogger,
-				metricsScope:     mockMetricsScope,
-				rootQueueOptions: &VirtualQueueOptions{},
-				nonRootQueueOptions: &VirtualQueueOptions{
-					PageSize: dynamicproperties.GetIntPropertyFn(100),
+				processor:       mockProcessor,
+				taskInitializer: mockTaskInitializer,
+				redispatcher:    mockRedispatcher,
+				queueReader:     mockQueueReader,
+				logger:          mockLogger,
+				metricsScope:    mockMetricsScope,
+				options: &VirtualQueueManagerOptions{
+					RootQueueOptions: &VirtualQueueOptions{},
+					NonRootQueueOptions: &VirtualQueueOptions{
+						PageSize: dynamicproperties.GetIntPropertyFn(100),
+					},
 				},
 				status:        common.DaemonStatusInitialized,
 				virtualQueues: virtualQueues,
@@ -447,15 +450,17 @@ func TestVirtualQueueManager_UpdateAndGetState(t *testing.T) {
 
 			// Create manager instance
 			manager := &virtualQueueManagerImpl{
-				processor:        mockProcessor,
-				taskInitializer:  mockTaskInitializer,
-				redispatcher:     mockRedispatcher,
-				queueReader:      mockQueueReader,
-				logger:           mockLogger,
-				metricsScope:     mockMetricsScope,
-				rootQueueOptions: &VirtualQueueOptions{},
-				nonRootQueueOptions: &VirtualQueueOptions{
-					MaxPendingTasksCount: dynamicproperties.GetIntPropertyFn(100),
+				processor:       mockProcessor,
+				taskInitializer: mockTaskInitializer,
+				redispatcher:    mockRedispatcher,
+				queueReader:     mockQueueReader,
+				logger:          mockLogger,
+				metricsScope:    mockMetricsScope,
+				options: &VirtualQueueManagerOptions{
+					RootQueueOptions: &VirtualQueueOptions{},
+					NonRootQueueOptions: &VirtualQueueOptions{
+						MaxPendingTasksCount: dynamicproperties.GetIntPropertyFn(100),
+					},
 				},
 				status:        common.DaemonStatusInitialized,
 				virtualQueues: virtualQueues,
@@ -554,6 +559,7 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 			// Set up mock expectations
 			tt.setupMockQueues(mockQueues, mockSlice)
 
+			forceNewSliceDuration := time.Minute
 			// Create manager instance
 			manager := &virtualQueueManagerImpl{
 				processor:       mockProcessor,
@@ -563,11 +569,14 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 				logger:          mockLogger,
 				metricsScope:    mockMetricsScope,
 				timeSource:      mockTimeSource,
-				rootQueueOptions: &VirtualQueueOptions{
-					PageSize: dynamicproperties.GetIntPropertyFn(100),
-				},
-				nonRootQueueOptions: &VirtualQueueOptions{
-					PageSize: dynamicproperties.GetIntPropertyFn(100),
+				options: &VirtualQueueManagerOptions{
+					RootQueueOptions: &VirtualQueueOptions{
+						PageSize: dynamicproperties.GetIntPropertyFn(100),
+					},
+					NonRootQueueOptions: &VirtualQueueOptions{
+						PageSize: dynamicproperties.GetIntPropertyFn(100),
+					},
+					VirtualSliceForceAppendInterval: dynamicproperties.GetDurationPropertyFn(forceNewSliceDuration),
 				},
 				status:        common.DaemonStatusInitialized,
 				virtualQueues: virtualQueues,

@@ -2614,6 +2614,7 @@ const (
 	// Default value: 5s (5*time.Second)
 	// Allowed filters: N/A
 	QueueProcessorPollBackoffInterval
+	VirtualSliceForceAppendInterval
 	// TimerProcessorUpdateAckInterval is update interval for timer processor
 	// KeyName: history.timerProcessorUpdateAckInterval
 	// Value type: Duration
@@ -5128,6 +5129,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.queueProcessorPollBackoffInterval",
 		Description:  "QueueProcessorPollBackoffInterval is the backoff duration when queue processor is throttled",
 		DefaultValue: time.Second * 5,
+	},
+	VirtualSliceForceAppendInterval: {
+		KeyName:      "history.virtualSliceForceAppendInterval",
+		Description:  "VirtualSliceForceAppendInterval is the duration forcing a new virtual slice to be appended to the root virtual queue instead of being merged. It has 2 benefits: First, virtual slices won't grow infinitely, task loading for that slice can complete and its scope can be shrinked. Second, when we need to unload a virtual slice to free memory, we won't unload too many tasks.",
+		DefaultValue: time.Minute * 5,
 	},
 	TimerProcessorUpdateAckInterval: {
 		KeyName:      "history.timerProcessorUpdateAckInterval",

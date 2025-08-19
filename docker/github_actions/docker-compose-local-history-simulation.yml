@@ -49,7 +49,7 @@ services:
       - -e
       - -c
       - >
-        go test -timeout 180s
+        go test -timeout 300s
         -run ^TestHistorySimulation.*$
         -count 1
         -v

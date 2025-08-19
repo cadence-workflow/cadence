@@ -60,6 +60,7 @@ type (
 		MaxPendingTasksCount                 dynamicproperties.IntPropertyFn
 		PollBackoffInterval                  dynamicproperties.DurationPropertyFn
 		PollBackoffIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
+		VirtualSliceForceAppendInterval      dynamicproperties.DurationPropertyFn
 		// monitor & mitigator options
 		CriticalPendingTaskCount    dynamicproperties.IntPropertyFn
 		EnablePendingTaskCountAlert func() bool
@@ -162,22 +163,25 @@ func newQueueBase(
 		timeSource,
 		quotas.NewDynamicRateLimiter(options.MaxPollRPS.AsFloat64()),
 		monitor,
-		&VirtualQueueOptions{
-			PageSize:                             options.PageSize,
-			MaxPendingTasksCount:                 options.MaxPendingTasksCount,
-			PollBackoffInterval:                  options.PollBackoffInterval,
-			PollBackoffIntervalJitterCoefficient: options.PollBackoffIntervalJitterCoefficient,
-		},
-		&VirtualQueueOptions{
-			PageSize: options.PageSize,
-			// non-root queues should not trigger task unloading
-			// otherwise those virtual queues will keep loading, hit pending task count limit, unload, throttle, load, etc...
-			// use a limit lower than the critical pending task count instead
-			MaxPendingTasksCount: func(opts ...dynamicproperties.FilterOption) int {
-				return int(float64(options.CriticalPendingTaskCount(opts...)) * nonRootQueueMaxPendingTaskCoefficient)
+		&VirtualQueueManagerOptions{
+			RootQueueOptions: &VirtualQueueOptions{
+				PageSize:                             options.PageSize,
+				MaxPendingTasksCount:                 options.MaxPendingTasksCount,
+				PollBackoffInterval:                  options.PollBackoffInterval,
+				PollBackoffIntervalJitterCoefficient: options.PollBackoffIntervalJitterCoefficient,
 			},
-			PollBackoffInterval:                  options.PollBackoffInterval,
-			PollBackoffIntervalJitterCoefficient: options.PollBackoffIntervalJitterCoefficient,
+			NonRootQueueOptions: &VirtualQueueOptions{
+				PageSize: options.PageSize,
+				// non-root queues should not trigger task unloading
+				// otherwise those virtual queues will keep loading, hit pending task count limit, unload, throttle, load, etc...
+				// use a limit lower than the critical pending task count instead
+				MaxPendingTasksCount: func(opts ...dynamicproperties.FilterOption) int {
+					return int(float64(options.CriticalPendingTaskCount(opts...)) * nonRootQueueMaxPendingTaskCoefficient)
+				},
+				PollBackoffInterval:                  options.PollBackoffInterval,
+				PollBackoffIntervalJitterCoefficient: options.PollBackoffIntervalJitterCoefficient,
+			},
+			VirtualSliceForceAppendInterval: options.VirtualSliceForceAppendInterval,
 		},
 		queueState.VirtualQueueStates,
 	)

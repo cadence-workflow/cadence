@@ -1,0 +1,76 @@
+system.workflowDeletionJitterRange:
+- value: 0
+  constraints: {}
+history.enableTimerQueueV2:
+- value: true
+  constraints: {}
+history.enableTransferQueueV2:
+- value: true
+  constraints: {}
+history.timerTaskBatchSize:
+- value: 100
+  constraints: {}
+history.timerProcessorUpdateAckInterval:
+- value: 5s
+  constraints: {}
+history.timerProcessorUpdateAckIntervalJitterCoefficient:
+- value: 0
+  constraints: {}
+history.timerProcessorMaxPollRPS:
+- value: 20
+  constraints: {}
+history.transferTaskBatchSize:
+- value: 100
+  constraints: {}
+history.transferProcessorUpdateAckInterval:
+- value: 5s
+  constraints: {}
+history.transferProcessorUpdateAckIntervalJitterCoefficient:
+- value: 0
+  constraints: {}
+history.transferProcessorMaxPollRPS:
+- value: 20
+  constraints: {}
+history.shardUpdateMinInterval:
+- value: 3s
+  constraints: {}
+history.queueProcessorPollBackoffInterval:
+- value: 5s
+  constraints: {}
+history.virtualSliceForceAppendInterval:
+- value: 5ms
+  constraints: {}
+# Only Enable 1 level of split, which has been tested manually
+history.queueMaxVirtualQueueCount:
+- value: 2
+  constraints: {}
+# Enable task rate limiter so that the number of pending tasks increases
+history.taskSchedulerEnableRateLimiter:
+- value: true
+  constraints: {}
+history.taskSchedulerEnableRateLimiterShadowMode:
+- value: false
+  constraints: {}
+history.taskSchedulerGlobalDomainRPS:
+- value: 5
+  constraints: {}
+history.enableTransferQueueV2PendingTaskCountAlert:
+- value: false
+  constraints: {}
+- value: true
+  constraints:
+    shardID: 0
+history.enableTimerQueueV2PendingTaskCountAlert:
+- value: false
+  constraints: {}
+- value: true
+  constraints:
+    shardID: 1
+# Set a low number to trigger queue pause with load from tests
+history.queueMaxPendingTaskCount:
+- value: 20
+  constraints: {}
+# Set a low number to trigger queue split with load from tests
+history.queueCriticalPendingTaskCount:
+- value: 18
+  constraints: {}

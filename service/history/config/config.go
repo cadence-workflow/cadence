@@ -119,6 +119,7 @@ type Config struct {
 	EnableTransferQueueV2PendingTaskCountAlert dynamicproperties.BoolPropertyFnWithShardIDFilter
 	QueueCriticalPendingTaskCount              dynamicproperties.IntPropertyFn
 	QueueMaxVirtualQueueCount                  dynamicproperties.IntPropertyFn
+	VirtualSliceForceAppendInterval            dynamicproperties.DurationPropertyFn
 
 	// QueueProcessor settings
 	QueueProcessorEnableSplit                          dynamicproperties.BoolPropertyFn
@@ -417,6 +418,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		EnableTransferQueueV2PendingTaskCountAlert: dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTransferQueueV2PendingTaskCountAlert),
 		QueueCriticalPendingTaskCount:              dc.GetIntProperty(dynamicproperties.QueueCriticalPendingTaskCount),
 		QueueMaxVirtualQueueCount:                  dc.GetIntProperty(dynamicproperties.QueueMaxVirtualQueueCount),
+		VirtualSliceForceAppendInterval:            dc.GetDurationProperty(dynamicproperties.VirtualSliceForceAppendInterval),
 
 		QueueProcessorEnableSplit:                          dc.GetBoolProperty(dynamicproperties.QueueProcessorEnableSplit),
 		QueueProcessorSplitMaxLevel:                        dc.GetIntProperty(dynamicproperties.QueueProcessorSplitMaxLevel),

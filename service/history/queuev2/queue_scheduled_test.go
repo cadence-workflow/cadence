@@ -78,6 +78,7 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 		MaxPollRPS:                           dynamicproperties.GetIntPropertyFn(100),
 		MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
 		PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
+		VirtualSliceForceAppendInterval:      dynamicproperties.GetDurationPropertyFn(time.Second * 10),
 		CriticalPendingTaskCount:             dynamicproperties.GetIntPropertyFn(90),
 		EnablePendingTaskCountAlert:          func() bool { return true },
 		MaxVirtualQueueCount:                 dynamicproperties.GetIntPropertyFn(2),

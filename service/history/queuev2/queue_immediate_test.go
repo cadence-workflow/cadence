@@ -78,6 +78,7 @@ func TestImmediateQueue_LifeCycle(t *testing.T) {
 		MaxPollRPS:                           dynamicproperties.GetIntPropertyFn(100),
 		MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
 		CriticalPendingTaskCount:             dynamicproperties.GetIntPropertyFn(90),
+		VirtualSliceForceAppendInterval:      dynamicproperties.GetDurationPropertyFn(time.Second * 10),
 		EnablePendingTaskCountAlert:          func() bool { return true },
 		MaxVirtualQueueCount:                 dynamicproperties.GetIntPropertyFn(2),
 	}
