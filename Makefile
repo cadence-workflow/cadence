@@ -64,7 +64,7 @@ $(BUILD)/goversion-lint:
 $(BUILD)/fmt: $(BUILD)/codegen # formatting must occur only after all other go-file-modifications are done
 # $(BUILD)/copyright 
 # $(BUILD)/copyright: $(BUILD)/codegen # must add copyright to generated code, sometimes needs re-formatting
-$(BUILD)/codegen: $(BUILD)/thrift $(BUILD)/protoc
+$(BUILD)/codegen: $(BUILD)/thrift $(BUILD)/protoc $(BUILD)/metrics
 $(BUILD)/thrift: $(BUILD)/go_mod_check
 $(BUILD)/protoc: $(BUILD)/go_mod_check
 $(BUILD)/go_mod_check:
@@ -355,6 +355,11 @@ $(BUILD)/protoc: $(PROTO_FILES) $(STABLE_BIN)/$(PROTOC_VERSION_BIN) $(BIN)/proto
 	   fi
 	$Q touch $@
 
+# fast enough to not care about re-running when running `make go-generate`
+$(BUILD)/metrics: $(ALL_SRC) $(BIN)/metricsgen
+	$Q $(BIN_PATH) go generate -run=metricsgen ./...
+	$Q touch $@
+
 # ====================================
 # Rule-breaking targets intended ONLY for special cases with no good alternatives.
 # ====================================
@@ -555,10 +560,10 @@ go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `
 # 	$Q echo "updating copyright headers"
 # 	$Q $(MAKE) --no-print-directory copyright
 
-metrics: $(BIN)/metricsgen ## metricsgen-only code regen, much faster than go-generate
+metrics: $(BIN)/metricsgen ## metrics-only code regen, much faster than go-generate
 	$Q echo "re-generating metrics structs..."
-	$Q $(BIN_PATH) go generate -run=metricsgen ./...
-	$Q $(MAKE) fmt
+	$Q $(MAKE) $(BUILD)/metrics
+	$Q $(MAKE) fmt # clean up imports
 
 release: ## Re-generate generated code and run tests
 	$(MAKE) --no-print-directory go-generate

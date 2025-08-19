@@ -128,7 +128,7 @@ func TestLogHistogramRange(t *testing.T) {
 	for i := 0; i < len(buck); i += 8 {
 		t.Logf("\t%v", buck[i:i+8])
 	}
-	t.Log("naive compounding exponential ---")
+	t.Log("naive compoundi1ng exponential ---")
 	// kinda terrible, e.g.
 	//   [1ms 1.090507ms 1.189206ms 1.296838ms 1.414211ms 1.542208ms 1.681789ms 1.834003ms]
 	//   [1.999994ms 2.181008ms 2.378406ms 2.59367ms 2.828417ms 3.08441ms 3.363572ms 3.668001ms]

@@ -1,0 +1,85 @@
+package structured
+
+import (
+	"maps"
+	"time"
+
+	"github.com/uber-go/tally"
+)
+
+// Metadata is a shared interface for all "...Tags" structs.
+//
+// You are generally NOT expected to implement any of this yourself.
+// Just define your struct, and let the code generator take care of it (`make metrics`).
+//
+// For the intended usage, see generated code.
+type Metadata interface {
+	NumTags() int                   // for efficient pre-allocation
+	PutTags(into map[string]string) // populates the map
+	GetTags() map[string]string     // returns a pre-allocated and pre-populated map
+}
+
+// DynamicTags is a very simple helper for treating an arbitrary map as a Metadata.
+//
+// This can be used externally (for completely manual metrics) or in metrics-emitting
+// methods to simplify adding custom tags - e.g. just cast the GetTags result.
+type DynamicTags map[string]string
+
+var _ Metadata = DynamicTags{}
+
+func (o DynamicTags) NumTags() int                   { return len(o) }
+func (o DynamicTags) PutTags(into map[string]string) { maps.Copy(into, o) }
+func (o DynamicTags) GetTags() map[string]string     { return maps.Clone(o) }
+
+// Emitter is the base helper for emitting metrics, and it contains only low-level
+// metrics-emitting funcs to keep it as simple as possible.
+//
+// It is intended to be used with the `make metrics` code generator and structs-of-tags,
+// but it's intentionally possible to (ab)use it by hand because ad-hoc metrics
+// should be easy and encouraged.
+//
+// Metadata can be constructed from any map via DynamicMetadata, but this API intentionally hides
+// [tally.Scope.Tagged] because it's (somewhat) memory-wasteful, self-referential interfaces are
+// difficult to mock, and it's very hard to figure out what tags may be present at runtime.
+//
+// TODO: this can / likely should be turned into an interface to allow disconnecting from tally,
+// to allow providing a specific version or to drop it entirely if desired.
+type Emitter struct {
+	// intentionally NOT no-op by default.
+	//
+	// use a test emitter in tests, it should be quite easy to construct,
+	// and this way it will panic if forgotten for some reason, rather than
+	// causing a misleading lack-of-metrics.
+	scope tally.Scope
+}
+
+// Histogram records a duration-based histogram with the provided data.
+//
+// `buckets` may be nil: this is equivalent to Default1ms10m, so it does not need
+// to be explicitly imported.
+func (b Emitter) Histogram(meta Metadata, name string, buckets tally.Buckets, dur time.Duration) {
+	if buckets == nil {
+		buckets = Default1ms10m
+	}
+	b.scope.Tagged(meta.GetTags()).Histogram(name, buckets).RecordDuration(dur)
+}
+
+// TODO: make a MinMaxHistogram which maintains a precise, rolling min/max gauge,
+// over a window larger than the metrics granularity (e.g. ~20s) to work around
+// gauges' last-data-only behavior.
+//
+// This will likely require some additional state though, and might benefit from
+// keeping that state further up the Tags-stack to keep contention and
+// series-deduplication-costs low.
+//
+// Maybe OTEL / Prometheus will natively support this one day.  It'd be simple.
+
+// Count records a counter with the provided data.
+func (b Emitter) Count(meta Metadata, name string, num int) {
+	b.scope.Tagged(meta.GetTags()).Counter(name).Inc(int64(num))
+}
+
+// Gauge emits a gauge with the provided data.
+func (b Emitter) Gauge(meta Metadata, name string, val float64) {
+	b.scope.Tagged(meta.GetTags()).Gauge(name).Update(val)
+}

@@ -19,9 +19,9 @@ var defaultBuckets = append(
 )
 
 type Metadata interface {
-	NumTags() int                // for efficient pre-allocation
-	Tags(into map[string]string) // populates the map
-	GetTags() map[string]string  // returns a pre-allocated and pre-populated map
+	NumTags() int                   // for efficient pre-allocation
+	PutTags(into map[string]string) // populates the map
+	GetTags() map[string]string     // returns a pre-allocated and pre-populated map
 }
 
 // Emitter needs to be an interface, but you get the idea.
@@ -58,9 +58,9 @@ type DynamicTags map[string]string
 
 var _ Metadata = DynamicTags{}
 
-func (o DynamicTags) NumTags() int                { return len(o) }
-func (o DynamicTags) Tags(into map[string]string) { maps.Copy(into, o) }
-func (o DynamicTags) GetTags() map[string]string  { return maps.Clone(o) }
+func (o DynamicTags) NumTags() int                   { return len(o) }
+func (o DynamicTags) PutTags(into map[string]string) { maps.Copy(into, o) }
+func (o DynamicTags) GetTags() map[string]string     { return maps.Clone(o) }
 
 //go:generate metricsgen
 
@@ -76,18 +76,23 @@ type ServiceTags struct {
 	//                          so these tag-types are very easy to create.
 }
 
-// UsernameTags shows how to do a custom Tags-impl for runtime-only info that
+// UsernameTags shows how to do a custom PutTags-impl for runtime-only info that
 // does not need to be copied everywhere / must be gathered every time.
 //
-// skip:Tags <- this text skips the Tags generation, so it can be customized
-// skip:Convenience <- skips the convenience methods, because there is no embedded Emitter
+// To do this, we need to tell the generator to *not* generate something, so there's
+// a magic comment to do that.  You can skip any method by name, if needed.
+// These are currently indented to appear as a code block, but indentation is ignored.
+// It just makes docs read a bit more clearly, so the two hints are on different lines.
+//
+//	skip:PutTags <- this text skips the PutTags generation, so it can be customized
+//	skip:Convenience <- skips the convenience methods, because there is no embedded Emitter
 type UsernameTags struct {
 	// a wholly-dynamic field, no storage used at all.
-	// declaring this does reserve room in the map passed to Tags though.
+	// declaring this does reserve room in the map passed to PutTags though.
 	Username struct{} `tag:"username"`
 }
 
-func (u UsernameTags) Tags(into map[string]string) {
+func (u UsernameTags) PutTags(into map[string]string) {
 	// a bad example, but an example: this retrieves the current USER env var
 	// every time tags are collected to emit any metric.
 	//

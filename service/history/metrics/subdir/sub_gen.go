@@ -35,10 +35,10 @@ func (d DoesThisWorkTags) NumTags() int {
 	return num
 }
 
-// Tags writes this set of tags (and its embedded parents) to the passed map.
-func (d DoesThisWorkTags) Tags(into map[string]string) {
-	d.ServiceTags.Tags(into)
-	d.ShardTasklistTags.Tags(into)
+// PutTags writes this set of tags (and its embedded parents) to the passed map.
+func (d DoesThisWorkTags) PutTags(into map[string]string) {
+	d.ServiceTags.PutTags(into)
+	d.ShardTasklistTags.PutTags(into)
 	into["something"] = d.Something
 }
 
@@ -46,7 +46,7 @@ func (d DoesThisWorkTags) Tags(into map[string]string) {
 // for reserved fields (i.e. 'struct{}' type fields, which only declare intent).
 func (d DoesThisWorkTags) GetTags() map[string]string {
 	tags := make(map[string]string, d.NumTags())
-	d.Tags(tags)
+	d.PutTags(tags)
 	return tags
 }
 

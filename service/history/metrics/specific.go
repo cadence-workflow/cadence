@@ -30,7 +30,7 @@ type ShardTasklistTags struct {
 	// other fields it needs are added too
 	Shard      int          `tag:"shard"`
 	OtherShard int          `tag:"other_shard" convert:"fmt.Sprintf(\"other-%v\", {{.}})"`
-	Type       TasklistType `tag:"tasklist_type" convert:".String()"`
+	Type       TasklistType `tag:"tasklist_type" convert:"{{.}}.String()"`
 	//                                           ^^^^^^^^^^^^^^^^^^
 	//                                       has custom serialization
 	//

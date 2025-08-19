@@ -25,7 +25,11 @@ var (
 // very useful for understanding the AST: https://caixw.github.io/goast-viewer/index.html
 // (forked from https://yuroyoro.github.io/goast-viewer/ but with support for generics)
 func main() {
-	log.SetFlags(log.Lshortfile) // TODO: I really can't stand this log package
+	// TODO: currently this finds all "...Tags" things and assumes they are StructTags for metrics.
+	// If that becomes a problem, just optionally pass a list of args == names of types to generate,
+	// and ignore the rest.  Easy peasy.
+
+	log.SetFlags(log.Lshortfile) // TODO: I really can't stand this log package, replace?
 	filename := os.Getenv("GOFILE")
 	FSET = token.NewFileSet()
 	var err error
@@ -38,9 +42,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var needsFmt bool
-
-	// handles a very limited set of types and syntax, because all this generator
+	// this handles a very limited set of types and syntax, because all this generator
 	// cares about is top-level declared struct types.
 	//
 	// I would highly suggest exploring https://caixw.github.io/goast-viewer/index.html
@@ -48,6 +50,8 @@ func main() {
 	// syntax is recognizable at the AST level.
 	// if it is not, this may need to be changed to use `packages.Load` to get type info,
 	// but that is DRAMATICALLY slower and I would prefer to avoid it until necessary.
+	// the only tolerable way to do that is to process the whole repository in a single
+	// pass, and generate everything at once.
 
 	type named struct {
 		Name string
@@ -179,12 +183,7 @@ func main() {
 				}
 
 				convert := convertTag(f)
-				if strings.HasPrefix(convert, ".") {
-					// append it to the field access
-					convert = g.Self + "." + fname.Name + convert
-				}
 				if convert == "" && isInt(f.Type) {
-					needsFmt = true
 					convert = `fmt.Sprintf("%d", {{.}})`
 				}
 				if strings.Contains(convert, "{{.}}") {
@@ -226,16 +225,20 @@ func main() {
 	// copy all imports, possibly duplicating, and add fmt if needed.
 	// goimports will clean it up for us.
 	_, _ = fmt.Fprintln(out, "import (")
-	for _, i := range f.Imports {
+
+	// add common ones used in the template.
+	// goimports will deduplicate and remove them if they're unused.
+	imports := append(f.Imports, []*ast.ImportSpec{
+		{Path: &ast.BasicLit{Value: `"fmt"`}},  // for strconv
+		{Path: &ast.BasicLit{Value: `"time"`}}, // for Histogram's time.Duration
+	}...)
+	for _, i := range imports {
 		// i.Path.Value already has quotes
 		if i.Name != nil {
 			_, _ = fmt.Fprintf(out, "\t%s %s\n", i.Name, i.Path.Value)
 		} else {
 			_, _ = fmt.Fprintf(out, "\t%s\n", i.Path.Value)
 		}
-	}
-	if needsFmt {
-		_, _ = fmt.Fprintf(out, "\t%q\n", "fmt")
 	}
 	_, _ = fmt.Fprintln(out, ")")
 
@@ -259,14 +262,11 @@ func nameTag(f *ast.Field) string {
 
 func convertTag(f *ast.Field) string {
 	value := getTag(f, "convert") // currently a single string, could be complexified
-	if strings.HasPrefix(value, ".") {
-		// call method on the thing
-	} else if strings.Contains(value, "{{.}}") {
+	if strings.Contains(value, "{{.}}") {
 		// call method and pass the field via interpolation
 	} else if value != "" {
 		// malformed convert
-		log.Fatalf(notify(f, "convert tags must be either `.Method()` (leading `.`, appended to the field access) "+
-			"or `someFunc({{.}})` (acts like a template, but not fully executed as one) to define how to stringify"))
+		log.Fatalf(notify(f, "convert tags must contain a `{{.}}` substring where the field will be interpolated"))
 	}
 	// valid format or empty string
 	return value
@@ -364,22 +364,21 @@ func getsource(node ast.Node) (path string, source string) {
 /*
 Sample:
 
-	func NewShardTasklistTags(ServiceTags ServiceTags, Shard int, Type TasklistType, ) ShardTasklistTags {
+	func NewShardTasklistTags(ServiceTags ServiceTags, Shard int, Type TasklistType) ShardTasklistTags {
 	        s := ShardTasklistTags{
 	                Shard: Shard,
 	                Type: Type,
 	        }
 	        return s
 	}
-
 	func (s ShardTasklistTags) NumTags() int {
 	        num := 2 // num of self fields
+	        num := 0 // num of reserved fields
 	        num += s.ServiceTags.NumTags()
 	        return num
 	}
-
-	func (s ShardTasklistTags) Tags(into map[string]string) {
-	        s.ServiceTags.Tags(into)
+	func (s ShardTasklistTags) PutTags(into map[string]string) {
+	        s.ServiceTags.PutTags(into)
 	        into["shard"] = fmt.Sprintf("%d", s.Shard)
 	        into["tasklist_type"] = s.Type.String()
 	}
@@ -425,11 +424,11 @@ func ({{$self}} {{.Name}}) NumTags() int {
 }
 {{- end }}
 
-{{- if not .Skip.Tags }}
-// Tags writes this set of tags (and its embedded parents) to the passed map.
-func ({{$self}} {{.Name}}) Tags(into map[string]string) {
+{{- if not .Skip.PutTags }}
+// PutTags writes this set of tags (and its embedded parents) to the passed map.
+func ({{$self}} {{.Name}}) PutTags(into map[string]string) {
 	{{- range .Embeds }}
-	{{$self}}.{{ .Name }}.Tags(into)
+	{{$self}}.{{ .Name }}.PutTags(into)
 	{{- end }}
 	{{- range .Fields }}
 	into["{{.Tagname}}"] = {{ .Convert }} 
@@ -442,7 +441,7 @@ func ({{$self}} {{.Name}}) Tags(into map[string]string) {
 // for reserved fields (i.e. 'struct{}' type fields, which only declare intent).
 func ({{$self}} {{.Name}}) GetTags() map[string]string {
 	tags := make(map[string]string, {{$self}}.NumTags())
-	{{$self}}.Tags(tags)
+	{{$self}}.PutTags(tags)
 	return tags
 }
 {{- end }}

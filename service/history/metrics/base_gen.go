@@ -29,8 +29,8 @@ func (s ServiceTags) NumTags() int {
 	return num
 }
 
-// Tags writes this set of tags (and its embedded parents) to the passed map.
-func (s ServiceTags) Tags(into map[string]string) {
+// PutTags writes this set of tags (and its embedded parents) to the passed map.
+func (s ServiceTags) PutTags(into map[string]string) {
 	into["host"] = s.Hostname
 	into["env"] = s.RuntimeEnv
 }
@@ -39,7 +39,7 @@ func (s ServiceTags) Tags(into map[string]string) {
 // for reserved fields (i.e. 'struct{}' type fields, which only declare intent).
 func (s ServiceTags) GetTags() map[string]string {
 	tags := make(map[string]string, s.NumTags())
-	s.Tags(tags)
+	s.PutTags(tags)
 	return tags
 }
 
@@ -81,6 +81,6 @@ func (u UsernameTags) NumTags() int {
 // for reserved fields (i.e. 'struct{}' type fields, which only declare intent).
 func (u UsernameTags) GetTags() map[string]string {
 	tags := make(map[string]string, u.NumTags())
-	u.Tags(tags)
+	u.PutTags(tags)
 	return tags
 }

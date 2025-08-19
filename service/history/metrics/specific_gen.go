@@ -35,9 +35,9 @@ func (s ShardTasklistTags) NumTags() int {
 	return num
 }
 
-// Tags writes this set of tags (and its embedded parents) to the passed map.
-func (s ShardTasklistTags) Tags(into map[string]string) {
-	s.ServiceTags.Tags(into)
+// PutTags writes this set of tags (and its embedded parents) to the passed map.
+func (s ShardTasklistTags) PutTags(into map[string]string) {
+	s.ServiceTags.PutTags(into)
 	into["shard"] = fmt.Sprintf("%d", s.Shard)
 	into["other_shard"] = fmt.Sprintf("other-%v", s.OtherShard)
 	into["tasklist_type"] = s.Type.String()
@@ -47,7 +47,7 @@ func (s ShardTasklistTags) Tags(into map[string]string) {
 // for reserved fields (i.e. 'struct{}' type fields, which only declare intent).
 func (s ShardTasklistTags) GetTags() map[string]string {
 	tags := make(map[string]string, s.NumTags())
-	s.Tags(tags)
+	s.PutTags(tags)
 	return tags
 }
 
