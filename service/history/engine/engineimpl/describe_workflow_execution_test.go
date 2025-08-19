@@ -29,6 +29,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
@@ -37,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	historyConstants "github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/engine/testdata"
+	"github.com/uber/cadence/service/history/execution"
 )
 
 func TestDescribeWorkflowExecution(t *testing.T) {
@@ -345,6 +347,7 @@ func TestMapWorkflowExecutionInfo(t *testing.T) {
 		name          string
 		executionInfo *persistence.WorkflowExecutionInfo
 		startEvent    *types.HistoryEvent
+		setupMock     func(*cache.MockDomainCache)
 		expectError   bool
 		expected      *types.WorkflowExecutionInfo
 	}{
@@ -375,6 +378,9 @@ func TestMapWorkflowExecutionInfo(t *testing.T) {
 				WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
 					FirstDecisionTaskBackoffSeconds: common.Int32Ptr(10),
 				},
+			},
+			setupMock: func(mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainName("parent-domain-id").Return("parent-domain-name", nil)
 			},
 			expectError: false,
 			expected: &types.WorkflowExecutionInfo{
@@ -431,6 +437,7 @@ func TestMapWorkflowExecutionInfo(t *testing.T) {
 					FirstDecisionTaskBackoffSeconds: common.Int32Ptr(5),
 				},
 			},
+			setupMock:   func(mockDomainCache *cache.MockDomainCache) {},
 			expectError: false,
 			expected: &types.WorkflowExecutionInfo{
 				Execution: &types.WorkflowExecution{
@@ -455,12 +462,48 @@ func TestMapWorkflowExecutionInfo(t *testing.T) {
 				ExecutionTime:                common.Int64Ptr(1000000 + (5 * time.Second).Nanoseconds()),
 			},
 		},
+		{
+			name: "Error - parent domain name lookup fails",
+			executionInfo: &persistence.WorkflowExecutionInfo{
+				WorkflowID:                   "test-workflow-id",
+				RunID:                        "test-run-id",
+				TaskList:                     "test-task-list",
+				TaskListKind:                 types.TaskListKindNormal,
+				WorkflowTypeName:             "test-workflow-type",
+				StartTimestamp:               time.Unix(0, 1000000),
+				LastUpdatedTimestamp:         time.Unix(0, 2000000),
+				AutoResetPoints:              &types.ResetPoints{Points: []*types.ResetPointInfo{}},
+				Memo:                         map[string][]byte{"key": []byte("value")},
+				SearchAttributes:             map[string][]byte{"attr": []byte("val")},
+				PartitionConfig:              map[string]string{"partition": "config"},
+				CronOverlapPolicy:            historyConstants.CronSkip,
+				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{},
+				ParentWorkflowID:             "parent-workflow-id",
+				ParentRunID:                  "parent-run-id",
+				ParentDomainID:               "parent-domain-id",
+				InitiatedID:                  123,
+				State:                        persistence.WorkflowStateRunning,
+			},
+			startEvent: &types.HistoryEvent{
+				WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+					FirstDecisionTaskBackoffSeconds: common.Int32Ptr(10),
+				},
+			},
+			setupMock: func(mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainName("parent-domain-id").Return("", &types.InternalServiceError{Message: "Domain lookup failed"})
+			},
+			expectError: true,
+			expected:    nil,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create a simple mock that returns parent-domain-name for any domain ID
-			mockDomainCache := &testDomainCache{}
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+			tc.setupMock(mockDomainCache)
 
 			result, err := mapWorkflowExecutionInfo(tc.executionInfo, tc.startEvent, mockDomainCache, 10, &types.HistoryEvent{Timestamp: common.Int64Ptr(12345)})
 
@@ -472,50 +515,6 @@ func TestMapWorkflowExecutionInfo(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TODO: Use a real domain cache mock if it exists elsewhere
-// Simple test mock for DomainCache
-type testDomainCache struct{}
-
-func (t *testDomainCache) GetDomainName(domainID string) (string, error) {
-	return "parent-domain-name", nil
-}
-
-func (t *testDomainCache) GetDomainID(domainName string) (string, error) {
-	return "test-domain-id", nil
-}
-
-func (t *testDomainCache) GetDomain(domainName string) (*cache.DomainCacheEntry, error) {
-	return nil, nil
-}
-
-func (t *testDomainCache) GetDomainByID(domainID string) (*cache.DomainCacheEntry, error) {
-	return nil, nil
-}
-
-func (t *testDomainCache) GetAllDomain() map[string]*cache.DomainCacheEntry {
-	return nil
-}
-
-func (t *testDomainCache) GetCacheSize() (sizeOfCacheByName int64, sizeOfCacheByID int64) {
-	return 0, 0
-}
-
-func (t *testDomainCache) RegisterDomainChangeCallback(id string, catchUpFn cache.CatchUpFn, prepareCallback cache.PrepareCallbackFn, callback cache.CallbackFn) {
-	// No-op for testing
-}
-
-func (t *testDomainCache) UnregisterDomainChangeCallback(id string) {
-	// No-op for testing
-}
-
-func (t *testDomainCache) Start() {
-	// No-op for testing
-}
-
-func (t *testDomainCache) Stop() {
-	// No-op for testing
 }
 
 // TODO: More test cases for any other branches
@@ -636,5 +635,266 @@ func TestMapPendingActivityInfo(t *testing.T) {
 	}
 }
 
-// TODO: Test mapPendingChildExecutionInfo and mapPendingDecisionInfo
+func TestMapPendingChildExecutionInfo(t *testing.T) {
+	testCases := []struct {
+		name           string
+		childExecution *persistence.ChildExecutionInfo
+		domainEntry    *cache.DomainCacheEntry
+		setupMock      func(*cache.MockDomainCache)
+		expectError    bool
+		expected       *types.PendingChildExecutionInfo
+	}{
+		{
+			name: "Success - child execution with DomainID",
+			childExecution: &persistence.ChildExecutionInfo{
+				InitiatedID:       123,
+				StartedWorkflowID: "child-workflow-id",
+				StartedRunID:      "child-run-id",
+				DomainID:          "child-domain-id",
+				WorkflowTypeName:  "child-workflow-type",
+				ParentClosePolicy: types.ParentClosePolicyAbandon,
+			},
+			domainEntry: &cache.DomainCacheEntry{},
+			setupMock: func(mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainName("child-domain-id").Return("child-domain-name", nil)
+			},
+			expectError: false,
+			expected: &types.PendingChildExecutionInfo{
+				Domain:            "child-domain-name",
+				WorkflowID:        "child-workflow-id",
+				RunID:             "child-run-id",
+				WorkflowTypeName:  "child-workflow-type",
+				InitiatedID:       123,
+				ParentClosePolicy: types.ParentClosePolicyAbandon.Ptr(),
+			},
+		},
+		{
+			name: "Success - child execution with deprecated domain name",
+			childExecution: &persistence.ChildExecutionInfo{
+				InitiatedID:          456,
+				StartedWorkflowID:    "child-workflow-id-2",
+				StartedRunID:         "child-run-id-2",
+				DomainID:             "", // Empty DomainID
+				DomainNameDEPRECATED: "deprecated-domain-name",
+				WorkflowTypeName:     "child-workflow-type-2",
+				ParentClosePolicy:    types.ParentClosePolicyTerminate,
+			},
+			domainEntry: &cache.DomainCacheEntry{},
+			setupMock: func(mockDomainCache *cache.MockDomainCache) {
+				// No mock expectations needed - uses deprecated domain name directly
+			},
+			expectError: false,
+			expected: &types.PendingChildExecutionInfo{
+				Domain:            "deprecated-domain-name",
+				WorkflowID:        "child-workflow-id-2",
+				RunID:             "child-run-id-2",
+				WorkflowTypeName:  "child-workflow-type-2",
+				InitiatedID:       456,
+				ParentClosePolicy: types.ParentClosePolicyTerminate.Ptr(),
+			},
+		},
+		{
+			name: "Success - child execution using parent domain (fallback)",
+			childExecution: &persistence.ChildExecutionInfo{
+				InitiatedID:          789,
+				StartedWorkflowID:    "child-workflow-id-3",
+				StartedRunID:         "child-run-id-3",
+				DomainID:             "", // Empty DomainID
+				DomainNameDEPRECATED: "", // Empty deprecated name
+				WorkflowTypeName:     "child-workflow-type-3",
+				ParentClosePolicy:    types.ParentClosePolicyRequestCancel,
+			},
+			domainEntry: cache.NewLocalDomainCacheEntryForTest(
+				&persistence.DomainInfo{
+					ID:   "parent-domain-id",
+					Name: "parent-domain-fallback",
+				},
+				&persistence.DomainConfig{},
+				"test-cluster",
+			),
+			setupMock: func(mockDomainCache *cache.MockDomainCache) {
+				// No mock expectations needed - uses parent domain entry directly
+			},
+			expectError: false,
+			expected: &types.PendingChildExecutionInfo{
+				Domain:            "parent-domain-fallback",
+				WorkflowID:        "child-workflow-id-3",
+				RunID:             "child-run-id-3",
+				WorkflowTypeName:  "child-workflow-type-3",
+				InitiatedID:       789,
+				ParentClosePolicy: types.ParentClosePolicyRequestCancel.Ptr(),
+			},
+		},
+		{
+			name: "Success - domain not exists error (uses domainID as fallback)",
+			childExecution: &persistence.ChildExecutionInfo{
+				InitiatedID:       999,
+				StartedWorkflowID: "child-workflow-id-4",
+				StartedRunID:      "child-run-id-4",
+				DomainID:          "deleted-domain-id",
+				WorkflowTypeName:  "child-workflow-type-4",
+				ParentClosePolicy: types.ParentClosePolicyAbandon,
+			},
+			domainEntry: &cache.DomainCacheEntry{},
+			setupMock: func(mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainName("deleted-domain-id").Return("", &types.EntityNotExistsError{Message: "Domain not found"})
+			},
+			expectError: false,
+			expected: &types.PendingChildExecutionInfo{
+				Domain:            "deleted-domain-id", // Falls back to DomainID
+				WorkflowID:        "child-workflow-id-4",
+				RunID:             "child-run-id-4",
+				WorkflowTypeName:  "child-workflow-type-4",
+				InitiatedID:       999,
+				ParentClosePolicy: types.ParentClosePolicyAbandon.Ptr(),
+			},
+		},
+		{
+			name: "Error - non-EntityNotExists error from domain cache",
+			childExecution: &persistence.ChildExecutionInfo{
+				InitiatedID:       111,
+				StartedWorkflowID: "child-workflow-id-5",
+				StartedRunID:      "child-run-id-5",
+				DomainID:          "error-domain-id",
+				WorkflowTypeName:  "child-workflow-type-5",
+				ParentClosePolicy: types.ParentClosePolicyAbandon,
+			},
+			domainEntry: &cache.DomainCacheEntry{},
+			setupMock: func(mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainName("error-domain-id").Return("", &types.InternalServiceError{Message: "Internal error"})
+			},
+			expectError: true,
+			expected:    nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+			tc.setupMock(mockDomainCache)
+
+			result, err := mapPendingChildExecutionInfo(tc.childExecution, tc.domainEntry, mockDomainCache)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestMapPendingDecisionInfo(t *testing.T) {
+	testCases := []struct {
+		name         string
+		decisionInfo *execution.DecisionInfo
+		expected     *types.PendingDecisionInfo
+	}{
+		{
+			name: "Success - scheduled decision (not started)",
+			decisionInfo: &execution.DecisionInfo{
+				Version:                    1,
+				ScheduleID:                 100,
+				StartedID:                  constants.EmptyEventID, // Not started
+				RequestID:                  "request-id-1",
+				DecisionTimeout:            30,
+				TaskList:                   "decision-task-list",
+				Attempt:                    1,
+				ScheduledTimestamp:         1234567890,
+				StartedTimestamp:           0, // Not started
+				OriginalScheduledTimestamp: 1234567890,
+			},
+			expected: &types.PendingDecisionInfo{
+				State:                      types.PendingDecisionStateScheduled.Ptr(),
+				ScheduledTimestamp:         common.Int64Ptr(1234567890),
+				Attempt:                    1,
+				OriginalScheduledTimestamp: common.Int64Ptr(1234567890),
+				ScheduleID:                 100,
+				StartedTimestamp:           nil, // Should not be set for scheduled decision
+			},
+		},
+		{
+			name: "Success - started decision",
+			decisionInfo: &execution.DecisionInfo{
+				Version:                    2,
+				ScheduleID:                 200,
+				StartedID:                  201, // Started
+				RequestID:                  "request-id-2",
+				DecisionTimeout:            60,
+				TaskList:                   "decision-task-list-2",
+				Attempt:                    3,
+				ScheduledTimestamp:         2345678901,
+				StartedTimestamp:           2345678950,
+				OriginalScheduledTimestamp: 2345678900,
+			},
+			expected: &types.PendingDecisionInfo{
+				State:                      types.PendingDecisionStateStarted.Ptr(),
+				ScheduledTimestamp:         common.Int64Ptr(2345678901),
+				StartedTimestamp:           common.Int64Ptr(2345678950),
+				Attempt:                    3,
+				OriginalScheduledTimestamp: common.Int64Ptr(2345678900),
+				ScheduleID:                 200,
+			},
+		},
+		{
+			name: "Success - decision with zero values",
+			decisionInfo: &execution.DecisionInfo{
+				Version:                    0,
+				ScheduleID:                 0,
+				StartedID:                  constants.EmptyEventID,
+				RequestID:                  "",
+				DecisionTimeout:            0,
+				TaskList:                   "",
+				Attempt:                    0,
+				ScheduledTimestamp:         0,
+				StartedTimestamp:           0,
+				OriginalScheduledTimestamp: 0,
+			},
+			expected: &types.PendingDecisionInfo{
+				State:                      types.PendingDecisionStateScheduled.Ptr(),
+				ScheduledTimestamp:         common.Int64Ptr(0),
+				Attempt:                    0,
+				OriginalScheduledTimestamp: common.Int64Ptr(0),
+				ScheduleID:                 0,
+				StartedTimestamp:           nil,
+			},
+		},
+		{
+			name: "Success - decision with high attempt count",
+			decisionInfo: &execution.DecisionInfo{
+				Version:                    5,
+				ScheduleID:                 500,
+				StartedID:                  501,
+				RequestID:                  "request-id-high-attempt",
+				DecisionTimeout:            90,
+				TaskList:                   "high-attempt-task-list",
+				Attempt:                    99,
+				ScheduledTimestamp:         3456789012,
+				StartedTimestamp:           3456789100,
+				OriginalScheduledTimestamp: 3456789000,
+			},
+			expected: &types.PendingDecisionInfo{
+				State:                      types.PendingDecisionStateStarted.Ptr(),
+				ScheduledTimestamp:         common.Int64Ptr(3456789012),
+				StartedTimestamp:           common.Int64Ptr(3456789100),
+				Attempt:                    99,
+				OriginalScheduledTimestamp: common.Int64Ptr(3456789000),
+				ScheduleID:                 500,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := mapPendingDecisionInfo(tc.decisionInfo)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 // TODO: Test createDescribeWorkflowExecutionResponse - particularly the error cases

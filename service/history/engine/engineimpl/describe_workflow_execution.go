@@ -82,7 +82,6 @@ func validateDescribeWorkflowExecutionRequest(request *types.HistoryDescribeWork
 
 func createDescribeWorkflowExecutionResponse(ctx context.Context, mutableState execution.MutableState, domainCache cache.DomainCache) (*types.DescribeWorkflowExecutionResponse, error) {
 	executionInfo := mutableState.GetExecutionInfo()
-
 	executionConfiguration, err := mapWorkflowExecutionConfiguration(executionInfo)
 	if err != nil {
 		return nil, err
@@ -105,7 +104,8 @@ func createDescribeWorkflowExecutionResponse(ctx context.Context, mutableState e
 		}
 	}
 
-	workflowExecutionInfo, err := mapWorkflowExecutionInfo(executionInfo, startEvent, domainCache, mutableState.GetNextEventID()-constants.FirstEventID, completionEvent)
+	historyLength := mutableState.GetNextEventID() - constants.FirstEventID
+	workflowExecutionInfo, err := mapWorkflowExecutionInfo(executionInfo, startEvent, domainCache, historyLength, completionEvent)
 	if err != nil {
 		return nil, err
 	}
@@ -124,11 +124,13 @@ func createDescribeWorkflowExecutionResponse(ctx context.Context, mutableState e
 
 	childExecutions := mutableState.GetPendingChildExecutionInfos()
 	domainEntry := mutableState.GetDomainEntry()
-	pendingChildren, err := mapPendingChildExecutionInfo(childExecutions, domainEntry, domainCache)
-	if err != nil {
-		return nil, err
+	for _, childExecution := range childExecutions {
+		pendingChild, err := mapPendingChildExecutionInfo(childExecution, domainEntry, domainCache)
+		if err != nil {
+			return nil, err
+		}
+		result.PendingChildren = append(result.PendingChildren, pendingChild)
 	}
-	result.PendingChildren = pendingChildren
 
 	if di, ok := mutableState.GetPendingDecision(); ok {
 		result.PendingDecision = mapPendingDecisionInfo(di)
@@ -245,35 +247,28 @@ func mapPendingActivityInfo(ai *persistence.ActivityInfo, activityScheduledEvent
 	return p
 }
 
-func mapPendingChildExecutionInfo(childExecutions map[int64]*persistence.ChildExecutionInfo, domainEntry *cache.DomainCacheEntry, domainCache cache.DomainCache) ([]*types.PendingChildExecutionInfo, error) {
-	// TODO: Extract the array handling out of this function
-	pendingChildren := make([]*types.PendingChildExecutionInfo, 0, len(childExecutions))
-	for _, childExecution := range childExecutions {
-		childDomainName, err := execution.GetChildExecutionDomainName(
-			childExecution,
-			domainCache,
-			domainEntry,
-		)
-		if err != nil {
-			if !common.IsEntityNotExistsError(err) {
-				return nil, err
-			}
-			// child domain already deleted, instead of failing the request,
-			// return domainID instead since this field is only for information purpose
-			childDomainName = childExecution.DomainID
+func mapPendingChildExecutionInfo(childExecution *persistence.ChildExecutionInfo, domainEntry *cache.DomainCacheEntry, domainCache cache.DomainCache) (*types.PendingChildExecutionInfo, error) {
+	childDomainName, err := execution.GetChildExecutionDomainName(
+		childExecution,
+		domainCache,
+		domainEntry,
+	)
+	if err != nil {
+		if !common.IsEntityNotExistsError(err) {
+			return nil, err
 		}
-		p := &types.PendingChildExecutionInfo{
-			Domain:            childDomainName,
-			WorkflowID:        childExecution.StartedWorkflowID,
-			RunID:             childExecution.StartedRunID,
-			WorkflowTypeName:  childExecution.WorkflowTypeName,
-			InitiatedID:       childExecution.InitiatedID,
-			ParentClosePolicy: &childExecution.ParentClosePolicy,
-		}
-		pendingChildren = append(pendingChildren, p)
+		// child domain already deleted, instead of failing the request,
+		// return domainID instead since this field is only for information purpose
+		childDomainName = childExecution.DomainID
 	}
-
-	return pendingChildren, nil
+	return &types.PendingChildExecutionInfo{
+		Domain:            childDomainName,
+		WorkflowID:        childExecution.StartedWorkflowID,
+		RunID:             childExecution.StartedRunID,
+		WorkflowTypeName:  childExecution.WorkflowTypeName,
+		InitiatedID:       childExecution.InitiatedID,
+		ParentClosePolicy: &childExecution.ParentClosePolicy,
+	}, nil
 }
 
 func mapPendingDecisionInfo(di *execution.DecisionInfo) *types.PendingDecisionInfo {
