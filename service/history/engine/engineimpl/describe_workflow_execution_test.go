@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/mock/gomock"
@@ -893,6 +894,69 @@ func TestMapPendingDecisionInfo(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result := mapPendingDecisionInfo(tc.decisionInfo)
 			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestValidateDescribeWorkflowExecutionRequest(t *testing.T) {
+	testCases := []struct {
+		name        string
+		request     *types.HistoryDescribeWorkflowExecutionRequest
+		expectError bool
+	}{
+		{
+			name: "Success - valid UUID",
+			request: &types.HistoryDescribeWorkflowExecutionRequest{
+				DomainUUID: uuid.New(),
+				Request: &types.DescribeWorkflowExecutionRequest{
+					Domain: "test-domain",
+					Execution: &types.WorkflowExecution{
+						WorkflowID: "test-workflow-id",
+						RunID:      "test-run-id",
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "Error - empty UUID",
+			request: &types.HistoryDescribeWorkflowExecutionRequest{
+				DomainUUID: "",
+				Request: &types.DescribeWorkflowExecutionRequest{
+					Domain: "test-domain",
+					Execution: &types.WorkflowExecution{
+						WorkflowID: "test-workflow-id",
+						RunID:      "test-run-id",
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "Error - invalid UUID format",
+			request: &types.HistoryDescribeWorkflowExecutionRequest{
+				DomainUUID: "not-a-valid-uuid",
+				Request: &types.DescribeWorkflowExecutionRequest{
+					Domain: "test-domain",
+					Execution: &types.WorkflowExecution{
+						WorkflowID: "test-workflow-id",
+						RunID:      "test-run-id",
+					},
+				},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateDescribeWorkflowExecutionRequest(tc.request)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
