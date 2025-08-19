@@ -196,7 +196,7 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessActivityTask_Pending() {
 			VisibilityTimestamp: now,
 			TaskID:              int64(59),
 		},
-		TaskList:   mutableState.GetExecutionInfo().TaskList,
+		TaskList:   "unused",
 		ScheduleID: event.ID,
 	})
 
@@ -221,6 +221,48 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessActivityTask_Pending_PushT
 		"some random activity type",
 		mutableState.GetExecutionInfo().TaskList,
 		[]byte{}, 1, 1, 1, 1,
+	)
+
+	now := time.Now()
+	s.mockShard.SetCurrentTime(s.clusterName, now.Add(s.fetchHistoryDuration))
+	transferTask := s.newTransferTaskFromInfo(&persistence.ActivityTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version:             s.version,
+			VisibilityTimestamp: now,
+			TaskID:              int64(59),
+		},
+		TaskList:   mutableState.GetExecutionInfo().TaskList,
+		ScheduleID: event.ID,
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, event.ID, event.Version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+	s.mockMatchingClient.EXPECT().AddActivityTask(gomock.Any(), createAddActivityTaskRequest(transferTask, ai, mutableState.GetExecutionInfo().PartitionConfig)).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
+	s.mockShard.SetCurrentTime(s.clusterName, now)
+	_, err = s.transferStandbyTaskExecutor.Execute(transferTask)
+	s.Nil(err)
+}
+
+func (s *transferStandbyTaskExecutorSuite) TestProcessActivityTask_Pending_TaskListKindEphemeral() {
+	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+
+	event, ai, _, _, _, _ := mutableState.AddActivityTaskScheduledEvent(nil, decisionCompletionID, &types.ScheduleActivityTaskDecisionAttributes{
+		ActivityID:                    "activity-1",
+		ActivityType:                  &types.ActivityType{Name: "some random activity type"},
+		TaskList:                      &types.TaskList{Name: mutableState.GetExecutionInfo().TaskList, Kind: types.TaskListKindEphemeral.Ptr()},
+		Input:                         []byte{},
+		ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
+		ScheduleToStartTimeoutSeconds: common.Int32Ptr(1),
+		StartToCloseTimeoutSeconds:    common.Int32Ptr(1),
+		HeartbeatTimeoutSeconds:       common.Int32Ptr(1),
+	}, false,
 	)
 
 	now := time.Now()
@@ -325,6 +367,40 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessDecisionTask_Pending() {
 func (s *transferStandbyTaskExecutorSuite) TestProcessDecisionTask_Pending_PushToMatching() {
 
 	workflowExecution, mutableState, err := test.StartWorkflow(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+
+	di := test.AddDecisionTaskScheduledEvent(mutableState)
+
+	now := time.Now()
+	s.mockShard.SetCurrentTime(s.clusterName, now.Add(s.fetchHistoryDuration))
+	transferTask := s.newTransferTaskFromInfo(&persistence.DecisionTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version:             s.version,
+			VisibilityTimestamp: now,
+			TaskID:              int64(59),
+		},
+		TaskList:   mutableState.GetExecutionInfo().TaskList,
+		ScheduleID: di.ScheduleID,
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, di.ScheduleID, di.Version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+	s.mockMatchingClient.EXPECT().AddDecisionTask(gomock.Any(), createAddDecisionTaskRequest(transferTask, mutableState)).Return(&types.AddDecisionTaskResponse{}, nil).Times(1)
+
+	s.mockShard.SetCurrentTime(s.clusterName, now)
+	_, err = s.transferStandbyTaskExecutor.Execute(transferTask)
+	s.Nil(err)
+}
+
+func (s *transferStandbyTaskExecutorSuite) TestProcessDecisionTask_Pending_TaskListKindEphemeral() {
+
+	workflowExecution, mutableState, err := test.StartWorkflowWithTaskList(&types.TaskList{Name: "ephemy", Kind: types.TaskListKindEphemeral.Ptr()}, s.mockShard, s.domainID)
 	s.NoError(err)
 
 	di := test.AddDecisionTaskScheduledEvent(mutableState)

@@ -120,7 +120,7 @@ func TestInsertIntoHistoryTreeAndNode(t *testing.T) {
 				tt.setupMocks(ctrl, session)
 			}
 
-			db := &cdb{session: session}
+			db := &CDB{session: session}
 			err := db.InsertIntoHistoryTreeAndNode(context.Background(), tt.treeRow, tt.nodeRow)
 			if tt.expectError {
 				assert.Error(t, err, "Expected an error but got none")
@@ -206,7 +206,7 @@ func TestSelectFromHistoryNode(t *testing.T) {
 				tt.setupMocks(ctrl, session)
 			}
 
-			db := &cdb{session: session}
+			db := &CDB{session: session}
 			rows, token, err := db.SelectFromHistoryNode(context.Background(), tt.filter)
 
 			if tt.expectError {
@@ -271,7 +271,7 @@ func TestDeleteFromHistoryTreeAndNode(t *testing.T) {
 				tt.setupMocks(session)
 			}
 
-			db := &cdb{session: session}
+			db := &CDB{session: session}
 			err := db.DeleteFromHistoryTreeAndNode(context.Background(), tt.treeFilter, tt.nodeFilters)
 
 			if tt.expectError {
@@ -354,7 +354,7 @@ func TestSelectAllHistoryTrees(t *testing.T) {
 				tt.setupMocks(ctrl, session)
 			}
 
-			db := &cdb{session: session}
+			db := &CDB{session: session}
 			rows, token, err := db.SelectAllHistoryTrees(context.Background(), tt.nextPageToken, tt.pageSize)
 
 			if tt.expectError {
@@ -438,7 +438,7 @@ func TestSelectFromHistoryTree(t *testing.T) {
 				tt.setupMocks(ctrl, session)
 			}
 
-			db := &cdb{session: session}
+			db := &CDB{session: session}
 			rows, err := db.SelectFromHistoryTree(context.Background(), tt.filter)
 
 			if tt.expectError {

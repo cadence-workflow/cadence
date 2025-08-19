@@ -211,7 +211,7 @@ func (b *HistoryBuilder) AddDecisionTaskFailedEvent(attr types.DecisionTaskFaile
 
 // AddActivityTaskScheduledEvent adds ActivityTaskScheduled event to history
 func (b *HistoryBuilder) AddActivityTaskScheduledEvent(decisionCompletedEventID int64,
-	attributes *types.ScheduleActivityTaskDecisionAttributes) *types.HistoryEvent {
+	attributes *types.ScheduleActivityTaskDecisionAttributes, taskList *types.TaskList) *types.HistoryEvent {
 
 	var domain *string
 	if attributes.Domain != "" {
@@ -224,7 +224,7 @@ func (b *HistoryBuilder) AddActivityTaskScheduledEvent(decisionCompletedEventID 
 	event.ActivityTaskScheduledEventAttributes = &types.ActivityTaskScheduledEventAttributes{
 		ActivityID:                    attributes.ActivityID,
 		ActivityType:                  attributes.ActivityType,
-		TaskList:                      attributes.TaskList,
+		TaskList:                      taskList,
 		Header:                        attributes.Header,
 		Input:                         attributes.Input,
 		ScheduleToCloseTimeoutSeconds: common.Int32Ptr(common.Int32Default(attributes.ScheduleToCloseTimeoutSeconds)),
@@ -390,6 +390,8 @@ func (b *HistoryBuilder) AddContinuedAsNewEvent(decisionCompletedEventID int64, 
 		Memo:                                attributes.Memo,
 		SearchAttributes:                    attributes.SearchAttributes,
 		JitterStartSeconds:                  attributes.JitterStartSeconds,
+		CronOverlapPolicy:                   attributes.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:        attributes.ActiveClusterSelectionPolicy,
 	}
 
 	return b.addEventToHistory(event)

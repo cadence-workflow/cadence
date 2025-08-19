@@ -376,6 +376,7 @@ type (
 		DomainID           string
 		StartedIdentity    string
 		TaskList           string
+		TaskListKind       types.TaskListKind
 		HasRetryPolicy     bool
 		InitialInterval    time.Duration
 		BackoffCoefficient float64

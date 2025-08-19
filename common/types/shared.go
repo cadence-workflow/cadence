@@ -7660,22 +7660,24 @@ type WorkflowExecutionConfiguration struct {
 
 // WorkflowExecutionContinuedAsNewEventAttributes is an internal type (TBD...)
 type WorkflowExecutionContinuedAsNewEventAttributes struct {
-	NewExecutionRunID                   string                  `json:"newExecutionRunId,omitempty"`
-	WorkflowType                        *WorkflowType           `json:"workflowType,omitempty"`
-	TaskList                            *TaskList               `json:"taskList,omitempty"`
-	Input                               []byte                  `json:"input,omitempty"`
-	ExecutionStartToCloseTimeoutSeconds *int32                  `json:"executionStartToCloseTimeoutSeconds,omitempty"`
-	TaskStartToCloseTimeoutSeconds      *int32                  `json:"taskStartToCloseTimeoutSeconds,omitempty"`
-	DecisionTaskCompletedEventID        int64                   `json:"decisionTaskCompletedEventId,omitempty"`
-	BackoffStartIntervalInSeconds       *int32                  `json:"backoffStartIntervalInSeconds,omitempty"`
-	Initiator                           *ContinueAsNewInitiator `json:"initiator,omitempty"`
-	FailureReason                       *string                 `json:"failureReason,omitempty"`
-	FailureDetails                      []byte                  `json:"failureDetails,omitempty"`
-	LastCompletionResult                []byte                  `json:"lastCompletionResult,omitempty"`
-	Header                              *Header                 `json:"header,omitempty"`
-	Memo                                *Memo                   `json:"memo,omitempty"`
-	SearchAttributes                    *SearchAttributes       `json:"searchAttributes,omitempty"`
-	JitterStartSeconds                  *int32                  `json:"jitterStartSeconds,omitempty"`
+	NewExecutionRunID                   string                        `json:"newExecutionRunId,omitempty"`
+	WorkflowType                        *WorkflowType                 `json:"workflowType,omitempty"`
+	TaskList                            *TaskList                     `json:"taskList,omitempty"`
+	Input                               []byte                        `json:"input,omitempty"`
+	ExecutionStartToCloseTimeoutSeconds *int32                        `json:"executionStartToCloseTimeoutSeconds,omitempty"`
+	TaskStartToCloseTimeoutSeconds      *int32                        `json:"taskStartToCloseTimeoutSeconds,omitempty"`
+	DecisionTaskCompletedEventID        int64                         `json:"decisionTaskCompletedEventId,omitempty"`
+	BackoffStartIntervalInSeconds       *int32                        `json:"backoffStartIntervalInSeconds,omitempty"`
+	Initiator                           *ContinueAsNewInitiator       `json:"initiator,omitempty"`
+	FailureReason                       *string                       `json:"failureReason,omitempty"`
+	FailureDetails                      []byte                        `json:"failureDetails,omitempty"`
+	LastCompletionResult                []byte                        `json:"lastCompletionResult,omitempty"`
+	Header                              *Header                       `json:"header,omitempty"`
+	Memo                                *Memo                         `json:"memo,omitempty"`
+	SearchAttributes                    *SearchAttributes             `json:"searchAttributes,omitempty"`
+	JitterStartSeconds                  *int32                        `json:"jitterStartSeconds,omitempty"`
+	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
 }
 
 // GetNewExecutionRunID is an internal getter (TBD...)

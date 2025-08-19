@@ -112,6 +112,20 @@ func (mr *MockVirtualSliceMockRecorder) HasMoreTasks() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasMoreTasks", reflect.TypeOf((*MockVirtualSlice)(nil).HasMoreTasks))
 }
 
+// PendingTaskStats mocks base method.
+func (m *MockVirtualSlice) PendingTaskStats() PendingTaskStats {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PendingTaskStats")
+	ret0, _ := ret[0].(PendingTaskStats)
+	return ret0
+}
+
+// PendingTaskStats indicates an expected call of PendingTaskStats.
+func (mr *MockVirtualSliceMockRecorder) PendingTaskStats() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PendingTaskStats", reflect.TypeOf((*MockVirtualSlice)(nil).PendingTaskStats))
+}
+
 // TryMergeWithVirtualSlice mocks base method.
 func (m *MockVirtualSlice) TryMergeWithVirtualSlice(arg0 VirtualSlice) ([]VirtualSlice, bool) {
 	m.ctrl.T.Helper()

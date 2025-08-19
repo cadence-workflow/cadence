@@ -329,7 +329,7 @@ func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) ([
 			})
 		}
 		if rc.RootCause == invariant.RootCauseTypeBlobSizeLimit {
-			var metadata failure.BlobSizeMetadata
+			var metadata failure.FailureRootcauseMetadata
 			err := json.Unmarshal(rc.Metadata, &metadata)
 			if err != nil {
 				return nil, err
@@ -338,7 +338,7 @@ func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) ([
 				IssueID:       rc.IssueID,
 				RootCauseType: rc.RootCause.String(),
 				Metadata: &failure.FailureRootcauseMetadata{
-					BlobSizeMetadata: &metadata,
+					BlobSizeMetadata: metadata.BlobSizeMetadata,
 				},
 			})
 		}
@@ -388,7 +388,7 @@ func rootCausePollersRelated(rootCause invariant.RootCause) bool {
 }
 
 func issueRetryRelated(issue invariant.InvariantCheckResult) bool {
-	for _, i := range []string{retry.WorkflowRetryIssue.String(), retry.WorkflowRetryInfo.String(), retry.ActivityRetryIssue.String(), retry.ActivityHeartbeatIssue.String()} {
+	for _, i := range []string{retry.WorkflowRetryIssue.String(), retry.ActivityRetryIssue.String(), retry.ActivityHeartbeatIssue.String()} {
 		if issue.InvariantType == i {
 			return true
 		}

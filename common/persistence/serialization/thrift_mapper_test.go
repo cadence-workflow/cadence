@@ -362,11 +362,11 @@ func TestActivityInfo(t *testing.T) {
 		ScheduledEventBatchID:    int64(rand.Intn(1000)),
 		ScheduledEvent:           []byte("ScheduledEvent"),
 		ScheduledEventEncoding:   "ScheduledEventEncoding",
-		ScheduledTimestamp:       time.Now(),
+		ScheduledTimestamp:       time.UnixMilli(1752018142820),
 		StartedID:                int64(rand.Intn(1000)),
 		StartedEvent:             []byte("StartedEvent"),
 		StartedEventEncoding:     "StartedEventEncoding",
-		StartedTimestamp:         time.Now(),
+		StartedTimestamp:         time.UnixMilli(1752018142821),
 		ActivityID:               "ActivityID",
 		RequestID:                "RequestID",
 		ScheduleToStartTimeout:   time.Minute * time.Duration(rand.Intn(10)),
@@ -378,6 +378,7 @@ func TestActivityInfo(t *testing.T) {
 		TimerTaskStatus:          int32(rand.Intn(1000)),
 		Attempt:                  int32(rand.Intn(1000)),
 		TaskList:                 "TaskList",
+		TaskListKind:             types.TaskListKindEphemeral,
 		StartedIdentity:          "StartedIdentity",
 		HasRetryPolicy:           true,
 		RetryInitialInterval:     time.Minute * time.Duration(rand.Intn(10)),
@@ -391,37 +392,7 @@ func TestActivityInfo(t *testing.T) {
 		RetryLastFailureDetails:  []byte("RetryLastFailureDetails"),
 	}
 	actual := activityInfoFromThrift(activityInfoToThrift(expected))
-	assert.Equal(t, expected.Version, actual.Version)
-	assert.Equal(t, expected.ScheduledEventBatchID, actual.ScheduledEventBatchID)
-	assert.Equal(t, expected.ScheduledEvent, actual.ScheduledEvent)
-	assert.Equal(t, expected.ScheduledEventEncoding, actual.ScheduledEventEncoding)
-	assert.Equal(t, expected.StartedID, actual.StartedID)
-	assert.Equal(t, expected.StartedEvent, actual.StartedEvent)
-	assert.Equal(t, expected.StartedEventEncoding, actual.StartedEventEncoding)
-	assert.Equal(t, expected.ActivityID, actual.ActivityID)
-	assert.Equal(t, expected.RequestID, actual.RequestID)
-	assert.Equal(t, expected.CancelRequested, actual.CancelRequested)
-	assert.Equal(t, expected.CancelRequestID, actual.CancelRequestID)
-	assert.Equal(t, expected.TimerTaskStatus, actual.TimerTaskStatus)
-	assert.Equal(t, expected.Attempt, actual.Attempt)
-	assert.Equal(t, expected.TaskList, actual.TaskList)
-	assert.Equal(t, expected.StartedIdentity, actual.StartedIdentity)
-	assert.Equal(t, expected.HasRetryPolicy, actual.HasRetryPolicy)
-	assert.Equal(t, expected.RetryMaximumAttempts, actual.RetryMaximumAttempts)
-	assert.Equal(t, expected.RetryBackoffCoefficient, actual.RetryBackoffCoefficient)
-	assert.Equal(t, expected.RetryNonRetryableErrors, actual.RetryNonRetryableErrors)
-	assert.Equal(t, expected.RetryLastFailureReason, actual.RetryLastFailureReason)
-	assert.Equal(t, expected.RetryLastWorkerIdentity, actual.RetryLastWorkerIdentity)
-	assert.Equal(t, expected.RetryLastFailureDetails, actual.RetryLastFailureDetails)
-	assert.True(t, (expected.ScheduleToStartTimeout-actual.ScheduleToStartTimeout) < time.Second)
-	assert.True(t, (expected.ScheduleToCloseTimeout-actual.ScheduleToCloseTimeout) < time.Second)
-	assert.True(t, (expected.StartToCloseTimeout-actual.StartToCloseTimeout) < time.Second)
-	assert.True(t, (expected.HeartbeatTimeout-actual.HeartbeatTimeout) < time.Second)
-	assert.True(t, (expected.RetryInitialInterval-actual.RetryInitialInterval) < time.Second)
-	assert.True(t, (expected.RetryMaximumInterval-actual.RetryMaximumInterval) < time.Second)
-	assert.Equal(t, expected.ScheduledTimestamp.Sub(actual.ScheduledTimestamp), time.Duration(0))
-	assert.Equal(t, expected.StartedTimestamp.Sub(actual.StartedTimestamp), time.Duration(0))
-	assert.Equal(t, expected.RetryExpirationTimestamp.Sub(actual.RetryExpirationTimestamp), time.Duration(0))
+	assert.Equal(t, expected, actual)
 	assert.Nil(t, activityInfoFromThrift(nil))
 	assert.Nil(t, activityInfoToThrift(nil))
 }

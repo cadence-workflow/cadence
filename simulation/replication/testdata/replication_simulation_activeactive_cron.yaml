@@ -1,0 +1,58 @@
+# This file is a replication simulation scenario spec.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive_cron
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_cron.yml
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+domains:
+  test-domain-aa:
+    activeClustersByRegion:
+      region0: cluster0
+      region1: cluster1
+
+operations:
+  # start a cron workflow that runs every minute in cluster0
+  - op: start_workflow
+    at: 0s
+    workflowID: wf1
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 55s
+    workflowDuration: 35s
+    cronSchedule: "*/1 * * * *"
+
+  # start a cron workflow that runs every minute in cluster1
+  - op: start_workflow
+    at: 0s
+    workflowID: wf2
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster1
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 55s
+    workflowDuration: 35s
+    cronSchedule: "*/1 * * * *"
+
+
+  # Failover from cluster0 to cluster1
+  - op: change_active_clusters
+    at: 120s
+    domain: test-domain-aa
+    newActiveClustersByRegion:
+      region0: cluster1 # this is changed from cluster0 to cluster1
+      region1: cluster1
+
+
+# TODO(active-active): validating cron is not as trivial as checking completion status.
+# It keeps creating new runs every minute.
+# Add a custom validation for cron workflows:
+# - Let it run for 3 minutes
+# - List the workflows by id
+# - Validate first 2 continued as new and last one is running (waiting for initial decision task)

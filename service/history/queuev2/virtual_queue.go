@@ -28,6 +28,7 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
@@ -49,12 +50,16 @@ type (
 		UpdateAndGetState() []VirtualSliceState
 		// MergeSlices merge the incoming slices into the virtual queue
 		MergeSlices(...VirtualSlice)
+		// AppendSlices append the incoming slices to the virtual queue
+		AppendSlices(...VirtualSlice)
 		// IterateSlices iterate over the slices in the virtual queue
 		IterateSlices(func(VirtualSlice))
 		// ClearSlices calls the Clear method of the slices that satisfy the predicate function
 		ClearSlices(func(VirtualSlice) bool)
 		// SplitSlices applies the split function to the slices in the virtual queue and return the remaining slices that should be kept in the virtual queue and whether the split is applied
 		SplitSlices(func(VirtualSlice) (remaining []VirtualSlice, split bool))
+		// Pause pauses the virtual queue for a while
+		Pause(time.Duration)
 	}
 
 	VirtualQueueOptions struct {
@@ -192,6 +197,10 @@ func (q *virtualQueueImpl) UpdateAndGetState() []VirtualSliceState {
 }
 
 func (q *virtualQueueImpl) MergeSlices(incomingSlices ...VirtualSlice) {
+	if len(incomingSlices) == 0 {
+		return
+	}
+
 	q.Lock()
 	defer q.Unlock()
 
@@ -221,6 +230,21 @@ func (q *virtualQueueImpl) MergeSlices(incomingSlices ...VirtualSlice) {
 
 	q.virtualSlices.Init()
 	q.virtualSlices = mergedSlices
+	q.resetNextReadSliceLocked()
+}
+
+func (q *virtualQueueImpl) AppendSlices(incomingSlices ...VirtualSlice) {
+	if len(incomingSlices) == 0 {
+		return
+	}
+
+	q.Lock()
+	defer q.Unlock()
+
+	for _, slice := range incomingSlices {
+		q.virtualSlices.PushBack(slice)
+	}
+
 	q.resetNextReadSliceLocked()
 }
 
@@ -274,6 +298,10 @@ func (q *virtualQueueImpl) SplitSlices(f func(VirtualSlice) (remaining []Virtual
 	q.resetNextReadSliceLocked()
 }
 
+func (q *virtualQueueImpl) Pause(duration time.Duration) {
+	q.pauseController.Pause(duration)
+}
+
 func (q *virtualQueueImpl) notify() {
 	select {
 	case q.notifyCh <- struct{}{}:
@@ -311,17 +339,33 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 	}
 
 	pendingTaskCount := q.monitor.GetTotalPendingTaskCount()
-	if pendingTaskCount > q.options.MaxPendingTasksCount() {
-		q.logger.Warn("Too many pending tasks, pause loading tasks for a while", tag.PendingTaskCount(pendingTaskCount))
+	maxTaskCount := q.options.MaxPendingTasksCount()
+	if pendingTaskCount >= maxTaskCount {
+		q.logger.Warn("Too many pending tasks, pause loading tasks for a while", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount))
 		q.pauseController.Pause(q.options.PollBackoffInterval())
 	}
 
 	if q.pauseController.IsPaused() {
+		// emit a metric indicating that the virtual queue is paused
+		q.metricsScope.UpdateGauge(metrics.VirtualQueuePausedGauge, 1.0)
+		q.logger.Debug("virtual queue is paused")
 		return
 	}
 
+	// emit a metric indicating that the virtual queue is alive
+	q.metricsScope.UpdateGauge(metrics.VirtualQueueRunningGauge, 1.0)
 	sliceToRead := q.sliceToRead.Value.(VirtualSlice)
-	tasks, err := sliceToRead.GetTasks(q.ctx, q.options.PageSize())
+
+	// This logic is to avoid the loop of loading tasks from max virtual queue -> pending task count exceeds critical task count -> unload tasks from max virtual queue
+	// for non-root virtual queue, we know that maxTaskCout < ciriticalTaskCount
+	remainingSize := maxTaskCount - pendingTaskCount
+	if remainingSize <= 0 {
+		remainingSize = 1
+		q.logger.Error("unexpected error, virtual queue is not paused when pending task count exceeds max task cout limit", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount))
+	}
+	pageSize := min(q.options.PageSize(), remainingSize)
+	q.logger.Debug("get tasks from virtual queue", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount), tag.Counter(pageSize))
+	tasks, err := sliceToRead.GetTasks(q.ctx, pageSize)
 	if err != nil {
 		q.logger.Error("Virtual queue failed to get tasks", tag.Error(err))
 		return

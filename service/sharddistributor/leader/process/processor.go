@@ -270,6 +270,11 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 		metricsLoopScope.RecordHistogramDuration(metrics.ShardDistributorAssignLoopShardRebalanceLatency, p.timeSource.Now().Sub(start))
 	}()
 
+	return p.rebalanceShardsImpl(ctx, metricsLoopScope)
+}
+
+func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoopScope metrics.Scope) (err error) {
+
 	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
 	if err != nil {
 		return fmt.Errorf("get state: %w", err)
@@ -278,27 +283,43 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 	if namespaceState.GlobalRevision <= p.lastAppliedRevision {
 		return nil
 	}
+	p.lastAppliedRevision = namespaceState.GlobalRevision
 
-	var activeExecutors []string
-	for id, state := range namespaceState.Executors {
-		if state.Status == types.ExecutorStatusACTIVE {
-			activeExecutors = append(activeExecutors, id)
-		}
-	}
-
+	activeExecutors := p.getActiveExecutors(namespaceState)
 	if len(activeExecutors) == 0 {
 		p.logger.Warn("No active executors found. Cannot assign shards.")
 		return nil
 	}
 
-	sort.Strings(activeExecutors)
+	shardsToReassign, currentAssignments := p.findShardsToReassign(activeExecutors, namespaceState)
 
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumRebalancedShards, float64(len(shardsToReassign)))
+
+	distributionChanged := assignShardsToEmptyExecutors(currentAssignments)
+	distributionChanged = distributionChanged || p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
+	if !distributionChanged {
+		return nil
+	}
+
+	p.addAssignmentsToNamespaceState(namespaceState, currentAssignments)
+
+	p.logger.Info("Applying new shard distribution.")
+	// Use the leader guard for the assign operation.
+	err = p.shardStore.AssignShards(ctx, p.namespaceCfg.Name, namespaceState, p.election.Guard())
+	if err != nil {
+		return fmt.Errorf("assign shards: %w", err)
+	}
+
+	return nil
+}
+
+func (p *namespaceProcessor) findShardsToReassign(activeExecutors []string, namespaceState *store.NamespaceState) ([]string, map[string][]string) {
 	allShards := make(map[string]struct{})
 	for _, shardID := range getShards(p.namespaceCfg) {
 		allShards[strconv.FormatInt(shardID, 10)] = struct{}{}
 	}
 
-	shardsToReassign := make(map[string]struct{})
+	shardsToReassign := make([]string, 0)
 	currentAssignments := make(map[string][]string)
 
 	for _, executorID := range activeExecutors {
@@ -313,30 +334,33 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 				if isActive {
 					currentAssignments[executorID] = append(currentAssignments[executorID], shardID)
 				} else {
-					shardsToReassign[shardID] = struct{}{}
+					shardsToReassign = append(shardsToReassign, shardID)
 				}
 			}
 		}
 	}
 
 	for shardID := range allShards {
-		shardsToReassign[shardID] = struct{}{}
+		shardsToReassign = append(shardsToReassign, shardID)
 	}
+	return shardsToReassign, currentAssignments
+}
 
-	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumRebalancedShards, float64(len(shardsToReassign)))
-
+func (*namespaceProcessor) updateAssignments(shardsToReassign []string, activeExecutors []string, currentAssignments map[string][]string) (distributionChanged bool) {
 	if len(shardsToReassign) == 0 {
-		p.lastAppliedRevision = namespaceState.GlobalRevision
-		return nil
+		return false
 	}
 
 	i := rand.Intn(len(activeExecutors))
-	for shardID := range shardsToReassign {
+	for _, shardID := range shardsToReassign {
 		executorID := activeExecutors[i%len(activeExecutors)]
 		currentAssignments[executorID] = append(currentAssignments[executorID], shardID)
 		i++
 	}
+	return true
+}
 
+func (p *namespaceProcessor) addAssignmentsToNamespaceState(namespaceState *store.NamespaceState, currentAssignments map[string][]string) {
 	if namespaceState.Shards == nil {
 		namespaceState.Shards = make(map[string]store.ShardState)
 	}
@@ -358,17 +382,63 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 	}
 
 	namespaceState.ShardAssignments = newState
+}
 
-	p.logger.Info("Applying new shard distribution.")
-	// Use the leader guard for the assign operation.
-	err = p.shardStore.AssignShards(ctx, p.namespaceCfg.Name, namespaceState, p.election.Guard())
-	if err != nil {
-		return fmt.Errorf("assign shards: %w", err)
+func (*namespaceProcessor) getActiveExecutors(namespaceState *store.NamespaceState) []string {
+	var activeExecutors []string
+	for id, state := range namespaceState.Executors {
+		if state.Status == types.ExecutorStatusACTIVE {
+			activeExecutors = append(activeExecutors, id)
+		}
 	}
 
-	p.lastAppliedRevision = namespaceState.GlobalRevision
+	sort.Strings(activeExecutors)
+	return activeExecutors
+}
 
-	return nil
+func assignShardsToEmptyExecutors(currentAssignments map[string][]string) bool {
+	emptyExecutors := make([]string, 0)
+	executorsWithShards := make([]string, 0)
+	minShardsCurrentlyAssigned := 0
+
+	for executorID := range currentAssignments {
+		if len(currentAssignments[executorID]) == 0 {
+			emptyExecutors = append(emptyExecutors, executorID)
+		} else {
+			executorsWithShards = append(executorsWithShards, executorID)
+			if minShardsCurrentlyAssigned == 0 || len(currentAssignments[executorID]) < minShardsCurrentlyAssigned {
+				minShardsCurrentlyAssigned = len(currentAssignments[executorID])
+			}
+		}
+	}
+
+	// If there are no empty executors or no executors with shards, we don't need to do anything.
+	if len(emptyExecutors) == 0 || len(executorsWithShards) == 0 {
+		return false
+	}
+
+	// We calculate the number of shards to assign each of the empty executors. The idea is to assume all current executors have
+	// the same number of shards `minShardsCurrentlyAssigned`. We use the minimum so when steeling we don't have to worry about
+	// steeling more shards that the executors have.
+	// We then calculate the total number of assumed shards `minShardsCurrentlyAssigned * len(executorsWithShards)` and divide it by the
+	// number of current executors. This gives us the number of shards per executor, thus the number of shards to assign to each of the
+	// empty executors.
+	numShardsToAssignEmptyExecutors := minShardsCurrentlyAssigned * len(executorsWithShards) / len(currentAssignments)
+
+	stealRound := 0
+	for i := 0; i < numShardsToAssignEmptyExecutors; i++ {
+		for _, emptyExecutor := range emptyExecutors {
+			executorToSteelFrom := executorsWithShards[stealRound%len(executorsWithShards)]
+			stealRound++
+
+			stolenShard := currentAssignments[executorToSteelFrom][0]
+
+			currentAssignments[executorToSteelFrom] = currentAssignments[executorToSteelFrom][1:]
+			currentAssignments[emptyExecutor] = append(currentAssignments[emptyExecutor], stolenShard)
+		}
+	}
+
+	return true
 }
 
 func getShards(cfg config.Namespace) []int64 {

@@ -254,7 +254,6 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) Redirect(
 	return policy.withRedirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, call)
 }
 
-// TODO(active-active): Add unit tests for active-active domains covering all branches in activeClusterForActiveActiveDomainRequest
 func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	ctx context.Context,
 	domainEntry *cache.DomainCacheEntry,
@@ -367,7 +366,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActi
 		return policy.activeClusterInSameRegion(ctx, domainEntry, policy.currentClusterName)
 	}
 
-	lookupRes, err := policy.activeClusterManager.LookupWorkflow(ctx, domainEntry.GetInfo().Name, workflowExecution.WorkflowID, workflowExecution.RunID)
+	lookupRes, err := policy.activeClusterManager.LookupWorkflow(ctx, domainEntry.GetInfo().ID, workflowExecution.WorkflowID, workflowExecution.RunID)
 	if err != nil {
 		policy.logger.Error("Failed to lookup active cluster of workflow, using active cluster in the same region", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.WorkflowID(workflowExecution.WorkflowID), tag.WorkflowRunID(workflowExecution.RunID), tag.OperationName(apiName), tag.Error(err))
 		return policy.activeClusterInSameRegion(ctx, domainEntry, policy.currentClusterName)

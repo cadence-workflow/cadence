@@ -3,6 +3,7 @@ package process
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -395,4 +396,89 @@ func TestGetShards_Utility(t *testing.T) {
 	cfg = config.Namespace{Type: "other"}
 	shards = getShards(cfg)
 	assert.Nil(t, shards)
+}
+
+func TestAssignShardsToEmptyExecutors(t *testing.T) {
+	cases := []struct {
+		name                       string
+		inputAssignments           map[string][]string
+		expectedAssignments        map[string][]string
+		expectedDistributonChanged bool
+	}{
+		{
+			name:                       "no executors",
+			inputAssignments:           map[string][]string{},
+			expectedAssignments:        map[string][]string{},
+			expectedDistributonChanged: false,
+		},
+		{
+			name: "no empty executors",
+			inputAssignments: map[string][]string{
+				"exec-1": {"shard-1", "shard-2", "shard-3", "shard-4", "shard-5", "shard-6"},
+				"exec-2": {"shard-7", "shard-8"},
+			},
+			expectedAssignments: map[string][]string{
+				"exec-1": {"shard-1", "shard-2", "shard-3", "shard-4", "shard-5", "shard-6"},
+				"exec-2": {"shard-7", "shard-8"},
+			},
+			expectedDistributonChanged: false,
+		},
+		{
+			name: "empty executor",
+			inputAssignments: map[string][]string{
+				"exec-1": {"shard-1", "shard-2", "shard-3", "shard-4", "shard-5", "shard-6"},
+				"exec-2": {"shard-7", "shard-8", "shard-9", "shard-10"},
+				"exec-3": {},
+			},
+			expectedAssignments: map[string][]string{
+				"exec-1": {"shard-2", "shard-3", "shard-4", "shard-5", "shard-6"},
+				"exec-2": {"shard-8", "shard-9", "shard-10"},
+				"exec-3": {"shard-1", "shard-7"},
+			},
+			expectedDistributonChanged: true,
+		},
+		{
+			name:                       "all empty executors",
+			inputAssignments:           map[string][]string{"exec-1": {}, "exec-2": {}, "exec-3": {}},
+			expectedAssignments:        map[string][]string{"exec-1": {}, "exec-2": {}, "exec-3": {}},
+			expectedDistributonChanged: false,
+		},
+		{
+			name: "multiple empty executors",
+			inputAssignments: map[string][]string{
+				"exec-1": {"shard-1", "shard-2", "shard-3", "shard-4", "shard-5", "shard-6", "shard-7", "shard-8", "shard-9", "shard-10"},
+				"exec-2": {"shard-11", "shard-12", "shard-13", "shard-14", "shard-15", "shard-16", "shard-17"},
+				"exec-3": {"shard-18", "shard-19", "shard-20", "shard-21", "shard-22", "shard-23", "shard-24"},
+				"exec-4": {},
+				"exec-5": {},
+			},
+			expectedAssignments: map[string][]string{
+				"exec-1": {"shard-4", "shard-5", "shard-6", "shard-7", "shard-8", "shard-9", "shard-10"},
+				"exec-2": {"shard-14", "shard-15", "shard-16", "shard-17"},
+				"exec-3": {"shard-20", "shard-21", "shard-22", "shard-23", "shard-24"},
+				"exec-4": {"shard-1", "shard-18", "shard-12", "shard-3"},
+				"exec-5": {"shard-11", "shard-2", "shard-19", "shard-13"},
+			},
+			expectedDistributonChanged: true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			actualDistributionChanged := assignShardsToEmptyExecutors(c.inputAssignments)
+
+			// Sort the assignments, so the test is stable
+			sortAssignments(c.expectedAssignments)
+			sortAssignments(c.inputAssignments)
+
+			assert.Equal(t, c.expectedAssignments, c.inputAssignments)
+			assert.Equal(t, c.expectedDistributonChanged, actualDistributionChanged)
+		})
+	}
+}
+
+func sortAssignments(assignments map[string][]string) {
+	for _, assignment := range assignments {
+		slices.Sort(assignment)
+	}
 }

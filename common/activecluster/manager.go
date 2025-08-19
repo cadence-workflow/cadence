@@ -54,6 +54,9 @@ const (
 	LookupWorkflowOpName          = "LookupWorkflow"
 	LookupClusterOpName           = "LookupCluster"
 	DomainIDToDomainFnErrorReason = "domain_id_to_name_fn_error"
+
+	workflowPolicyCacheTTL      = 10 * time.Second
+	workflowPolicyCacheMaxCount = 1000
 )
 
 type managerImpl struct {
@@ -71,6 +74,7 @@ type managerImpl struct {
 	shouldNotifyChangeCallbacks int32
 	changeCallbacksLock         sync.Mutex
 	changeCallbacks             map[int]func(ChangeType)
+	workflowPolicyCache         cache.Cache
 }
 
 type ManagerOption func(*managerImpl)
@@ -106,6 +110,14 @@ func NewManager(
 		timeSrc:                  clock.NewRealTimeSource(),
 		executionManagerProvider: executionManagerProvider,
 		numShards:                numShards,
+		workflowPolicyCache: cache.New(&cache.Options{
+			TTL:           workflowPolicyCacheTTL,
+			MaxCount:      workflowPolicyCacheMaxCount,
+			ActivelyEvict: true,
+			Pin:           false,
+			MetricsScope:  metricsCl.Scope(metrics.ActiveClusterManagerWorkflowCacheScope),
+			Logger:        logger,
+		}),
 	}
 
 	for _, opt := range opts {
@@ -501,6 +513,19 @@ func (m *managerImpl) getExternalEntity(ctx context.Context, entityType, entityK
 }
 
 func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
+	// Check if the policy is already in the cache. create a key from domainID, wfID, rID
+	key := fmt.Sprintf("%s:%s:%s", domainID, wfID, rID)
+	cacheData := m.workflowPolicyCache.Get(key)
+	if cacheData != nil {
+		plcy, ok := cacheData.(*types.ActiveClusterSelectionPolicy)
+		if ok {
+			return plcy, nil
+		}
+
+		// This should never happen. If it does, we ignore cache value and get it from DB.
+		m.logger.Warn(fmt.Sprintf("Cache data for key %s is of type %T, not a *types.ActiveClusterSelectionPolicy", key, cacheData))
+	}
+
 	shardID := common.WorkflowIDToHistoryShard(wfID, m.numShards)
 	executionManager, err := m.executionManagerProvider.GetExecutionManager(shardID)
 	if err != nil {
@@ -518,6 +543,7 @@ func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, w
 		}
 	}
 
+	m.workflowPolicyCache.Put(key, plcy)
 	return plcy, nil
 }
 
