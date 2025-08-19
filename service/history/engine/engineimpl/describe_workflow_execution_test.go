@@ -29,272 +29,468 @@ import (
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/history/config"
 	historyConstants "github.com/uber/cadence/service/history/constants"
-	"github.com/uber/cadence/service/history/engine/testdata"
 	"github.com/uber/cadence/service/history/execution"
+	"github.com/uber/cadence/service/history/shard"
 )
 
 func TestDescribeWorkflowExecution(t *testing.T) {
+	testDomainUUID := uuid.New()
 	testCases := []struct {
-		name                string
-		expirationTimestamp *int64
+		name                      string
+		setupMocks                func(*execution.MockCache, *execution.MockContext, *execution.MockMutableState, *shard.MockContext, string)
+		enableCorruptionCheck     bool
+		expectError               bool
+		errorContains             string
 	}{
 		{
-			name:                "Success",
-			expirationTimestamp: common.Int64Ptr(2004),
+			name: "Success - happy path",
+			setupMocks: func(mockExecutionCache *execution.MockCache, mockContext *execution.MockContext, mockMutableState *execution.MockMutableState, mockShard *shard.MockContext, domainUUID string) {
+				wfExecution := types.WorkflowExecution{WorkflowID: "test-wf", RunID: "test-run"}
+				mockExecutionCache.EXPECT().GetOrCreateWorkflowExecution(gomock.Any(), domainUUID, wfExecution).Return(mockContext, func(error) {}, nil)
+				mockContext.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(mockMutableState, nil)
+
+				// Mock for checkForHistoryCorruptions (GetDomainEntry() call)
+				domainEntry := cache.NewLocalDomainCacheEntryForTest(
+					&persistence.DomainInfo{Name: "test-domain-name"},
+					&persistence.DomainConfig{},
+					"test-cluster",
+				)
+				mockMutableState.EXPECT().GetDomainEntry().Return(domainEntry)
+
+				// Mock for createDescribeWorkflowExecutionResponse
+				mockShard.EXPECT().GetDomainCache().Return(cache.NewMockDomainCache(gomock.NewController(t)))
+				mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					TaskList:                    "test-task-list",
+					WorkflowTimeout:             1800,
+					DecisionStartToCloseTimeout: 30,
+				})
+				mockMutableState.EXPECT().GetStartEvent(gomock.Any()).Return(&types.HistoryEvent{
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						FirstDecisionTaskBackoffSeconds: common.Int32Ptr(5),
+					},
+				}, nil)
+				mockMutableState.EXPECT().GetNextEventID().Return(int64(10))
+				mockMutableState.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{})
+				mockMutableState.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{})
+				mockMutableState.EXPECT().GetDomainEntry().Return(domainEntry)
+				mockMutableState.EXPECT().GetPendingDecision().Return(nil, false)
+			},
+			enableCorruptionCheck: false,
+			expectError:           false,
 		},
 		{
-			name:                "Success - activity retry without expiration timestamp",
-			expirationTimestamp: nil,
+			name: "Error - execution cache GetOrCreateWorkflowExecution fails",
+			setupMocks: func(mockExecutionCache *execution.MockCache, mockContext *execution.MockContext, mockMutableState *execution.MockMutableState, mockShard *shard.MockContext, domainUUID string) {
+				execution := types.WorkflowExecution{WorkflowID: "test-wf", RunID: "test-run"}
+				mockExecutionCache.EXPECT().GetOrCreateWorkflowExecution(gomock.Any(), domainUUID, execution).Return(nil, nil, &types.InternalServiceError{Message: "Cache error"})
+			},
+			enableCorruptionCheck: false,
+			expectError:           true,
+			errorContains:         "Cache error",
+		},
+		{
+			name: "Error - LoadWorkflowExecution fails",
+			setupMocks: func(mockExecutionCache *execution.MockCache, mockContext *execution.MockContext, mockMutableState *execution.MockMutableState, mockShard *shard.MockContext, domainUUID string) {
+				wfExecution := types.WorkflowExecution{WorkflowID: "test-wf", RunID: "test-run"}
+				mockExecutionCache.EXPECT().GetOrCreateWorkflowExecution(gomock.Any(), domainUUID, wfExecution).Return(mockContext, func(error) {}, nil)
+				mockContext.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(nil, &types.InternalServiceError{Message: "Load error"})
+			},
+			enableCorruptionCheck: false,
+			expectError:           true,
+			errorContains:         "Load error",
+		},
+		{
+			name: "Error - createDescribeWorkflowExecutionResponse fails",
+			setupMocks: func(mockExecutionCache *execution.MockCache, mockContext *execution.MockContext, mockMutableState *execution.MockMutableState, mockShard *shard.MockContext, domainUUID string) {
+				wfExecution := types.WorkflowExecution{WorkflowID: "test-wf", RunID: "test-run"}
+				mockExecutionCache.EXPECT().GetOrCreateWorkflowExecution(gomock.Any(), domainUUID, wfExecution).Return(mockContext, func(error) {}, nil)
+				mockContext.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(mockMutableState, nil)
+
+				// Mock for checkForHistoryCorruptions (GetDomainEntry() call)
+				domainEntry := cache.NewLocalDomainCacheEntryForTest(
+					&persistence.DomainInfo{Name: "test-domain-name"},
+					&persistence.DomainConfig{},
+					"test-cluster",
+				)
+				mockMutableState.EXPECT().GetDomainEntry().Return(domainEntry)
+
+				// Mock for createDescribeWorkflowExecutionResponse failure
+				mockShard.EXPECT().GetDomainCache().Return(cache.NewMockDomainCache(gomock.NewController(t)))
+				mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{})
+				mockMutableState.EXPECT().GetStartEvent(gomock.Any()).Return(nil, &types.InternalServiceError{Message: "Start event error"})
+			},
+			enableCorruptionCheck: false,
+			expectError:           true,
+			errorContains:         "Start event error",
+		},
+		{
+			name: "Error - history corruption detected (missing start event)",
+			setupMocks: func(mockExecutionCache *execution.MockCache, mockContext *execution.MockContext, mockMutableState *execution.MockMutableState, mockShard *shard.MockContext, domainUUID string) {
+				wfExecution := types.WorkflowExecution{WorkflowID: "test-wf", RunID: "test-run"}
+				mockExecutionCache.EXPECT().GetOrCreateWorkflowExecution(gomock.Any(), domainUUID, wfExecution).Return(mockContext, func(error) {}, nil)
+				mockContext.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(mockMutableState, nil)
+
+				// Mock for checkForHistoryCorruptions
+				domainEntry := cache.NewLocalDomainCacheEntryForTest(
+					&persistence.DomainInfo{Name: "test-domain-name"},
+					&persistence.DomainConfig{},
+					"test-cluster",
+				)
+				mockMutableState.EXPECT().GetDomainEntry().Return(domainEntry)
+
+				// This will trigger corruption detection
+				mockMutableState.EXPECT().GetStartEvent(gomock.Any()).Return(nil, execution.ErrMissingWorkflowStartEvent)
+
+				// Mock GetExecutionInfo() call for corruption marking
+				mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					WorkflowID:       "test-wf",
+					RunID:            "test-run",
+					WorkflowTypeName: "test-type",
+				})
+			},
+			enableCorruptionCheck: true,
+			expectError:           true,
+			errorContains:         "Workflow execution corrupted.",
+		},
+		{
+			name: "Error - history corruption check fails with non-start-event error",
+			setupMocks: func(mockExecutionCache *execution.MockCache, mockContext *execution.MockContext, mockMutableState *execution.MockMutableState, mockShard *shard.MockContext, domainUUID string) {
+				wfExecution := types.WorkflowExecution{WorkflowID: "test-wf", RunID: "test-run"}
+				mockExecutionCache.EXPECT().GetOrCreateWorkflowExecution(gomock.Any(), domainUUID, wfExecution).Return(mockContext, func(error) {}, nil)
+				mockContext.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(mockMutableState, nil)
+
+				// Mock for checkForHistoryCorruptions
+				domainEntry := cache.NewLocalDomainCacheEntryForTest(
+					&persistence.DomainInfo{Name: "test-domain-name"},
+					&persistence.DomainConfig{},
+					"test-cluster",
+				)
+				mockMutableState.EXPECT().GetDomainEntry().Return(domainEntry)
+
+				// This will trigger corruption check failure with different error
+				mockMutableState.EXPECT().GetStartEvent(gomock.Any()).Return(nil, &types.InternalServiceError{Message: "Database error"})
+
+				// Mock GetExecutionInfo() call for corruption marking
+				mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					WorkflowID:       "test-wf",
+					RunID:            "test-run",
+					WorkflowTypeName: "test-type",
+				})
+			},
+			enableCorruptionCheck: true,
+			expectError:           true,
+			errorContains:         "Database error",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-			childDomainID := "deleted-domain"
-			eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainName(historyConstants.TestDomainID).Return(historyConstants.TestDomainName, nil).AnyTimes()
-			eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainName(childDomainID).Return("", &types.EntityNotExistsError{}).AnyTimes()
-			execution := types.WorkflowExecution{
-				WorkflowID: historyConstants.TestWorkflowID,
-				RunID:      historyConstants.TestRunID,
-			}
-			parentWorkflowID := "parentWorkflowID"
-			parentRunID := "parentRunID"
-			taskList := "taskList"
-			executionStartToCloseTimeoutSeconds := int32(1335)
-			taskStartToCloseTimeoutSeconds := int32(1336)
-			initiatedID := int64(1337)
-			typeName := "type"
-			startTime := time.UnixMilli(1)
-			backOffTime := time.Second
-			executionTime := int64(startTime.Nanosecond()) + backOffTime.Nanoseconds()
-			historyLength := int64(10)
-			state := persistence.WorkflowStateCompleted
-			status := persistence.WorkflowCloseStatusCompleted
-			closeTime := common.Int64Ptr(1338)
-			isCron := true
-			autoResetPoints := &types.ResetPoints{Points: []*types.ResetPointInfo{
-				{
-					BinaryChecksum:           "idk",
-					RunID:                    "its a run I guess",
-					FirstDecisionCompletedID: 1,
-					CreatedTimeNano:          common.Int64Ptr(2),
-					ExpiringTimeNano:         common.Int64Ptr(3),
-					Resettable:               false,
-				},
-			}}
-			memoFields := map[string][]byte{
-				"foo": []byte("bar"),
-			}
-			searchAttributes := map[string][]byte{
-				"search": []byte("attribute"),
-			}
-			partitionConfig := map[string]string{
-				"lots of": "partitions",
-			}
-			lastUpdatedTime := time.UnixMilli(12345)
-			pendingDecisionScheduleID := int64(1000)
-			pendingDecisionScheduledTime := int64(1001)
-			pendingDecisionAttempt := int64(1002)
-			pendingDecisionOriginalScheduledTime := int64(1003)
-			pendingDecisionStartedID := int64(1004)
-			pendingDecisionStartedTimestamp := int64(1005)
-			activity1 := &types.PendingActivityInfo{
-				ActivityID: "1",
-				ActivityType: &types.ActivityType{
-					Name: "activity1Type",
-				},
-				State:                  types.PendingActivityStateStarted.Ptr(),
-				HeartbeatDetails:       []byte("boom boom"),
-				LastHeartbeatTimestamp: common.Int64Ptr(2000),
-				LastStartedTimestamp:   common.Int64Ptr(2001),
-				Attempt:                2002,
-				MaximumAttempts:        2003,
-				ExpirationTimestamp:    tc.expirationTimestamp,
-				LastFailureReason:      common.StringPtr("failure reason"),
-				StartedWorkerIdentity:  "StartedWorkerIdentity",
-				LastWorkerIdentity:     "LastWorkerIdentity",
-				LastFailureDetails:     []byte("failure details"),
-				ScheduleID:             1,
-			}
-			child1 := &types.PendingChildExecutionInfo{
-				Domain:            childDomainID,
-				WorkflowID:        "childWorkflowID",
-				RunID:             "childRunID",
-				WorkflowTypeName:  "childWorkflowTypeName",
-				InitiatedID:       3000,
-				ParentClosePolicy: types.ParentClosePolicyAbandon.Ptr(),
+			mockExecutionCache := execution.NewMockCache(ctrl)
+			mockContext := execution.NewMockContext(ctrl)
+			mockMutableState := execution.NewMockMutableState(ctrl)
+			mockShard := shard.NewMockContext(ctrl)
+
+			tc.setupMocks(mockExecutionCache, mockContext, mockMutableState, mockShard, testDomainUUID)
+
+			// Set up config with explicit corruption check setting
+			cfg := &config.Config{}
+			cfg.EnableHistoryCorruptionCheck = func(domain string) bool {
+				return tc.enableCorruptionCheck
 			}
 
-			var expirationTime time.Time
-			if tc.expirationTimestamp != nil {
-				expirationTime = time.Unix(0, *tc.expirationTimestamp)
+			engine := &historyEngineImpl{
+				executionCache: mockExecutionCache,
+				shard:          mockShard,
+				config:         cfg,
+				logger:         testlogger.New(t),
 			}
 
-			eft.ShardCtx.Resource.ExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{
-				State: &persistence.WorkflowMutableState{
-					ActivityInfos: map[int64]*persistence.ActivityInfo{
-						1: {
-							ScheduleID: activity1.ScheduleID,
-							ScheduledEvent: &types.HistoryEvent{
-								ID: 1,
-								ActivityTaskScheduledEventAttributes: &types.ActivityTaskScheduledEventAttributes{
-									ActivityType: activity1.ActivityType,
-								},
-							},
-							StartedID:                2,
-							StartedTime:              time.Unix(0, *activity1.LastStartedTimestamp),
-							DomainID:                 historyConstants.TestDomainID,
-							ActivityID:               activity1.ActivityID,
-							Details:                  activity1.HeartbeatDetails,
-							LastHeartBeatUpdatedTime: time.Unix(0, *activity1.LastHeartbeatTimestamp),
-							Attempt:                  activity1.Attempt,
-							StartedIdentity:          activity1.StartedWorkerIdentity,
-							TaskList:                 taskList,
-							HasRetryPolicy:           true,
-							ExpirationTime:           expirationTime,
-							MaximumAttempts:          activity1.MaximumAttempts,
-							LastFailureReason:        *activity1.LastFailureReason,
-							LastWorkerIdentity:       activity1.LastWorkerIdentity,
-							LastFailureDetails:       activity1.LastFailureDetails,
-						},
-					},
-					ChildExecutionInfos: map[int64]*persistence.ChildExecutionInfo{
-						2: {
-							InitiatedID:       child1.InitiatedID,
-							StartedWorkflowID: child1.WorkflowID,
-							StartedRunID:      child1.RunID,
-							DomainID:          childDomainID,
-							WorkflowTypeName:  child1.WorkflowTypeName,
-							ParentClosePolicy: *child1.ParentClosePolicy,
-						},
-					},
-					ExecutionInfo: &persistence.WorkflowExecutionInfo{
-						DomainID:               historyConstants.TestDomainID,
-						WorkflowID:             historyConstants.TestWorkflowID,
-						RunID:                  historyConstants.TestRunID,
-						FirstExecutionRunID:    "first",
-						ParentDomainID:         historyConstants.TestDomainID,
-						ParentWorkflowID:       parentWorkflowID,
-						ParentRunID:            parentRunID,
-						InitiatedID:            initiatedID,
-						CompletionEventBatchID: 1, // Just needs to be set
-						CompletionEvent: &types.HistoryEvent{
-							Timestamp: closeTime,
-						},
-						TaskList:                           taskList,
-						WorkflowTypeName:                   typeName,
-						WorkflowTimeout:                    executionStartToCloseTimeoutSeconds,
-						DecisionStartToCloseTimeout:        taskStartToCloseTimeoutSeconds,
-						State:                              state,
-						CloseStatus:                        status,
-						NextEventID:                        historyLength + 1,
-						StartTimestamp:                     startTime,
-						LastUpdatedTimestamp:               lastUpdatedTime,
-						DecisionScheduleID:                 pendingDecisionScheduleID,
-						DecisionStartedID:                  pendingDecisionStartedID,
-						DecisionAttempt:                    pendingDecisionAttempt,
-						DecisionStartedTimestamp:           pendingDecisionStartedTimestamp,
-						DecisionScheduledTimestamp:         pendingDecisionScheduledTime,
-						DecisionOriginalScheduledTimestamp: pendingDecisionOriginalScheduledTime,
-						AutoResetPoints:                    autoResetPoints,
-						Memo:                               memoFields,
-						SearchAttributes:                   searchAttributes,
-						PartitionConfig:                    partitionConfig,
-						CronSchedule:                       "yes we are cron",
-						IsCron:                             isCron,
-					},
-					ExecutionStats: &persistence.ExecutionStats{
-						HistorySize: historyLength,
-					},
-				},
-			}, nil).Once()
-			eft.ShardCtx.Resource.HistoryMgr.On("ReadHistoryBranch", mock.Anything, mock.Anything).Return(&persistence.ReadHistoryBranchResponse{
-				HistoryEvents: []*types.HistoryEvent{
-					{
-						ID: 1,
-						WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
-							FirstDecisionTaskBackoffSeconds: common.Int32Ptr(int32(backOffTime.Seconds())),
-						},
-					},
-				},
-				Size:             1,
-				LastFirstEventID: 1,
-			}, nil)
-
-			eft.Engine.Start()
-			result, err := eft.Engine.DescribeWorkflowExecution(ctx.Background(), &types.HistoryDescribeWorkflowExecutionRequest{
-				DomainUUID: historyConstants.TestDomainID,
+			result, err := engine.DescribeWorkflowExecution(ctx.Background(), &types.HistoryDescribeWorkflowExecutionRequest{
+				DomainUUID: testDomainUUID,
 				Request: &types.DescribeWorkflowExecutionRequest{
-					Domain:    "why do we even have this field?",
-					Execution: &execution,
+					Domain:    "test-domain-name",
+					Execution: &types.WorkflowExecution{WorkflowID: "test-wf", RunID: "test-run"},
 				},
 			})
-			eft.Engine.Stop()
-			assert.Equal(t, &types.DescribeWorkflowExecutionResponse{
-				ExecutionConfiguration: &types.WorkflowExecutionConfiguration{
-					TaskList: &types.TaskList{
-						Name: taskList,
+
+			if tc.expectError {
+				assert.Error(t, err)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+			}
+		})
+	}
+}
+
+func TestCreateDescribeWorkflowExecutionResponse(t *testing.T) {
+	testCases := []struct {
+		name          string
+		setupMocks    func(*execution.MockMutableState, *cache.MockDomainCache)
+		expectError   bool
+		errorContains string
+		verifyResult  func(*testing.T, *types.DescribeWorkflowExecutionResponse)
+	}{
+		{
+			name: "Success - no pending activities, children, or decisions",
+			setupMocks: func(mockMutableState *execution.MockMutableState, mockDomainCache *cache.MockDomainCache) {
+				executionInfo := &persistence.WorkflowExecutionInfo{
+					DomainID:                    "test-domain-id",
+					WorkflowID:                  "test-workflow-id",
+					RunID:                       "test-run-id",
+					TaskList:                    "test-task-list",
+					WorkflowTimeout:             1800,
+					DecisionStartToCloseTimeout: 30,
+					WorkflowTypeName:            "test-workflow-type",
+					State:                       persistence.WorkflowStateRunning,
+				}
+				startEvent := &types.HistoryEvent{
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						FirstDecisionTaskBackoffSeconds: common.Int32Ptr(5),
 					},
-					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(executionStartToCloseTimeoutSeconds),
-					TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(taskStartToCloseTimeoutSeconds),
-				},
-				WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
-					Execution: &execution,
-					Type: &types.WorkflowType{
-						Name: typeName,
+				}
+
+				mockMutableState.EXPECT().GetExecutionInfo().Return(executionInfo)
+				mockMutableState.EXPECT().GetStartEvent(gomock.Any()).Return(startEvent, nil)
+				mockMutableState.EXPECT().GetNextEventID().Return(int64(10))
+				mockMutableState.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{})
+				mockMutableState.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{})
+				mockMutableState.EXPECT().GetDomainEntry().Return(&cache.DomainCacheEntry{})
+				mockMutableState.EXPECT().GetPendingDecision().Return(nil, false)
+			},
+			expectError: false,
+			verifyResult: func(t *testing.T, result *types.DescribeWorkflowExecutionResponse) {
+				assert.NotNil(t, result.ExecutionConfiguration)
+				assert.NotNil(t, result.WorkflowExecutionInfo)
+				assert.Empty(t, result.PendingActivities)
+				assert.Empty(t, result.PendingChildren)
+				assert.Nil(t, result.PendingDecision)
+			},
+		},
+		{
+			name: "Error - GetStartEvent fails",
+			setupMocks: func(mockMutableState *execution.MockMutableState, mockDomainCache *cache.MockDomainCache) {
+				executionInfo := &persistence.WorkflowExecutionInfo{
+					TaskList:                    "test-task-list",
+					WorkflowTimeout:             1800,
+					DecisionStartToCloseTimeout: 30,
+				}
+
+				mockMutableState.EXPECT().GetExecutionInfo().Return(executionInfo)
+				mockMutableState.EXPECT().GetStartEvent(gomock.Any()).Return(nil, &types.InternalServiceError{Message: "Failed to get start event"})
+			},
+			expectError:   true,
+			errorContains: "Failed to get start event",
+		},
+		{
+			name: "Error - GetCompletionEvent fails for completed workflow",
+			setupMocks: func(mockMutableState *execution.MockMutableState, mockDomainCache *cache.MockDomainCache) {
+				executionInfo := &persistence.WorkflowExecutionInfo{
+					TaskList:                    "test-task-list",
+					WorkflowTimeout:             1800,
+					DecisionStartToCloseTimeout: 30,
+					State:                       persistence.WorkflowStateCompleted,
+				}
+				startEvent := &types.HistoryEvent{
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						FirstDecisionTaskBackoffSeconds: common.Int32Ptr(5),
 					},
-					StartTime:      common.Int64Ptr(startTime.UnixNano()),
-					CloseTime:      closeTime,
-					CloseStatus:    types.WorkflowExecutionCloseStatusCompleted.Ptr(),
-					HistoryLength:  historyLength,
-					ParentDomainID: &historyConstants.TestDomainID,
-					ParentDomain:   &historyConstants.TestDomainName,
-					ParentExecution: &types.WorkflowExecution{
-						WorkflowID: parentWorkflowID,
-						RunID:      parentRunID,
+				}
+
+				mockMutableState.EXPECT().GetExecutionInfo().Return(executionInfo)
+				mockMutableState.EXPECT().GetStartEvent(gomock.Any()).Return(startEvent, nil)
+				mockMutableState.EXPECT().GetCompletionEvent(gomock.Any()).Return(nil, &types.InternalServiceError{Message: "Failed to get completion event"})
+			},
+			expectError:   true,
+			errorContains: "Failed to get completion event",
+		},
+		{
+			name: "Error - mapWorkflowExecutionInfo fails due to domain cache error",
+			setupMocks: func(mockMutableState *execution.MockMutableState, mockDomainCache *cache.MockDomainCache) {
+				executionInfo := &persistence.WorkflowExecutionInfo{
+					TaskList:                    "test-task-list",
+					WorkflowTimeout:             1800,
+					DecisionStartToCloseTimeout: 30,
+					ParentDomainID:              "parent-domain-id",
+					ParentWorkflowID:            "parent-workflow-id",
+					ParentRunID:                 "parent-run-id",
+					State:                       persistence.WorkflowStateRunning,
+				}
+				startEvent := &types.HistoryEvent{
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						FirstDecisionTaskBackoffSeconds: common.Int32Ptr(5),
 					},
-					ParentInitiatedID: common.Int64Ptr(initiatedID),
-					ExecutionTime:     common.Int64Ptr(executionTime),
-					Memo:              &types.Memo{Fields: memoFields},
-					SearchAttributes:  &types.SearchAttributes{IndexedFields: searchAttributes},
-					AutoResetPoints:   autoResetPoints,
-					TaskList: &types.TaskList{
-						Name: taskList,
-						Kind: types.TaskListKindNormal.Ptr(),
+				}
+
+				mockMutableState.EXPECT().GetExecutionInfo().Return(executionInfo)
+				mockMutableState.EXPECT().GetStartEvent(gomock.Any()).Return(startEvent, nil)
+				mockMutableState.EXPECT().GetNextEventID().Return(int64(10))
+				mockDomainCache.EXPECT().GetDomainName("parent-domain-id").Return("", &types.InternalServiceError{Message: "Domain cache error"})
+			},
+			expectError:   true,
+			errorContains: "Domain cache error",
+		},
+		{
+			name: "Error - GetActivityScheduledEvent fails",
+			setupMocks: func(mockMutableState *execution.MockMutableState, mockDomainCache *cache.MockDomainCache) {
+				executionInfo := &persistence.WorkflowExecutionInfo{
+					TaskList:                    "test-task-list",
+					WorkflowTimeout:             1800,
+					DecisionStartToCloseTimeout: 30,
+					State:                       persistence.WorkflowStateRunning,
+				}
+				startEvent := &types.HistoryEvent{
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						FirstDecisionTaskBackoffSeconds: common.Int32Ptr(5),
 					},
-					IsCron:                       isCron,
-					UpdateTime:                   common.Int64Ptr(lastUpdatedTime.UnixNano()),
-					PartitionConfig:              partitionConfig,
-					CronOverlapPolicy:            &historyConstants.CronSkip,
-					ActiveClusterSelectionPolicy: nil,
-				},
-				PendingActivities: []*types.PendingActivityInfo{
-					activity1,
-				},
-				PendingChildren: []*types.PendingChildExecutionInfo{
-					child1,
-				},
-				PendingDecision: &types.PendingDecisionInfo{
-					State:                      types.PendingDecisionStateStarted.Ptr(),
-					ScheduledTimestamp:         common.Int64Ptr(pendingDecisionScheduledTime),
-					StartedTimestamp:           common.Int64Ptr(pendingDecisionStartedTimestamp),
-					Attempt:                    pendingDecisionAttempt,
-					OriginalScheduledTimestamp: common.Int64Ptr(pendingDecisionOriginalScheduledTime),
-					ScheduleID:                 pendingDecisionScheduleID,
-				},
-			}, result)
-			assert.Nil(t, err)
+				}
+				activityInfo := &persistence.ActivityInfo{
+					ScheduleID: 123,
+					ActivityID: "test-activity",
+				}
+
+				mockMutableState.EXPECT().GetExecutionInfo().Return(executionInfo)
+				mockMutableState.EXPECT().GetStartEvent(gomock.Any()).Return(startEvent, nil)
+				mockMutableState.EXPECT().GetNextEventID().Return(int64(10))
+				mockMutableState.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{123: activityInfo})
+				mockMutableState.EXPECT().GetActivityScheduledEvent(gomock.Any(), int64(123)).Return(nil, &types.InternalServiceError{Message: "Failed to get activity scheduled event"})
+			},
+			expectError:   true,
+			errorContains: "Failed to get activity scheduled event",
+		},
+		{
+			name: "Error - mapPendingChildExecutionInfo fails",
+			setupMocks: func(mockMutableState *execution.MockMutableState, mockDomainCache *cache.MockDomainCache) {
+				executionInfo := &persistence.WorkflowExecutionInfo{
+					TaskList:                    "test-task-list",
+					WorkflowTimeout:             1800,
+					DecisionStartToCloseTimeout: 30,
+					State:                       persistence.WorkflowStateRunning,
+				}
+				startEvent := &types.HistoryEvent{
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						FirstDecisionTaskBackoffSeconds: common.Int32Ptr(5),
+					},
+				}
+				childExecutionInfo := &persistence.ChildExecutionInfo{
+					InitiatedID:       456,
+					DomainID:          "child-domain-id",
+					StartedWorkflowID: "child-workflow-id",
+					StartedRunID:      "child-run-id",
+					WorkflowTypeName:  "child-workflow-type",
+				}
+				domainEntry := &cache.DomainCacheEntry{}
+
+				mockMutableState.EXPECT().GetExecutionInfo().Return(executionInfo)
+				mockMutableState.EXPECT().GetStartEvent(gomock.Any()).Return(startEvent, nil)
+				mockMutableState.EXPECT().GetNextEventID().Return(int64(10))
+				mockMutableState.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{})
+				mockMutableState.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{456: childExecutionInfo})
+				mockMutableState.EXPECT().GetDomainEntry().Return(domainEntry)
+				mockDomainCache.EXPECT().GetDomainName("child-domain-id").Return("", &types.InternalServiceError{Message: "Child domain cache error"})
+			},
+			expectError:   true,
+			errorContains: "Child domain cache error",
+		},
+		{
+			name: "Success - with pending activities, children, and decision",
+			setupMocks: func(mockMutableState *execution.MockMutableState, mockDomainCache *cache.MockDomainCache) {
+				executionInfo := &persistence.WorkflowExecutionInfo{
+					TaskList:                    "test-task-list",
+					WorkflowTimeout:             1800,
+					DecisionStartToCloseTimeout: 30,
+					State:                       persistence.WorkflowStateRunning,
+				}
+				startEvent := &types.HistoryEvent{
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						FirstDecisionTaskBackoffSeconds: common.Int32Ptr(5),
+					},
+				}
+				activityInfo := &persistence.ActivityInfo{
+					ScheduleID: 123,
+					ActivityID: "test-activity",
+				}
+				scheduledEvent := &types.HistoryEvent{
+					ActivityTaskScheduledEventAttributes: &types.ActivityTaskScheduledEventAttributes{
+						ActivityType: &types.ActivityType{Name: "test-activity-type"},
+					},
+				}
+				childExecutionInfo := &persistence.ChildExecutionInfo{
+					InitiatedID:       456,
+					DomainID:          "child-domain-id",
+					StartedWorkflowID: "child-workflow-id",
+					StartedRunID:      "child-run-id",
+					WorkflowTypeName:  "child-workflow-type",
+				}
+				domainEntry := &cache.DomainCacheEntry{}
+				decisionInfo := &execution.DecisionInfo{
+					ScheduleID: 789,
+					StartedID:  constants.EmptyEventID,
+				}
+
+				mockMutableState.EXPECT().GetExecutionInfo().Return(executionInfo)
+				mockMutableState.EXPECT().GetStartEvent(gomock.Any()).Return(startEvent, nil)
+				mockMutableState.EXPECT().GetNextEventID().Return(int64(10))
+				mockMutableState.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{123: activityInfo})
+				mockMutableState.EXPECT().GetActivityScheduledEvent(gomock.Any(), int64(123)).Return(scheduledEvent, nil)
+				mockMutableState.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{456: childExecutionInfo})
+				mockMutableState.EXPECT().GetDomainEntry().Return(domainEntry)
+				mockDomainCache.EXPECT().GetDomainName("child-domain-id").Return("child-domain-name", nil)
+				mockMutableState.EXPECT().GetPendingDecision().Return(decisionInfo, true)
+			},
+			expectError: false,
+			verifyResult: func(t *testing.T, result *types.DescribeWorkflowExecutionResponse) {
+				assert.NotNil(t, result.ExecutionConfiguration)
+				assert.NotNil(t, result.WorkflowExecutionInfo)
+				assert.Len(t, result.PendingActivities, 1)
+				assert.Len(t, result.PendingChildren, 1)
+				assert.NotNil(t, result.PendingDecision)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockMutableState := execution.NewMockMutableState(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+			tc.setupMocks(mockMutableState, mockDomainCache)
+
+			result, err := createDescribeWorkflowExecutionResponse(ctx.Background(), mockMutableState, mockDomainCache)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				if tc.verifyResult != nil {
+					tc.verifyResult(t, result)
+				}
+			}
 		})
 	}
 }
@@ -960,5 +1156,3 @@ func TestValidateDescribeWorkflowExecutionRequest(t *testing.T) {
 		})
 	}
 }
-
-// TODO: Test createDescribeWorkflowExecutionResponse - particularly the error cases
