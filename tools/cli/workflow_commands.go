@@ -322,7 +322,7 @@ func startWorkflowHelper(c *cli.Context, shouldPrintProgress bool) error {
 		resp, err := serviceClient.StartWorkflowExecution(tcCtx, startRequest)
 
 		if err != nil {
-			return commoncli.Problem("Failed to create workflow.", err)
+			return commoncli.Problem("Failed to create workflow.", replaceRetryPropertiesInErrorMessageWithRetryArguments(err))
 		}
 		fmt.Printf("Started Workflow Id: %s, run Id: %s\n", wid, resp.GetRunID())
 		return nil
@@ -337,7 +337,7 @@ func startWorkflowHelper(c *cli.Context, shouldPrintProgress bool) error {
 		resp, err := serviceClient.StartWorkflowExecution(tcCtx, startRequest)
 
 		if err != nil {
-			return commoncli.Problem("Failed to run workflow.", err)
+			return commoncli.Problem("Failed to run workflow.", replaceRetryPropertiesInErrorMessageWithRetryArguments(err))
 		}
 
 		// print execution summary
@@ -364,6 +364,21 @@ func startWorkflowHelper(c *cli.Context, shouldPrintProgress bool) error {
 		return runFn()
 	}
 	return startFn()
+}
+
+func replaceRetryPropertiesInErrorMessageWithRetryArguments(err error) error {
+	errMsg := err.Error()
+	// This mapping is built based on the implementation of the function constructStartWorkflowRequest
+	for requestField, cliFlag := range map[string]string{
+		"InitialIntervalInSeconds":    FlagRetryInterval,
+		"BackoffCoefficient":          FlagRetryBackoff,
+		"MaximumIntervalInSeconds":    FlagRetryMaxInterval,
+		"MaximumAttempts":             FlagRetryAttempts,
+		"ExpirationIntervalInSeconds": FlagRetryExpiration,
+	} {
+		errMsg = strings.ReplaceAll(errMsg, requestField, cliFlag)
+	}
+	return errors.New(errMsg)
 }
 
 func constructStartWorkflowRequest(c *cli.Context) (*types.StartWorkflowExecutionRequest, error) {
