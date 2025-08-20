@@ -141,7 +141,7 @@ func createDescribeWorkflowExecutionResponse(ctx context.Context, mutableState e
 
 func mapWorkflowExecutionConfiguration(executionInfo *persistence.WorkflowExecutionInfo) (*types.WorkflowExecutionConfiguration, error) {
 	return &types.WorkflowExecutionConfiguration{
-		TaskList:                            &types.TaskList{Name: executionInfo.TaskList},
+		TaskList:                            mapDecisionInfoToTaskList(executionInfo),
 		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(executionInfo.WorkflowTimeout),
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(executionInfo.DecisionStartToCloseTimeout),
 	}, nil
@@ -153,10 +153,7 @@ func mapWorkflowExecutionInfo(executionInfo *persistence.WorkflowExecutionInfo, 
 			WorkflowID: executionInfo.WorkflowID,
 			RunID:      executionInfo.RunID,
 		},
-		TaskList: &types.TaskList{
-			Name: executionInfo.TaskList,
-			Kind: executionInfo.TaskListKind.Ptr(),
-		},
+		TaskList:                     mapDecisionInfoToTaskList(executionInfo),
 		Type:                         &types.WorkflowType{Name: executionInfo.WorkflowTypeName},
 		StartTime:                    common.Int64Ptr(executionInfo.StartTimestamp.UnixNano()),
 		HistoryLength:                historyLength,
@@ -284,4 +281,11 @@ func mapPendingDecisionInfo(di *execution.DecisionInfo) *types.PendingDecisionIn
 		pendingDecision.StartedTimestamp = common.Int64Ptr(di.StartedTimestamp)
 	}
 	return pendingDecision
+}
+
+func mapDecisionInfoToTaskList(executionInfo *persistence.WorkflowExecutionInfo) *types.TaskList {
+	return &types.TaskList{
+		Name: executionInfo.TaskList,
+		Kind: executionInfo.TaskListKind.Ptr(),
+	}
 }
