@@ -26,7 +26,7 @@ Try out the sample recipes for [Go](https://github.com/cadence-workflow/cadence-
 
 3. Visit UI
 
-Visit http://localhost:8080 to check workflow histories and detailed traces.
+Visit http://localhost:8088 to check workflow histories and detailed traces.
 
 
 ### Client Libraries
