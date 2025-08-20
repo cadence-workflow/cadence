@@ -381,6 +381,14 @@ func shouldFailover(domain *types.DescribeDomainResponse, sourceCluster string) 
 	if !domain.GetIsGlobalDomain() {
 		return false
 	}
+
+	// TODO(active-active): Remove this check once failover drills are supported for
+	// active-active workflows
+	if domain.ReplicationConfiguration.ActiveClusters != nil &&
+		len(domain.ReplicationConfiguration.ActiveClusters.ActiveClustersByRegion) > 0 {
+		return false
+	}
+
 	currentActiveCluster := domain.ReplicationConfiguration.GetActiveClusterName()
 	isDomainTarget := currentActiveCluster == sourceCluster
 	return isDomainTarget && isDomainFailoverManagedByCadence(domain)

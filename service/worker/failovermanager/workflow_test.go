@@ -320,6 +320,48 @@ func (s *failoverWorkflowTestSuite) TestShouldFailover() {
 			sourceCluster: "c2",
 			expected:      true,
 		},
+		{
+			domain: &types.DescribeDomainResponse{
+				IsGlobalDomain: true,
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c2",
+					Clusters:          clusters,
+					ActiveClusters: &types.ActiveClusters{
+						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+							"c1": {
+								ActiveClusterName: "c1",
+							},
+						},
+					},
+				},
+				DomainInfo: &types.DomainInfo{
+					Data: map[string]string{
+						constants.DomainDataKeyForManagedFailover: "true",
+					},
+				},
+			},
+			sourceCluster: "c2",
+			expected:      false,
+		},
+		{
+			domain: &types.DescribeDomainResponse{
+				IsGlobalDomain: true,
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c2",
+					Clusters:          clusters,
+					ActiveClusters: &types.ActiveClusters{
+						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
+					},
+				},
+				DomainInfo: &types.DomainInfo{
+					Data: map[string]string{
+						constants.DomainDataKeyForManagedFailover: "true",
+					},
+				},
+			},
+			sourceCluster: "c2",
+			expected:      true,
+		},
 	}
 	for _, t := range tests {
 		s.Equal(t.expected, shouldFailover(t.domain, t.sourceCluster))
