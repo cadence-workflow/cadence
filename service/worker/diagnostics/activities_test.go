@@ -50,7 +50,22 @@ const (
 
 func Test__identifyIssues(t *testing.T) {
 	dwtest := testDiagnosticWorkflow(t, testWorkflowExecutionHistoryResponseWithMultipleIssues())
-	expectedResult := make([]invariant.InvariantCheckResult, 0)
+	actMetadata := failure.FailureIssuesMetadata{
+		Identity:            "localhost",
+		ActivityType:        "test-activity",
+		ActivityScheduledID: 2,
+		ActivityStartedID:   3,
+	}
+	actMetadataInBytes, err := json.Marshal(actMetadata)
+	require.NoError(t, err)
+	expectedResult := []invariant.InvariantCheckResult{
+		{
+			IssueID:       0,
+			InvariantType: failure.ActivityFailed.String(),
+			Reason:        failure.GenericError.String(),
+			Metadata:      actMetadataInBytes,
+		},
+	}
 	for i := 0; i < 10; i++ {
 		retryMetadata := retry.RetryMetadata{
 			EventID: int64(i),
@@ -208,6 +223,17 @@ func testWorkflowExecutionHistoryResponseWithMultipleIssues() *types.GetWorkflow
 		})
 
 	}
+	testResponse.History.Events = append(testResponse.History.Events, &types.HistoryEvent{
+		ID:        4,
+		Timestamp: common.Int64Ptr(testTimeStamp),
+		ActivityTaskFailedEventAttributes: &types.ActivityTaskFailedEventAttributes{
+			Reason:           common.StringPtr("cadenceInternal:Generic"),
+			Details:          []byte("test-activity-failure"),
+			Identity:         "localhost",
+			ScheduledEventID: 2,
+			StartedEventID:   3,
+		},
+	})
 
 	return testResponse
 }
