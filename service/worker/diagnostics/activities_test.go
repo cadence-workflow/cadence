@@ -66,7 +66,7 @@ func Test__identifyIssues(t *testing.T) {
 			Metadata:      actMetadataInBytes,
 		},
 	}
-	for i := 0; i < 10; i++ {
+	for i := 0; i < _maxIssuesPerInvariant; i++ {
 		retryMetadata := retry.RetryMetadata{
 			EventID: int64(i),
 			RetryPolicy: &types.RetryPolicy{
