@@ -2182,20 +2182,30 @@ func Test_StartWorkflowHelper_WithRetryArguments(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.expectedErrorMessage, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockServiceClient := frontend.NewMockClient(ctrl)
-			mockServiceClient.EXPECT().
-				StartWorkflowExecution(gomock.Any(), gomock.Any()).
-				Return(nil, errors.New(tc.respondedErrorMessage))
-
-			app := NewCliApp(&clientFactoryMock{serverFrontendClient: mockServiceClient})
-			ctx := clitest.NewCLIContext(t, app, tc.cliArguments...)
-			err := startWorkflowHelper(ctx, false)
-			assert.ErrorContains(t, err, tc.expectedErrorMessage)
+			testStartWorkflowHelper(t, false, tc)
+			testStartWorkflowHelper(t, true, tc)
 		})
 	}
+}
+
+func testStartWorkflowHelper(t *testing.T, shouldPrintProgress bool, tc struct {
+	cliArguments          []clitest.CliArgument
+	respondedErrorMessage string
+	expectedErrorMessage  string
+}) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockServiceClient := frontend.NewMockClient(ctrl)
+	mockServiceClient.EXPECT().
+		StartWorkflowExecution(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New(tc.respondedErrorMessage))
+
+	app := NewCliApp(&clientFactoryMock{serverFrontendClient: mockServiceClient})
+
+	ctx := clitest.NewCLIContext(t, app, tc.cliArguments...)
+	err := startWorkflowHelper(ctx, shouldPrintProgress)
+	assert.ErrorContains(t, err, tc.expectedErrorMessage)
 }
 
 func Test_ProcessSearchAttr(t *testing.T) {
