@@ -46,6 +46,7 @@ func NewAPIHandler(
 		policy,
 		resource.GetLogger(),
 		resource.GetActiveClusterManager(),
+		resource.GetMetricsClient(),
 	)
 
 	return &clusterRedirectionHandler{
