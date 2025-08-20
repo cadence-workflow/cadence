@@ -313,6 +313,10 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 			})
 			if err != nil {
 				q.logger.Error("Failed to range complete history tasks", tag.Error(err))
+				q.updateQueueStateTimer.Reset(backoff.JitDuration(
+					q.options.UpdateAckInterval(),
+					q.options.UpdateAckIntervalJitterCoefficient(),
+				))
 				return
 			}
 			if !persistence.HasMoreRowsToDelete(resp.TasksCompleted, pageSize) {
