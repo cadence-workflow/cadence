@@ -412,11 +412,11 @@ func getFlagsForStart() []cli.Flag {
 		},
 		&cli.IntFlag{
 			Name:  FlagRetryExpiration,
-			Usage: "Optional retry expiration in seconds. If set workflow will be retried for the specified period of time.",
+			Usage: "Optional retry expiration in seconds. If set workflow will be retried for the specified period of time. retry_attempts and retry_expiration must not both be 0.",
 		},
 		&cli.IntFlag{
 			Name:  FlagRetryAttempts,
-			Usage: "Optional retry attempts. If set workflow will be retried the specified amount of times.",
+			Usage: "Optional retry attempts. If set workflow will be retried the specified amount of times. retry_attempts and retry_expiration must not both be 0.",
 		},
 		&cli.IntFlag{
 			Name:  FlagRetryInterval,
@@ -426,7 +426,7 @@ func getFlagsForStart() []cli.Flag {
 		&cli.Float64Flag{
 			Name:  FlagRetryBackoff,
 			Value: 1.0,
-			Usage: "Optional retry backoff coeficient. Must be or equal or greater than 1.",
+			Usage: "Optional retry backoff coefficient. Must be or equal or greater than 1.",
 		},
 		&cli.IntFlag{
 			Name:  FlagRetryMaxInterval,
