@@ -88,6 +88,7 @@ func Test__identifyIssues(t *testing.T) {
 		RunID:      "abc",
 	}})
 	require.NoError(t, err)
+	require.Equal(t, _maxIssuesPerInvariant+1, len(result)) // retry invariant returns 10 issues (capped) , failure invariant returns 1 issue
 	require.Equal(t, expectedResult, result)
 }
 
