@@ -505,24 +505,24 @@ func TestMapWorkflowExecutionConfiguration(t *testing.T) {
 			name: "Success - all fields present",
 			executionInfo: &persistence.WorkflowExecutionInfo{
 				TaskList:                    "test-task-list",
+				TaskListKind:                types.TaskListKindSticky,
 				WorkflowTimeout:             1800,
 				DecisionStartToCloseTimeout: 30,
 			},
 			expected: &types.WorkflowExecutionConfiguration{
-				TaskList:                            &types.TaskList{Name: "test-task-list"},
+				TaskList: &types.TaskList{
+					Name: "test-task-list",
+					Kind: types.TaskListKindSticky.Ptr(),
+				},
 				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(1800),
 				TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(30),
 			},
 		},
 		{
-			name: "Success - zero values",
-			executionInfo: &persistence.WorkflowExecutionInfo{
-				TaskList:                    "",
-				WorkflowTimeout:             0,
-				DecisionStartToCloseTimeout: 0,
-			},
+			name:          "Success - zero values",
+			executionInfo: &persistence.WorkflowExecutionInfo{},
 			expected: &types.WorkflowExecutionConfiguration{
-				TaskList:                            &types.TaskList{Name: ""},
+				TaskList:                            &types.TaskList{Name: "", Kind: types.TaskListKindNormal.Ptr()},
 				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(0),
 				TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(0),
 			},
