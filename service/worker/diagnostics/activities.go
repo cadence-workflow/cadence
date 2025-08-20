@@ -65,7 +65,8 @@ func (w *dw) identifyIssues(ctx context.Context, info identifyIssuesParams) ([]i
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, issues...)
+		topIssues := pickTopIssues(issues)
+		result = append(result, topIssues...)
 	}
 
 	return result, nil
@@ -153,4 +154,12 @@ func (w *dw) emit(ctx context.Context, info analytics.WfDiagnosticsUsageData, cl
 		Producer: producer,
 	})
 	return emitter.EmitUsageData(ctx, info)
+}
+
+// pickTopIssues limits the number of issues to 10 to avoid overwhelming the result with too many issues.
+func pickTopIssues(issues []invariant.InvariantCheckResult) []invariant.InvariantCheckResult {
+	if len(issues) > 10 {
+		return issues[:10]
+	}
+	return issues
 }
