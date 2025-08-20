@@ -2088,6 +2088,116 @@ func Test_NewTest(t *testing.T) {
 
 }
 
+func Test_ReplaceRetryPropertiesInErrorMessageWithRetryArguments(t *testing.T) {
+	tests := []struct {
+		originalErrorMessage string
+		expectedErrorMessage string
+	}{
+		{
+			"InitialIntervalInSeconds must be greater than 0 on retry policy.",
+			"retry_interval must be greater than 0 on retry policy.",
+		},
+		{
+			"BackoffCoefficient cannot be less than 1 on retry policy.",
+			"retry_backoff cannot be less than 1 on retry policy.",
+		},
+		{
+			"MaximumIntervalInSeconds cannot be less than 0 on retry policy.",
+			"retry_max_interval cannot be less than 0 on retry policy.",
+		},
+		{
+			"MaximumIntervalInSeconds cannot be less than InitialIntervalInSeconds on retry policy.",
+			"retry_max_interval cannot be less than retry_interval on retry policy.",
+		},
+		{
+			"MaximumAttempts cannot be less than 0 on retry policy.",
+			"retry_attempts cannot be less than 0 on retry policy.",
+		},
+		{
+			"ExpirationIntervalInSeconds cannot be less than 0 on retry policy.",
+			"retry_expiration cannot be less than 0 on retry policy.",
+		},
+		{
+			"MaximumAttempts and ExpirationIntervalInSeconds are both 0. At least one of them must be specified.",
+			"retry_attempts and retry_expiration are both 0. At least one of them must be specified.",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.expectedErrorMessage, func(t *testing.T) {
+			err := replaceRetryPropertiesInErrorMessageWithRetryArguments(errors.New(tc.originalErrorMessage))
+			assert.Equal(t, tc.expectedErrorMessage, err.Error())
+		})
+	}
+}
+
+func Test_StartWorkflowHelper_WithRetryArguments(t *testing.T) {
+	requiredArguments := []clitest.CliArgument{
+		clitest.StringArgument(FlagDomain, "test-domain"),
+		clitest.StringArgument(FlagTaskList, "test-tasklist"),
+		clitest.StringArgument(FlagWorkflowType, "test-workflow-type"),
+		clitest.StringArgument(FlagExecutionTimeout, "10"),
+	}
+	tests := []struct {
+		cliArguments          []clitest.CliArgument
+		respondedErrorMessage string
+		expectedErrorMessage  string
+	}{
+		{
+			append(requiredArguments, clitest.IntArgument(FlagRetryAttempts, 1), clitest.IntArgument(FlagRetryInterval, -1)),
+			"InitialIntervalInSeconds must be greater than 0 on retry policy.",
+			"retry_interval must be greater than 0 on retry policy.",
+		},
+		{
+			append(requiredArguments, clitest.IntArgument(FlagRetryAttempts, 1), clitest.IntArgument(FlagRetryBackoff, -1)),
+			"BackoffCoefficient cannot be less than 1 on retry policy.",
+			"retry_backoff cannot be less than 1 on retry policy.",
+		},
+		{
+			append(requiredArguments, clitest.IntArgument(FlagRetryAttempts, 1), clitest.IntArgument(FlagRetryMaxInterval, -1)),
+			"MaximumIntervalInSeconds cannot be less than 0 on retry policy.",
+			"retry_max_interval cannot be less than 0 on retry policy.",
+		},
+		{
+			append(requiredArguments, clitest.IntArgument(FlagRetryAttempts, 1), clitest.IntArgument(FlagRetryInterval, 2), clitest.IntArgument(FlagRetryMaxInterval, -1)),
+			"MaximumIntervalInSeconds cannot be less than InitialIntervalInSeconds on retry policy.",
+			"retry_max_interval cannot be less than retry_interval on retry policy.",
+		},
+		{
+			append(requiredArguments, clitest.IntArgument(FlagRetryAttempts, -1)),
+			"MaximumAttempts cannot be less than 0 on retry policy.",
+			"retry_attempts cannot be less than 0 on retry policy.",
+		},
+		{
+			append(requiredArguments, clitest.IntArgument(FlagRetryAttempts, 1), clitest.IntArgument(FlagRetryExpiration, -1)),
+			"ExpirationIntervalInSeconds cannot be less than 0 on retry policy.",
+			"retry_expiration cannot be less than 0 on retry policy.",
+		},
+		{
+			append(requiredArguments, clitest.IntArgument(FlagRetryAttempts, 0), clitest.IntArgument(FlagRetryBackoff, 0)),
+			"MaximumAttempts and ExpirationIntervalInSeconds are both 0. At least one of them must be specified.",
+			"retry_attempts and retry_expiration are both 0. At least one of them must be specified.",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.expectedErrorMessage, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockServiceClient := frontend.NewMockClient(ctrl)
+			mockServiceClient.EXPECT().
+				StartWorkflowExecution(gomock.Any(), gomock.Any()).
+				Return(nil, errors.New(tc.respondedErrorMessage))
+
+			app := NewCliApp(&clientFactoryMock{serverFrontendClient: mockServiceClient})
+			ctx := clitest.NewCLIContext(t, app, tc.cliArguments...)
+			err := startWorkflowHelper(ctx, false)
+			assert.ErrorContains(t, err, tc.expectedErrorMessage)
+		})
+	}
+}
+
 func Test_ProcessSearchAttr(t *testing.T) {
 	app := NewCliApp(&clientFactoryMock{})
 	set := flag.NewFlagSet("test", 0)
