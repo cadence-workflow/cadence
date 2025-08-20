@@ -452,6 +452,122 @@ func (s *failoverWorkflowTestSuite) TestGetDomainsActivity_WithTargetDomains() {
 	s.Equal([]string{"d1"}, result) // d3 filtered out because not managed
 }
 
+func (s *failoverWorkflowTestSuite) TestGetDomainsActivity_FiltersActiveActiveDomains() {
+	env, mockResource := s.prepareTestActivityEnv()
+
+	domains := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			{
+				DomainInfo: &types.DomainInfo{
+					Name: "regular-domain",
+					Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"},
+				},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c1",
+					Clusters:          clusters,
+				},
+				IsGlobalDomain: true,
+			},
+			{
+				DomainInfo: &types.DomainInfo{
+					Name: "active-active-domain",
+					Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"},
+				},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c1",
+					Clusters:          clusters,
+					ActiveClusters: &types.ActiveClusters{
+						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+							"region1": {
+								ActiveClusterName: "c1",
+							},
+						},
+					},
+				},
+				IsGlobalDomain: true,
+			},
+			{
+				DomainInfo: &types.DomainInfo{
+					Name: "empty-active-clusters-domain",
+					Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"},
+				},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c1",
+					Clusters:          clusters,
+					ActiveClusters: &types.ActiveClusters{
+						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
+					},
+				},
+				IsGlobalDomain: true,
+			},
+		},
+	}
+	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+
+	params := &GetDomainsActivityParams{
+		TargetCluster: "c2",
+		SourceCluster: "c1",
+	}
+	actResult, err := env.ExecuteActivity(getDomainsActivityName, params)
+	s.NoError(err)
+	var result []string
+	s.NoError(actResult.Get(&result))
+	s.Equal([]string{"regular-domain", "empty-active-clusters-domain"}, result)
+}
+
+func (s *failoverWorkflowTestSuite) TestGetDomainsActivity_WithActiveActiveTargetDomains() {
+	env, mockResource := s.prepareTestActivityEnv()
+
+	domains := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			{
+				DomainInfo: &types.DomainInfo{
+					Name: "regular-domain",
+					Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"},
+				},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c1",
+					Clusters:          clusters,
+				},
+				IsGlobalDomain: true,
+			},
+			{
+				DomainInfo: &types.DomainInfo{
+					Name: "active-active-domain",
+					Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"},
+				},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c1",
+					Clusters:          clusters,
+					ActiveClusters: &types.ActiveClusters{
+						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+							"region1": {
+								ActiveClusterName: "c1",
+							},
+							"region2": {
+								ActiveClusterName: "c2",
+							},
+						},
+					},
+				},
+				IsGlobalDomain: true,
+			},
+		},
+	}
+	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+
+	params := &GetDomainsActivityParams{
+		TargetCluster: "c2",
+		SourceCluster: "c1",
+		Domains:       []string{"regular-domain", "active-active-domain"},
+	}
+	actResult, err := env.ExecuteActivity(getDomainsActivityName, params)
+	s.NoError(err)
+	var result []string
+	s.NoError(actResult.Get(&result))
+	s.Equal([]string{"regular-domain"}, result)
+}
+
 func (s *failoverWorkflowTestSuite) TestFailoverActivity_ForceFailover_Success() {
 	env, mockResource := s.prepareTestActivityEnv()
 
