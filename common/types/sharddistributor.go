@@ -24,6 +24,8 @@ package types
 
 import "fmt"
 
+//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus -json -output sharddistributor_statuses_enumer_generated.go
+
 type GetShardOwnerRequest struct {
 	ShardKey  string
 	Namespace string
@@ -108,6 +110,8 @@ func (v *ExecutorHeartbeatRequest) GetShardStatusReports() (o map[string]*ShardS
 	return
 }
 
+// ExecutorStatus is persisted to the DB with a string value mapping.
+// Beware - if we want to change the name - it should be backward compatible and should be done in two steps.
 type ExecutorStatus int32
 
 const (
@@ -136,6 +140,8 @@ func (v *ShardStatusReport) GetShardLoad() (o float64) {
 	return
 }
 
+// ShardStatus is ppersisted to the DB with a string value mapping.
+// Beware - if we want to change the name - it should be backward compatible and should be done in two steps.
 type ShardStatus int32
 
 const (
@@ -165,6 +171,8 @@ func (v *ShardAssignment) GetStatus() (o AssignmentStatus) {
 	return
 }
 
+// AssignmentStatus is persisted to the DB with a string value mapping.
+// Beware - if we want to change the name - it should be backward compatible and should be done in two steps.
 type AssignmentStatus int32
 
 const (

@@ -73,6 +73,7 @@ var (
 	taskListDecisionTypeTag           = metrics.TaskListTypeTag("decision")
 	IsolationLeakCauseError           = metrics.IsolationLeakCause("error")
 	IsolationLeakCauseGroupDrained    = metrics.IsolationLeakCause("group_drained")
+	IsolationLeakCauseGroupUnknown    = metrics.IsolationLeakCause("group_unknown")
 	IsolationLeakCauseNoRecentPollers = metrics.IsolationLeakCause("no_recent_pollers")
 	IsolationLeakCausePartitionChange = metrics.IsolationLeakCause("partition_change")
 	IsolationLeakCauseExpired         = metrics.IsolationLeakCause("expired")
@@ -110,6 +111,7 @@ type (
 		clusterMetadata cluster.Metadata
 		domainCache     cache.DomainCache
 		isolationState  isolationgroup.State
+		isolationGroups []string
 		logger          log.Logger
 		scope           metrics.Scope
 		timeSource      clock.TimeSource
@@ -167,6 +169,11 @@ func NewManager(
 	scope := common.NewPerTaskListScope(domainName, taskList.GetName(), taskListKind, metricsClient, metrics.MatchingTaskListMgrScope).
 		Tagged(getTaskListTypeTag(taskList.GetType()))
 	db := newTaskListDB(taskManager, taskList.GetDomainID(), domainName, taskList.GetName(), taskList.GetType(), int(taskListKind), logger)
+	var isolationGroups []string
+	if taskListKind != types.TaskListKindSticky && taskListConfig.EnableTasklistIsolation() {
+		isolationGroups = slices.Clone(cfg.AllIsolationGroups())
+		slices.Sort(isolationGroups)
+	}
 
 	tlMgr := &taskListManagerImpl{
 		createTime:      createTime,
@@ -174,6 +181,7 @@ func NewManager(
 		domainCache:     domainCache,
 		clusterMetadata: clusterMetadata,
 		isolationState:  isolationState,
+		isolationGroups: isolationGroups,
 		taskListID:      taskList,
 		taskListKind:    taskListKind,
 		logger:          logger.WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskList.GetType())),
@@ -216,10 +224,7 @@ func NewManager(
 			Tagged(getTaskListTypeTag(taskList.GetType()))
 		tlMgr.adaptiveScaler = NewAdaptiveScaler(taskList, tlMgr, taskListConfig, timeSource, tlMgr.logger, adaptiveScalerScope, matchingClient, baseEvent)
 	}
-	var isolationGroups []string
-	if tlMgr.isIsolationMatcherEnabled() {
-		isolationGroups = cfg.AllIsolationGroups()
-	}
+
 	var fwdr Forwarder
 	if tlMgr.isFowardingAllowed(taskList, taskListKind) {
 		fwdr = newForwarder(&taskListConfig.ForwarderConfig, taskList, taskListKind, matchingClient, scope)
@@ -900,6 +905,10 @@ func (c *taskListManagerImpl) getIsolationGroupForTask(ctx context.Context, task
 		c.scope.Tagged(metrics.IsolationGroupTag(group), IsolationLeakCauseGroupDrained).IncCounter(metrics.TaskIsolationLeakPerTaskList)
 		return defaultTaskBufferIsolationGroup, noIsolationTimeout
 	}
+	if _, ok := slices.BinarySearch(c.isolationGroups, group); !ok {
+		c.scope.Tagged(metrics.IsolationGroupTag(group), IsolationLeakCauseGroupUnknown).IncCounter(metrics.TaskIsolationLeakPerTaskList)
+		return defaultTaskBufferIsolationGroup, noIsolationTimeout
+	}
 	if !c.pollers.HasPollerFromIsolationGroupAfter(group, c.timeSource.Now().Add(-1*c.config.TaskIsolationPollerWindow())) {
 		c.scope.Tagged(metrics.IsolationGroupTag(group), IsolationLeakCauseNoRecentPollers).IncCounter(metrics.TaskIsolationLeakPerTaskList)
 		return defaultTaskBufferIsolationGroup, noIsolationTimeout
@@ -917,7 +926,7 @@ func (c *taskListManagerImpl) getIsolationGroupForTask(ctx context.Context, task
 		if taskLatency < (totalTaskIsolationDuration - minimumIsolationDuration) {
 			taskIsolationDuration = totalTaskIsolationDuration - taskLatency
 		} else {
-			c.logger.Info("Leaking task due to taskIsolationDuration expired", tag.IsolationGroup(group), tag.IsolationDuration(taskIsolationDuration), tag.TaskLatency(taskLatency))
+			c.logger.Debug("Leaking task due to taskIsolationDuration expired", tag.IsolationGroup(group), tag.IsolationDuration(taskIsolationDuration), tag.TaskLatency(taskLatency))
 			c.scope.Tagged(metrics.IsolationGroupTag(group), IsolationLeakCauseExpired).IncCounter(metrics.TaskIsolationLeakPerTaskList)
 			return defaultTaskBufferIsolationGroup, noIsolationTimeout
 		}

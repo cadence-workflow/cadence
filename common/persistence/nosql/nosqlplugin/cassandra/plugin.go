@@ -69,7 +69,7 @@ func (p *plugin) CreateAdminDB(cfg *config.NoSQL, logger log.Logger, dc *persist
 	return p.doCreateDB(cfg, logger, dc)
 }
 
-func (p *plugin) doCreateDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (*cdb, error) {
+func (p *plugin) doCreateDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (*CDB, error) {
 	gocqlConfig, err := toGoCqlConfig(cfg)
 	if err != nil {
 		return nil, err
@@ -78,7 +78,7 @@ func (p *plugin) doCreateDB(cfg *config.NoSQL, logger log.Logger, dc *persistenc
 	if err != nil {
 		return nil, err
 	}
-	db := newCassandraDBFromSession(cfg, session, logger, dc)
+	db := NewCassandraDBFromSession(cfg, session, logger, dc)
 	return db, nil
 }
 

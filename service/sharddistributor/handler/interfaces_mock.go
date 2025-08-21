@@ -95,3 +95,42 @@ func (mr *MockHandlerMockRecorder) Stop() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockHandler)(nil).Stop))
 }
+
+// MockExecutor is a mock of Executor interface.
+type MockExecutor struct {
+	ctrl     *gomock.Controller
+	recorder *MockExecutorMockRecorder
+	isgomock struct{}
+}
+
+// MockExecutorMockRecorder is the mock recorder for MockExecutor.
+type MockExecutorMockRecorder struct {
+	mock *MockExecutor
+}
+
+// NewMockExecutor creates a new mock instance.
+func NewMockExecutor(ctrl *gomock.Controller) *MockExecutor {
+	mock := &MockExecutor{ctrl: ctrl}
+	mock.recorder = &MockExecutorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
+	return m.recorder
+}
+
+// Heartbeat mocks base method.
+func (m *MockExecutor) Heartbeat(arg0 context.Context, arg1 *types.ExecutorHeartbeatRequest) (*types.ExecutorHeartbeatResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Heartbeat", arg0, arg1)
+	ret0, _ := ret[0].(*types.ExecutorHeartbeatResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Heartbeat indicates an expected call of Heartbeat.
+func (mr *MockExecutorMockRecorder) Heartbeat(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Heartbeat", reflect.TypeOf((*MockExecutor)(nil).Heartbeat), arg0, arg1)
+}

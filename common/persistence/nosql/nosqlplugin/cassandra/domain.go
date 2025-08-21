@@ -43,7 +43,7 @@ const (
 // Insert a new record to domain
 // return types.DomainAlreadyExistsError error if failed or already exists
 // Must return ConditionFailure error if other condition doesn't match
-func (db *cdb) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) error {
+func (db *CDB) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) error {
 	timeStamp := row.CurrentTimeStamp
 	query := db.session.Query(templateCreateDomainQuery, row.Info.ID, row.Info.Name, timeStamp).WithContext(ctx)
 	applied, err := query.MapScanCAS(make(map[string]interface{}))
@@ -147,7 +147,7 @@ func (db *cdb) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) err
 	return nil
 }
 
-func (db *cdb) updateMetadataBatch(
+func (db *CDB) updateMetadataBatch(
 	batch gocql.Batch,
 	notificationVersion int64,
 ) {
@@ -166,7 +166,7 @@ func (db *cdb) updateMetadataBatch(
 }
 
 // Update domain
-func (db *cdb) UpdateDomain(ctx context.Context, row *nosqlplugin.DomainRow) error {
+func (db *CDB) UpdateDomain(ctx context.Context, row *nosqlplugin.DomainRow) error {
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	failoverEndTime := emptyFailoverEndTime
 	if row.FailoverEndTime != nil {
@@ -232,7 +232,7 @@ func (db *cdb) UpdateDomain(ctx context.Context, row *nosqlplugin.DomainRow) err
 }
 
 // Get one domain data, either by domainID or domainName
-func (db *cdb) SelectDomain(
+func (db *CDB) SelectDomain(
 	ctx context.Context,
 	domainID *string,
 	domainName *string,
@@ -344,7 +344,7 @@ func (db *cdb) SelectDomain(
 }
 
 // Get all domain data
-func (db *cdb) SelectAllDomains(
+func (db *CDB) SelectAllDomains(
 	ctx context.Context,
 	pageSize int,
 	pageToken []byte,
@@ -452,7 +452,7 @@ func (db *cdb) SelectAllDomains(
 }
 
 // Delete a domain, either by domainID or domainName
-func (db *cdb) DeleteDomain(ctx context.Context, domainID *string, domainName *string) error {
+func (db *CDB) DeleteDomain(ctx context.Context, domainID *string, domainName *string) error {
 	if domainName == nil && domainID == nil {
 		return fmt.Errorf("must provide either domainID or domainName")
 	}
@@ -484,7 +484,7 @@ func (db *cdb) DeleteDomain(ctx context.Context, domainID *string, domainName *s
 	return db.deleteDomain(ctx, *domainName, *domainID)
 }
 
-func (db *cdb) SelectDomainMetadata(ctx context.Context) (int64, error) {
+func (db *CDB) SelectDomainMetadata(ctx context.Context) (int64, error) {
 	var notificationVersion int64
 	query := db.session.Query(templateGetMetadataQueryV2, constDomainPartition, domainMetadataRecordName).WithContext(ctx)
 	err := query.Scan(&notificationVersion)
@@ -500,7 +500,7 @@ func (db *cdb) SelectDomainMetadata(ctx context.Context) (int64, error) {
 	return notificationVersion, nil
 }
 
-func (db *cdb) deleteDomain(ctx context.Context, name, ID string) error {
+func (db *CDB) deleteDomain(ctx context.Context, name, ID string) error {
 	query := db.session.Query(templateDeleteDomainByNameQueryV2, constDomainPartition, name).WithContext(ctx)
 	if err := db.executeWithConsistencyAll(query); err != nil {
 		return err

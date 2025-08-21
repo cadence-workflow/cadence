@@ -25,26 +25,24 @@ package handler
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/membership"
-	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/constants"
+	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
 func NewHandler(
 	logger log.Logger,
-	metricsClient metrics.Client,
-	matchingRing membership.SingleProvider,
-	historyRing membership.SingleProvider,
+	shardDistributionCfg config.ShardDistribution,
+	storage store.Store,
 ) Handler {
 	handler := &handlerImpl{
-		logger:        logger,
-		metricsClient: metricsClient,
-		matchingRing:  matchingRing,
-		historyRing:   historyRing,
+		logger:               logger,
+		shardDistributionCfg: shardDistributionCfg,
+		storage:              storage,
 	}
 
 	// prevent us from trying to serve requests before shard distributor is started and ready
@@ -53,13 +51,12 @@ func NewHandler(
 }
 
 type handlerImpl struct {
-	logger        log.Logger
-	metricsClient metrics.Client
-	peerProvider  membership.PeerProvider
-	startWG       sync.WaitGroup
+	logger log.Logger
 
-	matchingRing membership.SingleProvider
-	historyRing  membership.SingleProvider
+	startWG sync.WaitGroup
+
+	storage              store.Store
+	shardDistributionCfg config.ShardDistribution
 }
 
 func (h *handlerImpl) Start() {
@@ -79,23 +76,26 @@ func (h *handlerImpl) Health(ctx context.Context) (*types.HealthStatus, error) {
 func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShardOwnerRequest) (resp *types.GetShardOwnerResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
 
-	var owner string
-	var err error
-	switch request.GetNamespace() {
-	case constants.HistoryNamespace:
-		owner, err = h.historyRing.LookupRaw(request.GetShardKey())
-	case constants.MatchingNamespace:
-		owner, err = h.matchingRing.LookupRaw(request.GetShardKey())
-	default:
-		return nil, &types.NamespaceNotFoundError{Namespace: request.GetNamespace()}
+	if !h.shardDistributionCfg.Enabled {
+		return nil, fmt.Errorf("shard distributor disabled")
 	}
 
+	namespaceIdx := slices.IndexFunc(h.shardDistributionCfg.Namespaces, func(namespace config.Namespace) bool {
+		return namespace.Name == request.Namespace
+	})
+	if namespaceIdx == -1 {
+		return nil, &types.NamespaceNotFoundError{
+			Namespace: request.Namespace,
+		}
+	}
+
+	executorID, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
 	if err != nil {
-		return nil, fmt.Errorf("lookup owner in namespace %s %w", request.GetNamespace(), err)
+		return nil, fmt.Errorf("get shard owner: %w", err)
 	}
 
 	resp = &types.GetShardOwnerResponse{
-		Owner:     owner,
+		Owner:     executorID,
 		Namespace: request.Namespace,
 	}
 

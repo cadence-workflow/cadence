@@ -44,12 +44,14 @@ func (e *mutableStateBuilder) addWorkflowExecutionStartedEventForContinueAsNew(
 ) (*types.HistoryEvent, error) {
 
 	previousExecutionInfo := previousExecutionState.GetExecutionInfo()
-	taskList := previousExecutionInfo.TaskList
-	if attributes.TaskList != nil {
-		taskList = attributes.TaskList.GetName()
+	tl := &types.TaskList{
+		Name: previousExecutionInfo.TaskList,
+		Kind: previousExecutionInfo.TaskListKind.Ptr(),
 	}
-	tl := &types.TaskList{}
-	tl.Name = taskList
+	// ContinueAsNew can change the name, not the kind
+	if attributes.TaskList != nil {
+		tl.Name = attributes.TaskList.Name
+	}
 
 	workflowType := previousExecutionInfo.WorkflowTypeName
 	if attributes.WorkflowType != nil {

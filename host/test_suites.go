@@ -78,6 +78,8 @@ type (
 	TaskListIntegrationSuite struct {
 		*require.Assertions
 		*IntegrationBase
+
+		TaskListName string
 	}
 
 	TaskListIsolationIntegrationSuite struct {

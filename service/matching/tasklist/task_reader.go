@@ -200,6 +200,7 @@ func (tr *taskReader) getTasksPump() {
 	defer updateAckTimer.Stop()
 getTasksPumpLoop:
 	for {
+		tr.scope.UpdateGauge(metrics.TaskBacklogPerTaskListGauge, float64(tr.taskAckManager.GetBacklogCount()))
 		select {
 		case <-tr.cancelCtx.Done():
 			break getTasksPumpLoop
@@ -253,7 +254,6 @@ getTasksPumpLoop:
 				updateAckTimer.Reset(tr.config.UpdateAckInterval())
 			}
 		}
-		tr.scope.UpdateGauge(metrics.TaskBacklogPerTaskListGauge, float64(tr.taskAckManager.GetBacklogCount()))
 	}
 }
 
@@ -327,8 +327,12 @@ func (tr *taskReader) addSingleTaskToBuffer(task *persistence.TaskInfo) bool {
 	}
 	// Ignore the isolation duration as we're just putting it into a buffer to be dispatched later.
 	isolationGroup, _ := tr.getIsolationGroupForTask(tr.cancelCtx, task)
+	buffer, ok := tr.taskBuffers[isolationGroup]
+	if !ok {
+		buffer = tr.taskBuffers[defaultTaskBufferIsolationGroup]
+	}
 	select {
-	case tr.taskBuffers[isolationGroup] <- task:
+	case buffer <- task:
 		return true
 	case <-tr.cancelCtx.Done():
 		return false

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
@@ -59,6 +60,7 @@ func TestHeartBeartLoop(t *testing.T) {
 	// Create the executor
 	executor := &executorImpl[*MockShardProcessor]{
 		logger:                 log.NewNoop(),
+		metrics:                tally.NoopScope,
 		shardDistributorClient: mockShardDistributorClient,
 		shardProcessorFactory:  mockShardProcessorFactory,
 		namespace:              "test-namespace",
@@ -127,16 +129,11 @@ func TestHeartbeat(t *testing.T) {
 		shardDistributorClient: shardDistributorClient,
 		namespace:              "test-namespace",
 		executorID:             "test-executor-id",
+		metrics:                tally.NoopScope,
 	}
 
-	executor.managedProcessors.Store("test-shard-id1", &managedProcessor[*MockShardProcessor]{
-		processor: shardProcessorMock1,
-		state:     processorStateStarted,
-	})
-	executor.managedProcessors.Store("test-shard-id2", &managedProcessor[*MockShardProcessor]{
-		processor: shardProcessorMock2,
-		state:     processorStateStarted,
-	})
+	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
+	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
 
 	// Do the call to heartbeat
 	shardAssignments, err := executor.heartbeat(context.Background())
@@ -164,16 +161,11 @@ func TestHeartBeartLoop_ShardAssignmentChange(t *testing.T) {
 	executor := &executorImpl[*MockShardProcessor]{
 		logger:                log.NewNoop(),
 		shardProcessorFactory: shardProcessorFactory,
+		metrics:               tally.NoopScope,
 	}
 
-	executor.managedProcessors.Store("test-shard-id1", &managedProcessor[*MockShardProcessor]{
-		processor: shardProcessorMock1,
-		state:     processorStateStarted,
-	})
-	executor.managedProcessors.Store("test-shard-id2", &managedProcessor[*MockShardProcessor]{
-		processor: shardProcessorMock2,
-		state:     processorStateStarted,
-	})
+	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
+	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
 
 	// We expect to get a new assignment with shards 2 and 3 assigned to it
 	newAssignment := map[string]*types.ShardAssignment{

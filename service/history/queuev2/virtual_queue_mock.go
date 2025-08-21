@@ -11,6 +11,7 @@ package queuev2
 
 import (
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 )
@@ -39,6 +40,34 @@ func (m *MockVirtualQueue) EXPECT() *MockVirtualQueueMockRecorder {
 	return m.recorder
 }
 
+// AppendSlices mocks base method.
+func (m *MockVirtualQueue) AppendSlices(arg0 ...VirtualSlice) {
+	m.ctrl.T.Helper()
+	varargs := []any{}
+	for _, a := range arg0 {
+		varargs = append(varargs, a)
+	}
+	m.ctrl.Call(m, "AppendSlices", varargs...)
+}
+
+// AppendSlices indicates an expected call of AppendSlices.
+func (mr *MockVirtualQueueMockRecorder) AppendSlices(arg0 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendSlices", reflect.TypeOf((*MockVirtualQueue)(nil).AppendSlices), arg0...)
+}
+
+// ClearSlices mocks base method.
+func (m *MockVirtualQueue) ClearSlices(arg0 func(VirtualSlice) bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ClearSlices", arg0)
+}
+
+// ClearSlices indicates an expected call of ClearSlices.
+func (mr *MockVirtualQueueMockRecorder) ClearSlices(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearSlices", reflect.TypeOf((*MockVirtualQueue)(nil).ClearSlices), arg0)
+}
+
 // GetState mocks base method.
 func (m *MockVirtualQueue) GetState() []VirtualSliceState {
 	m.ctrl.T.Helper()
@@ -51,6 +80,18 @@ func (m *MockVirtualQueue) GetState() []VirtualSliceState {
 func (mr *MockVirtualQueueMockRecorder) GetState() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockVirtualQueue)(nil).GetState))
+}
+
+// IterateSlices mocks base method.
+func (m *MockVirtualQueue) IterateSlices(arg0 func(VirtualSlice)) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "IterateSlices", arg0)
+}
+
+// IterateSlices indicates an expected call of IterateSlices.
+func (mr *MockVirtualQueueMockRecorder) IterateSlices(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateSlices", reflect.TypeOf((*MockVirtualQueue)(nil).IterateSlices), arg0)
 }
 
 // MergeSlices mocks base method.
@@ -67,6 +108,30 @@ func (m *MockVirtualQueue) MergeSlices(arg0 ...VirtualSlice) {
 func (mr *MockVirtualQueueMockRecorder) MergeSlices(arg0 ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MergeSlices", reflect.TypeOf((*MockVirtualQueue)(nil).MergeSlices), arg0...)
+}
+
+// Pause mocks base method.
+func (m *MockVirtualQueue) Pause(arg0 time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Pause", arg0)
+}
+
+// Pause indicates an expected call of Pause.
+func (mr *MockVirtualQueueMockRecorder) Pause(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Pause", reflect.TypeOf((*MockVirtualQueue)(nil).Pause), arg0)
+}
+
+// SplitSlices mocks base method.
+func (m *MockVirtualQueue) SplitSlices(arg0 func(VirtualSlice) ([]VirtualSlice, bool)) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SplitSlices", arg0)
+}
+
+// SplitSlices indicates an expected call of SplitSlices.
+func (mr *MockVirtualQueueMockRecorder) SplitSlices(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SplitSlices", reflect.TypeOf((*MockVirtualQueue)(nil).SplitSlices), arg0)
 }
 
 // Start mocks base method.

@@ -73,6 +73,7 @@ func buildMembership(params buildMembershipParams) (buildMembershipResult, error
 	}
 
 	params.Lifecycle.Append(fx.StartStopHook(startResolver(resolver, params.RPCFactory), resolver.Stop))
+	params.Lifecycle.Append(fx.StopHook(params.RPCFactory.Stop))
 
 	return buildMembershipResult{
 		Rings:    rings,

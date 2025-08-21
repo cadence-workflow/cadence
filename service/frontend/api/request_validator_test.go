@@ -970,10 +970,26 @@ func TestValidateUpdateDomainRequest(t *testing.T) {
 			expectedError: "No permission to do this operation.",
 		},
 		{
-			name: "lockdown",
+			name: "lockdown rejects active-passive failover",
 			req: &types.UpdateDomainRequest{
 				Name:              "domain",
 				ActiveClusterName: common.Ptr("a"),
+			},
+			expectError:   true,
+			expectedError: "Domain is not accepting fail overs at this time due to lockdown.",
+		},
+		{
+			name: "lockdown rejects active-active failover",
+			req: &types.UpdateDomainRequest{
+				Name: "domain",
+				ActiveClusters: &types.ActiveClusters{
+					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+						"region0": {
+							ActiveClusterName: "cluster0",
+							FailoverVersion:   1,
+						},
+					},
+				},
 			},
 			expectError:   true,
 			expectedError: "Domain is not accepting fail overs at this time due to lockdown.",

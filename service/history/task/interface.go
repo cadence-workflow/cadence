@@ -117,16 +117,18 @@ type (
 )
 
 const (
-	// QueueTypeActiveTransfer is the queue type for active transfer queue processor
+	// QueueTypeActiveTransfer is the queue type for active transfer queue processor (TODO: remove this when history queue v1 is deprecated)
 	QueueTypeActiveTransfer QueueType = iota + 1
-	// QueueTypeStandbyTransfer is the queue type for standby transfer queue processor
+	// QueueTypeStandbyTransfer is the queue type for standby transfer queue processor (TODO: remove this when history queue v1 is deprecated)
 	QueueTypeStandbyTransfer
-	// QueueTypeActiveTimer is the queue type for active timer queue processor
+	// QueueTypeActiveTimer is the queue type for active timer queue processor (TODO: remove this when history queue v1 is deprecated)
 	QueueTypeActiveTimer
-	// QueueTypeStandbyTimer is the queue type for standby timer queue processor
+	// QueueTypeStandbyTimer is the queue type for standby timer queue processor (TODO: remove this when history queue v1 is deprecated)
 	QueueTypeStandbyTimer
 	// QueueTypeReplication is the queue type for replication queue processor
 	QueueTypeReplication
-	// QueueTypeCrossCluster is the queue type for cross cluster queue processor
-	QueueTypeCrossCluster
+	// QueueTypeTransfer is the queue type for transfer queue processor
+	QueueTypeTransfer
+	// QueueTypeTimer is the queue type for timer queue processor
+	QueueTypeTimer
 )

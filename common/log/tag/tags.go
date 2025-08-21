@@ -1207,7 +1207,16 @@ func PendingTaskCount(count int) Tag {
 	return newInt("pending-task-count", count)
 }
 
+// MaxTaskCount returns a tag for max task count
+func MaxTaskCount(count int) Tag {
+	return newInt("max-task-count", count)
+}
+
 // VirtualQueueID returns a tag for virtual queue id
 func VirtualQueueID(id int64) Tag {
 	return newInt64("virtual-queue-id", id)
+}
+
+func AlertType(alertType int) Tag {
+	return newInt("alert-type", alertType)
 }

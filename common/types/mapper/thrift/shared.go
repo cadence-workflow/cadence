@@ -1810,8 +1810,9 @@ func FromDescribeWorkflowExecutionRequest(t *types.DescribeWorkflowExecutionRequ
 		return nil
 	}
 	return &shared.DescribeWorkflowExecutionRequest{
-		Domain:    &t.Domain,
-		Execution: FromWorkflowExecution(t.Execution),
+		Domain:                &t.Domain,
+		Execution:             FromWorkflowExecution(t.Execution),
+		QueryConsistencyLevel: FromQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -1821,8 +1822,9 @@ func ToDescribeWorkflowExecutionRequest(t *shared.DescribeWorkflowExecutionReque
 		return nil
 	}
 	return &types.DescribeWorkflowExecutionRequest{
-		Domain:    t.GetDomain(),
-		Execution: ToWorkflowExecution(t.Execution),
+		Domain:                t.GetDomain(),
+		Execution:             ToWorkflowExecution(t.Execution),
+		QueryConsistencyLevel: ToQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -2616,6 +2618,7 @@ func FromGetWorkflowExecutionHistoryRequest(t *types.GetWorkflowExecutionHistory
 		WaitForNewEvent:        &t.WaitForNewEvent,
 		HistoryEventFilterType: FromHistoryEventFilterType(t.HistoryEventFilterType),
 		SkipArchival:           &t.SkipArchival,
+		QueryConsistencyLevel:  FromQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -2632,6 +2635,7 @@ func ToGetWorkflowExecutionHistoryRequest(t *shared.GetWorkflowExecutionHistoryR
 		WaitForNewEvent:        t.GetWaitForNewEvent(),
 		HistoryEventFilterType: ToHistoryEventFilterType(t.HistoryEventFilterType),
 		SkipArchival:           t.GetSkipArchival(),
+		QueryConsistencyLevel:  ToQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -6463,6 +6467,8 @@ func FromWorkflowExecutionContinuedAsNewEventAttributes(t *types.WorkflowExecuti
 		Header:                              FromHeader(t.Header),
 		Memo:                                FromMemo(t.Memo),
 		SearchAttributes:                    FromSearchAttributes(t.SearchAttributes),
+		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -6487,6 +6493,8 @@ func ToWorkflowExecutionContinuedAsNewEventAttributes(t *shared.WorkflowExecutio
 		Header:                              ToHeader(t.Header),
 		Memo:                                ToMemo(t.Memo),
 		SearchAttributes:                    ToSearchAttributes(t.SearchAttributes),
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -8432,6 +8440,7 @@ func FromVirtualSliceState(t *types.VirtualSliceState) *shared.VirtualSliceState
 	}
 	return &shared.VirtualSliceState{
 		TaskRange: FromTaskRange(t.TaskRange),
+		Predicate: FromPredicate(t.Predicate),
 	}
 }
 
@@ -8441,6 +8450,7 @@ func ToVirtualSliceState(t *shared.VirtualSliceState) *types.VirtualSliceState {
 	}
 	return &types.VirtualSliceState{
 		TaskRange: ToTaskRange(t.TaskRange),
+		Predicate: ToPredicate(t.Predicate),
 	}
 }
 

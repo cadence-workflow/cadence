@@ -3305,24 +3305,23 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateActivities() {
 	updatedStats := copyExecutionStats(state0.ExecutionStats)
 	updatedInfo.NextEventID = int64(5)
 	updatedInfo.LastProcessedEvent = int64(2)
-	currentTime := time.Now()
 	activityInfos := []*p.ActivityInfo{{
 		Version:                  7789,
 		ScheduleID:               1,
 		ScheduledEventBatchID:    1,
 		ScheduledEvent:           &types.HistoryEvent{ID: 1},
-		ScheduledTime:            currentTime,
+		ScheduledTime:            time.UnixMilli(1755030646000).UTC(),
 		ActivityID:               uuid.New(),
 		RequestID:                uuid.New(),
 		Details:                  []byte(uuid.New()),
 		StartedID:                2,
 		StartedEvent:             &types.HistoryEvent{ID: 2},
-		StartedTime:              currentTime,
+		StartedTime:              time.UnixMilli(1755030646001).UTC(),
 		ScheduleToCloseTimeout:   1,
 		ScheduleToStartTimeout:   2,
 		StartToCloseTimeout:      3,
 		HeartbeatTimeout:         4,
-		LastHeartBeatUpdatedTime: currentTime,
+		LastHeartBeatUpdatedTime: time.UnixMilli(1755030646002).UTC(),
 		TimerTaskStatus:          1,
 		CancelRequested:          true,
 		CancelRequestID:          math.MaxInt64,
@@ -3330,12 +3329,13 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateActivities() {
 		DomainID:                 domainID,
 		StartedIdentity:          uuid.New(),
 		TaskList:                 uuid.New(),
+		TaskListKind:             types.TaskListKindEphemeral,
 		HasRetryPolicy:           true,
 		InitialInterval:          math.MaxInt32,
 		MaximumInterval:          math.MaxInt32,
 		MaximumAttempts:          math.MaxInt32,
 		BackoffCoefficient:       5.55,
-		ExpirationTime:           currentTime,
+		ExpirationTime:           time.UnixMilli(1755030646003).UTC(),
 		NonRetriableErrors:       []string{"accessDenied", "badRequest"},
 		LastFailureReason:        "some random error",
 		LastWorkerIdentity:       uuid.New(),
@@ -3359,39 +3359,12 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateActivities() {
 	ai, ok := state.ActivityInfos[1]
 	s.True(ok)
 	s.NotNil(ai)
-	s.Equal(int64(7789), ai.Version)
-	s.Equal(int64(1), ai.ScheduleID)
-	s.Equal(int64(1), ai.ScheduledEventBatchID)
-	s.Equal(int64(1), ai.ScheduledEvent.ID)
-	s.EqualTimes(currentTime, ai.ScheduledTime)
-	s.Equal(activityInfos[0].ActivityID, ai.ActivityID)
-	s.Equal(activityInfos[0].RequestID, ai.RequestID)
-	s.Equal(activityInfos[0].Details, ai.Details)
-	s.Equal(int64(2), ai.StartedID)
-	s.Equal(int64(2), ai.StartedEvent.ID)
-	s.EqualTimes(currentTime, ai.StartedTime)
-	s.Equal(int32(1), ai.ScheduleToCloseTimeout)
-	s.Equal(int32(2), ai.ScheduleToStartTimeout)
-	s.Equal(int32(3), ai.StartToCloseTimeout)
-	s.Equal(int32(4), ai.HeartbeatTimeout)
-	s.EqualTimes(currentTime, ai.LastHeartBeatUpdatedTime)
-	s.Equal(int32(1), ai.TimerTaskStatus)
-	s.Equal(activityInfos[0].CancelRequested, ai.CancelRequested)
-	s.Equal(activityInfos[0].CancelRequestID, ai.CancelRequestID)
-	s.Equal(activityInfos[0].Attempt, ai.Attempt)
-	s.Equal(activityInfos[0].DomainID, ai.DomainID)
-	s.Equal(activityInfos[0].StartedIdentity, ai.StartedIdentity)
-	s.Equal(activityInfos[0].TaskList, ai.TaskList)
-	s.Equal(activityInfos[0].HasRetryPolicy, ai.HasRetryPolicy)
-	s.Equal(activityInfos[0].InitialInterval, ai.InitialInterval)
-	s.Equal(activityInfos[0].MaximumInterval, ai.MaximumInterval)
-	s.Equal(activityInfos[0].MaximumAttempts, ai.MaximumAttempts)
-	s.Equal(activityInfos[0].BackoffCoefficient, ai.BackoffCoefficient)
-	s.EqualTimes(activityInfos[0].ExpirationTime, ai.ExpirationTime)
-	s.Equal(activityInfos[0].NonRetriableErrors, ai.NonRetriableErrors)
-	s.Equal(activityInfos[0].LastFailureReason, ai.LastFailureReason)
-	s.Equal(activityInfos[0].LastWorkerIdentity, ai.LastWorkerIdentity)
-	s.Equal(activityInfos[0].LastFailureDetails, ai.LastFailureDetails)
+	// Various persistence layers are inconsistent with assigning the location value, so normalize them first
+	ai.ScheduledTime = ai.ScheduledTime.UTC()
+	ai.StartedTime = ai.StartedTime.UTC()
+	ai.LastHeartBeatUpdatedTime = ai.LastHeartBeatUpdatedTime.UTC()
+	ai.ExpirationTime = ai.ExpirationTime.UTC()
+	s.Equal(activityInfos[0], ai)
 
 	err2 = s.UpdateWorkflowExecution(ctx, updatedInfo, updatedStats, versionHistories, nil, nil, int64(5), nil, nil, []int64{1}, nil, nil)
 	s.NoError(err2)

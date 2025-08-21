@@ -43,6 +43,7 @@ jobs:
             docker compose -f docker/github_actions/docker-compose.yml run unit-test bash -c "make .just-build && make cover_profile && ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt"
 
       - name: Upload coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: go-unit-test-coverage
@@ -96,6 +97,7 @@ jobs:
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-integration-coverage
@@ -125,6 +127,7 @@ jobs:
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2 bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-running-history-queue-v2-integration-coverage
@@ -156,6 +159,7 @@ jobs:
             docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-and-elasticsearch-v7-integration-coverage
@@ -187,6 +191,7 @@ jobs:
             docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot bash -c "mkdir -p .build/coverage && make .just-build && go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v -coverprofile=.build/coverage/pinot.out github.com/uber/cadence/host"
 
       - name: Upload coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-pinot-integration-coverage
@@ -218,6 +223,7 @@ jobs:
             docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-and-opensearch-v2-integration-coverage
@@ -249,6 +255,7 @@ jobs:
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-cassandra bash -c "make .just-build && make cover_ndc_profile"
 
       - name: Upload coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-ndc-integration-coverage
@@ -280,6 +287,7 @@ jobs:
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: go-mysql-integration-coverage
@@ -311,6 +319,7 @@ jobs:
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql bash -c "make .just-build && make cover_ndc_profile"
       
       - name: Upload coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: go-mysql-ndc-integration-coverage
@@ -342,6 +351,7 @@ jobs:
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: go-postgres-integration-coverage
@@ -372,6 +382,7 @@ jobs:
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: go-sqlite-integration-coverage
@@ -402,6 +413,7 @@ jobs:
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-postgres bash -c "make .just-build && make cover_ndc_profile"
 
       - name: Upload coverage artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: go-postgres-ndc-integration-coverage

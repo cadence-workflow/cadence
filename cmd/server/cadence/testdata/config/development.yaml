@@ -1,9 +1,13 @@
-leaderElection:
+shardDistribution:
   enabled: true
   leaderStore:
     storageParams:
       endpoints:
       - ${ETCD_ENDPOINTS:"localhost:2379"}
+  store:
+    storageParams:
+      endpoints:
+        - ${ETCD_ENDPOINTS:"localhost:2379"}
   election:
     leaderPeriod: 30s
     maxRandomDelay: 5s

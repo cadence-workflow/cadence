@@ -30,7 +30,7 @@ import (
 
 // Insert message into queue, return error if failed or already exists
 // Must return ConditionFailure error if row already exists
-func (db *cdb) InsertIntoQueue(
+func (db *CDB) InsertIntoQueue(
 	ctx context.Context,
 	row *nosqlplugin.QueueMessageRow,
 ) error {
@@ -49,7 +49,7 @@ func (db *cdb) InsertIntoQueue(
 }
 
 // Get the ID of last message inserted into the queue
-func (db *cdb) SelectLastEnqueuedMessageID(
+func (db *CDB) SelectLastEnqueuedMessageID(
 	ctx context.Context,
 	queueType persistence.QueueType,
 ) (int64, error) {
@@ -64,7 +64,7 @@ func (db *cdb) SelectLastEnqueuedMessageID(
 }
 
 // Read queue messages starting from the exclusiveBeginMessageID
-func (db *cdb) SelectMessagesFrom(
+func (db *CDB) SelectMessagesFrom(
 	ctx context.Context,
 	queueType persistence.QueueType,
 	exclusiveBeginMessageID int64,
@@ -99,7 +99,7 @@ func (db *cdb) SelectMessagesFrom(
 }
 
 // Read queue message starting from exclusiveBeginMessageID int64, inclusiveEndMessageID int64
-func (db *cdb) SelectMessagesBetween(
+func (db *CDB) SelectMessagesBetween(
 	ctx context.Context,
 	request nosqlplugin.SelectMessagesBetweenRequest,
 ) (*nosqlplugin.SelectMessagesBetweenResponse, error) {
@@ -137,7 +137,7 @@ func (db *cdb) SelectMessagesBetween(
 }
 
 // Delete all messages before exclusiveBeginMessageID
-func (db *cdb) DeleteMessagesBefore(
+func (db *CDB) DeleteMessagesBefore(
 	ctx context.Context,
 	queueType persistence.QueueType,
 	exclusiveBeginMessageID int64,
@@ -147,7 +147,7 @@ func (db *cdb) DeleteMessagesBefore(
 }
 
 // Delete all messages in a range between exclusiveBeginMessageID and inclusiveEndMessageID
-func (db *cdb) DeleteMessagesInRange(
+func (db *CDB) DeleteMessagesInRange(
 	ctx context.Context,
 	queueType persistence.QueueType,
 	exclusiveBeginMessageID int64,
@@ -158,7 +158,7 @@ func (db *cdb) DeleteMessagesInRange(
 }
 
 // Delete one message
-func (db *cdb) DeleteMessage(
+func (db *CDB) DeleteMessage(
 	ctx context.Context,
 	queueType persistence.QueueType,
 	messageID int64,
@@ -168,7 +168,7 @@ func (db *cdb) DeleteMessage(
 }
 
 // Insert an empty metadata row, starting from a version
-func (db *cdb) InsertQueueMetadata(ctx context.Context, row nosqlplugin.QueueMetadataRow) error {
+func (db *CDB) InsertQueueMetadata(ctx context.Context, row nosqlplugin.QueueMetadataRow) error {
 	timeStamp := row.CurrentTimeStamp
 	clusterAckLevels := map[string]int64{}
 	query := db.session.Query(templateInsertQueueMetadataQuery, row.QueueType, clusterAckLevels, row.Version, timeStamp).WithContext(ctx)
@@ -187,7 +187,7 @@ func (db *cdb) InsertQueueMetadata(ctx context.Context, row nosqlplugin.QueueMet
 // **Conditionally** update a queue metadata row, if current version is matched(meaning current == row.Version - 1),
 // then the current version will increase by one when updating the metadata row
 // it should return ConditionFailure if the condition is not met
-func (db *cdb) UpdateQueueMetadataCas(
+func (db *CDB) UpdateQueueMetadataCas(
 	ctx context.Context,
 	row nosqlplugin.QueueMetadataRow,
 ) error {
@@ -215,7 +215,7 @@ func (db *cdb) UpdateQueueMetadataCas(
 }
 
 // Read a QueueMetadata
-func (db *cdb) SelectQueueMetadata(
+func (db *CDB) SelectQueueMetadata(
 	ctx context.Context,
 	queueType persistence.QueueType,
 ) (*nosqlplugin.QueueMetadataRow, error) {
@@ -238,7 +238,7 @@ func (db *cdb) SelectQueueMetadata(
 	}, nil
 }
 
-func (db *cdb) GetQueueSize(
+func (db *CDB) GetQueueSize(
 	ctx context.Context,
 	queueType persistence.QueueType,
 ) (int64, error) {

@@ -381,7 +381,6 @@ func (e *mutableStateBuilder) Load(
 		}
 	}
 
-	// TODO(active-active): Write unit tests to cover this
 	if e.domainEntry.GetReplicationConfig().IsActiveActive() {
 		res, err := e.shard.GetActiveClusterManager().LookupWorkflow(ctx, e.executionInfo.DomainID, e.executionInfo.WorkflowID, e.executionInfo.RunID)
 		if err != nil {
@@ -1272,6 +1271,28 @@ func (e *mutableStateBuilder) AddContinueAsNewEvent(
 		e.domainEntry,
 	).(*mutableStateBuilder)
 
+	// New mutable state initializes `currentVersion` to domain's failover version.
+	// This doesn't work for active-active domains.
+	// Set `currentVersion` of the new mutable state builder based on active cluster selection policy
+	// specified on continue-as-new attributes.
+	if e.domainEntry.GetReplicationConfig().IsActiveActive() {
+		res, err := e.shard.GetActiveClusterManager().LookupNewWorkflow(ctx, e.domainEntry.GetInfo().ID, attributes.ActiveClusterSelectionPolicy)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		newStateBuilder.logger.Debug("mutableStateBuilder.AddContinueAsNewEvent created newStateBuilder",
+			tag.WorkflowDomainID(e.domainEntry.GetInfo().ID),
+			tag.WorkflowID(e.executionInfo.WorkflowID),
+			tag.WorkflowRunID(e.executionInfo.RunID),
+			tag.WorkflowRunID(newRunID),
+			tag.CurrentVersion(e.currentVersion),
+			tag.Dynamic("activecluster-sel-policy", attributes.ActiveClusterSelectionPolicy),
+			tag.Dynamic("activecluster-lookup-res", res),
+		)
+		newStateBuilder.UpdateCurrentVersion(res.FailoverVersion, true)
+	}
+
 	if _, err = newStateBuilder.addWorkflowExecutionStartedEventForContinueAsNew(
 		parentInfo,
 		newExecution,
@@ -1396,7 +1417,6 @@ func (e *mutableStateBuilder) UpdateWorkflowStateCloseStatus(
 	return e.executionInfo.UpdateWorkflowStateCloseStatus(state, closeStatus)
 }
 
-// TODO(active-active): Write unit tests to cover StartTransaction. It doesn't have any tests.
 func (e *mutableStateBuilder) StartTransaction(
 	ctx context.Context,
 	domainEntry *cache.DomainCacheEntry,
@@ -1420,12 +1440,7 @@ func (e *mutableStateBuilder) StartTransaction(
 		return false, err
 	}
 
-	flushBeforeReady, err := e.startTransactionHandleDecisionFailover(incomingTaskVersion)
-	if err != nil {
-		return false, err
-	}
-
-	return flushBeforeReady, nil
+	return e.startTransactionHandleDecisionFailover(incomingTaskVersion)
 }
 
 func (e *mutableStateBuilder) CloseTransactionAsMutation(
@@ -1959,7 +1974,7 @@ func (e *mutableStateBuilder) startTransactionHandleDecisionFailover(
 	}
 	currentCluster := e.clusterMetadata.GetCurrentClusterName()
 
-	// there are 4 cases for version changes (based on version from domain cache)
+	// there are 5 cases for version changes (based on version from domain cache)
 	// NOTE: domain cache version change may occur after seeing events with higher version
 	//  meaning that the flush buffer logic in NDC branch manager should be kept.
 	//

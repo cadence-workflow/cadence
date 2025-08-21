@@ -95,6 +95,20 @@ func (mr *MockPendingTaskTrackerMockRecorder) GetPendingTaskCount() *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingTaskCount", reflect.TypeOf((*MockPendingTaskTracker)(nil).GetPendingTaskCount))
 }
 
+// GetPerDomainPendingTaskCount mocks base method.
+func (m *MockPendingTaskTracker) GetPerDomainPendingTaskCount() map[string]int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPerDomainPendingTaskCount")
+	ret0, _ := ret[0].(map[string]int)
+	return ret0
+}
+
+// GetPerDomainPendingTaskCount indicates an expected call of GetPerDomainPendingTaskCount.
+func (mr *MockPendingTaskTrackerMockRecorder) GetPerDomainPendingTaskCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPerDomainPendingTaskCount", reflect.TypeOf((*MockPendingTaskTracker)(nil).GetPerDomainPendingTaskCount))
+}
+
 // GetTasks mocks base method.
 func (m *MockPendingTaskTracker) GetTasks() map[persistence.HistoryTaskKey]task.Task {
 	m.ctrl.T.Helper()

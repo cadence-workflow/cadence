@@ -295,6 +295,8 @@ func parseActivityInfo(
 			info.Attempt = int32(v.(int))
 		case "task_list":
 			info.TaskList = v.(string)
+		case "task_list_kind":
+			info.TaskListKind = types.TaskListKind(int32(v.(int)))
 		case "started_identity":
 			info.StartedIdentity = v.(string)
 		case "has_retry_policy":

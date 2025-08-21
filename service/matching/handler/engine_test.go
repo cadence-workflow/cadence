@@ -49,10 +49,11 @@ import (
 
 func TestGetTaskListsByDomain(t *testing.T) {
 	testCases := []struct {
-		name      string
-		mockSetup func(*cache.MockDomainCache, map[tasklist.Identifier]*tasklist.MockManager, map[tasklist.Identifier]*tasklist.MockManager)
-		wantErr   bool
-		want      *types.GetTaskListsByDomainResponse
+		name           string
+		mockSetup      func(*cache.MockDomainCache, map[tasklist.Identifier]*tasklist.MockManager, map[tasklist.Identifier]*tasklist.MockManager)
+		returnAllKinds bool
+		wantErr        bool
+		want           *types.GetTaskListsByDomainResponse
 	}{
 		{
 			name: "domain cache error",
@@ -105,6 +106,63 @@ func TestGetTaskListsByDomain(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:           "success - all kinds",
+			returnAllKinds: true,
+			mockSetup: func(mockDomainCache *cache.MockDomainCache, mockTaskListManagers map[tasklist.Identifier]*tasklist.MockManager, mockStickyManagers map[tasklist.Identifier]*tasklist.MockManager) {
+				mockDomainCache.EXPECT().GetDomainID("test-domain").Return("test-domain-id", nil)
+				for id, mockManager := range mockTaskListManagers {
+					if id.GetDomainID() == "test-domain-id" {
+						mockManager.EXPECT().DescribeTaskList(false).Return(&types.DescribeTaskListResponse{
+							Pollers: []*types.PollerInfo{
+								{
+									Identity: fmt.Sprintf("test-poller-%s", id.GetRoot()),
+								},
+							},
+						})
+					}
+				}
+				for id, mockManager := range mockStickyManagers {
+					if id.GetDomainID() == "test-domain-id" {
+						mockManager.EXPECT().DescribeTaskList(false).Return(&types.DescribeTaskListResponse{
+							Pollers: []*types.PollerInfo{
+								{
+									Identity: fmt.Sprintf("sticky-poller-%s", id.GetRoot()),
+								},
+							},
+						})
+					}
+				}
+			},
+			wantErr: false,
+			want: &types.GetTaskListsByDomainResponse{
+				DecisionTaskListMap: map[string]*types.DescribeTaskListResponse{
+					"decision0": {
+						Pollers: []*types.PollerInfo{
+							{
+								Identity: "test-poller-decision0",
+							},
+						},
+					},
+					"sticky0": {
+						Pollers: []*types.PollerInfo{
+							{
+								Identity: "sticky-poller-sticky0",
+							},
+						},
+					},
+				},
+				ActivityTaskListMap: map[string]*types.DescribeTaskListResponse{
+					"activity0": {
+						Pollers: []*types.PollerInfo{
+							{
+								Identity: "test-poller-activity0",
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -140,6 +198,11 @@ func TestGetTaskListsByDomain(t *testing.T) {
 					*activityTasklistID:    mockActivityTaskListManager,
 					*otherDomainTasklistID: mockOtherDomainTaskListManager,
 					*stickyTasklistID:      mockStickyManager,
+				},
+				config: &config.Config{
+					EnableReturnAllTaskListKinds: func(opts ...dynamicproperties.FilterOption) bool {
+						return tc.returnAllKinds
+					},
 				},
 			}
 			resp, err := engine.GetTaskListsByDomain(nil, &types.GetTaskListsByDomainRequest{Domain: "test-domain"})

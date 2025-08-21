@@ -104,12 +104,25 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 	}
 	workflowTimeoutDataInBytes, err := json.Marshal(workflowTimeoutData)
 	s.NoError(err)
+	actMetadata := failure.FailureIssuesMetadata{
+		Identity:            "localhost",
+		ActivityScheduledID: 1,
+		ActivityStartedID:   2,
+	}
+	actMetadataInBytes, err := json.Marshal(actMetadata)
+	s.NoError(err)
 	issues := []invariant.InvariantCheckResult{
 		{
 			IssueID:       1,
 			InvariantType: timeout.TimeoutTypeExecution.String(),
 			Reason:        "START_TO_CLOSE",
 			Metadata:      workflowTimeoutDataInBytes,
+		},
+		{
+			IssueID:       1,
+			InvariantType: failure.ActivityFailed.String(),
+			Reason:        failure.ActivityOutputBlobSizeLimit.String(),
+			Metadata:      actMetadataInBytes,
 		},
 	}
 	timeoutIssues := []*timeoutIssuesResult{
@@ -125,11 +138,35 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 	taskListBacklog := int64(10)
 	pollersMetadataInBytes, err := json.Marshal(timeout.PollersMetadata{TaskListName: "test", TaskListBacklog: taskListBacklog})
 	s.NoError(err)
+	blobSizeMetadataInBytes, err := json.Marshal(failure.FailureRootcauseMetadata{
+		BlobSizeMetadata: &failure.BlobSizeMetadata{
+			BlobSizeWarnLimit:  5,
+			BlobSizeErrorLimit: 10,
+		},
+	})
+	s.NoError(err)
 	rootCause := []invariant.InvariantRootCauseResult{
 		{
 			IssueID:   1,
 			RootCause: invariant.RootCauseTypePollersStatus,
 			Metadata:  pollersMetadataInBytes,
+		},
+		{
+			IssueID:   2,
+			RootCause: invariant.RootCauseTypeBlobSizeLimit,
+			Metadata:  blobSizeMetadataInBytes,
+		},
+	}
+	failureRootCause := []*failureRootCauseResult{
+		{
+			IssueID:       2,
+			RootCauseType: invariant.RootCauseTypeBlobSizeLimit.String(),
+			Metadata: &failure.FailureRootcauseMetadata{
+				BlobSizeMetadata: &failure.BlobSizeMetadata{
+					BlobSizeWarnLimit:  5,
+					BlobSizeErrorLimit: 10,
+				},
+			},
 		},
 	}
 	timeoutRootCause := []*timeoutRootCauseResult{
@@ -149,6 +186,7 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 	s.NoError(s.workflowEnv.GetWorkflowResult(&result))
 	s.ElementsMatch(timeoutIssues, result.DiagnosticsResult.Timeouts.Issues)
 	s.ElementsMatch(timeoutRootCause, result.DiagnosticsResult.Timeouts.RootCause)
+	s.ElementsMatch(failureRootCause, result.DiagnosticsResult.Failures.RootCause)
 	s.True(result.DiagnosticsCompleted)
 
 	queriedResult := s.queryDiagnostics()
@@ -364,9 +402,11 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureIssues() {
 }
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureRootCause() {
-	blobSizeMetadataInBytes, err := json.Marshal(failure.BlobSizeMetadata{
-		BlobSizeWarnLimit:  5,
-		BlobSizeErrorLimit: 10,
+	blobSizeMetadataInBytes, err := json.Marshal(failure.FailureRootcauseMetadata{
+		BlobSizeMetadata: &failure.BlobSizeMetadata{
+			BlobSizeWarnLimit:  5,
+			BlobSizeErrorLimit: 10,
+		},
 	})
 	s.NoError(err)
 	rootCause := []invariant.InvariantRootCauseResult{

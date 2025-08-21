@@ -77,6 +77,9 @@ func TestImmediateQueue_LifeCycle(t *testing.T) {
 		UpdateAckIntervalJitterCoefficient:   dynamicproperties.GetFloatPropertyFn(0.1),
 		MaxPollRPS:                           dynamicproperties.GetIntPropertyFn(100),
 		MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+		CriticalPendingTaskCount:             dynamicproperties.GetIntPropertyFn(90),
+		EnablePendingTaskCountAlert:          func() bool { return true },
+		MaxVirtualQueueCount:                 dynamicproperties.GetIntPropertyFn(2),
 	}
 
 	queue := NewImmediateQueue(

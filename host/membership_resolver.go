@@ -75,11 +75,16 @@ func (s *simpleResolver) Lookup(service string, key string) (membership.HostInfo
 }
 
 func (s *simpleResolver) MemberCount(service string) (int, error) {
-	return 0, nil
+	members, err := s.Members(service)
+	return len(members), err
 }
 
 func (s *simpleResolver) Members(service string) ([]membership.HostInfo, error) {
-	return nil, nil
+	resolver, ok := s.resolvers[service]
+	if !ok {
+		return nil, fmt.Errorf("cannot lookup host for service %q", service)
+	}
+	return resolver.Members(), nil
 }
 
 func (s *simpleResolver) LookupByAddress(service string, address string) (membership.HostInfo, error) {

@@ -1254,8 +1254,9 @@ func FromDescribeWorkflowExecutionRequest(t *types.DescribeWorkflowExecutionRequ
 		return nil
 	}
 	return &apiv1.DescribeWorkflowExecutionRequest{
-		Domain:            t.Domain,
-		WorkflowExecution: FromWorkflowExecution(t.Execution),
+		Domain:                t.Domain,
+		WorkflowExecution:     FromWorkflowExecution(t.Execution),
+		QueryConsistencyLevel: FromQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -1264,8 +1265,9 @@ func ToDescribeWorkflowExecutionRequest(t *apiv1.DescribeWorkflowExecutionReques
 		return nil
 	}
 	return &types.DescribeWorkflowExecutionRequest{
-		Domain:    t.Domain,
-		Execution: ToWorkflowExecution(t.WorkflowExecution),
+		Domain:                t.Domain,
+		Execution:             ToWorkflowExecution(t.WorkflowExecution),
+		QueryConsistencyLevel: ToQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -1531,6 +1533,7 @@ func FromGetWorkflowExecutionHistoryRequest(t *types.GetWorkflowExecutionHistory
 		WaitForNewEvent:        t.WaitForNewEvent,
 		HistoryEventFilterType: FromEventFilterType(t.HistoryEventFilterType),
 		SkipArchival:           t.SkipArchival,
+		QueryConsistencyLevel:  FromQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -1546,6 +1549,7 @@ func ToGetWorkflowExecutionHistoryRequest(t *apiv1.GetWorkflowExecutionHistoryRe
 		WaitForNewEvent:        t.WaitForNewEvent,
 		HistoryEventFilterType: ToEventFilterType(t.HistoryEventFilterType),
 		SkipArchival:           t.SkipArchival,
+		QueryConsistencyLevel:  ToQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -4772,6 +4776,8 @@ func FromWorkflowExecutionContinuedAsNewEventAttributes(t *types.WorkflowExecuti
 		Header:                       FromHeader(t.Header),
 		Memo:                         FromMemo(t.Memo),
 		SearchAttributes:             FromSearchAttributes(t.SearchAttributes),
+		ActiveClusterSelectionPolicy: FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -4795,6 +4801,8 @@ func ToWorkflowExecutionContinuedAsNewEventAttributes(t *apiv1.WorkflowExecution
 		Header:                              ToHeader(t.Header),
 		Memo:                                ToMemo(t.Memo),
 		SearchAttributes:                    ToSearchAttributes(t.SearchAttributes),
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 

@@ -188,6 +188,11 @@ func emitWorkflowCompletionStats(
 		)
 	case types.EventTypeWorkflowExecutionContinuedAsNew:
 		scope.IncCounter(metrics.WorkflowContinuedAsNew)
+		logger.Debug("workflow continued as new",
+			tag.WorkflowID(workflowID),
+			tag.WorkflowRunID(runID),
+			tag.WorkflowDomainName(domainName),
+		)
 	default:
 		scope.IncCounter(metrics.WorkflowCompletedUnknownType)
 		logger.Warn("Workflow completed with an unknown event type",

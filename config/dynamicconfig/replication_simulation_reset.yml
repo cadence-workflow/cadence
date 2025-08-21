@@ -1,4 +1,4 @@
-# This file is used as dynamicconfig override for "reset" replication simulation scenario configured via host/testdata/replication_simulation_reset.yaml
+# This file is used as dynamicconfig override for "reset" replication simulation scenario configured via simulation/replication/testdata/replication_simulation_reset.yaml
 system.writeVisibilityStoreName:
   - value: "db"
 system.readVisibilityStoreName:

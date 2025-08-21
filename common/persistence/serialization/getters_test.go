@@ -262,6 +262,7 @@ func TestGettersForInfos(t *testing.T) {
 			TimerTaskStatus:          5,
 			Attempt:                  6,
 			TaskList:                 "taskList",
+			TaskListKind:             types.TaskListKindSticky,
 			StartedIdentity:          "startedIdentity",
 			HasRetryPolicy:           true,
 			RetryInitialInterval:     time.Duration(5),

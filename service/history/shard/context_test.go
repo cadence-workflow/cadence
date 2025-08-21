@@ -37,9 +37,11 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -122,6 +124,7 @@ func (s *contextTestSuite) newContext() *contextImpl {
 		rangeID:                      shardInfo.RangeID,
 		shardInfo:                    shardInfo,
 		executionManager:             s.mockResource.ExecutionMgr,
+		activeClusterManager:         s.mockResource.ActiveClusterMgr,
 		closeCallback:                func(i int, item *historyShardsItem) {},
 		config:                       config,
 		logger:                       s.logger,
@@ -1206,4 +1209,369 @@ func TestShardClosedGuard(t *testing.T) {
 			assert.ErrorContains(t, err, "shard closed")
 		})
 	}
+}
+
+// setupAllocateTimerIDsTest creates common test setup for allocateTimerIDsLocked tests
+func (s *contextTestSuite) setupAllocateTimerIDsTest() *cache.DomainCacheEntry {
+	// Create basic domain cache entry with sensible defaults
+	domainInfo := &persistence.DomainInfo{ID: testDomainID}
+	domainConfig := &persistence.DomainConfig{}
+	replicationConfig := &persistence.DomainReplicationConfig{
+		ActiveClusterName: testCluster,
+		Clusters: []*persistence.ClusterReplicationConfig{
+			{ClusterName: testCluster},
+		},
+	}
+
+	return cache.NewDomainCacheEntryForTest(
+		domainInfo,
+		domainConfig,
+		false, // domainIsActiveActive - default to false
+		replicationConfig,
+		456, // failover version
+		nil, // failover end time
+		123, // failover notification version
+		0,   // previous failover version
+		1,   // notification version
+	)
+}
+
+type createMockTimerTaskParams struct {
+	Version    int64
+	Timestamp  time.Time
+	DomainID   string
+	WorkflowID string
+	RunID      string
+}
+
+func (s *contextTestSuite) createMockTimerTask(params createMockTimerTaskParams) *persistence.MockTask {
+	mockTask := persistence.NewMockTask(s.controller)
+
+	// Use variables to track changes made by the allocateTimerIDsLocked function
+	var taskID int64
+	var visibilityTimestamp = params.Timestamp
+
+	mockTask.EXPECT().GetDomainID().Return(params.DomainID).AnyTimes()
+	mockTask.EXPECT().GetWorkflowID().Return(params.WorkflowID).AnyTimes()
+	mockTask.EXPECT().GetRunID().Return(params.RunID).AnyTimes()
+	mockTask.EXPECT().GetVersion().Return(params.Version).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTimer).AnyTimes()
+	mockTask.EXPECT().GetTaskType().Return(123).AnyTimes()
+	mockTask.EXPECT().ByteSize().Return(uint64(100)).AnyTimes()
+
+	// Mock GetTaskID to return the current task ID
+	mockTask.EXPECT().GetTaskID().DoAndReturn(func() int64 {
+		return taskID
+	}).AnyTimes()
+
+	// Mock SetTaskID to update the task ID variable
+	mockTask.EXPECT().SetTaskID(gomock.Any()).DoAndReturn(func(id int64) {
+		taskID = id
+	}).AnyTimes()
+
+	// Mock GetVisibilityTimestamp to return the current timestamp
+	mockTask.EXPECT().GetVisibilityTimestamp().DoAndReturn(func() time.Time {
+		return visibilityTimestamp
+	}).AnyTimes()
+
+	// Mock SetVisibilityTimestamp to update the timestamp variable
+	mockTask.EXPECT().SetVisibilityTimestamp(gomock.Any()).DoAndReturn(func(ts time.Time) {
+		visibilityTimestamp = ts
+	}).AnyTimes()
+
+	// Mock GetTaskKey to return the current key based on current values
+	mockTask.EXPECT().GetTaskKey().DoAndReturn(func() persistence.HistoryTaskKey {
+		return persistence.NewHistoryTaskKey(visibilityTimestamp, taskID)
+	}).AnyTimes()
+
+	return mockTask
+}
+
+func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenNoTasksProvidedReturnsSuccessfully() {
+	domainCacheEntry := s.setupAllocateTimerIDsTest()
+
+	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{})
+
+	s.NoError(err)
+}
+
+func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenTaskHasEmptyVersionAllocatesTaskID() {
+	domainCacheEntry := s.setupAllocateTimerIDsTest()
+
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    constants.EmptyVersion,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
+	originalTaskID := task.GetTaskID()
+
+	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
+
+	s.NoError(err)
+	s.NotEqual(originalTaskID, task.GetTaskID(), "Task ID should have been updated")
+	s.True(task.GetTaskID() > 0, "Task ID should be positive")
+}
+
+func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenTaskHasVersionAllocatesNewTaskID() {
+	domainCacheEntry := s.setupAllocateTimerIDsTest()
+
+	// Enable timer queue v2
+	s.context.config.EnableTimerQueueV2 = func(int) bool {
+		return true
+	}
+
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    constants.EmptyVersion,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
+	originalTaskID := task.GetTaskID()
+
+	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
+
+	s.NoError(err)
+	s.NotEqual(originalTaskID, task.GetTaskID(), "Task ID should have been updated")
+	s.True(task.GetTaskID() > 0, "Task ID should be positive")
+}
+
+func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenTimerQueueV2DisabledUsesReplicationConfigClusterName() {
+	domainInfo := &persistence.DomainInfo{ID: testDomainID}
+	domainConfig := &persistence.DomainConfig{}
+	replicationConfig := &persistence.DomainReplicationConfig{
+		ActiveClusterName: "active-cluster",
+		Clusters: []*persistence.ClusterReplicationConfig{
+			{ClusterName: testCluster},
+		},
+	}
+	domainCacheEntry := cache.NewDomainCacheEntryForTest(
+		domainInfo, domainConfig, false, replicationConfig, 456, nil, 123, 0, 1,
+	)
+
+	// Disable timer queue v2
+	s.context.config.EnableTimerQueueV2 = func(int) bool {
+		return false
+	}
+
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    constants.EmptyVersion,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
+	originalTaskID := task.GetTaskID()
+
+	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
+
+	s.NoError(err)
+	s.NotEqual(originalTaskID, task.GetTaskID(), "Task ID should have been updated")
+	s.True(task.GetTaskID() > 0, "Task ID should be positive")
+}
+
+func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenDomainIsActiveActiveUsesClusterManagerLookup() {
+
+	// Create active-active domain cache entry
+	domainInfo := &persistence.DomainInfo{ID: testDomainID}
+	domainConfig := &persistence.DomainConfig{}
+	replicationConfig := &persistence.DomainReplicationConfig{
+		ActiveClusterName: "active-cluster",
+		Clusters: []*persistence.ClusterReplicationConfig{
+			{ClusterName: testCluster},
+		},
+		ActiveClusters: &types.ActiveClusters{
+			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+				"region1": {
+					ActiveClusterName: "active-cluster",
+					FailoverVersion:   456,
+				},
+			},
+		},
+	}
+	domainCacheEntry := cache.NewDomainCacheEntryForTest(
+		domainInfo, domainConfig, true, replicationConfig, 456, nil, 123, 0, 1,
+	)
+
+	// Disable timer queue v2
+	s.context.config.EnableTimerQueueV2 = func(int) bool {
+		return false
+	}
+
+	// Setup active cluster manager mock
+	s.mockResource.ActiveClusterMgr.EXPECT().LookupWorkflow(
+		gomock.Any(), testDomainID, testWorkflowID, gomock.Any(),
+	).Return(&activecluster.LookupResult{
+		ClusterName: "looked-up-cluster",
+	}, nil).Times(1)
+
+	// Create task with non-empty version to trigger the lookup logic
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    123,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
+	originalTaskID := task.GetTaskID()
+
+	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
+
+	s.NoError(err)
+	s.NotEqual(originalTaskID, task.GetTaskID(), "Task ID should have been updated")
+	s.True(task.GetTaskID() > 0, "Task ID should be positive")
+}
+
+func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenTaskTimestampBeforeReadCursorAdjustsTimestamp() {
+	domainCacheEntry := s.setupAllocateTimerIDsTest()
+
+	// Set up scheduled task max read level map with read cursor ahead of task timestamp
+	// Use the actual current cluster name from cluster metadata
+	currentCluster := s.context.GetClusterMetadata().GetCurrentClusterName()
+	readCursor := time.Date(2025, 1, 1, 13, 0, 0, 0, time.UTC)
+	s.context.scheduledTaskMaxReadLevelMap[currentCluster] = readCursor
+
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    constants.EmptyVersion,
+		Timestamp:  time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC), // before read cursor
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
+
+	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
+
+	s.NoError(err)
+
+	// Verify timestamp was adjusted to be after read cursor
+	s.True(task.GetVisibilityTimestamp().After(readCursor),
+		"Task timestamp should be adjusted to be after read cursor")
+
+	// Verify it's the expected adjusted time (readCursor + DBTimestampMinPrecision)
+	expectedTime := readCursor.Add(persistence.DBTimestampMinPrecision)
+	actualTime := task.GetVisibilityTimestamp()
+	s.Equal(expectedTime.Truncate(persistence.DBTimestampMinPrecision),
+		actualTime.Truncate(persistence.DBTimestampMinPrecision),
+		"Adjusted timestamp should match expected adjusted time")
+}
+
+func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenClusterManagerLookupFailsReturnsError() {
+	// Create active-active domain cache entry
+	domainInfo := &persistence.DomainInfo{ID: testDomainID}
+	domainConfig := &persistence.DomainConfig{}
+	replicationConfig := &persistence.DomainReplicationConfig{
+		ActiveClusterName: "active-cluster",
+		Clusters: []*persistence.ClusterReplicationConfig{
+			{ClusterName: testCluster},
+		},
+		ActiveClusters: &types.ActiveClusters{
+			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+				"region1": {
+					ActiveClusterName: "active-cluster",
+					FailoverVersion:   456,
+				},
+			},
+		},
+	}
+	domainCacheEntry := cache.NewDomainCacheEntryForTest(
+		domainInfo, domainConfig, true, replicationConfig, 456, nil, 123, 0, 1,
+	)
+
+	// Disable timer queue v2
+	s.context.config.EnableTimerQueueV2 = func(int) bool {
+		return false
+	}
+
+	// Setup active cluster manager mock to return error
+	s.mockResource.ActiveClusterMgr.EXPECT().LookupWorkflow(
+		gomock.Any(), testDomainID, testWorkflowID, gomock.Any(),
+	).Return(nil, assert.AnError).Times(1)
+
+	// Create task with non-empty version to trigger the lookup logic
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    123,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
+
+	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
+
+	s.Error(err)
+	s.Equal(assert.AnError, err)
+}
+
+func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenTaskIDGenerationFailsReturnsError() {
+	domainCacheEntry := s.setupAllocateTimerIDsTest()
+
+	// Force task sequence number to exceed max to trigger error
+	originalTaskSequenceNumber := s.context.taskSequenceNumber
+	s.context.taskSequenceNumber = s.context.maxTaskSequenceNumber + 1
+	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(assert.AnError)
+	defer func() {
+		s.context.taskSequenceNumber = originalTaskSequenceNumber
+	}()
+
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    constants.EmptyVersion,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
+
+	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
+
+	s.Error(err)
+	s.Equal(assert.AnError, err)
+}
+
+func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenMultipleTasksProvidedAllocatesAllTaskIDs() {
+
+	// Create domain cache entry for non-active-active domain
+	domainInfo := &persistence.DomainInfo{ID: testDomainID}
+	domainConfig := &persistence.DomainConfig{}
+	replicationConfig := &persistence.DomainReplicationConfig{
+		ActiveClusterName: "active-cluster",
+		Clusters: []*persistence.ClusterReplicationConfig{
+			{ClusterName: testCluster},
+		},
+	}
+	domainCacheEntry := cache.NewDomainCacheEntryForTest(
+		domainInfo, domainConfig, false, replicationConfig, 456, nil, 123, 0, 1,
+	)
+
+	// Disable timer queue v2
+	s.context.config.EnableTimerQueueV2 = func(int) bool {
+		return false
+	}
+
+	task1 := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    constants.EmptyVersion,
+		Timestamp:  time.Now().Add(time.Hour),
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id-1",
+	})
+	task2 := s.createMockTimerTask(createMockTimerTaskParams{
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id-2",
+		Version:    456,
+		Timestamp:  time.Now().Add(2 * time.Hour),
+	})
+
+	originalTaskID1 := task1.GetTaskID()
+	originalTaskID2 := task2.GetTaskID()
+
+	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task1, task2})
+
+	s.NoError(err)
+	s.NotEqual(originalTaskID1, task1.GetTaskID(), "Task 1 ID should have been updated")
+	s.NotEqual(originalTaskID2, task2.GetTaskID(), "Task 2 ID should have been updated")
+	s.True(task1.GetTaskID() > 0, "Task 1 ID should be positive")
+	s.True(task2.GetTaskID() > 0, "Task 2 ID should be positive")
 }

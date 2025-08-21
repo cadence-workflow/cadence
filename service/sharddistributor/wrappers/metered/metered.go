@@ -32,7 +32,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-func (h *metricsHandler) handleErr(err error, scope metrics.Scope, logger log.Logger) error {
+func handleErr(err error, scope metrics.Scope, logger log.Logger) error {
 	logger = logger.Helper()
 	switch {
 	case errors.As(err, new(*types.InternalServiceError)):

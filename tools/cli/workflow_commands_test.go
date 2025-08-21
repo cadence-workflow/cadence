@@ -726,6 +726,38 @@ func (s *cliAppSuite) TestDescribeWorkflow() {
 				s.serverFrontendClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(resp, nil)
 			},
 		},
+		{
+			"with strong consistency level",
+			"cadence --do test-domain wf describe -w wid -qcl strong",
+			"",
+			func() {
+				req := &types.DescribeWorkflowExecutionRequest{
+					Domain: "test-domain",
+					Execution: &types.WorkflowExecution{
+						WorkflowID: "wid",
+					},
+					QueryConsistencyLevel: types.QueryConsistencyLevelStrong.Ptr(),
+				}
+
+				resp := &types.DescribeWorkflowExecutionResponse{
+					WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+						Execution: &types.WorkflowExecution{
+							WorkflowID: "wid",
+						},
+						Type: &types.WorkflowType{
+							Name: "workflow-type",
+						},
+						StartTime: common.Int64Ptr(time.Now().UnixNano()),
+						CloseTime: common.Int64Ptr(time.Now().UnixNano()),
+					},
+					PendingActivities: []*types.PendingActivityInfo{
+						{},
+					},
+					PendingDecision: &types.PendingDecisionInfo{},
+				}
+				s.serverFrontendClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(resp, nil)
+			},
+		},
 	}
 
 	for _, tt := range testCases {
@@ -2306,6 +2338,164 @@ func Test_ShowHistoryHelper(t *testing.T) {
 		clitest.StringArgument(FlagEventID, "test-event-id"))
 	err = showHistoryHelper(ctx, "test-workflow-id", "test-run-id")
 	assert.ErrorContains(t, err, "EventId out of range")
+
+	// Test with strong consistency level
+	serverFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), &types.GetWorkflowExecutionHistoryRequest{
+		Domain: "test-domain",
+		Execution: &types.WorkflowExecution{
+			WorkflowID: "test-workflow-id",
+			RunID:      "test-run-id",
+		},
+		WaitForNewEvent:        false,
+		HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
+		SkipArchival:           false,
+		QueryConsistencyLevel:  types.QueryConsistencyLevelStrong.Ptr(),
+	}).Return(&types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					ID:        1,
+					Version:   1,
+					EventType: types.EventTypeDecisionTaskStarted.Ptr(),
+				},
+				{
+					ID:        2,
+					Version:   1,
+					EventType: types.EventTypeDecisionTaskCompleted.Ptr(),
+					DecisionTaskCompletedEventAttributes: &types.DecisionTaskCompletedEventAttributes{
+						ScheduledEventID: 1,
+					},
+				},
+			},
+		},
+	}, nil).Times(1)
+	serverFrontendClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.DescribeWorkflowExecutionResponse{
+		WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+			Execution: &types.WorkflowExecution{
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+			},
+		},
+		PendingActivities: []*types.PendingActivityInfo{},
+	}, nil).Times(1)
+	ctx = clitest.NewCLIContext(t, app, clitest.StringArgument(FlagDomain, "test-domain"),
+		clitest.StringArgument(FlagPrintFullyDetail, "false"), clitest.StringArgument(FlagResetPointsOnly, "true"),
+		clitest.StringArgument(FlagQueryConsistencyLevel, "strong"))
+	err = showHistoryHelper(ctx, "test-workflow-id", "test-run-id")
+	assert.NoError(t, err)
+
+	// Test with eventual consistency level
+	serverFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(&types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					ID:        1,
+					Version:   1,
+					EventType: types.EventTypeDecisionTaskStarted.Ptr(),
+				},
+				{
+					ID:        2,
+					Version:   1,
+					EventType: types.EventTypeDecisionTaskCompleted.Ptr(),
+					DecisionTaskCompletedEventAttributes: &types.DecisionTaskCompletedEventAttributes{
+						ScheduledEventID: 1,
+					},
+				},
+			},
+		},
+	}, nil).Times(1)
+	serverFrontendClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.DescribeWorkflowExecutionResponse{
+		WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+			Execution: &types.WorkflowExecution{
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+			},
+		},
+		PendingActivities: []*types.PendingActivityInfo{},
+	}, nil).Times(1)
+	ctx = clitest.NewCLIContext(t, app, clitest.StringArgument(FlagDomain, "test-domain"),
+		clitest.StringArgument(FlagPrintFullyDetail, "false"), clitest.StringArgument(FlagResetPointsOnly, "true"),
+		clitest.StringArgument(FlagQueryConsistencyLevel, "eventual"))
+	err = showHistoryHelper(ctx, "test-workflow-id", "test-run-id")
+	assert.NoError(t, err)
+}
+
+func Test_DescribeWorkflowHelper(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	serverFrontendClient := frontend.NewMockClient(mockCtrl)
+	app := NewCliApp(&clientFactoryMock{
+		serverFrontendClient: serverFrontendClient,
+	})
+
+	// Test with eventual consistency level
+	serverFrontendClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), &types.DescribeWorkflowExecutionRequest{
+		Domain: "test-domain",
+		Execution: &types.WorkflowExecution{
+			WorkflowID: "test-workflow-id",
+			RunID:      "test-run-id",
+		},
+		QueryConsistencyLevel: types.QueryConsistencyLevelEventual.Ptr(),
+	}).Return(&types.DescribeWorkflowExecutionResponse{
+		WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+			Execution: &types.WorkflowExecution{
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+			},
+		},
+		PendingActivities: []*types.PendingActivityInfo{},
+	}, nil).Times(1)
+
+	ctx := clitest.NewCLIContext(t, app,
+		clitest.StringArgument(FlagDomain, "test-domain"),
+		clitest.StringArgument(FlagQueryConsistencyLevel, "eventual"))
+	err := describeWorkflowHelper(ctx, "test-workflow-id", "test-run-id")
+	assert.NoError(t, err)
+
+	// Test with strong consistency level
+	serverFrontendClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), &types.DescribeWorkflowExecutionRequest{
+		Domain: "test-domain",
+		Execution: &types.WorkflowExecution{
+			WorkflowID: "test-workflow-id",
+			RunID:      "test-run-id",
+		},
+		QueryConsistencyLevel: types.QueryConsistencyLevelStrong.Ptr(),
+	}).Return(&types.DescribeWorkflowExecutionResponse{
+		WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+			Execution: &types.WorkflowExecution{
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+			},
+		},
+		PendingActivities: []*types.PendingActivityInfo{},
+	}, nil).Times(1)
+
+	ctx = clitest.NewCLIContext(t, app,
+		clitest.StringArgument(FlagDomain, "test-domain"),
+		clitest.StringArgument(FlagQueryConsistencyLevel, "strong"))
+	err = describeWorkflowHelper(ctx, "test-workflow-id", "test-run-id")
+	assert.NoError(t, err)
+
+	// Test without specifying consistency level (should use default)
+	serverFrontendClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), &types.DescribeWorkflowExecutionRequest{
+		Domain: "test-domain",
+		Execution: &types.WorkflowExecution{
+			WorkflowID: "test-workflow-id",
+			RunID:      "test-run-id",
+		},
+	}).Return(&types.DescribeWorkflowExecutionResponse{
+		WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+			Execution: &types.WorkflowExecution{
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+			},
+		},
+		PendingActivities: []*types.PendingActivityInfo{},
+	}, nil).Times(1)
+
+	ctx = clitest.NewCLIContext(t, app,
+		clitest.StringArgument(FlagDomain, "test-domain"))
+	err = describeWorkflowHelper(ctx, "test-workflow-id", "test-run-id")
+	assert.NoError(t, err)
 }
 
 func Test_DescribeWorkflowHelper_Errors(t *testing.T) {
@@ -2322,6 +2512,10 @@ func Test_DescribeWorkflowHelper_Errors(t *testing.T) {
 	serverFrontendClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("test-error")).Times(1)
 	err = describeWorkflowHelper(ctx, "test-workflow-id", "test-run-id")
 	assert.ErrorContains(t, err, "Describe workflow execution failed")
+
+	ctx = clitest.NewCLIContext(t, app, clitest.StringArgument(FlagDomain, "test-domain"), clitest.StringArgument(FlagQueryConsistencyLevel, "invalid"))
+	err = describeWorkflowHelper(ctx, "test-workflow-id", "test-run-id")
+	assert.ErrorContains(t, err, "invalid query consistency level")
 }
 
 func Test_ProcessResets(t *testing.T) {
@@ -2440,4 +2634,154 @@ func Test_ListArchivedWorkflows_Errors(t *testing.T) {
 		clitest.IntArgument(FlagPageSize, -1), clitest.IntArgument(FlagContextTimeout, 10))
 	_, err = listArchivedWorkflows(ctx)
 	assert.NoError(t, err)
+}
+
+func TestMapQueryConsistencyLevelFromFlag(t *testing.T) {
+	testCases := []struct {
+		name        string
+		input       string
+		expected    types.QueryConsistencyLevel
+		expectError bool
+	}{
+		{
+			name:        "valid strong",
+			input:       "strong",
+			expected:    types.QueryConsistencyLevelStrong,
+			expectError: false,
+		},
+		{
+			name:        "valid eventual",
+			input:       "eventual",
+			expected:    types.QueryConsistencyLevelEventual,
+			expectError: false,
+		},
+		{
+			name:        "mixed case",
+			input:       "Eventual",
+			expected:    types.QueryConsistencyLevelEventual,
+			expectError: true,
+		},
+		{
+			name:        "valid with spaces",
+			input:       "  eventual  ",
+			expected:    types.QueryConsistencyLevelEventual,
+			expectError: true,
+		},
+		{
+			name:        "valid uppercase",
+			input:       "STRONG",
+			expected:    types.QueryConsistencyLevelStrong,
+			expectError: true,
+		},
+		{
+			name:        "invalid value",
+			input:       "invalid",
+			expected:    types.QueryConsistencyLevelEventual, // default value
+			expectError: true,
+		},
+		{
+			name:        "empty string",
+			input:       "",
+			expected:    types.QueryConsistencyLevelEventual, // default value
+			expectError: true,
+		},
+		{
+			name:        "whitespace only",
+			input:       "   ",
+			expected:    types.QueryConsistencyLevelEventual, // default value
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := mapQueryConsistencyLevelFromFlag(tc.input)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid query consistency level")
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestMapQueryRejectConditionFromFlag(t *testing.T) {
+	testCases := []struct {
+		name        string
+		input       string
+		expected    types.QueryRejectCondition
+		expectError bool
+	}{
+		{
+			name:        "valid not_open",
+			input:       "not_open",
+			expected:    types.QueryRejectConditionNotOpen,
+			expectError: false,
+		},
+		{
+			name:        "valid not_completed_cleanly",
+			input:       "not_completed_cleanly",
+			expected:    types.QueryRejectConditionNotCompletedCleanly,
+			expectError: false,
+		},
+		{
+			name:        "mixed case",
+			input:       "Not_Open",
+			expected:    types.QueryRejectConditionNotOpen,
+			expectError: true,
+		},
+		{
+			name:        "with spaces",
+			input:       "  not_open  ",
+			expected:    types.QueryRejectConditionNotOpen,
+			expectError: true,
+		},
+		{
+			name:        "uppercase",
+			input:       "NOT_OPEN",
+			expected:    types.QueryRejectConditionNotOpen,
+			expectError: true,
+		},
+		{
+			name:        "invalid value",
+			input:       "invalid",
+			expected:    types.QueryRejectConditionNotOpen, // default value
+			expectError: true,
+		},
+		{
+			name:        "empty string",
+			input:       "",
+			expected:    types.QueryRejectConditionNotOpen, // default value
+			expectError: true,
+		},
+		{
+			name:        "whitespace only",
+			input:       "   ",
+			expected:    types.QueryRejectConditionNotOpen, // default value
+			expectError: true,
+		},
+		{
+			name:        "partial match",
+			input:       "not_open_extra",
+			expected:    types.QueryRejectConditionNotOpen, // default value
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := mapQueryRejectConditionFromFlag(tc.input)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid reject condition")
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
 }

@@ -96,6 +96,7 @@ func TestExecutorWrapper_IsActiveTask(t *testing.T) {
 			mockTask.EXPECT().GetWorkflowID().Return(tt.workflowID).AnyTimes()
 			mockTask.EXPECT().GetRunID().Return(tt.runID).AnyTimes()
 			mockTask.EXPECT().GetInfo().Return(&persistence.DecisionTask{}).AnyTimes()
+			mockTask.EXPECT().GetTaskType().Return(0).AnyTimes() // called by debug log
 
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 			mockActiveClusterMgr := activecluster.NewMockManager(ctrl)

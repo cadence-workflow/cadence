@@ -39,12 +39,21 @@ func StartWorkflow(
 	mockShard *shard.TestContext,
 	sourceDomainID string,
 ) (types.WorkflowExecution, execution.MutableState, error) {
+	return StartWorkflowWithTaskList(&types.TaskList{
+		Name: "some random task list",
+	}, mockShard, sourceDomainID)
+}
+
+func StartWorkflowWithTaskList(
+	tl *types.TaskList,
+	mockShard *shard.TestContext,
+	sourceDomainID string,
+) (types.WorkflowExecution, execution.MutableState, error) {
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: constants.TestWorkflowID,
 		RunID:      constants.TestRunID,
 	}
 	workflowType := "some random workflow type"
-	taskListName := "some random task list"
 
 	entry, err := mockShard.GetDomainCache().GetDomainByID(sourceDomainID)
 	if err != nil {
@@ -64,7 +73,7 @@ func StartWorkflow(
 			DomainUUID: sourceDomainID,
 			StartRequest: &types.StartWorkflowExecutionRequest{
 				WorkflowType:                        &types.WorkflowType{Name: workflowType},
-				TaskList:                            &types.TaskList{Name: taskListName},
+				TaskList:                            tl,
 				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(2),
 				TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(1),
 				Header: &types.Header{Fields: map[string][]byte{

@@ -153,7 +153,7 @@ func TestInsertWorkflowExecutionWithTasks(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.InsertWorkflowExecutionWithTasks(
 				context.Background(),
@@ -278,7 +278,7 @@ func TestSelectCurrentWorkflow(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			row, err := db.SelectCurrentWorkflow(context.Background(), tc.shardID, tc.domainID, tc.workflowID)
 
@@ -299,16 +299,17 @@ func TestSelectCurrentWorkflow(t *testing.T) {
 
 func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 	tests := []struct {
-		name                  string
-		workflowRequest       *nosqlplugin.WorkflowRequestsWriteRequest
-		request               *nosqlplugin.CurrentWorkflowWriteRequest
-		mutatedExecution      *nosqlplugin.WorkflowExecutionRequest
-		insertedExecution     *nosqlplugin.WorkflowExecutionRequest
-		resetExecution        *nosqlplugin.WorkflowExecutionRequest
-		tasksByCategory       map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
-		shardCondition        *nosqlplugin.ShardCondition
-		mapExecuteBatchCASErr error
-		wantErr               bool
+		name                            string
+		workflowRequest                 *nosqlplugin.WorkflowRequestsWriteRequest
+		request                         *nosqlplugin.CurrentWorkflowWriteRequest
+		mutatedExecution                *nosqlplugin.WorkflowExecutionRequest
+		insertedExecution               *nosqlplugin.WorkflowExecutionRequest
+		activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow
+		resetExecution                  *nosqlplugin.WorkflowExecutionRequest
+		tasksByCategory                 map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
+		shardCondition                  *nosqlplugin.ShardCondition
+		mapExecuteBatchCASErr           error
+		wantErr                         bool
 	}{
 		{
 			name: "both mutatedExecution and resetExecution not provided",
@@ -416,6 +417,30 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 			),
 		},
 		{
+			name: "mutatedExecution and insertedExecution and activeClusterSelectionPolicyRow provided - success",
+			request: &nosqlplugin.CurrentWorkflowWriteRequest{
+				WriteMode: nosqlplugin.CurrentWorkflowWriteModeNoop,
+			},
+			shardCondition: &nosqlplugin.ShardCondition{
+				ShardID: 1,
+			},
+			mutatedExecution: testdata.WFExecRequest(
+				testdata.WFExecRequestWithEventBufferWriteMode(nosqlplugin.EventBufferWriteModeNone),
+				testdata.WFExecRequestWithMapsWriteMode(nosqlplugin.WorkflowExecutionMapsWriteModeUpdate),
+			),
+			activeClusterSelectionPolicyRow: &nosqlplugin.ActiveClusterSelectionPolicyRow{
+				ShardID:    1,
+				DomainID:   "test-domain-id",
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+				Policy:     &persistence.DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("test-policy")},
+			},
+			insertedExecution: testdata.WFExecRequest(
+				testdata.WFExecRequestWithEventBufferWriteMode(nosqlplugin.EventBufferWriteModeNone),
+				testdata.WFExecRequestWithMapsWriteMode(nosqlplugin.WorkflowExecutionMapsWriteModeCreate),
+			),
+		},
+		{
 			name:    "resetExecution and insertedExecution provided - insert fails",
 			wantErr: true,
 			request: &nosqlplugin.CurrentWorkflowWriteRequest{
@@ -463,7 +488,7 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.UpdateWorkflowExecutionWithTasks(
 				context.Background(),
@@ -471,6 +496,7 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 				tc.request,
 				tc.mutatedExecution,
 				tc.insertedExecution,
+				nil, // TODO(active-active): add test cases for activeClusterSelectionPolicyRow
 				tc.resetExecution,
 				tc.tasksByCategory,
 				tc.shardCondition,
@@ -589,7 +615,7 @@ func TestSelectWorkflowExecution(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			got, err := db.SelectWorkflowExecution(
 				context.Background(),
@@ -661,7 +687,7 @@ func TestDeleteCurrentWorkflow(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			err := db.DeleteCurrentWorkflow(context.Background(), tc.shardID, tc.domainID, tc.workflowID, tc.currentRunIDCondition)
 
@@ -719,7 +745,7 @@ func TestDeleteWorkflowExecution(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			err := db.DeleteWorkflowExecution(context.Background(), tc.shardID, tc.domainID, tc.workflowID, tc.runID)
 
@@ -828,7 +854,7 @@ func TestSelectAllCurrentWorkflows(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotExecutions, gotPageToken, err := db.SelectAllCurrentWorkflows(context.Background(), tc.shardID, tc.pageToken, tc.pageSize)
 			if (err != nil) != tc.wantErr {
@@ -950,7 +976,7 @@ func TestSelectAllWorkflowExecutions(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotExecutions, gotPageToken, err := db.SelectAllWorkflowExecutions(context.Background(), tc.shardID, tc.pageToken, tc.pageSize)
 			if (err != nil) != tc.wantErr {
@@ -1037,7 +1063,7 @@ func TestIsWorkflowExecutionExists(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			got, err := db.IsWorkflowExecutionExists(context.Background(), 1, "domain1", "wfi", "run1")
 			if (err != nil) != tc.wantErr {
@@ -1157,7 +1183,7 @@ func TestSelectTransferTasksOrderByTaskID(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotTasks, gotPageToken, err := db.SelectTransferTasksOrderByTaskID(context.Background(), tc.shardID, tc.pageSize, tc.pageToken, tc.inclusiveMinTaskID, tc.exclusiveMaxTaskID)
 			if (err != nil) != tc.wantErr {
@@ -1224,7 +1250,7 @@ func TestDeleteTransferTask(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			err := db.DeleteTransferTask(context.Background(), tc.shardID, tc.taskID)
 
@@ -1279,7 +1305,7 @@ func TestRangeDeleteTransferTasks(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			err := db.RangeDeleteTransferTasks(context.Background(), tc.shardID, tc.inclusiveBeginTaskID, tc.exclusiveEndTaskID)
 
@@ -1399,7 +1425,7 @@ func TestSelectTimerTasksOrderByVisibilityTime(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotTasks, gotPageToken, err := db.SelectTimerTasksOrderByVisibilityTime(context.Background(), tc.shardID, tc.pageSize, tc.pageToken, tc.inclusiveMinTime, tc.exclusiveMaxTime)
 			if (err != nil) != tc.wantErr {
@@ -1471,7 +1497,7 @@ func TestDeleteTimerTask(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			err := db.DeleteTimerTask(context.Background(), tc.shardID, tc.taskID, tc.visibilityTimestamp)
 
@@ -1527,7 +1553,7 @@ func TestRangeDeleteTimerTasks(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			err := db.RangeDeleteTimerTasks(context.Background(), tc.shardID, tc.inclusiveMinTime, tc.exclusiveMaxTime)
 
@@ -1641,7 +1667,7 @@ func TestSelectReplicationTasksOrderByTaskID(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			gotTasks, _, err := db.SelectReplicationTasksOrderByTaskID(context.Background(), tc.shardID, tc.pageSize, tc.pageToken, tc.inclusiveMinTaskID, tc.exclusiveMaxTaskID)
 
@@ -1701,7 +1727,7 @@ func TestDeleteReplicationTask(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			err := db.DeleteReplicationTask(context.Background(), tc.shardID, tc.taskID)
 
@@ -1753,7 +1779,7 @@ func TestRangeDeleteReplicationTasks(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			err := db.RangeDeleteReplicationTasks(context.Background(), tc.shardID, tc.exclusiveEndTaskID)
 
@@ -1808,7 +1834,7 @@ func TestDeleteCrossClusterTask(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			err := db.DeleteCrossClusterTask(context.Background(), tc.shardID, tc.targetCluster, tc.taskID)
 
@@ -1881,7 +1907,7 @@ func TestInsertReplicationDLQTask(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			err := db.InsertReplicationDLQTask(context.Background(), tc.shardID, tc.sourceCluster, tc.task)
 
@@ -1995,7 +2021,7 @@ func TestSelectReplicationDLQTasksOrderByTaskID(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			gotTasks, _, err := db.SelectReplicationDLQTasksOrderByTaskID(context.Background(), tc.shardID, "src-cluster", tc.pageSize, tc.pageToken, tc.inclusiveMinTaskID, tc.exclusiveMaxTaskID)
 
@@ -2055,7 +2081,7 @@ func TestSelectReplicationDLQTasksCount(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			gotCount, err := db.SelectReplicationDLQTasksCount(context.Background(), tc.shardID, "src-cluster")
 
@@ -2117,7 +2143,7 @@ func TestDeleteReplicationDLQTask(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			err := db.DeleteReplicationDLQTask(context.Background(), tc.shardID, tc.sourceCluster, tc.taskID)
 
@@ -2174,7 +2200,7 @@ func TestRangeDeleteReplicationDLQTasks(t *testing.T) {
 				query: query,
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			err := db.RangeDeleteReplicationDLQTasks(context.Background(), tc.shardID, tc.sourceCluster, tc.exclusiveBeginTaskID, tc.inclusiveEndTaskID)
 
@@ -2374,7 +2400,7 @@ func TestInsertReplicationTask(t *testing.T) {
 				iter:                      &fakeIter{},
 			}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
 			err := db.InsertReplicationTask(context.Background(), tc.tasks, tc.shardCondition)
 
@@ -2485,7 +2511,7 @@ func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 			logger := testlogger.New(t)
 			cl := gocql.NewMockClient(ctrl)
 
-			db := newCassandraDBFromSession(nil, tc.session, logger, nil, dbWithClient(cl))
+			db := NewCassandraDBFromSession(nil, tc.session, logger, nil, DbWithClient(cl))
 
 			if tc.mockFn != nil {
 				tc.mockFn(cl)
@@ -2563,7 +2589,7 @@ func TestDeleteActiveClusterSelectionPolicy(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			logger := testlogger.New(t)
 			cl := gocql.NewMockClient(ctrl)
-			db := newCassandraDBFromSession(nil, tc.session, logger, nil, dbWithClient(cl))
+			db := NewCassandraDBFromSession(nil, tc.session, logger, nil, DbWithClient(cl))
 			err := db.DeleteActiveClusterSelectionPolicy(context.Background(), tc.shardID, tc.domainID, tc.wfID, tc.rID)
 
 			if (err != nil) != tc.wantErr {

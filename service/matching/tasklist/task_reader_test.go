@@ -25,10 +25,12 @@ package tasklist
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
@@ -278,6 +280,90 @@ func TestGetDispatchTimeout(t *testing.T) {
 	}
 }
 
+func TestTaskPump(t *testing.T) {
+	cases := []struct {
+		name       string
+		tasks      []*persistence.TaskInfo
+		assertions func(t *testing.T, tasks []*InternalTask)
+	}{
+		{
+			name: "single task",
+			tasks: []*persistence.TaskInfo{
+				taskWithIsolationGroup("a"),
+			},
+			assertions: func(t *testing.T, tasks []*InternalTask) {
+				assert.Equal(t, 1, len(tasks))
+				assert.Equal(t, "a", tasks[0].isolationGroup)
+			},
+		},
+		{
+			name: "unknown isolation group",
+			tasks: []*persistence.TaskInfo{
+				taskWithIsolationGroup("unknown"),
+			},
+			assertions: func(t *testing.T, tasks []*InternalTask) {
+				assert.Equal(t, 1, len(tasks))
+				assert.Equal(t, "", tasks[0].isolationGroup)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			timeSource := clock.NewMockedTimeSource()
+			c := defaultConfig()
+			tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), controller, c, timeSource)
+			reader := tlm.taskReader
+
+			var lock sync.Mutex
+			received := make([]*InternalTask, 0)
+			done := make(chan struct{})
+
+			reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
+				lock.Lock()
+				defer lock.Unlock()
+
+				received = append(received, task)
+				if len(received) == len(tc.tasks) {
+					close(done)
+				}
+				return nil
+			}
+			reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+				return info.PartitionConfig["isolation-group"], -1
+			}
+
+			for i, taskInfo := range tc.tasks {
+				taskInfo.CreatedTime = timeSource.Now()
+				taskInfo.Expiry = timeSource.Now().Add(10 * time.Second)
+				_, err := tlm.db.CreateTasks([]*persistence.CreateTaskInfo{
+					{
+						Data:   taskInfo,
+						TaskID: int64(1 + i),
+					},
+				})
+				require.NoError(t, err)
+			}
+			// This is how the reader knows the range that's valid to read
+			tlm.taskWriter.maxReadLevel = int64(len(tc.tasks))
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			defer cancel()
+			reader.Start()
+
+			select {
+			case <-ctx.Done():
+				t.Fatalf("timed out waiting for tasks to be dispatched")
+			case <-done:
+			}
+			reader.Stop()
+
+			tc.assertions(t, received)
+		})
+	}
+}
+
 func defaultConfig() *config.Config {
 	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", func() []string {
 		return defaultIsolationGroups
@@ -289,6 +375,20 @@ func defaultConfig() *config.Config {
 	config.AsyncTaskDispatchTimeout = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(defaultAsyncDispatchTimeout)
 	config.LocalTaskWaitTime = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(time.Millisecond)
 	return config
+}
+
+func taskWithIsolationGroup(ig string) *persistence.TaskInfo {
+	return &persistence.TaskInfo{
+		DomainID:                      "domain-id",
+		WorkflowID:                    "workflow-id",
+		RunID:                         "run-id",
+		TaskID:                        1,
+		ScheduleID:                    2,
+		ScheduleToStartTimeoutSeconds: 10,
+		PartitionConfig: map[string]string{
+			"isolation-group": ig,
+		},
+	}
 }
 
 func newTask(timeSource clock.TimeSource) *persistence.TaskInfo {

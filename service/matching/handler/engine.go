@@ -279,11 +279,11 @@ func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, t
 	return mgr, nil
 }
 
-func (e *matchingEngineImpl) getTaskListByDomainLocked(domainID string, taskListKind types.TaskListKind) *types.GetTaskListsByDomainResponse {
+func (e *matchingEngineImpl) getTaskListByDomainLocked(domainID string, taskListKind *types.TaskListKind) *types.GetTaskListsByDomainResponse {
 	decisionTaskListMap := make(map[string]*types.DescribeTaskListResponse)
 	activityTaskListMap := make(map[string]*types.DescribeTaskListResponse)
 	for tl, tlm := range e.taskLists {
-		if tl.GetDomainID() == domainID && tlm.GetTaskListKind() == taskListKind {
+		if tl.GetDomainID() == domainID && (taskListKind == nil || tlm.GetTaskListKind() == *taskListKind) {
 			if types.TaskListType(tl.GetType()) == types.TaskListTypeDecision {
 				decisionTaskListMap[tl.GetRoot()] = tlm.DescribeTaskList(false)
 			} else {
@@ -1043,9 +1043,14 @@ func (e *matchingEngineImpl) GetTaskListsByDomain(
 		return nil, err
 	}
 
+	tlKind := types.TaskListKindNormal.Ptr()
+	if e.config.EnableReturnAllTaskListKinds() {
+		tlKind = nil
+	}
+
 	e.taskListsLock.RLock()
 	defer e.taskListsLock.RUnlock()
-	return e.getTaskListByDomainLocked(domainID, types.TaskListKindNormal), nil
+	return e.getTaskListByDomainLocked(domainID, tlKind), nil
 }
 
 func (e *matchingEngineImpl) UpdateTaskListPartitionConfig(
@@ -1443,7 +1448,7 @@ func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCac
 		taskListNormal := types.TaskListKindNormal
 
 		e.taskListsLock.RLock()
-		resp := e.getTaskListByDomainLocked(domain.GetInfo().ID, taskListNormal)
+		resp := e.getTaskListByDomainLocked(domain.GetInfo().ID, &taskListNormal)
 		e.taskListsLock.RUnlock()
 
 		for taskListName := range resp.DecisionTaskListMap {
@@ -1457,7 +1462,7 @@ func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCac
 		taskListSticky := types.TaskListKindSticky
 
 		e.taskListsLock.RLock()
-		resp = e.getTaskListByDomainLocked(domain.GetInfo().ID, taskListSticky)
+		resp = e.getTaskListByDomainLocked(domain.GetInfo().ID, &taskListSticky)
 		e.taskListsLock.RUnlock()
 
 		for taskListName := range resp.DecisionTaskListMap {

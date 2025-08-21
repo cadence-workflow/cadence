@@ -24,6 +24,8 @@ package task
 
 import (
 	"context"
+	"encoding/json"
+	"runtime/debug"
 
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
@@ -98,10 +100,28 @@ func (e *executorWrapper) isActiveTask(
 			return true
 		}
 		if resp.ClusterName != e.currentClusterName {
-			e.logger.Debug("Process task as standby.", tag.WorkflowDomainID(domainID), tag.Value(task.GetInfo()), tag.ClusterName(resp.ClusterName))
+			if e.logger.DebugOn() {
+				taskJSON, _ := json.Marshal(task)
+				e.logger.Debug("Process task as standby.",
+					tag.WorkflowDomainID(domainID),
+					tag.Dynamic("task", string(taskJSON)),
+					tag.Dynamic("taskType", task.GetTaskType()),
+					tag.ClusterName(resp.ClusterName),
+					tag.Dynamic("stack", string(debug.Stack())),
+				)
+			}
 			return false
 		}
-		e.logger.Debug("Process task as active.", tag.WorkflowDomainID(domainID), tag.Value(task.GetInfo()), tag.ClusterName(e.currentClusterName))
+		if e.logger.DebugOn() {
+			taskJSON, _ := json.Marshal(task)
+			e.logger.Debug("Process task as active.",
+				tag.WorkflowDomainID(domainID),
+				tag.Dynamic("task", string(taskJSON)),
+				tag.Dynamic("taskType", task.GetTaskType()),
+				tag.ClusterName(e.currentClusterName),
+				tag.Dynamic("stack", string(debug.Stack())),
+			)
+		}
 		return true
 	}
 

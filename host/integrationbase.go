@@ -55,6 +55,7 @@ type (
 		TestCluster              *TestCluster
 		TestClusterConfig        *TestClusterConfig
 		Engine                   FrontendClient
+		HistoryClient            HistoryClient
 		AdminClient              AdminClient
 		Logger                   log.Logger
 		DomainName               string
@@ -103,6 +104,7 @@ func (s *IntegrationBase) setupSuite() {
 		}
 
 		s.Engine = NewFrontendClient(dispatcher)
+		s.HistoryClient = NewHistoryClient(dispatcher)
 		s.AdminClient = NewAdminClient(dispatcher)
 	} else {
 		s.Logger.Info("Running integration test against test cluster")
@@ -126,6 +128,7 @@ func (s *IntegrationBase) setupSuite() {
 		s.Require().NoError(err)
 		s.TestCluster = cluster
 		s.Engine = s.TestCluster.GetFrontendClient()
+		s.HistoryClient = s.TestCluster.GetHistoryClient()
 		s.AdminClient = s.TestCluster.GetAdminClient()
 	}
 	s.TestRawHistoryDomainName = "TestRawHistoryDomain"

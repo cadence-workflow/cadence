@@ -2082,6 +2082,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					Attempt:                3,
 					MaximumAttempts:        5,
 					TaskList:               "tasklist1",
+					TaskListKind:           types.TaskListKindEphemeral,
 					HasRetryPolicy:         true,
 					LastFailureReason:      "retry reason",
 				},
@@ -2096,7 +2097,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					`started_time: 0001-01-01T00:00:00Z, activity_id: activity1, request_id: , ` +
 					`details: [], schedule_to_start_timeout: 60, schedule_to_close_timeout: 120, start_to_close_timeout: 180, ` +
 					`heart_beat_timeout: 60, cancel_requested: false, cancel_request_id: 0, last_hb_updated_time: 0001-01-01T00:00:00Z, ` +
-					`timer_task_status: 0, attempt: 3, task_list: tasklist1, started_identity: , has_retry_policy: true, ` +
+					`timer_task_status: 0, attempt: 3, task_list: tasklist1, task_list_kind: 2, started_identity: , has_retry_policy: true, ` +
 					`init_interval: 0, backoff_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, ` +
 					`max_attempts: 5, non_retriable_errors: [], last_failure_reason: retry reason, last_worker_identity: , ` +
 					`last_failure_details: [], event_data_encoding: thriftrw` +

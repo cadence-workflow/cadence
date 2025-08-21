@@ -67,6 +67,22 @@ func main() {
 		),
 	), payloadDecoderHandler)
 
+	s.AddTool(mcp.NewTool("command_generator",
+		mcp.WithDescription("Convert natural language to Cadence CLI commands. Use this tool when you need to generate Cadence CLI commands from natural language descriptions like 'list failed workflows from past 7 days' or 'start workflow with search attributes'."),
+		mcp.WithString("query",
+			mcp.Required(),
+			mcp.Description("Natural language description of Cadence CLI command to be generated (e.g., 'list failed workflows from past 7 days', 'start workflow with search attributes')"),
+		),
+		mcp.WithString("domain",
+			mcp.Required(),
+			mcp.Description("Target domain name for Cadence command"),
+		),
+		mcp.WithString("address",
+			mcp.DefaultString("localhost:7833"),
+			mcp.Description("gRPC endpoint of cadence domain"),
+		),
+	), cadenceCommandGeneratorHandler)
+
 	debugLog("Cadence MCP started")
 
 	// Start the stdio server
@@ -171,4 +187,37 @@ func debugLog(format string, args ...interface{}) {
 
 	logFile.WriteString(fmt.Sprintf(format, args...))
 	logFile.WriteString("\n")
+}
+
+func cadenceCommandGeneratorHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			debugLog("Panic in Cadence Command Generator: %v\n", r)
+			debugLog("Stack trace: %s\n", string(debug.Stack()))
+		}
+	}()
+
+	query, ok := request.Params.Arguments["query"].(string)
+	if !ok {
+		return nil, errors.New("query must be a string")
+	}
+
+	domain, ok := request.Params.Arguments["domain"].(string)
+	if !ok {
+		return nil, errors.New("domain must be a string")
+	}
+
+	address, ok := request.Params.Arguments["address"].(string)
+	if !ok {
+		address = "localhost:7833"
+	}
+
+	command, err := generateCadenceCommand(query, domain, address)
+	if err != nil {
+		return nil, errors.New("error generating cadence command: " + err.Error())
+	}
+
+	// format the command to be displayed to user
+	formattedCommand := fmt.Sprintf("Command Generated: %s", command)
+	return mcp.NewToolResultText(formattedCommand), nil
 }

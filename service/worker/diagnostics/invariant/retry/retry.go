@@ -27,7 +27,6 @@ import (
 
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
-	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
 )
 
 // Retry is an invariant that will be used to identify the issues regarding retries in the workflow execution history
@@ -44,20 +43,7 @@ func (r *retry) Check(ctx context.Context, params invariant.InvariantCheckInput)
 	result := make([]invariant.InvariantCheckResult, 0)
 	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
 	issueID := 0
-	lastEvent := fetchContinuedAsNewEvent(events)
 	startedEvent := fetchWfStartedEvent(events)
-	if lastEvent != nil && startedEvent != nil && startedEvent.RetryPolicy != nil {
-		result = append(result, invariant.InvariantCheckResult{
-			IssueID:       issueID,
-			InvariantType: WorkflowRetryInfo.String(),
-			Reason:        failure.ErrorTypeFromReason(*lastEvent.FailureReason).String(),
-			Metadata: invariant.MarshalData(RetryMetadata{
-				EventID:     1,
-				RetryPolicy: startedEvent.RetryPolicy,
-			}),
-		})
-		issueID++
-	}
 
 	if issue := checkRetryPolicy(startedEvent.RetryPolicy); issue != "" {
 		result = append(result, invariant.InvariantCheckResult{
@@ -102,15 +88,6 @@ func (r *retry) Check(ctx context.Context, params invariant.InvariantCheckInput)
 	}
 
 	return result, nil
-}
-
-func fetchContinuedAsNewEvent(events []*types.HistoryEvent) *types.WorkflowExecutionContinuedAsNewEventAttributes {
-	for _, event := range events {
-		if event.GetWorkflowExecutionContinuedAsNewEventAttributes() != nil {
-			return event.GetWorkflowExecutionContinuedAsNewEventAttributes()
-		}
-	}
-	return nil
 }
 
 func fetchWfStartedEvent(events []*types.HistoryEvent) *types.WorkflowExecutionStartedEventAttributes {

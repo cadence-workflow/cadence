@@ -42,21 +42,22 @@ type (
 	}
 
 	StaticConfig struct {
-		// LeaderElection is the configuration for leader election mechanism that is used by Shard distributor to handle shard distribution per namespace.
-		LeaderElection LeaderElection `yaml:"leaderElection"`
+		// ShardDistribution is the configuration for leader election mechanism that is used by Shard distributor to handle shard distribution per namespace.
+		ShardDistribution ShardDistribution `yaml:"shardDistribution"`
 	}
 
-	// LeaderElection is a configuration for leader election running.
-	LeaderElection struct {
-		Enabled    bool          `yaml:"enabled"`
-		Store      LeaderStore   `yaml:"leaderStore"`
-		Election   Election      `yaml:"election"`
-		Namespaces []Namespace   `yaml:"namespaces"`
-		Process    LeaderProcess `yaml:"process"`
+	// ShardDistribution is a configuration for leader election running.
+	ShardDistribution struct {
+		Enabled     bool          `yaml:"enabled"`
+		LeaderStore Store         `yaml:"leaderStore"`
+		Election    Election      `yaml:"election"`
+		Namespaces  []Namespace   `yaml:"namespaces"`
+		Process     LeaderProcess `yaml:"process"`
+		Store       Store         `yaml:"store"`
 	}
 
-	// LeaderStore provides a config for leader election.
-	LeaderStore struct {
+	// Store is a generic container for any storage configuration that should be parsed by the implementation.
+	Store struct {
 		StorageParams *config.YamlNode `yaml:"storageParams"`
 	}
 
@@ -95,19 +96,20 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string) *Config {
 	}
 }
 
-// GetLeaderElectionFromExternal converts other configs to an internal one.
-func GetLeaderElectionFromExternal(in config.LeaderElection) LeaderElection {
+// GetShardDistributionFromExternal converts other configs to an internal one.
+func GetShardDistributionFromExternal(in config.ShardDistribution) ShardDistribution {
 
 	namespaces := make([]Namespace, 0, len(in.Namespaces))
 	for _, namespace := range in.Namespaces {
 		namespaces = append(namespaces, Namespace(namespace))
 	}
 
-	return LeaderElection{
-		Enabled:    in.Enabled,
-		Store:      LeaderStore(in.Store),
-		Election:   Election(in.Election),
-		Namespaces: namespaces,
-		Process:    LeaderProcess(in.Process),
+	return ShardDistribution{
+		Enabled:     in.Enabled,
+		LeaderStore: Store(in.LeaderStore),
+		Store:       Store(in.Store),
+		Election:    Election(in.Election),
+		Namespaces:  namespaces,
+		Process:     LeaderProcess(in.Process),
 	}
 }

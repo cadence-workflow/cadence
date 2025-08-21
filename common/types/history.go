@@ -384,6 +384,7 @@ func (v *VirtualQueueState) Copy() (o *VirtualQueueState) {
 
 type VirtualSliceState struct {
 	TaskRange *TaskRange
+	Predicate *Predicate
 }
 
 func (v *VirtualSliceState) Copy() (o *VirtualSliceState) {
@@ -392,6 +393,7 @@ func (v *VirtualSliceState) Copy() (o *VirtualSliceState) {
 	}
 	o = &VirtualSliceState{
 		TaskRange: v.TaskRange.Copy(),
+		Predicate: v.Predicate.Copy(),
 	}
 	return
 }

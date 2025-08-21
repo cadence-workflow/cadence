@@ -240,10 +240,9 @@ func TestHandleErr(t *testing.T) {
 			metricsClient := metrics.NewClient(testScope, metrics.ShardDistributor)
 			mockLogger := log.NewMockLogger(t)
 			mockLogger.On("Helper").Return(mockLogger)
-			handler := NewMetricsHandler(nil, mockLogger, metricsClient).(*metricsHandler)
 
 			tt.setupMocks(mockLogger)
-			err := handler.handleErr(tt.err, metricsClient.Scope(metrics.ShardDistributorGetShardOwnerScope), mockLogger)
+			err := handleErr(tt.err, metricsClient.Scope(metrics.ShardDistributorGetShardOwnerScope), mockLogger)
 			require.Equal(t, tt.expectedError, err)
 
 			// check metrics

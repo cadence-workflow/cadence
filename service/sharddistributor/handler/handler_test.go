@@ -31,87 +31,63 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/log/testlogger"
-	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/constants"
+	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/store"
+)
+
+const (
+	_testNamespace = "test-matching"
 )
 
 func TestGetShardOwner(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockHistoryRing := membership.NewMockSingleProvider(ctrl)
-	mockMatchingRing := membership.NewMockSingleProvider(ctrl)
-	logger := testlogger.New(t)
-
-	handler := &handlerImpl{
-		logger:       logger,
-		historyRing:  mockHistoryRing,
-		matchingRing: mockMatchingRing,
+	cfg := config.ShardDistribution{
+		Enabled: true,
+		Namespaces: []config.Namespace{
+			{
+				Name: _testNamespace,
+			},
+		},
 	}
 
 	tests := []struct {
 		name           string
 		request        *types.GetShardOwnerRequest
-		setupMocks     func()
+		setupMocks     func(mockStore *store.MockStore)
 		expectedOwner  string
 		expectedError  bool
 		expectedErrMsg string
 	}{
 		{
-			name: "HistoryNamespace_Success",
+			name: "Existing_Success",
 			request: &types.GetShardOwnerRequest{
-				Namespace: constants.HistoryNamespace,
+				Namespace: _testNamespace,
 				ShardKey:  "123",
 			},
-			setupMocks: func() {
-				mockHistoryRing.EXPECT().LookupRaw("123").Return("owner1", nil)
+			setupMocks: func(mockStore *store.MockStore) {
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespace, "123").Return("owner1", nil)
 			},
 			expectedOwner: "owner1",
 			expectedError: false,
 		},
-		{
-			name: "MatchingNamespace_Success",
-			request: &types.GetShardOwnerRequest{
-				Namespace: constants.MatchingNamespace,
-				ShardKey:  "taskList1",
-			},
-			setupMocks: func() {
-				mockMatchingRing.EXPECT().LookupRaw("taskList1").Return("owner2", nil)
-			},
-			expectedOwner: "owner2",
-			expectedError: false,
-		},
+
 		{
 			name: "InvalidNamespace",
 			request: &types.GetShardOwnerRequest{
 				Namespace: "namespace not found invalidNamespace",
 				ShardKey:  "1",
 			},
-			setupMocks:     func() {},
 			expectedError:  true,
 			expectedErrMsg: "namespace not found",
 		},
 		{
-			name: "HistoryNamespace_LookupError",
+			name: "LookupError",
 			request: &types.GetShardOwnerRequest{
-				Namespace: constants.HistoryNamespace,
+				Namespace: _testNamespace,
 				ShardKey:  "1",
 			},
-			setupMocks: func() {
-				mockHistoryRing.EXPECT().LookupRaw("1").Return("", errors.New("lookup error"))
-			},
-			expectedError:  true,
-			expectedErrMsg: "lookup error",
-		},
-		{
-			name: "MatchingNamespace_LookupError",
-			request: &types.GetShardOwnerRequest{
-				Namespace: constants.MatchingNamespace,
-				ShardKey:  "taskList1",
-			},
-			setupMocks: func() {
-				mockMatchingRing.EXPECT().LookupRaw("taskList1").Return("", errors.New("lookup error"))
+			setupMocks: func(mockStore *store.MockStore) {
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespace, "1").Return("", errors.New("lookup error"))
 			},
 			expectedError:  true,
 			expectedErrMsg: "lookup error",
@@ -120,7 +96,19 @@ func TestGetShardOwner(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+			ctrl := gomock.NewController(t)
+
+			logger := testlogger.New(t)
+			mockStorage := store.NewMockStore(ctrl)
+
+			handler := &handlerImpl{
+				logger:               logger,
+				shardDistributionCfg: cfg,
+				storage:              mockStorage,
+			}
+			if tt.setupMocks != nil {
+				tt.setupMocks(mockStorage)
+			}
 			resp, err := handler.GetShardOwner(context.Background(), tt.request)
 			if tt.expectedError {
 				require.Error(t, err)

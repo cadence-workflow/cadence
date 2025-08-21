@@ -210,7 +210,7 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
 						RetryPolicy: &types.RetryPolicy{
 							InitialIntervalInSeconds: 1,
-							MaximumAttempts:          2,
+							MaximumAttempts:          1,
 						},
 						Attempt: 0,
 					},
@@ -223,8 +223,8 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 		History: &types.History{
 			Events: []*types.HistoryEvent{
 				{
-					WorkflowExecutionContinuedAsNewEventAttributes: &types.WorkflowExecutionContinuedAsNewEventAttributes{
-						FailureReason:                common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"),
+					WorkflowExecutionFailedEventAttributes: &types.WorkflowExecutionFailedEventAttributes{
+						Reason:                       common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"),
 						DecisionTaskCompletedEventID: 10,
 					},
 				},
@@ -254,23 +254,31 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 		EventID: 1,
 		RetryPolicy: &types.RetryPolicy{
 			InitialIntervalInSeconds: 1,
-			MaximumAttempts:          2,
+			MaximumAttempts:          1,
 		},
 	}
 	retryMetadataInBytes, err := json.Marshal(retryMetadata)
 	require.NoError(t, err)
+	failureMetadataInBytes, err := json.Marshal(failure.FailureIssuesMetadata{})
+	require.NoError(t, err)
 	expectedResult := []invariant.InvariantCheckResult{
 		{
 			IssueID:       0,
-			InvariantType: retry.WorkflowRetryInfo.String(),
-			Reason:        "The failure is caused by a timeout during the execution",
+			InvariantType: retry.WorkflowRetryIssue.String(),
+			Reason:        "MaximumAttempts set to 1 will not retry since maximum attempts includes the first attempt.",
 			Metadata:      retryMetadataInBytes,
+		},
+		{
+			IssueID:       0,
+			InvariantType: failure.WorkflowFailed.String(),
+			Reason:        "The failure is caused by a timeout during the execution",
+			Metadata:      failureMetadataInBytes,
 		},
 	}
 
 	dwtest := &dw{
 		clientBean: mockClientBean,
-		invariants: []invariant.Invariant{retry.NewInvariant()},
+		invariants: []invariant.Invariant{retry.NewInvariant(), failure.NewInvariant()},
 	}
 
 	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{Execution: testExecution})

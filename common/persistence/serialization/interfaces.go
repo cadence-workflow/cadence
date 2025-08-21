@@ -202,6 +202,7 @@ type (
 		TimerTaskStatus          int32
 		Attempt                  int32
 		TaskList                 string
+		TaskListKind             types.TaskListKind
 		StartedIdentity          string
 		HasRetryPolicy           bool
 		RetryInitialInterval     time.Duration

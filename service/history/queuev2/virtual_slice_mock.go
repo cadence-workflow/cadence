@@ -112,6 +112,20 @@ func (mr *MockVirtualSliceMockRecorder) HasMoreTasks() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasMoreTasks", reflect.TypeOf((*MockVirtualSlice)(nil).HasMoreTasks))
 }
 
+// PendingTaskStats mocks base method.
+func (m *MockVirtualSlice) PendingTaskStats() PendingTaskStats {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PendingTaskStats")
+	ret0, _ := ret[0].(PendingTaskStats)
+	return ret0
+}
+
+// PendingTaskStats indicates an expected call of PendingTaskStats.
+func (mr *MockVirtualSliceMockRecorder) PendingTaskStats() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PendingTaskStats", reflect.TypeOf((*MockVirtualSlice)(nil).PendingTaskStats))
+}
+
 // TryMergeWithVirtualSlice mocks base method.
 func (m *MockVirtualSlice) TryMergeWithVirtualSlice(arg0 VirtualSlice) ([]VirtualSlice, bool) {
 	m.ctrl.T.Helper()
@@ -125,6 +139,22 @@ func (m *MockVirtualSlice) TryMergeWithVirtualSlice(arg0 VirtualSlice) ([]Virtua
 func (mr *MockVirtualSliceMockRecorder) TryMergeWithVirtualSlice(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryMergeWithVirtualSlice", reflect.TypeOf((*MockVirtualSlice)(nil).TryMergeWithVirtualSlice), arg0)
+}
+
+// TrySplitByPredicate mocks base method.
+func (m *MockVirtualSlice) TrySplitByPredicate(arg0 Predicate) (VirtualSlice, VirtualSlice, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TrySplitByPredicate", arg0)
+	ret0, _ := ret[0].(VirtualSlice)
+	ret1, _ := ret[1].(VirtualSlice)
+	ret2, _ := ret[2].(bool)
+	return ret0, ret1, ret2
+}
+
+// TrySplitByPredicate indicates an expected call of TrySplitByPredicate.
+func (mr *MockVirtualSliceMockRecorder) TrySplitByPredicate(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TrySplitByPredicate", reflect.TypeOf((*MockVirtualSlice)(nil).TrySplitByPredicate), arg0)
 }
 
 // TrySplitByTaskKey mocks base method.

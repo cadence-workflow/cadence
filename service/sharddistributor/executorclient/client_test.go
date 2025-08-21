@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/uber-go/tally"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 	uber_gomock "go.uber.org/mock/gomock"
@@ -15,7 +16,6 @@ import (
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/metrics"
 )
 
 func TestModule(t *testing.T) {
@@ -24,7 +24,6 @@ func TestModule(t *testing.T) {
 	uberCtrl := uber_gomock.NewController(t)
 	mockLogger := log.NewNoop()
 
-	mockMetricsClient := metrics.NewNoopMetricsClient()
 	mockShardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](uberCtrl)
 
 	// Create shard distributor yarpc client
@@ -46,7 +45,7 @@ func TestModule(t *testing.T) {
 	fxtest.New(t,
 		fx.Supply(
 			fx.Annotate(yarpcClient, fx.As(new(sharddistributorv1.ShardDistributorExecutorAPIYARPCClient))),
-			fx.Annotate(mockMetricsClient, fx.As(new(metrics.Client))),
+			fx.Annotate(tally.NoopScope, fx.As(new(tally.Scope))),
 			fx.Annotate(mockLogger, fx.As(new(log.Logger))),
 			fx.Annotate(mockShardProcessorFactory, fx.As(new(ShardProcessorFactory[*MockShardProcessor]))),
 			fx.Annotate(clock.NewMockedTimeSource(), fx.As(new(clock.TimeSource))),

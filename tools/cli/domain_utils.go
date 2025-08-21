@@ -85,7 +85,7 @@ var (
 		&cli.StringFlag{
 			Name:    FlagIsGlobalDomain,
 			Aliases: []string{"gd"},
-			Usage:   "Flag to indicate whether domain is a global domain. Default to true. Local domain is now legacy.",
+			Usage:   "Flag to indicate whether domain is a global domain (active-passive domain). Default to true. Local domain is now legacy.",
 			Value:   "true",
 		},
 		&cli.StringFlag{

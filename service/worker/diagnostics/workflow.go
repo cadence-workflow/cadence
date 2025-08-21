@@ -60,7 +60,7 @@ type DiagnosticsWorkflowResult struct {
 type timeoutDiagnostics struct {
 	Issues    []*timeoutIssuesResult
 	RootCause []*timeoutRootCauseResult
-	Runbooks  []string
+	Runbook   string
 }
 
 type timeoutIssuesResult struct {
@@ -79,7 +79,7 @@ type timeoutRootCauseResult struct {
 type failureDiagnostics struct {
 	Issues    []*failureIssuesResult
 	RootCause []*failureRootCauseResult
-	Runbooks  []string
+	Runbook   string
 }
 
 type failureIssuesResult struct {
@@ -96,8 +96,8 @@ type failureRootCauseResult struct {
 }
 
 type retryDiagnostics struct {
-	Issues   []*retryIssuesResult
-	Runbooks []string
+	Issues  []*retryIssuesResult
+	Runbook string
 }
 
 type retryIssuesResult struct {
@@ -158,7 +158,7 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 		timeoutsResult = &timeoutDiagnostics{
 			Issues:    timeoutIssues,
 			RootCause: timeoutRootCause,
-			Runbooks:  []string{linkToTimeoutsRunbook},
+			Runbook:   linkToTimeoutsRunbook,
 		}
 	}
 
@@ -175,7 +175,7 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 		failureResult = &failureDiagnostics{
 			Issues:    failureIssues,
 			RootCause: failureRootCause,
-			Runbooks:  []string{linkToFailuresRunbook},
+			Runbook:   linkToFailuresRunbook,
 		}
 	}
 
@@ -186,8 +186,8 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 
 	if len(retryIssues) > 0 {
 		retryResult = &retryDiagnostics{
-			Issues:   retryIssues,
-			Runbooks: []string{linkToRetriesRunbook},
+			Issues:  retryIssues,
+			Runbook: linkToRetriesRunbook,
 		}
 	}
 
@@ -329,7 +329,7 @@ func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) ([
 			})
 		}
 		if rc.RootCause == invariant.RootCauseTypeBlobSizeLimit {
-			var metadata failure.BlobSizeMetadata
+			var metadata failure.FailureRootcauseMetadata
 			err := json.Unmarshal(rc.Metadata, &metadata)
 			if err != nil {
 				return nil, err
@@ -338,7 +338,7 @@ func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) ([
 				IssueID:       rc.IssueID,
 				RootCauseType: rc.RootCause.String(),
 				Metadata: &failure.FailureRootcauseMetadata{
-					BlobSizeMetadata: &metadata,
+					BlobSizeMetadata: metadata.BlobSizeMetadata,
 				},
 			})
 		}
@@ -388,7 +388,7 @@ func rootCausePollersRelated(rootCause invariant.RootCause) bool {
 }
 
 func issueRetryRelated(issue invariant.InvariantCheckResult) bool {
-	for _, i := range []string{retry.WorkflowRetryIssue.String(), retry.WorkflowRetryInfo.String(), retry.ActivityRetryIssue.String(), retry.ActivityHeartbeatIssue.String()} {
+	for _, i := range []string{retry.WorkflowRetryIssue.String(), retry.ActivityRetryIssue.String(), retry.ActivityHeartbeatIssue.String()} {
 		if issue.InvariantType == i {
 			return true
 		}

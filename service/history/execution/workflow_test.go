@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -512,7 +513,7 @@ func (s *workflowSuite) newTestActiveClusterManager(clusterMetadata cluster.Meta
 	activeClusterMgr, err := activecluster.NewManager(
 		domainIDToDomainFn,
 		clusterMetadata,
-		nil,
+		metrics.NoopClient,
 		testlogger.New(s.T()),
 		nil,
 		nil,

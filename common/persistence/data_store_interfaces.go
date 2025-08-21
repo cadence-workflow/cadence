@@ -376,6 +376,7 @@ type (
 		DomainID           string
 		StartedIdentity    string
 		TaskList           string
+		TaskListKind       types.TaskListKind
 		HasRetryPolicy     bool
 		InitialInterval    time.Duration
 		BackoffCoefficient float64
@@ -967,6 +968,8 @@ func (d *DataBlob) GetEncoding() constants.EncodingType {
 		return constants.EncodingTypeJSON
 	case constants.EncodingTypeThriftRW:
 		return constants.EncodingTypeThriftRW
+	case constants.EncodingTypeThriftRWSnappy:
+		return constants.EncodingTypeThriftRWSnappy
 	case constants.EncodingTypeEmpty:
 		return constants.EncodingTypeEmpty
 	default:

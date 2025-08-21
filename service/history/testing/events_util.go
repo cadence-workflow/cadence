@@ -149,7 +149,7 @@ func AddActivityTaskScheduledEvent(
 	event, ai, _, _, _, _ := builder.AddActivityTaskScheduledEvent(nil, decisionCompletedID, &types.ScheduleActivityTaskDecisionAttributes{
 		ActivityID:                    activityID,
 		ActivityType:                  &types.ActivityType{Name: activityType},
-		TaskList:                      &types.TaskList{Name: taskList},
+		TaskList:                      &types.TaskList{Name: taskList, Kind: types.TaskListKindNormal.Ptr()},
 		Input:                         input,
 		ScheduleToCloseTimeoutSeconds: common.Int32Ptr(scheduleToCloseTimeout),
 		ScheduleToStartTimeoutSeconds: common.Int32Ptr(scheduleToStartTimeout),

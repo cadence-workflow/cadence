@@ -1320,6 +1320,8 @@ func sampleInternalActivityInfo(name string) *InternalActivityInfo {
 		Version:        1,
 		ScheduleID:     1,
 		ActivityID:     name,
+		TaskList:       "TaskList",
+		TaskListKind:   TaskListKindSticky,
 		ScheduledEvent: NewDataBlob([]byte(fmt.Sprintf("%s-activity-scheduled-event", name)), constants.EncodingTypeThriftRW),
 		StartedEvent:   NewDataBlob([]byte(fmt.Sprintf("%s-activity-started-event", name)), constants.EncodingTypeThriftRW),
 	}
@@ -1327,9 +1329,11 @@ func sampleInternalActivityInfo(name string) *InternalActivityInfo {
 
 func sampleActivityInfo(name string, id int64) *ActivityInfo {
 	return &ActivityInfo{
-		Version:    1,
-		ScheduleID: 1,
-		ActivityID: name,
+		Version:      1,
+		ScheduleID:   1,
+		ActivityID:   name,
+		TaskList:     "TaskList",
+		TaskListKind: TaskListKindSticky,
 		ScheduledEvent: &types.HistoryEvent{
 			ID: id,
 		},

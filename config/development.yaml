@@ -147,3 +147,27 @@ blobstore:
 
 shardDistributorClient:
   hostPort: "localhost:7943"
+
+shardDistribution:
+  enabled: true
+  election:
+    leaderPeriod: 60s
+    maxRandomDelay: 1s
+    failedElectionCooldown: 1s
+  namespaces:
+    - name: shard-distributor-canary
+      type: fixed
+      shardNum: 32
+  leaderStore:
+    storageParams:
+      endpoints: [localhost:2379]
+      dialTimeout: 1s
+      prefix: "leader"
+  store:
+    storageParams:
+      endpoints: [localhost:2379]
+      dialTimeout: 1s
+      prefix: "store"
+  process:
+    period: 1s
+    heartbeatTTL: 2s

@@ -39,9 +39,9 @@ const (
 	testSchemaDir = "schema/cassandra/"
 )
 
-var _ nosqlplugin.AdminDB = (*cdb)(nil)
+var _ nosqlplugin.AdminDB = (*CDB)(nil)
 
-func (db *cdb) SetupTestDatabase(schemaBaseDir string, replicas int) error {
+func (db *CDB) SetupTestDatabase(schemaBaseDir string, replicas int) error {
 	err := db.createCassandraKeyspace(db.session, db.cfg.Keyspace, replicas, true)
 	if err != nil {
 		return err
@@ -66,7 +66,7 @@ func (db *cdb) SetupTestDatabase(schemaBaseDir string, replicas int) error {
 }
 
 // loadSchema from PersistenceTestCluster interface
-func (db *cdb) loadSchema(fileNames []string, schemaBaseDir string) error {
+func (db *CDB) loadSchema(fileNames []string, schemaBaseDir string) error {
 	workflowSchemaDir := schemaBaseDir + "/cadence"
 	err := loadCassandraSchema(workflowSchemaDir, fileNames, db.cfg.Hosts, db.cfg.Port, db.cfg.Keyspace, true, nil, db.cfg.ProtoVersion)
 	if err != nil && !strings.Contains(err.Error(), "AlreadyExists") {
@@ -77,7 +77,7 @@ func (db *cdb) loadSchema(fileNames []string, schemaBaseDir string) error {
 }
 
 // loadVisibilitySchema from PersistenceTestCluster interface
-func (db *cdb) loadVisibilitySchema(fileNames []string, schemaBaseDir string) error {
+func (db *CDB) loadVisibilitySchema(fileNames []string, schemaBaseDir string) error {
 	workflowSchemaDir := schemaBaseDir + "/visibility"
 	err := loadCassandraSchema(workflowSchemaDir, fileNames, db.cfg.Hosts, db.cfg.Port, db.cfg.Keyspace, false, nil, db.cfg.ProtoVersion)
 	if err != nil && !strings.Contains(err.Error(), "AlreadyExists") {
@@ -87,7 +87,7 @@ func (db *cdb) loadVisibilitySchema(fileNames []string, schemaBaseDir string) er
 	return nil
 }
 
-func (db *cdb) TeardownTestDatabase() error {
+func (db *CDB) TeardownTestDatabase() error {
 	err := db.dropCassandraKeyspace(db.session, db.cfg.Keyspace)
 	if err != nil {
 		return err
@@ -97,7 +97,7 @@ func (db *cdb) TeardownTestDatabase() error {
 }
 
 // createCassandraKeyspace creates the keyspace using this session for given replica count
-func (db *cdb) createCassandraKeyspace(s gocql.Session, keyspace string, replicas int, overwrite bool) (err error) {
+func (db *CDB) createCassandraKeyspace(s gocql.Session, keyspace string, replicas int, overwrite bool) (err error) {
 	// if overwrite flag is set, drop the keyspace and create a new one
 	if overwrite {
 		err = db.dropCassandraKeyspace(s, keyspace)
@@ -118,7 +118,7 @@ func (db *cdb) createCassandraKeyspace(s gocql.Session, keyspace string, replica
 }
 
 // dropCassandraKeyspace drops the given keyspace, if it exists
-func (db *cdb) dropCassandraKeyspace(s gocql.Session, keyspace string) (err error) {
+func (db *CDB) dropCassandraKeyspace(s gocql.Session, keyspace string) (err error) {
 	err = s.Query(fmt.Sprintf("DROP KEYSPACE IF EXISTS %s", keyspace)).Exec()
 	if err != nil {
 		db.logger.Error(`drop keyspace error`, tag.Error(err))

@@ -995,6 +995,13 @@ func (a *ActivityInfo) GetTaskList() (o string) {
 	return
 }
 
+func (a *ActivityInfo) GetTaskListKind() (o types.TaskListKind) {
+	if a != nil {
+		return a.TaskListKind
+	}
+	return
+}
+
 // GetStartedEventEncoding internal sql blob getter
 func (a *ActivityInfo) GetStartedEventEncoding() (o string) {
 	if a != nil {

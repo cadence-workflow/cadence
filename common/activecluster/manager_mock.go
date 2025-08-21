@@ -71,6 +71,21 @@ func (mr *MockManagerMockRecorder) CurrentRegion() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentRegion", reflect.TypeOf((*MockManager)(nil).CurrentRegion))
 }
 
+// LookupCluster mocks base method.
+func (m *MockManager) LookupCluster(ctx context.Context, domainID, clusterName string) (*LookupResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LookupCluster", ctx, domainID, clusterName)
+	ret0, _ := ret[0].(*LookupResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LookupCluster indicates an expected call of LookupCluster.
+func (mr *MockManagerMockRecorder) LookupCluster(ctx, domainID, clusterName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupCluster", reflect.TypeOf((*MockManager)(nil).LookupCluster), ctx, domainID, clusterName)
+}
+
 // LookupNewWorkflow mocks base method.
 func (m *MockManager) LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (*LookupResult, error) {
 	m.ctrl.T.Helper()

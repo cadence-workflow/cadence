@@ -389,6 +389,33 @@ func TestDomainCallback(t *testing.T) {
 		t3,
 	}
 
+	failoverUpdateActiveActive := []*cache.DomainCacheEntry{
+		cache.NewDomainCacheEntryForTest(&domainInfo,
+			&domainConfig,
+			true,
+			&persistence.DomainReplicationConfig{
+				Clusters: clusters,
+				ActiveClusters: &types.ActiveClusters{
+					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+						"region0": {
+							ActiveClusterName: "cluster0",
+							FailoverVersion:   1,
+						},
+						"region1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   2,
+						},
+					},
+				},
+			},
+			-1,
+			nil,
+			4,
+			5,
+			5,
+		),
+	}
+
 	invalidDomainUpdate := []*cache.DomainCacheEntry{
 		cache.NewDomainCacheEntryForTest(&domainInfo,
 			&domainConfig,
@@ -577,6 +604,26 @@ func TestDomainCallback(t *testing.T) {
 
 				txProcessor.EXPECT().UnlockTaskProcessing()
 				timerProcessor.EXPECT().UnlockTaskProcessing()
+			},
+		},
+		"active active domain failover update. cluster0 POV": {
+			domainUpdates: failoverUpdateActiveActive,
+			asCluster:     "cluster0",
+			affordances: func(
+				shardCtx *shard.MockContext,
+				txProcessor *queue.MockProcessor,
+				timerProcessor *queue.MockProcessor,
+				taskProcessor *task.MockProcessor) {
+
+				shardCtx.EXPECT().GetDomainNotificationVersion().Return(int64(1))
+				shardCtx.EXPECT().GetTimeSource().Return(timeSource)
+				shardCtx.EXPECT().UpdateDomainNotificationVersion(int64(6))
+
+				txProcessor.EXPECT().UnlockTaskProcessing()
+				txProcessor.EXPECT().NotifyNewTask("cluster0", gomock.Any())
+
+				timerProcessor.EXPECT().UnlockTaskProcessing()
+				timerProcessor.EXPECT().NotifyNewTask("cluster0", gomock.Any())
 			},
 		},
 	}

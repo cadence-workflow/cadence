@@ -1,0 +1,59 @@
+import (
+	"context"
+
+    "github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/service/sharddistributor/store"
+)
+
+{{ $decorator := (printf "metered%s" .Interface.Name) }}
+{{ $interfaceName := .Interface.Name }}
+
+// {{$decorator}} implements {{.Interface.Type}} interface instrumented with metrics.
+type {{$decorator}} struct {
+    base
+    wrapped     {{.Interface.Type}}
+}
+
+// New{{.Interface.Name}} creates a new instance of {{.Interface.Name}} with metrics.
+func New{{.Interface.Name}}(
+	wrapped      store.{{.Interface.Name}},
+	metricClient metrics.Client,
+	logger       log.Logger,
+    timeSource   clock.TimeSource,
+) store.{{.Interface.Name}} {
+    if wrapped == nil {
+        return nil
+    }
+    return &{{$decorator}}{
+        wrapped: wrapped,
+        base:    base{
+			metricClient: metricClient,
+			logger:     logger,
+            timeSource: timeSource,
+        },
+    }
+}
+
+{{range $methodName, $method := .Interface.Methods}}
+    {{- if (and $method.AcceptsContext $method.ReturnsError)}}
+        func (c *{{$decorator}}) {{$method.Declaration}} {
+	        op := func() error {
+		        {{$method.ResultsNames}} = c.wrapped.{{$method.Call}}
+		        return err
+	        }
+	        {{$scopeName := printf "metrics.ShardDistributorStore%sScope" $methodName}}
+
+            {{ $namespaceParam := (index $method.Params 1).Name }}
+            {{$extraTags := printf ", metrics.NamespaceTag(%s)" $namespaceParam}}
+
+	        err = c.call({{$scopeName}}, op{{$extraTags}})
+	        return
+        }
+    {{else}}
+           func (c *{{$decorator}}) {{$method.Declaration}} {
+               {{ $method.Pass "c.wrapped." }}
+           }
+    {{end}}
+{{end}}

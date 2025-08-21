@@ -40,8 +40,6 @@ services:
       - "ASYNC_WF_KAFKA_QUEUE_TOPIC=async-wf-topic1"
       - "KAFKA_SEEDS=kafka"
       - "KAFKA_PORT=9092"
-      - "ZOOKEEPER_SEEDS=zookeeper"
-      - "ZOOKEEPER_PORT=2181"
       - "CASSANDRA_SEEDS=cassandra"
       - "PROMETHEUS_ENDPOINT_0=0.0.0.0:8000"
       - "PROMETHEUS_ENDPOINT_1=0.0.0.0:8001"

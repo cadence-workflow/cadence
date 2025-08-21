@@ -47,7 +47,7 @@ const (
 
 // SelectTaskList returns a single tasklist row.
 // Return IsNotFoundError if the row doesn't exist
-func (db *cdb) SelectTaskList(ctx context.Context, filter *nosqlplugin.TaskListFilter) (*nosqlplugin.TaskListRow, error) {
+func (db *CDB) SelectTaskList(ctx context.Context, filter *nosqlplugin.TaskListFilter) (*nosqlplugin.TaskListRow, error) {
 	query := db.session.Query(templateGetTaskList,
 		filter.DomainID,
 		filter.TaskListName,
@@ -177,7 +177,7 @@ func fromTaskListPartition(partition *persistence.TaskListPartition) any {
 
 // InsertTaskList insert a single tasklist row
 // Return TaskOperationConditionFailure if the condition doesn't meet
-func (db *cdb) InsertTaskList(ctx context.Context, row *nosqlplugin.TaskListRow) error {
+func (db *CDB) InsertTaskList(ctx context.Context, row *nosqlplugin.TaskListRow) error {
 	timeStamp := row.CurrentTimeStamp
 	query := db.session.Query(templateInsertTaskListQuery,
 		row.DomainID,
@@ -207,7 +207,7 @@ func (db *cdb) InsertTaskList(ctx context.Context, row *nosqlplugin.TaskListRow)
 
 // UpdateTaskList updates a single tasklist row
 // Return TaskOperationConditionFailure if the condition doesn't meet
-func (db *cdb) UpdateTaskList(
+func (db *CDB) UpdateTaskList(
 	ctx context.Context,
 	row *nosqlplugin.TaskListRow,
 	previousRangeID int64,
@@ -260,7 +260,7 @@ func handleTaskListAppliedError(applied bool, previous map[string]interface{}) e
 // Return TaskOperationConditionFailure if the condition doesn't meet
 // Ignore TTL if it's not supported, which becomes exactly the same as UpdateTaskList, but ListTaskList must be
 // implemented for TaskListScavenger
-func (db *cdb) UpdateTaskListWithTTL(
+func (db *CDB) UpdateTaskListWithTTL(
 	ctx context.Context,
 	ttlSeconds int64,
 	row *nosqlplugin.TaskListRow,
@@ -307,7 +307,7 @@ func (db *cdb) UpdateTaskListWithTTL(
 
 // ListTaskList returns all tasklists.
 // Noop if TTL is already implemented in other methods
-func (db *cdb) ListTaskList(ctx context.Context, pageSize int, nextPageToken []byte) (*nosqlplugin.ListTaskListResult, error) {
+func (db *CDB) ListTaskList(ctx context.Context, pageSize int, nextPageToken []byte) (*nosqlplugin.ListTaskListResult, error) {
 	return nil, &types.InternalServiceError{
 		Message: "unsupported operation",
 	}
@@ -315,7 +315,7 @@ func (db *cdb) ListTaskList(ctx context.Context, pageSize int, nextPageToken []b
 
 // DeleteTaskList deletes a single tasklist row
 // Return TaskOperationConditionFailure if the condition doesn't meet
-func (db *cdb) DeleteTaskList(ctx context.Context, filter *nosqlplugin.TaskListFilter, previousRangeID int64) error {
+func (db *CDB) DeleteTaskList(ctx context.Context, filter *nosqlplugin.TaskListFilter, previousRangeID int64) error {
 	query := db.session.Query(templateDeleteTaskListQuery,
 		filter.DomainID,
 		filter.TaskListName,
@@ -341,7 +341,7 @@ func (db *cdb) DeleteTaskList(ctx context.Context, filter *nosqlplugin.TaskListF
 
 // InsertTasks inserts a batch of tasks
 // Return IsConditionFailedError if the condition doesn't meet, and also the previous tasklist row
-func (db *cdb) InsertTasks(
+func (db *CDB) InsertTasks(
 	ctx context.Context,
 	tasksToInsert []*nosqlplugin.TaskRowForInsert,
 	tasklistCondition *nosqlplugin.TaskListRow,
@@ -412,7 +412,7 @@ func (db *cdb) InsertTasks(
 }
 
 // GetTasksCount returns number of tasks from a tasklist
-func (db *cdb) GetTasksCount(ctx context.Context, filter *nosqlplugin.TasksFilter) (int64, error) {
+func (db *CDB) GetTasksCount(ctx context.Context, filter *nosqlplugin.TasksFilter) (int64, error) {
 	query := db.session.Query(templateGetTasksCountQuery,
 		filter.DomainID,
 		filter.TaskListName,
@@ -430,7 +430,7 @@ func (db *cdb) GetTasksCount(ctx context.Context, filter *nosqlplugin.TasksFilte
 }
 
 // SelectTasks return tasks that associated to a tasklist
-func (db *cdb) SelectTasks(ctx context.Context, filter *nosqlplugin.TasksFilter) ([]*nosqlplugin.TaskRow, error) {
+func (db *CDB) SelectTasks(ctx context.Context, filter *nosqlplugin.TasksFilter) ([]*nosqlplugin.TaskRow, error) {
 	// Reading tasklist tasks need to be quorum level consistent, otherwise we could lose tasks
 	query := db.session.Query(templateGetTasksQuery,
 		filter.DomainID,
@@ -518,7 +518,7 @@ func createTaskInfo(
 // If TTL is not implemented, then should also return the number of rows deleted, otherwise persistence.UnknownNumRowsAffected
 // NOTE: This API ignores the `BatchSize` request parameter i.e. either all tasks leq the task_id will be deleted or an error will
 // be returned to the caller, because rowsDeleted is not supported by Cassandra
-func (db *cdb) RangeDeleteTasks(ctx context.Context, filter *nosqlplugin.TasksFilter) (rowsDeleted int, err error) {
+func (db *CDB) RangeDeleteTasks(ctx context.Context, filter *nosqlplugin.TasksFilter) (rowsDeleted int, err error) {
 	query := db.session.Query(templateCompleteTasksLessThanQuery,
 		filter.DomainID,
 		filter.TaskListName,

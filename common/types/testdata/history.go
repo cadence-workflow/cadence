@@ -476,6 +476,8 @@ var (
 		Header:                              &Header,
 		Memo:                                &Memo,
 		SearchAttributes:                    &SearchAttributes,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyExternalEntity,
+		CronOverlapPolicy:                   &CronOverlapPolicy,
 	}
 	StartChildWorkflowExecutionInitiatedEventAttributes = types.StartChildWorkflowExecutionInitiatedEventAttributes{
 		Domain:                              DomainName,

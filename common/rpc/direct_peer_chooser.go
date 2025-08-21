@@ -23,6 +23,7 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 
@@ -224,8 +225,17 @@ func (g *directPeerChooser) updatePeersInternal(members []membership.HostInfo) {
 
 func (g *directPeerChooser) removePeer(addr string) {
 	g.mu.RLock()
-	if err := g.t.ReleasePeer(g.peers[addr], noOpSubscriberInstance); err != nil {
-		g.logger.Error("failed to release peer", tag.Error(err), tag.Address(addr))
+	peer, exists := g.peers[addr]
+	if exists && peer != nil {
+		if err := g.t.ReleasePeer(peer, noOpSubscriberInstance); err != nil {
+			g.logger.Error("failed to release peer", tag.Error(err), tag.Address(addr))
+		}
+	} else {
+		if peer == nil {
+			g.logger.Error("peer is nil", tag.Address(addr), tag.Dynamic("stack", string(debug.Stack())))
+		} else {
+			g.logger.Error("peer is not in the peers map", tag.Address(addr), tag.Dynamic("stack", string(debug.Stack())))
+		}
 	}
 	g.mu.RUnlock()
 

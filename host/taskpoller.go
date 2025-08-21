@@ -499,6 +499,18 @@ func (p *TaskPoller) PollAndProcessActivityTaskWithID(dropTask bool) error {
 	return tasklist.ErrNoTasks
 }
 
+func (p *TaskPoller) PollAndProcessActivities() context.CancelFunc {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	ctx, cancel := context.WithCancel(context.Background())
+	go p.pollLoop(ctx, &wg, p.doPollActivityTask)
+
+	return func() {
+		cancel()
+		wg.Wait()
+	}
+}
+
 func (p *TaskPoller) PollAndProcessDecisions() context.CancelFunc {
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -524,6 +536,58 @@ func (p *TaskPoller) pollLoop(ctx context.Context, wg *sync.WaitGroup, pollFunc 
 			}
 		}
 	}
+}
+
+func (p *TaskPoller) doPollActivityTask(ctx context.Context) error {
+	taskList := p.TaskList
+	pollCtx, cancel := context.WithTimeout(ctx, time.Second*90)
+	response, err := p.Engine.PollForActivityTask(pollCtx, &types.PollForActivityTaskRequest{
+		Domain:   p.Domain,
+		TaskList: taskList,
+		Identity: p.Identity,
+	}, p.CallOptions...)
+	cancel()
+
+	if err != nil {
+		return err
+	}
+
+	if response == nil || len(response.TaskToken) == 0 {
+		p.Logger.Info("Empty Decision task: Polling again.")
+		return nil
+	}
+
+	result, shouldCancel, err := p.ActivityHandler(response.WorkflowExecution, response.ActivityType, response.ActivityID, response.Input, response.TaskToken)
+
+	responseCtx, ctxCancel := context.WithTimeout(ctx, time.Second*5)
+	defer ctxCancel()
+	var responseErr error
+
+	if err != nil {
+		p.Logger.Info("Executed RespondActivityTaskFailed")
+		responseErr = p.Engine.RespondActivityTaskFailed(responseCtx, &types.RespondActivityTaskFailedRequest{
+			TaskToken: response.TaskToken,
+			Reason:    common.StringPtr(err.Error()),
+			Details:   []byte(err.Error()),
+			Identity:  p.Identity,
+		}, p.CallOptions...)
+	} else if shouldCancel {
+		p.Logger.Info("Executing RespondActivityTaskCanceled")
+		responseErr = p.Engine.RespondActivityTaskCanceled(responseCtx, &types.RespondActivityTaskCanceledRequest{
+			TaskToken: response.TaskToken,
+			Details:   []byte("details"),
+			Identity:  p.Identity,
+		}, p.CallOptions...)
+	} else {
+		p.Logger.Info("Executing RespondActivityTaskCompleted")
+		responseErr = p.Engine.RespondActivityTaskCompleted(responseCtx, &types.RespondActivityTaskCompletedRequest{
+			TaskToken: response.TaskToken,
+			Identity:  p.Identity,
+			Result:    result,
+		}, p.CallOptions...)
+	}
+
+	return responseErr
 }
 
 func (p *TaskPoller) doPollDecisionTask(ctx context.Context) error {

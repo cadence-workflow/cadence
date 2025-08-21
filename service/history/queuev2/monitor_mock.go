@@ -79,6 +79,18 @@ func (mr *MockMonitorMockRecorder) RemoveSlice(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveSlice", reflect.TypeOf((*MockMonitor)(nil).RemoveSlice), arg0)
 }
 
+// ResolveAlert mocks base method.
+func (m *MockMonitor) ResolveAlert(arg0 AlertType) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ResolveAlert", arg0)
+}
+
+// ResolveAlert indicates an expected call of ResolveAlert.
+func (mr *MockMonitorMockRecorder) ResolveAlert(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveAlert", reflect.TypeOf((*MockMonitor)(nil).ResolveAlert), arg0)
+}
+
 // SetSlicePendingTaskCount mocks base method.
 func (m *MockMonitor) SetSlicePendingTaskCount(arg0 VirtualSlice, arg1 int) {
 	m.ctrl.T.Helper()
@@ -89,4 +101,28 @@ func (m *MockMonitor) SetSlicePendingTaskCount(arg0 VirtualSlice, arg1 int) {
 func (mr *MockMonitorMockRecorder) SetSlicePendingTaskCount(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSlicePendingTaskCount", reflect.TypeOf((*MockMonitor)(nil).SetSlicePendingTaskCount), arg0, arg1)
+}
+
+// Subscribe mocks base method.
+func (m *MockMonitor) Subscribe(arg0 chan<- *Alert) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Subscribe", arg0)
+}
+
+// Subscribe indicates an expected call of Subscribe.
+func (mr *MockMonitorMockRecorder) Subscribe(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockMonitor)(nil).Subscribe), arg0)
+}
+
+// Unsubscribe mocks base method.
+func (m *MockMonitor) Unsubscribe() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Unsubscribe")
+}
+
+// Unsubscribe indicates an expected call of Unsubscribe.
+func (mr *MockMonitorMockRecorder) Unsubscribe() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unsubscribe", reflect.TypeOf((*MockMonitor)(nil).Unsubscribe))
 }

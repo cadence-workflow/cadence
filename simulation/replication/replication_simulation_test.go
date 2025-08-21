@@ -148,6 +148,8 @@ func startWorkflow(
 			TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(5),
 			Input:                               mustJSON(t, &simTypes.WorkflowInput{Duration: op.WorkflowDuration, ActivityCount: op.ActivityCount}),
 			WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			DelayStartSeconds:                   common.Int32Ptr(op.DelayStartSeconds),
+			CronSchedule:                        op.CronSchedule,
 		})
 
 	if err != nil {

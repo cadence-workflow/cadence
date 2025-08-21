@@ -66,6 +66,9 @@ type Manager interface {
 	//     2.b. If workflow has external entity, locate the entity from EntityActiveRegion table and return that region and it's failover version.
 	LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (*LookupResult, error)
 
+	// LookupCluster finds the active cluster name and failover version that's in the same region as the given cluster
+	LookupCluster(ctx context.Context, domainID, clusterName string) (*LookupResult, error)
+
 	// ClusterNameForFailoverVersion returns cluster name of given failover version.
 	// For local domains, it returns current cluster name.
 	// For active-passive global domains, it returns the cluster name based on cluster metadata that corresponds to the failover version.
@@ -128,6 +131,20 @@ func newRegionNotFoundForDomainError(region, domainID string) *RegionNotFoundFor
 
 func (e *RegionNotFoundForDomainError) Error() string {
 	return fmt.Sprintf("could not find region %s in the domain %s's active cluster config", e.Region, e.DomainID)
+}
+
+type ClusterNotFoundError struct {
+	ClusterName string
+}
+
+func newClusterNotFoundError(clusterName string) *ClusterNotFoundError {
+	return &ClusterNotFoundError{
+		ClusterName: clusterName,
+	}
+}
+
+func (e *ClusterNotFoundError) Error() string {
+	return fmt.Sprintf("could not find cluster %s", e.ClusterName)
 }
 
 type ClusterNotFoundForRegionError struct {

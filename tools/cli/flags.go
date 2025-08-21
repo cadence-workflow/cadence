@@ -301,6 +301,11 @@ func getFlagsForShowID() []cli.Flag {
 			Name:  FlagResetPointsOnly,
 			Usage: "Only show events that are eligible for reset",
 		},
+		&cli.StringFlag{
+			Name:    FlagQueryConsistencyLevel,
+			Aliases: []string{"qcl"},
+			Usage:   "Optional flag to set query consistency level. Valid values are \"eventual\" and \"strong\"",
+		},
 	}
 }
 
@@ -754,6 +759,11 @@ func getFlagsForDescribeID() []cli.Flag {
 		&cli.BoolFlag{
 			Name:  FlagResetPointsOnly,
 			Usage: "Only show auto-reset points",
+		},
+		&cli.StringFlag{
+			Name:    FlagQueryConsistencyLevel,
+			Aliases: []string{"qcl"},
+			Usage:   "Optional flag to set query consistency level. Valid values are \"eventual\" and \"strong\"",
 		},
 	}
 }

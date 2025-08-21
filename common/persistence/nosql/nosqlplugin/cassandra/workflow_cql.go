@@ -161,6 +161,7 @@ const (
 		`timer_task_status: ?, ` +
 		`attempt: ?, ` +
 		`task_list: ?, ` +
+		`task_list_kind: ?, ` +
 		`started_identity: ?, ` +
 		`has_retry_policy: ?, ` +
 		`init_interval: ?, ` +

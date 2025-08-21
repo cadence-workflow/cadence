@@ -39,6 +39,14 @@ import (
 	"github.com/uber/cadence/service/history/task"
 )
 
+const (
+	alertChSize = 10
+	// Non-default readers will use critical pending task count * this coefficient
+	// as its max pending task count so that their loading will never trigger pending
+	// task alert & action
+	nonRootQueueMaxPendingTaskCoefficient = 0.8
+)
+
 type (
 	Options struct {
 		PageSize                             dynamicproperties.IntPropertyFn
@@ -52,6 +60,10 @@ type (
 		MaxPendingTasksCount                 dynamicproperties.IntPropertyFn
 		PollBackoffInterval                  dynamicproperties.DurationPropertyFn
 		PollBackoffIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
+		// monitor & mitigator options
+		CriticalPendingTaskCount    dynamicproperties.IntPropertyFn
+		EnablePendingTaskCountAlert func() bool
+		MaxVirtualQueueCount        dynamicproperties.IntPropertyFn
 
 		EnableValidator        dynamicproperties.BoolPropertyFn
 		ValidationInterval     dynamicproperties.DurationPropertyFn
@@ -72,11 +84,14 @@ type (
 		redispatcher          task.Redispatcher
 		queueReader           QueueReader
 		monitor               Monitor
+		mitigator             Mitigator
 		updateQueueStateTimer clock.Timer
 		virtualQueueManager   VirtualQueueManager
 		exclusiveAckLevel     persistence.HistoryTaskKey
+		alertCh               chan *Alert
+		newVirtualSliceState  VirtualSliceState
 
-		newVirtualSliceState VirtualSliceState
+		updateQueueStateFn func(ctx context.Context)
 	}
 )
 
@@ -96,7 +111,7 @@ func newQueueBase(
 		logger.Fatal("Failed to get queue state, probably task category is not supported", tag.Error(err), tag.Dynamic("category", category))
 	}
 	queueState := FromPersistenceQueueState(persistenceQueueState)
-	exclusiveAckLevel := getExclusiveAckLevelFromQueueState(queueState)
+	exclusiveAckLevel, _ := getExclusiveAckLevelAndMaxQueueIDFromQueueState(queueState)
 
 	redispatcher := task.NewRedispatcher(
 		taskProcessor,
@@ -109,9 +124,9 @@ func newQueueBase(
 	)
 	var queueType task.QueueType
 	if category == persistence.HistoryTaskCategoryTransfer {
-		queueType = task.QueueTypeActiveTransfer
+		queueType = task.QueueTypeTransfer
 	} else if category == persistence.HistoryTaskCategoryTimer {
-		queueType = task.QueueTypeActiveTimer
+		queueType = task.QueueTypeTimer
 	}
 	taskInitializer := func(t persistence.Task) task.Task {
 		return task.NewHistoryTask(
@@ -122,7 +137,7 @@ func newQueueBase(
 			func(task persistence.Task) (bool, error) { return true, nil },
 			taskExecutor,
 			taskProcessor,
-			redispatcher.AddTask,
+			redispatcher,
 			shard.GetConfig().TaskCriticalRetryCount,
 		)
 	}
@@ -130,7 +145,13 @@ func newQueueBase(
 		shard,
 		category,
 	)
-	monitor := NewMonitor(category)
+	monitor := NewMonitor(
+		category,
+		&MonitorOptions{
+			CriticalPendingTaskCount:    options.CriticalPendingTaskCount,
+			EnablePendingTaskCountAlert: options.EnablePendingTaskCountAlert,
+		},
+	)
 	virtualQueueManager := NewVirtualQueueManager(
 		taskProcessor,
 		redispatcher,
@@ -147,9 +168,29 @@ func newQueueBase(
 			PollBackoffInterval:                  options.PollBackoffInterval,
 			PollBackoffIntervalJitterCoefficient: options.PollBackoffIntervalJitterCoefficient,
 		},
+		&VirtualQueueOptions{
+			PageSize: options.PageSize,
+			// non-root queues should not trigger task unloading
+			// otherwise those virtual queues will keep loading, hit pending task count limit, unload, throttle, load, etc...
+			// use a limit lower than the critical pending task count instead
+			MaxPendingTasksCount: func(opts ...dynamicproperties.FilterOption) int {
+				return int(float64(options.CriticalPendingTaskCount(opts...)) * nonRootQueueMaxPendingTaskCoefficient)
+			},
+			PollBackoffInterval:                  options.PollBackoffInterval,
+			PollBackoffIntervalJitterCoefficient: options.PollBackoffIntervalJitterCoefficient,
+		},
 		queueState.VirtualQueueStates,
 	)
-	return &queueBase{
+	mitigator := NewMitigator(
+		virtualQueueManager,
+		monitor,
+		logger,
+		metricsScope,
+		&MitigatorOptions{
+			MaxVirtualQueueCount: options.MaxVirtualQueueCount,
+		},
+	)
+	q := &queueBase{
 		shard:               shard,
 		taskProcessor:       taskProcessor,
 		logger:              logger,
@@ -162,8 +203,10 @@ func newQueueBase(
 		redispatcher:        redispatcher,
 		queueReader:         queueReader,
 		monitor:             monitor,
+		mitigator:           mitigator,
 		exclusiveAckLevel:   exclusiveAckLevel,
 		virtualQueueManager: virtualQueueManager,
+		alertCh:             make(chan *Alert, alertChSize),
 		newVirtualSliceState: VirtualSliceState{
 			Range: Range{
 				InclusiveMinTaskKey: queueState.ExclusiveMaxReadLevel,
@@ -172,6 +215,8 @@ func newQueueBase(
 			Predicate: NewUniversalPredicate(),
 		},
 	}
+	q.updateQueueStateFn = q.updateQueueState
+	return q
 }
 
 func (q *queueBase) Start() {
@@ -182,9 +227,12 @@ func (q *queueBase) Start() {
 		q.options.UpdateAckInterval(),
 		q.options.UpdateAckIntervalJitterCoefficient(),
 	))
+
+	q.monitor.Subscribe(q.alertCh)
 }
 
 func (q *queueBase) Stop() {
+	q.monitor.Unsubscribe()
 	q.updateQueueStateTimer.Stop()
 	q.virtualQueueManager.Stop()
 	q.redispatcher.Stop()
@@ -218,6 +266,7 @@ func (q *queueBase) processNewTasks() bool {
 
 	newVirtualSlice := NewVirtualSlice(newVirtualSliceState, q.taskInitializer, q.queueReader, NewPendingTaskTracker())
 
+	q.logger.Debug("processing new tasks", tag.Dynamic("inclusiveMinTaskKey", newVirtualSliceState.Range.InclusiveMinTaskKey), tag.Dynamic("exclusiveMaxTaskKey", newVirtualSliceState.Range.ExclusiveMaxTaskKey))
 	q.virtualQueueManager.AddNewVirtualSliceToRootQueue(newVirtualSlice)
 	return true
 }
@@ -228,7 +277,8 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 		VirtualQueueStates:    q.virtualQueueManager.UpdateAndGetState(),
 		ExclusiveMaxReadLevel: q.newVirtualSliceState.Range.InclusiveMinTaskKey,
 	}
-	newExclusiveAckLevel := getExclusiveAckLevelFromQueueState(queueState)
+	newExclusiveAckLevel, maxQueueID := getExclusiveAckLevelAndMaxQueueIDFromQueueState(queueState)
+	q.metricsScope.UpdateGauge(metrics.VirtualQueueCountGauge, float64(maxQueueID+1))
 
 	// for backward compatibility, we record the timer metrics in shard info scope
 	pendingTaskCount := q.monitor.GetTotalPendingTaskCount()
@@ -269,7 +319,9 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 	}
 
 	// even though the ack level is not updated, we still need to update the queue state
-	err := q.shard.UpdateQueueState(q.category, ToPersistenceQueueState(queueState))
+	persistenceQueueState := ToPersistenceQueueState(queueState)
+	q.logger.Debug("store queue state", tag.Dynamic("queue-state", persistenceQueueState))
+	err := q.shard.UpdateQueueState(q.category, persistenceQueueState)
 	if err != nil {
 		q.logger.Error("Failed to update queue state", tag.Error(err))
 		q.metricsScope.IncCounter(metrics.AckLevelUpdateFailedCounter)
@@ -281,12 +333,23 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 	))
 }
 
-func getExclusiveAckLevelFromQueueState(state *QueueState) persistence.HistoryTaskKey {
+func (q *queueBase) handleAlert(ctx context.Context, alert *Alert) {
+	if alert == nil {
+		return
+	}
+
+	q.mitigator.Mitigate(*alert)
+	q.updateQueueStateFn(ctx)
+}
+
+func getExclusiveAckLevelAndMaxQueueIDFromQueueState(state *QueueState) (persistence.HistoryTaskKey, int64) {
+	maxQueueID := int64(0)
 	newExclusiveAckLevel := state.ExclusiveMaxReadLevel
-	for _, virtualQueueState := range state.VirtualQueueStates {
+	for queueID, virtualQueueState := range state.VirtualQueueStates {
 		if len(virtualQueueState) != 0 {
 			newExclusiveAckLevel = persistence.MinHistoryTaskKey(newExclusiveAckLevel, virtualQueueState[0].Range.InclusiveMinTaskKey)
 		}
+		maxQueueID = max(maxQueueID, queueID)
 	}
-	return newExclusiveAckLevel
+	return newExclusiveAckLevel, maxQueueID
 }

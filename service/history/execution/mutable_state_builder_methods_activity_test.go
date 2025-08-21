@@ -30,7 +30,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
 	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -40,6 +42,8 @@ import (
 	"github.com/uber/cadence/service/history/events"
 	"github.com/uber/cadence/service/history/shard"
 )
+
+var currentTime = time.Unix(0, 1)
 
 func testMutableStateBuilder(t *testing.T) *mutableStateBuilder {
 	ctrl := gomock.NewController(t)
@@ -54,6 +58,7 @@ func testMutableStateBuilder(t *testing.T) *mutableStateBuilder {
 		},
 		config.NewForTest(),
 	)
+	mockShard.Resource.TimeSource = clock.NewMockedTimeSourceAt(currentTime)
 	// set the checksum probabilities to 100% for exercising during test
 	mockShard.GetConfig().MutableStateChecksumGenProbability = func(domain string) int { return 100 }
 	mockShard.GetConfig().MutableStateChecksumVerifyProbability = func(domain string) int { return 100 }
@@ -64,6 +69,230 @@ func testMutableStateBuilder(t *testing.T) *mutableStateBuilder {
 	mockShard.Resource.DomainCache.EXPECT().GetDomainID(constants.TestDomainName).Return(constants.TestDomainID, nil).AnyTimes()
 	mockShard.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(&cache.DomainCacheEntry{}, nil).AnyTimes()
 	return newMutableStateBuilder(mockShard, logger, constants.TestLocalDomainEntry)
+}
+
+func Test__AddActivityTaskScheduledEvent(t *testing.T) {
+	activityType := &types.ActivityType{Name: "activityType"}
+	retryPolicy := &types.RetryPolicy{
+		InitialIntervalInSeconds:    11,
+		BackoffCoefficient:          12,
+		MaximumIntervalInSeconds:    13,
+		MaximumAttempts:             14,
+		NonRetriableErrorReasons:    []string{"no retries please"},
+		ExpirationIntervalInSeconds: 15,
+	}
+	header := &types.Header{Fields: map[string][]byte{
+		"key": []byte("value"),
+	}}
+	cases := []struct {
+		name               string
+		workflowTaskList   *types.TaskList
+		attr               *types.ScheduleActivityTaskDecisionAttributes
+		dispatch           bool
+		expectedAttributes *types.ActivityTaskScheduledEventAttributes
+		expectedInfo       *persistence.ActivityInfo
+		expectedDispatch   *types.ActivityLocalDispatchInfo
+		expectedDispatched bool
+		expectedStarted    bool
+		expectedError      error
+	}{
+		{
+			name:             "success",
+			workflowTaskList: &types.TaskList{Name: "taskList", Kind: types.TaskListKindNormal.Ptr()},
+			attr: &types.ScheduleActivityTaskDecisionAttributes{
+				ActivityID:                    "activityID",
+				ActivityType:                  activityType,
+				Domain:                        constants.TestDomainName,
+				TaskList:                      &types.TaskList{Name: "taskList"},
+				Input:                         []byte("input"),
+				ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
+				ScheduleToStartTimeoutSeconds: common.Int32Ptr(2),
+				StartToCloseTimeoutSeconds:    common.Int32Ptr(3),
+				HeartbeatTimeoutSeconds:       common.Int32Ptr(4),
+				RetryPolicy:                   retryPolicy,
+				Header:                        header,
+				RequestLocalDispatch:          false,
+			},
+			expectedAttributes: &types.ActivityTaskScheduledEventAttributes{
+				ActivityID:                    "activityID",
+				ActivityType:                  activityType,
+				Domain:                        &constants.TestDomainName,
+				TaskList:                      &types.TaskList{Name: "taskList"},
+				Input:                         []byte("input"),
+				ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
+				ScheduleToStartTimeoutSeconds: common.Int32Ptr(2),
+				StartToCloseTimeoutSeconds:    common.Int32Ptr(3),
+				HeartbeatTimeoutSeconds:       common.Int32Ptr(4),
+				DecisionTaskCompletedEventID:  0,
+				RetryPolicy:                   retryPolicy,
+				Header:                        header,
+			},
+			expectedInfo: &persistence.ActivityInfo{
+				Version:                commonconstants.EmptyVersion,
+				ScheduleID:             1,
+				ScheduledEventBatchID:  0,
+				ScheduledTime:          currentTime,
+				StartedID:              commonconstants.EmptyEventID,
+				DomainID:               constants.TestDomainID,
+				ActivityID:             "activityID",
+				ScheduleToCloseTimeout: 1,
+				ScheduleToStartTimeout: 2,
+				StartToCloseTimeout:    3,
+				HeartbeatTimeout:       4,
+				CancelRequestID:        commonconstants.EmptyEventID,
+				TaskList:               "taskList",
+				TaskListKind:           types.TaskListKindNormal,
+				HasRetryPolicy:         true,
+				InitialInterval:        retryPolicy.InitialIntervalInSeconds,
+				BackoffCoefficient:     retryPolicy.BackoffCoefficient,
+				MaximumInterval:        retryPolicy.MaximumIntervalInSeconds,
+				ExpirationTime:         currentTime.Add(time.Duration(retryPolicy.ExpirationIntervalInSeconds) * time.Second),
+				MaximumAttempts:        retryPolicy.MaximumAttempts,
+				NonRetriableErrors:     retryPolicy.NonRetriableErrorReasons,
+			},
+		},
+		{
+			name:             "success - normal workflow with ephemeral activity",
+			workflowTaskList: &types.TaskList{Name: "taskList", Kind: types.TaskListKindNormal.Ptr()},
+			attr: &types.ScheduleActivityTaskDecisionAttributes{
+				ActivityID:                    "activityID",
+				ActivityType:                  activityType,
+				Domain:                        constants.TestDomainName,
+				TaskList:                      &types.TaskList{Name: "taskList", Kind: types.TaskListKindEphemeral.Ptr()},
+				Input:                         []byte("input"),
+				ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
+				ScheduleToStartTimeoutSeconds: common.Int32Ptr(2),
+				StartToCloseTimeoutSeconds:    common.Int32Ptr(3),
+				HeartbeatTimeoutSeconds:       common.Int32Ptr(4),
+				RetryPolicy:                   retryPolicy,
+				Header:                        header,
+				RequestLocalDispatch:          false,
+			},
+			expectedAttributes: &types.ActivityTaskScheduledEventAttributes{
+				ActivityID:                    "activityID",
+				ActivityType:                  activityType,
+				Domain:                        &constants.TestDomainName,
+				TaskList:                      &types.TaskList{Name: "taskList", Kind: types.TaskListKindEphemeral.Ptr()},
+				Input:                         []byte("input"),
+				ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
+				ScheduleToStartTimeoutSeconds: common.Int32Ptr(2),
+				StartToCloseTimeoutSeconds:    common.Int32Ptr(3),
+				HeartbeatTimeoutSeconds:       common.Int32Ptr(4),
+				DecisionTaskCompletedEventID:  0,
+				RetryPolicy:                   retryPolicy,
+				Header:                        header,
+			},
+			expectedInfo: &persistence.ActivityInfo{
+				Version:                commonconstants.EmptyVersion,
+				ScheduleID:             1,
+				ScheduledEventBatchID:  0,
+				ScheduledTime:          currentTime,
+				StartedID:              commonconstants.EmptyEventID,
+				DomainID:               constants.TestDomainID,
+				ActivityID:             "activityID",
+				ScheduleToCloseTimeout: 1,
+				ScheduleToStartTimeout: 2,
+				StartToCloseTimeout:    3,
+				HeartbeatTimeout:       4,
+				CancelRequestID:        commonconstants.EmptyEventID,
+				TaskList:               "taskList",
+				TaskListKind:           types.TaskListKindEphemeral,
+				HasRetryPolicy:         true,
+				InitialInterval:        retryPolicy.InitialIntervalInSeconds,
+				BackoffCoefficient:     retryPolicy.BackoffCoefficient,
+				MaximumInterval:        retryPolicy.MaximumIntervalInSeconds,
+				ExpirationTime:         currentTime.Add(time.Duration(retryPolicy.ExpirationIntervalInSeconds) * time.Second),
+				MaximumAttempts:        retryPolicy.MaximumAttempts,
+				NonRetriableErrors:     retryPolicy.NonRetriableErrorReasons,
+			},
+		},
+		{
+			name:             "success - ephemeral workflow dispatches activities as ephemeral",
+			workflowTaskList: &types.TaskList{Name: "taskList", Kind: types.TaskListKindEphemeral.Ptr()},
+			attr: &types.ScheduleActivityTaskDecisionAttributes{
+				ActivityID:                    "activityID",
+				ActivityType:                  activityType,
+				Domain:                        constants.TestDomainName,
+				TaskList:                      &types.TaskList{Name: "taskList", Kind: types.TaskListKindNormal.Ptr()},
+				Input:                         []byte("input"),
+				ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
+				ScheduleToStartTimeoutSeconds: common.Int32Ptr(2),
+				StartToCloseTimeoutSeconds:    common.Int32Ptr(3),
+				HeartbeatTimeoutSeconds:       common.Int32Ptr(4),
+				RetryPolicy:                   retryPolicy,
+				Header:                        header,
+				RequestLocalDispatch:          false,
+			},
+			expectedAttributes: &types.ActivityTaskScheduledEventAttributes{
+				ActivityID:                    "activityID",
+				ActivityType:                  activityType,
+				Domain:                        &constants.TestDomainName,
+				TaskList:                      &types.TaskList{Name: "taskList", Kind: types.TaskListKindEphemeral.Ptr()},
+				Input:                         []byte("input"),
+				ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
+				ScheduleToStartTimeoutSeconds: common.Int32Ptr(2),
+				StartToCloseTimeoutSeconds:    common.Int32Ptr(3),
+				HeartbeatTimeoutSeconds:       common.Int32Ptr(4),
+				DecisionTaskCompletedEventID:  0,
+				RetryPolicy:                   retryPolicy,
+				Header:                        header,
+			},
+			expectedInfo: &persistence.ActivityInfo{
+				Version:                commonconstants.EmptyVersion,
+				ScheduleID:             1,
+				ScheduledEventBatchID:  0,
+				ScheduledTime:          currentTime,
+				StartedID:              commonconstants.EmptyEventID,
+				DomainID:               constants.TestDomainID,
+				ActivityID:             "activityID",
+				ScheduleToCloseTimeout: 1,
+				ScheduleToStartTimeout: 2,
+				StartToCloseTimeout:    3,
+				HeartbeatTimeout:       4,
+				CancelRequestID:        commonconstants.EmptyEventID,
+				TaskList:               "taskList",
+				TaskListKind:           types.TaskListKindEphemeral,
+				HasRetryPolicy:         true,
+				InitialInterval:        retryPolicy.InitialIntervalInSeconds,
+				BackoffCoefficient:     retryPolicy.BackoffCoefficient,
+				MaximumInterval:        retryPolicy.MaximumIntervalInSeconds,
+				ExpirationTime:         currentTime.Add(time.Duration(retryPolicy.ExpirationIntervalInSeconds) * time.Second),
+				MaximumAttempts:        retryPolicy.MaximumAttempts,
+				NonRetriableErrors:     retryPolicy.NonRetriableErrorReasons,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			mb := testMutableStateBuilder(t)
+			mockEventsCache := mb.shard.GetEventsCache().(*events.MockCache)
+			mockEventsCache.EXPECT().PutEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
+			if tc.workflowTaskList != nil {
+				mb.executionInfo.TaskList = tc.workflowTaskList.Name
+				mb.executionInfo.TaskListKind = tc.workflowTaskList.GetKind()
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			event, activityInfo, dispatchInfo, dispatched, started, err := mb.AddActivityTaskScheduledEvent(ctx, 0, tc.attr, tc.dispatch)
+			if tc.expectedError != nil {
+				assert.ErrorIs(t, err, tc.expectedError)
+				assert.Nil(t, event)
+				assert.Nil(t, activityInfo)
+				assert.Nil(t, dispatchInfo)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, types.EventTypeActivityTaskScheduled.Ptr(), event.EventType)
+				assert.Equal(t, tc.expectedAttributes, event.ActivityTaskScheduledEventAttributes)
+				assert.Equal(t, tc.expectedInfo, activityInfo)
+				assert.Equal(t, tc.expectedDispatch, dispatchInfo)
+			}
+			assert.Equal(t, tc.expectedDispatched, dispatched)
+			assert.Equal(t, tc.expectedStarted, started)
+		})
+	}
 }
 
 func Test__UpdateActivityProgress(t *testing.T) {

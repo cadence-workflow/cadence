@@ -22,6 +22,7 @@ package clusterredirection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -557,4 +558,159 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) setupGlobalDeprecatedDoma
 
 	s.mockConfig.EnableDomainNotActiveAutoForwarding = dynamicproperties.GetBoolPropertyFnFilteredByDomain(forwardingEnabled)
 	return domainEntry
+}
+
+func (s *selectedAPIsForwardingRedirectionPolicySuite) setupActiveActiveDomainWithTwoReplicationCluster(forwardingEnabled bool) *cache.DomainCacheEntry {
+	domainEntry := cache.NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: s.domainID, Name: s.domainName},
+		&persistence.DomainConfig{Retention: 1},
+		&persistence.DomainReplicationConfig{
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+			ActiveClusters: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"us-east": {
+						ActiveClusterName: s.currentClusterName,
+						FailoverVersion:   1,
+					},
+					"us-west": {
+						ActiveClusterName: s.alternativeClusterName,
+						FailoverVersion:   2,
+					},
+				},
+			},
+		},
+		1234, // not used
+	)
+
+	s.mockConfig.EnableDomainNotActiveAutoForwarding = dynamicproperties.GetBoolPropertyFnFilteredByDomain(forwardingEnabled)
+	return domainEntry
+}
+
+func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiveActiveDomainRequest() {
+	domainEntry := s.setupActiveActiveDomainWithTwoReplicationCluster(true)
+
+	usEastStickyPlcy := &types.ActiveClusterSelectionPolicy{
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+		StickyRegion:                   "us-east",
+	}
+
+	usWestStickyPlcy := &types.ActiveClusterSelectionPolicy{
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+		StickyRegion:                   "us-west",
+	}
+
+	tests := []struct {
+		name                   string
+		domainEntry            *cache.DomainCacheEntry
+		workflowExecution      *types.WorkflowExecution
+		actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
+		mockFn                 func(activeClusterManager *activecluster.MockManager)
+		want                   string
+	}{
+		{
+			name:                   "new workflow with policy",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usWestStickyPlcy,
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupNewWorkflow(gomock.Any(), domainEntry.GetInfo().ID, usWestStickyPlcy).Return(&activecluster.LookupResult{
+					Region:          "us-west",
+					ClusterName:     s.alternativeClusterName,
+					FailoverVersion: 2,
+				}, nil)
+			},
+			want: s.alternativeClusterName,
+		},
+		{
+			name:                   "new workflow with policy - lookup failed",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usEastStickyPlcy,
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupNewWorkflow(gomock.Any(), domainEntry.GetInfo().ID, usEastStickyPlcy).Return(nil, errors.New("lookup failed"))
+				activeClusterManager.EXPECT().LookupCluster(gomock.Any(), domainEntry.GetInfo().ID, s.currentClusterName).Return(&activecluster.LookupResult{
+					Region:          "us-east",
+					ClusterName:     s.currentClusterName,
+					FailoverVersion: 1,
+				}, nil)
+			},
+			want: s.currentClusterName,
+		},
+		{
+			name:        "existing workflow - missing workflow execution",
+			domainEntry: domainEntry,
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupCluster(gomock.Any(), domainEntry.GetInfo().ID, s.currentClusterName).Return(&activecluster.LookupResult{
+					Region:          "us-east",
+					ClusterName:     s.currentClusterName,
+					FailoverVersion: 1,
+				}, nil)
+			},
+			want: s.currentClusterName,
+		},
+		{
+			name:        "existing workflow - missing run id",
+			domainEntry: domainEntry,
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupCluster(gomock.Any(), domainEntry.GetInfo().ID, s.currentClusterName).Return(&activecluster.LookupResult{
+					Region:          "us-east",
+					ClusterName:     s.currentClusterName,
+					FailoverVersion: 1,
+				}, nil)
+			},
+			want: s.currentClusterName,
+		},
+		{
+			name:        "existing workflow - lookup failed",
+			domainEntry: domainEntry,
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+				RunID:      "run1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1", "run1").Return(nil, errors.New("lookup failed"))
+				activeClusterManager.EXPECT().LookupCluster(gomock.Any(), domainEntry.GetInfo().ID, s.currentClusterName).Return(&activecluster.LookupResult{
+					Region:          "us-east",
+					ClusterName:     s.currentClusterName,
+					FailoverVersion: 1,
+				}, nil)
+			},
+			want: s.currentClusterName,
+		},
+		{
+			name:        "existing workflow - success",
+			domainEntry: domainEntry,
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+				RunID:      "run1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1", "run1").Return(&activecluster.LookupResult{
+					Region:          "us-west",
+					ClusterName:     s.alternativeClusterName,
+					FailoverVersion: 2,
+				}, nil)
+			},
+			want: s.alternativeClusterName,
+		},
+	}
+
+	for _, test := range tests {
+		s.Run(test.name, func() {
+			activeClusterManager := activecluster.NewMockManager(s.controller)
+			test.mockFn(activeClusterManager)
+			s.policy.activeClusterManager = activeClusterManager
+			s.Equal(test.want, s.policy.activeClusterForActiveActiveDomainRequest(
+				context.Background(),
+				test.domainEntry,
+				test.workflowExecution,
+				test.actClSelPolicyForNewWF,
+				"any random API name",
+			))
+		})
+	}
 }
