@@ -567,6 +567,11 @@ func RequestCaller(callerName string) Tag {
 	return newStringTag("request-caller", callerName)
 }
 
+// ActorType returns type of the actor (service or user) making this request
+func ActorType(actorType string) Tag {
+	return newStringTag("actor-type", actorType)
+}
+
 // ActorID returns tag for the actor ID
 func ActorID(actorID string) Tag {
 	return newStringTag("actor-id", actorID)
