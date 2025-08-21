@@ -243,15 +243,17 @@ func (v *visibilityHybridManager) chooseVisibilityManagerForWrite(ctx context.Co
 			if err := visFunc(mode); err != nil {
 				errors = append(errors, err.Error())
 			}
-		} else if ok && mgr == nil && mode != dbVisStoreName && !strings.Contains(writeMode, dbVisStoreName) {
-			// if advanced visibility is not available, fall back to db
+		} else if mode != dbVisStoreName && !strings.Contains(writeMode, dbVisStoreName) {
+			// If requested mode is not available and it's not already "db", fall back to "db"
 			// when write mode already includes db, skip this step since it will perform the write in another loop
-			v.logger.Warn("advanced visibility is not available to write, fall back to basic visibility")
+			v.logger.Warn("requested visibility mode is not available, falling back to db", tag.Value(mode))
 			if err := visFunc(dbVisStoreName); err != nil {
 				errors = append(errors, err.Error())
 			}
 		} else {
-			errors = append(errors, fmt.Sprintf("Unknown visibility writing mode: %s", mode))
+			// If the mode is "db" but not available, this is an error
+			// This is the else case - when mode is "db" but the manager is not available
+			errors = append(errors, fmt.Sprintf("DB visibility mode is not available: %s", mode))
 		}
 	}
 
