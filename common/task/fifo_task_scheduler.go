@@ -151,7 +151,7 @@ func (f *fifoTaskSchedulerImpl) dispatcher() {
 		case task := <-f.taskCh:
 			if err := f.processor.Submit(task); err != nil {
 				f.logger.Error("failed to submit task to processor", tag.Error(err))
-				task.Nack()
+				task.Nack(err)
 			}
 		case <-f.shutdownCh:
 			return
@@ -167,7 +167,7 @@ func (f *fifoTaskSchedulerImpl) drainAndNackTasks() {
 	for {
 		select {
 		case task := <-f.taskCh:
-			task.Nack()
+			task.Nack(nil)
 		default:
 			return
 		}

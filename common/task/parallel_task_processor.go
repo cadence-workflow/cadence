@@ -158,7 +158,7 @@ func (p *parallelTaskProcessorImpl) executeTask(task Task, shutdownCh chan struc
 		if r := recover(); r != nil {
 			p.logger.Error("recovered panic in task execution", tag.Dynamic("recovered-panic", r))
 			task.HandleErr(fmt.Errorf("recovered panic: %v", r))
-			task.Nack()
+			task.Nack(nil)
 		}
 	}()
 
@@ -185,7 +185,7 @@ func (p *parallelTaskProcessorImpl) executeTask(task Task, shutdownCh chan struc
 
 	if err := throttleRetry.Do(context.Background(), op); err != nil {
 		// non-retryable error or exhausted all retries or worker shutdown
-		task.Nack()
+		task.Nack(err)
 		return
 	}
 
@@ -245,7 +245,7 @@ func (p *parallelTaskProcessorImpl) drainAndNackTasks() {
 	for {
 		select {
 		case task := <-p.tasksCh:
-			task.Nack()
+			task.Nack(nil)
 		default:
 			return
 		}

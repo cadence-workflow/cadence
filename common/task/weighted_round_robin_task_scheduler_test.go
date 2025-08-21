@@ -227,7 +227,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_SubmitWithNoError(
 func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_FailToSubmit() {
 	mockTask := NewMockPriorityTask(s.controller)
 	mockTask.EXPECT().Priority().Return(0)
-	mockTask.EXPECT().Nack()
+	mockTask.EXPECT().Nack(gomock.Any())
 
 	var taskWG sync.WaitGroup
 	s.scheduler.Submit(mockTask)
@@ -328,7 +328,7 @@ func testSchedulerContract(
 			taskStatus[mockTask] = TaskStateAcked
 			taskWG.Done()
 		}).MaxTimes(1)
-		mockTask.EXPECT().Nack().Do(func() {
+		mockTask.EXPECT().Nack(gomock.Any()).Do(func(err error) {
 			taskStatusLock.Lock()
 			defer taskStatusLock.Unlock()
 

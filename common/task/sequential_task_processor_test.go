@@ -276,7 +276,7 @@ func (t *testSequentialTaskImpl) NumAcked() int {
 	return t.acked
 }
 
-func (t *testSequentialTaskImpl) Nack() {
+func (t *testSequentialTaskImpl) Nack(err error) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 

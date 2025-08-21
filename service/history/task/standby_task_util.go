@@ -43,6 +43,10 @@ type (
 	standbyCurrentTimeFn func(persistence.Task) (time.Time, error)
 )
 
+var (
+	errDomainBecomesActive = errors.New("domain becomes active when processing task as standby")
+)
+
 func standbyTaskPostActionNoOp(
 	ctx context.Context,
 	taskInfo persistence.Task,
@@ -222,7 +226,7 @@ func getRemoteClusterName(
 		}
 		if resp.ClusterName == currentCluster {
 			// domain has turned active, retry the task
-			return "", errors.New("domain becomes active when processing task as standby")
+			return "", errDomainBecomesActive
 		}
 		return resp.ClusterName, nil
 	}
@@ -230,7 +234,7 @@ func getRemoteClusterName(
 	remoteClusterName := domainEntry.GetReplicationConfig().ActiveClusterName
 	if remoteClusterName == currentCluster {
 		// domain has turned active, retry the task
-		return "", errors.New("domain becomes active when processing task as standby")
+		return "", errDomainBecomesActive
 	}
 	return remoteClusterName, nil
 }

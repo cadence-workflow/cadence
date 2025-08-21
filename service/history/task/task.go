@@ -343,14 +343,14 @@ func (t *taskImpl) Ack() {
 	}
 }
 
-func (t *taskImpl) Nack() {
+func (t *taskImpl) Nack(err error) {
 	if t.State() != ctask.TaskStatePending {
 		return
 	}
 
 	logEvent(t.eventLogger, "Nacked task")
 
-	if t.shouldResubmitOnNack() {
+	if t.shouldResubmitOnNack(err) {
 		if submitted, _ := t.taskProcessor.TrySubmit(t); submitted {
 			return
 		}
@@ -415,10 +415,13 @@ func (t *taskImpl) SetInitialSubmitTime(submitTime time.Time) {
 	t.initialSubmitTime = submitTime
 }
 
-func (t *taskImpl) shouldResubmitOnNack() bool {
+func (t *taskImpl) shouldResubmitOnNack(err error) bool {
 	// TODO: for now only resubmit active task on Nack()
 	// we can also consider resubmit standby tasks that fails due to certain error types
 	// this may require change the Nack() interface to Nack(error)
+	if errors.Is(err, errDomainBecomesActive) {
+		return true
+	}
 	return t.GetAttempt() < activeTaskResubmitMaxAttempts &&
 		(t.queueType == QueueTypeActiveTransfer || t.queueType == QueueTypeActiveTimer || ((t.queueType == QueueTypeTransfer || t.queueType == QueueTypeTimer) && t.isPreviousExecutorActive))
 }

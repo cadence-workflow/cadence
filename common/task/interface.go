@@ -57,7 +57,7 @@ type (
 		// Ack marks the task as successful completed
 		Ack()
 		// Nack marks the task as unsuccessful completed
-		Nack()
+		Nack(err error)
 		// Cancel marks the task as canceled
 		Cancel()
 		// State returns the current task state

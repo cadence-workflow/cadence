@@ -146,7 +146,7 @@ func (s *parallelTaskProcessorSuite) TestExecuteTask_NonRetryableError() {
 		mockTask.EXPECT().Execute().Return(errNonRetryable),
 		mockTask.EXPECT().HandleErr(errNonRetryable).Return(errNonRetryable),
 		mockTask.EXPECT().RetryErr(errNonRetryable).Return(false).AnyTimes(),
-		mockTask.EXPECT().Nack(),
+		mockTask.EXPECT().Nack(gomock.Any()),
 	)
 
 	s.processor.executeTask(mockTask, make(chan struct{}))
@@ -157,7 +157,7 @@ func (s *parallelTaskProcessorSuite) TestExecuteTask_WorkerStopped() {
 	mockTask.EXPECT().Execute().Return(errRetryable).AnyTimes()
 	mockTask.EXPECT().HandleErr(errRetryable).Return(errRetryable).AnyTimes()
 	mockTask.EXPECT().RetryErr(errRetryable).Return(true).AnyTimes()
-	mockTask.EXPECT().Nack().Times(1)
+	mockTask.EXPECT().Nack(gomock.Any()).Times(1)
 
 	done := make(chan struct{})
 	workerShutdownCh := make(chan struct{})
@@ -265,7 +265,7 @@ func (s *parallelTaskProcessorSuite) TestProcessorContract() {
 			taskStatus[mockTask] = TaskStateAcked
 			taskWG.Done()
 		}).MaxTimes(1)
-		mockTask.EXPECT().Nack().Do(func() {
+		mockTask.EXPECT().Nack(gomock.Any()).Do(func(err error) {
 			taskStatusLock.Lock()
 			defer taskStatusLock.Unlock()
 
@@ -315,7 +315,7 @@ func (s *parallelTaskProcessorSuite) TestExecuteTask_PanicHandling() {
 		panic("A panic occurred")
 	})
 	mockTask.EXPECT().HandleErr(gomock.Any()).Return(errRetryable).AnyTimes()
-	mockTask.EXPECT().Nack().Times(1)
+	mockTask.EXPECT().Nack(gomock.Any()).Times(1)
 	done := make(chan struct{})
 	workerShutdownCh := make(chan struct{})
 	go func() {

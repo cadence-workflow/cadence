@@ -185,7 +185,7 @@ func (t *sequentialTaskProcessorImpl) processTaskOnce(taskqueue SequentialTaskQu
 			taskqueue.Add(task)
 		} else {
 			t.logger.Error("Unable to process task", tag.Error(err))
-			task.Nack()
+			task.Nack(err)
 		}
 	} else {
 		task.Ack()

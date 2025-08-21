@@ -78,7 +78,7 @@ func (s *noopTask) Ack() {
 	s.state = ctask.TaskStateAcked
 }
 
-func (s *noopTask) Nack() {
+func (s *noopTask) Nack(err error) {
 	s.Lock()
 	defer s.Unlock()
 	if s.state != ctask.TaskStatePending {

@@ -231,15 +231,15 @@ func (mr *MockTaskMockRecorder) HandleErr(err any) *gomock.Call {
 }
 
 // Nack mocks base method.
-func (m *MockTask) Nack() {
+func (m *MockTask) Nack(err error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Nack")
+	m.ctrl.Call(m, "Nack", err)
 }
 
 // Nack indicates an expected call of Nack.
-func (mr *MockTaskMockRecorder) Nack() *gomock.Call {
+func (mr *MockTaskMockRecorder) Nack(err any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Nack", reflect.TypeOf((*MockTask)(nil).Nack))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Nack", reflect.TypeOf((*MockTask)(nil).Nack), err)
 }
 
 // RetryErr mocks base method.
@@ -347,15 +347,15 @@ func (mr *MockPriorityTaskMockRecorder) HandleErr(err any) *gomock.Call {
 }
 
 // Nack mocks base method.
-func (m *MockPriorityTask) Nack() {
+func (m *MockPriorityTask) Nack(err error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Nack")
+	m.ctrl.Call(m, "Nack", err)
 }
 
 // Nack indicates an expected call of Nack.
-func (mr *MockPriorityTaskMockRecorder) Nack() *gomock.Call {
+func (mr *MockPriorityTaskMockRecorder) Nack(err any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Nack", reflect.TypeOf((*MockPriorityTask)(nil).Nack))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Nack", reflect.TypeOf((*MockPriorityTask)(nil).Nack), err)
 }
 
 // Priority mocks base method.

@@ -191,7 +191,7 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) dispatchTasks() {
 				hasTask = true
 				if err := w.processor.Submit(task); err != nil {
 					w.logger.Error("fail to submit task to processor", tag.Error(err))
-					task.Nack()
+					task.Nack(err)
 				}
 			case <-w.shutdownCh:
 				return
@@ -218,7 +218,7 @@ func drainAndNackPriorityTask(taskCh <-chan PriorityTask) {
 	for {
 		select {
 		case task := <-taskCh:
-			task.Nack()
+			task.Nack(nil)
 		default:
 			return
 		}

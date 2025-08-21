@@ -273,7 +273,7 @@ func (s *taskSuite) TestTaskCancel() {
 	taskBase.Ack()
 	s.Equal(ctask.TaskStateCanceled, taskBase.State())
 
-	taskBase.Nack()
+	taskBase.Nack(nil)
 	s.Equal(ctask.TaskStateCanceled, taskBase.State())
 
 	s.False(taskBase.RetryErr(errors.New("some random error")))
@@ -289,7 +289,7 @@ func (s *taskSuite) TestTaskState() {
 	taskBase.Ack()
 	s.Equal(ctask.TaskStateAcked, taskBase.State())
 
-	taskBase.Nack()
+	taskBase.Nack(nil)
 	s.Equal(ctask.TaskStateAcked, taskBase.State())
 }
 
@@ -312,7 +312,21 @@ func (s *taskSuite) TestTaskNack_ResubmitSucceeded() {
 
 	s.mockTaskProcessor.EXPECT().TrySubmit(task).Return(true, nil).Times(1)
 
-	task.Nack()
+	task.Nack(nil)
+	s.Equal(ctask.TaskStatePending, task.State())
+}
+
+func (s *taskSuite) TestTaskNack_DomainBecomesActive() {
+	task := s.newTestTask(
+		func(task persistence.Task) (bool, error) {
+			return true, nil
+		},
+	)
+	task.queueType = QueueTypeTransfer
+
+	s.mockTaskProcessor.EXPECT().TrySubmit(task).Return(true, nil).Times(1)
+
+	task.Nack(errDomainBecomesActive)
 	s.Equal(ctask.TaskStatePending, task.State())
 }
 
@@ -326,7 +340,7 @@ func (s *taskSuite) TestTaskNack_ResubmitFailed() {
 	s.mockTaskProcessor.EXPECT().TrySubmit(task).Return(false, errTaskProcessorNotRunning).Times(1)
 	s.mockTaskRedispatcher.EXPECT().RedispatchTask(task, gomock.Any()).Times(1)
 
-	task.Nack()
+	task.Nack(nil)
 	s.Equal(ctask.TaskStatePending, task.State())
 }
 
