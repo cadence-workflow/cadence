@@ -234,19 +234,6 @@ func (a *apiHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *type
 }
 
 func (a *apiHandler) ListDomains(ctx context.Context, lp1 *types.ListDomainsRequest) (lp2 *types.ListDomainsResponse, err error) {
-	scope := a.GetMetricsClient().Scope(metrics.FrontendListDomainsScope)
-	attr := &authorization.Attributes{
-		APIName:     "ListDomains",
-		Permission:  authorization.PermissionAdmin,
-		RequestBody: authorization.NewFilteredRequestBody(lp1),
-	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
-	if err != nil {
-		return nil, err
-	}
-	if !isAuthorized {
-		return nil, errUnauthorized
-	}
 	return a.handler.ListDomains(ctx, lp1)
 }
 

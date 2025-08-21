@@ -39,7 +39,7 @@ const (
 
 // InsertVisibility creates a new visibility record, return error is there is any.
 // TODO: Cassandra implementation ignores search attributes
-func (db *cdb) InsertVisibility(ctx context.Context, ttlSeconds int64, row *nosqlplugin.VisibilityRowForInsert) error {
+func (db *CDB) InsertVisibility(ctx context.Context, ttlSeconds int64, row *nosqlplugin.VisibilityRowForInsert) error {
 	var query gocql.Query
 	if ttlSeconds > maxCassandraTTL {
 		query = db.session.Query(templateCreateWorkflowExecutionStarted,
@@ -81,7 +81,7 @@ func (db *cdb) InsertVisibility(ctx context.Context, ttlSeconds int64, row *nosq
 	return query.Exec()
 }
 
-func (db *cdb) UpdateVisibility(ctx context.Context, ttlSeconds int64, row *nosqlplugin.VisibilityRowForUpdate) error {
+func (db *CDB) UpdateVisibility(ctx context.Context, ttlSeconds int64, row *nosqlplugin.VisibilityRowForUpdate) error {
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 
 	if row.UpdateCloseToOpen {
@@ -198,7 +198,7 @@ func (db *cdb) UpdateVisibility(ctx context.Context, ttlSeconds int64, row *nosq
 	return db.session.ExecuteBatch(batch)
 }
 
-func (db *cdb) SelectOneClosedWorkflow(
+func (db *CDB) SelectOneClosedWorkflow(
 	ctx context.Context,
 	domainID, workflowID, runID string,
 ) (*nosqlplugin.VisibilityRow, error) {
@@ -228,7 +228,7 @@ func (db *cdb) SelectOneClosedWorkflow(
 }
 
 // Noop for Cassandra as it already handle by TTL
-func (db *cdb) DeleteVisibility(ctx context.Context, domainID, workflowID, runID string) error {
+func (db *CDB) DeleteVisibility(ctx context.Context, domainID, workflowID, runID string) error {
 	// Normally we only depend on TTL for Cassandra visibility deletion but
 	// we explicitly delete from open executions when an admin command is issued
 	key := persistence.VisibilityAdminDeletionKey("visibilityAdminDelete")
@@ -259,7 +259,7 @@ func (db *cdb) DeleteVisibility(ctx context.Context, domainID, workflowID, runID
 	return nil
 }
 
-func (db *cdb) SelectVisibility(ctx context.Context, filter *nosqlplugin.VisibilityFilter) (*nosqlplugin.SelectVisibilityResponse, error) {
+func (db *CDB) SelectVisibility(ctx context.Context, filter *nosqlplugin.VisibilityFilter) (*nosqlplugin.SelectVisibilityResponse, error) {
 	switch filter.FilterType {
 	case nosqlplugin.AllOpen:
 		return db.openSortedByStartTime(ctx, &filter.ListRequest)
@@ -314,7 +314,7 @@ func (db *cdb) SelectVisibility(ctx context.Context, filter *nosqlplugin.Visibil
 	}
 }
 
-func (db *cdb) openFilteredByWorkflowTypeSortedByStartTime(
+func (db *CDB) openFilteredByWorkflowTypeSortedByStartTime(
 	ctx context.Context,
 	request *persistence.InternalListWorkflowExecutionsRequest,
 	workflowType string,
@@ -329,7 +329,7 @@ func (db *cdb) openFilteredByWorkflowTypeSortedByStartTime(
 	return processQuery(query, request, readOpenWorkflowExecutionRecord)
 }
 
-func (db *cdb) closedFilteredByWorkflowTypeSortedByStartTime(
+func (db *CDB) closedFilteredByWorkflowTypeSortedByStartTime(
 	ctx context.Context,
 	request *persistence.InternalListWorkflowExecutionsRequest,
 	workflowType string,
@@ -344,7 +344,7 @@ func (db *cdb) closedFilteredByWorkflowTypeSortedByStartTime(
 	return processQuery(query, request, readClosedWorkflowExecutionRecord)
 }
 
-func (db *cdb) closedFilteredByWorkflowTypeSortedByClosedTime(
+func (db *CDB) closedFilteredByWorkflowTypeSortedByClosedTime(
 	ctx context.Context,
 	request *persistence.InternalListWorkflowExecutionsRequest,
 	workflowType string,
@@ -359,7 +359,7 @@ func (db *cdb) closedFilteredByWorkflowTypeSortedByClosedTime(
 	return processQuery(query, request, readClosedWorkflowExecutionRecord)
 }
 
-func (db *cdb) openFilteredByWorkflowIDSortedByStartTime(
+func (db *CDB) openFilteredByWorkflowIDSortedByStartTime(
 	ctx context.Context,
 	request *persistence.InternalListWorkflowExecutionsRequest,
 	workflowID string,
@@ -374,7 +374,7 @@ func (db *cdb) openFilteredByWorkflowIDSortedByStartTime(
 	return processQuery(query, request, readOpenWorkflowExecutionRecord)
 }
 
-func (db *cdb) openWorkflowByRunID(
+func (db *CDB) openWorkflowByRunID(
 	ctx context.Context,
 	domainID string,
 	runID string,
@@ -402,7 +402,7 @@ func (db *cdb) openWorkflowByRunID(
 	return wfexecution, nil
 }
 
-func (db *cdb) closedFilteredByWorkflowIDSortedByStartTime(
+func (db *CDB) closedFilteredByWorkflowIDSortedByStartTime(
 	ctx context.Context,
 	request *persistence.InternalListWorkflowExecutionsRequest,
 	workflowID string,
@@ -417,7 +417,7 @@ func (db *cdb) closedFilteredByWorkflowIDSortedByStartTime(
 	return processQuery(query, request, readClosedWorkflowExecutionRecord)
 }
 
-func (db *cdb) closedFilteredByWorkflowIDSortedByClosedTime(
+func (db *CDB) closedFilteredByWorkflowIDSortedByClosedTime(
 	ctx context.Context,
 	request *persistence.InternalListWorkflowExecutionsRequest,
 	workflowID string,
@@ -432,7 +432,7 @@ func (db *cdb) closedFilteredByWorkflowIDSortedByClosedTime(
 	return processQuery(query, request, readClosedWorkflowExecutionRecord)
 }
 
-func (db *cdb) closedFilteredByClosedStatusSortedByStartTime(
+func (db *CDB) closedFilteredByClosedStatusSortedByStartTime(
 	ctx context.Context,
 	request *persistence.InternalListWorkflowExecutionsRequest,
 	closeStatus int32,
@@ -447,7 +447,7 @@ func (db *cdb) closedFilteredByClosedStatusSortedByStartTime(
 	return processQuery(query, request, readClosedWorkflowExecutionRecord)
 }
 
-func (db *cdb) closedFilteredByClosedStatusSortedByClosedTime(
+func (db *CDB) closedFilteredByClosedStatusSortedByClosedTime(
 	ctx context.Context,
 	request *persistence.InternalListWorkflowExecutionsRequest,
 	closeStatus int32,
@@ -462,7 +462,7 @@ func (db *cdb) closedFilteredByClosedStatusSortedByClosedTime(
 	return processQuery(query, request, readClosedWorkflowExecutionRecord)
 }
 
-func (db *cdb) openSortedByStartTime(
+func (db *CDB) openSortedByStartTime(
 	ctx context.Context,
 	request *persistence.InternalListWorkflowExecutionsRequest,
 ) (*nosqlplugin.SelectVisibilityResponse, error) {
@@ -476,7 +476,7 @@ func (db *cdb) openSortedByStartTime(
 	return processQuery(query, request, readOpenWorkflowExecutionRecord)
 }
 
-func (db *cdb) closedSortedByStartTime(
+func (db *CDB) closedSortedByStartTime(
 	ctx context.Context,
 	request *persistence.InternalListWorkflowExecutionsRequest,
 ) (*nosqlplugin.SelectVisibilityResponse, error) {
@@ -489,7 +489,7 @@ func (db *cdb) closedSortedByStartTime(
 	return processQuery(query, request, readClosedWorkflowExecutionRecord)
 }
 
-func (db *cdb) closedSortedByClosedTime(
+func (db *CDB) closedSortedByClosedTime(
 	ctx context.Context,
 	request *persistence.InternalListWorkflowExecutionsRequest,
 ) (*nosqlplugin.SelectVisibilityResponse, error) {

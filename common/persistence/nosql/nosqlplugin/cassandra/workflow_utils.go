@@ -1083,6 +1083,7 @@ func updateActivityInfos(
 			a.TimerTaskStatus,
 			a.Attempt,
 			a.TaskList,
+			int32(a.TaskListKind),
 			a.StartedIdentity,
 			a.HasRetryPolicy,
 			int32(a.InitialInterval.Seconds()),

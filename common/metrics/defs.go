@@ -880,6 +880,9 @@ const (
 	// ActiveClusterManager is the scope used by active cluster manager
 	ActiveClusterManager
 
+	// ActiveClusterManagerWorkflowCacheScope is the scope used by active cluster manager's workflow cache
+	ActiveClusterManagerWorkflowCacheScope
+
 	NumCommonScopes
 )
 
@@ -1836,7 +1839,8 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 
 		LoadBalancerScope: {operation: "RRLoadBalancer"},
 
-		ActiveClusterManager: {operation: "ActiveClusterManager"},
+		ActiveClusterManager:                   {operation: "ActiveClusterManager"},
+		ActiveClusterManagerWorkflowCacheScope: {operation: "ActiveClusterManagerWorkflowCache"},
 	},
 	// Frontend Scope Names
 	Frontend: {
@@ -2693,6 +2697,9 @@ const (
 	WorkflowIDCacheRequestsExternalMaxRequestsPerSecondsTimer
 	WorkflowIDCacheRequestsInternalMaxRequestsPerSecondsTimer
 	WorkflowIDCacheRequestsInternalRatelimitedCounter
+	VirtualQueueCountGauge
+	VirtualQueuePausedGauge
+	VirtualQueueRunningGauge
 	NumHistoryMetrics
 )
 
@@ -2875,6 +2882,7 @@ const (
 	ShardDistributorLatency
 	ShardDistributorErrContextTimeoutCounter
 	ShardDistributorErrNamespaceNotFound
+	ShardDistributorErrShardNotFound
 
 	ShardDistributorAssignLoopNumRebalancedShards
 	ShardDistributorAssignLoopShardRebalanceLatency
@@ -3461,6 +3469,9 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		WorkflowIDCacheRequestsExternalMaxRequestsPerSecondsTimer:    {metricName: "workflow_id_external_requests_max_requests_per_seconds", metricType: Timer},
 		WorkflowIDCacheRequestsInternalMaxRequestsPerSecondsTimer:    {metricName: "workflow_id_internal_requests_max_requests_per_seconds", metricType: Timer},
 		WorkflowIDCacheRequestsInternalRatelimitedCounter:            {metricName: "workflow_id_internal_requests_ratelimited", metricType: Counter},
+		VirtualQueueCountGauge:                                       {metricName: "virtual_queue_count", metricType: Gauge},
+		VirtualQueuePausedGauge:                                      {metricName: "virtual_queue_paused", metricType: Gauge},
+		VirtualQueueRunningGauge:                                     {metricName: "virtual_queue_running", metricType: Gauge},
 	},
 	Matching: {
 		PollSuccessPerTaskListCounter:                           {metricName: "poll_success_per_tl", metricRollupName: "poll_success"},
@@ -3634,6 +3645,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ShardDistributorFailures:                        {metricName: "shard_distributor_failures", metricType: Counter},
 		ShardDistributorLatency:                         {metricName: "shard_distributor_latency", metricType: Timer},
 		ShardDistributorErrNamespaceNotFound:            {metricName: "shard_distributor_err_namespace_not_found", metricType: Counter},
+		ShardDistributorErrShardNotFound:                {metricName: "shard_distributor_err_shard_not_found", metricType: Counter},
 		ShardDistributorAssignLoopShardRebalanceLatency: {metricName: "shard_distrubutor_shard_assign_latency", metricType: Histogram},
 		ShardDistributorAssignLoopNumRebalancedShards:   {metricName: "shard_distributor_shard_assign_reassigned_shards", metricType: Gauge},
 		ShardDistributorAssignLoopAttempts:              {metricName: "shard_distrubutor_shard_assign_attempt", metricType: Counter},

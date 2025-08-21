@@ -180,6 +180,7 @@ func CopyActivityInfo(t *testing.T, sourceInfo *persistence.ActivityInfo) *persi
 		DomainID:                 sourceInfo.DomainID,
 		StartedIdentity:          sourceInfo.StartedIdentity,
 		TaskList:                 sourceInfo.TaskList,
+		TaskListKind:             sourceInfo.TaskListKind,
 		HasRetryPolicy:           sourceInfo.HasRetryPolicy,
 		InitialInterval:          sourceInfo.InitialInterval,
 		BackoffCoefficient:       sourceInfo.BackoffCoefficient,

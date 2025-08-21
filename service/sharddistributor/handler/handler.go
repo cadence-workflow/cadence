@@ -24,6 +24,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -90,6 +91,12 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 	}
 
 	executorID, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
+	if errors.Is(err, store.ErrShardNotFound) {
+		return nil, &types.ShardNotFoundError{
+			Namespace: request.Namespace,
+			ShardKey:  request.ShardKey,
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("get shard owner: %w", err)
 	}

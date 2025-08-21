@@ -92,6 +92,18 @@ func TestGetShardOwner(t *testing.T) {
 			expectedError:  true,
 			expectedErrMsg: "lookup error",
 		},
+		{
+			name: "ShardNotFound",
+			request: &types.GetShardOwnerRequest{
+				Namespace: _testNamespace,
+				ShardKey:  "NON-EXISTING-SHARD",
+			},
+			setupMocks: func(mockStore *store.MockStore) {
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespace, "NON-EXISTING-SHARD").Return("", store.ErrShardNotFound)
+			},
+			expectedError:  true,
+			expectedErrMsg: "shard not found",
+		},
 	}
 
 	for _, tt := range tests {

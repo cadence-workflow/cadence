@@ -49,7 +49,7 @@ const (
 )
 
 func Test__identifyIssues(t *testing.T) {
-	dwtest := testDiagnosticWorkflow(t)
+	dwtest := testDiagnosticWorkflow(t, testWorkflowExecutionHistoryResponseWithMultipleIssues())
 	actMetadata := failure.FailureIssuesMetadata{
 		Identity:            "localhost",
 		ActivityType:        "test-activity",
@@ -58,15 +58,6 @@ func Test__identifyIssues(t *testing.T) {
 	}
 	actMetadataInBytes, err := json.Marshal(actMetadata)
 	require.NoError(t, err)
-	retryMetadata := retry.RetryMetadata{
-		EventID: 2,
-		RetryPolicy: &types.RetryPolicy{
-			InitialIntervalInSeconds: 1,
-			MaximumAttempts:          1,
-		},
-	}
-	retryMetadataInBytes, err := json.Marshal(retryMetadata)
-	require.NoError(t, err)
 	expectedResult := []invariant.InvariantCheckResult{
 		{
 			IssueID:       0,
@@ -74,23 +65,35 @@ func Test__identifyIssues(t *testing.T) {
 			Reason:        failure.GenericError.String(),
 			Metadata:      actMetadataInBytes,
 		},
-		{
-			IssueID:       0,
+	}
+	for i := 0; i < _maxIssuesPerInvariant; i++ {
+		retryMetadata := retry.RetryMetadata{
+			EventID: int64(i),
+			RetryPolicy: &types.RetryPolicy{
+				InitialIntervalInSeconds: 1,
+				MaximumAttempts:          1,
+			},
+		}
+		retryMetadataInBytes, err := json.Marshal(retryMetadata)
+		require.NoError(t, err)
+		expectedResult = append(expectedResult, invariant.InvariantCheckResult{
+			IssueID:       i,
 			InvariantType: retry.ActivityRetryIssue.String(),
 			Reason:        retry.RetryPolicyValidationMaxAttempts.String(),
 			Metadata:      retryMetadataInBytes,
-		},
+		})
 	}
 	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{Execution: &types.WorkflowExecution{
 		WorkflowID: "123",
 		RunID:      "abc",
 	}})
 	require.NoError(t, err)
+	require.Equal(t, _maxIssuesPerInvariant+1, len(result)) // retry invariant returns 10 issues (capped) , failure invariant returns 1 issue
 	require.Equal(t, expectedResult, result)
 }
 
 func Test__rootCauseIssues(t *testing.T) {
-	dwtest := testDiagnosticWorkflow(t)
+	dwtest := testDiagnosticWorkflow(t, testWorkflowExecutionHistoryResponse())
 	actMetadata := failure.FailureIssuesMetadata{
 		Identity:            "localhost",
 		ActivityScheduledID: 1,
@@ -120,7 +123,7 @@ func Test__rootCauseIssues(t *testing.T) {
 
 func Test__emit(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	dwtest := testDiagnosticWorkflow(t)
+	dwtest := testDiagnosticWorkflow(t, testWorkflowExecutionHistoryResponse())
 	mockClient := messaging.NewMockClient(ctrl)
 	mockProducer := messaging.NewMockProducer(ctrl)
 	mockProducer.EXPECT().Publish(gomock.Any(), gomock.Any()).Return(nil)
@@ -129,12 +132,12 @@ func Test__emit(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func testDiagnosticWorkflow(t *testing.T) *dw {
+func testDiagnosticWorkflow(t *testing.T, history *types.GetWorkflowExecutionHistoryResponse) *dw {
 	ctrl := gomock.NewController(t)
 	mockClientBean := client.NewMockBean(ctrl)
 	mockFrontendClient := frontend.NewMockClient(ctrl)
 	mockClientBean.EXPECT().GetFrontendClient().Return(mockFrontendClient).AnyTimes()
-	mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(testWorkflowExecutionHistoryResponse(), nil).AnyTimes()
+	mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(history, nil).AnyTimes()
 	return &dw{
 		clientBean: mockClientBean,
 		invariants: []invariant.Invariant{failure.NewInvariant(), retry.NewInvariant()},
@@ -193,6 +196,49 @@ func testWorkflowExecutionHistoryResponse() *types.GetWorkflowExecutionHistoryRe
 	}
 }
 
+func testWorkflowExecutionHistoryResponseWithMultipleIssues() *types.GetWorkflowExecutionHistoryResponse {
+	testResponse := &types.GetWorkflowExecutionHistoryResponse{History: &types.History{
+		Events: []*types.HistoryEvent{
+			{
+				ID:        1,
+				Timestamp: common.Int64Ptr(testTimeStamp),
+				WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
+				},
+			},
+		},
+	}}
+	for i := 0; i <= 20; i++ {
+		testResponse.History.Events = append(testResponse.History.Events, &types.HistoryEvent{
+			ID: int64(i),
+			ActivityTaskScheduledEventAttributes: &types.ActivityTaskScheduledEventAttributes{
+				ActivityID:                 string(rune(i)),
+				ActivityType:               &types.ActivityType{Name: "test-activity"},
+				StartToCloseTimeoutSeconds: common.Int32Ptr(int32(10)),
+				HeartbeatTimeoutSeconds:    common.Int32Ptr(int32(5)),
+				RetryPolicy: &types.RetryPolicy{
+					InitialIntervalInSeconds: 1,
+					MaximumAttempts:          1,
+				},
+			},
+		})
+
+	}
+	testResponse.History.Events = append(testResponse.History.Events, &types.HistoryEvent{
+		ID:        4,
+		Timestamp: common.Int64Ptr(testTimeStamp),
+		ActivityTaskFailedEventAttributes: &types.ActivityTaskFailedEventAttributes{
+			Reason:           common.StringPtr("cadenceInternal:Generic"),
+			Details:          []byte("test-activity-failure"),
+			Identity:         "localhost",
+			ScheduledEventID: 2,
+			StartedEventID:   3,
+		},
+	})
+
+	return testResponse
+}
+
 func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockClientBean := client.NewMockBean(ctrl)
@@ -210,7 +256,7 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
 						RetryPolicy: &types.RetryPolicy{
 							InitialIntervalInSeconds: 1,
-							MaximumAttempts:          2,
+							MaximumAttempts:          1,
 						},
 						Attempt: 0,
 					},
@@ -223,8 +269,8 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 		History: &types.History{
 			Events: []*types.HistoryEvent{
 				{
-					WorkflowExecutionContinuedAsNewEventAttributes: &types.WorkflowExecutionContinuedAsNewEventAttributes{
-						FailureReason:                common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"),
+					WorkflowExecutionFailedEventAttributes: &types.WorkflowExecutionFailedEventAttributes{
+						Reason:                       common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"),
 						DecisionTaskCompletedEventID: 10,
 					},
 				},
@@ -254,23 +300,31 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 		EventID: 1,
 		RetryPolicy: &types.RetryPolicy{
 			InitialIntervalInSeconds: 1,
-			MaximumAttempts:          2,
+			MaximumAttempts:          1,
 		},
 	}
 	retryMetadataInBytes, err := json.Marshal(retryMetadata)
 	require.NoError(t, err)
+	failureMetadataInBytes, err := json.Marshal(failure.FailureIssuesMetadata{})
+	require.NoError(t, err)
 	expectedResult := []invariant.InvariantCheckResult{
 		{
 			IssueID:       0,
-			InvariantType: retry.WorkflowRetryInfo.String(),
-			Reason:        "The failure is caused by a timeout during the execution",
+			InvariantType: retry.WorkflowRetryIssue.String(),
+			Reason:        "MaximumAttempts set to 1 will not retry since maximum attempts includes the first attempt.",
 			Metadata:      retryMetadataInBytes,
+		},
+		{
+			IssueID:       0,
+			InvariantType: failure.WorkflowFailed.String(),
+			Reason:        "The failure is caused by a timeout during the execution",
+			Metadata:      failureMetadataInBytes,
 		},
 	}
 
 	dwtest := &dw{
 		clientBean: mockClientBean,
-		invariants: []invariant.Invariant{retry.NewInvariant()},
+		invariants: []invariant.Invariant{retry.NewInvariant(), failure.NewInvariant()},
 	}
 
 	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{Execution: testExecution})

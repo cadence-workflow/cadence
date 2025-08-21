@@ -220,6 +220,7 @@ var expectedNil = map[string]map[string]any{
 		"GetStartedIdentity":          "",
 		"GetStartedTimestamp":         zeroUnix,
 		"GetTaskList":                 "",
+		"GetTaskListKind":             types.TaskListKindNormal,
 		"GetTimerTaskStatus":          int32(0),
 		"GetVersion":                  int64(0),
 	},
@@ -464,6 +465,7 @@ var expectedEmpty = map[string]map[string]any{
 		"GetStartedIdentity":          "",
 		"GetStartedTimestamp":         time.Time{},
 		"GetTaskList":                 "",
+		"GetTaskListKind":             types.TaskListKindNormal,
 		"GetTimerTaskStatus":          int32(0),
 		"GetVersion":                  int64(0),
 	},
@@ -710,8 +712,10 @@ var expectedNonEmpty = map[string]map[string]any{
 		"GetStartedIdentity":          "startedIdentity",
 		"GetStartedTimestamp":         activeInfoStartedTime,
 		"GetTaskList":                 "taskList",
-		"GetTimerTaskStatus":          int32(5),
-		"GetVersion":                  int64(1),
+		"GetTaskListKind":             types.TaskListKindSticky,
+
+		"GetTimerTaskStatus": int32(5),
+		"GetVersion":         int64(1),
 	},
 	"*serialization.HistoryTreeInfo": {
 		"GetAncestors": []*types.HistoryBranchRange{

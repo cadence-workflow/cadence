@@ -151,8 +151,12 @@ func (f *timerQueueFactory) createQueuev2(
 			MaxPendingTasksCount:                 config.QueueMaxPendingTaskCount,
 			PollBackoffInterval:                  config.QueueProcessorPollBackoffInterval,
 			PollBackoffIntervalJitterCoefficient: config.QueueProcessorPollBackoffIntervalJitterCoefficient,
+			VirtualSliceForceAppendInterval:      config.VirtualSliceForceAppendInterval,
 			MaxStartJitterInterval:               dynamicproperties.GetDurationPropertyFn(0),
 			RedispatchInterval:                   config.ActiveTaskRedispatchInterval,
+			CriticalPendingTaskCount:             config.QueueCriticalPendingTaskCount,
+			EnablePendingTaskCountAlert:          func() bool { return config.EnableTimerQueueV2PendingTaskCountAlert(shard.GetShardID()) },
+			MaxVirtualQueueCount:                 config.QueueMaxVirtualQueueCount,
 		},
 	)
 }

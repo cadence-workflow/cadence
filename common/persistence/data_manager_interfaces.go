@@ -622,6 +622,7 @@ type (
 		Attempt            int32
 		StartedIdentity    string
 		TaskList           string
+		TaskListKind       types.TaskListKind
 		HasRetryPolicy     bool
 		InitialInterval    int32
 		BackoffCoefficient float64

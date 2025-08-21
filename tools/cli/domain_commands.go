@@ -349,10 +349,7 @@ func (d *domainCLIImpl) DeleteDomain(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found: ", err)
 	}
-	securityToken, err := getRequiredOption(c, FlagSecurityToken)
-	if err != nil {
-		return commoncli.Problem("Required flag not provided: ", err)
-	}
+	securityToken := c.String(FlagSecurityToken)
 
 	ctx, cancel, err := newContext(c)
 	defer cancel()

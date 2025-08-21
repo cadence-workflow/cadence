@@ -87,6 +87,8 @@ func FromError(err error) error {
 		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, fromNamespaceNotFoundErr); ok {
 		return typedErr
+	} else if ok, typedErr = errorutils.ConvertError(err, fromShardNotFoundErr); ok {
+		return typedErr
 	}
 
 	return protobuf.NewError(yarpcerrors.CodeUnknown, err.Error())
@@ -123,6 +125,11 @@ func ToError(err error) error {
 		case *sharddistributorv1.NamespaceNotFoundError:
 			return &types.NamespaceNotFoundError{
 				Namespace: details.Namespace,
+			}
+		case *sharddistributorv1.ShardNotFoundError:
+			return &types.ShardNotFoundError{
+				Namespace: details.Namespace,
+				ShardKey:  details.ShardKey,
 			}
 		}
 	case yarpcerrors.CodeInvalidArgument:
@@ -374,5 +381,12 @@ func fromStickyWorkerUnavailableErr(e *types.StickyWorkerUnavailableError) error
 func fromNamespaceNotFoundErr(e *types.NamespaceNotFoundError) error {
 	return protobuf.NewError(yarpcerrors.CodeNotFound, e.Error(), protobuf.WithErrorDetails(&sharddistributorv1.NamespaceNotFoundError{
 		Namespace: e.Namespace,
+	}))
+}
+
+func fromShardNotFoundErr(e *types.ShardNotFoundError) error {
+	return protobuf.NewError(yarpcerrors.CodeNotFound, e.Error(), protobuf.WithErrorDetails(&sharddistributorv1.ShardNotFoundError{
+		Namespace: e.Namespace,
+		ShardKey:  e.ShardKey,
 	}))
 }

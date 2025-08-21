@@ -685,6 +685,23 @@ func TestGetIsolationGroupForTask(t *testing.T) {
 			recentPollers:            []string{"b"},
 		},
 		{
+			name:                     "leak - unknown group",
+			taskIsolationGroup:       "a",
+			taskIsolationDuration:    time.Second,
+			availableIsolationGroups: []string{"b"},
+			expectedGroup:            "",
+			expectedDuration:         0,
+		},
+		{
+			name:                     "leak - unknown group even with recent poller",
+			taskIsolationGroup:       "a",
+			taskIsolationDuration:    time.Second,
+			availableIsolationGroups: []string{"b"},
+			expectedGroup:            "",
+			expectedDuration:         0,
+			recentPollers:            []string{"a"},
+		},
+		{
 			name:                     "leak - task latency",
 			taskIsolationGroup:       "a",
 			taskIsolationDuration:    time.Second,

@@ -11,6 +11,7 @@ package queuev2
 
 import (
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 )
@@ -37,6 +38,22 @@ func NewMockVirtualQueue(ctrl *gomock.Controller) *MockVirtualQueue {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockVirtualQueue) EXPECT() *MockVirtualQueueMockRecorder {
 	return m.recorder
+}
+
+// AppendSlices mocks base method.
+func (m *MockVirtualQueue) AppendSlices(arg0 ...VirtualSlice) {
+	m.ctrl.T.Helper()
+	varargs := []any{}
+	for _, a := range arg0 {
+		varargs = append(varargs, a)
+	}
+	m.ctrl.Call(m, "AppendSlices", varargs...)
+}
+
+// AppendSlices indicates an expected call of AppendSlices.
+func (mr *MockVirtualQueueMockRecorder) AppendSlices(arg0 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendSlices", reflect.TypeOf((*MockVirtualQueue)(nil).AppendSlices), arg0...)
 }
 
 // ClearSlices mocks base method.
@@ -91,6 +108,18 @@ func (m *MockVirtualQueue) MergeSlices(arg0 ...VirtualSlice) {
 func (mr *MockVirtualQueueMockRecorder) MergeSlices(arg0 ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MergeSlices", reflect.TypeOf((*MockVirtualQueue)(nil).MergeSlices), arg0...)
+}
+
+// Pause mocks base method.
+func (m *MockVirtualQueue) Pause(arg0 time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Pause", arg0)
+}
+
+// Pause indicates an expected call of Pause.
+func (mr *MockVirtualQueueMockRecorder) Pause(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Pause", reflect.TypeOf((*MockVirtualQueue)(nil).Pause), arg0)
 }
 
 // SplitSlices mocks base method.

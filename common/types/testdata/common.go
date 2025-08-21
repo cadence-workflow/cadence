@@ -59,6 +59,7 @@ const (
 	SupportedVersions    = "SupportedVersions"
 	FeatureFlag          = "FeatureFlag"
 	Namespace            = "Namespace"
+	ShardKey             = "ShardKey"
 
 	Attempt            = 2
 	ScheduleID         = 5

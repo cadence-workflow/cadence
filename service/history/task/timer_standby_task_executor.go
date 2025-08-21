@@ -77,7 +77,10 @@ func NewTimerStandbyTaskExecutor(
 		clusterName:     clusterName,
 		historyResender: historyResender,
 		getRemoteClusterNameFn: func(ctx context.Context, taskInfo persistence.Task) (string, error) {
-			return getRemoteClusterName(ctx, shard.GetClusterMetadata().GetCurrentClusterName(), shard.GetDomainCache(), shard.GetActiveClusterManager(), taskInfo)
+			if shard.GetConfig().EnableTimerQueueV2(shard.GetShardID()) {
+				return getRemoteClusterName(ctx, shard.GetClusterMetadata().GetCurrentClusterName(), shard.GetDomainCache(), shard.GetActiveClusterManager(), taskInfo)
+			}
+			return clusterName, nil
 		},
 	}
 }

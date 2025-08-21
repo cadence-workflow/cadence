@@ -94,6 +94,7 @@ func newTransferTaskExecutorBase(
 func (t *transferTaskExecutorBase) pushActivity(
 	ctx context.Context,
 	task *persistence.ActivityTask,
+	taskList *types.TaskList,
 	activityScheduleToStartTimeout int32,
 	partitionConfig map[string]string,
 ) error {
@@ -120,7 +121,7 @@ func (t *transferTaskExecutorBase) pushActivity(
 			WorkflowID: task.WorkflowID,
 			RunID:      task.RunID,
 		},
-		TaskList:                      &types.TaskList{Name: task.TaskList},
+		TaskList:                      taskList,
 		ScheduleID:                    task.ScheduleID,
 		ScheduleToStartTimeoutSeconds: common.Int32Ptr(activityScheduleToStartTimeout),
 		PartitionConfig:               partitionConfig,

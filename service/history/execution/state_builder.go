@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/shard"
@@ -145,6 +146,13 @@ func (b *stateBuilderImpl) ApplyEvents(
 				}
 				parentDomainID = &parentDomainEntry.GetInfo().ID
 			}
+
+			b.logger.Debug("stateBuilderImpl calling ReplicateWorkflowExecutionStartedEvent",
+				tag.WorkflowDomainID(domainID),
+				tag.WorkflowID(workflowExecution.WorkflowID),
+				tag.WorkflowRunID(workflowExecution.RunID),
+				tag.Dynamic("attributes.activecluster-sel-policy-nil", attributes.ActiveClusterSelectionPolicy == nil),
+			)
 
 			if err := b.mutableState.ReplicateWorkflowExecutionStartedEvent(
 				parentDomainID,
@@ -502,6 +510,14 @@ func (b *stateBuilderImpl) ApplyEvents(
 					return nil, err
 				}
 			}
+
+			b.logger.Debug("stateBuilderImpl calling ReplicateWorkflowExecutionContinuedAsNewEvent",
+				tag.WorkflowDomainID(domainID),
+				tag.WorkflowID(workflowExecution.WorkflowID),
+				tag.WorkflowRunID(workflowExecution.RunID),
+				tag.Dynamic("newRunHistorySize", len(newRunHistory)),
+				tag.Dynamic("activecluster-sel-policy-nil", event.WorkflowExecutionContinuedAsNewEventAttributes.ActiveClusterSelectionPolicy == nil),
+			)
 
 			err := b.mutableState.ReplicateWorkflowExecutionContinuedAsNewEvent(
 				firstEvent.ID,

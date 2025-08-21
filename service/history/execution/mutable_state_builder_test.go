@@ -418,7 +418,7 @@ func (s *mutableStateSuite) TestChecksum() {
 
 	for _, tc := range testCases {
 		s.T().Run(tc.name, func(t *testing.T) {
-			dbState := s.buildWorkflowMutableState()
+			dbState := buildWorkflowMutableState()
 			if !tc.enableBufferedEvents {
 				dbState.BufferedEvents = nil
 			}
@@ -858,7 +858,7 @@ func (s *mutableStateSuite) prepareTransientDecisionCompletionFirstBatchReplicat
 }
 
 func (s *mutableStateSuite) TestLoad_BackwardsCompatibility() {
-	mutableState := s.buildWorkflowMutableState()
+	mutableState := buildWorkflowMutableState()
 
 	s.msBuilder.Load(context.Background(), mutableState)
 
@@ -866,7 +866,7 @@ func (s *mutableStateSuite) TestLoad_BackwardsCompatibility() {
 }
 
 func (s *mutableStateSuite) TestUpdateCurrentVersion_WorkflowOpen() {
-	mutableState := s.buildWorkflowMutableState()
+	mutableState := buildWorkflowMutableState()
 
 	s.msBuilder.Load(context.Background(), mutableState)
 	s.Equal(commonconstants.EmptyVersion, s.msBuilder.GetCurrentVersion())
@@ -877,7 +877,7 @@ func (s *mutableStateSuite) TestUpdateCurrentVersion_WorkflowOpen() {
 }
 
 func (s *mutableStateSuite) TestUpdateCurrentVersion_WorkflowClosed() {
-	mutableState := s.buildWorkflowMutableState()
+	mutableState := buildWorkflowMutableState()
 	mutableState.ExecutionInfo.State = persistence.WorkflowStateCompleted
 	mutableState.ExecutionInfo.CloseStatus = persistence.WorkflowCloseStatusCompleted
 
@@ -909,7 +909,7 @@ func (s *mutableStateSuite) newDomainCacheEntry() *cache.DomainCacheEntry {
 	)
 }
 
-func (s *mutableStateSuite) buildWorkflowMutableState() *persistence.WorkflowMutableState {
+func buildWorkflowMutableState() *persistence.WorkflowMutableState {
 	domainID := constants.TestDomainID
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2157,7 +2157,7 @@ func TestMutableStateBuilder_closeTransactionHandleWorkflowReset(t *testing.T) {
 
 			nowClock := clock.NewMockedTimeSourceAt(now)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			td.mutableStateBuilderStartingState(msb)
 
@@ -2267,7 +2267,7 @@ func TestMutableStateBuilder_GetVersionHistoriesStart(t *testing.T) {
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			td.mutableStateBuilderStartingState(msb)
 
@@ -2483,7 +2483,7 @@ func TestGetCronRetryBackoffDuration(t *testing.T) {
 
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.executionInfo = td.startingExecutionInfo
 			msb.versionHistories = sampleVersionHistory
@@ -3229,7 +3229,7 @@ func TestAssignTaskIDToTransientHistoryEvents(t *testing.T) {
 
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.hBuilder.transientHistory = td.transientHistory
 
@@ -3342,7 +3342,7 @@ func TestAssignTaskIDToHistoryEvents(t *testing.T) {
 
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.hBuilder.history = td.history
 
@@ -3422,7 +3422,7 @@ func TestAddUpsertWorkflowSearchAttributesEvent(t *testing.T) {
 
 			nowClock := clock.NewMockedTimeSourceAt(now)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.hBuilder = &HistoryBuilder{
 				history:   []*types.HistoryEvent{},
@@ -3624,7 +3624,7 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
-			ms := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			ms := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 			td.mutableStateSetup(ms)
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
@@ -3855,7 +3855,7 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.logger = log.NewLogger(zap.New(core))
 
@@ -3875,7 +3875,7 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 	}
 }
 
-func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) *mutableStateBuilder {
+func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache, domainEntry *cache.DomainCacheEntry) *mutableStateBuilder {
 	// the MSB constructor calls a bunch of endpoints on the mocks, so
 	// put them in here as a set of fixed expectations so the actual mocking
 	// code can just make expectations on the calls on the returned MSB object
@@ -3897,6 +3897,434 @@ func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.Mock
 	shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
 	shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
 
-	msb := newMutableStateBuilder(shardContext, log.NewNoop(), constants.TestGlobalDomainEntry)
+	if domainEntry == nil {
+		domainEntry = constants.TestGlobalDomainEntry
+	}
+
+	msb := newMutableStateBuilder(shardContext, log.NewNoop(), domainEntry)
 	return msb
+}
+
+func TestLoad_ActiveActive(t *testing.T) {
+	domainID := "test-domain-id"
+	workflowID := "test-workflow-id"
+	runID := "test-run-id"
+
+	// Create domain entries for different test scenarios
+	activeActiveDomainEntry := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{
+			ID:   domainID,
+			Name: "test-domain",
+		},
+		&persistence.DomainConfig{},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusters: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"region0": {
+						ActiveClusterName: "cluster0",
+						FailoverVersion:   100,
+					},
+					"region1": {
+						ActiveClusterName: "cluster1",
+						FailoverVersion:   200,
+					},
+				},
+			},
+		},
+		1,
+		nil,
+		0,
+		0,
+		0,
+	)
+
+	nonActiveActiveDomainEntry := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{
+			ID:   domainID,
+			Name: "test-domain",
+		},
+		&persistence.DomainConfig{},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: "cluster0",
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: "cluster0"},
+			},
+		},
+		1,
+		nil,
+		0,
+		0,
+		0,
+	)
+
+	// Create base mutable state for testing
+	baseMutableState := buildWorkflowMutableState()
+	baseMutableState.ExecutionInfo = &persistence.WorkflowExecutionInfo{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+		State:      persistence.WorkflowStateRunning,
+	}
+
+	// Create base mutable state for testing (without version histories)
+	baseMutableStateNoVersionHistory := buildWorkflowMutableState()
+	baseMutableStateNoVersionHistory.ExecutionInfo = &persistence.WorkflowExecutionInfo{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+		State:      persistence.WorkflowStateRunning,
+	}
+	baseMutableStateNoVersionHistory.VersionHistories = nil
+
+	tests := map[string]struct {
+		domainEntry                    *cache.DomainCacheEntry
+		mutableState                   *persistence.WorkflowMutableState
+		activeClusterManagerAffordance func(activeClusterManager *activecluster.MockManager)
+		expectedCurrentVersion         int64
+		expectedErr                    error
+	}{
+		"Non-active-active domain - LookupWorkflow should not be called": {
+			domainEntry:  nonActiveActiveDomainEntry,
+			mutableState: baseMutableState,
+			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
+				// No expectations - LookupWorkflow should not be called
+			},
+			expectedCurrentVersion: commonconstants.EmptyVersion,
+			expectedErr:            nil,
+		},
+		"Active-active domain with nil version history - should return EmptyVersion": {
+			domainEntry:  activeActiveDomainEntry,
+			mutableState: baseMutableStateNoVersionHistory,
+			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupWorkflow(
+					gomock.Any(),
+					domainID,
+					workflowID,
+					runID,
+				).Return(&activecluster.LookupResult{
+					FailoverVersion: int64(100),
+				}, nil).Times(1)
+			},
+			expectedCurrentVersion: commonconstants.EmptyVersion, // GetCurrentVersion returns EmptyVersion when versionHistories is nil
+			expectedErr:            nil,
+		},
+		"Active-active domain - LookupWorkflow succeeds with different version": {
+			domainEntry:  activeActiveDomainEntry,
+			mutableState: baseMutableState,
+			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupWorkflow(
+					gomock.Any(),
+					domainID,
+					workflowID,
+					runID,
+				).Return(&activecluster.LookupResult{
+					FailoverVersion: int64(100),
+				}, nil).Times(1)
+			},
+			expectedCurrentVersion: int64(100),
+			expectedErr:            nil,
+		},
+		"Active-active domain - LookupWorkflow succeeds with same version as domain failover": {
+			domainEntry:  activeActiveDomainEntry,
+			mutableState: baseMutableState,
+			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupWorkflow(
+					gomock.Any(),
+					domainID,
+					workflowID,
+					runID,
+				).Return(&activecluster.LookupResult{
+					FailoverVersion: activeActiveDomainEntry.GetFailoverVersion(),
+				}, nil).Times(1)
+			},
+			expectedCurrentVersion: activeActiveDomainEntry.GetFailoverVersion(),
+			expectedErr:            nil,
+		},
+		"Active-active domain - LookupWorkflow fails with error": {
+			domainEntry:  activeActiveDomainEntry,
+			mutableState: baseMutableState,
+			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupWorkflow(
+					gomock.Any(),
+					domainID,
+					workflowID,
+					runID,
+				).Return(nil, &types.InternalServiceError{
+					Message: "failed to lookup workflow",
+				}).Times(1)
+			},
+			expectedCurrentVersion: commonconstants.EmptyVersion,
+			expectedErr: &types.InternalServiceError{
+				Message: "failed to lookup workflow",
+			},
+		},
+		"Active-active domain - LookupWorkflow fails with generic error": {
+			domainEntry:  activeActiveDomainEntry,
+			mutableState: baseMutableState,
+			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupWorkflow(
+					gomock.Any(),
+					domainID,
+					workflowID,
+					runID,
+				).Return(nil, errors.New("connection failed")).Times(1)
+			},
+			expectedCurrentVersion: commonconstants.EmptyVersion,
+			expectedErr:            errors.New("connection failed"),
+		},
+		"Active-active domain - LookupWorkflow with zero failover version": {
+			domainEntry:  activeActiveDomainEntry,
+			mutableState: baseMutableState,
+			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupWorkflow(
+					gomock.Any(),
+					domainID,
+					workflowID,
+					runID,
+				).Return(&activecluster.LookupResult{
+					FailoverVersion: int64(0),
+				}, nil).Times(1)
+			},
+			expectedCurrentVersion: int64(0),
+			expectedErr:            nil,
+		},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			// Setup mocks
+			shardContext := shard.NewMockContext(ctrl)
+			mockCache := events.NewMockCache(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+			activeClusterManager := activecluster.NewMockManager(ctrl)
+
+			// Set up shard context expectations
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+			shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
+
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, td.domainEntry)
+
+			// modify expectation from .Times(1) to .AnyTimes() for the load function
+			shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+
+			// Set up domain cache expectations
+			mockDomainCache.EXPECT().GetDomainID(gomock.Any()).Return("some-domain-id", nil).AnyTimes()
+
+			// Set up active cluster manager expectations based on test case
+			td.activeClusterManagerAffordance(activeClusterManager)
+
+			// Execute Load function
+			err := msb.Load(context.Background(), td.mutableState)
+
+			// Verify results
+			if td.expectedErr != nil {
+				assert.Error(t, err)
+				assert.Equal(t, td.expectedErr.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, td.expectedCurrentVersion, msb.GetCurrentVersion())
+			}
+		})
+	}
+}
+
+func TestStartTransaction(t *testing.T) {
+	domainID := constants.TestDomainID
+	workflowID := "test-workflow"
+	runID := constants.TestRunID
+
+	// Create domain entries for different test scenarios
+	regularDomainEntry := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{
+			ID:   domainID,
+			Name: "test-domain",
+		},
+		&persistence.DomainConfig{},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: "cluster0",
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: "cluster0"},
+			},
+		},
+		123, // failover version
+		nil,
+		0,
+		0,
+		0,
+	)
+
+	activeActiveDomainEntry := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{
+			ID:   domainID,
+			Name: "test-aa-domain",
+		},
+		&persistence.DomainConfig{},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusters: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"region0": {
+						ActiveClusterName: "cluster0",
+						FailoverVersion:   100,
+					},
+					"region1": {
+						ActiveClusterName: "cluster1",
+						FailoverVersion:   200,
+					},
+				},
+			},
+		},
+		456, // failover version
+		nil,
+		0,
+		0,
+		0,
+	)
+
+	testCases := map[string]struct {
+		domainEntry               *cache.DomainCacheEntry
+		setupActiveClusterManager func(activeClusterManager *activecluster.MockManager)
+		setupMutableStateBuilder  func(msBuilder *mutableStateBuilder)
+		incomingTaskVersion       int64
+		expectedFlushDecision     bool
+		expectedVersion           int64
+		expectedError             bool
+		expectedErrorContains     string
+	}{
+		"it should successfully update the failover version": {
+			domainEntry:               regularDomainEntry,
+			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {},
+			setupMutableStateBuilder:  func(msBuilder *mutableStateBuilder) {},
+			incomingTaskVersion:       int64(100),
+			expectedFlushDecision:     false,
+			expectedVersion:           123, // domain failover version
+			expectedError:             false,
+		},
+		"when the domain is active-active domain it should update the failover version": {
+			domainEntry: activeActiveDomainEntry,
+			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupWorkflow(
+					gomock.Any(),
+					domainID,
+					workflowID,
+					runID,
+				).Return(&activecluster.LookupResult{
+					FailoverVersion: int64(999),
+				}, nil).Times(1)
+			},
+			setupMutableStateBuilder: func(msBuilder *mutableStateBuilder) {},
+			incomingTaskVersion:      int64(200),
+			expectedFlushDecision:    false,
+			expectedVersion:          999, // from LookupWorkflow result
+			expectedError:            false,
+		},
+		"when the domain is active-active and workflow lookup fails it should return an error": {
+			domainEntry: activeActiveDomainEntry,
+			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupWorkflow(
+					gomock.Any(),
+					domainID,
+					workflowID,
+					runID,
+				).Return(nil, errors.New("cluster lookup failed")).Times(1)
+			},
+			setupMutableStateBuilder: func(msBuilder *mutableStateBuilder) {},
+			incomingTaskVersion:      int64(300),
+			expectedFlushDecision:    false,
+			expectedVersion:          0, // version won't be set due to error
+			expectedError:            true,
+			expectedErrorContains:    "cluster lookup failed",
+		},
+		"when unable to update current version it should return an error": {
+			domainEntry:               regularDomainEntry,
+			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {},
+			setupMutableStateBuilder: func(msBuilder *mutableStateBuilder) {
+				// Create empty version histories to trigger GetCurrentVersionHistory error
+				msBuilder.versionHistories = &persistence.VersionHistories{
+					CurrentVersionHistoryIndex: 0,
+					Histories:                  []*persistence.VersionHistory{},
+				}
+			},
+			incomingTaskVersion:   int64(400),
+			expectedFlushDecision: false,
+			expectedVersion:       0, // version won't be updated due to error
+			expectedError:         true,
+			expectedErrorContains: "getting branch index",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			// Setup mocks
+			shardContext := shard.NewMockContext(ctrl)
+			mockCache := events.NewMockCache(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+			activeClusterManager := activecluster.NewMockManager(ctrl)
+
+			// Set up shard context expectations
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+			shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
+
+			// Create mutable state builder with mocks
+			msBuilder := createMSBWithMocks(mockCache, shardContext, mockDomainCache, tc.domainEntry)
+
+			// Override shard context expectations for multiple calls
+			shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+			shardContext.EXPECT().GetConfig().Return(&config.Config{
+				HostName:                        "test-host",
+				EnableReplicationTaskGeneration: func(string, string) bool { return true },
+				MaximumBufferedEventsBatch:      func(...dynamicproperties.FilterOption) int { return 100 },
+			}).AnyTimes()
+
+			// Set up basic execution info
+			msBuilder.executionInfo = &persistence.WorkflowExecutionInfo{
+				DomainID:    domainID,
+				WorkflowID:  workflowID,
+				RunID:       runID,
+				State:       persistence.WorkflowStateRunning,
+				NextEventID: int64(5),
+			}
+
+			// Set up version histories for UdpateCurrentVersion
+			msBuilder.versionHistories = persistence.NewVersionHistories(&persistence.VersionHistory{
+				BranchToken: []byte("test-branch-token"),
+				Items: []*persistence.VersionHistoryItem{
+					{EventID: 1, Version: 1},
+				},
+			})
+
+			// Apply test-specific setup
+			tc.setupActiveClusterManager(activeClusterManager)
+			tc.setupMutableStateBuilder(msBuilder)
+
+			// Execute the function under test
+			flushDecision, err := msBuilder.StartTransaction(context.Background(), tc.domainEntry, tc.incomingTaskVersion)
+
+			// Verify results
+			if tc.expectedError {
+				assert.Error(t, err)
+				if tc.expectedErrorContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrorContains)
+				}
+				assert.Equal(t, tc.expectedFlushDecision, flushDecision)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedFlushDecision, flushDecision)
+
+				// Verify domain entry was updated
+				assert.Equal(t, tc.domainEntry, msBuilder.domainEntry)
+
+				// Verify current version was set to expected version
+				assert.Equal(t, tc.expectedVersion, msBuilder.GetCurrentVersion())
+			}
+		})
+	}
 }

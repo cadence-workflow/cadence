@@ -20,7 +20,6 @@ import (
 {{$permissionMap = set $permissionMap "GetWorkflowExecutionHistory" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "ListArchivedWorkflowExecutions" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "ListClosedWorkflowExecutions" "PermissionRead"}}
-{{$permissionMap = set $permissionMap "ListDomains" "PermissionAdmin"}}
 {{$permissionMap = set $permissionMap "ListOpenWorkflowExecutions" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "ListWorkflowExecutions" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "PollForActivityTask" "PermissionProcess"}}
@@ -46,7 +45,7 @@ import (
 {{$adminPermissionMap := dict }}
 {{$adminPermissionMap = set $adminPermissionMap "DescribeCluster" "PermissionRead"}}
 
-{{$nonDomainAuthAPIs := list "RegisterDomain" "DescribeDomain" "UpdateDomain" "DeprecateDomain" "DeleteDomain" "ListDomains" "GetSearchAttributes" "GetClusterInfo" "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
+{{$nonDomainAuthAPIs := list "RegisterDomain" "DescribeDomain" "UpdateDomain" "DeprecateDomain" "DeleteDomain" "GetSearchAttributes" "GetClusterInfo" "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$taskListAuthAPIs := list "PollForActivityTask" "PollForDecisionTask"}}
 {{$workflowTypeAuthAPIs := list "SignalWithStartWorkflowExecution" "StartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync" "StartWorkflowExecutionAsync"}}
 

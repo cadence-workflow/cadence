@@ -44,3 +44,8 @@ message GetShardOwnerResponse {
 message NamespaceNotFoundError {
   string namespace = 1;
 }
+
+message ShardNotFoundError {
+  string namespace = 1;
+  string shard_key = 2;
+}

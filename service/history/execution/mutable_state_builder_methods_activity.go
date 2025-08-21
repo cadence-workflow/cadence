@@ -245,7 +245,15 @@ func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
 		e.pendingActivityWarningSent = true
 	}
 
-	event := e.hBuilder.AddActivityTaskScheduledEvent(decisionCompletedEventID, attributes)
+	taskList := &types.TaskList{
+		Name: attributes.TaskList.Name,
+		Kind: attributes.TaskList.Kind,
+	}
+	if taskList.GetKind() == types.TaskListKindNormal && e.executionInfo.TaskListKind == types.TaskListKindEphemeral {
+		taskList.Kind = types.TaskListKindEphemeral.Ptr()
+	}
+
+	event := e.hBuilder.AddActivityTaskScheduledEvent(decisionCompletedEventID, attributes, taskList)
 
 	// Write the event to cache only on active cluster for processing on activity started or retried
 	e.eventsCache.PutEvent(
@@ -354,6 +362,7 @@ func (e *mutableStateBuilder) ReplicateActivityTaskScheduledEvent(
 		LastHeartBeatUpdatedTime: time.Time{},
 		TimerTaskStatus:          TimerTaskStatusNone,
 		TaskList:                 attributes.TaskList.GetName(),
+		TaskListKind:             attributes.TaskList.GetKind(),
 		HasRetryPolicy:           attributes.RetryPolicy != nil,
 	}
 

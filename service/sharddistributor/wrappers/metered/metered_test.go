@@ -197,14 +197,15 @@ func TestHandleErr(t *testing.T) {
 			name:          "NamespaceNotFoundError",
 			err:           &types.NamespaceNotFoundError{},
 			expectedError: &types.NamespaceNotFoundError{},
-			setupMocks: func(mockLogger *log.MockLogger) {
-				mockLogger.On(
-					"Error",
-					"ShardNamespace not found",
-					[]tag.Tag{tag.Error(&types.NamespaceNotFoundError{})},
-				).Once()
-			},
-			metricName: "shard_distributor_err_namespace_not_found",
+			setupMocks:    func(mockLogger *log.MockLogger) {},
+			metricName:    "shard_distributor_err_namespace_not_found",
+		},
+		{
+			name:          "ShardNotFoundError",
+			err:           &types.ShardNotFoundError{},
+			expectedError: &types.ShardNotFoundError{},
+			setupMocks:    func(mockLogger *log.MockLogger) {},
+			metricName:    "shard_distributor_err_shard_not_found",
 		},
 		{
 			name:          "ContextDeadlineExceeded",

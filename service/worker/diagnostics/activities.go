@@ -40,8 +40,9 @@ const (
 	linkToRetriesRunbook  = "https://cadenceworkflow.io/docs/workflow-troubleshooting/retries"
 	WfDiagnosticsAppName  = "workflow-diagnostics"
 
-	_maxPageSize    = 1000            // current maximum page size for fetching workflow history
-	_contextTimeout = 1 * time.Minute // timeout to fetch the whole execution history
+	_maxPageSize           = 1000            // current maximum page size for fetching workflow history
+	_contextTimeout        = 1 * time.Minute // timeout to fetch the whole execution history
+	_maxIssuesPerInvariant = 10              // maximum number of issues to return per invariant check
 )
 
 type identifyIssuesParams struct {
@@ -65,7 +66,7 @@ func (w *dw) identifyIssues(ctx context.Context, info identifyIssuesParams) ([]i
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, issues...)
+		result = append(result, capNumberOfIssues(issues)...)
 	}
 
 	return result, nil
@@ -153,4 +154,12 @@ func (w *dw) emit(ctx context.Context, info analytics.WfDiagnosticsUsageData, cl
 		Producer: producer,
 	})
 	return emitter.EmitUsageData(ctx, info)
+}
+
+// capNumberOfIssues limits the number of issues to avoid overwhelming the result with too many issues.
+func capNumberOfIssues(issues []invariant.InvariantCheckResult) []invariant.InvariantCheckResult {
+	if len(issues) > _maxIssuesPerInvariant {
+		return issues[:_maxIssuesPerInvariant]
+	}
+	return issues
 }

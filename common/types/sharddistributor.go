@@ -75,6 +75,18 @@ func (n *NamespaceNotFoundError) Error() (o string) {
 	return
 }
 
+type ShardNotFoundError struct {
+	Namespace string
+	ShardKey  string
+}
+
+func (n *ShardNotFoundError) Error() (o string) {
+	if n != nil {
+		return fmt.Sprintf("shard not found %v:%v", n.Namespace, n.ShardKey)
+	}
+	return
+}
+
 type ExecutorHeartbeatRequest struct {
 	Namespace          string
 	ExecutorID         string

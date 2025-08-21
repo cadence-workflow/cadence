@@ -123,6 +123,10 @@ var (
 	NamespaceNotFoundError = types.NamespaceNotFoundError{
 		Namespace: Namespace,
 	}
+	ShardNotFoundError = types.ShardNotFoundError{
+		Namespace: Namespace,
+		ShardKey:  ShardKey,
+	}
 )
 
 var Errors = []error{
@@ -149,4 +153,5 @@ var Errors = []error{
 	&StickyWorkerUnavailableError,
 	&TaskListNotOwnedByHostError,
 	&NamespaceNotFoundError,
+	&ShardNotFoundError,
 }

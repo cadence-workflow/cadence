@@ -964,6 +964,7 @@ const (
 	// Allowed filters: N/A
 	QueueProcessorSplitMaxLevel
 	QueueMaxPendingTaskCount
+	QueueCriticalPendingTaskCount
 	// TimerTaskBatchSize is batch size for timer processor to process tasks
 	// KeyName: history.timerTaskBatchSize
 	// Value type: Int
@@ -1513,6 +1514,8 @@ const (
 	// Default value: 30
 	DeleteHistoryEventContextTimeout
 
+	QueueMaxVirtualQueueCount
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -1674,6 +1677,7 @@ const (
 	MatchingEnableGetNumberOfPartitionsFromCache
 	MatchingEnableAdaptiveScaler
 	MatchingEnablePartitionEmptyCheck
+	MatchingEnableReturnAllTaskListKinds
 
 	// key for history
 
@@ -2101,6 +2105,8 @@ const (
 
 	EnableTransferQueueV2
 	EnableTimerQueueV2
+	EnableTransferQueueV2PendingTaskCountAlert
+	EnableTimerQueueV2PendingTaskCountAlert
 
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
@@ -2390,6 +2396,13 @@ const (
 	EnableAuthorizationV2
 	TasklistLoadBalancerStrategy
 
+	// EnableAdminAuthorization is the key to enable authorization for admin operations, only for extension binary:
+	// KeyName: system.enableAdminAuthorization
+	// Value type: string ["disabled","shadow","enabled"]
+	// Default value: "disabled"
+	// TODO: https://github.com/uber/cadence/issues/3861
+	EnableAdminAuthorization
+
 	// MatchingShardDistributionMode is the mode of shard distribution for matching, we currently have four modes, we _highly_
 	// recommend using hash_ring while the shard distributor is still in development.
 	//
@@ -2607,6 +2620,7 @@ const (
 	// Default value: 5s (5*time.Second)
 	// Allowed filters: N/A
 	QueueProcessorPollBackoffInterval
+	VirtualSliceForceAppendInterval
 	// TimerProcessorUpdateAckInterval is update interval for timer processor
 	// KeyName: history.timerProcessorUpdateAckInterval
 	// Value type: Duration
@@ -3560,6 +3574,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "QueueMaxPendingTaskCount is the max number of pending tasks in the queue",
 		DefaultValue: 10000,
 	},
+	QueueCriticalPendingTaskCount: {
+		KeyName:      "history.queueCriticalPendingTaskCount",
+		Description:  "QueueCriticalPendingTaskCount is the critical pending task count for the queue, which is supposed to be less than QueueMaxPendingTaskCount",
+		DefaultValue: 9000,
+	},
 	TimerTaskBatchSize: {
 		KeyName:      "history.timerTaskBatchSize",
 		Description:  "TimerTaskBatchSize is batch size for timer processor to process tasks",
@@ -4024,10 +4043,15 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "The number of attempts to push Isolation group configuration to the config store",
 		DefaultValue: 2,
 	},
-	DeleteHistoryEventContextTimeout: DynamicInt{
+	DeleteHistoryEventContextTimeout: {
 		KeyName:      "system.deleteHistoryEventContextTimeout",
 		Description:  "This is the number of seconds allowed for a deleteHistoryEvent task to the database",
 		DefaultValue: 30,
+	},
+	QueueMaxVirtualQueueCount: {
+		KeyName:      "history.queueMaxVirtualQueueCount",
+		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
+		DefaultValue: 2,
 	},
 }
 
@@ -4206,6 +4230,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enablePartitionEmptyCheck",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingEnablePartitionEmptyCheck enables using TaskListStatus.empty to check if a partition is empty",
+		DefaultValue: false,
+	},
+	MatchingEnableReturnAllTaskListKinds: {
+		KeyName:      "matching.matchingReturnAllTaskListKinds",
+		Description:  "Returns TaskLists of all kinds when GetTaskListsByDomain is called. Useful in testing Cadence",
 		DefaultValue: false,
 	},
 	EventsCacheGlobalEnable: {
@@ -4588,7 +4617,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	ReadNoSQLShardFromDataBlob: {
 		KeyName:      "history.readNoSQLShardFromDataBlob",
 		Description:  "ReadNoSQLShardFromDataBlob is to read shards from data blob",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	EnableSizeBasedHistoryExecutionCache: {
 		KeyName:      "history.enableSizeBasedHistoryExecutionCache",
@@ -4619,6 +4648,18 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableTimerQueueV2: {
 		KeyName:      "history.enableTimerQueueV2",
 		Description:  "EnableTimerQueueV2 is to enable timer queue v2",
+		Filters:      []Filter{ShardID},
+		DefaultValue: false,
+	},
+	EnableTransferQueueV2PendingTaskCountAlert: {
+		KeyName:      "history.enableTransferQueueV2PendingTaskCountAlert",
+		Description:  "EnableTransferQueueV2PendingTaskCountAlert is to enable transfer queue v2 pending task count alert",
+		Filters:      []Filter{ShardID},
+		DefaultValue: false,
+	},
+	EnableTimerQueueV2PendingTaskCountAlert: {
+		KeyName:      "history.enableTimerQueueV2PendingTaskCountAlert",
+		Description:  "EnableTimerQueueV2PendingTaskCountAlert is to enable timer queue v2 pending task count alert",
 		Filters:      []Filter{ShardID},
 		DefaultValue: false,
 	},
@@ -4860,6 +4901,11 @@ var StringKeys = map[StringKey]DynamicString{
 		DefaultValue: "weighted", // available options: "random, round-robin, weighted"
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 	},
+	EnableAdminAuthorization: {
+		KeyName:      "system.enableAdminAuthorization",
+		Description:  "EnableAdminAuthorization is the key to enable authorization for admin operations, only for extension of authorizer implementation",
+		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
+	},
 	ReadVisibilityStoreName: {
 		KeyName:      "system.readVisibilityStoreName",
 		Description:  "ReadVisibilityStoreName is key to identify which store to read visibility data from",
@@ -5094,6 +5140,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.queueProcessorPollBackoffInterval",
 		Description:  "QueueProcessorPollBackoffInterval is the backoff duration when queue processor is throttled",
 		DefaultValue: time.Second * 5,
+	},
+	VirtualSliceForceAppendInterval: {
+		KeyName:      "history.virtualSliceForceAppendInterval",
+		Description:  "VirtualSliceForceAppendInterval is the duration forcing a new virtual slice to be appended to the root virtual queue instead of being merged. It has 2 benefits: First, virtual slices won't grow infinitely, task loading for that slice can complete and its scope can be shrinked. Second, when we need to unload a virtual slice to free memory, we won't unload too many tasks.",
+		DefaultValue: time.Minute * 5,
 	},
 	TimerProcessorUpdateAckInterval: {
 		KeyName:      "history.timerProcessorUpdateAckInterval",

@@ -158,10 +158,14 @@ func (f *transferQueueFactory) createQueuev2(
 			MaxPendingTasksCount:                 config.QueueMaxPendingTaskCount,
 			PollBackoffInterval:                  config.QueueProcessorPollBackoffInterval,
 			PollBackoffIntervalJitterCoefficient: config.QueueProcessorPollBackoffIntervalJitterCoefficient,
+			VirtualSliceForceAppendInterval:      config.VirtualSliceForceAppendInterval,
 			EnableValidator:                      config.TransferProcessorEnableValidator,
 			ValidationInterval:                   config.TransferProcessorValidationInterval,
 			MaxStartJitterInterval:               dynamicproperties.GetDurationPropertyFn(0),
 			RedispatchInterval:                   config.ActiveTaskRedispatchInterval,
+			CriticalPendingTaskCount:             config.QueueCriticalPendingTaskCount,
+			EnablePendingTaskCountAlert:          func() bool { return config.EnableTransferQueueV2PendingTaskCountAlert(shard.GetShardID()) },
+			MaxVirtualQueueCount:                 config.QueueMaxVirtualQueueCount,
 		},
 	)
 }

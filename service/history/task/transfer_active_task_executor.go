@@ -202,6 +202,14 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 	}
 
 	timeout := min(ai.ScheduleToStartTimeout, constants.MaxTaskTimeout)
+
+	taskList := &types.TaskList{
+		Name: ai.TaskList,
+		Kind: ai.TaskListKind.Ptr(),
+	}
+	if taskList.Name == "" {
+		taskList.Name = task.TaskList
+	}
 	// release the context lock since we no longer need mutable state builder and
 	// the rest of logic is making RPC call, which takes time.
 	release(nil)
@@ -211,9 +219,9 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 		return errWorkflowRateLimited
 	}
 
-	err = t.pushActivity(ctx, task, timeout, mutableState.GetExecutionInfo().PartitionConfig)
+	err = t.pushActivity(ctx, task, taskList, timeout, mutableState.GetExecutionInfo().PartitionConfig)
 	if err == nil {
-		scope := common.NewPerTaskListScope(domainName, task.TaskList, types.TaskListKindNormal, t.metricsClient, metrics.TransferActiveTaskActivityScope)
+		scope := common.NewPerTaskListScope(domainName, taskList.Name, taskList.GetKind(), t.metricsClient, metrics.TransferActiveTaskActivityScope)
 		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, time.Since(task.GetVisibilityTimestamp()))
 	}
 	return err
@@ -267,6 +275,7 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 	// task or not.
 	taskList := &types.TaskList{
 		Name: task.TaskList,
+		Kind: executionInfo.TaskListKind.Ptr(),
 	}
 	if mutableState.GetExecutionInfo().TaskList != task.TaskList {
 		// this decision is an sticky decision

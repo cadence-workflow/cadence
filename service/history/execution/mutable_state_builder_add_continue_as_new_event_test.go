@@ -190,6 +190,7 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			FirstExecutionRunID:                "5adce5c5-b7b2-4418-9bf0-4207303f6343",
 			InitiatedID:                        -23,
 			TaskList:                           "helloWorldGroup",
+			TaskListKind:                       types.TaskListKindNormal,
 			WorkflowTypeName:                   "helloWorldWorkflow",
 			WorkflowTimeout:                    60,
 			DecisionStartToCloseTimeout:        60,
@@ -231,7 +232,7 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 					WorkflowType: &types.WorkflowType{
 						Name: "helloWorldWorkflow",
 					},
-					TaskList:                            &types.TaskList{Name: "helloWorldGroup"},
+					TaskList:                            &types.TaskList{Name: "helloWorldGroup", Kind: types.TaskListKindNormal.Ptr()},
 					Input:                               []uint8{110, 117, 108, 108, 10},
 					ExecutionStartToCloseTimeoutSeconds: common.Ptr(int32(60)),
 					TaskStartToCloseTimeoutSeconds:      common.Ptr(int32(60)),

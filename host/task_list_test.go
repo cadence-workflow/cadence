@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -16,10 +17,6 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
-)
-
-const (
-	tl = "integration-task-list-tl"
 )
 
 func TestTaskListSuite(t *testing.T) {
@@ -41,9 +38,10 @@ func TestTaskListSuite(t *testing.T) {
 		dynamicproperties.MatchingNumTasklistReadPartitions:  1,
 	}
 	clusterConfig.MatchingDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
-		dynamicproperties.EnableTasklistIsolation:            false,
-		dynamicproperties.MatchingNumTasklistWritePartitions: 1,
-		dynamicproperties.MatchingNumTasklistReadPartitions:  1,
+		dynamicproperties.EnableTasklistIsolation:              false,
+		dynamicproperties.MatchingNumTasklistWritePartitions:   1,
+		dynamicproperties.MatchingNumTasklistReadPartitions:    1,
+		dynamicproperties.MatchingEnableReturnAllTaskListKinds: true,
 	}
 
 	s := new(TaskListIntegrationSuite)
@@ -67,10 +65,11 @@ func (s *TaskListIntegrationSuite) TearDownSuite() {
 func (s *TaskListIntegrationSuite) SetupTest() {
 	// Have to define our overridden assertions in the test setup. If we did it earlier, s.T() will return nil
 	s.Assertions = require.New(s.T())
+	s.TaskListName = s.T().Name()
 }
 
 func (s *TaskListIntegrationSuite) TestDescribeTaskList_Status() {
-	expectedTl := &types.TaskList{Name: tl, Kind: types.TaskListKindNormal.Ptr()}
+	expectedTl := &types.TaskList{Name: s.TaskListName, Kind: types.TaskListKindNormal.Ptr()}
 
 	initialStatus := &types.TaskListStatus{
 		BacklogCountHint: 0,
@@ -116,7 +115,7 @@ func (s *TaskListIntegrationSuite) TestDescribeTaskList_Status() {
 	}
 
 	// 0. Check before any tasks
-	response := s.describeTaskList()
+	response := s.describeTaskList(types.TaskListTypeDecision)
 	response.TaskListStatus.IsolationGroupMetrics = nil
 	s.Equal(expectedTl, response.TaskList)
 	s.Equal(initialStatus, response.TaskListStatus)
@@ -131,18 +130,19 @@ func (s *TaskListIntegrationSuite) TestDescribeTaskList_Status() {
 	s.Equal(withOneTask, response.TaskListStatus)
 
 	// 2. After the task has been completed
-	poller := s.createPoller("result")
+	poller := s.createPoller("result", types.TaskListKindNormal)
 	cancelPoller := poller.PollAndProcessDecisions()
 	defer cancelPoller()
 	_, err := s.getWorkflowResult(runID)
 	s.NoError(err, "failed to get workflow result")
 
-	response = s.describeTaskList()
+	response = s.describeTaskList(types.TaskListTypeDecision)
 	response.TaskListStatus.IsolationGroupMetrics = nil
 	response.TaskListStatus.NewTasksPerSecond = 0
 	s.Equal(completedStatus, response.TaskListStatus)
 }
 
+// Run a Workflow containing only decision tasks on an ephemeral TaskList
 func (s *TaskListIntegrationSuite) TestEphemeralTaskList() {
 	runID := s.startWorkflow(types.TaskListKindEphemeral).RunID
 
@@ -152,19 +152,150 @@ func (s *TaskListIntegrationSuite) TestEphemeralTaskList() {
 	firstEvent := s.getStartedEvent(runID)
 	s.Equal(types.TaskListKindEphemeral, firstEvent.TaskList.GetKind())
 
-	// Finish the workflow, although it doesn't dispatch its tasks as Ephemeral yet
-	poller := s.createPoller("result")
+	taskList := s.waitUntilTaskListExists(types.TaskListTypeDecision)
+	s.Equal(types.TaskListKindEphemeral, *taskList.TaskList.Kind)
+
+	poller := s.createPoller("result", types.TaskListKindEphemeral)
 	cancelPoller := poller.PollAndProcessDecisions()
 	defer cancelPoller()
 	_, err := s.getWorkflowResult(runID)
 	s.NoError(err, "failed to get workflow result")
 }
 
-func (s *TaskListIntegrationSuite) createPoller(identity string) *TaskPoller {
+// Run a workflow on a normal TaskList, with an activity on an ephemeral TaskList
+func (s *TaskListIntegrationSuite) TestEphemeralTaskList_EphemeralActivity() {
+	activity := &types.ScheduleActivityTaskDecisionAttributes{
+		ActivityID: "the-one",
+		ActivityType: &types.ActivityType{
+			Name: "activity-type",
+		},
+		Domain:                        s.DomainName,
+		TaskList:                      &types.TaskList{Name: s.TaskListName, Kind: types.TaskListKindEphemeral.Ptr()},
+		Input:                         []byte("input"),
+		ScheduleToCloseTimeoutSeconds: common.Int32Ptr(20),
+		ScheduleToStartTimeoutSeconds: common.Int32Ptr(10),
+		StartToCloseTimeoutSeconds:    common.Int32Ptr(10),
+	}
+
+	// Normal workflow with an ephemeral activity
+	runID := s.startWorkflow(types.TaskListKindNormal).RunID
+
+	taskList := s.waitUntilTaskListExists(types.TaskListTypeDecision)
+	s.Equal(types.TaskListKindNormal, taskList.TaskList.GetKind())
+
+	poller := s.createDecisionPollerForSingleActivityWorkflow(types.TaskListKindNormal, activity)
+	cancelPoller := poller.PollAndProcessDecisions()
+	defer cancelPoller()
+
+	taskList = s.waitUntilTaskListExists(types.TaskListTypeActivity)
+	s.Equal(types.TaskListKindEphemeral, taskList.TaskList.GetKind())
+
+	activityPoller := s.createEchoActivityPoller(types.TaskListKindEphemeral)
+	cancelActivityPoller := activityPoller.PollAndProcessActivities()
+	defer cancelActivityPoller()
+
+	_, err := s.getWorkflowResult(runID)
+	s.NoError(err, "failed to get workflow result")
+
+	scheduled := s.getActivityScheduledEvent(runID)
+	s.Equal(types.TaskListKindEphemeral, scheduled.TaskList.GetKind())
+}
+
+// Run a workflow on an Ephemeral TaskList, which forces the activity to be dispatched to an Ephemeral TaskList.
+func (s *TaskListIntegrationSuite) TestEphemeralTaskList_EphemeralWorkflow() {
+	activity := &types.ScheduleActivityTaskDecisionAttributes{
+		ActivityID: "the-one",
+		ActivityType: &types.ActivityType{
+			Name: "activity-type",
+		},
+		Domain:                        s.DomainName,
+		TaskList:                      &types.TaskList{Name: s.TaskListName, Kind: types.TaskListKindNormal.Ptr()},
+		Input:                         []byte("input"),
+		ScheduleToCloseTimeoutSeconds: common.Int32Ptr(20),
+		ScheduleToStartTimeoutSeconds: common.Int32Ptr(10),
+		StartToCloseTimeoutSeconds:    common.Int32Ptr(10),
+	}
+
+	// Normal workflow with an ephemeral activity
+	runID := s.startWorkflow(types.TaskListKindEphemeral).RunID
+
+	// Just for sanity
+	response := s.describeWorkflow(runID)
+	s.Equal(types.TaskListKindEphemeral, response.WorkflowExecutionInfo.TaskList.GetKind())
+
+	taskList := s.waitUntilTaskListExists(types.TaskListTypeDecision)
+	s.Equal(types.TaskListKindEphemeral, taskList.TaskList.GetKind())
+
+	poller := s.createDecisionPollerForSingleActivityWorkflow(types.TaskListKindEphemeral, activity)
+	cancelPoller := poller.PollAndProcessDecisions()
+	defer cancelPoller()
+
+	taskList = s.waitUntilTaskListExists(types.TaskListTypeActivity)
+	s.Equal(types.TaskListKindEphemeral, taskList.TaskList.GetKind())
+
+	activityPoller := s.createEchoActivityPoller(types.TaskListKindEphemeral)
+	cancelActivityPoller := activityPoller.PollAndProcessActivities()
+	defer cancelActivityPoller()
+
+	_, err := s.getWorkflowResult(runID)
+	s.NoError(err, "failed to get workflow result")
+
+	scheduled := s.getActivityScheduledEvent(runID)
+	s.Equal(types.TaskListKindEphemeral, scheduled.TaskList.GetKind())
+}
+
+func (s *TaskListIntegrationSuite) createEchoActivityPoller(tlKind types.TaskListKind) *TaskPoller {
 	return &TaskPoller{
 		Engine:   s.Engine,
 		Domain:   s.DomainName,
-		TaskList: &types.TaskList{Name: tl, Kind: types.TaskListKindNormal.Ptr()},
+		TaskList: &types.TaskList{Name: s.TaskListName, Kind: tlKind.Ptr()},
+		Identity: "activity-poller",
+		ActivityHandler: func(execution *types.WorkflowExecution, activityType *types.ActivityType, ActivityID string, input []byte, takeToken []byte) ([]byte, bool, error) {
+			return input, false, nil
+		},
+		Logger:      s.Logger,
+		T:           s.T(),
+		CallOptions: []yarpc.CallOption{},
+	}
+}
+
+func (s *TaskListIntegrationSuite) createDecisionPollerForSingleActivityWorkflow(tlKind types.TaskListKind, activity *types.ScheduleActivityTaskDecisionAttributes) *TaskPoller {
+	return &TaskPoller{
+		Engine:   s.Engine,
+		Domain:   s.DomainName,
+		TaskList: &types.TaskList{Name: s.TaskListName, Kind: tlKind.Ptr()},
+		Identity: "decision-poller",
+		DecisionHandler: func(execution *types.WorkflowExecution, wt *types.WorkflowType, previousStartedEventID, startedEventID int64, history *types.History) ([]byte, []*types.Decision, error) {
+			// Ignore the DecisionTaskScheduled and DecisionTaskStarted that'll be at the end
+			latestEvent := history.Events[len(history.Events)-3]
+			// Started Event only
+			if *latestEvent.EventType == types.EventTypeWorkflowExecutionStarted {
+				return nil, []*types.Decision{{
+					DecisionType:                           types.DecisionTypeScheduleActivityTask.Ptr(),
+					ScheduleActivityTaskDecisionAttributes: activity,
+				}}, nil
+			}
+			if *latestEvent.EventType == types.EventTypeActivityTaskCompleted {
+				return nil, []*types.Decision{{
+					DecisionType: types.DecisionTypeCompleteWorkflowExecution.Ptr(),
+					CompleteWorkflowExecutionDecisionAttributes: &types.CompleteWorkflowExecutionDecisionAttributes{
+						Result: []byte("done"),
+					},
+				}}, nil
+			}
+			return nil, nil, fmt.Errorf("unexpected event type: %v", latestEvent.EventType)
+		},
+		Logger:      s.Logger,
+		T:           s.T(),
+		CallOptions: []yarpc.CallOption{},
+	}
+}
+
+func (s *TaskListIntegrationSuite) createPoller(identity string, tlKind types.TaskListKind) *TaskPoller {
+	return &TaskPoller{
+		Engine:   s.Engine,
+		Domain:   s.DomainName,
+		TaskList: &types.TaskList{Name: s.TaskListName, Kind: tlKind.Ptr()},
 		Identity: identity,
 		DecisionHandler: func(execution *types.WorkflowExecution, wt *types.WorkflowType, previousStartedEventID, startedEventID int64, history *types.History) ([]byte, []*types.Decision, error) {
 			// Complete the workflow
@@ -192,7 +323,7 @@ func (s *TaskListIntegrationSuite) startWorkflow(tlKind types.TaskListKind) *typ
 			Name: "integration-task-list-type",
 		},
 		TaskList: &types.TaskList{
-			Name: tl,
+			Name: s.TaskListName,
 			Kind: tlKind.Ptr(),
 		},
 		Input:                               nil,
@@ -239,7 +370,7 @@ func (s *TaskListIntegrationSuite) describeUntil(condition func(response *types.
 			Domain:       s.DomainName,
 			TaskListType: types.TaskListTypeDecision.Ptr(),
 			TaskList: &types.TaskList{
-				Name: tl,
+				Name: s.TaskListName,
 				Kind: types.TaskListKindNormal.Ptr(),
 			},
 			IncludeTaskListStatus: true,
@@ -256,14 +387,41 @@ func (s *TaskListIntegrationSuite) describeUntil(condition func(response *types.
 	}
 }
 
-func (s *TaskListIntegrationSuite) describeTaskList() *types.DescribeTaskListResponse {
+func (s *TaskListIntegrationSuite) waitUntilTaskListExists(tlType types.TaskListType) *types.DescribeTaskListResponse {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for {
+		select {
+		case <-ctx.Done():
+			s.FailNow("timed out waiting for TaskList")
+		default:
+		}
+		result, err := s.Engine.GetTaskListsByDomain(ctx, &types.GetTaskListsByDomainRequest{
+			Domain: s.DomainName,
+		})
+		if err != nil {
+			s.T().Log("failed to describe task list: %w", err)
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		if tlResponse, ok := result.ActivityTaskListMap[s.TaskListName]; ok && tlType == types.TaskListTypeActivity {
+			return tlResponse
+		}
+		if tlResponse, ok := result.DecisionTaskListMap[s.TaskListName]; ok && tlType == types.TaskListTypeDecision {
+			return tlResponse
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func (s *TaskListIntegrationSuite) describeTaskList(tlType types.TaskListType) *types.DescribeTaskListResponse {
 	ctx, cancel := createContext()
 	defer cancel()
 	result, err := s.Engine.DescribeTaskList(ctx, &types.DescribeTaskListRequest{
 		Domain:       s.DomainName,
-		TaskListType: types.TaskListTypeDecision.Ptr(),
+		TaskListType: tlType.Ptr(),
 		TaskList: &types.TaskList{
-			Name: tl,
+			Name: s.TaskListName,
 			Kind: types.TaskListKindNormal.Ptr(),
 		},
 		IncludeTaskListStatus: true,
@@ -293,6 +451,30 @@ func (s *TaskListIntegrationSuite) getStartedEvent(runID string) *types.Workflow
 	}
 
 	return firstEvent.WorkflowExecutionStartedEventAttributes
+}
+
+func (s *TaskListIntegrationSuite) getActivityScheduledEvent(runID string) *types.ActivityTaskScheduledEventAttributes {
+	ctx, cancel := createContext()
+	defer cancel()
+	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+		Domain: s.DomainName,
+		Execution: &types.WorkflowExecution{
+			WorkflowID: s.T().Name(),
+			RunID:      runID,
+		},
+		HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
+	})
+	s.NoError(err, "failed to get workflow history")
+
+	history := historyResponse.History
+
+	for _, event := range history.Events {
+		if *event.EventType == types.EventTypeActivityTaskScheduled {
+			return event.ActivityTaskScheduledEventAttributes
+		}
+	}
+	s.FailNow("failed to find EventTypeActivityTaskScheduled")
+	return nil
 }
 
 func (s *TaskListIntegrationSuite) getWorkflowResult(runID string) (string, error) {

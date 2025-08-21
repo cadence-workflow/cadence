@@ -230,6 +230,47 @@ func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_Success() {
 	s.Nil(err)
 }
 
+func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_EphemeralTaskListKind() {
+	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+
+	event, ai, _, _, _, _ := mutableState.AddActivityTaskScheduledEvent(nil, decisionCompletionID, &types.ScheduleActivityTaskDecisionAttributes{
+		ActivityID:                    "activity-1",
+		ActivityType:                  &types.ActivityType{Name: "some random activity type"},
+		TaskList:                      &types.TaskList{Name: mutableState.GetExecutionInfo().TaskList, Kind: types.TaskListKindEphemeral.Ptr()},
+		Input:                         []byte{},
+		ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
+		ScheduleToStartTimeoutSeconds: common.Int32Ptr(1),
+		StartToCloseTimeoutSeconds:    common.Int32Ptr(1),
+		HeartbeatTimeoutSeconds:       common.Int32Ptr(1),
+	}, false,
+	)
+	mutableState.FlushBufferedEvents()
+
+	transferTask := s.newTransferTaskFromInfo(&persistence.ActivityTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version: s.version,
+			TaskID:  int64(59),
+		},
+		TargetDomainID: constants.TestDomainID,
+		TaskList:       "ignored",
+		ScheduleID:     event.ID,
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, event.ID, event.Version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+	s.mockMatchingClient.EXPECT().AddActivityTask(gomock.Any(), createAddActivityTaskRequest(transferTask, ai, mutableState.GetExecutionInfo().PartitionConfig)).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
+	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(true).Times(1)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
+	s.Nil(err)
+}
+
 func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_Ratelimits() {
 	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, constants.TestDomainID)
 	s.NoError(err)
@@ -625,6 +666,36 @@ func (s *transferActiveTaskExecutorSuite) TestProcessDecisionTask_StickyWorkerUn
 
 	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.NoError(err)
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessDecisionTask_EphemeralTaskListKind() {
+	workflowExecution, mutableState, err := test.StartWorkflowWithTaskList(&types.TaskList{Name: "ephemmy", Kind: types.TaskListKindEphemeral.Ptr()}, s.mockShard, s.domainID)
+	s.NoError(err)
+
+	di := test.AddDecisionTaskScheduledEvent(mutableState)
+
+	transferTask := s.newTransferTaskFromInfo(&persistence.DecisionTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version: s.version,
+			TaskID:  int64(59),
+		},
+		TaskList:   mutableState.GetExecutionInfo().TaskList,
+		ScheduleID: di.ScheduleID,
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, di.ScheduleID, di.Version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(true).Times(1)
+	s.mockMatchingClient.EXPECT().AddDecisionTask(gomock.Any(), createAddDecisionTaskRequest(transferTask, mutableState)).Return(&types.AddDecisionTaskResponse{}, nil).Times(1)
+
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
+	s.Nil(err)
 }
 
 func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_HasParent_Success() {
@@ -2076,7 +2147,7 @@ func createAddActivityTaskRequest(
 		WorkflowID: taskInfo.WorkflowID,
 		RunID:      taskInfo.RunID,
 	}
-	taskList := &types.TaskList{Name: taskInfo.TaskList}
+	taskList := &types.TaskList{Name: ai.TaskList, Kind: ai.TaskListKind.Ptr()}
 
 	return &types.AddActivityTaskRequest{
 		DomainUUID:                    taskInfo.TargetDomainID,
@@ -2099,7 +2170,7 @@ func createAddDecisionTaskRequest(
 		WorkflowID: taskInfo.WorkflowID,
 		RunID:      taskInfo.RunID,
 	}
-	taskList := &types.TaskList{Name: taskInfo.TaskList}
+	taskList := &types.TaskList{Name: taskInfo.TaskList, Kind: mutableState.GetExecutionInfo().TaskListKind.Ptr()}
 	executionInfo := mutableState.GetExecutionInfo()
 	timeout := executionInfo.WorkflowTimeout
 	if mutableState.GetExecutionInfo().TaskList != taskInfo.TaskList {

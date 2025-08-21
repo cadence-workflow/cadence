@@ -5,11 +5,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 )
 
 func TestMonitorPendingTaskCount(t *testing.T) {
-	monitor := NewMonitor(persistence.HistoryTaskCategoryTimer)
+	monitor := NewMonitor(persistence.HistoryTaskCategoryTimer, &MonitorOptions{
+		CriticalPendingTaskCount:    dynamicproperties.GetIntPropertyFn(100),
+		EnablePendingTaskCountAlert: func() bool { return true },
+	})
 
 	assert.Equal(t, 0, monitor.GetTotalPendingTaskCount())
 
@@ -47,10 +51,25 @@ func TestMonitorPendingTaskCount(t *testing.T) {
 
 	monitor.RemoveSlice(slice3)
 	assert.Equal(t, 0, monitor.GetTotalPendingTaskCount())
+
+	alertCh := make(chan *Alert, alertChSize)
+	monitor.Subscribe(alertCh)
+
+	monitor.SetSlicePendingTaskCount(slice1, 101)
+	assert.Equal(t, 101, monitor.GetTotalPendingTaskCount())
+	assert.Equal(t, 101, monitor.GetSlicePendingTaskCount(slice1))
+
+	alert := <-alertCh
+	assert.Equal(t, AlertTypeQueuePendingTaskCount, alert.AlertType)
+	assert.Equal(t, 101, alert.AlertAttributesQueuePendingTaskCount.CurrentPendingTaskCount)
+	assert.Equal(t, 100, alert.AlertAttributesQueuePendingTaskCount.CriticalPendingTaskCount)
+
+	_, ok := monitor.(*monitorImpl).pendingAlerts[AlertTypeQueuePendingTaskCount]
+	assert.True(t, ok)
 }
 
 func TestMonitorSubscribeAndUnsubscribe(t *testing.T) {
-	monitor := NewMonitor(persistence.HistoryTaskCategoryTimer)
+	monitor := NewMonitor(persistence.HistoryTaskCategoryTimer, &MonitorOptions{})
 
 	alertCh := make(chan *Alert, alertChSize)
 	monitor.Subscribe(alertCh)
@@ -63,7 +82,7 @@ func TestMonitorSubscribeAndUnsubscribe(t *testing.T) {
 }
 
 func TestMonitorResolveAlert(t *testing.T) {
-	monitor := NewMonitor(persistence.HistoryTaskCategoryTimer)
+	monitor := NewMonitor(persistence.HistoryTaskCategoryTimer, &MonitorOptions{})
 
 	monitor.(*monitorImpl).pendingAlerts[AlertTypeQueuePendingTaskCount] = struct{}{}
 	assert.Equal(t, 1, len(monitor.(*monitorImpl).pendingAlerts))

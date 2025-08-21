@@ -4,6 +4,7 @@ package queuev2
 import (
 	"sync"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -18,10 +19,16 @@ type (
 		ResolveAlert(AlertType)
 	}
 
+	MonitorOptions struct {
+		EnablePendingTaskCountAlert func() bool
+		CriticalPendingTaskCount    dynamicproperties.IntPropertyFn
+	}
+
 	monitorImpl struct {
 		sync.Mutex
 
 		category persistence.HistoryTaskCategory
+		options  *MonitorOptions
 
 		subscriber            chan<- *Alert
 		pendingAlerts         map[AlertType]struct{}
@@ -30,9 +37,10 @@ type (
 	}
 )
 
-func NewMonitor(category persistence.HistoryTaskCategory) Monitor {
+func NewMonitor(category persistence.HistoryTaskCategory, options *MonitorOptions) Monitor {
 	return &monitorImpl{
 		category: category,
+		options:  options,
 
 		pendingAlerts:         make(map[AlertType]struct{}),
 		totalPendingTaskCount: 0,
@@ -73,7 +81,16 @@ func (m *monitorImpl) SetSlicePendingTaskCount(slice VirtualSlice, count int) {
 	m.totalPendingTaskCount += count - currentSliceCount
 	m.slicePendingTaskCount[slice] = count
 
-	// TODO: implement the logic sending alert to the alert channel when the number of pending tasks exceeds a certain threshold
+	criticalPendingTaskCount := m.options.CriticalPendingTaskCount()
+	if m.options.EnablePendingTaskCountAlert() && criticalPendingTaskCount > 0 && m.totalPendingTaskCount > criticalPendingTaskCount {
+		m.sendAlertLocked(&Alert{
+			AlertType: AlertTypeQueuePendingTaskCount,
+			AlertAttributesQueuePendingTaskCount: &AlertAttributesQueuePendingTaskCount{
+				CurrentPendingTaskCount:  m.totalPendingTaskCount,
+				CriticalPendingTaskCount: criticalPendingTaskCount,
+			},
+		})
+	}
 }
 
 func (m *monitorImpl) RemoveSlice(slice VirtualSlice) {
@@ -91,4 +108,18 @@ func (m *monitorImpl) ResolveAlert(alertType AlertType) {
 	defer m.Unlock()
 
 	delete(m.pendingAlerts, alertType)
+}
+
+func (m *monitorImpl) sendAlertLocked(alert *Alert) {
+	// deduplicate alerts
+	if _, ok := m.pendingAlerts[alert.AlertType]; ok {
+		return
+	}
+
+	select {
+	case m.subscriber <- alert:
+		m.pendingAlerts[alert.AlertType] = struct{}{}
+	default:
+		// do not block if subscriber is not ready
+	}
 }
