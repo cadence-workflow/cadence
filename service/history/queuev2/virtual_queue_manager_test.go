@@ -202,7 +202,7 @@ func TestVirtualQueueManager_VirtualQueues(t *testing.T) {
 				queueReader:     mockQueueReader,
 				logger:          mockLogger,
 				metricsScope:    mockMetricsScope,
-				options: &VirtualQueueManagerOptions{
+				queueManagerOptions: &VirtualQueueManagerOptions{
 					RootQueueOptions: &VirtualQueueOptions{},
 					NonRootQueueOptions: &VirtualQueueOptions{
 						PageSize: dynamicproperties.GetIntPropertyFn(100),
@@ -456,7 +456,7 @@ func TestVirtualQueueManager_UpdateAndGetState(t *testing.T) {
 				queueReader:     mockQueueReader,
 				logger:          mockLogger,
 				metricsScope:    mockMetricsScope,
-				options: &VirtualQueueManagerOptions{
+				queueManagerOptions: &VirtualQueueManagerOptions{
 					RootQueueOptions: &VirtualQueueOptions{},
 					NonRootQueueOptions: &VirtualQueueOptions{
 						MaxPendingTasksCount: dynamicproperties.GetIntPropertyFn(100),
@@ -569,7 +569,7 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 				logger:          mockLogger,
 				metricsScope:    mockMetricsScope,
 				timeSource:      mockTimeSource,
-				options: &VirtualQueueManagerOptions{
+				queueManagerOptions: &VirtualQueueManagerOptions{
 					RootQueueOptions: &VirtualQueueOptions{
 						PageSize: dynamicproperties.GetIntPropertyFn(100),
 					},

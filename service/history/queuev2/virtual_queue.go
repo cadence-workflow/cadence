@@ -70,7 +70,7 @@ type (
 	}
 
 	virtualQueueImpl struct {
-		options             *VirtualQueueOptions
+		queueOptions        *VirtualQueueOptions
 		processor           task.Processor
 		redispatcher        task.Redispatcher
 		logger              log.Logger
@@ -100,7 +100,7 @@ func NewVirtualQueue(
 	taskLoadRateLimiter quotas.Limiter,
 	monitor Monitor,
 	virtualSlices []VirtualSlice,
-	options *VirtualQueueOptions,
+	queueOptions *VirtualQueueOptions,
 ) VirtualQueue {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -110,7 +110,7 @@ func NewVirtualQueue(
 	}
 
 	return &virtualQueueImpl{
-		options:             options,
+		queueOptions:        queueOptions,
 		processor:           processor,
 		redispatcher:        redispatcher,
 		logger:              logger,
@@ -339,10 +339,10 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 	}
 
 	pendingTaskCount := q.monitor.GetTotalPendingTaskCount()
-	maxTaskCount := q.options.MaxPendingTasksCount()
+	maxTaskCount := q.queueOptions.MaxPendingTasksCount()
 	if pendingTaskCount >= maxTaskCount {
 		q.logger.Warn("Too many pending tasks, pause loading tasks for a while", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount))
-		q.pauseController.Pause(q.options.PollBackoffInterval())
+		q.pauseController.Pause(q.queueOptions.PollBackoffInterval())
 	}
 
 	if q.pauseController.IsPaused() {
@@ -363,7 +363,7 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 		remainingSize = 1
 		q.logger.Error("unexpected error, virtual queue is not paused when pending task count exceeds max task cout limit", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount))
 	}
-	pageSize := min(q.options.PageSize(), remainingSize)
+	pageSize := min(q.queueOptions.PageSize(), remainingSize)
 	q.logger.Debug("get tasks from virtual queue", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount), tag.Counter(pageSize))
 	tasks, err := sliceToRead.GetTasks(q.ctx, pageSize)
 	if err != nil {

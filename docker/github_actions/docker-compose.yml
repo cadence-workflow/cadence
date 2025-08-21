@@ -159,6 +159,32 @@ services:
         aliases:
           - integration-test
 
+  integration-test-cassandra-queue-v2-alert:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+    environment:
+      - "CASSANDRA=1"
+      - "CASSANDRA_SEEDS=cassandra"
+      - "ES_SEEDS=elasticsearch"
+      - "KAFKA_SEEDS=kafka"
+      - "TEST_TAG=esintegration"
+      - "ENABLE_QUEUE_V2=true"
+      - "ENABLE_QUEUE_V2_ALERT=true"
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
+      kafka:
+        condition: service_started
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test
+
   integration-test-mysql:
     build:
       context: ../../

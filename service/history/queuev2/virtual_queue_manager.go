@@ -68,7 +68,7 @@ type (
 		timeSource          clock.TimeSource
 		taskLoadRateLimiter quotas.Limiter
 		monitor             Monitor
-		options             *VirtualQueueManagerOptions
+		queueManagerOptions *VirtualQueueManagerOptions
 
 		sync.RWMutex
 		status               int32
@@ -89,7 +89,7 @@ func NewVirtualQueueManager(
 	timeSource clock.TimeSource,
 	taskLoadRateLimiter quotas.Limiter,
 	monitor Monitor,
-	options *VirtualQueueManagerOptions,
+	queueManagerOptions *VirtualQueueManagerOptions,
 	virtualQueueStates map[int64][]VirtualSliceState,
 ) VirtualQueueManager {
 	virtualQueues := make(map[int64]VirtualQueue)
@@ -100,9 +100,9 @@ func NewVirtualQueueManager(
 		}
 		var opts *VirtualQueueOptions
 		if queueID == rootQueueID {
-			opts = options.RootQueueOptions
+			opts = queueManagerOptions.RootQueueOptions
 		} else {
-			opts = options.NonRootQueueOptions
+			opts = queueManagerOptions.NonRootQueueOptions
 		}
 		virtualQueues[queueID] = NewVirtualQueue(processor, redispatcher, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, virtualSlices, opts)
 	}
@@ -116,15 +116,15 @@ func NewVirtualQueueManager(
 		timeSource:          timeSource,
 		taskLoadRateLimiter: taskLoadRateLimiter,
 		monitor:             monitor,
-		options:             options,
+		queueManagerOptions: queueManagerOptions,
 		status:              common.DaemonStatusInitialized,
 		virtualQueues:       virtualQueues,
 		createVirtualQueueFn: func(queueID int64, s ...VirtualSlice) VirtualQueue {
 			var opts *VirtualQueueOptions
 			if queueID == rootQueueID {
-				opts = options.RootQueueOptions
+				opts = queueManagerOptions.RootQueueOptions
 			} else {
-				opts = options.NonRootQueueOptions
+				opts = queueManagerOptions.NonRootQueueOptions
 			}
 			return NewVirtualQueue(processor, redispatcher, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, s, opts)
 		},
@@ -222,7 +222,7 @@ func (m *virtualQueueManagerImpl) appendOrMergeSlice(vq VirtualQueue, s VirtualS
 	now := m.timeSource.Now()
 	if now.After(m.nextForceNewSliceTime) {
 		vq.AppendSlices(s)
-		m.nextForceNewSliceTime = now.Add(m.options.VirtualSliceForceAppendInterval())
+		m.nextForceNewSliceTime = now.Add(m.queueManagerOptions.VirtualSliceForceAppendInterval())
 		return
 	}
 	vq.MergeSlices(s)

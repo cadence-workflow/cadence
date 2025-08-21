@@ -75,8 +75,8 @@ func (s *HistorySimulationSuite) SetupSuite() {
 		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
 		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
 		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
-		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(false),
 		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
 	}
 	params := pt.TestBaseParams{
 		DefaultTestCluster:    s.DefaultTestCluster,

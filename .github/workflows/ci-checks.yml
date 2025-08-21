@@ -133,6 +133,37 @@ jobs:
           name: go-cassandra-running-history-queue-v2-integration-coverage
           path: .build/coverage/*.out
 
+  golang-integration-test-with-cassandra-running-history-queue-v2-alert:
+    name: Golang integration test with running history queue v2 with alert
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4'
+
+      - name: Run integration profile for cassandra running history queue v2 with alert
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 30
+          command: |
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2-alert bash -c "make .just-build && make cover_integration_profile"
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-cassandra-running-history-queue-v2-alert-integration-coverage
+          path: .build/coverage/*.out
+
 
   golang-integration-test-with-cassandra-and-elasticsearch-v7:
     name: Golang integration test with cassandra and elasticsearch v7
