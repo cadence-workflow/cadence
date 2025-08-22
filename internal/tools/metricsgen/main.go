@@ -379,98 +379,98 @@ func getsource(node ast.Node) (path string, source string) {
 var tmpl = template.Must(template.New("metrics").Parse(`
 {{- $self := .Self }}
 {{- if not .Skip.New }}
-// {{.NewFunc}} constructs a new metric-tag-holding {{.Name}}, and it must be used
-// instead of custom initialization to ensure newly added tags can be detected
-// at compile time instead of missing them at run time.
-func {{.NewFunc}}(
-	{{- if .Emitter }}
-		emitter structured.Emitter,
-	{{- end }}
-	{{- range .Embeds }}
-		{{ .Name }} {{ .Type }},
-	{{- end }}
-	{{- range .Fields }}
-		{{ .Name }} {{ .Type }},
-	{{- end }}
-) {{ .Name }} {
-	{{$self}} := {{ .Name }}{
+	// {{.NewFunc}} constructs a new metric-tag-holding {{.Name}}, and it must be used
+	// instead of custom initialization to ensure newly added tags can be detected
+	// at compile time instead of missing them at run time.
+	func {{.NewFunc}}(
 		{{- if .Emitter }}
-			Emitter: emitter,
+			emitter structured.Emitter,
 		{{- end }}
 		{{- range .Embeds }}
-			{{ .Name }}: {{ .Name }},
+			{{ .Name }} {{ .Type }},
 		{{- end }}
 		{{- range .Fields }}
-			{{ .Name }}: {{ .Name }},
+			{{ .Name }} {{ .Type }},
 		{{- end }}
+	) {{ .Name }} {
+		{{$self}} := {{ .Name }}{
+			{{- if .Emitter }}
+				Emitter: emitter,
+			{{- end }}
+			{{- range .Embeds }}
+				{{ .Name }}: {{ .Name }},
+			{{- end }}
+			{{- range .Fields }}
+				{{ .Name }}: {{ .Name }},
+			{{- end }}
+		}
+		return {{$self}}
 	}
-	return {{$self}}
-}
 {{- end }}
 
 {{- if not .Skip.NumTags }}
-// NumTags returns the number of tags that are intended to be written in all
-// cases.  This will include all embedded parent tags and all reserved tags,
-// and is intended to be used to pre-allocate maps of tags.
-func ({{$self}} {{.Name}}) NumTags() int {
-	num := {{ .Fields | len }} // num of self fields 
-	num += {{ .Reserved }} // num of reserved fields
-	{{- range .Embeds }}
-		num += {{$self}}.{{ .Name }}.NumTags()
-	{{- end }}
-	return num
-}
+	// NumTags returns the number of tags that are intended to be written in all
+	// cases.  This will include all embedded parent tags and all reserved tags,
+	// and is intended to be used to pre-allocate maps of tags.
+	func ({{$self}} {{.Name}}) NumTags() int {
+		num := {{ .Fields | len }} // num of self fields 
+		num += {{ .Reserved }} // num of reserved fields
+		{{- range .Embeds }}
+			num += {{$self}}.{{ .Name }}.NumTags()
+		{{- end }}
+		return num
+	}
 {{- end }}
 
 {{- if not .Skip.PutTags }}
-// PutTags writes this set of tags (and its embedded parents) to the passed map.
-func ({{$self}} {{.Name}}) PutTags(into map[string]string) {
-	{{- range .Embeds }}
-	{{$self}}.{{ .Name }}.PutTags(into)
-	{{- end }}
-	{{- range .Fields }}
-	into["{{.Tagname}}"] = {{ .Convert }} 
-	{{- end }}
-}
+	// PutTags writes this set of tags (and its embedded parents) to the passed map.
+	func ({{$self}} {{.Name}}) PutTags(into map[string]string) {
+		{{- range .Embeds }}
+			{{$self}}.{{ .Name }}.PutTags(into)
+		{{- end }}
+		{{- range .Fields }}
+			into["{{.Tagname}}"] = {{ .Convert }} 
+		{{- end }}
+	}
 {{- end }}
 
 {{- if not .Skip.GetTags }}
-// GetTags is a minor helper to get a pre-allocated-and-filled map with room
-// for reserved fields (i.e. 'struct{}' type fields, which only declare intent).
-func ({{$self}} {{.Name}}) GetTags() map[string]string {
-	tags := make(map[string]string, {{$self}}.NumTags())
-	{{$self}}.PutTags(tags)
-	return tags
-}
+	// GetTags is a minor helper to get a pre-allocated-and-filled map with room
+	// for reserved fields (i.e. 'struct{}' type fields, which only declare intent).
+	func ({{$self}} {{.Name}}) GetTags() map[string]string {
+		tags := make(map[string]string, {{$self}}.NumTags())
+		{{$self}}.PutTags(tags)
+		return tags
+	}
 {{- end }}
 
 {{- if and (or .Emitter .Embeds) (not .Skip.Convenience) }}
 
-// convenience methods
-{{/* ---- forcing a blank line */}}
-{{- if not .Skip.Inc }}
-// Inc increments a named counter with the tags on this struct.
-func ({{$self}} {{.Name}}) Inc(name string) {
-	{{$self}}.Count(name, 1)
-}
-{{- end }}
-
-{{- if not .Skip.Count }}
-// Count adds to a named counter with the tags on this struct.
-func ({{$self}} {{.Name}}) Count(name string, num int) {
-	{{$self}}.Emitter.Count({{$self}}, name, num)
-}
-{{- end }}
-
-{{- if not .Skip.Histogram }}
-// Histogram records a histogram with the specified buckets.
-//
-// Buckets should essentially ALWAYS be one of the pre-defined values in [github.com/uber/cadence/common/metrics/structured],
-// or pass nil to choose the [github.com/uber/cadence/common/metrics/structured.Default1ms10m] default value.
-func ({{$self}} {{.Name}}) Histogram(name string, buckets tally.DurationBuckets, dur time.Duration) {
-	{{$self}}.Emitter.Histogram({{$self}}, name, buckets, dur)
-}
-{{- end }}
+	// convenience methods
+	{{/* ---- forcing a blank line */}}
+	{{- if not .Skip.Inc }}
+		// Inc increments a named counter with the tags on this struct.
+		func ({{$self}} {{.Name}}) Inc(name string) {
+			{{$self}}.Count(name, 1)
+		}
+	{{- end }}
+	
+	{{- if not .Skip.Count }}
+		// Count adds to a named counter with the tags on this struct.
+		func ({{$self}} {{.Name}}) Count(name string, num int) {
+			{{$self}}.Emitter.Count({{$self}}, name, num)
+		}
+	{{- end }}
+	
+	{{- if not .Skip.Histogram }}
+		// Histogram records a histogram with the specified buckets.
+		//
+		// Buckets should essentially ALWAYS be one of the pre-defined values in [github.com/uber/cadence/common/metrics/structured],
+		// or pass nil to choose the [github.com/uber/cadence/common/metrics/structured.Default1ms10m] default value.
+		func ({{$self}} {{.Name}}) Histogram(name string, buckets tally.DurationBuckets, dur time.Duration) {
+			{{$self}}.Emitter.Histogram({{$self}}, name, buckets, dur)
+		}
+	{{- end }}
 
 {{- end }}{{/* convenience */}}
 `))
