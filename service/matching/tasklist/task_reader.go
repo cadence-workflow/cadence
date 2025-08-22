@@ -427,6 +427,11 @@ func (tr *taskReader) dispatchSingleTaskFromBufferWithRetries(taskInfo *persiste
 }
 
 func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInfo) (breakDispatchLoop bool, breakRetries bool) {
+	if tr.isTaskExpired(taskInfo) {
+		tr.scope.IncCounter(metrics.ExpiredTasksPerTaskListCounter)
+		tr.taskAckManager.AckItem(taskInfo.TaskID)
+		return false, true
+	}
 	isolationGroup, isolationDuration := tr.getIsolationGroupForTask(tr.cancelCtx, taskInfo)
 	_, isolationGroupIsKnown := tr.taskBuffers[isolationGroup]
 	if !isolationGroupIsKnown {
@@ -490,7 +495,12 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInf
 	if errors.Is(err, errTaskNotStarted) {
 		e.EventName = "Dispatch failed on completing task on the passive side because task not started. Will retry dispatch if task is not expired"
 		event.Log(e)
-		return false, tr.isTaskExpired(taskInfo)
+		expired := tr.isTaskExpired(taskInfo)
+		if expired {
+			tr.scope.IncCounter(metrics.ExpiredTasksPerTaskListCounter)
+			tr.taskAckManager.AckItem(taskInfo.TaskID)
+		}
+		return false, expired
 	}
 
 	if errors.Is(err, errWaitTimeNotReachedForEntityNotExists) {

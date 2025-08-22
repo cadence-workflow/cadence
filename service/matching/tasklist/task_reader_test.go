@@ -54,14 +54,14 @@ var defaultIsolationGroups = []string{
 func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 	testCases := []struct {
 		name          string
-		allowances    func(t *testing.T, reader *taskReader)
+		allowances    func(t *testing.T, reader *taskReader, mockTime clock.MockedTimeSource)
 		ttl           int
 		breakDispatch bool
 		breakRetries  bool
 	}{
 		{
 			name: "success - no isolation",
-			allowances: func(t *testing.T, reader *taskReader) {
+			allowances: func(t *testing.T, reader *taskReader, mockTime clock.MockedTimeSource) {
 				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
 					return "", -1
 				}
@@ -77,7 +77,7 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		},
 		{
 			name: "success - isolation",
-			allowances: func(t *testing.T, reader *taskReader) {
+			allowances: func(t *testing.T, reader *taskReader, mockTime clock.MockedTimeSource) {
 				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
 					return defaultIsolationGroup, -1
 				}
@@ -93,7 +93,7 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		},
 		{
 			name: "success - unknown isolation group",
-			allowances: func(t *testing.T, reader *taskReader) {
+			allowances: func(t *testing.T, reader *taskReader, mockTime clock.MockedTimeSource) {
 				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
 					return "mystery group", -1
 				}
@@ -109,8 +109,23 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 			breakRetries:  true,
 		},
 		{
+			name: "success - skip expired tasks",
+			allowances: func(t *testing.T, reader *taskReader, mockTime clock.MockedTimeSource) {
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+					return defaultIsolationGroup, -1
+				}
+				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
+					t.Fatal("task must not be dispatched")
+					return nil
+				}
+			},
+			ttl:           -2,
+			breakDispatch: false,
+			breakRetries:  true,
+		},
+		{
 			name: "Error - context cancelled, should stop",
-			allowances: func(t *testing.T, reader *taskReader) {
+			allowances: func(t *testing.T, reader *taskReader, mockTime clock.MockedTimeSource) {
 				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
 					return defaultIsolationGroup, -1
 				}
@@ -124,7 +139,7 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		},
 		{
 			name: "Error - Deadline Exceeded, should retry",
-			allowances: func(t *testing.T, reader *taskReader) {
+			allowances: func(t *testing.T, reader *taskReader, mockTime clock.MockedTimeSource) {
 				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
 					return defaultIsolationGroup, -1
 				}
@@ -138,7 +153,7 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		},
 		{
 			name: "Error - throttled, should retry",
-			allowances: func(t *testing.T, reader *taskReader) {
+			allowances: func(t *testing.T, reader *taskReader, mockTime clock.MockedTimeSource) {
 				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
 					return defaultIsolationGroup, -1
 				}
@@ -151,7 +166,7 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		},
 		{
 			name: "Error - unknown, should retry",
-			allowances: func(t *testing.T, reader *taskReader) {
+			allowances: func(t *testing.T, reader *taskReader, mockTime clock.MockedTimeSource) {
 				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
 					return defaultIsolationGroup, -1
 				}
@@ -164,7 +179,7 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		},
 		{
 			name: "Error - task not started and not expired, should retry",
-			allowances: func(t *testing.T, reader *taskReader) {
+			allowances: func(t *testing.T, reader *taskReader, mockTime clock.MockedTimeSource) {
 				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
 					return defaultIsolationGroup, -1
 				}
@@ -178,21 +193,22 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		},
 		{
 			name: "Error - task not started and expired, should not retry",
-			allowances: func(t *testing.T, reader *taskReader) {
+			allowances: func(t *testing.T, reader *taskReader, mockTime clock.MockedTimeSource) {
 				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
 					return defaultIsolationGroup, -1
 				}
 				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
+					mockTime.Advance(time.Hour)
 					return errTaskNotStarted
 				}
 			},
-			ttl:           -2,
+			ttl:           1,
 			breakDispatch: false,
 			breakRetries:  true,
 		},
 		{
 			name: "Error - time not reached to complete task without workflow execution, should retry",
-			allowances: func(t *testing.T, reader *taskReader) {
+			allowances: func(t *testing.T, reader *taskReader, mockTime clock.MockedTimeSource) {
 				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
 					return defaultIsolationGroup, -1
 				}
@@ -211,7 +227,7 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 			c := defaultConfig()
 			tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), controller, c, timeSource)
 			reader := tlm.taskReader
-			tc.allowances(t, reader)
+			tc.allowances(t, reader, timeSource)
 			taskInfo := newTask(timeSource)
 			taskInfo.Expiry = timeSource.Now().Add(time.Duration(tc.ttl) * time.Second)
 
