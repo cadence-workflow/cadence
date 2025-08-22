@@ -112,8 +112,6 @@ func NewTaskProcessor(
 	shard shard.Context,
 	historyEngine engine.Engine,
 	config *config.Config,
-	// base tally scope (cadence_service only), used by the newer metrics setup until a better option appears
-	// TODO: scope tally.Scope,
 	metricsClient metrics.Client,
 	taskFetcher TaskFetcher,
 	taskExecutor TaskExecutor,
