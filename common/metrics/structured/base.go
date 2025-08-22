@@ -2,10 +2,16 @@ package structured
 
 import (
 	"maps"
+	"testing"
 	"time"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/fx"
 )
+
+var Module = fx.Provide(func(s tally.Scope) Emitter {
+	return Emitter{scope: s}
+})
 
 // Metadata is a shared interface for all "...Tags" structs.
 //
@@ -50,6 +56,11 @@ type Emitter struct {
 	// use a test emitter in tests, it should be quite easy to construct,
 	// and this way it will panic if forgotten for some reason, rather than
 	// causing a misleading lack-of-metrics.
+	//
+	// currently, because this is constructed by common/config/metrics.go,
+	// this scope already contains the `cadence_service:cadence-{whatever}` tag,
+	// but essentially no others (aside from platform-level stuff).
+	// you can get the instance from go.uber.org/fx, as just `tally.Scope`.
 	scope tally.Scope
 }
 
@@ -57,7 +68,7 @@ type Emitter struct {
 //
 // `buckets` may be nil: this is equivalent to Default1ms10m, so it does not need
 // to be explicitly imported.
-func (b Emitter) Histogram(meta Metadata, name string, buckets tally.Buckets, dur time.Duration) {
+func (b Emitter) Histogram(meta Metadata, name string, buckets tally.DurationBuckets, dur time.Duration) {
 	if buckets == nil {
 		buckets = Default1ms10m
 	}
@@ -82,4 +93,14 @@ func (b Emitter) Count(meta Metadata, name string, num int) {
 // Gauge emits a gauge with the provided data.
 func (b Emitter) Gauge(meta Metadata, name string, val float64) {
 	b.scope.Tagged(meta.GetTags()).Gauge(name).Update(val)
+}
+
+// NewTestEmitter creates an emitter for tests, optionally using the provided scope.
+// If scope is nil, a no-op scope will be used.
+func NewTestEmitter(t *testing.T, scope tally.Scope) Emitter {
+	t.Name() // require non-nil
+	if scope == nil {
+		scope = tally.NoopScope
+	}
+	return Emitter{scope}
 }

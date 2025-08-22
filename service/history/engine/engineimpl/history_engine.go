@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/metrics/structured"
 	cndc "github.com/uber/cadence/common/ndc"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
@@ -143,6 +144,7 @@ func NewEngineWithShardContext(
 	rawMatchingClient matching.Client,
 	failoverCoordinator failover.Coordinator,
 	queueFactories []queue.Factory,
+	emitter structured.Emitter,
 ) engine.Engine {
 	currentClusterName := shard.GetService().GetClusterMetadata().GetCurrentClusterName()
 
@@ -193,6 +195,7 @@ func NewEngineWithShardContext(
 			shard.GetShardID(),
 			shard,
 			shard.GetMetricsClient(),
+			emitter,
 			shard.GetLogger(),
 			replicationReader,
 			replicationTaskStore,

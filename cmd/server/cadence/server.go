@@ -54,6 +54,7 @@ import (
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/metrics/structured"
 	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
 	pnt "github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/resource"
@@ -79,12 +80,13 @@ type (
 		dynamicCfgClient dynamicconfig.Client
 		scope            tally.Scope
 		metricsClient    metrics.Client
+		emitter          structured.Emitter
 	}
 )
 
 // newServer returns a new instance of a daemon
 // that represents a cadence service
-func newServer(service string, cfg config.Config, logger log.Logger, dynamicCfgClient dynamicconfig.Client, scope tally.Scope, metricsClient metrics.Client) common.Daemon {
+func newServer(service string, cfg config.Config, logger log.Logger, dynamicCfgClient dynamicconfig.Client, scope tally.Scope, metricsClient metrics.Client, emitter structured.Emitter) common.Daemon {
 	return &server{
 		cfg:              cfg,
 		name:             service,
@@ -93,6 +95,7 @@ func newServer(service string, cfg config.Config, logger log.Logger, dynamicCfgC
 		dynamicCfgClient: dynamicCfgClient,
 		scope:            scope,
 		metricsClient:    metricsClient,
+		emitter:          emitter,
 	}
 }
 
@@ -142,6 +145,7 @@ func (s *server) startService() common.Daemon {
 
 	params.MetricScope = s.scope
 	params.MetricsClient = s.metricsClient
+	params.Emitter = s.emitter
 
 	rpcParams, err := rpc.NewParams(params.Name, &s.cfg, dc, params.Logger, params.MetricsClient)
 	if err != nil {

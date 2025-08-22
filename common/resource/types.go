@@ -47,6 +47,7 @@ import (
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/metrics/structured"
 	"github.com/uber/cadence/common/persistence"
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	qrpc "github.com/uber/cadence/common/quotas/global/rpc"
@@ -79,6 +80,7 @@ type Resource interface {
 	GetTimeSource() clock.TimeSource
 	GetPayloadSerializer() persistence.PayloadSerializer
 	GetMetricsClient() metrics.Client
+	GetMetricsEmitter() structured.Emitter
 	GetArchiverProvider() provider.ArchiverProvider
 	GetMessagingClient() messaging.Client
 	GetBlobstoreClient() blobstore.Client

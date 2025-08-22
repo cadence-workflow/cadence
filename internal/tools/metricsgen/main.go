@@ -134,16 +134,27 @@ func main() {
 		Name     string
 		Self     string
 		Fields   []genfield
+		Emitter  bool
 		Embeds   []embedfield
 		Reserved int
 		Skip     map[string]bool
+		NewFunc  string // if the tags struct is private, this will be "newThing", to make the constructor private.  else it is "NewThing".
 	}
 	var gen []genable
 	for _, s := range interesting {
+		var newFunc string
+		if s.Name[0:1] == strings.ToLower(s.Name[0:1]) {
+			// private constructor, uppercase the name so it reads nicely
+			newFunc = "new" + strings.ToUpper(s.Name[0:1]) + s.Name[1:]
+		} else {
+			// public struct, so the constructor should be public too
+			newFunc = "New" + s.Name
+		}
 		g := genable{
-			Name: s.Name,
-			Skip: s.Skip,
-			Self: strings.ToLower(s.Name[0:1]),
+			Name:    s.Name,
+			Skip:    s.Skip,
+			Self:    strings.ToLower(s.Name[0:1]),
+			NewFunc: newFunc,
 		}
 		for _, f := range s.Node.Fields.List {
 			switch len(f.Names) {
@@ -153,7 +164,8 @@ func main() {
 					log.Fatalf("cannot embed private types") // TODO: add source
 				}
 				if id.Name == "Emitter" {
-					continue // ignore the metric-emitter embed
+					g.Emitter = true
+					continue // emitter has special handling
 				}
 				// TODO: arguably a custom name / non-embed makes sense, but it seems possibly bad as it'll be less consistent
 
@@ -208,7 +220,7 @@ func main() {
 	}
 
 	basename := strings.TrimSuffix(filename, ".go")
-	outfile, err := os.OpenFile(basename+"_gen.go", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	outfile, err := os.OpenFile(basename+"_metrics_gen.go", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -229,8 +241,10 @@ func main() {
 	// add common ones used in the template.
 	// goimports will deduplicate and remove them if they're unused.
 	imports := append(f.Imports, []*ast.ImportSpec{
-		{Path: &ast.BasicLit{Value: `"fmt"`}},  // for strconv
-		{Path: &ast.BasicLit{Value: `"time"`}}, // for Histogram's time.Duration
+		{Path: &ast.BasicLit{Value: `"fmt"`}},                                               // for strconv
+		{Path: &ast.BasicLit{Value: `"time"`}},                                              // for Histogram's time.Duration
+		{Path: &ast.BasicLit{Value: `"github.com/uber-go/tally"`}},                          // for tally.Buckets
+		{Path: &ast.BasicLit{Value: `"github.com/uber/cadence/common/metrics/structured"`}}, // for emitter
 	}...)
 	for _, i := range imports {
 		// i.Path.Value already has quotes
@@ -387,10 +401,13 @@ Sample:
 var tmpl = template.Must(template.New("metrics").Parse(`
 {{- $self := .Self }}
 {{- if not .Skip.New }}
-// New{{.Name}} constructs a new metric-tag-holding {{.Name}}, and it must be used
+// {{.NewFunc}} constructs a new metric-tag-holding {{.Name}}, and it must be used
 // instead of custom initialization to ensure newly added tags can be detected
 // at compile time instead of missing them at run time.
-func New{{.Name}}(
+func {{.NewFunc}}(
+	{{- if .Emitter }}
+		emitter structured.Emitter,
+	{{- end }}
 	{{- range .Embeds }}
 		{{ .Name }} {{ .Type }},
 	{{- end }}
@@ -399,6 +416,9 @@ func New{{.Name}}(
 	{{- end }}
 ) {{ .Name }} {
 	{{$self}} := {{ .Name }}{
+		{{- if .Emitter }}
+			Emitter: emitter,
+		{{- end }}
 		{{- range .Embeds }}
 			{{ .Name }}: {{ .Name }},
 		{{- end }}
@@ -446,7 +466,7 @@ func ({{$self}} {{.Name}}) GetTags() map[string]string {
 }
 {{- end }}
 
-{{- if not .Skip.Convenience }}
+{{- if and (or .Emitter .Embeds) (not .Skip.Convenience) }}
 
 // convenience methods
 {{/* ---- forcing a blank line */}}
@@ -465,9 +485,12 @@ func ({{$self}} {{.Name}}) Count(name string, num int) {
 {{- end }}
 
 {{- if not .Skip.Histogram }}
-// Histogram records a histogram at the struct's nearest precision level
-func ({{$self}} {{.Name}}) Histogram(name string, dur time.Duration) {
-	{{$self}}.Emitter.Histogram({{$self}}, name, dur)
+// Histogram records a histogram with the specified buckets.
+//
+// Buckets should essentially ALWAYS be one of the pre-defined values in [github.com/uber/cadence/common/metrics/structured],
+// or pass nil to choose the [github.com/uber/cadence/common/metrics/structured.Default1ms10m] default value.
+func ({{$self}} {{.Name}}) Histogram(name string, buckets tally.DurationBuckets, dur time.Duration) {
+	{{$self}}.Emitter.Histogram({{$self}}, name, buckets, dur)
 }
 {{- end }}
 
