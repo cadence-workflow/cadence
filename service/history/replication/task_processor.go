@@ -86,12 +86,6 @@ type (
 		hostRateLimiter   quotas.Limiter
 		shardRateLimiter  quotas.Limiter
 
-		// all "core" metrics, i.e. stuff we expect to be semantically consistent
-		// and we have probably built alerts and dashboards on it.
-		// ad-hoc metrics can use a looser API for simplicity, or document
-		// temporary stuff it in the interface if preferred.
-		metrics Metrics
-
 		taskRetryPolicy backoff.RetryPolicy
 		dlqRetryPolicy  backoff.RetryPolicy
 		noTaskRetrier   backoff.Retrier
