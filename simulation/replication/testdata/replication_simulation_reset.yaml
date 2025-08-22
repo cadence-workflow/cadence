@@ -76,8 +76,6 @@ operations:
     cluster: cluster1
     domain: test-domain
     eventID: 94
-    want:
-      error: "workflow is not resettable"
 
   - op: validate
     at: 127s
@@ -89,11 +87,28 @@ operations:
       startedByWorkersInCluster: cluster0
       completedByWorkersInCluster: cluster0
 
+  - op: validate
+    at: 127s
+    workflowID: activity-loop-workflow1
+    cluster: cluster1
+    domain: test-domain
+    want:
+      status: timed-out
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster1
+
   - op: reset_workflow
     at: 130s
     workflowID: activity-loop-workflow1
     cluster: cluster0
     domain: test-domain-2
+    eventID: 205
+
+  - op: reset_workflow
+    at: 130s
+    workflowID: activity-loop-workflow1
+    cluster: cluster1
+    domain: test-domain
     eventID: 205
 
   - op: validate
@@ -105,3 +120,13 @@ operations:
       status: completed
       startedByWorkersInCluster: cluster0
       completedByWorkersInCluster: cluster0
+
+  - op: validate
+    at: 192s
+    workflowID: activity-loop-workflow1
+    cluster: cluster1
+    domain: test-domain
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster1
