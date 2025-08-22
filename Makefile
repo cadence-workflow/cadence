@@ -590,7 +590,7 @@ tidy: ## `go mod tidy` all packages
 clean: ## Clean build products and SQLite database
 	rm -f $(BINS)
 	rm -Rf $(BUILD)
-	rm *.db
+	rm -f *.db
 	$(if \
 		$(wildcard $(STABLE_BIN)/*), \
 		$(warning usually-stable build tools still exist, delete the $(STABLE_BIN) folder to rebuild them),)
