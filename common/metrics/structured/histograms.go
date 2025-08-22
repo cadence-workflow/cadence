@@ -33,6 +33,12 @@ var (
 		// 24h leads to 108 buckets, 32h gives 112 which divides better
 		return last >= 24*time.Hour && length == 112
 	})
+
+	// UpTo10kInts is a histogram for small counters, like "how many replication tasks did we receive".
+	// This targets 1 to 10,000.
+	UpTo10kInts = MakeExponentialHistogram(1, 2, func(last time.Duration, length int) bool {
+		return last >= 10000
+	})
 )
 
 // MakeExponentialHistogram is a replacement for tally.MustMakeExponentialDurationBuckets,

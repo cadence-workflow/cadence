@@ -83,20 +83,18 @@ type ackTags struct {
 }
 
 func (a ackTags) replicationLag(readLevelKey persistence.HistoryTaskKey, requested []persistence.Task, returned *types.ReplicationMessages, legacyScope metrics.Scope) {
-	// new metrics
-	a.Histogram("replication_tasks_lag_per_shard", structured.Default1ms24h, time.Duration(readLevelKey.GetTaskID()-returned.LastRetrievedMessageID))
-	a.Histogram("replication_tasks_returned_per_shard", structured.Default1ms24h, time.Duration(len(returned.ReplicationTasks)))
-	a.Histogram("replication_tasks_returned_diff_per_shard", structured.Default1ms24h, time.Duration(len(requested)-len(returned.ReplicationTasks)))
+	// new metrics.  all of these are generally <1k, so they're using the small int range
+	a.Histogram("replication_tasks_lag_per_shard", structured.UpTo10kInts, time.Duration(readLevelKey.GetTaskID()-returned.LastRetrievedMessageID))
+	a.Histogram("replication_tasks_returned_per_shard", structured.UpTo10kInts, time.Duration(len(returned.ReplicationTasks)))
 	// dual-emit all-shard-aggregated metrics (exclude shard == only include operation).
 	// per-shard histograms are very high cardinality.
-	a.Emitter.Histogram(a.OperationTags, "replication_tasks_lag", structured.Default1ms24h, time.Duration(readLevelKey.GetTaskID()-returned.LastRetrievedMessageID))
-	a.Emitter.Histogram(a.OperationTags, "replication_tasks_returned", structured.Default1ms24h, time.Duration(len(returned.ReplicationTasks)))
-	a.Emitter.Histogram(a.OperationTags, "replication_tasks_returned_diff", structured.Default1ms24h, time.Duration(len(requested)-len(returned.ReplicationTasks)))
+	a.Emitter.Histogram(a.OperationTags, "replication_tasks_lag", structured.UpTo10kInts, time.Duration(readLevelKey.GetTaskID()-returned.LastRetrievedMessageID))
+	a.Emitter.Histogram(a.OperationTags, "replication_tasks_returned", structured.UpTo10kInts, time.Duration(len(returned.ReplicationTasks)))
 
 	// dual-emit old metrics until dashboards/alerts are migrated
 	legacyScope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(readLevelKey.GetTaskID()-returned.LastRetrievedMessageID))
 	legacyScope.RecordTimer(metrics.ReplicationTasksReturned, time.Duration(len(returned.ReplicationTasks)))
-	legacyScope.RecordTimer(metrics.ReplicationTasksReturnedDiff, time.Duration(len(requested)-len(returned.ReplicationTasks)))
+	legacyScope.RecordTimer(metrics.ReplicationTasksReturnedDiff, time.Duration(len(requested)-len(returned.ReplicationTasks))) // appears unused
 }
 
 // NewTaskAckManager initializes a new replication task ack manager
