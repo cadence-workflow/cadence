@@ -1,18 +1,21 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"log"
+	"maps"
 	"os"
 	"os/exec"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/fatih/structtag"
-	"golang.org/x/tools/go/ast/inspector"
 )
 
 // some ugly globals for easier error reporting.
@@ -22,18 +25,132 @@ var (
 	SRC  []byte
 )
 
-// very useful for understanding the AST: https://caixw.github.io/goast-viewer/index.html
-// (forked from https://yuroyoro.github.io/goast-viewer/ but with support for generics)
+// list of all skippable things, so mis-spellings and whatnot can be caught.
+var defaultSkip = map[string]bool{
+	"New":         false,
+	"NumTags":     false,
+	"PutTags":     false,
+	"GetTags":     false,
+	"Convenience": false,
+	"Inc":         false,
+	"Count":       false,
+	"Histogram":   false,
+}
+
+// intermediate product, structs that should be inspected further
+type namedStruct struct {
+	Name string
+	Node *ast.StructType
+	Skip map[string]bool
+}
+
+type genField struct {
+	Name      string
+	MetricTag string
+	Convert   string
+	Imported  string
+	Type      string
+}
+type genEmbed struct {
+	Name     string
+	Imported string
+	Type     string
+}
+
+// struct to generate
+type gen struct {
+	Name     string
+	Self     string
+	Fields   []genField
+	Emitter  bool
+	Embeds   []genEmbed
+	Reserved int
+	Skip     map[string]bool
+	NewFunc  string // if the tags struct is private, this will be "newThing", to make the constructor private.  else it is "NewThing".
+}
+
+// Metricsgen is a code generator to simplify creating structured metrics based on
+// the patterns in common/metrics/structured.
+//
+// To use, just add a `//go:generate metricsgen` in the source file with any new
+// `...Tags` structs, and run `make metrics`.
+// `make go-generate` will also run this implicitly, but it is far slower.
+//
+// The basic requirements for "interesting" structs are:
+//
+//	// SomethingTags must have a "...Tags" suffix, to mark it as part of the metrics system.
+//	//
+//	// Tags-structs should always be value-oriented to prevent mutating parents.
+//	// Hopefully this will be reasonably efficient / low GC pressure at runtime.
+//	//
+//	// Optionally you can tell the generator to:
+//	// skip:Histogram
+//	// to not generate the Histogram method.
+//	// This pattern works for all generated methods.
+//	type SomethingTags struct {
+//		structured.Emitter  // optional emitter, if desired and if no embedded parent contains it
+//		otherpkg.ParentTags // optional embedded parents, must end with "Tags".
+//
+//		// Define metrics tags that will be emitted.
+//		// The "tag" value is required, used verbatim for metrics,
+//		// and it should be unique across the struct and all parents.
+//		Anything string `tag:"anything"`
+//
+//		// Tags can have custom text/template to stringify their data (which cannot import new packages)
+//		Fancy proto.Whatever `tag:"fancy" convert:"{{.}}.String()"`
+//
+//		// Is the value always determined at runtime, but the tag is always present?
+//		// Use a reserved field, which must be a `struct{}` type.
+//		// This reserves capacity in the tags map, and documents that it exists.
+//		//
+//		// This should generally be reserved for "leaf" Tags-structs, but you can
+//		// also customize PutTags to add them implicitly, if it is available via
+//		// other means (e.g. hostname, cpu count).
+//		Dynamic struct{} `tag:"dynamic"`
+//	}
+//	func (s SomethingTags) ItHappened(times int) {
+//		s.Count("it_happened", times) // includes all tags + all parent tags
+//		// for "dynamic" tags, you must add it to the map by hand, and use lower-level emitter funcs:
+//		tags := structured.DynamicTags(s.GetTags()) // get all static tags
+//		tags["dynamic"] = fmt.Sprint(rand.Intn(10)) // add the dynamic one(s)
+//		s.Emitter.Count(tags, "it_happened_dynamically", times)
+//	}
+//
+// Given above, this generator will create a `NewSomethingTags` constructor (which requires all fields),
+// and some convenience methods for emitting metrics (e.g. GetTags(), Count(..), etc).
+//
+// Ad-hoc metrics are encouraged to use the convenience methods for simplicity, but for any metrics
+// (or "events" which have multiple metrics) you consider "stable", declare a method on your Tags
+// struct, and consider documenting the intent / grafana panel / alerting logic.
+//
+// Metrics names (i.e. "it_happened" above) should be in-line constants on all calls, to make
+// it easy to grep for things, and because Prometheus requires that each "name" must have a stable
+// set of tags / should match a single metrics call.
+// I.e. there is no need for a named const, and it buys us no safety, as the name must not be shared.
+//
+// If we are concerned about name duplication, it's fairly easy to build an Analyzer that finds all calls
+// and checks the in-line strings (export package facts upward, check for dups each time), or prints
+// all calls to be checked with a simple `sort | uniq -c | grep -v 1`.
 func main() {
-	// TODO: currently this finds all "...Tags" things and assumes they are StructTags for metrics.
+	// I would highly suggest exploring https://caixw.github.io/goast-viewer/index.html a bit
+	// (forked from https://yuroyoro.github.io/goast-viewer/ but with support for generics)
+	// to get a feel for how the AST is structured, and to see if a newly-desired
+	// syntax/feature is recognizable at the AST level.
+	//
+	// if it is not, this may need to be changed to use `packages.Load` to get type info,
+	// but that is DRAMATICALLY slower and I would prefer to avoid it until necessary.
+	// the only tolerable way to do that is to process the whole repository in a single
+	// pass, and generate everything at once.
+
+	// Currently this finds all "...Tags" things and assumes they are StructTags for metrics.
 	// If that becomes a problem, just optionally pass a list of args == names of types to generate,
-	// and ignore the rest.  Easy peasy.
+	// and ignore the rest.  Should be very easy.
 
 	log.SetFlags(log.Lshortfile) // TODO: I really can't stand this log package, replace?
 	filename := os.Getenv("GOFILE")
 	FSET = token.NewFileSet()
 	var err error
-	SRC, err = os.ReadFile(filename)
+	SRC, err = os.ReadFile(filename) // hold onto the source code so errors can show the line of text that's wrong
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -42,105 +159,63 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// this handles a very limited set of types and syntax, because all this generator
-	// cares about is top-level declared struct types.
-	//
-	// I would highly suggest exploring https://caixw.github.io/goast-viewer/index.html
-	// a bit to get a feel for how the AST is structured, and to see if a newly-desired
-	// syntax is recognizable at the AST level.
-	// if it is not, this may need to be changed to use `packages.Load` to get type info,
-	// but that is DRAMATICALLY slower and I would prefer to avoid it until necessary.
-	// the only tolerable way to do that is to process the whole repository in a single
-	// pass, and generate everything at once.
-
-	type named struct {
-		Name string
-		Node *ast.StructType
-		Skip map[string]bool
-	}
-	var interesting []named
-	// ast inspector just makes it easy to handle a stack and limited set of types without caring about depth.
-	// it's not much more code than ast.Inspect tbh, but I like it.
-	ins := inspector.New([]*ast.File{f})
-	ins.WithStack([]ast.Node{
-		(*ast.FuncDecl)(nil),  // ignore temporary in-func types
-		(*ast.ValueSpec)(nil), // ignore anonymous created-for-values types (will be unnamed or in a function)
-
-		(*ast.StructType)(nil), // check structs IFF they have a name (immediate parent node is TypeSpec with name)
-	}, func(n ast.Node, push bool, stack []ast.Node) (proceed bool) {
-		var st *ast.StructType
-		var ts *ast.TypeSpec
-		skip := map[string]bool{}
-		switch n.(type) {
-		case *ast.FuncDecl, *ast.ValueSpec:
-			return false // can only be a func-internal or anonymous type, ignore and do not descend
-		case *ast.StructType:
-			st = n.(*ast.StructType)
-			parent := stack[len(stack)-2]
-			var ok bool
-			ts, ok = parent.(*ast.TypeSpec)
-			if !ok {
-				// no known place this happens, so warn about it.
-				//
-				// anonymous types used for values do this, e.g. var f = struct{...},
-				// but those should be excluded by the ValueSpec filter.
-				log.Println(notify(n, "warn: expected parent node of struct, must be a typespec: %T: %#v\n", parent, parent))
-				return false
-			}
-			decl, ok := stack[len(stack)-3].(*ast.GenDecl) // afaict always true
-			if ok {
-				comment := decl.Doc.Text()
-				words := strings.Fields(comment) // splits on any kind of whitespace
-				for _, w := range words {
-					if after, ok := strings.CutPrefix(w, "skip:"); ok {
-						skip[after] = true
-					}
-				}
-			}
-		}
-
-		if ts.Name == nil || ts.Name.Name == "" || !strings.HasSuffix(ts.Name.Name, "Tags") {
-			return false // uninteresting struct
-		}
-		interesting = append(interesting, named{ts.Name.Name, st, skip})
-
-		// no need to descend here either.
-		// we don't want nested types, and struct nodes are easy to navigate without recursion.
-		return false
-	})
-
+	interesting := findStructs(f)
 	if len(interesting) == 0 {
-		log.Fatalf("no interesting structs found in %v, bad go generate or bad definition?", filename)
+		log.Fatalf("no interesting structs (named '...Tags') found in %v, bad go generate or bad definition?", filename)
 	}
 
 	// Metric-related fields must be singular (no comma-separated lists), public, and either named or embedded.
 	// These fields require struct tags:
 	//  - `tag:"..."` to define the tag key name (so it's easily greppable)
 	//  - optionally `convert:"..."` to change how they're stringified (else primitive ints are `Itoa` and any others are untouched)
+	toGenerate := getGenStructs(interesting)
 
-	type genfield struct {
-		Name     string
-		Tagname  string
-		Convert  string
-		Imported string
-		Type     string
+	basename := strings.TrimSuffix(filename, ".go")
+	var out io.Writer // smaller interface so it can be replaced with os.Stdout for manual testing
+	out, err = os.OpenFile(basename+"_metrics_gen.go", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatal(err)
 	}
-	type embedfield struct {
-		Name     string
-		Imported string
-		Type     string
+
+	// package declaration
+	write(out, "package %v", os.Getenv("GOPACKAGE"))
+	write(out, "") // and a blank line
+
+	// magic generated-source comment
+	write(out, "// Code generated ./internal/tools/metricsgen; DO NOT EDIT")
+	write(out, "")
+
+	write(out, "import (")
+
+	// copy all imports, possibly duplicating, and add fmt if needed.
+	// goimports will deduplicate and remove any as needed.
+	imports := append(f.Imports, []*ast.ImportSpec{
+		{Path: &ast.BasicLit{Value: `"fmt"`}},                                               // for strconv
+		{Path: &ast.BasicLit{Value: `"time"`}},                                              // for Histogram's time.Duration
+		{Path: &ast.BasicLit{Value: `"github.com/uber-go/tally"`}},                          // for tally.Buckets
+		{Path: &ast.BasicLit{Value: `"github.com/uber/cadence/common/metrics/structured"`}}, // for emitter
+	}...)
+	for _, i := range imports {
+		// i.Path.Value already has quotes
+		if i.Name != nil {
+			write(out, "\t%s %s\n", i.Name, i.Path.Value)
+		} else {
+			write(out, "\t%s\n", i.Path.Value)
+		}
 	}
-	type genable struct {
-		Name     string
-		Self     string
-		Fields   []genfield
-		Emitter  bool
-		Embeds   []embedfield
-		Reserved int
-		Skip     map[string]bool
-		NewFunc  string // if the tags struct is private, this will be "newThing", to make the constructor private.  else it is "NewThing".
+	write(out, ")")
+
+	// generate the template
+	for _, t := range toGenerate {
+		err := tmpl.Execute(out, t)
+		if err != nil {
+			log.Fatalf("error generating code for %v: %v", t.Name, err)
+		}
 	}
-	var gen []genable
+}
+
+func getGenStructs(interesting []namedStruct) []gen {
+	var results []gen
 	for _, s := range interesting {
 		var newFunc string
 		if s.Name[0:1] == strings.ToLower(s.Name[0:1]) {
@@ -150,7 +225,7 @@ func main() {
 			// public struct, so the constructor should be public too
 			newFunc = "New" + s.Name
 		}
-		g := genable{
+		g := gen{
 			Name:    s.Name,
 			Skip:    s.Skip,
 			Self:    strings.ToLower(s.Name[0:1]),
@@ -159,21 +234,16 @@ func main() {
 		for _, f := range s.Node.Fields.List {
 			switch len(f.Names) {
 			case 0: // embed
-				imported, id, ascode := sourcetype(f.Type)
-				if !id.IsExported() {
-					log.Fatalf("cannot embed private types") // TODO: add source
-				}
+				imported, id, ascode := sourceType(f.Type)
 				if id.Name == "Emitter" {
 					g.Emitter = true
 					continue // emitter has special handling
 				}
-				// TODO: arguably a custom name / non-embed makes sense, but it seems possibly bad as it'll be less consistent
-
 				if !strings.HasSuffix(id.Name, "Tags") {
-					log.Fatal(notify(f, `embedded types must end with "Tags", as they must conform to the metrics-interface`))
+					log.Fatal(invalidCodeMsg(f, `embedded types must end with "Tags", as they must conform to the metrics-interface`))
 				}
 
-				g.Embeds = append(g.Embeds, embedfield{
+				g.Embeds = append(g.Embeds, genEmbed{
 					Name:     id.Name,
 					Imported: imported,
 					Type:     ascode,
@@ -184,8 +254,14 @@ func main() {
 					// private field, ignore.  might have a purpose, e.g. a cache or helper func
 					continue
 				}
-				imported, _, ascode := sourcetype(f.Type) // type can be private, e.g. `string`
-				tagname := nameTag(f)                     // the tag's name is always required
+				// ...Tags types cannot be pointers, but others are allowed
+				if strings.HasSuffix(fname.Name, "Tags") {
+					if _, ok := f.Type.(*ast.StarExpr); ok {
+						log.Fatal(invalidCodeMsg(f, "embedded Tags structs cannot be pointers"))
+					}
+				}
+				imported, _, ascode := sourceType(f.Type) // type can be private, e.g. `string`
+				metricTag := getNameTag(f)                // the tag's name is always required
 				if ascode == "struct{}" {
 					g.Reserved++
 					// special placeholder field, ignore it.
@@ -194,95 +270,106 @@ func main() {
 					continue
 				}
 
-				convert := convertTag(f)
-				if convert == "" && isInt(f.Type) {
-					convert = `fmt.Sprintf("%d", {{.}})`
+				convertTag := getConvertTag(f)
+				if convertTag == "" {
+					if isInt(f.Type) {
+						convertTag = `fmt.Sprintf("%d", {{.}})`
+					} else {
+						convertTag = "{{.}}" // defaults to assuming the field is a string, included verbatim
+					}
 				}
-				if strings.Contains(convert, "{{.}}") {
-					convert = strings.ReplaceAll(convert, "{{.}}", g.Self+"."+fname.Name)
+				// run the template to get the source code to stringify this field
+				convertTmpl := template.Must(template.New("").Parse(convertTag))
+				var out strings.Builder
+				err := convertTmpl.Execute(&out, g.Self+"."+fname.Name)
+				if err != nil {
+					// use the original tag, not the empty-replaced one
+					log.Fatalf(invalidCodeMsg(f, "bad convert tag, must be a valid text template or empty: convert:%q\nerror: %v", getConvertTag(f), err))
 				}
-				if convert == "" {
-					convert = g.Self + "." + fname.Name
-				}
-				g.Fields = append(g.Fields, genfield{
-					Name:     fname.Name,
-					Tagname:  tagname,
-					Convert:  convert,
-					Imported: imported,
-					Type:     ascode,
+				g.Fields = append(g.Fields, genField{
+					Name:      fname.Name,
+					MetricTag: metricTag,
+					Convert:   out.String(),
+					Imported:  imported,
+					Type:      ascode,
 				})
 			default:
-				// comma-separated, illegal
-				log.Fatalf(notify(f, "cannot have comma-separated fields as struct tags must be unique"))
+				// comma-separated, never allowed
+				log.Fatalf(invalidCodeMsg(f, "cannot have comma-separated fields as struct tags must be unique"))
 			}
 		}
-		gen = append(gen, g)
+		results = append(results, g)
 	}
-
-	basename := strings.TrimSuffix(filename, ".go")
-	outfile, err := os.OpenFile(basename+"_metrics_gen.go", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	out := outfile
-
-	// package declaration
-	_, _ = fmt.Fprintln(out, "package", os.Getenv("GOPACKAGE"))
-	_, _ = fmt.Fprintln(out) // and a blank line
-
-	// magic generated-source comment
-	_, _ = fmt.Fprintln(out, "// Code generated ./internal/tools/metricsgen; DO NOT EDIT")
-	_, _ = fmt.Fprintln(out)
-
-	// copy all imports, possibly duplicating, and add fmt if needed.
-	// goimports will clean it up for us.
-	_, _ = fmt.Fprintln(out, "import (")
-
-	// add common ones used in the template.
-	// goimports will deduplicate and remove them if they're unused.
-	imports := append(f.Imports, []*ast.ImportSpec{
-		{Path: &ast.BasicLit{Value: `"fmt"`}},                                               // for strconv
-		{Path: &ast.BasicLit{Value: `"time"`}},                                              // for Histogram's time.Duration
-		{Path: &ast.BasicLit{Value: `"github.com/uber-go/tally"`}},                          // for tally.Buckets
-		{Path: &ast.BasicLit{Value: `"github.com/uber/cadence/common/metrics/structured"`}}, // for emitter
-	}...)
-	for _, i := range imports {
-		// i.Path.Value already has quotes
-		if i.Name != nil {
-			_, _ = fmt.Fprintf(out, "\t%s %s\n", i.Name, i.Path.Value)
-		} else {
-			_, _ = fmt.Fprintf(out, "\t%s\n", i.Path.Value)
-		}
-	}
-	_, _ = fmt.Fprintln(out, ")")
-
-	// generate the template
-	for _, t := range gen {
-		err := tmpl.Execute(out, t)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
+	return results
 }
 
-func nameTag(f *ast.Field) string {
+func findStructs(f *ast.File) []namedStruct {
+	var results []namedStruct
+	// range over the top-level declarations in the file, find *Tags to generate.
+	// this conveniently excludes any in-func types.
+	for _, d := range f.Decls {
+		gd, ok := d.(*ast.GenDecl)
+		if !ok || gd.Tok != token.TYPE {
+			continue // only care about type declarations
+		}
+		for _, spec := range gd.Specs {
+			ts, ok := spec.(*ast.TypeSpec)
+			if !ok || ts.Name == nil || ts.Name.Name == "" {
+				continue // only care about named types
+			}
+			if !strings.HasSuffix(ts.Name.Name, "Tags") {
+				continue // only care about type names ending in "Tags"
+			}
+			st, ok := ts.Type.(*ast.StructType)
+			if !ok || st.Fields == nil || len(st.Fields.List) == 0 {
+				continue // only care about structs with fields
+			}
+
+			found := namedStruct{
+				Name: ts.Name.Name,
+				Node: st,
+				Skip: map[string]bool{},
+			}
+			// check struct comments for skip tags
+			for _, word := range strings.Fields(gd.Doc.Text()) {
+				if toskip, ok := strings.CutPrefix(word, "skip:"); ok {
+					// validate the word
+					if _, ok := defaultSkip[toskip]; !ok {
+						// it's possible to point to the exact chars in the comment that are wrong, but calculating
+						// that is a bit fiddly because there isn't a convenient way to strip off comment decorator
+						// chars line by line, but Text() does that for us.
+						log.Fatalf(invalidCodeMsg(gd, "unknown skip marker %q, must be one of: %v", toskip, maps.Keys(defaultSkip)))
+					}
+					found.Skip[word] = true
+				}
+			}
+			results = append(results, found)
+		}
+	}
+	return results
+}
+
+// --- tag helpers ---
+
+func getNameTag(f *ast.Field) string {
 	value := getTag(f, "tag")
 	if value == "" {
 		// must have tag
-		log.Fatalf(notify(f, "metric tags must have an explicit `tag:\"name\"`"))
+		log.Fatalf(invalidCodeMsg(f, "metric tags must have an explicit `tag:\"name\"`"))
 	}
 	return value
 }
 
-func convertTag(f *ast.Field) string {
+func getConvertTag(f *ast.Field) string {
 	value := getTag(f, "convert") // currently a single string, could be complexified
-	if strings.Contains(value, "{{.}}") {
-		// call method and pass the field via interpolation
-	} else if value != "" {
-		// malformed convert
-		log.Fatalf(notify(f, "convert tags must contain a `{{.}}` substring where the field will be interpolated"))
+	if value == "" {
+		return ""
 	}
-	// valid format or empty string
+	if !strings.Contains(value, "{{") {
+		// malformed convert
+		log.Fatalf(invalidCodeMsg(f, "convert tags must contain a `{{ . }}` template where the field will be interpolated"))
+	}
+	// valid format
 	return value
 }
 
@@ -303,80 +390,104 @@ func getTag(f *ast.Field, name string) string {
 	return t.Value()
 }
 
-func isInt(fieldtype ast.Expr) bool {
-	if _, ok := fieldtype.(*ast.StarExpr); ok {
-		line, source := getsource(fieldtype)
-		log.Fatalf("tag-struct fields cannot be pointers\n%v %v", line, source)
-		return false // unreachable
-	}
-	if id, ok := fieldtype.(*ast.Ident); ok {
-		return id.Name == "int" || id.Name == "int32" || id.Name == "int64"
-	}
-	if _, ok := fieldtype.(*ast.SelectorExpr); ok {
-		return false // imported type, not assumed to be int
-	}
-	if st, ok := fieldtype.(*ast.StructType); ok {
-		if st.Fields == nil || len(st.Fields.List) == 0 {
-			return false
+// --- type checking helpers ---
+
+func isInt(fieldType ast.Expr) bool {
+	// sourceType already restricted to these types,
+	// no need to check others exhaustively / no need to deal with pointers
+	switch t := fieldType.(type) {
+	case *ast.StarExpr:
+		return false // no reliable fallback, force custom handling
+	case *ast.Ident:
+		return t.Name == "int" || t.Name == "int32" || t.Name == "int64"
+	case *ast.SelectorExpr:
+		return false // imported types cannot be builtin ints
+	case *ast.StructType:
+		if t.Fields == nil || len(t.Fields.List) == 0 {
+			return false // `struct{}` is allowed and not an int
 		}
 	}
-	log.Fatalf(notify(fieldtype, "unknown tag-struct type %T", fieldtype))
-	return false // unreachable
+	log.Fatalf(invalidCodeMsg(fieldType, "unknown field type %T: %#v", fieldType, fieldType))
+	panic("unreachable")
 }
 
-func sourcetype(f ast.Expr) (imported string, name *ast.Ident, ascode string) {
-	var ident *ast.Ident
-	if id, ok := f.(*ast.Ident); ok {
-		ident = id
-		ascode = id.Name
-	} else if sel, ok := f.(*ast.SelectorExpr); ok {
-		// thing.Thing == X.Sel
-		ident = sel.Sel
-		imported = sel.X.(*ast.Ident).Name
-		ascode = imported + "." + ident.Name
-	} else if st, ok := f.(*ast.StructType); ok {
-		if st.Fields == nil || len(st.Fields.List) == 0 {
+// given a field type node, returns:
+//   - pkg.Type: "pkg", Type, "pkg.Type"
+//   - Type: "", Type, "Type"
+func sourceType(fieldType ast.Expr) (imported string, name *ast.Ident, ascode string) {
+	if t, ok := fieldType.(*ast.StarExpr); ok {
+		imported, name, ascode = sourceType(t.X) // recurse to get the inner type
+		return imported, name, "*" + ascode      // restore the pointer
+	}
+
+	switch t := fieldType.(type) {
+	case *ast.Ident: // bare identifier, no package.  local type or builtin.
+		return "", t, t.Name
+	case *ast.SelectorExpr: // thing.Thing == X.Sel
+		if x, ok := t.X.(*ast.Ident); ok {
+			imported = x.Name
+			return imported, t.Sel, imported + "." + t.Sel.Name
+		}
+	case *ast.StructType:
+		if t.Fields == nil || len(t.Fields.List) == 0 {
 			return "", nil, "struct{}"
 		}
-	} else {
-		log.Fatal(notify(f, "unknown type types, must be `Type` or `import.Type` and must not be a pointer"))
 	}
-	return imported, ident, ascode
+	log.Fatal(invalidCodeMsg(fieldType, "unknown field type %T, must be `Type` or `pkg.Type`: %#v", fieldType, fieldType))
+	panic("unreachable")
 }
 
-func notify(node ast.Node, msg string, args ...interface{}) string {
-	path, source := getsource(node)
+// --- error reporting funcs, to show file:line and the contents of the line for easier troubleshooting ---
+
+func invalidCodeMsg(node ast.Node, msg string, args ...interface{}) string {
+	path, source := getSourceCodeLine(node)
 	msg = fmt.Sprintf(msg, args...)
 	return fmt.Sprintf("%s\n%s: %s", msg, path, source)
 }
 
-func getsource(node ast.Node) (path string, source string) {
+func getSourceCodeLine(node ast.Node) (path string, source string) {
 	// seems silly that getting the source code from the AST requires holding on to the source code.
 	// but eh, I suppose it's more memory-efficient?
 	pos := FSET.Position(node.Pos())
 	l := pos.Line
 	lines := strings.Split(string(SRC), "\n")
 	if l > len(lines)-1 {
+		// should not be possible, at least without `//line` directives
 		log.Fatalf("source line too large (%d > %d)", l, len(lines)-1)
 	}
 	// pos only contains filename, not full path
 	p, err := os.Getwd()
 	if err != nil {
-		log.Fatal(err)
+		// bad shell location, basically
+		log.Fatal("could not os.Getwd(), does your current folder still exist?", err)
 	}
-	cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/uber/cadence")
+	// figure out the shared part of the absolute path, if possible.
+	// 1s timeout is far more than is necessary locally, unless it needs to download,
+	// and we don't want to wait for that because it won't show any output.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "list", "-m", "-f", "{{.Dir}}", "github.com/uber/cadence")
 	cmd.Stderr = os.Stderr
 	st, err := cmd.Output()
 	if err == nil {
 		// remove the path to the main module from the absolute path, it's large and annoying
-		commonpath := strings.TrimSuffix(string(st), "\n")
-		p = strings.TrimPrefix(p, commonpath+"/")
-	}
+		moduleRoot := strings.TrimSpace(string(st)) // remove the newline
+		p = strings.TrimPrefix(p, moduleRoot+"/")
+	} // else just give up and use the absolute path, it's long but not wrong.
 	return p + "/" + pos.String(), lines[l-1]
 }
 
+// --- template helpers ---
+
+func write(out io.Writer, format string, args ...any) {
+	_, err := fmt.Fprintf(out, format+"\n", args...)
+	if err != nil {
+		log.Fatal("failed to write generated code to output:", err)
+	}
+}
+
 // $self is used instead of .Self because it gets lost when ranging (changes `.` scope)
-var tmpl = template.Must(template.New("metrics").Parse(`
+var tmpl = template.Must(template.New("").Parse(`
 {{- $self := .Self }}
 {{- if not .Skip.New }}
 	// {{.NewFunc}} constructs a new metric-tag-holding {{.Name}}, and it must be used
@@ -429,7 +540,7 @@ var tmpl = template.Must(template.New("metrics").Parse(`
 			{{$self}}.{{ .Name }}.PutTags(into)
 		{{- end }}
 		{{- range .Fields }}
-			into["{{.Tagname}}"] = {{ .Convert }} 
+			into["{{.MetricTag}}"] = {{ .Convert }} 
 		{{- end }}
 	}
 {{- end }}
