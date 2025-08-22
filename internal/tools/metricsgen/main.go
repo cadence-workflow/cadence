@@ -375,29 +375,7 @@ func getsource(node ast.Node) (path string, source string) {
 	return p + "/" + pos.String(), lines[l-1]
 }
 
-/*
-Sample:
-
-	func NewShardTasklistTags(ServiceTags ServiceTags, Shard int, Type TasklistType) ShardTasklistTags {
-	        s := ShardTasklistTags{
-	                Shard: Shard,
-	                Type: Type,
-	        }
-	        return s
-	}
-	func (s ShardTasklistTags) NumTags() int {
-	        num := 2 // num of self fields
-	        num := 0 // num of reserved fields
-	        num += s.ServiceTags.NumTags()
-	        return num
-	}
-	func (s ShardTasklistTags) PutTags(into map[string]string) {
-	        s.ServiceTags.PutTags(into)
-	        into["shard"] = fmt.Sprintf("%d", s.Shard)
-	        into["tasklist_type"] = s.Type.String()
-	}
-*/
-// $self is used instead of .Self because it gets lost when ranging
+// $self is used instead of .Self because it gets lost when ranging (changes `.` scope)
 var tmpl = template.Must(template.New("metrics").Parse(`
 {{- $self := .Self }}
 {{- if not .Skip.New }}
