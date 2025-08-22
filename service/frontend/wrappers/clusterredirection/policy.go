@@ -269,32 +269,34 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	call func(string) error,
 ) error {
 	targetDC, enableDomainNotActiveForwarding := policy.getTargetClusterAndIsDomainNotActiveAutoForwarding(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel)
+	domainName := domainEntry.GetInfo().Name
 
-	policy.logger.Debugf("Calling API %q on target cluster:%q for domain:%q", apiName, targetDC, domainEntry.GetInfo().Name)
+	policy.logger.Debugf("Calling API %q on target cluster:%q for domain:%q", apiName, targetDC, domainName)
 	err := call(targetDC)
+	scope := policy.metricsClient.Scope(metrics.DCRedirectionForwardingPolicyScope).Tagged(
+		append(
+			metrics.GetContextTags(ctx),
+			metrics.DomainTag(domainName),
+			metrics.SourceClusterTag(policy.currentClusterName),
+			metrics.TargetClusterTag(targetDC),
+			metrics.IsActiveActiveDomainTag(actClSelPolicyForNewWF != nil),
+			metrics.QueryConsistencyLevelTag(requestedConsistencyLevel.String()),
+		)...,
+	)
 
 	var domainNotActiveErr *types.DomainNotActiveError
 	ok := errors.As(err, &domainNotActiveErr)
 	if !ok || !enableDomainNotActiveForwarding {
+		policy.logger.Debugf("Redirection not enabled for request domain:%q, api: %q", domainName, apiName)
+		scope.IncCounter(metrics.ClusterForwardingPolicyRequests)
 		return err
 	}
 
-	scope := policy.metricsClient.Scope(metrics.DCRedirectionDomainNotActiveAutoForwardingScope).
-		Tagged(metrics.DomainTag(domainEntry.GetInfo().Name)).
-		Tagged(metrics.TargetClusterTag(targetDC)).
-		Tagged(metrics.SourceClusterTag(policy.currentClusterName)).
-		Tagged(metrics.ClusterGroupTag(policy.targetCluster)).
-		Tagged(metrics.IsActiveActiveDomainTag(actClSelPolicyForNewWF != nil))
-	defer func() {
-		scope.IncCounter(metrics.CadenceRequests)
-	}()
+	scope = scope.Tagged(metrics.ActiveClusterTag(domainNotActiveErr.ActiveCluster))
+	scope.IncCounter(metrics.ClusterForwardingPolicyRequests)
 
-	// TODO(active-active): emit a metric here including apiName, targetDC and newTargetDC tags
-	// This can only happen if there was a failover during the API call.
-	// Forward the request the the active cluster specified in the error
 	if domainNotActiveErr.ActiveCluster == "" {
 		policy.logger.Debugf("No active cluster specified in the error returned from cluster:%q for domain:%q, api: %q so skipping redirect", targetDC, domainEntry.GetInfo().Name, apiName)
-		scope.Tagged(metrics.Redirected)
 		return err
 	}
 
@@ -324,12 +326,14 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndI
 
 	if !policy.config.EnableDomainNotActiveAutoForwarding(domainEntry.GetInfo().Name) {
 		// Do not do dc redirection if auto-forwarding dynamicconfig is not enabled
+		policy.logger.Debugf("Auto-forwarding dynamicconfig is not enabled for domain:%q, api: %q", domainEntry.GetInfo().Name, apiName)
 		return policy.currentClusterName, false
 	}
 
 	currentActiveCluster := domainEntry.GetReplicationConfig().ActiveClusterName
 	if domainEntry.GetReplicationConfig().IsActiveActive() {
 		currentActiveCluster = policy.activeClusterForActiveActiveDomainRequest(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName)
+		policy.logger.Debugf("Active-active domain, forwarding to workflow active cluster:%q for domain:%q, api: %q", currentActiveCluster, domainEntry.GetInfo().Name, apiName)
 	}
 
 	if policy.allDomainAPIs {
@@ -343,6 +347,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndI
 	}
 
 	if requestedConsistencyLevel == types.QueryConsistencyLevelStrong {
+		policy.logger.Debugf("Strong consistency requested, forwarding to active cluster:%q for domain:%q, api: %q", currentActiveCluster, domainEntry.GetInfo().Name, apiName)
 		return currentActiveCluster, true
 	}
 

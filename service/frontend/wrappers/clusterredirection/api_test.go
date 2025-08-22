@@ -1086,6 +1086,7 @@ func (s *clusterRedirectionHandlerSuite) TestGetTaskListsByDomainError() {
 		"",
 		s.mockResource.GetLogger(),
 		s.mockResource.GetActiveClusterManager(),
+		s.mockResource.GetMetricsClient(),
 	)
 	ctx := context.Background()
 	req := &types.GetTaskListsByDomainRequest{
