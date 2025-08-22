@@ -26,15 +26,15 @@ var (
 )
 
 // list of all skippable things, so mis-spellings and whatnot can be caught.
-var defaultSkip = map[string]bool{
-	"New":         false,
-	"NumTags":     false,
-	"PutTags":     false,
-	"GetTags":     false,
-	"Convenience": false,
-	"Inc":         false,
-	"Count":       false,
-	"Histogram":   false,
+var skipNames = map[string]bool{
+	"New":         true,
+	"NumTags":     true,
+	"PutTags":     true,
+	"GetTags":     true,
+	"Convenience": true,
+	"Inc":         true,
+	"Count":       true,
+	"Histogram":   true,
 }
 
 // intermediate product, structs that should be inspected further
@@ -70,67 +70,11 @@ type gen struct {
 }
 
 // Metricsgen is a code generator to simplify creating structured metrics based on
-// the patterns in common/metrics/structured.
+// the patterns in [github.com/uber/cadence/common/metrics/structured].
 //
 // To use, just add a `//go:generate metricsgen` in the source file with any new
 // `...Tags` structs, and run `make metrics`.
 // `make go-generate` will also run this implicitly, but it is far slower.
-//
-// The basic requirements for "interesting" structs are:
-//
-//	// SomethingTags must have a "...Tags" suffix, to mark it as part of the metrics system.
-//	//
-//	// Tags-structs should always be value-oriented to prevent mutating parents.
-//	// Hopefully this will be reasonably efficient / low GC pressure at runtime.
-//	//
-//	// Optionally you can tell the generator to:
-//	// skip:Histogram
-//	// to not generate the Histogram method.
-//	// This pattern works for all generated methods.
-//	type SomethingTags struct {
-//		structured.Emitter  // optional emitter, if desired and if no embedded parent contains it
-//		otherpkg.ParentTags // optional embedded parents, must end with "Tags".
-//
-//		// Define metrics tags that will be emitted.
-//		// The "tag" value is required, used verbatim for metrics,
-//		// and it should be unique across the struct and all parents.
-//		Anything string `tag:"anything"`
-//
-//		// Tags can have custom text/template to stringify their data (which cannot import new packages)
-//		Fancy proto.Whatever `tag:"fancy" convert:"{{.}}.String()"`
-//
-//		// Is the value always determined at runtime, but the tag is always present?
-//		// Use a reserved field, which must be a `struct{}` type.
-//		// This reserves capacity in the tags map, and documents that it exists.
-//		//
-//		// This should generally be reserved for "leaf" Tags-structs, but you can
-//		// also customize PutTags to add them implicitly, if it is available via
-//		// other means (e.g. hostname, cpu count).
-//		Dynamic struct{} `tag:"dynamic"`
-//	}
-//	func (s SomethingTags) ItHappened(times int) {
-//		s.Count("it_happened", times) // includes all tags + all parent tags
-//		// for "dynamic" tags, you must add it to the map by hand, and use lower-level emitter funcs:
-//		tags := structured.DynamicTags(s.GetTags()) // get all static tags
-//		tags["dynamic"] = fmt.Sprint(rand.Intn(10)) // add the dynamic one(s)
-//		s.Emitter.Count(tags, "it_happened_dynamically", times)
-//	}
-//
-// Given above, this generator will create a `NewSomethingTags` constructor (which requires all fields),
-// and some convenience methods for emitting metrics (e.g. GetTags(), Count(..), etc).
-//
-// Ad-hoc metrics are encouraged to use the convenience methods for simplicity, but for any metrics
-// (or "events" which have multiple metrics) you consider "stable", declare a method on your Tags
-// struct, and consider documenting the intent / grafana panel / alerting logic.
-//
-// Metrics names (i.e. "it_happened" above) should be in-line constants on all calls, to make
-// it easy to grep for things, and because Prometheus requires that each "name" must have a stable
-// set of tags / should match a single metrics call.
-// I.e. there is no need for a named const, and it buys us no safety, as the name must not be shared.
-//
-// If we are concerned about name duplication, it's fairly easy to build an Analyzer that finds all calls
-// and checks the in-line strings (export package facts upward, check for dups each time), or prints
-// all calls to be checked with a simple `sort | uniq -c | grep -v 1`.
 func main() {
 	// I would highly suggest exploring https://caixw.github.io/goast-viewer/index.html a bit
 	// (forked from https://yuroyoro.github.io/goast-viewer/ but with support for generics)
@@ -334,11 +278,11 @@ func findStructs(f *ast.File) []namedStruct {
 			for _, word := range strings.Fields(gd.Doc.Text()) {
 				if toskip, ok := strings.CutPrefix(word, "skip:"); ok {
 					// validate the word
-					if _, ok := defaultSkip[toskip]; !ok {
+					if !skipNames[toskip] {
 						// it's possible to point to the exact chars in the comment that are wrong, but calculating
 						// that is a bit fiddly because there isn't a convenient way to strip off comment decorator
-						// chars line by line, but Text() does that for us.
-						log.Fatalf(invalidCodeMsg(gd, "unknown skip marker %q, must be one of: %v", toskip, maps.Keys(defaultSkip)))
+						// chars line by line.  Text() does that for us, and the struct decl is close enough to the comment.
+						log.Fatalf(invalidCodeMsg(gd, "unknown skip marker %q, must be one of: %v", toskip, maps.Keys(skipNames)))
 					}
 					found.Skip[word] = true
 				}

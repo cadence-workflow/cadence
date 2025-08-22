@@ -2,55 +2,119 @@
 Package structured contains the base objects for a struct-based metrics system.
 
 This is intended to be used with internal/tools/metricsgen, but the Emitter is
-public on StructTags to ensure ad-hoc metrics are still simple to emit (and to
-make codegen reasonably easy).
+public on many StructTags to ensure ad-hoc metrics are still simple to emit (and
+to make codegen reasonably easy).
 
-For more details, check the generated code of any StructTag, or the generator
+For concrete details, check the generated code of any StructTag, or the generator
 in [github.com/uber/cadence/internal/tools/metricsgen].
 
-To add a new StructTags type, it must:
-  - be named "...Tags"
-  - have `//go:generate metricsgen` in the file (no arguments are needed)
-  - use `tag:"name"` to declare the metrics name tag
+# To make a new metrics-tag-containing struct
 
-And you may also want to:
-  - embed a parent StructTags, for data to inherit
-  - use e.g. `convert:"stringify({{.}})"` or `convert:"{{.}}.Method()"` to
-    convert a field's type to a string for the tag value (this is a template
-    string, used verbatim in the generated output)
-  - use `struct{}`-typed fields to reserve tags for documentation purposes, and
-    for more efficient pre-allocation of tag maps
-  - skip code generation steps with "skip:Something" magic comments
+  - Define a `type ...Tags struct` anywhere.  These can be public or private.
+  - Embed any parent ...Tags structs desired, and add any fields to store tag values
+    (or declare that they will be emitted, if they are not static)
+  - Add a `//go:generate metricsgen` comment to the file (if not already present)
+  - Run `make metrics` to generate the supporting code
 
----
+In many cases, that's likely enough.  Construct your new thing and use it:
 
-If you need to break a chain of metrics, e.g. to hide fields, the generator can
-be easily modified to allow you to include parent struct-tags as private fields.
+	thing.Count("name", 1) // "name" must be unique within Cadence
 
-These should still be required for construction, but will not expose their fields
-or methods.  Be careful when doing this, as it will hide the data being emitted
-unless you duplicate fields, but it's a simple workaround if it becomes necessary.
+to emit a metric with all the associated tags.  For ad-hoc / "unstable" metrics
+that are not worth documenting, that's all you need to do.
 
----
+If the metric you're emitting should be considered "stable" (i.e. it may have
+alerts or dashboards based on it), strongly consider moving the metrics to a
+method on your ...Tags struct.  This helps imply stability during reviews, and
+provides a place to document the intent / current uses of the metrics.
 
-Generally speaking, you are encouraged to make structs to represent tags on
-metrics, for documentation and consistency purposes:
-  - Tag values and metric names can simply be inline strings to allow easier
-    grep / navigating, unless there is some benefit to be had from a shared const.
-  - Metrics that are "stable" (i.e. may have alerts or dashboards based on them)
-    should use a "semantic" method to emit the metric rather than directly using
-    `Count` or similar.  This provides a place to document the intent (and any
-    relevant panels or alerts), and helps simplify emitting multiple kinds of
-    metrics to represent a single event so they can be discovered together.
-  - As a corollary: if you see a semantic metrics-emitting method, BE CAREFUL
-    about making changes to it.  You may be impacting users and server operators,
-    and likely need a gradual migration and documentation.
+# To add new tags to existing metrics / structs
 
-Anywhere this structure is not beneficial, just use the convenience methods on the
-tags object to emit custom metrics.  Or even consider using the low-level Emitter
-if there is no better option available - this is equivalent to the base metrics
-client, but with a stricter API to encourage performance best practices.  Ad-hoc
-metrics should not be prevented, they're useful for light-weight investigations
-and experimental data.
+Add the field and run `make metrics`.
+
+This will re-generate the constructor(s), which will lead to a broken build.
+Just chase build failures until you've ensured that every code path has access
+to the new data you wanted to add.
+
+# To see what tags an existing metric has
+
+Find the name string (e.g. grep for it), open it in an IDE, and just ask the
+IDE to auto-complete a field access:
+
+	yourTagsInstance.<ctrl-space to request autocomplete>
+
+In Goland and VSCode, this will give you a drop-down of all fields inherited
+from all parents, for easy reading.
+
+# Best practices
+
+Use constant, in-line strings for metric names.  Prometheus requires that each
+"name" must have a stable set of tags, so there is no safety benefit to using a
+const - generally speaking it must NOT be shared.
+
+Ad-hoc metrics are encouraged to use the convenience methods for simplicity.
+When in doubt, just emit a metric and find out later (just watch out for
+cardinality).
+
+Avoid pointers, both for the ...Tags struct and its values, to prevent mutation.
+This also implies you should generally use "simple" and minimal field types, as
+they will be copied repeatedly - avoid e.g. complex thrift objects.  Hopefully
+this will end up being nicer to the garbage collector than pointers everywhere.
+
+For any metrics (or "events" which have multiple metrics) you consider "stable"
+or have alerts or dashboards based on them, strongly consider declaring a method
+on your ...Tags struct and emitting in there.  This helps inform reviewers that
+changing the metrics might cause problems elsewhere, and documents intent for
+Cadence operators if they get an alert or see strange numbers.
+
+# Code generation customization
+
+Fields have two major options available: they can declare a custom to-string
+conversion, and they can "reserve" a tag without defining a value:
+
+	type YourTags struct {
+		Fancy protobuf.Thing `tag:"fancy" convert:"{{.}}.String()"`
+		Reserved struct{} `tag:"reserved"`
+	}
+
+Custom conversion is just a text/template string, where `.` will be filled in
+with the field access (i.e. `y.Fancy`).  Strings work automatically, and
+integers (int, int32, and int64) will be automatically `strconv.Itoa`-converted,
+but all other types will require custom conversion.  As you cannot declare new
+imports in this string, make sure you've imported any packages you need to
+stringify a value in the same file as the ...Tags is declared.
+
+Reserved tags serve two purposes:
+  - They document that a tag will be emitted, so it can be discovered
+  - They reserve space in the map returned by `GetTags()`, so you can
+    efficiently add it at runtime
+
+Because reserved tags will not be filled in by convenience methods like `Count`,
+they are almost exclusively useful for methods that emit specific metrics.
+
+For the simplest use cases, use a method on the ...Tags struct and add the tags
+by hand:
+
+	func (s SomethingTags) ItHappened(times int) {
+		tags := structured.DynamicTags(s.GetTags())  // get all static tags
+		tags["reserved"] = fmt.Sprint(rand.Intn(10)) // add the reserved one(s)
+		s.Emitter.Count(tags, "it_happened", times)  // use the lower-level Emitter funcs
+	}
+
+# Accidental collision prevention
+
+If we are concerned about accidental name collisions, it's fairly easy to build
+an Analyzer that finds all calls and checks the in-line strings (export package
+facts upward, check for dups each time), or prints all calls to be checked with
+a simple `sort | uniq -c | grep -v 1`.
+
+This is VASTLY easier to build when the strings involved are inline constants,
+and it also means grepping for metrics is trivial because the whole "name"
+exists exactly where the metric is emitted.
+(this also works for metric tags, just grep for `tag:"..."` and find usages)
+
+Or just namespace everything by the thing doing stuff that causes metrics.
+Our metric names right now are extremely short, which works fine for Tally but
+not for Prometheus, and is not ideal for grep either.
 */
 package structured
