@@ -1205,6 +1205,18 @@ func (mr *MockRedispatcherMockRecorder) RedispatchTask(arg0, arg1 any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RedispatchTask", reflect.TypeOf((*MockRedispatcher)(nil).RedispatchTask), arg0, arg1)
 }
 
+// RescheduleDomains mocks base method.
+func (m *MockRedispatcher) RescheduleDomains(domainIDs map[string]struct{}) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "RescheduleDomains", domainIDs)
+}
+
+// RescheduleDomains indicates an expected call of RescheduleDomains.
+func (mr *MockRedispatcherMockRecorder) RescheduleDomains(domainIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RescheduleDomains", reflect.TypeOf((*MockRedispatcher)(nil).RescheduleDomains), domainIDs)
+}
+
 // Size mocks base method.
 func (m *MockRedispatcher) Size() int {
 	m.ctrl.T.Helper()

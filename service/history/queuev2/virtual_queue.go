@@ -41,6 +41,10 @@ import (
 	"github.com/uber/cadence/service/history/task"
 )
 
+var (
+	taskSchedulerThrottleBackoffInterval = time.Second * 5
+)
+
 type (
 	VirtualQueue interface {
 		common.Daemon
@@ -402,7 +406,7 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 		}
 		if !submitted {
 			q.metricsScope.IncCounter(metrics.ProcessingQueueThrottledCounter)
-			q.redispatcher.AddTask(task)
+			q.redispatcher.RedispatchTask(task, q.timeSource.Now().Add(taskSchedulerThrottleBackoffInterval))
 		}
 	}
 
