@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	frontendcfg "github.com/uber/cadence/service/frontend/config"
@@ -62,6 +63,7 @@ type (
 		currentClusterName     string
 		alternativeClusterName string
 		mockConfig             *frontendcfg.Config
+		mockMetricsClient      metrics.Client
 
 		policy *selectedOrAllAPIsForwardingRedirectionPolicy
 	}
@@ -178,6 +180,8 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) SetupTest() {
 		logger,
 	)
 
+	s.mockMetricsClient = metrics.NewNoopMetricsClient()
+
 	s.activeClusterManager = activecluster.NewMockManager(s.controller)
 
 	s.policy = newSelectedOrAllAPIsForwardingPolicy(
@@ -188,6 +192,7 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) SetupTest() {
 		"",
 		logger,
 		s.activeClusterManager,
+		s.mockMetricsClient,
 	)
 }
 

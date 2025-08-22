@@ -703,6 +703,8 @@ const (
 	DCRedirectionRefreshWorkflowTasksScope
 	// DCRedirectionRestartWorkflowExecutionScope tracks RPC calls for dc redirection
 	DCRedirectionRestartWorkflowExecutionScope
+	// DCRedirectionForwardingPolicyScope tracks cluster redirection decisions
+	DCRedirectionForwardingPolicyScope
 
 	// MessagingPublishScope tracks Publish calls made by service to messaging layer
 	MessagingClientPublishScope
@@ -1758,6 +1760,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		DCRedirectionGetTaskListsByDomainScope:                  {operation: "DCRedirectionGetTaskListsByDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionRefreshWorkflowTasksScope:                  {operation: "DCRedirectionRefreshWorkflowTasks", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionRestartWorkflowExecutionScope:              {operation: "DCRedirectionRestartWorkflowExecution", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionForwardingPolicyScope:                      {operation: "DCRedirectionForwardingPolicy", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 
 		MessagingClientPublishScope:      {operation: "MessagingClientPublish"},
 		MessagingClientPublishBatchScope: {operation: "MessagingClientPublishBatch"},
@@ -2397,6 +2400,9 @@ const (
 	ActiveClusterManagerLookupSuccessCount
 	ActiveClusterManagerLookupFailureCount
 	ActiveClusterManagerLookupLatency
+
+	// cluster forwarding policy metrics
+	ClusterForwardingPolicyRequests
 
 	NumCommonMetrics // Needs to be last on this list for iota numbering
 )
@@ -3178,6 +3184,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ActiveClusterManagerLookupSuccessCount: {metricName: "active_cluster_manager_lookup_success_count", metricType: Counter},
 		ActiveClusterManagerLookupFailureCount: {metricName: "active_cluster_manager_lookup_failure_count", metricType: Counter},
 		ActiveClusterManagerLookupLatency:      {metricName: "active_cluster_manager_lookup_latency", metricType: Histogram, buckets: ExponentialDurationBuckets},
+
+		ClusterForwardingPolicyRequests: {metricName: "cluster_forwarding_policy_requests", metricType: Counter},
 	},
 	History: {
 		TaskRequests:             {metricName: "task_requests", metricType: Counter},

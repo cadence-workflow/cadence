@@ -70,6 +70,7 @@ const (
 	topic                     = "topic"
 	mode                      = "mode"
 	isRetry                   = "is_retry"
+	queryConsistencyLevel     = "query_consistency_level"
 
 	// limiter-side tags
 	globalRatelimitKey            = "global_ratelimit_key"
@@ -368,4 +369,9 @@ func ActiveClusterLookupFnTag(fn string) Tag {
 // ActiveClusterSelectionStrategyTag returns a new active cluster selection strategy tag.
 func ActiveClusterSelectionStrategyTag(strategy string) Tag {
 	return metricWithUnknown("strategy", strategy)
+}
+
+// QueryConsistencyLevelTag returns a new query consistency level tag.
+func QueryConsistencyLevelTag(level string) Tag {
+	return metricWithUnknown(queryConsistencyLevel, level)
 }

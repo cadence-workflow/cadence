@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	frontendcfg "github.com/uber/cadence/service/frontend/config"
 )
@@ -115,6 +116,7 @@ type (
 		targetCluster        string
 		logger               log.Logger
 		activeClusterManager activecluster.Manager
+		metricsClient        metrics.Client
 	}
 )
 
@@ -165,6 +167,7 @@ func RedirectionPolicyGenerator(
 	policy config.ClusterRedirectionPolicy,
 	logger log.Logger,
 	activeClusterManager activecluster.Manager,
+	metricsClient metrics.Client,
 ) ClusterRedirectionPolicy {
 	switch policy.Policy {
 	case DCRedirectionPolicyDefault:
@@ -174,16 +177,16 @@ func RedirectionPolicyGenerator(
 		return newNoopRedirectionPolicy(clusterMetadata.GetCurrentClusterName())
 	case DCRedirectionPolicySelectedAPIsForwarding:
 		currentClusterName := clusterMetadata.GetCurrentClusterName()
-		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, false, selectedAPIsForwardingRedirectionPolicyAPIAllowlist, "", logger, activeClusterManager)
+		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, false, selectedAPIsForwardingRedirectionPolicyAPIAllowlist, "", logger, activeClusterManager, metricsClient)
 	case DCRedirectionPolicySelectedAPIsForwardingV2:
 		currentClusterName := clusterMetadata.GetCurrentClusterName()
-		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, false, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2, "", logger, activeClusterManager)
+		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, false, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2, "", logger, activeClusterManager, metricsClient)
 	case DCRedirectionPolicyAllDomainAPIsForwarding:
 		currentClusterName := clusterMetadata.GetCurrentClusterName()
-		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, true, selectedAPIsForwardingRedirectionPolicyAPIAllowlist, policy.AllDomainApisForwardingTargetCluster, logger, activeClusterManager)
+		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, true, selectedAPIsForwardingRedirectionPolicyAPIAllowlist, policy.AllDomainApisForwardingTargetCluster, logger, activeClusterManager, metricsClient)
 	case DCRedirectionPolicyAllDomainAPIsForwardingV2:
 		currentClusterName := clusterMetadata.GetCurrentClusterName()
-		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, true, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2, policy.AllDomainApisForwardingTargetCluster, logger, activeClusterManager)
+		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, true, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2, policy.AllDomainApisForwardingTargetCluster, logger, activeClusterManager, metricsClient)
 
 	default:
 		panic(fmt.Sprintf("Unknown DC redirection policy %v", policy.Policy))
@@ -219,6 +222,7 @@ func newSelectedOrAllAPIsForwardingPolicy(
 	targetCluster string,
 	logger log.Logger,
 	activeClusterManager activecluster.Manager,
+	metricsClient metrics.Client,
 ) *selectedOrAllAPIsForwardingRedirectionPolicy {
 	return &selectedOrAllAPIsForwardingRedirectionPolicy{
 		currentClusterName:   currentClusterName,
@@ -228,6 +232,7 @@ func newSelectedOrAllAPIsForwardingPolicy(
 		targetCluster:        targetCluster,
 		logger:               logger,
 		activeClusterManager: activeClusterManager,
+		metricsClient:        metricsClient,
 	}
 }
 
@@ -264,19 +269,32 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	call func(string) error,
 ) error {
 	targetDC, enableDomainNotActiveForwarding := policy.getTargetClusterAndIsDomainNotActiveAutoForwarding(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel)
+	domainName := domainEntry.GetInfo().Name
 
-	policy.logger.Debugf("Calling API %q on target cluster:%q for domain:%q", apiName, targetDC, domainEntry.GetInfo().Name)
+	policy.logger.Debugf("Calling API %q on target cluster:%q for domain:%q", apiName, targetDC, domainName)
 	err := call(targetDC)
+	scope := policy.metricsClient.Scope(metrics.DCRedirectionForwardingPolicyScope).Tagged(
+		append(
+			metrics.GetContextTags(ctx),
+			metrics.DomainTag(domainName),
+			metrics.SourceClusterTag(policy.currentClusterName),
+			metrics.TargetClusterTag(targetDC),
+			metrics.IsActiveActiveDomainTag(actClSelPolicyForNewWF != nil),
+			metrics.QueryConsistencyLevelTag(requestedConsistencyLevel.String()),
+		)...,
+	)
 
 	var domainNotActiveErr *types.DomainNotActiveError
 	ok := errors.As(err, &domainNotActiveErr)
 	if !ok || !enableDomainNotActiveForwarding {
+		policy.logger.Debugf("Redirection not enabled for request domain:%q, api: %q", domainName, apiName)
+		scope.IncCounter(metrics.ClusterForwardingPolicyRequests)
 		return err
 	}
 
-	// TODO(active-active): emit a metric here including apiName, targetDC and newTargetDC tags
-	// This can only happen if there was a failover during the API call.
-	// Forward the request the the active cluster specified in the error
+	scope = scope.Tagged(metrics.ActiveClusterTag(domainNotActiveErr.ActiveCluster))
+	scope.IncCounter(metrics.ClusterForwardingPolicyRequests)
+
 	if domainNotActiveErr.ActiveCluster == "" {
 		policy.logger.Debugf("No active cluster specified in the error returned from cluster:%q for domain:%q, api: %q so skipping redirect", targetDC, domainEntry.GetInfo().Name, apiName)
 		return err
@@ -308,12 +326,14 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndI
 
 	if !policy.config.EnableDomainNotActiveAutoForwarding(domainEntry.GetInfo().Name) {
 		// Do not do dc redirection if auto-forwarding dynamicconfig is not enabled
+		policy.logger.Debugf("Auto-forwarding dynamicconfig is not enabled for domain:%q, api: %q", domainEntry.GetInfo().Name, apiName)
 		return policy.currentClusterName, false
 	}
 
 	currentActiveCluster := domainEntry.GetReplicationConfig().ActiveClusterName
 	if domainEntry.GetReplicationConfig().IsActiveActive() {
 		currentActiveCluster = policy.activeClusterForActiveActiveDomainRequest(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName)
+		policy.logger.Debugf("Active-active domain, forwarding to workflow active cluster:%q for domain:%q, api: %q", currentActiveCluster, domainEntry.GetInfo().Name, apiName)
 	}
 
 	if policy.allDomainAPIs {
@@ -327,6 +347,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndI
 	}
 
 	if requestedConsistencyLevel == types.QueryConsistencyLevelStrong {
+		policy.logger.Debugf("Strong consistency requested, forwarding to active cluster:%q for domain:%q, api: %q", currentActiveCluster, domainEntry.GetInfo().Name, apiName)
 		return currentActiveCluster, true
 	}
 
