@@ -239,7 +239,6 @@ func (h *handlerImpl) CreateEngine(
 		h.GetMatchingRawClient(),
 		h.failoverCoordinator,
 		h.queueFactories,
-		h.GetMetricsEmitter(),
 	)
 }
 

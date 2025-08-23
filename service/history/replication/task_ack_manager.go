@@ -34,7 +34,6 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/metrics/structured"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -45,9 +44,8 @@ type (
 	TaskAckManager struct {
 		ackLevels ackLevelStore
 
-		scope   metrics.Scope
-		metrics ackTags
-		logger  log.Logger
+		scope  metrics.Scope
+		logger log.Logger
 
 		reader taskReader
 		store  *TaskStore
@@ -73,36 +71,11 @@ type (
 	}
 )
 
-//go:generate metricsgen
-
-type ackTags struct {
-	structured.Emitter
-	structured.OperationTags
-
-	Shard int `tag:"shard"` // shard ID for the metrics.  intentionally avoiding legacy "instance" tag, it's somewhat frequently used by infra to mean "the process/host".
-}
-
-func (a ackTags) replicationLag(readLevelKey persistence.HistoryTaskKey, requested []persistence.Task, returned *types.ReplicationMessages, legacyScope metrics.Scope) {
-	// new metrics.  all of these are generally <1k, so they're using the small int range
-	a.Histogram("replication_tasks_lag_per_shard", structured.UpTo10kInts, time.Duration(readLevelKey.GetTaskID()-returned.LastRetrievedMessageID))
-	a.Histogram("replication_tasks_returned_per_shard", structured.UpTo10kInts, time.Duration(len(returned.ReplicationTasks)))
-	// dual-emit all-shard-aggregated metrics (exclude shard == only include operation).
-	// per-shard histograms are very high cardinality.
-	a.Emitter.Histogram(a.OperationTags, "replication_tasks_lag", structured.UpTo10kInts, time.Duration(readLevelKey.GetTaskID()-returned.LastRetrievedMessageID))
-	a.Emitter.Histogram(a.OperationTags, "replication_tasks_returned", structured.UpTo10kInts, time.Duration(len(returned.ReplicationTasks)))
-
-	// dual-emit old metrics until dashboards/alerts are migrated
-	legacyScope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(readLevelKey.GetTaskID()-returned.LastRetrievedMessageID))
-	legacyScope.RecordTimer(metrics.ReplicationTasksReturned, time.Duration(len(returned.ReplicationTasks)))
-	legacyScope.RecordTimer(metrics.ReplicationTasksReturnedDiff, time.Duration(len(requested)-len(returned.ReplicationTasks))) // appears unused
-}
-
 // NewTaskAckManager initializes a new replication task ack manager
 func NewTaskAckManager(
 	shardID int,
 	ackLevels ackLevelStore,
 	metricsClient metrics.Client,
-	emitter structured.Emitter,
 	logger log.Logger,
 	reader taskReader,
 	store *TaskStore,
@@ -117,11 +90,6 @@ func NewTaskAckManager(
 		scope: metricsClient.Scope(
 			metrics.ReplicatorQueueProcessorScope,
 			metrics.InstanceTag(strconv.Itoa(shardID)),
-		),
-		metrics: newAckTags(
-			emitter,
-			structured.NewOperationTags("replicator_queue_processor"),
-			shardID,
 		),
 		logger:     logger.WithTags(tag.ComponentReplicationAckManager),
 		reader:     reader,
@@ -223,12 +191,9 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		return nil, err
 	}
 
-	t.metrics.replicationLag(
-		t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster),
-		taskInfos,
-		msgs,
-		t.scope,
-	)
+	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID()-msgs.LastRetrievedMessageID))
+	t.scope.RecordTimer(metrics.ReplicationTasksReturned, time.Duration(len(msgs.ReplicationTasks)))
+	t.scope.RecordTimer(metrics.ReplicationTasksReturnedDiff, time.Duration(len(taskInfos)-len(msgs.ReplicationTasks)))
 
 	t.ackLevel(pollingCluster, lastReadTaskID)
 

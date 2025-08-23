@@ -34,7 +34,6 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/metrics/structured"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/proto"
@@ -375,7 +374,6 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 				testShardID,
 				tt.ackLevels,
 				metrics.NewNoopMetricsClient(),
-				structured.NewTestEmitter(t, nil),
 				log.NewNoop(),
 				tt.reader,
 				taskStore,

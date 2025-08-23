@@ -29,7 +29,6 @@ import (
 
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/metrics/structured"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/service/history/config"
@@ -59,7 +58,6 @@ type NewEngineFn func(
 	rawMatchingClient matching.Client,
 	failoverCoordinator failover.Coordinator,
 	queueFactories []queue.Factory,
-	emitter structured.Emitter,
 ) engine.Engine
 
 func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
@@ -156,7 +154,6 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 		shardCtx.Resource.MatchingClient,
 		failoverCoordinator,
 		queueFactories,
-		shardCtx.GetMetricsEmitter(),
 	)
 
 	shardCtx.SetEngine(engine)
