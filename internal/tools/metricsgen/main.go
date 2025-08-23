@@ -310,7 +310,9 @@ func getConvertTag(f *ast.Field) string {
 		return ""
 	}
 	if !strings.Contains(value, "{{") {
-		// malformed convert
+		// malformed convert.
+		// technically possible to use e.g. a static value, but that's less likely
+		// and would probably be better done with a reserved field / custom PutTags instead.
 		log.Fatalf(invalidCodeMsg(f, "convert tags must contain a `{{ . }}` template where the field will be interpolated"))
 	}
 	// valid format
