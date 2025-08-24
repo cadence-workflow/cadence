@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -21,8 +22,9 @@ import (
 // some ugly globals for easier error reporting.
 // typed panics that get caught are probably the easiest way to avoid this, while also retaining failing-line reporting.
 var (
-	FSET *token.FileSet
-	SRC  []byte
+	FSET    *token.FileSet
+	SRC     []byte
+	VERBOSE bool
 )
 
 // list of all skippable things, so mis-spellings and whatnot can be caught.
@@ -51,6 +53,14 @@ type genField struct {
 	Imported  string
 	Type      string
 }
+type constructorField struct {
+	Name string
+	Type string
+}
+type numTagsField struct {
+	Name string
+	Type string
+}
 type genEmbed struct {
 	Name     string
 	Imported string
@@ -59,14 +69,17 @@ type genEmbed struct {
 
 // struct to generate
 type gen struct {
-	Name     string
-	Self     string
-	Fields   []genField
-	Emitter  bool
-	Embeds   []genEmbed
-	Reserved int
-	Skip     map[string]bool
-	NewFunc  string // if the tags struct is private, this will be "newThing", to make the constructor private.  else it is "NewThing".
+	Name                  string
+	Self                  string
+	Fields                []genField
+	ConstructorOnlyFields []constructorField
+	DynamicOperationTags  bool
+	Emitter               bool
+	Embeds                []genEmbed
+	Reserved              int
+	Skip                  map[string]bool
+	NewFunc               string // if the tags struct is private, this will be "newThing", to make the constructor private.  else it is "NewThing".
+	StructuredPkg         string // "structured." anywhere outside the structured package
 }
 
 // Metricsgen is a code generator to simplify creating structured metrics based on
@@ -90,6 +103,8 @@ func main() {
 	// If that becomes a problem, just optionally pass a list of args == names of types to generate,
 	// and ignore the rest.  Should be very easy.
 
+	flag.BoolVar(&VERBOSE, "v", false, "verbose output, e.g. print all types found")
+
 	log.SetFlags(log.Lshortfile) // TODO: I really can't stand this log package, replace?
 	filename := os.Getenv("GOFILE")
 	FSET = token.NewFileSet()
@@ -112,7 +127,11 @@ func main() {
 	// These fields require struct tags:
 	//  - `tag:"..."` to define the tag key name (so it's easily greppable)
 	//  - optionally `convert:"..."` to change how they're stringified (else primitive ints are `Itoa` and any others are untouched)
-	toGenerate := getGenStructs(interesting)
+	structuredPkg := "structured."
+	if os.Getenv("GOPACKAGE") == "structured" {
+		structuredPkg = ""
+	}
+	toGenerate := getGenStructs(interesting, structuredPkg)
 
 	basename := strings.TrimSuffix(filename, ".go")
 	var out io.Writer // smaller interface so it can be replaced with os.Stdout for manual testing
@@ -134,11 +153,14 @@ func main() {
 	// copy all imports, possibly duplicating, and add fmt if needed.
 	// goimports will deduplicate and remove any as needed.
 	imports := append(f.Imports, []*ast.ImportSpec{
-		{Path: &ast.BasicLit{Value: `"fmt"`}},                                               // for strconv
-		{Path: &ast.BasicLit{Value: `"time"`}},                                              // for Histogram's time.Duration
-		{Path: &ast.BasicLit{Value: `"github.com/uber-go/tally"`}},                          // for tally.Buckets
-		{Path: &ast.BasicLit{Value: `"github.com/uber/cadence/common/metrics/structured"`}}, // for emitter
+		{Path: &ast.BasicLit{Value: `"fmt"`}},  // for strconv
+		{Path: &ast.BasicLit{Value: `"time"`}}, // for Histogram's time.Duration
+		// {Path: &ast.BasicLit{Value: `"github.com/uber/cadence/common/metrics"`}}, // for PutOperationTags
 	}...)
+	if structuredPkg != "" {
+		// add the import for emitter and histogram types
+		imports = append(imports, &ast.ImportSpec{Path: &ast.BasicLit{Value: `"github.com/uber/cadence/common/metrics/structured"`}})
+	}
 	for _, i := range imports {
 		// i.Path.Value already has quotes
 		if i.Name != nil {
@@ -158,7 +180,7 @@ func main() {
 	}
 }
 
-func getGenStructs(interesting []namedStruct) []gen {
+func getGenStructs(interesting []namedStruct, structuredPkg string) []gen {
 	var results []gen
 	for _, s := range interesting {
 		var newFunc string
@@ -170,18 +192,25 @@ func getGenStructs(interesting []namedStruct) []gen {
 			newFunc = "New" + s.Name
 		}
 		g := gen{
-			Name:    s.Name,
-			Skip:    s.Skip,
-			Self:    strings.ToLower(s.Name[0:1]),
-			NewFunc: newFunc,
+			Name:          s.Name,
+			Skip:          s.Skip,
+			Self:          strings.ToLower(s.Name[0:1]),
+			NewFunc:       newFunc,
+			StructuredPkg: structuredPkg,
 		}
 		for _, f := range s.Node.Fields.List {
 			switch len(f.Names) {
 			case 0: // embed
+
 				imported, id, ascode := sourceType(f.Type)
 				if id.Name == "Emitter" {
 					g.Emitter = true
-					continue // emitter has special handling
+					continue // emitter always has special handling
+				}
+				if ascode == "structured.DynamicOperationTags" {
+					verbosef("found embedded %v, customizing codegen", ascode)
+					g.DynamicOperationTags = true
+					continue
 				}
 				if !strings.HasSuffix(id.Name, "Tags") {
 					log.Fatal(invalidCodeMsg(f, `embedded types must end with "Tags", as they must conform to the metrics-interface`))
@@ -195,9 +224,15 @@ func getGenStructs(interesting []namedStruct) []gen {
 			case 1: // named field
 				fname := f.Names[0]
 				if !fname.IsExported() {
-					// private field, ignore.  might have a purpose, e.g. a cache or helper func
+					// private field, see if it needs to be added to the constructor but don't otherwise handle it
+					_, _, ascode := sourceType(f.Type) // type can be private, e.g. `string`
+					g.ConstructorOnlyFields = append(g.ConstructorOnlyFields, constructorField{
+						Name: fname.Name,
+						Type: ascode,
+					})
 					continue
 				}
+
 				// ...Tags types cannot be pointers, but others are allowed
 				if strings.HasSuffix(fname.Name, "Tags") {
 					if _, ok := f.Type.(*ast.StarExpr); ok {
@@ -228,7 +263,7 @@ func getGenStructs(interesting []namedStruct) []gen {
 				err := convertTmpl.Execute(&out, g.Self+"."+fname.Name)
 				if err != nil {
 					// use the original tag, not the empty-replaced one
-					log.Fatalf(invalidCodeMsg(f, "bad convert tag, must be a valid text template or empty: convert:%q\nerror: %v", getConvertTag(f), err))
+					log.Fatal(invalidCodeMsg(f, "bad convert tag, must be a valid text template or empty: convert:%q\nerror: %v", getConvertTag(f), err))
 				}
 				g.Fields = append(g.Fields, genField{
 					Name:      fname.Name,
@@ -239,7 +274,7 @@ func getGenStructs(interesting []namedStruct) []gen {
 				})
 			default:
 				// comma-separated, never allowed
-				log.Fatalf(invalidCodeMsg(f, "cannot have comma-separated fields as struct tags must be unique"))
+				log.Fatal(invalidCodeMsg(f, "cannot have comma-separated fields as struct tags must be unique"))
 			}
 		}
 		results = append(results, g)
@@ -248,6 +283,14 @@ func getGenStructs(interesting []namedStruct) []gen {
 }
 
 func findStructs(f *ast.File) []namedStruct {
+	// ast's Doc and Comment fields are somewhat confusing and inconsistent, at
+	// least as far as how humans think of it, and there are many empty and/or
+	// verbose-to-gather ways to get comments.
+	//
+	// so this uses the CommentMap, which acts like humans think of comments:
+	// all text above or on the same line are considered "comments" on a thing.
+	cm := ast.NewCommentMap(FSET, f, f.Comments)
+
 	var results []namedStruct
 	// range over the top-level declarations in the file, find *Tags to generate.
 	// this conveniently excludes any in-func types.
@@ -269,22 +312,29 @@ func findStructs(f *ast.File) []namedStruct {
 				continue // only care about structs with fields
 			}
 
+			verbosef("found struct %v", ts.Name.Name)
 			found := namedStruct{
 				Name: ts.Name.Name,
 				Node: st,
 				Skip: map[string]bool{},
 			}
-			// check struct comments for skip tags
-			for _, word := range strings.Fields(gd.Doc.Text()) {
-				if toskip, ok := strings.CutPrefix(word, "skip:"); ok {
-					// validate the word
-					if !skipNames[toskip] {
-						// it's possible to point to the exact chars in the comment that are wrong, but calculating
-						// that is a bit fiddly because there isn't a convenient way to strip off comment decorator
-						// chars line by line.  Text() does that for us, and the struct decl is close enough to the comment.
-						log.Fatalf(invalidCodeMsg(gd, "unknown skip marker %q, must be one of: %v", toskip, maps.Keys(skipNames)))
+
+			// check struct comments for skip tags.
+			// use `gd`, not `ts/st`, to gather all comments regardless of how
+			// they are technically placed in the AST.
+			for _, cg := range cm.Filter(gd).Comments() {
+				for _, word := range strings.Fields(cg.Text()) {
+					if toskip, ok := strings.CutPrefix(word, "skip:"); ok {
+						// validate the word
+						if !skipNames[toskip] {
+							// it's possible to point to the exact chars in the comment that are wrong, but calculating
+							// that is a bit fiddly because there isn't a convenient way to strip off comment decorator
+							// chars line by line.  Text() does that for us, and the struct decl is close enough to the comment.
+							log.Fatal(invalidCodeMsg(gd, "unknown skip marker %q, must be one of: %v", toskip, maps.Keys(skipNames)))
+						}
+						verbosef("found skip %q (comment %q) for %v", toskip, word, found.Name)
+						found.Skip[toskip] = true
 					}
-					found.Skip[word] = true
 				}
 			}
 			results = append(results, found)
@@ -293,13 +343,19 @@ func findStructs(f *ast.File) []namedStruct {
 	return results
 }
 
+func verbosef(format string, args ...any) {
+	if VERBOSE {
+		fmt.Printf(format+"\n", args...)
+	}
+}
+
 // --- tag helpers ---
 
 func getNameTag(f *ast.Field) string {
 	value := getTag(f, "tag")
 	if value == "" {
 		// must have tag
-		log.Fatalf(invalidCodeMsg(f, "metric tags must have an explicit `tag:\"name\"`"))
+		log.Fatal(invalidCodeMsg(f, "metric tags must have an explicit `tag:\"name\"`"))
 	}
 	return value
 }
@@ -313,7 +369,7 @@ func getConvertTag(f *ast.Field) string {
 		// malformed convert.
 		// technically possible to use e.g. a static value, but that's less likely
 		// and would probably be better done with a reserved field / custom PutTags instead.
-		log.Fatalf(invalidCodeMsg(f, "convert tags must contain a `{{ . }}` template where the field will be interpolated"))
+		log.Fatal(invalidCodeMsg(f, "convert tags must contain a `{{ . }}` template where the field will be interpolated"))
 	}
 	// valid format
 	return value
@@ -353,7 +409,7 @@ func isInt(fieldType ast.Expr) bool {
 			return false // `struct{}` is allowed and not an int
 		}
 	}
-	log.Fatalf(invalidCodeMsg(fieldType, "unknown field type %T: %#v", fieldType, fieldType))
+	log.Fatal(invalidCodeMsg(fieldType, "unknown field type %T: %#v", fieldType, fieldType))
 	panic("unreachable")
 }
 
@@ -441,9 +497,12 @@ var tmpl = template.Must(template.New("").Parse(`
 	// at compile time instead of missing them at run time.
 	func {{.NewFunc}}(
 		{{- if .Emitter }}
-			emitter structured.Emitter,
+			emitter {{.StructuredPkg}}Emitter,
 		{{- end }}
 		{{- range .Embeds }}
+			{{ .Name }} {{ .Type }},
+		{{- end }}
+		{{- range .ConstructorOnlyFields }}
 			{{ .Name }} {{ .Type }},
 		{{- end }}
 		{{- range .Fields }}
@@ -455,6 +514,9 @@ var tmpl = template.Must(template.New("").Parse(`
 				Emitter: emitter,
 			{{- end }}
 			{{- range .Embeds }}
+				{{ .Name }}: {{ .Name }},
+			{{- end }}
+			{{- range .ConstructorOnlyFields }}
 				{{ .Name }}: {{ .Name }},
 			{{- end }}
 			{{- range .Fields }}
@@ -475,15 +537,21 @@ var tmpl = template.Must(template.New("").Parse(`
 		{{- range .Embeds }}
 			num += {{$self}}.{{ .Name }}.NumTags()
 		{{- end }}
+		{{- if .DynamicOperationTags }}
+			num += {{$self}}.DynamicOperationTags.NumTags()
+		{{- end }}
 		return num
 	}
 {{- end }}
 
 {{- if not .Skip.PutTags }}
 	// PutTags writes this set of tags (and its embedded parents) to the passed map.
-	func ({{$self}} {{.Name}}) PutTags(into map[string]string) {
+	func ({{$self}} {{.Name}}) PutTags({{ if .DynamicOperationTags }}operation int, {{ end }}into {{.StructuredPkg}}DynamicTags) {
 		{{- range .Embeds }}
 			{{$self}}.{{ .Name }}.PutTags(into)
+		{{- end }}
+		{{- if .DynamicOperationTags }}
+			{{$self}}.DynamicOperationTags.PutTags(operation, into)
 		{{- end }}
 		{{- range .Fields }}
 			into["{{.MetricTag}}"] = {{ .Convert }} 
@@ -494,9 +562,9 @@ var tmpl = template.Must(template.New("").Parse(`
 {{- if not .Skip.GetTags }}
 	// GetTags is a minor helper to get a pre-allocated-and-filled map with room
 	// for reserved fields (i.e. 'struct{}' type fields, which only declare intent).
-	func ({{$self}} {{.Name}}) GetTags() map[string]string {
-		tags := make(map[string]string, {{$self}}.NumTags())
-		{{$self}}.PutTags(tags)
+	func ({{$self}} {{.Name}}) GetTags({{ if .DynamicOperationTags }}operation int, {{ end }}) {{.StructuredPkg}}DynamicTags {
+		tags := make({{.StructuredPkg}}DynamicTags, {{$self}}.NumTags())
+		{{$self}}.PutTags({{ if .DynamicOperationTags }}operation, {{ end }}tags)
 		return tags
 	}
 {{- end }}
@@ -524,7 +592,7 @@ var tmpl = template.Must(template.New("").Parse(`
 		//
 		// Buckets should essentially ALWAYS be one of the pre-defined values in [github.com/uber/cadence/common/metrics/structured],
 		// or pass nil to choose the [github.com/uber/cadence/common/metrics/structured.Default1ms10m] default value.
-		func ({{$self}} {{.Name}}) Histogram(name string, buckets tally.DurationBuckets, dur time.Duration) {
+		func ({{$self}} {{.Name}}) Histogram(name string, buckets {{.StructuredPkg}}SubsettableBuckets, dur time.Duration) {
 			{{$self}}.Emitter.Histogram({{$self}}, name, buckets, dur)
 		}
 	{{- end }}

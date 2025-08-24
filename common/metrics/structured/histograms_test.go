@@ -1,6 +1,8 @@
 package structured
 
 import (
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -15,20 +17,23 @@ func TestHistogramValues(t *testing.T) {
 		// going up to 80 buckets (plus a zero value) gives us more room to accurately subset at query time,
 		// and doesn't cost much more than the 68 buckets needed to exactly reach 100s.
 		//
-		// this is therefore our "default" histogram bucket.  if you need sub-millisecond or larger values
-		// than about 10 minutes, choose a different one.
-		checkHistogram(t, Default1ms10m, 4, true)
-		assert.Equal(t, 81, len(Default1ms10m), "wrong number of buckets")
-		assert.Greater(t, Default1ms10m[len(Default1ms10m)-1], 10*time.Minute)
-		assert.Less(t, Default1ms10m[len(Default1ms10m)-1], 15*time.Minute) // roughly 14m 42s
+		// this is therefore our "default" histogram bucket.
+		// if you need sub-millisecond or larger values than about 10 minutes, choose a different one.
+		checkHistogram(t, Default1ms10m)
+		assert.Equal(t, 81, Default1ms10m.len(), "wrong number of buckets")
+		assertBetween(t, 10*time.Minute, Default1ms10m.max(), 15*time.Minute) // roughly 14m 42s
 	})
-	t.Run("default_1ms_to_24h", func(t *testing.T) {
-		checkHistogram(t, Default1ms24h, 4, true)
-		assert.Equal(t, 113, len(Default1ms24h), "wrong number of buckets")
-		assert.Greater(t, Default1ms24h[len(Default1ms24h)-1], 24*time.Hour)
-		assert.Less(t, Default1ms24h[len(Default1ms24h)-1], 63*time.Hour)
+	t.Run("high_1ms_to_24h", func(t *testing.T) {
+		checkHistogram(t, High1ms24h)
+		assert.Equal(t, 113, High1ms24h.len(), "wrong number of buckets")
+		assertBetween(t, 24*time.Hour, High1ms24h.max(), 64*time.Hour) // roughly 63h
 	})
-	t.Run("up_to_10k_ints", func(t *testing.T) {
+	t.Run("low_1ms_24h", func(t *testing.T) {
+		checkHistogram(t, Mid1ms24h)
+		assert.Equal(t, 57, Mid1ms24h.len(), "wrong number of buckets")
+		assertBetween(t, 12*time.Hour, Mid1ms24h.max(), 64*time.Hour) // roughly 53h
+	})
+	t.Run("mid_to_32k_ints", func(t *testing.T) {
 		// note: this histogram has some duplicates:
 		// [0]
 		// [1 1 1 1]
@@ -44,18 +49,46 @@ func TestHistogramValues(t *testing.T) {
 		// if this turns out to be expensive in Prometheus / etc, it's easy
 		// enough to start the histogram at 8, and dual-emit a non-exponential
 		// histogram for lower values.
-		checkHistogram(t, UpTo10kInts, 4, false)
-		assert.Equal(t, 57, len(UpTo10kInts), "wrong number of buckets")
-		assert.Greater(t, int(UpTo10kInts[len(UpTo10kInts)-1]), 10000)
-		assert.Less(t, int(UpTo10kInts[len(UpTo10kInts)-1]), 14000) // 13777
+		checkHistogram(t, Mid1To32k)
+		assert.Equal(t, 65, Mid1To32k.len(), "wrong number of buckets")
+		assertBetween(t, 32_000, int(Mid1To32k.max()), 64_000) // 55108
+	})
+	t.Run("low_cardinality_1ms_10s", func(t *testing.T) {
+		checkHistogram(t, Low1ms10s)
+		assert.Equal(t, 33, Low1ms10s.len(), "wrong number of buckets")
+		assertBetween(t, 10*time.Second, Low1ms10s.max(), time.Minute) // roughly 46s
 	})
 }
 
+// test helpers, but could be moved elsewhere if they prove useful
+func (s SubsettableHistogram) width() int                     { return int(math.Pow(2, float64(s.scale))) }
+func (s SubsettableHistogram) len() int                       { return len(s.DurationBuckets) }
+func (s SubsettableHistogram) max() time.Duration             { return s.DurationBuckets[len(s.DurationBuckets)-1] }
+func (s SubsettableHistogram) buckets() tally.DurationBuckets { return s.DurationBuckets }
+
+func (s IntSubsettableHistogram) width() int { return int(math.Pow(2, float64(s.scale))) }
+func (s IntSubsettableHistogram) len() int   { return len(s.DurationBuckets) }
+func (s IntSubsettableHistogram) max() time.Duration {
+	return s.DurationBuckets[len(s.DurationBuckets)-1]
+}
+func (s IntSubsettableHistogram) buckets() tally.DurationBuckets { return s.DurationBuckets }
+
+type numeric interface {
+	~int | ~int64
+}
+
+func assertBetween[T numeric](t *testing.T, min, actual, max T, msgAndArgs ...interface{}) {
+	if actual < min || actual > max {
+		assert.Fail(t, fmt.Sprintf("value %v not between %v and %v", actual, min, max), msgAndArgs...)
+	}
+}
+
 // most histograms should pass this check, but fuzzy comparison is fine if needed for extreme cases.
-func checkHistogram(t *testing.T, h tally.DurationBuckets, width int, printDuration bool) {
-	printHistogram(t, h, 4, printDuration)
-	assert.EqualValues(t, 0, h[0], "first bucket should always be zero")
-	for i := 1; i < len(h); i += width {
+func checkHistogram[T histogrammy](t *testing.T, h T) {
+	printHistogram(t, h)
+	buckets := h.buckets()
+	assert.EqualValues(t, 0, buckets[0], "first bucket should always be zero")
+	for i := 1; i < len(buckets); i += h.width() {
 		if i > 1 {
 			// ensure good float math.
 			//
@@ -65,29 +98,41 @@ func checkHistogram(t *testing.T, h tally.DurationBuckets, width int, printDurat
 			// note that the equivalent tally buckets, e.g.:
 			//     tally.MustMakeExponentialDurationBuckets(time.Millisecond, math.Pow(2, 1.0/4.0))
 			// fails this test, and the logs produced show ugly e.g. 31.999942ms values.
-			assert.Equalf(t, h[i-width]*2, h[i],
+			assert.Equalf(t, buckets[i-h.width()]*2, buckets[i],
 				"current row's value (%v) is not a power of 2 greater than previous (%v), skewed / bad math?",
-				h[i-width], h[i])
+				buckets[i-h.width()], buckets[i])
 		}
 	}
 }
 
-func printHistogram(t *testing.T, h tally.DurationBuckets, width int, printDuration bool) {
-	if printDuration {
-		t.Log(h[:1])
-		for i := 1; i < len(h); i += width {
-			t.Log(h[i : i+width]) // display row by row for easier reading.
-			// ^ this will panic if the histograms are not an even multiple of `width`,
-			// that's also a sign that it's constructed incorrectly.
-		}
-	} else {
-		hi := make([]int, len(h))
-		for i, v := range h {
+func printHistogram[T histogrammy](t *testing.T, histogram T) {
+	switch h := (any)(histogram).(type) {
+	case IntSubsettableHistogram:
+		hi := make([]int, len(h.buckets())) // convert to int
+		for i, v := range h.buckets() {
 			hi[i] = int(v)
 		}
 		t.Log(hi[:1])
-		for i := 1; i < len(hi); i += width {
-			t.Log(hi[i : i+width])
+		for i := 1; i < len(hi); i += h.width() {
+			t.Log(hi[i : i+h.width()])
 		}
+	case SubsettableHistogram:
+		t.Log(h.buckets()[:1])
+		for i := 1; i < len(h.buckets()); i += h.width() {
+			t.Log(h.buckets()[i : i+h.width()]) // display row by row for easier reading.
+			// ^ this will panic if the histograms are not an even multiple of `width`,
+			// that's also a sign that it's constructed incorrectly.
+		}
+	default:
+		panic("unreachable")
 	}
+}
+
+type histogrammy interface {
+	SubsettableHistogram | IntSubsettableHistogram
+
+	width() int
+	len() int
+	max() time.Duration
+	buckets() tally.DurationBuckets
 }

@@ -129,6 +129,82 @@ func TestMetricDefs(t *testing.T) {
 	}
 }
 
+// "index -> operation" must be unique for structured.DynamicOperationTags' int lookup to work consistently.
+// Duplicate indexes with the same operation name are technically fine, but there doesn't seem to be any benefit in allowing it,
+// and it trivially ensures that all indexes have only one operation name.
+func TestOperationIndexesAreUnique(t *testing.T) {
+	seen := make(map[int]bool)
+	for serviceIdx, serviceOps := range ScopeDefs {
+		for idx := range serviceOps {
+			if seen[idx] {
+				t.Error("duplicate operation index:", idx, "with name:", serviceOps[idx].operation, "in service:", serviceIdx)
+			}
+			seen[idx] = true
+		}
+	}
+}
+
+func TestMetricsAreUnique(t *testing.T) {
+	// Duplicate metric names are likely to cause Prometheus errors (and have previously) due to different labels.
+	t.Run("names", func(t *testing.T) {
+		checkIgnore := func(service1, service2 ServiceIdx, metric1, metric2 int) {
+			assert.NotEqual(t, metric1, metric2)                         // make sure they're actually different
+			assert.NotEmpty(t, MetricDefs[service1][metric1].metricName) // sanity check
+			assert.NotEmpty(t, MetricDefs[service2][metric2].metricName) // sanity check
+			assert.Equal(t, MetricDefs[service1][metric1].metricName, MetricDefs[service2][metric2].metricName)
+		}
+		seen := make(map[string]bool)
+		for serviceIdx, serviceMetrics := range MetricDefs {
+			for idx, met := range serviceMetrics {
+				// known conflicts, remove if changed:
+				switch idx {
+				case CacheFullCounter, BaseCacheFullCounter:
+					checkIgnore(History, Common, CacheFullCounter, BaseCacheFullCounter)
+					continue
+				case CacheHitCounter, BaseCacheHit:
+					checkIgnore(History, Common, CacheHitCounter, BaseCacheHit)
+					continue
+				case CacheMissCounter, BaseCacheMiss:
+					checkIgnore(History, Common, CacheMissCounter, BaseCacheMiss)
+					continue
+				case CrossClusterFetchFailures, CrossClusterTaskRespondFailures:
+					// almost certainly unintended
+					checkIgnore(serviceIdx, serviceIdx, CrossClusterFetchFailures, CrossClusterTaskRespondFailures)
+					continue
+				case CadenceRequestsPerTaskList, CadenceRequestsPerTaskListWithoutRollup:
+					// arguably this one is fine
+					checkIgnore(serviceIdx, serviceIdx, CadenceRequestsPerTaskList, CadenceRequestsPerTaskListWithoutRollup)
+					continue
+				default:
+					// check the value below
+				}
+				str := string(met.metricName)
+				if seen[str] {
+					t.Error("duplicate metric name:", str, "at index:", idx)
+				}
+				seen[str] = true
+			}
+		}
+	})
+	// Duplicate indexes is arguably fine, but there doesn't seem to be any benefit in allowing it.
+	t.Run("indexes", func(t *testing.T) {
+		seen := make(map[int]bool)
+		for _, serviceMetrics := range MetricDefs {
+			for idx := range serviceMetrics {
+				if seen[idx] {
+					t.Error("duplicate metric index:", idx, "with name:", serviceMetrics[idx].metricName)
+				}
+				seen[idx] = true
+			}
+		}
+	})
+}
+
+// Duplicate metric names are likely to cause Prometheus errors due to different labels.
+func TestOperationsAreUnique(t *testing.T) {
+
+}
+
 func TestExponentialDurationBuckets(t *testing.T) {
 	factor := math.Pow(2, 0.25)
 	assert.Equal(t, 80, len(ExponentialDurationBuckets))

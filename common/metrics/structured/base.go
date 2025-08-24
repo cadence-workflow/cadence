@@ -2,6 +2,8 @@ package structured
 
 import (
 	"maps"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,19 +67,58 @@ type Emitter struct {
 }
 
 // Histogram records a duration-based histogram with the provided data.
-//
-// `buckets` may be nil: this is equivalent to Default1ms10m, so it does not need
-// to be explicitly imported.
-func (b Emitter) Histogram(meta Metadata, name string, buckets tally.DurationBuckets, dur time.Duration) {
-	if buckets == nil {
-		buckets = Default1ms10m
+// It adds a "histogram_scale" tag, so histograms can be accurately subset in queries or via middleware.
+func (b Emitter) Histogram(meta Metadata, name string, buckets SubsettableHistogram, dur time.Duration) {
+	tags := make(DynamicTags, meta.NumTags()+1)
+	meta.PutTags(tags)
+
+	// all subsettable histograms need to emit scale values so scale changes
+	// can be correctly merged at query time.
+	if _, ok := tags["histogram_scale"]; ok {
+		// rewrite the existing tag so it can be noticed
+		tags["error_rename_this_tag_histogram_scale"] = tags["histogram_scale"]
 	}
-	b.scope.Tagged(meta.GetTags()).Histogram(name, buckets).RecordDuration(dur)
+	tags["histogram_scale"] = strconv.Itoa(buckets.scale)
+
+	if !strings.HasSuffix(name, "_ns") {
+		// duration-based histograms are always in nanoseconds,
+		// and the name MUST be different from timers while we migrate,
+		// so this ensures we always have a unique _ns suffix.
+		//
+		// hopefully this is never used, but it'll at least make it clear if it is.
+		name = name + "_error_missing_suffix_ns"
+	}
+	b.scope.Tagged(tags).Histogram(name, buckets).RecordDuration(dur)
 }
 
-// TODO: make a MinMaxHistogram which maintains a precise, rolling min/max gauge,
-// over a window larger than the metrics granularity (e.g. ~20s) to work around
-// gauges' last-data-only behavior.
+// IntHistogram records a count-based histogram with the provided data.
+// It adds a "histogram_scale" tag, so histograms can be accurately subset in queries or via middleware.
+func (b Emitter) IntHistogram(meta Metadata, name string, buckets IntSubsettableHistogram, num int) {
+	tags := make(DynamicTags, meta.NumTags()+1)
+	meta.PutTags(tags)
+
+	// all subsettable histograms need to emit scale values so scale changes
+	// can be correctly merged at query time.
+	if _, ok := tags["histogram_scale"]; ok {
+		// rewrite the existing tag so it can be noticed
+		tags["error_rename_this_tag_histogram_scale"] = tags["histogram_scale"]
+	}
+	tags["histogram_scale"] = strconv.Itoa(buckets.scale)
+
+	if !strings.HasSuffix(name, "_counts") {
+		// int-based histograms are always in "_counts" (currently anyway),
+		// and the name MUST be different from timers while we migrate.
+		// so this ensures we always have a unique _counts suffix.
+		//
+		// hopefully this is never used, but it'll at least make it clear if it is.
+		name = name + "_error_missing_suffix_counts"
+	}
+	b.scope.Tagged(tags).Histogram(name, buckets).RecordDuration(time.Duration(num))
+}
+
+// TODO: make a MinMaxHistogram helper which maintains a precise, rolling
+//  min/max gauge, over a window larger than the metrics granularity (e.g. ~20s)
+// to work around gauges' last-data-only behavior.
 //
 // This will likely require some additional state though, and might benefit from
 // keeping that state further up the Tags-stack to keep contention and

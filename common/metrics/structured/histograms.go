@@ -3,6 +3,7 @@ package structured
 import (
 	"fmt"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/uber-go/tally"
@@ -19,31 +20,101 @@ import (
 // if needed (e.g. to reduce scale if it is too costly to support).
 var (
 	// Default1ms10m is our "default" set of buckets, targeting 1ms through 100s,
-	// and is "rounded up" slightly to reach 80 buckets == 16 minutes.  (100s needs 68 buckets)
+	// and is "rounded up" slightly to reach 80 buckets == 16 minutes (100s needs 68 buckets),
+	// plus multi-minute exceptions are common enough to support for the small additional cost.
 	//
 	// If you need sub-millisecond precision, or substantially longer durations than about 1 minute,
 	// consider using a different histogram.
-	Default1ms10m = MakeExponentialHistogram(time.Millisecond, 2, func(last time.Duration, length int) bool {
-		return last >= 100*time.Second && length == 80
+	Default1ms10m = makeSubsettableHistogram(time.Millisecond, 2, func(last time.Duration, length int) bool {
+		return last >= 10*time.Minute && length == 80
 	})
 
-	// Default1ms24h covers things like activity latency, where "longer than 1 day" is not particularly worth being
-	// precise about.  If they care about more precise / longer-range values, they can emit them in their code.
-	Default1ms24h = MakeExponentialHistogram(time.Millisecond, 2, func(last time.Duration, length int) bool {
-		// 24h leads to 108 buckets, 32h gives 112 which divides better
+	// High1ms24h covers things like activity latency, where "longer than 1 day" is not
+	// particularly worth being precise about.
+	//
+	// This uses a lot of buckets, so it must be used with relatively-low cardinality elsewhere,
+	// and/or consider dual emitting (Mid1ms24h or lower) so overviews can be queried efficiently.
+	High1ms24h = makeSubsettableHistogram(time.Millisecond, 2, func(last time.Duration, length int) bool {
+		// 24h leads to 108 buckets, raise to 112 for cleaner subsetting
 		return last >= 24*time.Hour && length == 112
 	})
 
-	// UpTo10kInts is a histogram for small counters, like "how many replication tasks did we receive".
-	// This targets 1 to 10,000.
-	UpTo10kInts = MakeExponentialHistogram(1, 2, func(last time.Duration, length int) bool {
-		return last >= 10000
+	// Mid1ms24h is one-scale-lower version of High1ms24h,
+	// for use when we know it's too detailed to be worth emitting.
+	//
+	// This uses 57 buckets, half of High1ms24h's 113
+	Mid1ms24h = High1ms24h.subsetTo(1)
+
+	// Low1ms10s is for things that are usually very fast, like most individual database calls,
+	// and is MUCH lower cardinality than Default1ms10m so it's more suitable for things like per-shard metrics.
+	Low1ms10s = makeSubsettableHistogram(time.Millisecond, 1, func(last time.Duration, length int) bool {
+		// 10s needs 26 buckets, raise to 32 for cleaner subsetting
+		return last >= 10*time.Second && length == 32
 	})
+
+	// Mid1To32k is a histogram for small counters, like "how many replication tasks did we receive".
+	// This targets 1 to 32k
+	Mid1To32k = IntSubsettableHistogram(makeSubsettableHistogram(1, 2, func(last time.Duration, length int) bool {
+		// 10k needs 56 buckets, raise to 64 for cleaner subsetting
+		return last >= 10000 && length == 64
+	}))
 )
 
-// MakeExponentialHistogram is a replacement for tally.MustMakeExponentialDurationBuckets,
-// tailored to make "construct a range" or "ensure N buckets" simpler for OTEL-compatible exponential histograms,
-// and ensures values are as precise as possible (preventing display-space-wasteful numbers like 3.99996ms),
+type SubsettableHistogram struct {
+	tally.DurationBuckets
+
+	scale int
+}
+
+// IntSubsettableHistogram is a non-duration-based integer-distribution histogram.
+// These histograms MUST always have a "_counts" suffix in their name to avoid confusion with timers.
+type IntSubsettableHistogram SubsettableHistogram
+
+// currently we have no apparent need for float-histograms,
+// as all our value ranges go from ~1 to many thousands, where
+// decimal precision is pointless and mostly just looks bad.
+//
+// if we ever need 0..1 precision in histograms, we can add them then.
+// 	type FloatSubsettableHistogram struct {
+// 		tally.ValueBuckets
+// 		scale int
+// 	}
+
+func (s SubsettableHistogram) subsetTo(newScale int) SubsettableHistogram {
+	if newScale >= s.scale {
+		panic(fmt.Sprintf("scale %v is not less than the current scale %v", newScale, s.scale))
+	}
+	if newScale < 0 {
+		panic(fmt.Sprintf("negative scales (%v == greater than *2 per step) are possible, but do not have tests yet", newScale))
+	}
+	dup := SubsettableHistogram{
+		DurationBuckets: slices.Clone(s.DurationBuckets),
+		scale:           s.scale,
+	}
+	// remove every other bucket per -1 scale
+	for dup.scale > newScale {
+		if (len(dup.DurationBuckets)-1)%2 != 0 {
+			panic(fmt.Sprintf("cannot subset from scale %v to %v, %v-buckets is not divisible by 2", dup.scale, dup.scale-1, len(dup.DurationBuckets)-1))
+		}
+		half := make(tally.DurationBuckets, 0, ((len(dup.DurationBuckets)-1)/2)+1)
+		half = append(half, dup.DurationBuckets[0]) // keep the zero value
+		for i := 1; i < len(dup.DurationBuckets); i += 2 {
+			half = append(half, dup.DurationBuckets[i]) // add first, third, etc
+		}
+		dup.DurationBuckets = half
+		dup.scale--
+	}
+	return dup
+}
+
+func (i IntSubsettableHistogram) subsetTo(newScale int) IntSubsettableHistogram {
+	return IntSubsettableHistogram(SubsettableHistogram(i).subsetTo(newScale))
+}
+
+// makeSubsettableHistogram is a replacement for tally.MustMakeExponentialDurationBuckets,
+// tailored to make "construct a range" or "ensure N buckets" simpler for OTEL-compatible exponential histograms
+// (i.e. https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exponentialhistogram),
+// ensures values are as precise as possible (preventing display-space-wasteful numbers like 3.99996ms),
 // and that all histograms start with a 0 value (else erroneous negative values are impossible to notice).
 //
 // Start time must be positive, scale must be 0..3 (inclusive), and the loop MUST stop within 320 or fewer steps,
@@ -59,7 +130,7 @@ var (
 //
 // For all values produced, please add a test to print the concrete values, and record the length and maximum time
 // so they can be quickly checked when reading.
-func MakeExponentialHistogram(start time.Duration, scale int, stop func(last time.Duration, length int) bool) tally.DurationBuckets {
+func makeSubsettableHistogram(start time.Duration, scale int, stop func(last time.Duration, length int) bool) SubsettableHistogram {
 	if start <= 0 {
 		panic(fmt.Sprintf("start must be greater than 0 or it will not grow exponentially, got %v", start))
 	}
@@ -93,7 +164,10 @@ func MakeExponentialHistogram(start time.Duration, scale int, stop func(last tim
 	for (len(buckets)-1)%powerOfTwoWidth != 0 {
 		buckets = append(buckets, nextBucket(start, len(buckets)-1, scale))
 	}
-	return buckets
+	return SubsettableHistogram{
+		DurationBuckets: buckets,
+		scale:           scale,
+	}
 }
 
 func nextBucket(start time.Duration, num int, scale int) time.Duration {

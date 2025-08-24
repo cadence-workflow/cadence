@@ -24,14 +24,23 @@ func (o OperationTags) NumTags() int {
 }
 
 // PutTags writes this set of tags (and its embedded parents) to the passed map.
-func (o OperationTags) PutTags(into map[string]string) {
+func (o OperationTags) PutTags(into DynamicTags) {
 	into["operation"] = o.Operation
 }
 
 // GetTags is a minor helper to get a pre-allocated-and-filled map with room
 // for reserved fields (i.e. 'struct{}' type fields, which only declare intent).
-func (o OperationTags) GetTags() map[string]string {
-	tags := make(map[string]string, o.NumTags())
+func (o OperationTags) GetTags() DynamicTags {
+	tags := make(DynamicTags, o.NumTags())
 	o.PutTags(tags)
 	return tags
+}
+
+// NumTags returns the number of tags that are intended to be written in all
+// cases.  This will include all embedded parent tags and all reserved tags,
+// and is intended to be used to pre-allocate maps of tags.
+func (d DynamicOperationTags) NumTags() int {
+	num := 0 // num of self fields
+	num += 1 // num of reserved fields
+	return num
 }

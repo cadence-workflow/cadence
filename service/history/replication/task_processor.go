@@ -41,6 +41,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/metrics/structured"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/reconciliation"
@@ -73,18 +74,19 @@ type (
 
 	// taskProcessorImpl is responsible for processing replication tasks for a shard.
 	taskProcessorImpl struct {
-		currentCluster    string
-		sourceCluster     string
-		status            int32
-		shard             shard.Context
-		historyEngine     engine.Engine
-		historySerializer persistence.PayloadSerializer
-		config            *config.Config
-		metricsClient     metrics.Client
-		logger            log.Logger
-		taskExecutor      TaskExecutor
-		hostRateLimiter   quotas.Limiter
-		shardRateLimiter  quotas.Limiter
+		currentCluster       string
+		sourceCluster        string
+		status               int32
+		shard                shard.Context
+		historyEngine        engine.Engine
+		historySerializer    persistence.PayloadSerializer
+		config               *config.Config
+		metricsClient        metrics.Client
+		perDomainTaskMetrics perDomainTaskMetricTags
+		logger               log.Logger
+		taskExecutor         TaskExecutor
+		hostRateLimiter      quotas.Limiter
+		shardRateLimiter     quotas.Limiter
 
 		taskRetryPolicy backoff.RetryPolicy
 		dlqRetryPolicy  backoff.RetryPolicy
@@ -103,7 +105,47 @@ type (
 		token    *types.ReplicationToken
 		respChan chan<- *types.ReplicationMessages
 	}
+
+	// all metrics tags are dynamic per task and cannot be filled in up-front.
+	//
+	// skip:Convenience unsafe to use ad-hoc due to dynamic values
+	perDomainTaskMetricTags struct {
+		structured.Emitter
+		structured.DynamicOperationTags `skip:"New"`
+
+		TargetCluster string   `tag:"target_cluster"`
+		Domain        struct{} `tag:"domain"`
+
+		ts clock.TimeSource
+	}
 )
+
+//go:generate metricsgen
+
+func (p perDomainTaskMetricTags) taskProcessed(operation int, domain string, processingStart time.Time, task *types.ReplicationTask, legacyScope metrics.Scope) {
+	tags := p.GetTags(operation)
+	tags["domain"] = domain
+
+	now := p.ts.Now()
+	processingLatency := now.Sub(processingStart)
+	replicationLatency := now.Sub(time.Unix(0, task.GetCreationTime()))
+
+	// single-task processing latency
+	// caution: prometheus will not allow timers and histograms to use the same name,
+	// so the "_ns" suffix here is necessary.
+	p.Histogram(tags, "task_processing_latency_ns", structured.Low1ms10s, processingLatency)
+	// latency from task generated to task received
+	p.Histogram(tags, "task_replication_latency_ns", structured.Mid1ms24h, replicationLatency)
+	// number of replication tasks
+	p.Count(tags, "replication_tasks_applied_per_domain", 1)
+
+	// emit single task processing latency
+	legacyScope.RecordTimer(metrics.TaskProcessingLatency, processingLatency)
+	// emit latency from task generated to task received
+	legacyScope.RecordTimer(metrics.ReplicationTaskLatency, replicationLatency)
+	// emit the number of replication tasks
+	legacyScope.IncCounter(metrics.ReplicationTasksAppliedPerDomain)
+}
 
 var _ TaskProcessor = (*taskProcessorImpl)(nil)
 
@@ -113,6 +155,7 @@ func NewTaskProcessor(
 	historyEngine engine.Engine,
 	config *config.Config,
 	metricsClient metrics.Client,
+	emitter structured.Emitter,
 	taskFetcher TaskFetcher,
 	taskExecutor TaskExecutor,
 	clock clock.TimeSource,
@@ -134,14 +177,19 @@ func NewTaskProcessor(
 	noTaskBackoffPolicy.SetExpirationInterval(backoff.NoInterval)
 	noTaskRetrier := backoff.NewRetrier(noTaskBackoffPolicy, clock)
 	return &taskProcessorImpl{
-		currentCluster:         shard.GetClusterMetadata().GetCurrentClusterName(),
-		sourceCluster:          sourceCluster,
-		status:                 common.DaemonStatusInitialized,
-		shard:                  shard,
-		historyEngine:          historyEngine,
-		historySerializer:      persistence.NewPayloadSerializer(),
-		config:                 config,
-		metricsClient:          metricsClient,
+		currentCluster:    shard.GetClusterMetadata().GetCurrentClusterName(),
+		sourceCluster:     sourceCluster,
+		status:            common.DaemonStatusInitialized,
+		shard:             shard,
+		historyEngine:     historyEngine,
+		historySerializer: persistence.NewPayloadSerializer(),
+		config:            config,
+		metricsClient:     metricsClient,
+		perDomainTaskMetrics: newPerDomainTaskMetricTags(
+			emitter,
+			clock,
+			sourceCluster, // historically emitted as "target_cluster", unsure why
+		),
 		logger:                 shard.GetLogger().WithTags(tag.SourceCluster(sourceCluster), tag.ShardID(shardID)),
 		taskExecutor:           taskExecutor,
 		hostRateLimiter:        taskFetcher.GetRateLimiter(),
