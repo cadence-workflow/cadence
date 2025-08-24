@@ -71,14 +71,15 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			pass.Reportf(call.Pos(), "method %s called with nil receiver type, unsure how this is possible", methodName)
 			return
 		}
-		typeName, ok := relevantTypeName(receiverType)
-		if !ok {
+		if _, ok := relevantTypeName(receiverType); !ok {
 			return
 		}
 
-		metricNameIdx := 0 // first arg for ...Tags methods
-		if typeName == "Emitter" {
-			metricNameIdx = 1 // second arg for Emitter methods
+		// Determine if this is an Emitter-style method by checking if it comes from embedded Emitter
+		// Emitter methods have Metadata as their first parameter
+		metricNameIdx := 0 // default for direct ...Tags methods
+		if isEmitterMethod(pass, sel, receiverType) {
+			metricNameIdx = 1 // second arg for Emitter methods (after Metadata)
 		}
 
 		if len(call.Args) <= metricNameIdx {
@@ -136,4 +137,67 @@ func getConstantString(pass *analysis.Pass, expr ast.Expr) (str string, ok bool)
 		return "", false
 	}
 	return strings.Trim(lit.Value, `"`), true
+}
+
+// isEmitterMethod checks if a method call is calling an Emitter method
+// either directly on structured.Emitter or through embedding
+func isEmitterMethod(pass *analysis.Pass, sel *ast.SelectorExpr, receiverType types.Type) bool {
+	// First check if the receiver is directly structured.Emitter
+	actualType := receiverType
+	if ptr, ok := actualType.(*types.Pointer); ok {
+		actualType = ptr.Elem()
+	}
+
+	if named, ok := actualType.(*types.Named); ok {
+		obj := named.Obj()
+		if obj != nil && obj.Pkg() != nil &&
+			obj.Pkg().Path() == structuredEmitterPath &&
+			obj.Name() == "Emitter" {
+			return true
+		}
+	}
+
+	panic("TODO: dang this is complicated.  get rid of it, require direct calls?  why, go/types, why")
+	// If not direct, check if it's embedded
+	methodName := sel.Sel.Name
+	methodSet := types.NewMethodSet(receiverType)
+
+	for i := 0; i < methodSet.Len(); i++ {
+		selection := methodSet.At(i)
+
+		if selection.Obj().Name() != methodName {
+			continue
+		}
+		// Check if this method is embedded (index length > 1 means it's accessed through embedding)
+		indices := selection.Index()
+		if len(indices) > 1 {
+			// This is an embedded method - walk the embedding path to find the actual source
+			currentType := receiverType
+
+			// Follow the embedding path
+			for _, index := range indices[:len(indices)-1] {
+				if named, ok := currentType.(*types.Named); ok {
+					underlying := named.Underlying()
+					if structType, ok := underlying.(*types.Struct); ok {
+						field := structType.Field(index)
+						currentType = field.Type()
+					}
+				}
+			}
+
+			// Check if the final embedded type is structured.Emitter
+			if named, ok := currentType.(*types.Named); ok {
+				obj := named.Obj()
+				if obj != nil && obj.Pkg() != nil &&
+					obj.Pkg().Path() == structuredEmitterPath &&
+					obj.Name() == "Emitter" {
+					return true
+				}
+			}
+		}
+		break
+
+	}
+
+	return false
 }
