@@ -355,7 +355,6 @@ $(BUILD)/protoc: $(PROTO_FILES) $(STABLE_BIN)/$(PROTOC_VERSION_BIN) $(BIN)/proto
 	   fi
 	$Q touch $@
 
-# fast enough to not care about re-running when running `make go-generate`
 $(BUILD)/metrics: $(ALL_SRC) $(BIN)/metricsgen
 	$Q $(BIN_PATH) go generate -run=metricsgen ./...
 	$Q touch $@
@@ -556,6 +555,7 @@ go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap $(BIN)/m
 	$Q echo "running go generate ./..., this takes a minute or more..."
 	$Q # add our bins to PATH so `go generate` can find them
 	$Q $(BIN_PATH) go generate $(if $(verbose),-v) ./...
+	$Q touch $(BUILD)/metrics # whole-service go-generate also regenerates metrics
 	$Q $(MAKE) --no-print-directory fmt
 # 	$Q echo "updating copyright headers"
 # 	$Q $(MAKE) --no-print-directory copyright
