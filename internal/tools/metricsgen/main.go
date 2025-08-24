@@ -57,10 +57,6 @@ type constructorField struct {
 	Name string
 	Type string
 }
-type numTagsField struct {
-	Name string
-	Type string
-}
 type genEmbed struct {
 	Name     string
 	Imported string
@@ -72,11 +68,11 @@ type gen struct {
 	Name                  string
 	Self                  string
 	Fields                []genField
-	ConstructorOnlyFields []constructorField
-	DynamicOperationTags  bool
+	ConstructorOnlyFields []constructorField // private non-tag fields that need to go in the constructor
+	DynamicOperationTags  bool               // requires special handling
 	Emitter               bool
 	Embeds                []genEmbed
-	Reserved              int
+	NumReserved           int
 	Skip                  map[string]bool
 	NewFunc               string // if the tags struct is private, this will be "newThing", to make the constructor private.  else it is "NewThing".
 	StructuredPkg         string // "structured." anywhere outside the structured package
@@ -242,7 +238,7 @@ func getGenStructs(interesting []namedStruct, structuredPkg string) []gen {
 				imported, _, ascode := sourceType(f.Type) // type can be private, e.g. `string`
 				metricTag := getNameTag(f)                // the tag's name is always required
 				if ascode == "struct{}" {
-					g.Reserved++
+					g.NumReserved++
 					// special placeholder field, ignore it.
 					// these serve to give type-hints that a field *will* exist,
 					// but the needs for it are too dynamic to pre-populate.
@@ -533,7 +529,7 @@ var tmpl = template.Must(template.New("").Parse(`
 	// and is intended to be used to pre-allocate maps of tags.
 	func ({{$self}} {{.Name}}) NumTags() int {
 		num := {{ .Fields | len }} // num of self fields 
-		num += {{ .Reserved }} // num of reserved fields
+		num += {{ .NumReserved }} // num of reserved fields
 		{{- range .Embeds }}
 			num += {{$self}}.{{ .Name }}.NumTags()
 		{{- end }}
