@@ -70,7 +70,7 @@ type Emitter struct {
 
 // Histogram records a duration-based histogram with the provided data.
 // It adds a "histogram_scale" tag, so histograms can be accurately subset in queries or via middleware.
-func (b Emitter) Histogram(meta Metadata, name string, buckets SubsettableHistogram, dur time.Duration) {
+func (b Emitter) Histogram(name string, buckets SubsettableHistogram, dur time.Duration, meta Metadata) {
 	tags := make(DynamicTags, meta.NumTags()+1)
 	meta.PutTags(tags)
 
@@ -95,7 +95,7 @@ func (b Emitter) Histogram(meta Metadata, name string, buckets SubsettableHistog
 
 // IntHistogram records a count-based histogram with the provided data.
 // It adds a "histogram_scale" tag, so histograms can be accurately subset in queries or via middleware.
-func (b Emitter) IntHistogram(meta Metadata, name string, buckets IntSubsettableHistogram, num int) {
+func (b Emitter) IntHistogram(name string, buckets IntSubsettableHistogram, num int, meta Metadata) {
 	tags := make(DynamicTags, meta.NumTags()+1)
 	meta.PutTags(tags)
 
@@ -129,12 +129,12 @@ func (b Emitter) IntHistogram(meta Metadata, name string, buckets IntSubsettable
 // Maybe OTEL / Prometheus will natively support this one day.  It'd be simple.
 
 // Count records a counter with the provided data.
-func (b Emitter) Count(meta Metadata, name string, num int) {
+func (b Emitter) Count(name string, num int, meta Metadata) {
 	b.scope.Tagged(meta.GetTags()).Counter(name).Inc(int64(num))
 }
 
 // Gauge emits a gauge with the provided data.
-func (b Emitter) Gauge(meta Metadata, name string, val float64) {
+func (b Emitter) Gauge(name string, val float64, meta Metadata) {
 	b.scope.Tagged(meta.GetTags()).Gauge(name).Update(val)
 }
 

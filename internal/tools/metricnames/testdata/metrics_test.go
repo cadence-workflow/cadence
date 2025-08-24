@@ -10,13 +10,11 @@ func ignoredInTestFiles() {
 
 	// test code is allowed to break the rules because it does not run in production
 
-	emitter.Count(tags, "base_count", 1)
+	emitter.Count("base_count", 1, tags)
 	tags.Gauge("gauge", 12)
 	tags.Histogram("hist_ns", nil, time.Second)
 
 	const sneakyConst = "bad_metric"
 	tags.IntHistogram(sneakyConst, nil, 3)
-	emitter.Count(tags, sneakyConst, 1)
-
-	time.Now()
+	emitter.Count(sneakyConst, 1, tags)
 }

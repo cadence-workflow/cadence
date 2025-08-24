@@ -9,11 +9,12 @@ func GeneratedFunction() {
 	tags := TestTags{}
 
 	// allowed, generated code needs to follow the same rules
-	emitter.Count(tags, "base_count", 1)        // want `success: base_count`
+	emitter.Count("base_count", 1, tags)        // want `success: base_count`
 	tags.Gauge("gauge", 12)                     // want `success: gauge`
 	tags.Histogram("hist_ns", nil, time.Second) // want `success: hist_ns`
+
 	// disallowed, generated code needs to follow the same rules
 	const sneakyConst = "bad_metric"
-	tags.IntHistogram(sneakyConst, nil, 3) // want `metric call with non-inline string argument: sneakyConst`
-	emitter.Count(tags, sneakyConst, 1)    // want `metric call with non-inline string argument: sneakyConst`
+	tags.IntHistogram(sneakyConst, nil, 3) // want `metric names must be in-line strings, not consts or vars: sneakyConst`
+	emitter.Count(sneakyConst, 1, tags)    // want `metric names must be in-line strings, not consts or vars: sneakyConst`
 }

@@ -32,29 +32,44 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
 	nodeFilter := []ast.Node{
-		(*ast.File)(nil),
+		(*ast.File)(nil),     // to skip test files
+		(*ast.FuncDecl)(nil), // to skip test helper funcs
 		(*ast.CallExpr)(nil),
 	}
 	inspect.Nodes(nodeFilter, func(n ast.Node, push bool) (proceed bool) {
 		// always descend by default, in case the call contains a closure that emits metrics.
 		// this covers the sync.Once case in the testdata, for example.
 		proceed = true
-
 		if !push {
 			return // do nothing when ascending the ast tree
 		}
+
+		// check for test files, ignore their content if found
 		file, ok := n.(*ast.File)
 		if ok {
 			filename := pass.Fset.Position(file.Pos()).Filename
 			if strings.HasSuffix(filename, "_test.go") {
-				return false // don't descend into test files
+				return false // don't inspect test files
 			}
 			return
 		}
 
-		call := n.(*ast.CallExpr)
+		// check for test helper funcs anywhere, ignore their content if found.
+		// these are identified by a *testing.T as their first arg.
+		if fn, ok := n.(*ast.FuncDecl); ok {
+			if len(fn.Type.Params.List) > 0 {
+				firstArgType := pass.TypesInfo.TypeOf(fn.Type.Params.List[0].Type)
+				asStr := types.TypeString(firstArgType, nil) // "full/path/to.Type"
+				if asStr == "*testing.T" {
+					return false // don't inspect test helpers
+				}
+			}
+			return
+		}
 
-		// check if this is a method call (receiver.method())
+		call := n.(*ast.CallExpr) // only other possibility due to nodeFilter
+
+		// check if this is a method call (receiver.Method() == X.Sel)
 		sel, ok := call.Fun.(*ast.SelectorExpr)
 		if !ok {
 			return
@@ -65,37 +80,65 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if !targetMethods[methodName] {
 			return
 		}
-		receiverType := pass.TypesInfo.TypeOf(sel.X)
-		if receiverType == nil {
-			// packages-level funcs?
-			pass.Reportf(call.Pos(), "method %s called with nil receiver type, unsure how this is possible", methodName)
+
+		// check if the receiver type is one we care about
+		receiver := pass.TypesInfo.TypeOf(sel.X)
+		// pointer receivers are not allowed, complain if found.
+		// if we just ignore them here, we might miss a metric call with a duplicate name.
+		isPointerReceiver := false
+		ptr, ok := receiver.(*types.Pointer)
+		for ; ok; ptr, ok = receiver.(*types.Pointer) {
+			isPointerReceiver = true
+			receiver = ptr.Elem()
+		}
+		named, ok := receiver.(*types.Named)
+		if !ok {
+			pass.Reportf(sel.Pos(), "non-pointer anonymous receiver of a method call should be impossible?")
 			return
 		}
-		if _, ok := relevantTypeName(receiverType); !ok {
+		if !isTypeMetricsRelated(named) {
 			return
 		}
 
-		// Determine if this is an Emitter-style method by checking if it comes from embedded Emitter
-		// Emitter methods have Metadata as their first parameter
-		metricNameIdx := 0 // default for direct ...Tags methods
-		if isEmitterMethod(pass, sel, receiverType) {
-			metricNameIdx = 1 // second arg for Emitter methods (after Metadata)
-		}
+		// at this point we know that it's "a metrics method", make sure it's valid.
 
-		if len(call.Args) <= metricNameIdx {
-			pass.Reportf(call.Pos(), "method %s called with insufficient arguments, not a valid type? %v", methodName, receiverType)
+		if isPointerReceiver {
+			// could be allowed with a bit more .Elem() dereferencing in this analyzer,
+			// but currently blocked to intentionally force value types.
+			pass.Reportf(sel.Pos(), "pointer receivers are not allowed on metrics emission calls: %v", types.ExprString(sel))
+			return
+		}
+		if len(call.Args) == 0 {
+			// no args == method-name conflict that we shouldn't allow
+			pass.Reportf(call.Pos(), "method call %v looks like a metrics method, but has no args.  this is not currently allowed", call)
 			return
 		}
 
-		metricName, isConstant := getConstantString(pass, call.Args[metricNameIdx])
-
+		// pull out the first arg, and make sure it's a constant inline string.
+		//
+		// both emitters and generated convenience methods use the metric name
+		// as the first argument, because this means we can avoid having to
+		// deal with resolving embedded methods to figure out a different index.
+		//
+		// embedded methods require traversing a MethodSet's result, re-building
+		// the resolution chain to find the actual receiver type.
+		// this is possible, but not worth the amount of code it requires
+		// (around 100 lines with error handling and basic docs for our very
+		// simple "only values, only structs" requirements).
+		nameArg := call.Args[0]
+		metricName, isConstant := getConstantString(nameArg)
 		if !isConstant {
-			// already reported
+			pass.Reportf(nameArg.Pos(), "metric names must be in-line strings, not consts or vars: %v", nameArg)
 			return
 		}
 
+		// valid call!
+		//
 		// "report" the data we've found so it can be checked with a bit of bash.
 		// error if any non-"success" lines were found, else check that the list is unique.
+		//
+		// tests may lead to the same package being processed more than once, but
+		// the reported lines for "path/to/file:line success: {name}" are still unique.
 		pass.Reportf(call.Pos(), "success: %s", metricName)
 		return
 	})
@@ -103,101 +146,41 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func relevantTypeName(t types.Type) (name string, relevant bool) {
-	named, ok := t.(*types.Named)
-	if !ok {
-		return "", false
+func isTypeMetricsRelated(t *types.Named) bool {
+	pkg, name := getPkgAndName(t)
+	if pkg == structuredEmitterPath && name == "Emitter" {
+		return true
 	}
-	obj := named.Obj()
-	if obj == nil {
-		return "", false
+	if (pkg == "github.com/uber/cadence" || strings.HasPrefix(pkg, "github.com/uber/cadence/")) && strings.HasSuffix(name, "Tags") {
+		return true
 	}
-	if obj.Pkg() == nil {
-		return "", false
-	}
-	pkg := obj.Pkg().Path()
-	if pkg == structuredEmitterPath && obj.Name() == "Emitter" {
-		return "Emitter", true
-	}
-	if strings.HasPrefix(pkg, "github.com/uber/cadence") && strings.HasSuffix(obj.Name(), "Tags") {
-		return obj.Name(), true
-	}
-	// external package or not an Emitter/...Tags struct
-	return "", false
+	// some uninteresting type
+	return false
 }
 
-func getConstantString(pass *analysis.Pass, expr ast.Expr) (str string, ok bool) {
+func getPkgAndName(named *types.Named) (pkgPath, name string) {
+	obj := named.Obj()
+	if obj == nil {
+		// afaik not possible, this would be "a named type without a type"
+		return "", ""
+	}
+	pkg := obj.Pkg()
+	if pkg == nil {
+		// given where this is used, I believe this would currently imply
+		// "a builtin type with a method", which does not exist.
+		// but it's fine to return partial values, in case it's used in more places.
+		return "", obj.Name()
+	}
+	return pkg.Path(), obj.Name()
+}
+
+func getConstantString(expr ast.Expr) (str string, ok bool) {
 	lit, ok := expr.(*ast.BasicLit)
 	if !ok {
-		pass.Reportf(expr.Pos(), "metric call with non-inline string argument: %v", expr)
 		return "", false
 	}
 	if lit.Kind != token.STRING {
-		pass.Reportf(expr.Pos(), "metric call with non-inline string argument: %v", expr)
 		return "", false
 	}
 	return strings.Trim(lit.Value, `"`), true
-}
-
-// isEmitterMethod checks if a method call is calling an Emitter method
-// either directly on structured.Emitter or through embedding
-func isEmitterMethod(pass *analysis.Pass, sel *ast.SelectorExpr, receiverType types.Type) bool {
-	// First check if the receiver is directly structured.Emitter
-	actualType := receiverType
-	if ptr, ok := actualType.(*types.Pointer); ok {
-		actualType = ptr.Elem()
-	}
-
-	if named, ok := actualType.(*types.Named); ok {
-		obj := named.Obj()
-		if obj != nil && obj.Pkg() != nil &&
-			obj.Pkg().Path() == structuredEmitterPath &&
-			obj.Name() == "Emitter" {
-			return true
-		}
-	}
-
-	panic("TODO: dang this is complicated.  get rid of it, require direct calls?  why, go/types, why")
-	// If not direct, check if it's embedded
-	methodName := sel.Sel.Name
-	methodSet := types.NewMethodSet(receiverType)
-
-	for i := 0; i < methodSet.Len(); i++ {
-		selection := methodSet.At(i)
-
-		if selection.Obj().Name() != methodName {
-			continue
-		}
-		// Check if this method is embedded (index length > 1 means it's accessed through embedding)
-		indices := selection.Index()
-		if len(indices) > 1 {
-			// This is an embedded method - walk the embedding path to find the actual source
-			currentType := receiverType
-
-			// Follow the embedding path
-			for _, index := range indices[:len(indices)-1] {
-				if named, ok := currentType.(*types.Named); ok {
-					underlying := named.Underlying()
-					if structType, ok := underlying.(*types.Struct); ok {
-						field := structType.Field(index)
-						currentType = field.Type()
-					}
-				}
-			}
-
-			// Check if the final embedded type is structured.Emitter
-			if named, ok := currentType.(*types.Named); ok {
-				obj := named.Obj()
-				if obj != nil && obj.Pkg() != nil &&
-					obj.Pkg().Path() == structuredEmitterPath &&
-					obj.Name() == "Emitter" {
-					return true
-				}
-			}
-		}
-		break
-
-	}
-
-	return false
 }

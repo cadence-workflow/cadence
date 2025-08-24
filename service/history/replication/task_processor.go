@@ -133,9 +133,9 @@ func (p perDomainTaskMetricTags) taskProcessed(operation int, domain string, pro
 	// single-task processing latency
 	// caution: prometheus will not allow timers and histograms to use the same name,
 	// so the "_ns" suffix here is necessary.
-	p.Histogram(tags, "task_processing_latency_ns", structured.Low1ms10s, processingLatency)
+	p.Histogram("task_processing_latency_ns", structured.Low1ms10s, processingLatency, tags)
 	// latency from task generated to task received
-	p.Histogram(tags, "task_replication_latency_ns", structured.Mid1ms24h, replicationLatency)
+	p.Histogram("task_replication_latency_ns", structured.Mid1ms24h, replicationLatency, tags)
 	// number of replication tasks
 	// this is an exact match for the legacy scope, so it would cause duplicates if emitted
 	// p.Count(tags, "replication_tasks_applied_per_domain", 1)

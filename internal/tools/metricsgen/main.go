@@ -28,14 +28,16 @@ var (
 
 // list of all skippable things, so mis-spellings and whatnot can be caught.
 var skipNames = map[string]bool{
-	"New":         true,
-	"NumTags":     true,
-	"PutTags":     true,
-	"GetTags":     true,
-	"Convenience": true,
-	"Inc":         true,
-	"Count":       true,
-	"Histogram":   true,
+	"New":          true,
+	"NumTags":      true,
+	"PutTags":      true,
+	"GetTags":      true,
+	"Convenience":  true,
+	"Inc":          true,
+	"Count":        true,
+	"Gauge":        true,
+	"Histogram":    true,
+	"IntHistogram": true,
 }
 
 // intermediate product, structs that should be inspected further
@@ -586,17 +588,32 @@ var tmpl = template.Must(template.New("").Parse(`
 	{{- if not .Skip.Count }}
 		// Count adds to a named counter with the tags on this struct.
 		func ({{$self}} {{.Name}}) Count(name string, num int) {
-			{{$self}}.Emitter.Count({{$self}}, name, num)
+			{{$self}}.Emitter.Count(name, num, {{$self}})
+		}
+	{{- end }}
+
+	{{- if not .Skip.Gauge }}
+		// Gauge adds to a named gauge with the tags on this struct.
+		func ({{$self}} {{.Name}}) Gauge(name string, num float64) {
+			{{$self}}.Emitter.Gauge(name, num, {{$self}})
 		}
 	{{- end }}
 	
 	{{- if not .Skip.Histogram }}
 		// Histogram records a histogram with the specified buckets.
 		//
-		// Buckets should essentially ALWAYS be one of the pre-defined values in [github.com/uber/cadence/common/metrics/structured],
-		// or pass nil to choose the [github.com/uber/cadence/common/metrics/structured.Default1ms10m] default value.
+		// Buckets should essentially ALWAYS be one of the pre-defined values in [github.com/uber/cadence/common/metrics/structured].
 		func ({{$self}} {{.Name}}) Histogram(name string, buckets {{.StructuredPkg}}SubsettableBuckets, dur time.Duration) {
-			{{$self}}.Emitter.Histogram({{$self}}, name, buckets, dur)
+			{{$self}}.Emitter.Histogram(name, buckets, dur, {{$self}})
+		}
+	{{- end }}
+
+	{{- if not .Skip.IntHistogram }}
+		// IntHistogram records an integer-based histogram with the specified buckets.
+		//
+		// Buckets should essentially ALWAYS be one of the pre-defined values in [github.com/uber/cadence/common/metrics/structured].
+		func ({{$self}} {{.Name}}) Histogram(name string, buckets {{.StructuredPkg}}IntSubsettableBuckets, value int) {
+			{{$self}}.Emitter.IntHistogram(name, buckets, value, {{$self}})
 		}
 	{{- end }}
 {{- end }}

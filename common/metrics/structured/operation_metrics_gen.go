@@ -2,9 +2,9 @@ package structured
 
 // Code generated ./internal/tools/metricsgen; DO NOT EDIT
 
-// NewOperationTags constructs a new metric-tag-holding OperationTags, and it must be used
-// instead of custom initialization to ensure newly added tags can be detected
-// at compile time instead of missing them at run time.
+// NewOperationTags constructs a new metric-tag-holding OperationTags,
+// and it must be used, instead of custom initialization to ensure newly added
+// tags can be detected at compile time instead of missing them at run time.
 func NewOperationTags(
 	Operation string,
 ) OperationTags {

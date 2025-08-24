@@ -7,9 +7,9 @@ import (
 	"github.com/uber/cadence/common/metrics/structured"
 )
 
-// newPerDomainTaskMetricTags constructs a new metric-tag-holding perDomainTaskMetricTags, and it must be used
-// instead of custom initialization to ensure newly added tags can be detected
-// at compile time instead of missing them at run time.
+// newPerDomainTaskMetricTags constructs a new metric-tag-holding perDomainTaskMetricTags,
+// and it must be used, instead of custom initialization to ensure newly added
+// tags can be detected at compile time instead of missing them at run time.
 func newPerDomainTaskMetricTags(
 	emitter structured.Emitter,
 	ts clock.TimeSource,

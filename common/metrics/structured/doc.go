@@ -97,7 +97,7 @@ by hand:
 	func (s SomethingTags) ItHappened(times int) {
 		tags := s.GetTags()                          // get all static tags
 		tags["reserved"] = fmt.Sprint(rand.Intn(10)) // add the reserved one(s)
-		s.Emitter.Count(tags, "it_happened", times)  // use the lower-level Emitter
+		s.Emitter.Count("it_happened", times, tags)  // use the lower-level Emitter
 	}
 
 # Accidental collision prevention
