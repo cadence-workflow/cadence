@@ -12,13 +12,6 @@ import (
 
 func TestHistogramValues(t *testing.T) {
 	t.Run("default_1ms_to_10m", func(t *testing.T) {
-		// 1ms to 100s is a generally reasonable range for lots of things, but we need a bit more.
-		//
-		// going up to 80 buckets (plus a zero value) gives us more room to accurately subset at query time,
-		// and doesn't cost much more than the 68 buckets needed to exactly reach 100s.
-		//
-		// this is therefore our "default" histogram bucket.
-		// if you need sub-millisecond or larger values than about 10 minutes, choose a different one.
 		checkHistogram(t, Default1ms10m)
 		assert.Equal(t, 81, Default1ms10m.len(), "wrong number of buckets")
 		assertBetween(t, 10*time.Minute, Default1ms10m.max(), 15*time.Minute) // roughly 14m 42s
@@ -28,7 +21,7 @@ func TestHistogramValues(t *testing.T) {
 		assert.Equal(t, 113, High1ms24h.len(), "wrong number of buckets")
 		assertBetween(t, 24*time.Hour, High1ms24h.max(), 64*time.Hour) // roughly 63h
 	})
-	t.Run("low_1ms_24h", func(t *testing.T) {
+	t.Run("mid_1ms_24h", func(t *testing.T) {
 		checkHistogram(t, Mid1ms24h)
 		assert.Equal(t, 57, Mid1ms24h.len(), "wrong number of buckets")
 		assertBetween(t, 12*time.Hour, Mid1ms24h.max(), 64*time.Hour) // roughly 53h
@@ -73,6 +66,15 @@ func (s IntSubsettableHistogram) max() time.Duration {
 }
 func (s IntSubsettableHistogram) buckets() tally.DurationBuckets { return s.DurationBuckets }
 
+type histogrammy interface {
+	SubsettableHistogram | IntSubsettableHistogram
+
+	width() int
+	len() int
+	max() time.Duration
+	buckets() tally.DurationBuckets
+}
+
 type numeric interface {
 	~int | ~int64
 }
@@ -98,6 +100,7 @@ func checkHistogram[T histogrammy](t *testing.T, h T) {
 			// note that the equivalent tally buckets, e.g.:
 			//     tally.MustMakeExponentialDurationBuckets(time.Millisecond, math.Pow(2, 1.0/4.0))
 			// fails this test, and the logs produced show ugly e.g. 31.999942ms values.
+			// it also produces incorrect results if you start at e.g. 1, as it never exceeds 1.
 			assert.Equalf(t, buckets[i-h.width()]*2, buckets[i],
 				"current row's value (%v) is not a power of 2 greater than previous (%v), skewed / bad math?",
 				buckets[i-h.width()], buckets[i])
@@ -107,6 +110,13 @@ func checkHistogram[T histogrammy](t *testing.T, h T) {
 
 func printHistogram[T histogrammy](t *testing.T, histogram T) {
 	switch h := (any)(histogram).(type) {
+	case SubsettableHistogram:
+		t.Log(h.buckets()[:1])
+		for i := 1; i < len(h.buckets()); i += h.width() {
+			t.Log(h.buckets()[i : i+h.width()]) // display row by row for easier reading.
+			// ^ this will panic if the histograms are not an even multiple of `width`,
+			// that's also a sign that it's constructed incorrectly.
+		}
 	case IntSubsettableHistogram:
 		hi := make([]int, len(h.buckets())) // convert to int
 		for i, v := range h.buckets() {
@@ -116,23 +126,7 @@ func printHistogram[T histogrammy](t *testing.T, histogram T) {
 		for i := 1; i < len(hi); i += h.width() {
 			t.Log(hi[i : i+h.width()])
 		}
-	case SubsettableHistogram:
-		t.Log(h.buckets()[:1])
-		for i := 1; i < len(h.buckets()); i += h.width() {
-			t.Log(h.buckets()[i : i+h.width()]) // display row by row for easier reading.
-			// ^ this will panic if the histograms are not an even multiple of `width`,
-			// that's also a sign that it's constructed incorrectly.
-		}
 	default:
 		panic("unreachable")
 	}
-}
-
-type histogrammy interface {
-	SubsettableHistogram | IntSubsettableHistogram
-
-	width() int
-	len() int
-	max() time.Duration
-	buckets() tally.DurationBuckets
 }

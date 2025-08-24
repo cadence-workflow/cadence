@@ -11,16 +11,18 @@ import (
 	"go.uber.org/fx"
 )
 
-var Module = fx.Provide(func(s tally.Scope) Emitter {
-	return Emitter{scope: s}
-})
+var Module = fx.Options(
+	fx.Provide(func(s tally.Scope) Emitter {
+		return Emitter{scope: s}
+	}),
+)
 
 // Metadata is a shared interface for all "...Tags" structs.
 //
 // You are generally NOT expected to implement any of this yourself.
 // Just define your struct, and let the code generator take care of it (`make metrics`).
 //
-// For the intended usage, see generated code.
+// For the intended usage and implementation, see generated code.
 type Metadata interface {
 	NumTags() int                   // for efficient pre-allocation
 	PutTags(into map[string]string) // populates the map
@@ -30,7 +32,7 @@ type Metadata interface {
 // DynamicTags is a very simple helper for treating an arbitrary map as a Metadata.
 //
 // This can be used externally (for completely manual metrics) or in metrics-emitting
-// methods to simplify adding custom tags - e.g. just cast the GetTags result.
+// methods to simplify adding custom tags (e.g. it is returned from GetTags).
 type DynamicTags map[string]string
 
 var _ Metadata = DynamicTags{}
@@ -46,7 +48,7 @@ func (o DynamicTags) GetTags() map[string]string     { return maps.Clone(o) }
 // but it's intentionally possible to (ab)use it by hand because ad-hoc metrics
 // should be easy and encouraged.
 //
-// Metadata can be constructed from any map via DynamicMetadata, but this API intentionally hides
+// Metadata can be constructed from any map via DynamicTags, but this API intentionally hides
 // [tally.Scope.Tagged] because it's (somewhat) memory-wasteful, self-referential interfaces are
 // difficult to mock, and it's very hard to figure out what tags may be present at runtime.
 //
@@ -117,7 +119,7 @@ func (b Emitter) IntHistogram(meta Metadata, name string, buckets IntSubsettable
 }
 
 // TODO: make a MinMaxHistogram helper which maintains a precise, rolling
-//  min/max gauge, over a window larger than the metrics granularity (e.g. ~20s)
+// min/max gauge, over a window larger than the metrics granularity (e.g. ~20s)
 // to work around gauges' last-data-only behavior.
 //
 // This will likely require some additional state though, and might benefit from

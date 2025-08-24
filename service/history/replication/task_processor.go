@@ -108,10 +108,10 @@ type (
 
 	// all metrics tags are dynamic per task and cannot be filled in up-front.
 	//
-	// skip:Convenience unsafe to use ad-hoc due to dynamic values
+	// skip:Convenience unable to use ad-hoc due to dynamic values
 	perDomainTaskMetricTags struct {
 		structured.Emitter
-		structured.DynamicOperationTags `skip:"New"`
+		structured.DynamicOperationTags
 
 		TargetCluster string   `tag:"target_cluster"`
 		Domain        struct{} `tag:"domain"`
@@ -137,13 +137,15 @@ func (p perDomainTaskMetricTags) taskProcessed(operation int, domain string, pro
 	// latency from task generated to task received
 	p.Histogram(tags, "task_replication_latency_ns", structured.Mid1ms24h, replicationLatency)
 	// number of replication tasks
-	p.Count(tags, "replication_tasks_applied_per_domain", 1)
+	// this is an exact match for the legacy scope, so it would cause duplicates if emitted
+	// p.Count(tags, "replication_tasks_applied_per_domain", 1)
 
 	// emit single task processing latency
 	legacyScope.RecordTimer(metrics.TaskProcessingLatency, processingLatency)
 	// emit latency from task generated to task received
 	legacyScope.RecordTimer(metrics.ReplicationTaskLatency, replicationLatency)
-	// emit the number of replication tasks
+	// emit the number of replication tasks.
+	// when removing, be sure to un-comment the p.Count above
 	legacyScope.IncCounter(metrics.ReplicationTasksAppliedPerDomain)
 }
 
@@ -188,7 +190,7 @@ func NewTaskProcessor(
 		perDomainTaskMetrics: newPerDomainTaskMetricTags(
 			emitter,
 			clock,
-			sourceCluster, // historically emitted as "target_cluster", unsure why
+			sourceCluster, // emitted as "target_cluster" and logged inconsistently, unsure why
 		),
 		logger:                 shard.GetLogger().WithTags(tag.SourceCluster(sourceCluster), tag.ShardID(shardID)),
 		taskExecutor:           taskExecutor,

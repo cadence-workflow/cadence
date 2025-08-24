@@ -39,7 +39,7 @@ var (
 		return last >= 24*time.Hour && length == 112
 	})
 
-	// Mid1ms24h is one-scale-lower version of High1ms24h,
+	// Mid1ms24h is a one-scale-lower version of High1ms24h,
 	// for use when we know it's too detailed to be worth emitting.
 	//
 	// This uses 57 buckets, half of High1ms24h's 113
@@ -60,18 +60,26 @@ var (
 	}))
 )
 
+// SubsettableHistogram is a duration-based histogram that can be subset to a lower scale
+// in a standardized, predictable way.  It is intentionally compatible with Prometheus and OTEL's
+// "exponential histograms": https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exponentialhistogram
+//
+// These histograms MUST always have a "_ns" suffix in their name to avoid confusion with timers.
 type SubsettableHistogram struct {
 	tally.DurationBuckets
 
 	scale int
 }
 
-// IntSubsettableHistogram is a non-duration-based integer-distribution histogram.
-// These histograms MUST always have a "_counts" suffix in their name to avoid confusion with timers.
+// IntSubsettableHistogram is a non-duration-based integer-distribution histogram, otherwise identical
+// to SubsettableHistogram.
+//
+// These histograms MUST always have a "_counts" suffix in their name to avoid confusion with timers,
+// or modify the Emitter to allow different suffixes if something else reads better.
 type IntSubsettableHistogram SubsettableHistogram
 
 // currently we have no apparent need for float-histograms,
-// as all our value ranges go from ~1 to many thousands, where
+// as all our value ranges go from >=1 to many thousands, where
 // decimal precision is pointless and mostly just looks bad.
 //
 // if we ever need 0..1 precision in histograms, we can add them then.
@@ -128,7 +136,7 @@ func (i IntSubsettableHistogram) subsetTo(newScale int) IntSubsettableHistogram 
 // The buckets produced may be padded further to reach a "full" power-of-2 row, as this simplifies math elsewhere
 // and costs very little compared to the rest of the histogram.
 //
-// For all values produced, please add a test to print the concrete values, and record the length and maximum time
+// For all values produced, please add a test to print the concrete values, and record the length and maximum value
 // so they can be quickly checked when reading.
 func makeSubsettableHistogram(start time.Duration, scale int, stop func(last time.Duration, length int) bool) SubsettableHistogram {
 	if start <= 0 {
@@ -158,8 +166,7 @@ func makeSubsettableHistogram(start time.Duration, scale int, stop func(last tim
 
 	// fill in as many buckets as are necessary to make a full "row", i.e. just
 	// before the next power of 2 from the original value.
-	// this ensures simple and accurate sub-setting math exists for at least
-	// all 0..3-scale metrics.
+	// this ensures subsetting keeps "round" numbers as long as possible.
 	powerOfTwoWidth := int(math.Pow(2, float64(scale))) // num of buckets needed to double a value
 	for (len(buckets)-1)%powerOfTwoWidth != 0 {
 		buckets = append(buckets, nextBucket(start, len(buckets)-1, scale))

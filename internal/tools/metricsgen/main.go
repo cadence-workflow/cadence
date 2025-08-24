@@ -19,8 +19,7 @@ import (
 	"github.com/fatih/structtag"
 )
 
-// some ugly globals for easier error reporting.
-// typed panics that get caught are probably the easiest way to avoid this, while also retaining failing-line reporting.
+// some ugly globals for easier error reporting
 var (
 	FSET    *token.FileSet
 	SRC     []byte
@@ -68,10 +67,10 @@ type gen struct {
 	Name                  string
 	Self                  string
 	Fields                []genField
+	Embeds                []genEmbed
 	ConstructorOnlyFields []constructorField // private non-tag fields that need to go in the constructor
 	DynamicOperationTags  bool               // requires special handling
-	Emitter               bool
-	Embeds                []genEmbed
+	Emitter               bool               // requires special handling
 	NumReserved           int
 	Skip                  map[string]bool
 	NewFunc               string // if the tags struct is private, this will be "newThing", to make the constructor private.  else it is "NewThing".
@@ -160,20 +159,86 @@ func main() {
 	for _, i := range imports {
 		// i.Path.Value already has quotes
 		if i.Name != nil {
-			write(out, "\t%s %s\n", i.Name, i.Path.Value)
+			write(out, "\t%s %s", i.Name, i.Path.Value)
 		} else {
-			write(out, "\t%s\n", i.Path.Value)
+			write(out, "\t%s", i.Path.Value)
 		}
 	}
 	write(out, ")")
 
 	// generate the template
-	for _, t := range toGenerate {
+	for i, t := range toGenerate {
+		if i > 0 {
+			write(out, "") // blank line between things
+		}
 		err := tmpl.Execute(out, t)
 		if err != nil {
 			log.Fatalf("error generating code for %v: %v", t.Name, err)
 		}
 	}
+}
+
+func findStructs(f *ast.File) []namedStruct {
+	// ast's Doc and Comment fields are somewhat confusing and inconsistent, at
+	// least as far as how humans think of it, and there are many empty and/or
+	// verbose-to-gather ways to get comments.
+	//
+	// so this uses the CommentMap, which acts like humans think of comments:
+	// all text above or on the same line are considered "comments" on a thing.
+	cm := ast.NewCommentMap(FSET, f, f.Comments)
+
+	var results []namedStruct
+	// range over the top-level declarations in the file, find *Tags to generate.
+	// this conveniently excludes any in-func types.
+	for _, d := range f.Decls {
+		gd, ok := d.(*ast.GenDecl)
+		if !ok || gd.Tok != token.TYPE {
+			continue // only care about type declarations
+		}
+		for _, spec := range gd.Specs {
+			ts, ok := spec.(*ast.TypeSpec)
+			if !ok || ts.Name == nil || ts.Name.Name == "" {
+				continue // only care about named types
+			}
+			if !strings.HasSuffix(ts.Name.Name, "Tags") {
+				continue // only care about type names ending in "Tags"
+			}
+			st, ok := ts.Type.(*ast.StructType)
+			if !ok || st.Fields == nil || len(st.Fields.List) == 0 {
+				// could be allowed, but seems more likely to be a mistake
+				log.Fatal(invalidCodeMsg(ts, "struct %v looks like a structured ...Tags type, but it has no fields", ts.Name.Name))
+				panic("unreachable")
+			}
+
+			verbosef("found struct %v", ts.Name.Name)
+			found := namedStruct{
+				Name: ts.Name.Name,
+				Node: st,
+				Skip: map[string]bool{},
+			}
+
+			// check struct comments for skip tags.
+			// use `gd`, not `ts/st`, to gather all comments regardless of how
+			// they are technically placed in the AST.
+			for _, cg := range cm.Filter(gd).Comments() {
+				for _, word := range strings.Fields(cg.Text()) { // splits on whitespace
+					if toskip, ok := strings.CutPrefix(word, "skip:"); ok {
+						// validate the word
+						if !skipNames[toskip] {
+							// it's possible to point to the exact chars in the comment that are wrong, but calculating
+							// that is a bit fiddly because there isn't a convenient way to strip off comment decorator
+							// chars line by line.  Text() does that for us, and the struct decl is close enough to the comment.
+							log.Fatal(invalidCodeMsg(gd, "unknown skip marker %q, must be one of: %v", toskip, maps.Keys(skipNames)))
+						}
+						verbosef("found skip %q (comment %q) for %v", toskip, word, found.Name)
+						found.Skip[toskip] = true
+					}
+				}
+			}
+			results = append(results, found)
+		}
+	}
+	return results
 }
 
 func getGenStructs(interesting []namedStruct, structuredPkg string) []gen {
@@ -197,16 +262,20 @@ func getGenStructs(interesting []namedStruct, structuredPkg string) []gen {
 		for _, f := range s.Node.Fields.List {
 			switch len(f.Names) {
 			case 0: // embed
-
 				imported, id, ascode := sourceType(f.Type)
 				if id.Name == "Emitter" {
 					g.Emitter = true
 					continue // emitter always has special handling
 				}
-				if ascode == "structured.DynamicOperationTags" {
-					verbosef("found embedded %v, customizing codegen", ascode)
-					g.DynamicOperationTags = true
-					continue
+				if id.Name == "DynamicOperationTags" {
+					if ascode == "structured.DynamicOperationTags" {
+						verbosef("found embedded %v, customizing codegen", ascode)
+						g.DynamicOperationTags = true
+						continue
+					} else {
+						// could be allowed, but more likely a mistake until it proves needed.
+						log.Fatal(invalidCodeMsg(f, "DynamicOperationTags must be embedded as structured.DynamicOperationTags"))
+					}
 				}
 				if !strings.HasSuffix(id.Name, "Tags") {
 					log.Fatal(invalidCodeMsg(f, `embedded types must end with "Tags", as they must conform to the metrics-interface`))
@@ -278,67 +347,6 @@ func getGenStructs(interesting []namedStruct, structuredPkg string) []gen {
 	return results
 }
 
-func findStructs(f *ast.File) []namedStruct {
-	// ast's Doc and Comment fields are somewhat confusing and inconsistent, at
-	// least as far as how humans think of it, and there are many empty and/or
-	// verbose-to-gather ways to get comments.
-	//
-	// so this uses the CommentMap, which acts like humans think of comments:
-	// all text above or on the same line are considered "comments" on a thing.
-	cm := ast.NewCommentMap(FSET, f, f.Comments)
-
-	var results []namedStruct
-	// range over the top-level declarations in the file, find *Tags to generate.
-	// this conveniently excludes any in-func types.
-	for _, d := range f.Decls {
-		gd, ok := d.(*ast.GenDecl)
-		if !ok || gd.Tok != token.TYPE {
-			continue // only care about type declarations
-		}
-		for _, spec := range gd.Specs {
-			ts, ok := spec.(*ast.TypeSpec)
-			if !ok || ts.Name == nil || ts.Name.Name == "" {
-				continue // only care about named types
-			}
-			if !strings.HasSuffix(ts.Name.Name, "Tags") {
-				continue // only care about type names ending in "Tags"
-			}
-			st, ok := ts.Type.(*ast.StructType)
-			if !ok || st.Fields == nil || len(st.Fields.List) == 0 {
-				continue // only care about structs with fields
-			}
-
-			verbosef("found struct %v", ts.Name.Name)
-			found := namedStruct{
-				Name: ts.Name.Name,
-				Node: st,
-				Skip: map[string]bool{},
-			}
-
-			// check struct comments for skip tags.
-			// use `gd`, not `ts/st`, to gather all comments regardless of how
-			// they are technically placed in the AST.
-			for _, cg := range cm.Filter(gd).Comments() {
-				for _, word := range strings.Fields(cg.Text()) {
-					if toskip, ok := strings.CutPrefix(word, "skip:"); ok {
-						// validate the word
-						if !skipNames[toskip] {
-							// it's possible to point to the exact chars in the comment that are wrong, but calculating
-							// that is a bit fiddly because there isn't a convenient way to strip off comment decorator
-							// chars line by line.  Text() does that for us, and the struct decl is close enough to the comment.
-							log.Fatal(invalidCodeMsg(gd, "unknown skip marker %q, must be one of: %v", toskip, maps.Keys(skipNames)))
-						}
-						verbosef("found skip %q (comment %q) for %v", toskip, word, found.Name)
-						found.Skip[toskip] = true
-					}
-				}
-			}
-			results = append(results, found)
-		}
-	}
-	return results
-}
-
 func verbosef(format string, args ...any) {
 	if VERBOSE {
 		fmt.Printf(format+"\n", args...)
@@ -363,7 +371,7 @@ func getConvertTag(f *ast.Field) string {
 	}
 	if !strings.Contains(value, "{{") {
 		// malformed convert.
-		// technically possible to use e.g. a static value, but that's less likely
+		// technically possible to use e.g. a static value or computed from other fields, but that's less likely
 		// and would probably be better done with a reserved field / custom PutTags instead.
 		log.Fatal(invalidCodeMsg(f, "convert tags must contain a `{{ . }}` template where the field will be interpolated"))
 	}
@@ -378,7 +386,7 @@ func getTag(f *ast.Field, name string) string {
 	// trim off the outer ` characters, as the AST's value keeps them
 	st, err := structtag.Parse(strings.Trim(f.Tag.Value, "`"))
 	if err != nil {
-		log.Fatal("bad tag")
+		log.Fatal(invalidCodeMsg(f, "bad tag format: %q, err: %v", f.Tag.Value, err))
 	}
 	t, err := st.Get(name)
 	_ = err // no defined type for "tag does not exist", just use t's presence
@@ -392,7 +400,7 @@ func getTag(f *ast.Field, name string) string {
 
 func isInt(fieldType ast.Expr) bool {
 	// sourceType already restricted to these types,
-	// no need to check others exhaustively / no need to deal with pointers
+	// no need to check others exhaustively.
 	switch t := fieldType.(type) {
 	case *ast.StarExpr:
 		return false // no reliable fallback, force custom handling
@@ -488,9 +496,9 @@ func write(out io.Writer, format string, args ...any) {
 var tmpl = template.Must(template.New("").Parse(`
 {{- $self := .Self }}
 {{- if not .Skip.New }}
-	// {{.NewFunc}} constructs a new metric-tag-holding {{.Name}}, and it must be used
-	// instead of custom initialization to ensure newly added tags can be detected
-	// at compile time instead of missing them at run time.
+	// {{.NewFunc}} constructs a new metric-tag-holding {{.Name}},
+	// and it must be used, instead of custom initialization to ensure newly added
+	// tags can be detected at compile time instead of missing them at run time.
 	func {{.NewFunc}}(
 		{{- if .Emitter }}
 			emitter {{.StructuredPkg}}Emitter,
@@ -566,7 +574,6 @@ var tmpl = template.Must(template.New("").Parse(`
 {{- end }}
 
 {{- if and (or .Emitter .Embeds) (not .Skip.Convenience) }}
-
 	// convenience methods
 	{{/* ---- forcing a blank line */}}
 	{{- if not .Skip.Inc }}
@@ -592,6 +599,5 @@ var tmpl = template.Must(template.New("").Parse(`
 			{{$self}}.Emitter.Histogram({{$self}}, name, buckets, dur)
 		}
 	{{- end }}
-
-{{- end }}{{/* convenience */}}
+{{- end }}
 `))

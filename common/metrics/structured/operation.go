@@ -6,20 +6,15 @@ import "github.com/uber/cadence/common/metrics"
 
 // OperationTags is an embeddable struct that provides a single "operation" tag.
 // It cooperates in tag emission, but does not contain an emitter.
-//
-// Per name, each instance should be unique and constructed only once, likely in
-// the constructor of the thing performing an operation.
 type OperationTags struct {
 	Operation string `tag:"operation"` // our historical "the thing doing something" name, unchanged for consistency
 }
 
 // DynamicOperationTags is like OperationTags, but it's intended for places
-// where we're dynamically finding the operation per call.
+// where we're dynamically choosing the operation per metric.
 //
-// This is intentionally an "incomplete" metric tag, and using it requires some
-// manual work in your emitter + importing the main metrics definitions to avoid
-// cyclic imports.
-// Do not construct it, just embed.
+// This is intentionally an "incomplete" metric struct, and using it requires
+// some manual work to populate the tags when emitting metrics.
 //
 // When this type is embedded, the generated code will require passing an
 // operation int to GetTags and PutTags, so it cannot be forgotten.
