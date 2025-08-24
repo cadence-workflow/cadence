@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/tools/go/analysis/singlechecker"
 
-	"github.com/uber/cadence/internal/tools/metricnames"
+	"github.com/uber/cadence/internal/tools/metricslint"
 )
 
 func main() {
@@ -19,7 +19,7 @@ func main() {
 	flag.Parse()
 
 	if analyze {
-		singlechecker.Main(metricnames.Analyzer)
+		singlechecker.Main(metricslint.Analyzer)
 	} else {
 		os.Exit(checkAnalyzerOutput())
 	}

@@ -214,6 +214,9 @@ $(BIN)/protoc-gen-yarpc-go: go.mod go.work | $(BIN)
 $(BIN)/metricsgen: internal/tools/go.mod go.work $(wildcard internal/tools/metricsgen/*) | $(BIN)
 	$(call go_build_tool,./metricsgen)
 
+$(BIN)/metricslint: internal/tools/go.mod go.work $(wildcard internal/tools/metricslint/* internal/tools/metricslint/cmd/*) | $(BIN)
+	$(call go_build_tool,./metricslint/cmd,metricslint)
+
 $(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
 	$Q # generated == used is occasionally important for gomock / mock libs in general.  this is not a definite problem if violated though.
 	$Q ./scripts/check-gomod-version.sh github.com/golang/mock/gomock $(if $(verbose),-v)
@@ -411,6 +414,11 @@ $(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive | $(BUILD)
 		fi
 	$Q touch $@
 
+$(BUILD)/metrics-lint: $(ALL_SRC) $(BIN)/metricslint | $(BUILD)
+	$Q echo "linting metrics definitions..."
+	$Q $(BIN_PATH) $(BIN)/metricslint ./...
+	$Q touch $@
+
 $(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
 	$Q echo "checking go version..."
 	$Q # intentionally using go.work toolchain, as GOTOOLCHAIN is user-overridable
@@ -465,7 +473,7 @@ endef
 # useful to actually re-run to get output again.
 # reuse the intermediates for simplicity and consistency.
 lint: ## (Re)run the linter
-	$(call remake,proto-lint gomod-lint code-lint goversion-lint)
+	$(call remake,proto-lint gomod-lint code-lint goversion-lint metrics-lint)
 
 # intentionally not re-making, it's a bit slow and it's clear when it's unnecessary
 fmt: $(BUILD)/fmt ## Run `gofmt` / organize imports / etc

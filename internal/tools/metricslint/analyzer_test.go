@@ -1,4 +1,4 @@
-package metricnames
+package metricslint
 
 import (
 	"testing"
