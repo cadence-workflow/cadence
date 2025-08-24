@@ -49,6 +49,22 @@ func (a AnotherTestTags) SomeOtherMethod(name string) {
 	a.Count(name, 1)            // want `metric call with non-inline string argument: name`
 }
 
+type NoConvenienceTags struct {
+	Emitter
+}
+
+func (n NoConvenienceTags) NumTags() int                   { return 2 }
+func (n NoConvenienceTags) PutTags(into map[string]string) {}
+func (n NoConvenienceTags) GetTags() map[string]string     { return nil }
+func (n NoConvenienceTags) SomeOtherMethod(name string) {
+	// using the embedded emitter via embedding
+	n.Count(n, "constant_name", 1) // want `success: constant_name`
+	n.Count(n, name, 1)            // want `metric call with non-inline string argument: name`
+	// using the embedded emitter explicitly
+	n.Emitter.Count(n, "constant_name", 1) // want `success: constant_name`
+	n.Emitter.Count(n, name, 1)            // want `metric call with non-inline string argument: name`
+}
+
 // NonTagsStruct should be ignored (doesn't end with "Tags")
 type NonTagsStruct struct {
 	Field string
