@@ -1,12 +1,13 @@
 module github.com/uber/cadence/internal/tools
 
-go 1.22
+go 1.23.0
 
 toolchain go1.23.4
 
 require (
 	github.com/daixiang0/gci v0.12.0
 	github.com/dmarkham/enumer v1.5.8
+	github.com/fatih/structtag v1.2.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/hexdigest/gowrap v1.2.5
 	github.com/mgechev/revive v1.3.2
@@ -14,7 +15,7 @@ require (
 	go.uber.org/mock v0.5.0
 	go.uber.org/thriftrw v1.29.2
 	go.uber.org/yarpc v1.70.3
-	golang.org/x/tools v0.22.0
+	golang.org/x/tools v0.36.0
 )
 
 require (
@@ -88,7 +89,6 @@ require (
 	github.com/esimonov/ifshort v1.0.4 // indirect
 	github.com/ettle/strcase v0.1.1 // indirect
 	github.com/fatih/color v1.15.0 // indirect
-	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/firefart/nonamedreturns v1.0.1 // indirect
 	github.com/form3tech-oss/jwt-go v3.2.2+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
@@ -249,16 +249,18 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	gocloud.dev v0.23.0 // indirect
-	golang.org/x/crypto v0.24.0 // indirect
+	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20220218215828-6cf2b201936e // indirect
-	golang.org/x/mod v0.18.0 // indirect
-	golang.org/x/net v0.26.0 // indirect
+	golang.org/x/mod v0.27.0 // indirect
+	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/oauth2 v0.7.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
-	golang.org/x/term v0.21.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/term v0.34.0 // indirect
+	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.1.0 // indirect
+	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
+	golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/api v0.114.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect

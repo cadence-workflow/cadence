@@ -40,6 +40,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/metricsfx"
+	"github.com/uber/cadence/common/metrics/structured"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/rpc/rpcfx"
 	"github.com/uber/cadence/common/service"
@@ -101,6 +102,7 @@ type AppParams struct {
 	DynamicConfig dynamicconfig.Client
 	Scope         tally.Scope
 	MetricsClient metrics.Client
+	Emitter       structured.Emitter
 }
 
 // NewApp created a new Application from pre initalized config and logger.
@@ -112,6 +114,7 @@ func NewApp(params AppParams) *App {
 		dynamicConfig: params.DynamicConfig,
 		scope:         params.Scope,
 		metricsClient: params.MetricsClient,
+		emitter:       params.Emitter,
 	}
 
 	params.LifeCycle.Append(fx.StartHook(app.verifySchema))
@@ -128,13 +131,14 @@ type App struct {
 	dynamicConfig dynamicconfig.Client
 	scope         tally.Scope
 	metricsClient metrics.Client
+	emitter       structured.Emitter
 
 	daemon  common.Daemon
 	service string
 }
 
 func (a *App) Start(_ context.Context) error {
-	a.daemon = newServer(a.service, a.cfg, a.logger, a.dynamicConfig, a.scope, a.metricsClient)
+	a.daemon = newServer(a.service, a.cfg, a.logger, a.dynamicConfig, a.scope, a.metricsClient, a.emitter)
 	a.daemon.Start()
 	return nil
 }
