@@ -90,8 +90,9 @@ type (
 	Redispatcher interface {
 		common.Daemon
 		AddTask(Task)
-		RedispatchTask(Task, time.Time)
 		Redispatch(targetSize int)
+		RedispatchTask(Task, time.Time)
+		RescheduleDomains(domainIDs map[string]struct{})
 		Size() int
 	}
 

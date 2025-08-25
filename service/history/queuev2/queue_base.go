@@ -114,12 +114,9 @@ func newQueueBase(
 	queueState := FromPersistenceQueueState(persistenceQueueState)
 	exclusiveAckLevel, _ := getExclusiveAckLevelAndMaxQueueIDFromQueueState(queueState)
 
-	redispatcher := task.NewRedispatcher(
+	redispatcher := task.NewRescheduler(
 		taskProcessor,
 		timeSource,
-		&task.RedispatcherOptions{
-			TaskRedispatchInterval: options.RedispatchInterval,
-		},
 		logger,
 		metricsScope,
 	)
@@ -246,7 +243,9 @@ func (q *queueBase) Category() persistence.HistoryTaskCategory {
 	return q.category
 }
 
-func (q *queueBase) FailoverDomain(domainIDs map[string]struct{}) {}
+func (q *queueBase) FailoverDomain(domainIDs map[string]struct{}) {
+	q.redispatcher.RescheduleDomains(domainIDs)
+}
 
 func (q *queueBase) HandleAction(ctx context.Context, clusterName string, action *queue.Action) (*queue.ActionResult, error) {
 	return nil, nil

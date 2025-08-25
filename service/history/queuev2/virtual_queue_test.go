@@ -669,7 +669,7 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 
 	mockProcessor.EXPECT().TrySubmit(mockTask1).Return(true, nil)
 	mockRedispatcher.EXPECT().RedispatchTask(mockTask2, mockTimeSource.Now().Add(time.Second*1))
-	mockRedispatcher.EXPECT().AddTask(mockTask3)
+	mockRedispatcher.EXPECT().RedispatchTask(mockTask3, mockTimeSource.Now().Add(taskSchedulerThrottleBackoffInterval))
 
 	queue := NewVirtualQueue(
 		mockProcessor,
