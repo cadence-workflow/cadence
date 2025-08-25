@@ -255,7 +255,7 @@ func TestVisibilityHybridRecordWorkflowExecutionClosed(t *testing.T) {
 		writeVisibilityStoreName             dynamicproperties.StringPropertyFn
 		expectedError                        error
 	}{
-		"Case0-1: error case with writeVisibilityStoreName is nil": {
+		"Case0-1: success case with writeVisibilityStoreName is nil - should fall back to db": {
 			context:                 context.Background(),
 			request:                 request,
 			mockDBVisibilityManager: NewMockVisibilityManager(ctrl),
@@ -266,7 +266,7 @@ func TestVisibilityHybridRecordWorkflowExecutionClosed(t *testing.T) {
 			mockPinotVisibilityManagerAffordance: func(mockPinotVisibilityManager *MockVisibilityManager) {
 				mockPinotVisibilityManager.EXPECT().RecordWorkflowExecutionClosed(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			},
-			expectedError: fmt.Errorf("error"),
+			expectedError: nil, // Should succeed by falling back to db
 		},
 		"Case0-2: error case with ES has errors in dual mode": {
 			context:                 context.Background(),
