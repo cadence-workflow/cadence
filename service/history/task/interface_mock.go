@@ -1205,18 +1205,6 @@ func (mr *MockRedispatcherMockRecorder) RedispatchTask(arg0, arg1 any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RedispatchTask", reflect.TypeOf((*MockRedispatcher)(nil).RedispatchTask), arg0, arg1)
 }
 
-// RescheduleDomains mocks base method.
-func (m *MockRedispatcher) RescheduleDomains(domainIDs map[string]struct{}) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RescheduleDomains", domainIDs)
-}
-
-// RescheduleDomains indicates an expected call of RescheduleDomains.
-func (mr *MockRedispatcherMockRecorder) RescheduleDomains(domainIDs any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RescheduleDomains", reflect.TypeOf((*MockRedispatcher)(nil).RescheduleDomains), domainIDs)
-}
-
 // Size mocks base method.
 func (m *MockRedispatcher) Size() int {
 	m.ctrl.T.Helper()
@@ -1253,6 +1241,92 @@ func (m *MockRedispatcher) Stop() {
 func (mr *MockRedispatcherMockRecorder) Stop() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockRedispatcher)(nil).Stop))
+}
+
+// MockRescheduler is a mock of Rescheduler interface.
+type MockRescheduler struct {
+	ctrl     *gomock.Controller
+	recorder *MockReschedulerMockRecorder
+	isgomock struct{}
+}
+
+// MockReschedulerMockRecorder is the mock recorder for MockRescheduler.
+type MockReschedulerMockRecorder struct {
+	mock *MockRescheduler
+}
+
+// NewMockRescheduler creates a new mock instance.
+func NewMockRescheduler(ctrl *gomock.Controller) *MockRescheduler {
+	mock := &MockRescheduler{ctrl: ctrl}
+	mock.recorder = &MockReschedulerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockRescheduler) EXPECT() *MockReschedulerMockRecorder {
+	return m.recorder
+}
+
+// RescheduleDomains mocks base method.
+func (m *MockRescheduler) RescheduleDomains(domainIDs map[string]struct{}) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "RescheduleDomains", domainIDs)
+}
+
+// RescheduleDomains indicates an expected call of RescheduleDomains.
+func (mr *MockReschedulerMockRecorder) RescheduleDomains(domainIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RescheduleDomains", reflect.TypeOf((*MockRescheduler)(nil).RescheduleDomains), domainIDs)
+}
+
+// RescheduleTask mocks base method.
+func (m *MockRescheduler) RescheduleTask(arg0 Task, arg1 time.Time) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "RescheduleTask", arg0, arg1)
+}
+
+// RescheduleTask indicates an expected call of RescheduleTask.
+func (mr *MockReschedulerMockRecorder) RescheduleTask(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RescheduleTask", reflect.TypeOf((*MockRescheduler)(nil).RescheduleTask), arg0, arg1)
+}
+
+// Size mocks base method.
+func (m *MockRescheduler) Size() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Size indicates an expected call of Size.
+func (mr *MockReschedulerMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockRescheduler)(nil).Size))
+}
+
+// Start mocks base method.
+func (m *MockRescheduler) Start() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Start")
+}
+
+// Start indicates an expected call of Start.
+func (mr *MockReschedulerMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockRescheduler)(nil).Start))
+}
+
+// Stop mocks base method.
+func (m *MockRescheduler) Stop() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Stop")
+}
+
+// Stop indicates an expected call of Stop.
+func (mr *MockReschedulerMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockRescheduler)(nil).Stop))
 }
 
 // MockFetcher is a mock of Fetcher interface.

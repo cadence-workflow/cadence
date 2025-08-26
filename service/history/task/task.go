@@ -92,6 +92,7 @@ type (
 		taskExecutor             Executor
 		taskProcessor            Processor
 		redispatcher             Redispatcher
+		rescheduler              Rescheduler
 		criticalRetryCount       dynamicproperties.IntPropertyFn
 		isPreviousExecutorActive bool
 
@@ -137,6 +138,45 @@ func NewHistoryTask(
 		criticalRetryCount: criticalRetryCount,
 		redispatcher:       redispatcher,
 		taskFilter:         taskFilter,
+		taskExecutor:       taskExecutor,
+		taskProcessor:      taskProcessor,
+	}
+}
+
+func NewHistoryTaskV2(
+	shard shard.Context,
+	taskInfo persistence.Task,
+	queueType QueueType,
+	logger log.Logger,
+	taskExecutor Executor,
+	taskProcessor Processor,
+	rescheduler Rescheduler,
+	criticalRetryCount dynamicproperties.IntPropertyFn,
+) Task {
+	timeSource := shard.GetTimeSource()
+	var eventLogger eventLogger
+	if shard.GetConfig().EnableDebugMode &&
+		(queueType == QueueTypeActiveTimer || queueType == QueueTypeActiveTransfer) &&
+		shard.GetConfig().EnableTaskInfoLogByDomainID(taskInfo.GetDomainID()) {
+		eventLogger = newEventLogger(logger, timeSource, defaultTaskEventLoggerSize)
+		eventLogger.AddEvent("Created task")
+	}
+
+	return &taskImpl{
+		Task:               taskInfo,
+		shard:              shard,
+		state:              ctask.TaskStatePending,
+		priority:           noPriority,
+		queueType:          queueType,
+		scope:              metrics.NoopScope,
+		logger:             logger,
+		eventLogger:        eventLogger,
+		attempt:            0,
+		initialSubmitTime:  timeSource.Now(),
+		timeSource:         timeSource,
+		criticalRetryCount: criticalRetryCount,
+		rescheduler:        rescheduler,
+		taskFilter:         func(task persistence.Task) (bool, error) { return true, nil },
 		taskExecutor:       taskExecutor,
 		taskProcessor:      taskProcessor,
 	}
@@ -356,7 +396,11 @@ func (t *taskImpl) Nack(err error) {
 		}
 	}
 
-	t.redispatcher.RedispatchTask(t, t.timeSource.Now().Add(t.backoffDuration(t.GetAttempt())))
+	if t.rescheduler != nil {
+		t.rescheduler.RescheduleTask(t, t.timeSource.Now().Add(t.backoffDuration(t.GetAttempt())))
+	} else if t.redispatcher != nil {
+		t.redispatcher.RedispatchTask(t, t.timeSource.Now().Add(t.backoffDuration(t.GetAttempt())))
+	}
 }
 
 func (t *taskImpl) Cancel() {

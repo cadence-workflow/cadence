@@ -54,7 +54,7 @@ func NewRescheduler(
 	timeSource clock.TimeSource,
 	logger log.Logger,
 	metricsScope metrics.Scope,
-) Redispatcher {
+) Rescheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &reschedulerImpl{
 		scheduler:    scheduler,
@@ -98,7 +98,7 @@ func (r *reschedulerImpl) Stop() {
 	r.logger.Info("Task rescheduler stopped.", tag.LifeCycleStopped)
 }
 
-func (r *reschedulerImpl) RedispatchTask(
+func (r *reschedulerImpl) RescheduleTask(
 	task Task,
 	rescheduleTime time.Time,
 ) {
@@ -164,12 +164,6 @@ func (r *reschedulerImpl) Size() int {
 	return r.numExecutables
 }
 
-func (r *reschedulerImpl) AddTask(task Task) {
-}
-
-func (r *reschedulerImpl) Redispatch(targetSize int) {
-}
-
 func (r *reschedulerImpl) rescheduleLoop() {
 	defer r.shutdownWG.Done()
 
@@ -201,7 +195,7 @@ func (r *reschedulerImpl) reschedule() {
 	r.Lock()
 	defer r.Unlock()
 
-	r.metricsScope.RecordTimer(metrics.TaskRedispatchQueuePendingTasksTimer, time.Duration(r.numExecutables))
+	r.metricsScope.UpdateGauge(metrics.ReschedulerTaskCountGauge, float64(r.numExecutables))
 	now := r.timeSource.Now()
 	for _, pq := range r.pqMap {
 		for !pq.IsEmpty() {

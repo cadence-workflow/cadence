@@ -23,7 +23,7 @@ func TestVirtualQueueImpl_GetState(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockProcessor := task.NewMockProcessor(ctrl)
-	mockRedispatcher := task.NewMockRedispatcher(ctrl)
+	mockRescheduler := task.NewMockRescheduler(ctrl)
 	mockLogger := testlogger.New(t)
 	mockMetricsScope := metrics.NoopScope
 	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
@@ -57,7 +57,7 @@ func TestVirtualQueueImpl_GetState(t *testing.T) {
 
 	queue := NewVirtualQueue(
 		mockProcessor,
-		mockRedispatcher,
+		mockRescheduler,
 		mockLogger,
 		mockMetricsScope,
 		mockTimeSource,
@@ -96,7 +96,7 @@ func TestVirtualQueueImpl_UpdateAndGetState(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockProcessor := task.NewMockProcessor(ctrl)
-	mockRedispatcher := task.NewMockRedispatcher(ctrl)
+	mockRescheduler := task.NewMockRescheduler(ctrl)
 	mockLogger := testlogger.New(t)
 	mockMetricsScope := metrics.NoopScope
 	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
@@ -134,7 +134,7 @@ func TestVirtualQueueImpl_UpdateAndGetState(t *testing.T) {
 
 	queue := NewVirtualQueue(
 		mockProcessor,
-		mockRedispatcher,
+		mockRescheduler,
 		mockLogger,
 		mockMetricsScope,
 		mockTimeSource,
@@ -348,7 +348,7 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockProcessor := task.NewMockProcessor(ctrl)
-			mockRedispatcher := task.NewMockRedispatcher(ctrl)
+			mockRescheduler := task.NewMockRescheduler(ctrl)
 			mockLogger := testlogger.New(t)
 			mockMetricsScope := metrics.NoopScope
 			mockTimeSource := clock.NewMockedTimeSource()
@@ -358,7 +358,7 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 
 			queue := NewVirtualQueue(
 				mockProcessor,
-				mockRedispatcher,
+				mockRescheduler,
 				mockLogger,
 				mockMetricsScope,
 				mockTimeSource,
@@ -614,7 +614,7 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockProcessor := task.NewMockProcessor(ctrl)
-	mockRedispatcher := task.NewMockRedispatcher(ctrl)
+	mockRescheduler := task.NewMockRescheduler(ctrl)
 	mockLogger := testlogger.New(t)
 	mockMetricsScope := metrics.NoopScope
 	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
@@ -668,12 +668,12 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 	mockProcessor.EXPECT().TrySubmit(mockTask3).Return(false, nil)
 
 	mockProcessor.EXPECT().TrySubmit(mockTask1).Return(true, nil)
-	mockRedispatcher.EXPECT().RedispatchTask(mockTask2, mockTimeSource.Now().Add(time.Second*1))
-	mockRedispatcher.EXPECT().RedispatchTask(mockTask3, mockTimeSource.Now().Add(taskSchedulerThrottleBackoffInterval))
+	mockRescheduler.EXPECT().RescheduleTask(mockTask2, mockTimeSource.Now().Add(time.Second*1))
+	mockRescheduler.EXPECT().RescheduleTask(mockTask3, mockTimeSource.Now().Add(taskSchedulerThrottleBackoffInterval))
 
 	queue := NewVirtualQueue(
 		mockProcessor,
-		mockRedispatcher,
+		mockRescheduler,
 		mockLogger,
 		mockMetricsScope,
 		mockTimeSource,
@@ -702,7 +702,7 @@ func TestVirtualQueue_LifeCycle(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockProcessor := task.NewMockProcessor(ctrl)
-	mockRedispatcher := task.NewMockRedispatcher(ctrl)
+	mockRescheduler := task.NewMockRescheduler(ctrl)
 	mockLogger := testlogger.New(t)
 	mockMetricsScope := metrics.NoopScope
 	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
@@ -731,7 +731,7 @@ func TestVirtualQueue_LifeCycle(t *testing.T) {
 
 	queue := NewVirtualQueue(
 		mockProcessor,
-		mockRedispatcher,
+		mockRescheduler,
 		mockLogger,
 		mockMetricsScope,
 		mockTimeSource,
@@ -757,7 +757,7 @@ func TestVirtualQueue_LifeCycle_Pause(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockProcessor := task.NewMockProcessor(ctrl)
-	mockRedispatcher := task.NewMockRedispatcher(ctrl)
+	mockRescheduler := task.NewMockRescheduler(ctrl)
 	mockLogger := testlogger.New(t)
 	mockMetricsScope := metrics.NoopScope
 	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
@@ -773,7 +773,7 @@ func TestVirtualQueue_LifeCycle_Pause(t *testing.T) {
 
 	queue := NewVirtualQueue(
 		mockProcessor,
-		mockRedispatcher,
+		mockRescheduler,
 		mockLogger,
 		mockMetricsScope,
 		mockTimeSource,
@@ -814,7 +814,7 @@ func TestVirtualQueue_IterateSlices(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockProcessor := task.NewMockProcessor(ctrl)
-	mockRedispatcher := task.NewMockRedispatcher(ctrl)
+	mockRescheduler := task.NewMockRescheduler(ctrl)
 	mockLogger := testlogger.New(t)
 	mockMetricsScope := metrics.NoopScope
 	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
@@ -848,7 +848,7 @@ func TestVirtualQueue_IterateSlices(t *testing.T) {
 
 	queue := NewVirtualQueue(
 		mockProcessor,
-		mockRedispatcher,
+		mockRescheduler,
 		mockLogger,
 		mockMetricsScope,
 		mockTimeSource,
@@ -891,7 +891,7 @@ func TestVirtualQueue_ClearSlices(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockProcessor := task.NewMockProcessor(ctrl)
-	mockRedispatcher := task.NewMockRedispatcher(ctrl)
+	mockRescheduler := task.NewMockRescheduler(ctrl)
 	mockLogger := testlogger.New(t)
 	mockMetricsScope := metrics.NoopScope
 	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
@@ -933,7 +933,7 @@ func TestVirtualQueue_ClearSlices(t *testing.T) {
 
 	queue := NewVirtualQueue(
 		mockProcessor,
-		mockRedispatcher,
+		mockRescheduler,
 		mockLogger,
 		mockMetricsScope,
 		mockTimeSource,
@@ -977,7 +977,7 @@ func TestVirtualQueue_SplitSlices(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockProcessor := task.NewMockProcessor(ctrl)
-	mockRedispatcher := task.NewMockRedispatcher(ctrl)
+	mockRescheduler := task.NewMockRescheduler(ctrl)
 	mockLogger := testlogger.New(t)
 	mockMetricsScope := metrics.NoopScope
 	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
@@ -1016,7 +1016,7 @@ func TestVirtualQueue_SplitSlices(t *testing.T) {
 
 	queue := NewVirtualQueue(
 		mockProcessor,
-		mockRedispatcher,
+		mockRescheduler,
 		mockLogger,
 		mockMetricsScope,
 		mockTimeSource,
@@ -1341,7 +1341,7 @@ func TestVirtualQueue_AppendSlices(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			mockProcessor := task.NewMockProcessor(ctrl)
-			mockRedispatcher := task.NewMockRedispatcher(ctrl)
+			mockRescheduler := task.NewMockRescheduler(ctrl)
 			mockLogger := testlogger.New(t)
 			mockMetricsScope := metrics.NoopScope
 			mockTimeSource := clock.NewMockedTimeSource()
@@ -1351,7 +1351,7 @@ func TestVirtualQueue_AppendSlices(t *testing.T) {
 
 			queue := NewVirtualQueue(
 				mockProcessor,
-				mockRedispatcher,
+				mockRescheduler,
 				mockLogger,
 				mockMetricsScope,
 				mockTimeSource,

@@ -59,7 +59,7 @@ func TestReschedulerLifeCycle(t *testing.T) {
 		} else {
 			task = newNoopTimerTaskFromDomainID("domainID", now)
 		}
-		rescheduler.RedispatchTask(task, now.Add(time.Second*time.Duration(i+1)))
+		rescheduler.RescheduleTask(task, now.Add(time.Second*time.Duration(i+1)))
 		assert.Equal(t, rescheduler.Size(), i+1)
 	}
 
@@ -100,14 +100,14 @@ func TestReschedulerRescheduleDomains(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		var task Task
 		task = newNoopTransferTaskFromDomainID("X")
-		rescheduler.RedispatchTask(task, now.Add(time.Second*time.Duration(i+1)))
+		rescheduler.RescheduleTask(task, now.Add(time.Second*time.Duration(i+1)))
 		assert.Equal(t, rescheduler.Size(), i+1)
 	}
 
 	for i := 0; i < 10; i++ {
 		var task Task
 		task = newNoopTransferTaskFromDomainID("Y")
-		rescheduler.RedispatchTask(task, now.Add(time.Second*100))
+		rescheduler.RescheduleTask(task, now.Add(time.Second*100))
 		assert.Equal(t, rescheduler.Size(), i+11)
 	}
 
@@ -119,7 +119,7 @@ func TestReschedulerRescheduleDomains(t *testing.T) {
 			scheduledTime = now
 		}
 		task := newNoopTimerTaskFromDomainID("Z", scheduledTime)
-		rescheduler.RedispatchTask(task, now.Add(time.Second*1000))
+		rescheduler.RescheduleTask(task, now.Add(time.Second*1000))
 		assert.Equal(t, rescheduler.Size(), i+21)
 	}
 
@@ -184,7 +184,7 @@ func TestReschedulerIgnoreTaskWithStateNotPending(t *testing.T) {
 			task = newNoopTransferTaskFromDomainID("domainID")
 			task.state = ctask.TaskStateCanceled
 		}
-		rescheduler.RedispatchTask(task, now.Add(time.Second))
+		rescheduler.RescheduleTask(task, now.Add(time.Second))
 		assert.Equal(t, rescheduler.Size(), i+1)
 	}
 
@@ -217,7 +217,7 @@ func TestReschedulerProcessorThrottled(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		task := newNoopTransferTaskFromDomainID("domainID")
-		rescheduler.RedispatchTask(task, now.Add(time.Second))
+		rescheduler.RescheduleTask(task, now.Add(time.Second))
 		assert.Equal(t, rescheduler.Size(), i+1)
 	}
 

@@ -2419,6 +2419,7 @@ const (
 	TaskRequestsOldScheduler
 	TaskRequestsNewScheduler
 	PendingTaskGauge
+	ReschedulerTaskCountGauge
 
 	TaskRequestsPerDomain
 	TaskLatencyPerDomain
@@ -3194,6 +3195,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		TaskRequestsOldScheduler:                      {metricName: "task_requests_old_scheduler", metricType: Counter},
 		TaskRequestsNewScheduler:                      {metricName: "task_requests_new_scheduler", metricType: Counter},
 		PendingTaskGauge:                              {metricName: "pending_task_gauge", metricType: Gauge},
+		ReschedulerTaskCountGauge:                     {metricName: "rescheduler_task_count", metricType: Gauge},
 
 		// per domain task metrics
 

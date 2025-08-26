@@ -61,7 +61,7 @@ type (
 	virtualQueueManagerImpl struct {
 		processor           task.Processor
 		taskInitializer     task.Initializer
-		redispatcher        task.Redispatcher
+		rescheduler         task.Rescheduler
 		queueReader         QueueReader
 		logger              log.Logger
 		metricsScope        metrics.Scope
@@ -81,7 +81,7 @@ type (
 
 func NewVirtualQueueManager(
 	processor task.Processor,
-	redispatcher task.Redispatcher,
+	rescheduler task.Rescheduler,
 	taskInitializer task.Initializer,
 	queueReader QueueReader,
 	logger log.Logger,
@@ -104,13 +104,13 @@ func NewVirtualQueueManager(
 		} else {
 			opts = queueManagerOptions.NonRootQueueOptions
 		}
-		virtualQueues[queueID] = NewVirtualQueue(processor, redispatcher, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, virtualSlices, opts)
+		virtualQueues[queueID] = NewVirtualQueue(processor, rescheduler, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, virtualSlices, opts)
 	}
 	return &virtualQueueManagerImpl{
 		processor:           processor,
 		taskInitializer:     taskInitializer,
 		queueReader:         queueReader,
-		redispatcher:        redispatcher,
+		rescheduler:         rescheduler,
 		logger:              logger,
 		metricsScope:        metricsScope,
 		timeSource:          timeSource,
@@ -126,7 +126,7 @@ func NewVirtualQueueManager(
 			} else {
 				opts = queueManagerOptions.NonRootQueueOptions
 			}
-			return NewVirtualQueue(processor, redispatcher, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, s, opts)
+			return NewVirtualQueue(processor, rescheduler, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, s, opts)
 		},
 	}
 }

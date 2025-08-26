@@ -76,7 +76,7 @@ type (
 	virtualQueueImpl struct {
 		queueOptions        *VirtualQueueOptions
 		processor           task.Processor
-		redispatcher        task.Redispatcher
+		rescheduler         task.Rescheduler
 		logger              log.Logger
 		metricsScope        metrics.Scope
 		timeSource          clock.TimeSource
@@ -97,7 +97,7 @@ type (
 
 func NewVirtualQueue(
 	processor task.Processor,
-	redispatcher task.Redispatcher,
+	rescheduler task.Rescheduler,
 	logger log.Logger,
 	metricsScope metrics.Scope,
 	timeSource clock.TimeSource,
@@ -116,7 +116,7 @@ func NewVirtualQueue(
 	return &virtualQueueImpl{
 		queueOptions:        queueOptions,
 		processor:           processor,
-		redispatcher:        redispatcher,
+		rescheduler:         rescheduler,
 		logger:              logger,
 		metricsScope:        metricsScope,
 		timeSource:          timeSource,
@@ -389,7 +389,7 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 		scheduledTime := task.GetTaskKey().GetScheduledTime()
 		// if the scheduled time is in the future, we need to redispatch the task
 		if now.Before(scheduledTime) {
-			q.redispatcher.RedispatchTask(task, scheduledTime)
+			q.rescheduler.RescheduleTask(task, scheduledTime)
 			continue
 		}
 		// shard level metrics for the duration between a task being written to a queue and being fetched from it
@@ -406,7 +406,7 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 		}
 		if !submitted {
 			q.metricsScope.IncCounter(metrics.ProcessingQueueThrottledCounter)
-			q.redispatcher.RedispatchTask(task, q.timeSource.Now().Add(taskSchedulerThrottleBackoffInterval))
+			q.rescheduler.RescheduleTask(task, q.timeSource.Now().Add(taskSchedulerThrottleBackoffInterval))
 		}
 	}
 

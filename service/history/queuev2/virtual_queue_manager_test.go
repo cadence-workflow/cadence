@@ -172,7 +172,7 @@ func TestVirtualQueueManager_VirtualQueues(t *testing.T) {
 
 			// Create mock dependencies
 			mockProcessor := task.NewMockProcessor(ctrl)
-			mockRedispatcher := task.NewMockRedispatcher(ctrl)
+			mockRescheduler := task.NewMockRescheduler(ctrl)
 			mockTaskInitializer := func(t persistence.Task) task.Task {
 				mockTask := task.NewMockTask(ctrl)
 				mockTask.EXPECT().GetTaskID().Return(t.GetTaskID())
@@ -198,7 +198,7 @@ func TestVirtualQueueManager_VirtualQueues(t *testing.T) {
 			manager := &virtualQueueManagerImpl{
 				processor:       mockProcessor,
 				taskInitializer: mockTaskInitializer,
-				redispatcher:    mockRedispatcher,
+				rescheduler:     mockRescheduler,
 				queueReader:     mockQueueReader,
 				logger:          mockLogger,
 				metricsScope:    mockMetricsScope,
@@ -426,7 +426,7 @@ func TestVirtualQueueManager_UpdateAndGetState(t *testing.T) {
 
 			// Create mock dependencies
 			mockProcessor := task.NewMockProcessor(ctrl)
-			mockRedispatcher := task.NewMockRedispatcher(ctrl)
+			mockRescheduler := task.NewMockRescheduler(ctrl)
 			mockTaskInitializer := func(t persistence.Task) task.Task {
 				mockTask := task.NewMockTask(ctrl)
 				mockTask.EXPECT().GetTaskID().Return(t.GetTaskID())
@@ -452,7 +452,7 @@ func TestVirtualQueueManager_UpdateAndGetState(t *testing.T) {
 			manager := &virtualQueueManagerImpl{
 				processor:       mockProcessor,
 				taskInitializer: mockTaskInitializer,
-				redispatcher:    mockRedispatcher,
+				rescheduler:     mockRescheduler,
 				queueReader:     mockQueueReader,
 				logger:          mockLogger,
 				metricsScope:    mockMetricsScope,
@@ -533,7 +533,7 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 
 			// Create mock dependencies
 			mockProcessor := task.NewMockProcessor(ctrl)
-			mockRedispatcher := task.NewMockRedispatcher(ctrl)
+			mockRescheduler := task.NewMockRescheduler(ctrl)
 			mockTaskInitializer := func(t persistence.Task) task.Task {
 				mockTask := task.NewMockTask(ctrl)
 				mockTask.EXPECT().GetTaskID().Return(t.GetTaskID())
@@ -564,7 +564,7 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 			manager := &virtualQueueManagerImpl{
 				processor:       mockProcessor,
 				taskInitializer: mockTaskInitializer,
-				redispatcher:    mockRedispatcher,
+				rescheduler:     mockRescheduler,
 				queueReader:     mockQueueReader,
 				logger:          mockLogger,
 				metricsScope:    mockMetricsScope,

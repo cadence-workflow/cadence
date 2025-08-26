@@ -157,10 +157,6 @@ func (r *redispatcherImpl) RedispatchTask(task Task, t time.Time) {
 	r.timerGate.Update(t)
 }
 
-func (r *redispatcherImpl) RescheduleDomains(domainIDs map[string]struct{}) {
-	// no need to implement this method for now
-}
-
 // TODO: review this method, it doesn't seem to redispatch the tasks immediately
 func (r *redispatcherImpl) Redispatch(targetSize int) {
 	doneCh := make(chan struct{})
