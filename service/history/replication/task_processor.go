@@ -137,8 +137,9 @@ func (p perDomainTaskMetricTags) taskProcessed(operation int, domain string, pro
 	// latency from task generated to task received
 	p.Histogram("task_replication_latency_ns", structured.Mid1ms24h, replicationLatency, tags)
 	// number of replication tasks
-	// this is an exact match for the legacy scope, so it would cause duplicates if emitted
-	// p.Count(tags, "replication_tasks_applied_per_domain", 1)
+	// this is an exact match for the legacy scope, so it would cause duplicates if emitted.
+	// because this is the first use of this new system, we'll verify the tags with the histograms first.
+	// p.Count("replication_tasks_applied_per_domain", 1, tags)
 
 	// emit single task processing latency
 	legacyScope.RecordTimer(metrics.TaskProcessingLatency, processingLatency)
