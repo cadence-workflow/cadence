@@ -99,21 +99,5 @@ by hand:
 		tags["reserved"] = fmt.Sprint(rand.Intn(10)) // add the reserved one(s)
 		s.Emitter.Count("it_happened", times, tags)  // use the lower-level Emitter
 	}
-
-# Accidental collision prevention
-
-If we are concerned about accidental name collisions, it's fairly easy to build
-an Analyzer that finds all calls and checks the in-line strings (export package
-facts upward, check for dups each time), or prints all calls to be checked with
-a simple `sort | uniq -c | grep -v 1`.
-
-This is VASTLY easier to build when the strings involved are inline constants,
-and it also means grepping for metrics is trivial because the whole "name"
-exists exactly where the metric is emitted.
-(this also works for metric tags, just grep for `tag:"..."` and find usages)
-
-Or just namespace everything by the thing doing stuff that causes metrics.
-Our metric names right now are extremely short, which works fine for Tally but
-not for Prometheus, and is not ideal for grep either.
 */
 package structured
