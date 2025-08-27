@@ -97,12 +97,6 @@ func (b Emitter) IntHistogram(name string, buckets IntSubsettableHistogram, num 
 	b.scope.Tagged(histogramTags).Histogram(name, buckets.tallyBuckets).RecordDuration(time.Duration(num))
 }
 
-func (b Emitter) assertNoTag(key string, errorName string, in map[string]string) {
-	if _, ok := in[key]; ok {
-		b.scope.Tagged(map[string]string{"bad_key": key}).Counter(errorName).Inc(1)
-	}
-}
-
 // TODO: make a MinMaxGauge helper which maintains a precise, rolling
 // min/max gauge, over a window larger than the metrics granularity (e.g. ~20s)
 // to work around gauges' last-data-only behavior.
