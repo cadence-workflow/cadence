@@ -138,16 +138,18 @@ func NewTaskProcessor(
 	noTaskBackoffPolicy.SetExpirationInterval(backoff.NoInterval)
 	noTaskRetrier := backoff.NewRetrier(noTaskBackoffPolicy, clock)
 	return &taskProcessorImpl{
-		currentCluster:         shard.GetClusterMetadata().GetCurrentClusterName(),
-		sourceCluster:          sourceCluster,
-		status:                 common.DaemonStatusInitialized,
-		shard:                  shard,
-		historyEngine:          historyEngine,
-		historySerializer:      persistence.NewPayloadSerializer(),
-		config:                 config,
-		metricsClient:          metricsClient,
-		metrics:                emitter,
-		metricTags:             structured.TagsFromMap(map[string]string{"target_cluster": sourceCluster}), // looks backwards, but matches historical behavior
+		currentCluster:    shard.GetClusterMetadata().GetCurrentClusterName(),
+		sourceCluster:     sourceCluster,
+		status:            common.DaemonStatusInitialized,
+		shard:             shard,
+		historyEngine:     historyEngine,
+		historySerializer: persistence.NewPayloadSerializer(),
+		config:            config,
+		metricsClient:     metricsClient,
+		metrics:           emitter,
+		metricTags: structured.TagsFromMap(map[string]string{
+			"target_cluster": sourceCluster, // looks backwards, but matches historical behavior
+		}),
 		logger:                 shard.GetLogger().WithTags(tag.SourceCluster(sourceCluster), tag.ShardID(shardID)),
 		taskExecutor:           taskExecutor,
 		hostRateLimiter:        taskFetcher.GetRateLimiter(),
