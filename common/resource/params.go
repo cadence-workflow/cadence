@@ -42,6 +42,7 @@ import (
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/metrics/structured"
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/rpc"
@@ -68,6 +69,7 @@ type (
 		ClusterMetadata    cluster.Metadata
 		ReplicatorConfig   config.Replicator
 		MetricsClient      metrics.Client
+		Emitter            structured.Emitter
 		MessagingClient    messaging.Client
 		BlobstoreClient    blobstore.Client
 		ESClient           es.GenericClient
