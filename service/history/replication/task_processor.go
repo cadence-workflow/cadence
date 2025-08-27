@@ -147,7 +147,7 @@ func NewTaskProcessor(
 		config:                 config,
 		metricsClient:          metricsClient,
 		metrics:                emitter,
-		metricTags:             structured.Tags{"target_cluster": sourceCluster}, // looks backwards, but matches historical behavior
+		metricTags:             structured.TagsFromMap(map[string]string{"target_cluster": sourceCluster}), // looks backwards, but matches historical behavior
 		logger:                 shard.GetLogger().WithTags(tag.SourceCluster(sourceCluster), tag.ShardID(shardID)),
 		taskExecutor:           taskExecutor,
 		hostRateLimiter:        taskFetcher.GetRateLimiter(),
