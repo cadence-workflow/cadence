@@ -6,15 +6,15 @@ import "time"
 
 func GeneratedFunction() {
 	var emitter Emitter
-	tags := TestTags{}
+	tags := Tags{}
 
 	// allowed, generated code needs to follow the same rules
-	emitter.Count("base_count", 1, tags)        // want `success: base_count`
-	tags.Gauge("gauge", 12)                     // want `success: gauge`
-	tags.Histogram("hist_ns", nil, time.Second) // want `success: hist_ns`
+	emitter.Count("base_count", 1, tags)                 // want `success: base_count`
+	emitter.Gauge("gauge", 12, tags)                     // want `success: gauge`
+	emitter.Histogram("hist_ns", nil, time.Second, tags) // want `success: hist_ns`
 
 	// disallowed, generated code needs to follow the same rules
 	const sneakyConst = "bad_metric"
-	tags.IntHistogram(sneakyConst, nil, 3) // want `metric names must be in-line strings, not consts or vars: sneakyConst`
-	emitter.Count(sneakyConst, 1, tags)    // want `metric names must be in-line strings, not consts or vars: sneakyConst`
+	emitter.IntHistogram(sneakyConst, nil, 3, tags) // want `metric names must be in-line strings, not consts or vars: sneakyConst`
+	emitter.Count(sneakyConst, 1, tags)             // want `metric names must be in-line strings, not consts or vars: sneakyConst`
 }

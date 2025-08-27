@@ -17,30 +17,8 @@ var Module = fx.Options(
 	}),
 )
 
-// // Metadata is a shared interface for all "...Tags" structs.
-// //
-// // You are generally NOT expected to implement any of this yourself.
-// // Just define your struct, and let the code generator take care of it (`make metrics`).
-// //
-// // For the intended usage and implementation, see generated code.
-// type Metadata interface {
-// 	NumTags() int                   // for efficient pre-allocation
-// 	PutTags(into map[string]string) // populates the map
-// 	GetTags() map[string]string     // returns a pre-allocated and pre-populated map
-// }
-
-// Tags is a very simple helper for treating an arbitrary map as a Metadata.
-//
-// This can be used externally (for completely manual metrics) or in metrics-emitting
-// methods to simplify adding custom tags (e.g. it is returned from GetTags).
+// Tags is simply a map of metric tags, to help differentiate from other maps.
 type Tags map[string]string
-
-//
-// var _ Metadata = Tags{}
-//
-// func (o Tags) NumTags() int                   { return len(o) }
-// func (o Tags) PutTags(into map[string]string) { maps.Copy(into, o) }
-// func (o Tags) GetTags() map[string]string     { return maps.Clone(o) }
 
 func (o Tags) With(key, value string, more ...string) Tags {
 	if len(more)%2 != 0 {
@@ -60,16 +38,12 @@ func (o Tags) With(key, value string, more ...string) Tags {
 // Emitter is the base helper for emitting metrics, and it contains only low-level
 // metrics-emitting funcs to keep it as simple as possible.
 //
-// It is intended to be used with the `make metrics` code generator and structs-of-tags,
-// but it's intentionally possible to (ab)use it by hand because ad-hoc metrics
-// should be easy and encouraged.
+// Calls to metrics methods on this type are checked by internal/tools/metricslint
+// to ensure that all metrics are uniquely named, to reduce our risk of collisions
+// that break queries / Prometheus / etc.
 //
-// Metadata can be constructed from any map via Tags, but this API intentionally hides
-// [tally.Scope.Tagged] because it's (somewhat) memory-wasteful, self-referential interfaces are
-// difficult to mock, and it's very hard to figure out what tags may be present at runtime.
-//
-// TODO: this can / likely should be turned into an interface to allow disconnecting from tally,
-// to allow providing a specific version or to drop it entirely if desired.
+// Tags must be passed in each time to help make it clear what tags are used,
+// and you MUST NOT vary the tags per metric name - this breaks Prometheus.
 type Emitter struct {
 	// intentionally NOT no-op by default.
 	//
@@ -85,7 +59,9 @@ type Emitter struct {
 }
 
 // Histogram records a duration-based histogram with the provided data.
-// It adds a "histogram_scale" tag, so histograms can be accurately subset in queries or via middleware.
+//
+// Metric names MUST have an "_ns" suffix to avoid confusion with timers,
+// and to make it clear they are duration-based histograms.
 func (b Emitter) Histogram(name string, buckets SubsettableHistogram, dur time.Duration, meta Tags) {
 	tags := make(Tags, len(meta)+3)
 	maps.Copy(tags, meta)

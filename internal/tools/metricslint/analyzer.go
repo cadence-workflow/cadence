@@ -1,10 +1,12 @@
 package metricslint
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
 	"maps"
+	"slices"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -28,14 +30,14 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 }
 
-// method names on the emitter that we care about.
-// these are checked against the actual methods on the emitter type,
+// method names on the emitter that we care about, and the suffixes that are required (if any).
+// method names are checked against the actual methods on the emitter type,
 // but we need the list ahead of time or passes might be racing with initializing it.
-var emitterMethods = map[string]bool{
-	"Histogram":    true,
-	"IntHistogram": true,
-	"Count":        true,
-	"Gauge":        true,
+var emitterMethods = map[string]map[string]bool{
+	"Histogram":    {"_ns": true},     // all our durations are in nanoseconds
+	"IntHistogram": {"_counts": true}, // differentiates from durations, will likely have multiple suffixes
+	"Count":        nil,
+	"Gauge":        nil,
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -108,13 +110,13 @@ func checkTargetNamesMap(pass *analysis.Pass) {
 		return
 	}
 	ms := types.NewMethodSet(named)
-	foundTargets := make(map[string]bool, len(emitterMethods))
+	foundTargets := make(map[string]map[string]bool, len(emitterMethods))
 	maps.Copy(foundTargets, emitterMethods)
 	for i := 0; i < ms.Len(); i++ {
 		m := ms.At(i)
 		_, ok := emitterMethods[m.Obj().Name()]
 		if !ok {
-			foundTargets[m.Obj().Name()] = true // add any missing ones to the map
+			foundTargets[m.Obj().Name()] = nil // add any missing keys to the map
 		} else {
 			delete(foundTargets, m.Obj().Name()) // remove any found ones from the map
 		}
@@ -170,7 +172,8 @@ func reportMetricEmitterCalls(pass *analysis.Pass, i *inspector.Inspector) {
 			return
 		}
 		methodName := sel.Sel.Name
-		if !emitterMethods[methodName] {
+		requiredSuffixes, ok := emitterMethods[methodName]
+		if !ok {
 			return
 		}
 
@@ -215,6 +218,28 @@ func reportMetricEmitterCalls(pass *analysis.Pass, i *inspector.Inspector) {
 		if !isConstant {
 			pass.Reportf(nameArg.Pos(), "metric names must be in-line strings, not consts or vars: %v", nameArg)
 			return
+		}
+		if len(requiredSuffixes) > 0 {
+			matched := false
+			for suffix := range requiredSuffixes {
+				if strings.HasSuffix(metricName, suffix) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				suffixes := make([]string, 0, len(requiredSuffixes))
+				for s := range requiredSuffixes {
+					suffixes = append(suffixes, fmt.Sprintf("%q", s))
+				}
+				slices.Sort(suffixes)
+				pass.Reportf(
+					nameArg.Pos(),
+					"metric name %q is not valid for method %v, it must have one of the following suffixes: %v",
+					metricName, methodName, strings.Join(suffixes, ", "),
+				)
+				return
+			}
 		}
 
 		// valid call!

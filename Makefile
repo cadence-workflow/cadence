@@ -416,7 +416,7 @@ $(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive | $(BUILD)
 
 $(BUILD)/metrics-lint: $(ALL_SRC) $(BIN)/metricslint | $(BUILD)
 	$Q echo "linting metrics definitions..."
-	$Q $(BIN_PATH) $(BIN)/metricslint ./...
+	$Q $(BIN_PATH) $(BIN)/metricslint -skip cadence_requests_per_tl,2 -skip cache_hit,2 -skip cache_full,2 -skip cache_miss,2 -skip cross_cluster_fetch_errors,2 ./...
 	$Q touch $@
 
 $(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
