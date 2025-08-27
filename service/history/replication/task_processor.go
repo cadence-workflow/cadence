@@ -83,6 +83,7 @@ type (
 		config            *config.Config
 		metricsClient     metrics.Client
 		metrics           structured.Emitter
+		metricTags        structured.Tags
 		logger            log.Logger
 		taskExecutor      TaskExecutor
 		hostRateLimiter   quotas.Limiter
@@ -146,6 +147,7 @@ func NewTaskProcessor(
 		config:                 config,
 		metricsClient:          metricsClient,
 		metrics:                emitter,
+		metricTags:             structured.Tags{"target_cluster": sourceCluster}, // looks backwards, but matches historical behavior
 		logger:                 shard.GetLogger().WithTags(tag.SourceCluster(sourceCluster), tag.ShardID(shardID)),
 		taskExecutor:           taskExecutor,
 		hostRateLimiter:        taskFetcher.GetRateLimiter(),
@@ -482,11 +484,7 @@ func (p *taskProcessorImpl) processTaskOnce(replicationTask *types.ReplicationTa
 			domainName = name
 			mScope = mScope.Tagged(metrics.DomainTag(domainName))
 		}
-		// TODO: move source cluster to constructor
-		baseTags := structured.Tags{
-			"target_cluster": p.sourceCluster, // looks backwards, but matches historical behavior
-		}
-		tags := baseTags.With(
+		tags := p.metricTags.With(
 			"operation", structured.GetOperationString(scope),
 			"domain", domainName,
 		)
