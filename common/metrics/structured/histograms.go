@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/uber-go/tally"
@@ -72,7 +73,7 @@ type SubsettableHistogram struct {
 }
 
 // IntSubsettableHistogram is a non-duration-based integer-distribution histogram, otherwise identical
-// to SubsettableHistogram.
+// to SubsettableHistogram but built as a separate type so you cannot pass the wrong one.
 //
 // These histograms MUST always have a "_counts" suffix in their name to avoid confusion with timers,
 // or modify the Emitter to allow different suffixes if something else reads better.
@@ -184,4 +185,90 @@ func nextBucket(start time.Duration, num int, scale int) time.Duration {
 	return time.Duration(
 		float64(start) *
 			math.Pow(2, float64(num)/math.Pow(2, float64(scale))))
+}
+
+func (s SubsettableHistogram) histScale() int                 { return s.scale }
+func (s SubsettableHistogram) width() int                     { return int(math.Pow(2, float64(s.scale))) }
+func (s SubsettableHistogram) len() int                       { return len(s.tallyBuckets) }
+func (s SubsettableHistogram) start() time.Duration           { return s.tallyBuckets[1] }
+func (s SubsettableHistogram) end() time.Duration             { return s.tallyBuckets[len(s.tallyBuckets)-1] }
+func (s SubsettableHistogram) buckets() tally.DurationBuckets { return s.tallyBuckets }
+func (s SubsettableHistogram) writeTags(metricName string, into map[string]string, tagCollisionComplaints Emitter) {
+	writeHistogramTags(s, into, func(key string) {
+		tagCollisionComplaints.Count(
+			"error_histogram_tag_collision",
+			1,
+			TagsFromMap(into).With( // carry along existing tags in case it narrows down the cause
+				"bad_key", key,
+				"metric_name", metricName,
+			))
+	})
+}
+func (s SubsettableHistogram) print(to func(string, ...any)) {
+	to("%v\n", s.tallyBuckets[0:1]) // zero value on its own row
+	for rowStart := 1; rowStart < s.len(); rowStart += s.width() {
+		to("%v\n", s.tallyBuckets[rowStart:rowStart+s.width()])
+	}
+}
+
+func (i IntSubsettableHistogram) histScale() int       { return i.scale }
+func (i IntSubsettableHistogram) width() int           { return int(math.Pow(2, float64(i.scale))) }
+func (i IntSubsettableHistogram) len() int             { return len(i.tallyBuckets) }
+func (i IntSubsettableHistogram) start() time.Duration { return i.tallyBuckets[1] }
+func (i IntSubsettableHistogram) end() time.Duration {
+	return i.tallyBuckets[len(i.tallyBuckets)-1]
+}
+func (i IntSubsettableHistogram) buckets() tally.DurationBuckets { return i.tallyBuckets }
+func (i IntSubsettableHistogram) writeTags(metricName string, into map[string]string, tagCollisionComplaints Emitter) {
+	writeHistogramTags(i, into, func(key string) {
+		tagCollisionComplaints.Count(
+			"error_int_histogram_tag_collision",
+			1,
+			TagsFromMap(into).With( // carry along existing tags in case it narrows down the cause
+				"bad_key", key,
+				"metric_name", metricName,
+			))
+	})
+}
+func (i IntSubsettableHistogram) print(to func(string, ...any)) {
+	// fairly unreadable as duration-strings, so convert to int by hand
+	to("[%d]\n", int(i.tallyBuckets[0])) // zero value on its own row
+	for rowStart := 1; rowStart < i.len(); rowStart += i.width() {
+		ints := make([]int, 0, i.width())
+		for _, d := range i.tallyBuckets[rowStart : rowStart+i.width()] {
+			ints = append(ints, int(d))
+		}
+		to("%v\n", ints)
+	}
+}
+
+func writeHistogramTags[T any](h histogrammy[T], into map[string]string, tagCollision func(key string)) {
+	if _, ok := into["histogram_start"]; ok {
+		tagCollision("histogram_start")
+	}
+	if _, ok := into["histogram_end"]; ok {
+		tagCollision("histogram_end")
+	}
+	if _, ok := into["histogram_scale"]; ok {
+		tagCollision("histogram_scale")
+	}
+	// record the full range and scale of the histogram so it can be recreated from any individual metric.
+	into["histogram_start"] = strconv.Itoa(int(h.start()))
+	into["histogram_end"] = strconv.Itoa(int(h.end()))
+	// include the scale, so we know how far away from the requested scale it is, when re-subsetting.
+	into["histogram_scale"] = strconv.Itoa(h.histScale())
+}
+
+// internal utility/test methods, but could be exposed if there's a use for it
+type histogrammy[T any] interface {
+	histScale() int                 // exponential scale value.  0..3 inclusive.
+	width() int                     // number of values per power of 2 == how wide to print each row.  1, 2, 4, or 8.
+	len() int                       // number of buckets
+	start() time.Duration           // first non-zero bucket
+	end() time.Duration             // last bucket
+	buckets() tally.DurationBuckets // access to all buckets
+	subsetTo(newScale int) T        // generic so specific types can be returned
+	writeTags(metricName string, into map[string]string, tagCollisionComplaints Emitter)
+
+	print(to func(string, ...any)) // test-oriented printer
 }
