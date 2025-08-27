@@ -66,7 +66,7 @@ var (
 //
 // These histograms MUST always have a "_ns" suffix in their name to avoid confusion with timers.
 type SubsettableHistogram struct {
-	tally.DurationBuckets
+	tallyBuckets tally.DurationBuckets
 
 	scale int
 }
@@ -96,20 +96,20 @@ func (s SubsettableHistogram) subsetTo(newScale int) SubsettableHistogram {
 		panic(fmt.Sprintf("negative scales (%v == greater than *2 per step) are possible, but do not have tests yet", newScale))
 	}
 	dup := SubsettableHistogram{
-		DurationBuckets: slices.Clone(s.DurationBuckets),
-		scale:           s.scale,
+		tallyBuckets: slices.Clone(s.tallyBuckets),
+		scale:        s.scale,
 	}
 	// remove every other bucket per -1 scale
 	for dup.scale > newScale {
-		if (len(dup.DurationBuckets)-1)%2 != 0 {
-			panic(fmt.Sprintf("cannot subset from scale %v to %v, %v-buckets is not divisible by 2", dup.scale, dup.scale-1, len(dup.DurationBuckets)-1))
+		if (len(dup.tallyBuckets)-1)%2 != 0 {
+			panic(fmt.Sprintf("cannot subset from scale %v to %v, %v-buckets is not divisible by 2", dup.scale, dup.scale-1, len(dup.tallyBuckets)-1))
 		}
-		half := make(tally.DurationBuckets, 0, ((len(dup.DurationBuckets)-1)/2)+1)
-		half = append(half, dup.DurationBuckets[0]) // keep the zero value
-		for i := 1; i < len(dup.DurationBuckets); i += 2 {
-			half = append(half, dup.DurationBuckets[i]) // add first, third, etc
+		half := make(tally.DurationBuckets, 0, ((len(dup.tallyBuckets)-1)/2)+1)
+		half = append(half, dup.tallyBuckets[0]) // keep the zero value
+		for i := 1; i < len(dup.tallyBuckets); i += 2 {
+			half = append(half, dup.tallyBuckets[i]) // add first, third, etc
 		}
-		dup.DurationBuckets = half
+		dup.tallyBuckets = half
 		dup.scale--
 	}
 	return dup
@@ -172,8 +172,8 @@ func makeSubsettableHistogram(start time.Duration, scale int, stop func(last tim
 		buckets = append(buckets, nextBucket(start, len(buckets)-1, scale))
 	}
 	return SubsettableHistogram{
-		DurationBuckets: buckets,
-		scale:           scale,
+		tallyBuckets: buckets,
+		scale:        scale,
 	}
 }
 

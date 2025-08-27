@@ -65,7 +65,7 @@ type Emitter struct {
 func (b Emitter) Histogram(name string, buckets SubsettableHistogram, dur time.Duration, meta Tags) {
 	tags := make(Tags, len(meta)+3)
 	maps.Copy(tags, meta)
-	writeHistogramRangeTags(buckets.DurationBuckets, buckets.scale, tags)
+	writeHistogramRangeTags(buckets.tallyBuckets, buckets.scale, tags)
 
 	if !strings.HasSuffix(name, "_ns") {
 		// duration-based histograms are always in nanoseconds,
@@ -75,7 +75,7 @@ func (b Emitter) Histogram(name string, buckets SubsettableHistogram, dur time.D
 		// hopefully this is never used, but it'll at least make it clear if it is.
 		name = name + "_error_missing_suffix_ns"
 	}
-	b.scope.Tagged(tags).Histogram(name, buckets).RecordDuration(dur)
+	b.scope.Tagged(tags).Histogram(name, buckets.tallyBuckets).RecordDuration(dur)
 }
 
 // IntHistogram records a count-based histogram with the provided data.
@@ -83,7 +83,7 @@ func (b Emitter) Histogram(name string, buckets SubsettableHistogram, dur time.D
 func (b Emitter) IntHistogram(name string, buckets IntSubsettableHistogram, num int, meta Tags) {
 	tags := make(Tags, len(meta)+3)
 	maps.Copy(tags, meta)
-	writeHistogramRangeTags(buckets.DurationBuckets, buckets.scale, tags)
+	writeHistogramRangeTags(buckets.tallyBuckets, buckets.scale, tags)
 
 	if !strings.HasSuffix(name, "_counts") {
 		// int-based histograms are always in "_counts" (currently anyway),
@@ -93,7 +93,7 @@ func (b Emitter) IntHistogram(name string, buckets IntSubsettableHistogram, num 
 		// hopefully this is never used, but it'll at least make it clear if it is.
 		name = name + "_error_missing_suffix_counts"
 	}
-	b.scope.Tagged(tags).Histogram(name, buckets).RecordDuration(time.Duration(num))
+	b.scope.Tagged(tags).Histogram(name, buckets.tallyBuckets).RecordDuration(time.Duration(num))
 }
 
 func writeHistogramRangeTags(buckets []time.Duration, scale int, into Tags) {

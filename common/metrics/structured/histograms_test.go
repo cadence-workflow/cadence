@@ -55,16 +55,16 @@ func TestHistogramValues(t *testing.T) {
 
 // test helpers, but could be moved elsewhere if they prove useful
 func (s SubsettableHistogram) width() int                     { return int(math.Pow(2, float64(s.scale))) }
-func (s SubsettableHistogram) len() int                       { return len(s.DurationBuckets) }
-func (s SubsettableHistogram) max() time.Duration             { return s.DurationBuckets[len(s.DurationBuckets)-1] }
-func (s SubsettableHistogram) buckets() tally.DurationBuckets { return s.DurationBuckets }
+func (s SubsettableHistogram) len() int                       { return len(s.tallyBuckets) }
+func (s SubsettableHistogram) max() time.Duration             { return s.tallyBuckets[len(s.tallyBuckets)-1] }
+func (s SubsettableHistogram) buckets() tally.DurationBuckets { return s.tallyBuckets }
 
-func (s IntSubsettableHistogram) width() int { return int(math.Pow(2, float64(s.scale))) }
-func (s IntSubsettableHistogram) len() int   { return len(s.DurationBuckets) }
-func (s IntSubsettableHistogram) max() time.Duration {
-	return s.DurationBuckets[len(s.DurationBuckets)-1]
+func (i IntSubsettableHistogram) width() int { return int(math.Pow(2, float64(i.scale))) }
+func (i IntSubsettableHistogram) len() int   { return len(i.tallyBuckets) }
+func (i IntSubsettableHistogram) max() time.Duration {
+	return i.tallyBuckets[len(i.tallyBuckets)-1]
 }
-func (s IntSubsettableHistogram) buckets() tally.DurationBuckets { return s.DurationBuckets }
+func (i IntSubsettableHistogram) buckets() tally.DurationBuckets { return i.tallyBuckets }
 
 type histogrammy interface {
 	SubsettableHistogram | IntSubsettableHistogram

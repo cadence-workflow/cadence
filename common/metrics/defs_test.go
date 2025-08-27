@@ -145,48 +145,10 @@ func TestOperationIndexesAreUnique(t *testing.T) {
 }
 
 func TestMetricsAreUnique(t *testing.T) {
-	// Duplicate metric names are likely to cause Prometheus errors (and have previously) due to different labels.
-	t.Run("names", func(t *testing.T) {
-		checkIgnore := func(service1, service2 ServiceIdx, metric1, metric2 int) {
-			assert.NotEqual(t, metric1, metric2)                         // make sure they're actually different
-			assert.NotEmpty(t, MetricDefs[service1][metric1].metricName) // sanity check
-			assert.NotEmpty(t, MetricDefs[service2][metric2].metricName) // sanity check
-			assert.Equal(t, MetricDefs[service1][metric1].metricName, MetricDefs[service2][metric2].metricName)
-		}
-		seen := make(map[string]bool)
-		for serviceIdx, serviceMetrics := range MetricDefs {
-			for idx, met := range serviceMetrics {
-				// known conflicts, remove if changed:
-				switch idx {
-				case CacheFullCounter, BaseCacheFullCounter:
-					checkIgnore(History, Common, CacheFullCounter, BaseCacheFullCounter)
-					continue
-				case CacheHitCounter, BaseCacheHit:
-					checkIgnore(History, Common, CacheHitCounter, BaseCacheHit)
-					continue
-				case CacheMissCounter, BaseCacheMiss:
-					checkIgnore(History, Common, CacheMissCounter, BaseCacheMiss)
-					continue
-				case CrossClusterFetchFailures, CrossClusterTaskRespondFailures:
-					// almost certainly unintended
-					checkIgnore(serviceIdx, serviceIdx, CrossClusterFetchFailures, CrossClusterTaskRespondFailures)
-					continue
-				case CadenceRequestsPerTaskList, CadenceRequestsPerTaskListWithoutRollup:
-					// arguably this one is fine
-					checkIgnore(serviceIdx, serviceIdx, CadenceRequestsPerTaskList, CadenceRequestsPerTaskListWithoutRollup)
-					continue
-				default:
-					// check the value below
-				}
-				str := string(met.metricName)
-				if seen[str] {
-					t.Error("duplicate metric name:", str, "at index:", idx)
-				}
-				seen[str] = true
-			}
-		}
-	})
 	// Duplicate indexes is arguably fine, but there doesn't seem to be any benefit in allowing it.
+	//
+	// Duplicate names are also linted, but they're done via an analyzer (metricslint) instead, to
+	// allow checking across multiple formats.
 	t.Run("indexes", func(t *testing.T) {
 		seen := make(map[int]bool)
 		for _, serviceMetrics := range MetricDefs {
