@@ -279,6 +279,7 @@ func NewEngineWithShardContext(
 			historyEngImpl,
 			config,
 			shard.GetMetricsClient(),
+			shard.GetMetricsEmitter(),
 			replicationTaskFetcher,
 			replicationTaskExecutor,
 			shard.GetTimeSource(),

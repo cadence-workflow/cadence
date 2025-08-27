@@ -57,6 +57,7 @@ import (
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/metrics/structured"
 	"github.com/uber/cadence/common/persistence"
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	qrpc "github.com/uber/cadence/common/quotas/global/rpc"
@@ -98,6 +99,7 @@ type Impl struct {
 	timeSource              clock.TimeSource
 	payloadSerializer       persistence.PayloadSerializer
 	metricsClient           metrics.Client
+	emitter                 structured.Emitter
 	messagingClient         messaging.Client
 	blobstoreClient         blobstore.Client
 	archivalMetadata        archiver.ArchivalMetadata
@@ -360,6 +362,7 @@ func New(
 		timeSource:              clock.NewRealTimeSource(),
 		payloadSerializer:       persistence.NewPayloadSerializer(),
 		metricsClient:           params.MetricsClient,
+		emitter:                 params.Emitter,
 		messagingClient:         params.MessagingClient,
 		blobstoreClient:         params.BlobstoreClient,
 		archivalMetadata:        params.ArchivalMetadata,
@@ -532,6 +535,11 @@ func (h *Impl) GetPayloadSerializer() persistence.PayloadSerializer {
 // GetMetricsClient return metrics client
 func (h *Impl) GetMetricsClient() metrics.Client {
 	return h.metricsClient
+}
+
+// GetMetricsEmitter returns a base structured metrics emitter
+func (h *Impl) GetMetricsEmitter() structured.Emitter {
+	return h.emitter
 }
 
 // GetMessagingClient return messaging client

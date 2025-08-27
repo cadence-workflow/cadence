@@ -49,6 +49,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/metrics/structured"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
@@ -154,6 +155,7 @@ func (s *taskProcessorSuite) SetupTest() {
 		s.mockEngine,
 		s.config,
 		metricsClient,
+		structured.NewTestEmitter(s.T(), nil),
 		s.taskFetcher,
 		s.taskExecutor,
 		s.clock,
@@ -646,6 +648,7 @@ func TestProcessorLoop_TaskExecuteFailed_ShardChangeErr(t *testing.T) {
 		mockEngine,
 		config,
 		metricsClient,
+		structured.NewTestEmitter(t, nil),
 		taskFetcher,
 		taskExecutor,
 		clock.NewMockedTimeSource(),
