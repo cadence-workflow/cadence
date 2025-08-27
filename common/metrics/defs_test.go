@@ -162,11 +162,6 @@ func TestMetricsAreUnique(t *testing.T) {
 	})
 }
 
-// Duplicate metric names are likely to cause Prometheus errors due to different labels.
-func TestOperationsAreUnique(t *testing.T) {
-
-}
-
 func TestExponentialDurationBuckets(t *testing.T) {
 	factor := math.Pow(2, 0.25)
 	assert.Equal(t, 80, len(ExponentialDurationBuckets))
