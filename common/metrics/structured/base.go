@@ -17,29 +17,45 @@ var Module = fx.Options(
 	}),
 )
 
-// Metadata is a shared interface for all "...Tags" structs.
-//
-// You are generally NOT expected to implement any of this yourself.
-// Just define your struct, and let the code generator take care of it (`make metrics`).
-//
-// For the intended usage and implementation, see generated code.
-type Metadata interface {
-	NumTags() int                   // for efficient pre-allocation
-	PutTags(into map[string]string) // populates the map
-	GetTags() map[string]string     // returns a pre-allocated and pre-populated map
-}
+// // Metadata is a shared interface for all "...Tags" structs.
+// //
+// // You are generally NOT expected to implement any of this yourself.
+// // Just define your struct, and let the code generator take care of it (`make metrics`).
+// //
+// // For the intended usage and implementation, see generated code.
+// type Metadata interface {
+// 	NumTags() int                   // for efficient pre-allocation
+// 	PutTags(into map[string]string) // populates the map
+// 	GetTags() map[string]string     // returns a pre-allocated and pre-populated map
+// }
 
-// DynamicTags is a very simple helper for treating an arbitrary map as a Metadata.
+// Tags is a very simple helper for treating an arbitrary map as a Metadata.
 //
 // This can be used externally (for completely manual metrics) or in metrics-emitting
 // methods to simplify adding custom tags (e.g. it is returned from GetTags).
-type DynamicTags map[string]string
+type Tags map[string]string
 
-var _ Metadata = DynamicTags{}
+//
+// var _ Metadata = Tags{}
+//
+// func (o Tags) NumTags() int                   { return len(o) }
+// func (o Tags) PutTags(into map[string]string) { maps.Copy(into, o) }
+// func (o Tags) GetTags() map[string]string     { return maps.Clone(o) }
 
-func (o DynamicTags) NumTags() int                   { return len(o) }
-func (o DynamicTags) PutTags(into map[string]string) { maps.Copy(into, o) }
-func (o DynamicTags) GetTags() map[string]string     { return maps.Clone(o) }
+func (o Tags) With(key, value string, more ...string) Tags {
+	if len(more)%2 != 0 {
+		// pretty easy to catch at dev time, seems reasonably unlikely to ever happen in prod.
+		panic("Tags.With requires an even number of 'more' arguments")
+	}
+
+	dup := make(Tags, len(o)+1+len(more)/2)
+	maps.Copy(dup, o)
+	dup[key] = value
+	for i := 0; i < len(more)-1; i += 2 {
+		dup[more[i]] = more[i+1]
+	}
+	return dup
+}
 
 // Emitter is the base helper for emitting metrics, and it contains only low-level
 // metrics-emitting funcs to keep it as simple as possible.
@@ -48,7 +64,7 @@ func (o DynamicTags) GetTags() map[string]string     { return maps.Clone(o) }
 // but it's intentionally possible to (ab)use it by hand because ad-hoc metrics
 // should be easy and encouraged.
 //
-// Metadata can be constructed from any map via DynamicTags, but this API intentionally hides
+// Metadata can be constructed from any map via Tags, but this API intentionally hides
 // [tally.Scope.Tagged] because it's (somewhat) memory-wasteful, self-referential interfaces are
 // difficult to mock, and it's very hard to figure out what tags may be present at runtime.
 //
@@ -70,17 +86,10 @@ type Emitter struct {
 
 // Histogram records a duration-based histogram with the provided data.
 // It adds a "histogram_scale" tag, so histograms can be accurately subset in queries or via middleware.
-func (b Emitter) Histogram(name string, buckets SubsettableHistogram, dur time.Duration, meta Metadata) {
-	tags := make(DynamicTags, meta.NumTags()+1)
-	meta.PutTags(tags)
-
-	// all subsettable histograms need to emit scale values so scale changes
-	// can be correctly merged at query time.
-	if _, ok := tags["histogram_scale"]; ok {
-		// rewrite the existing tag so it can be noticed
-		tags["error_rename_this_tag_histogram_scale"] = tags["histogram_scale"]
-	}
-	tags["histogram_scale"] = strconv.Itoa(buckets.scale)
+func (b Emitter) Histogram(name string, buckets SubsettableHistogram, dur time.Duration, meta Tags) {
+	tags := make(Tags, len(meta)+3)
+	maps.Copy(tags, meta)
+	writeHistogramRangeTags(buckets.DurationBuckets, buckets.scale, tags)
 
 	if !strings.HasSuffix(name, "_ns") {
 		// duration-based histograms are always in nanoseconds,
@@ -95,17 +104,10 @@ func (b Emitter) Histogram(name string, buckets SubsettableHistogram, dur time.D
 
 // IntHistogram records a count-based histogram with the provided data.
 // It adds a "histogram_scale" tag, so histograms can be accurately subset in queries or via middleware.
-func (b Emitter) IntHistogram(name string, buckets IntSubsettableHistogram, num int, meta Metadata) {
-	tags := make(DynamicTags, meta.NumTags()+1)
-	meta.PutTags(tags)
-
-	// all subsettable histograms need to emit scale values so scale changes
-	// can be correctly merged at query time.
-	if _, ok := tags["histogram_scale"]; ok {
-		// rewrite the existing tag so it can be noticed
-		tags["error_rename_this_tag_histogram_scale"] = tags["histogram_scale"]
-	}
-	tags["histogram_scale"] = strconv.Itoa(buckets.scale)
+func (b Emitter) IntHistogram(name string, buckets IntSubsettableHistogram, num int, meta Tags) {
+	tags := make(Tags, len(meta)+3)
+	maps.Copy(tags, meta)
+	writeHistogramRangeTags(buckets.DurationBuckets, buckets.scale, tags)
 
 	if !strings.HasSuffix(name, "_counts") {
 		// int-based histograms are always in "_counts" (currently anyway),
@@ -116,6 +118,25 @@ func (b Emitter) IntHistogram(name string, buckets IntSubsettableHistogram, num 
 		name = name + "_error_missing_suffix_counts"
 	}
 	b.scope.Tagged(tags).Histogram(name, buckets).RecordDuration(time.Duration(num))
+}
+
+func writeHistogramRangeTags(buckets []time.Duration, scale int, into Tags) {
+	// all subsettable histograms need to emit scale values so scale changes
+	// can be correctly merged at query time.
+	if _, ok := into["histogram_start"]; ok {
+		into["error_rename_this_tag_histogram_start"] = into["histogram_start"]
+	}
+	if _, ok := into["histogram_end"]; ok {
+		into["error_rename_this_tag_histogram_end"] = into["histogram_end"]
+	}
+	if _, ok := into["histogram_scale"]; ok {
+		into["error_rename_this_tag_histogram_scale"] = into["histogram_scale"]
+	}
+	// record the full range and scale of the histogram so it can be recreated from any individual metric.
+	into["histogram_start"] = strconv.Itoa(int(buckets[1]))            // first non-zero bucket
+	into["histogram_end"] = strconv.Itoa(int(buckets[len(buckets)-1])) // note this will change if scale changes
+	// include the scale, so we know how far away from the requested scale it is, when re-subsetting.
+	into["histogram_scale"] = strconv.Itoa(scale)
 }
 
 // TODO: make a MinMaxHistogram helper which maintains a precise, rolling
@@ -129,13 +150,13 @@ func (b Emitter) IntHistogram(name string, buckets IntSubsettableHistogram, num 
 // Maybe OTEL / Prometheus will natively support this one day.  It'd be simple.
 
 // Count records a counter with the provided data.
-func (b Emitter) Count(name string, num int, meta Metadata) {
-	b.scope.Tagged(meta.GetTags()).Counter(name).Inc(int64(num))
+func (b Emitter) Count(name string, num int, meta Tags) {
+	b.scope.Tagged(meta).Counter(name).Inc(int64(num))
 }
 
 // Gauge emits a gauge with the provided data.
-func (b Emitter) Gauge(name string, val float64, meta Metadata) {
-	b.scope.Tagged(meta.GetTags()).Gauge(name).Update(val)
+func (b Emitter) Gauge(name string, val float64, meta Tags) {
+	b.scope.Tagged(meta).Gauge(name).Update(val)
 }
 
 // NewTestEmitter creates an emitter for tests, optionally using the provided scope.

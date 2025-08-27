@@ -7,7 +7,6 @@ toolchain go1.23.4
 require (
 	github.com/daixiang0/gci v0.12.0
 	github.com/dmarkham/enumer v1.5.8
-	github.com/fatih/structtag v1.2.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/hexdigest/gowrap v1.2.5
 	github.com/mgechev/revive v1.3.2
@@ -89,6 +88,7 @@ require (
 	github.com/esimonov/ifshort v1.0.4 // indirect
 	github.com/ettle/strcase v0.1.1 // indirect
 	github.com/fatih/color v1.15.0 // indirect
+	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/firefart/nonamedreturns v1.0.1 // indirect
 	github.com/form3tech-oss/jwt-go v3.2.2+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
