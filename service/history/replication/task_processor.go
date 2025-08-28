@@ -501,7 +501,7 @@ func (p *taskProcessorImpl) processTaskOnce(replicationTask *types.ReplicationTa
 		// number of replication tasks
 		// this is an exact match for the legacy scope, so it would cause duplicates if emitted.
 		// because this is the first use of this new system, we'll verify the tags with the histograms first.
-		// p.Count("replication_tasks_applied_per_domain", 1, tags)
+		// p.Emitter.Count("replication_tasks_applied_per_domain", 1, tags)
 
 		// emit single task processing latency
 		mScope.RecordTimer(metrics.TaskProcessingLatency, processingLatency)
