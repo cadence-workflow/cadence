@@ -10,7 +10,7 @@ import (
 
 func TestHistogramValues(t *testing.T) {
 	t.Run("default_1ms_to_10m", func(t *testing.T) {
-		checkHistogram(t, Default1ms10m,
+		checkHistogram(t, Default1ms10m, 81,
 			`
 [0s]
 [1ms 1.189207ms 1.414213ms 1.681792ms]
@@ -36,7 +36,7 @@ func TestHistogramValues(t *testing.T) {
 `)
 	})
 	t.Run("high_1ms_to_24h", func(t *testing.T) {
-		checkHistogram(t, High1ms24h,
+		checkHistogram(t, High1ms24h, 113,
 			`
 [0s]
 [1ms 1.189207ms 1.414213ms 1.681792ms]
@@ -70,7 +70,7 @@ func TestHistogramValues(t *testing.T) {
 `)
 	})
 	t.Run("mid_1ms_24h", func(t *testing.T) {
-		checkHistogram(t, Mid1ms24h, `
+		checkHistogram(t, Mid1ms24h, 57, `
 [0s]
 [1ms 1.414213ms]
 [2ms 2.828427ms]
@@ -112,7 +112,7 @@ func TestHistogramValues(t *testing.T) {
 		// if this turns out to be expensive in Prometheus / etc, it's easy
 		// enough to start the histogram at 8, and dual-emit a non-exponential
 		// histogram for lower values.
-		checkHistogram(t, Mid1To32k, `
+		checkHistogram(t, Mid1To32k, 65, `
 [0]
 [1 1 1 1]
 [2 2 2 3]
@@ -133,7 +133,7 @@ func TestHistogramValues(t *testing.T) {
 `)
 	})
 	t.Run("low_cardinality_1ms_10s", func(t *testing.T) {
-		checkHistogram(t, Low1ms10s, `
+		checkHistogram(t, Low1ms10s, 33, `
 [0s]
 [1ms 1.414213ms]
 [2ms 2.828427ms]
@@ -156,7 +156,7 @@ func TestHistogramValues(t *testing.T) {
 }
 
 // most histograms should pass this check, but fuzzy comparison is fine if needed for extreme cases.
-func checkHistogram[T any](t *testing.T, h histogrammy[T], expected string) {
+func checkHistogram[T any](t *testing.T, h histogrammy[T], length int, expected string) {
 	var buf strings.Builder
 	h.print(func(s string, a ...any) {
 		str := fmt.Sprintf(s, a...)
@@ -166,6 +166,8 @@ func checkHistogram[T any](t *testing.T, h histogrammy[T], expected string) {
 	if strings.TrimSpace(expected) != strings.TrimSpace(buf.String()) {
 		t.Error("histogram definition changed, update the test if this is intended")
 	}
+
+	assert.Equal(t, length, h.len(), "wrong number of buckets")
 
 	buckets := h.buckets()
 	assert.EqualValues(t, 0, buckets[0], "first bucket should always be zero")
