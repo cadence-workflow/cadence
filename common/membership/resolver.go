@@ -217,7 +217,7 @@ func (rpo *MultiringResolver) LookupByAddress(service, address string) (HostInfo
 			return m, nil
 		}
 	}
-	rpo.metrics.Scope(metrics.ResolverHostNotFoundScope).IncCounter(1)
+	rpo.metrics.Scope(metrics.ResolverHostNotFoundScope).IncCounter(metrics.RingResolverError)
 	return HostInfo{}, fmt.Errorf("host not found in service %s: %s", service, address)
 }
 

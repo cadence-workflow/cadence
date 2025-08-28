@@ -27,9 +27,9 @@ import (
 )
 
 var (
-	NoopClient    = &noopClientImpl{}
-	NoopScope     = &noopScopeImpl{}
-	NoopStopwatch = tally.NewStopwatch(time.Now(), &nopStopwatchRecorder{})
+	NoopClient    Client = &noopClientImpl{}
+	NoopScope     Scope  = &noopScopeImpl{}
+	NoopStopwatch        = tally.NewStopwatch(time.Now(), &nopStopwatchRecorder{})
 )
 
 type nopStopwatchRecorder struct{}
@@ -73,6 +73,10 @@ func NewNoopMetricsClient() Client {
 }
 
 type noopScopeImpl struct{}
+
+func (n *noopScopeImpl) ExponentialHistogram(hist int, d time.Duration) {}
+
+func (n *noopScopeImpl) IntExponentialHistogram(hist int, value int) {}
 
 func (n *noopScopeImpl) IncCounter(counter int) {
 }

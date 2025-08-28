@@ -129,6 +129,39 @@ func TestMetricDefs(t *testing.T) {
 	}
 }
 
+// "index -> operation" must be unique for structured.DynamicOperationTags' int lookup to work consistently.
+// Duplicate indexes with the same operation name are technically fine, but there doesn't seem to be any benefit in allowing it,
+// and it trivially ensures that all indexes have only one operation name.
+func TestOperationIndexesAreUnique(t *testing.T) {
+	seen := make(map[int]bool)
+	for serviceIdx, serviceOps := range ScopeDefs {
+		for idx := range serviceOps {
+			if seen[idx] {
+				t.Error("duplicate operation index:", idx, "with name:", serviceOps[idx].operation, "in service:", serviceIdx)
+			}
+			seen[idx] = true
+		}
+	}
+}
+
+func TestMetricsAreUnique(t *testing.T) {
+	// Duplicate indexes is arguably fine, but there doesn't seem to be any benefit in allowing it.
+	//
+	// Duplicate names are also linted, but they're done via an analyzer (metricslint) instead, to
+	// allow checking across multiple formats.
+	t.Run("indexes", func(t *testing.T) {
+		seen := make(map[int]bool)
+		for _, serviceMetrics := range MetricDefs {
+			for idx := range serviceMetrics {
+				if seen[idx] {
+					t.Error("duplicate metric index:", idx, "with name:", serviceMetrics[idx].metricName)
+				}
+				seen[idx] = true
+			}
+		}
+	})
+}
+
 func TestExponentialDurationBuckets(t *testing.T) {
 	factor := math.Pow(2, 0.25)
 	assert.Equal(t, 80, len(ExponentialDurationBuckets))

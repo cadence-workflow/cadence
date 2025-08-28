@@ -37,10 +37,12 @@ type (
 
 	// metricDefinition contains the definition for a metric
 	metricDefinition struct {
-		metricType       MetricType    // metric type
-		metricName       MetricName    // metric name
-		metricRollupName MetricName    // optional. if non-empty, this name must be used for rolled-up version of this metric
-		buckets          tally.Buckets // buckets if we are emitting histograms
+		metricType            MetricType    // metric type
+		metricName            MetricName    // metric name
+		metricRollupName      MetricName    // optional. if non-empty, this name must be used for rolled-up version of this metric
+		buckets               tally.Buckets // buckets if we are emitting histograms
+		exponentialBuckets    histogrammy[SubsettableHistogram]
+		intExponentialBuckets histogrammy[IntSubsettableHistogram]
 	}
 
 	// scopeDefinition holds the tag definitions for a scope
@@ -52,6 +54,10 @@ type (
 	// ServiceIdx is an index that uniquely identifies the service
 	ServiceIdx int
 )
+
+func (s scopeDefinition) GetOperationString() string {
+	return s.operation
+}
 
 // MetricTypes which are supported
 const (
@@ -1068,7 +1074,7 @@ const (
 // -- Operation scopes for History service --
 const (
 	// HistoryStartWorkflowExecutionScope tracks StartWorkflowExecution API calls received by service
-	HistoryStartWorkflowExecutionScope = iota + NumCommonScopes
+	HistoryStartWorkflowExecutionScope = iota + NumFrontendScopes
 	// HistoryRecordActivityTaskHeartbeatScope tracks RecordActivityTaskHeartbeat API calls received by service
 	HistoryRecordActivityTaskHeartbeatScope
 	// HistoryRespondDecisionTaskCompletedScope tracks RespondDecisionTaskCompleted API calls received by service
@@ -1356,7 +1362,7 @@ const (
 // -- Operation scopes for Matching service --
 const (
 	// PollForDecisionTaskScope tracks PollForDecisionTask API calls received by service
-	MatchingPollForDecisionTaskScope = iota + NumCommonScopes
+	MatchingPollForDecisionTaskScope = iota + NumHistoryScopes
 	// PollForActivityTaskScope tracks PollForActivityTask API calls received by service
 	MatchingPollForActivityTaskScope
 	// MatchingAddActivityTaskScope tracks AddActivityTask API calls received by service
@@ -1392,7 +1398,7 @@ const (
 // -- Operation scopes for Worker service --
 const (
 	// ReplicationScope is the scope used by all metric emitted by replicator
-	ReplicatorScope = iota + NumCommonScopes
+	ReplicatorScope = iota + NumMatchingScopes
 	// DomainReplicationTaskScope is the scope used by domain task replication processing
 	DomainReplicationTaskScope
 	// ESProcessorScope is scope used by all metric emitted by esProcessor
@@ -1440,7 +1446,7 @@ const (
 // -- Operation scopes for ShardDistributor service --
 const (
 	// ShardDistributorGetShardOwnerScope tracks GetShardOwner API calls received by service
-	ShardDistributorGetShardOwnerScope = iota + NumCommonScopes
+	ShardDistributorGetShardOwnerScope = iota + NumWorkerScopes
 	ShardDistributorHeartbeatScope
 	ShardDistributorAssignLoopScope
 
@@ -2398,6 +2404,8 @@ const (
 	ActiveClusterManagerLookupFailureCount
 	ActiveClusterManagerLookupLatency
 
+	RingResolverError
+
 	NumCommonMetrics // Needs to be last on this list for iota numbering
 )
 
@@ -2414,6 +2422,7 @@ const (
 	TaskBatchCompleteCounter
 	TaskBatchCompleteFailure
 	TaskProcessingLatency
+	ExponentialTaskProcessingLatency
 	TaskQueueLatency
 	ScheduleToStartHistoryQueueLatencyPerTaskList
 	TaskRequestsOldScheduler
@@ -2676,6 +2685,7 @@ const (
 	ReplicationTaskCleanupCount
 	ReplicationTaskCleanupFailure
 	ReplicationTaskLatency
+	ExponentialReplicationTaskLatency
 	MutableStateChecksumMismatch
 	MutableStateChecksumInvalidated
 	FailoverMarkerCount
@@ -2700,12 +2710,13 @@ const (
 	VirtualQueueCountGauge
 	VirtualQueuePausedGauge
 	VirtualQueueRunningGauge
+
 	NumHistoryMetrics
 )
 
 // Matching metrics enum
 const (
-	PollSuccessPerTaskListCounter = iota + NumCommonMetrics
+	PollSuccessPerTaskListCounter = iota + NumHistoryMetrics
 	PollTimeoutPerTaskListCounter
 	PollSuccessWithSyncPerTaskListCounter
 	LeaseRequestPerTaskListCounter
@@ -2783,12 +2794,13 @@ const (
 	IsolationGroupUpscale
 	IsolationGroupDownscale
 	PartitionDrained
+
 	NumMatchingMetrics
 )
 
 // Worker metrics enum
 const (
-	ReplicatorMessages = iota + NumCommonMetrics
+	ReplicatorMessages = iota + NumMatchingMetrics
 	ReplicatorFailures
 	ReplicatorMessagesDropped
 	ReplicatorLatency
@@ -2872,12 +2884,13 @@ const (
 	DiagnosticsWorkflowStartedCount
 	DiagnosticsWorkflowSuccess
 	DiagnosticsWorkflowExecutionLatency
+
 	NumWorkerMetrics
 )
 
 // ShardDistributor metrics enum
 const (
-	ShardDistributorRequests = iota + NumCommonMetrics
+	ShardDistributorRequests = iota + NumWorkerMetrics
 	ShardDistributorFailures
 	ShardDistributorLatency
 	ShardDistributorErrContextTimeoutCounter
@@ -3178,18 +3191,21 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ActiveClusterManagerLookupSuccessCount: {metricName: "active_cluster_manager_lookup_success_count", metricType: Counter},
 		ActiveClusterManagerLookupFailureCount: {metricName: "active_cluster_manager_lookup_failure_count", metricType: Counter},
 		ActiveClusterManagerLookupLatency:      {metricName: "active_cluster_manager_lookup_latency", metricType: Histogram, buckets: ExponentialDurationBuckets},
+
+		RingResolverError: {metricName: "ring_resolver_error", metricType: Counter},
 	},
 	History: {
-		TaskRequests:             {metricName: "task_requests", metricType: Counter},
-		TaskLatency:              {metricName: "task_latency", metricType: Timer},
-		TaskAttemptTimer:         {metricName: "task_attempt", metricType: Timer},
-		TaskFailures:             {metricName: "task_errors", metricType: Counter},
-		TaskDiscarded:            {metricName: "task_errors_discarded", metricType: Counter},
-		TaskStandbyRetryCounter:  {metricName: "task_errors_standby_retry_counter", metricType: Counter},
-		TaskNotActiveCounter:     {metricName: "task_errors_not_active_counter", metricType: Counter},
-		TaskLimitExceededCounter: {metricName: "task_errors_limit_exceeded_counter", metricType: Counter},
-		TaskProcessingLatency:    {metricName: "task_latency_processing", metricType: Timer},
-		TaskQueueLatency:         {metricName: "task_latency_queue", metricType: Timer},
+		TaskRequests:                     {metricName: "task_requests", metricType: Counter},
+		TaskLatency:                      {metricName: "task_latency", metricType: Timer},
+		TaskAttemptTimer:                 {metricName: "task_attempt", metricType: Timer},
+		TaskFailures:                     {metricName: "task_errors", metricType: Counter},
+		TaskDiscarded:                    {metricName: "task_errors_discarded", metricType: Counter},
+		TaskStandbyRetryCounter:          {metricName: "task_errors_standby_retry_counter", metricType: Counter},
+		TaskNotActiveCounter:             {metricName: "task_errors_not_active_counter", metricType: Counter},
+		TaskLimitExceededCounter:         {metricName: "task_errors_limit_exceeded_counter", metricType: Counter},
+		TaskProcessingLatency:            {metricName: "task_latency_processing", metricType: Timer},
+		ExponentialTaskProcessingLatency: {metricName: "task_latency_processing_ns", metricType: Histogram, exponentialBuckets: Low1ms10s},
+		TaskQueueLatency:                 {metricName: "task_latency_queue", metricType: Timer},
 		ScheduleToStartHistoryQueueLatencyPerTaskList: {metricName: "schedule_to_start_history_queue_latency_per_tl", metricType: Timer},
 		TaskRequestsOldScheduler:                      {metricName: "task_requests_old_scheduler", metricType: Counter},
 		TaskRequestsNewScheduler:                      {metricName: "task_requests_new_scheduler", metricType: Counter},
@@ -3444,6 +3460,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ReplicationTaskCleanupCount:                                  {metricName: "replication_task_cleanup_count", metricType: Counter},
 		ReplicationTaskCleanupFailure:                                {metricName: "replication_task_cleanup_failed", metricType: Counter},
 		ReplicationTaskLatency:                                       {metricName: "replication_task_latency", metricType: Timer},
+		ExponentialReplicationTaskLatency:                            {metricName: "replication_task_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		MutableStateChecksumMismatch:                                 {metricName: "mutable_state_checksum_mismatch", metricType: Counter},
 		MutableStateChecksumInvalidated:                              {metricName: "mutable_state_checksum_invalidated", metricType: Counter},
 		FailoverMarkerCount:                                          {metricName: "failover_marker_count", metricType: Counter},

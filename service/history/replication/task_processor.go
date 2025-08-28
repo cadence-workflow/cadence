@@ -478,6 +478,14 @@ func (p *taskProcessorImpl) processTaskOnce(replicationTask *types.ReplicationTa
 			mScope = mScope.Tagged(metrics.DomainTag(domainName))
 		}
 		// emit single task processing latency
+		mScope.ExponentialHistogram(metrics.ExponentialTaskProcessingLatency, now.Sub(startTime))
+		// emit latency from task generated to task received
+		mScope.ExponentialHistogram(
+			metrics.ExponentialReplicationTaskLatency,
+			now.Sub(time.Unix(0, replicationTask.GetCreationTime())),
+		)
+
+		// emit single task processing latency
 		mScope.RecordTimer(metrics.TaskProcessingLatency, now.Sub(startTime))
 		// emit latency from task generated to task received
 		mScope.RecordTimer(
