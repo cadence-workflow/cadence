@@ -20,7 +20,7 @@ warningCode = 0
 [rule.errorf]
 # [rule.exported] # disabled due to lack of value / encouraging bad habits
 [rule.if-return]
-[rule.increment-decrement]
+# [rule.increment-decrement] # noisy on generated code, otherwise seems fine - if there's a way to fix that, probably re-enable
 [rule.indent-error-flow]
 # Disabled because we have 158 packages that need package comments; we could instead add ignore
 # directives for existing packages and require it for new packages.
@@ -62,7 +62,7 @@ arguments=[["loop","method-call","recover","return", "immediate-recover"]]
 [rule.range-val-address] # beneficial
 [rule.range-val-in-closure] # beneficial
 [rule.unconditional-recursion] # probably a good idea
-[rule.unreachable-code] # code simplifier
+# [rule.unreachable-code] # reasonable code simplifier, but does not match compiler behavior (e.g. log.Fatal still needs panic or return)
 [rule.waitgroup-by-value] # correct use of sync code, important
 
 #### unused utilities

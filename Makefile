@@ -64,7 +64,7 @@ $(BUILD)/goversion-lint:
 $(BUILD)/fmt: $(BUILD)/codegen # formatting must occur only after all other go-file-modifications are done
 # $(BUILD)/copyright 
 # $(BUILD)/copyright: $(BUILD)/codegen # must add copyright to generated code, sometimes needs re-formatting
-$(BUILD)/codegen: $(BUILD)/thrift $(BUILD)/protoc
+$(BUILD)/codegen: $(BUILD)/thrift $(BUILD)/protoc $(BUILD)/metrics
 $(BUILD)/thrift: $(BUILD)/go_mod_check
 $(BUILD)/protoc: $(BUILD)/go_mod_check
 $(BUILD)/go_mod_check:
@@ -211,6 +211,12 @@ $(BIN)/protoc-gen-gogofast: go.mod go.work | $(BIN)
 $(BIN)/protoc-gen-yarpc-go: go.mod go.work | $(BIN)
 	$(call go_mod_build_tool,go.uber.org/yarpc/encoding/protobuf/protoc-gen-yarpc-go)
 
+$(BIN)/metricsgen: internal/tools/go.mod go.work $(wildcard internal/tools/metricsgen/*) | $(BIN)
+	$(call go_build_tool,./metricsgen)
+
+$(BIN)/metricslint: internal/tools/go.mod go.work $(wildcard internal/tools/metricslint/* internal/tools/metricslint/cmd/*) | $(BIN)
+	$(call go_build_tool,./metricslint/cmd,metricslint)
+
 $(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
 	$Q # generated == used is occasionally important for gomock / mock libs in general.  this is not a definite problem if violated though.
 	$Q ./scripts/check-gomod-version.sh github.com/golang/mock/gomock $(if $(verbose),-v)
@@ -352,6 +358,10 @@ $(BUILD)/protoc: $(PROTO_FILES) $(STABLE_BIN)/$(PROTOC_VERSION_BIN) $(BIN)/proto
 	   fi
 	$Q touch $@
 
+$(BUILD)/metrics: $(ALL_SRC) $(BIN)/metricsgen
+	$Q $(BIN_PATH) go generate -run=metricsgen ./...
+	$Q touch $@
+
 # ====================================
 # Rule-breaking targets intended ONLY for special cases with no good alternatives.
 # ====================================
@@ -402,6 +412,11 @@ $(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive | $(BUILD)
 		  echo 'non-directive comments must have a space after the "//"' >&2; \
 		  exit 1; \
 		fi
+	$Q touch $@
+
+$(BUILD)/metrics-lint: $(ALL_SRC) $(BIN)/metricslint | $(BUILD)
+	$Q echo "linting metrics definitions..."
+	$Q $(BIN_PATH) $(BIN)/metricslint -skip cadence_requests_per_tl,2 -skip cache_hit,2 -skip cache_full,2 -skip cache_miss,2 -skip cross_cluster_fetch_errors,2 ./...
 	$Q touch $@
 
 $(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
@@ -458,7 +473,7 @@ endef
 # useful to actually re-run to get output again.
 # reuse the intermediates for simplicity and consistency.
 lint: ## (Re)run the linter
-	$(call remake,proto-lint gomod-lint code-lint goversion-lint)
+	$(call remake,proto-lint gomod-lint code-lint goversion-lint metrics-lint)
 
 # intentionally not re-making, it's a bit slow and it's clear when it's unnecessary
 fmt: $(BUILD)/fmt ## Run `gofmt` / organize imports / etc
@@ -544,13 +559,19 @@ bins: $(BINS) ## Build all binaries, and any fast codegen needed (does not refre
 
 tools: $(TOOLS)
 
-go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `go generate` to regen mocks, enums, etc
+go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap $(BIN)/metricsgen ## Run `go generate` to regen mocks, enums, etc
 	$Q echo "running go generate ./..., this takes a minute or more..."
 	$Q # add our bins to PATH so `go generate` can find them
 	$Q $(BIN_PATH) go generate $(if $(verbose),-v) ./...
+	$Q touch $(BUILD)/metrics # whole-service go-generate also regenerates metrics
 	$Q $(MAKE) --no-print-directory fmt
 # 	$Q echo "updating copyright headers"
 # 	$Q $(MAKE) --no-print-directory copyright
+
+metrics: $(BIN)/metricsgen ## metrics-only code regen, much faster than go-generate
+	$Q echo "re-generating metrics structs..."
+	$Q $(MAKE) $(BUILD)/metrics
+	$Q $(MAKE) fmt # clean up imports
 
 release: ## Re-generate generated code and run tests
 	$(MAKE) --no-print-directory go-generate
@@ -577,7 +598,7 @@ tidy: ## `go mod tidy` all packages
 clean: ## Clean build products and SQLite database
 	rm -f $(BINS)
 	rm -Rf $(BUILD)
-	rm *.db
+	rm -f *.db
 	$(if \
 		$(wildcard $(STABLE_BIN)/*), \
 		$(warning usually-stable build tools still exist, delete the $(STABLE_BIN) folder to rebuild them),)

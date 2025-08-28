@@ -44,6 +44,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/metrics/structured"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/resource"
@@ -110,7 +111,15 @@ func (s *ServerSuite) TestServerStartup() {
 		})
 
 	for _, svc := range services {
-		server := newServer(svc, cfg, logger, dynamicconfig.NewNopClient(), tally.NoopScope, metrics.NewNoopMetricsClient())
+		server := newServer(
+			svc,
+			cfg,
+			logger,
+			dynamicconfig.NewNopClient(),
+			tally.NoopScope,
+			metrics.NewNoopMetricsClient(),
+			structured.NewTestEmitter(s.T(), nil),
+		)
 		daemons = append(daemons, server)
 		server.Start()
 	}
