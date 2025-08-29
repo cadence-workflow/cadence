@@ -64,7 +64,7 @@ $(BUILD)/goversion-lint:
 $(BUILD)/fmt: $(BUILD)/codegen # formatting must occur only after all other go-file-modifications are done
 # $(BUILD)/copyright 
 # $(BUILD)/copyright: $(BUILD)/codegen # must add copyright to generated code, sometimes needs re-formatting
-$(BUILD)/codegen: $(BUILD)/thrift $(BUILD)/protoc
+$(BUILD)/codegen: $(BUILD)/thrift $(BUILD)/protoc $(BUILD)/metrics
 $(BUILD)/thrift: $(BUILD)/go_mod_check
 $(BUILD)/protoc: $(BUILD)/go_mod_check
 $(BUILD)/go_mod_check:
@@ -210,6 +210,9 @@ $(BIN)/protoc-gen-gogofast: go.mod go.work | $(BIN)
 
 $(BIN)/protoc-gen-yarpc-go: go.mod go.work | $(BIN)
 	$(call go_mod_build_tool,go.uber.org/yarpc/encoding/protobuf/protoc-gen-yarpc-go)
+
+$(BIN)/metricslint: internal/tools/go.mod go.work $(wildcard internal/tools/metricslint/* internal/tools/metricslint/cmd/*) | $(BIN)
+	$(call go_build_tool,./metricslint/cmd,metricslint)
 
 $(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
 	$Q # generated == used is occasionally important for gomock / mock libs in general.  this is not a definite problem if violated though.
@@ -404,6 +407,11 @@ $(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive | $(BUILD)
 		fi
 	$Q touch $@
 
+$(BUILD)/metrics-lint: $(ALL_SRC) $(BIN)/metricslint | $(BUILD)
+	$Q echo "linting metrics definitions..."
+	$Q $(BIN_PATH) $(BIN)/metricslint -skip cadence_requests_per_tl,2 -skip cache_hit,2 -skip cache_full,2 -skip cache_miss,2 -skip cross_cluster_fetch_errors,2 ./...
+	$Q touch $@
+
 $(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
 	$Q echo "checking go version..."
 	$Q # intentionally using go.work toolchain, as GOTOOLCHAIN is user-overridable
@@ -458,7 +466,7 @@ endef
 # useful to actually re-run to get output again.
 # reuse the intermediates for simplicity and consistency.
 lint: ## (Re)run the linter
-	$(call remake,proto-lint gomod-lint code-lint goversion-lint)
+	$(call remake,proto-lint gomod-lint code-lint goversion-lint metrics-lint)
 
 # intentionally not re-making, it's a bit slow and it's clear when it's unnecessary
 fmt: $(BUILD)/fmt ## Run `gofmt` / organize imports / etc
@@ -547,7 +555,7 @@ tools: $(TOOLS)
 go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `go generate` to regen mocks, enums, etc
 	$Q echo "running go generate ./..., this takes a minute or more..."
 	$Q # add our bins to PATH so `go generate` can find them
-	$Q $(BIN_PATH) go generate $(if $(verbose),-v) ./...
+	$Q $(BIN_PATH) go generate $(if $(verbose),-v) ./common/metrics
 	$Q $(MAKE) --no-print-directory fmt
 # 	$Q echo "updating copyright headers"
 # 	$Q $(MAKE) --no-print-directory copyright
@@ -577,7 +585,7 @@ tidy: ## `go mod tidy` all packages
 clean: ## Clean build products and SQLite database
 	rm -f $(BINS)
 	rm -Rf $(BUILD)
-	rm *.db
+	rm -f *.db
 	$(if \
 		$(wildcard $(STABLE_BIN)/*), \
 		$(warning usually-stable build tools still exist, delete the $(STABLE_BIN) folder to rebuild them),)

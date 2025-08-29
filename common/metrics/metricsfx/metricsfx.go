@@ -34,7 +34,8 @@ import (
 
 // Module provides metrics client for fx application.
 var Module = fx.Module("metricsfx",
-	fx.Provide(buildClient))
+	fx.Provide(buildClient),
+)
 
 // ModuleForExternalScope provides metrics client for fx application when tally.Scope is created outside.
 var ModuleForExternalScope = fx.Module("metricsfx",
