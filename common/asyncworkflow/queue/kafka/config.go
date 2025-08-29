@@ -26,7 +26,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 
 	"github.com/uber/cadence/common/authorization"
 	"github.com/uber/cadence/common/config"
