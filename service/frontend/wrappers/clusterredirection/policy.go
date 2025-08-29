@@ -271,7 +271,13 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	targetDC, enableDomainNotActiveForwarding := policy.getTargetClusterAndIsDomainNotActiveAutoForwarding(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel)
 	domainName := domainEntry.GetInfo().Name
 
-	policy.logger.Debugf("Calling API %q on target cluster:%q for domain:%q", apiName, targetDC, domainName)
+	policy.logger.Info(
+		"Calling API on target cluster for domain",
+		tag.OperationName(apiName),
+		tag.ClusterName(policy.currentClusterName),
+		tag.ActiveClusterName(targetDC),
+		tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+	)
 	err := call(targetDC)
 	scope := policy.metricsClient.Scope(metrics.DCRedirectionForwardingPolicyScope).Tagged(
 		append(
@@ -296,16 +302,32 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	scope.IncCounter(metrics.ClusterForwardingPolicyRequests)
 
 	if domainNotActiveErr.ActiveCluster == "" {
-		policy.logger.Debugf("No active cluster specified in the error returned from cluster:%q for domain:%q, api: %q so skipping redirect", targetDC, domainEntry.GetInfo().Name, apiName)
+		policy.logger.Debug(
+			"No active cluster specified in the error returned from cluster, skipping redirect",
+			tag.ClusterName(targetDC),
+			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.OperationName(apiName),
+		)
 		return err
 	}
 
 	if domainNotActiveErr.ActiveCluster == targetDC {
-		policy.logger.Debugf("No need to redirect to new target cluster:%q for domain:%q, api: %q", targetDC, domainEntry.GetInfo().Name, apiName)
+		policy.logger.Debug(
+			"No need to redirect to new target cluster",
+			tag.ClusterName(targetDC),
+			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.OperationName(apiName),
+		)
 		return err
 	}
 
-	policy.logger.Debugf("Calling API %q on new target cluster:%q for domain:%q as indicated by response from cluster:%q", apiName, domainNotActiveErr.ActiveCluster, domainEntry.GetInfo().Name, targetDC)
+	policy.logger.Debug(
+		"Calling API on new target cluster for domain as indicated by response from cluster",
+		tag.OperationName(apiName),
+		tag.ClusterName(domainNotActiveErr.ActiveCluster),
+		tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+		tag.ClusterName(targetDC),
+	)
 	return call(domainNotActiveErr.ActiveCluster)
 }
 
@@ -321,42 +343,86 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndI
 	if !domainEntry.IsGlobalDomain() {
 		// Do not do dc redirection if domain is local domain,
 		// for global domains with 1 dc, it's still useful to do auto-forwarding during cluster migration
+		policy.logger.Debug(
+			"Local domain, routing to current cluster",
+			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.ClusterName(policy.currentClusterName),
+		)
 		return policy.currentClusterName, false
 	}
 
 	if !policy.config.EnableDomainNotActiveAutoForwarding(domainEntry.GetInfo().Name) {
 		// Do not do dc redirection if auto-forwarding dynamicconfig is not enabled
-		policy.logger.Debugf("Auto-forwarding dynamicconfig is not enabled for domain:%q, api: %q", domainEntry.GetInfo().Name, apiName)
+		policy.logger.Debug(
+			"Auto-forwarding dynamicconfig is not enabled, routing to current cluster",
+			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.ClusterName(policy.currentClusterName),
+		)
 		return policy.currentClusterName, false
 	}
 
 	currentActiveCluster := domainEntry.GetReplicationConfig().ActiveClusterName
 	if domainEntry.GetReplicationConfig().IsActiveActive() {
-		currentActiveCluster = policy.activeClusterForActiveActiveDomainRequest(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName)
-		policy.logger.Debugf("Active-active domain, forwarding to workflow active cluster:%q for domain:%q, api: %q", currentActiveCluster, domainEntry.GetInfo().Name, apiName)
+		workflowActiveCluster := policy.activeClusterForActiveActiveDomainRequest(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName)
+		policy.logger.Debug(
+			"Active-active domain, routing to active cluster",
+			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.ClusterName(currentActiveCluster),
+			tag.ActiveClusterName(workflowActiveCluster),
+		)
+		currentActiveCluster = workflowActiveCluster
 	}
 
 	if policy.allDomainAPIs {
 		if policy.targetCluster == "" {
+			policy.logger.Debug(
+				"All domain APIs forwarding, routing to active cluster",
+				tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+				tag.ClusterName(policy.currentClusterName),
+				tag.ActiveClusterName(currentActiveCluster),
+			)
 			return currentActiveCluster, true
 		}
 		if policy.targetCluster == currentActiveCluster {
+			policy.logger.Debug(
+				"All domain APIs forwarding, routing to active cluster",
+				tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+				tag.ClusterName(policy.currentClusterName),
+				tag.ActiveClusterName(currentActiveCluster),
+			)
 			return currentActiveCluster, true
 		}
 		// fallback to selected APIs if targetCluster is not empty and not the same as currentActiveCluster
 	}
 
 	if requestedConsistencyLevel == types.QueryConsistencyLevelStrong {
-		policy.logger.Debugf("Strong consistency requested, forwarding to active cluster:%q for domain:%q, api: %q", currentActiveCluster, domainEntry.GetInfo().Name, apiName)
+		policy.logger.Debug(
+			"Query requested strong consistency, routing to active cluster",
+			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.ClusterName(policy.currentClusterName),
+			tag.ActiveClusterName(currentActiveCluster),
+		)
 		return currentActiveCluster, true
 	}
 
 	_, ok := policy.selectedAPIs[apiName]
 	if !ok {
 		// do not do dc redirection if API is not whitelisted
+		policy.logger.Debug(
+			"API is not whitelisted, routing to current cluster",
+			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.ClusterName(policy.currentClusterName),
+			tag.OperationName(apiName),
+		)
 		return policy.currentClusterName, false
 	}
 
+	policy.logger.Debug(
+		"API is whitelisted, routing to active cluster",
+		tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+		tag.ClusterName(policy.currentClusterName),
+		tag.ActiveClusterName(currentActiveCluster),
+	)
 	return currentActiveCluster, true
 }
 
