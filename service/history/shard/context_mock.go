@@ -22,6 +22,7 @@ import (
 	cluster "github.com/uber/cadence/common/cluster"
 	log "github.com/uber/cadence/common/log"
 	metrics "github.com/uber/cadence/common/metrics"
+	structured "github.com/uber/cadence/common/metrics/structured"
 	persistence "github.com/uber/cadence/common/persistence"
 	types "github.com/uber/cadence/common/types"
 	config "github.com/uber/cadence/service/history/config"
@@ -351,6 +352,20 @@ func (m *MockContext) GetMetricsClient() metrics.Client {
 func (mr *MockContextMockRecorder) GetMetricsClient() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetricsClient", reflect.TypeOf((*MockContext)(nil).GetMetricsClient))
+}
+
+// GetMetricsEmitter mocks base method.
+func (m *MockContext) GetMetricsEmitter() structured.Emitter {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMetricsEmitter")
+	ret0, _ := ret[0].(structured.Emitter)
+	return ret0
+}
+
+// GetMetricsEmitter indicates an expected call of GetMetricsEmitter.
+func (mr *MockContextMockRecorder) GetMetricsEmitter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetricsEmitter", reflect.TypeOf((*MockContext)(nil).GetMetricsEmitter))
 }
 
 // GetQueueAckLevel mocks base method.

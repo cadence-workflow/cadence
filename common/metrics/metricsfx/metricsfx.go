@@ -29,12 +29,15 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/metrics/structured"
 	"github.com/uber/cadence/common/service"
 )
 
 // Module provides metrics client for fx application.
 var Module = fx.Module("metricsfx",
-	fx.Provide(buildClient))
+	fx.Provide(buildClient),
+	structured.Module,
+)
 
 // ModuleForExternalScope provides metrics client for fx application when tally.Scope is created outside.
 var ModuleForExternalScope = fx.Module("metricsfx",
