@@ -344,6 +344,8 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 
 	pendingTaskCount := q.monitor.GetTotalPendingTaskCount()
 	maxTaskCount := q.queueOptions.MaxPendingTasksCount()
+	// TODO: review the metrics and remove this comment or change the metric from gauge to histogram
+	q.metricsScope.UpdateGauge(metrics.PendingTaskGauge, float64(pendingTaskCount))
 	if pendingTaskCount >= maxTaskCount {
 		q.logger.Warn("Too many pending tasks, pause loading tasks for a while", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount))
 		q.pauseController.Pause(q.queueOptions.PollBackoffInterval())

@@ -492,6 +492,12 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 			newSlice: nil, // Will be replaced with mock
 			setupMockQueues: func(mocks map[int64]*MockVirtualQueue, slice *MockVirtualSlice) {
 				mocks[rootQueueID].EXPECT().MergeSlices(slice)
+				slice.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+				})
 			},
 			verifyQueues: func(t *testing.T, queues map[int64]VirtualQueue) {
 				assert.Contains(t, queues, int64(rootQueueID))
@@ -506,6 +512,12 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 			newSlice: nil, // Will be replaced with mock
 			setupMockQueues: func(mocks map[int64]*MockVirtualQueue, slice *MockVirtualSlice) {
 				mocks[rootQueueID].EXPECT().AppendSlices(slice)
+				slice.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+				})
 			},
 			verifyQueues: func(t *testing.T, queues map[int64]VirtualQueue) {
 				assert.Contains(t, queues, int64(rootQueueID))

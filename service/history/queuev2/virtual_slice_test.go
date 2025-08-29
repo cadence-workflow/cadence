@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	gomock "go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/task"
 )
@@ -1317,6 +1318,7 @@ func TestUpdateAndGetState(t *testing.T) {
 
 			tt.slice.queueReader = mockQueueReader
 			tt.slice.pendingTaskTracker = mockPendingTaskTracker
+			tt.slice.logger = testlogger.New(t)
 
 			// Setup mock expectations using the setupMock function
 			tt.setupMock(mockPendingTaskTracker)

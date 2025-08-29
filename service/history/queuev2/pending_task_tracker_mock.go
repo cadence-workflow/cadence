@@ -124,9 +124,11 @@ func (mr *MockPendingTaskTrackerMockRecorder) GetTasks() *gomock.Call {
 }
 
 // PruneAckedTasks mocks base method.
-func (m *MockPendingTaskTracker) PruneAckedTasks() {
+func (m *MockPendingTaskTracker) PruneAckedTasks() int {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "PruneAckedTasks")
+	ret := m.ctrl.Call(m, "PruneAckedTasks")
+	ret0, _ := ret[0].(int)
+	return ret0
 }
 
 // PruneAckedTasks indicates an expected call of PruneAckedTasks.

@@ -134,11 +134,13 @@ func (q *immediateQueue) LockTaskProcessing() {
 }
 
 func (q *immediateQueue) NotifyNewTask(clusterName string, info *hcommon.NotifyTaskInfo) {
-	if len(info.Tasks) == 0 {
+	numTasks := len(info.Tasks)
+	if numTasks == 0 {
 		return
 	}
 
 	q.notify()
+	q.base.metricsScope.AddCounter(metrics.NewHistoryTaskCounter, int64(numTasks))
 }
 
 func (q *immediateQueue) notify() {

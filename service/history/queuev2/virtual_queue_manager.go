@@ -96,7 +96,7 @@ func NewVirtualQueueManager(
 	for queueID, states := range virtualQueueStates {
 		virtualSlices := make([]VirtualSlice, len(states))
 		for i, state := range states {
-			virtualSlices[i] = NewVirtualSlice(state, taskInitializer, queueReader, NewPendingTaskTracker())
+			virtualSlices[i] = NewVirtualSlice(state, taskInitializer, queueReader, NewPendingTaskTracker(), logger)
 		}
 		var opts *VirtualQueueOptions
 		if queueID == rootQueueID {
@@ -220,10 +220,13 @@ func (m *virtualQueueManagerImpl) AddNewVirtualSliceToRootQueue(s VirtualSlice) 
 
 func (m *virtualQueueManagerImpl) appendOrMergeSlice(vq VirtualQueue, s VirtualSlice) {
 	now := m.timeSource.Now()
+	newVirtualSliceState := s.GetState()
 	if now.After(m.nextForceNewSliceTime) {
+		m.logger.Debug("append new slice to virtual queue", tag.Dynamic("currentTime", now), tag.Dynamic("nextForceNewSliceTime", m.nextForceNewSliceTime), tag.Dynamic("inclusiveMinTaskKey", newVirtualSliceState.Range.InclusiveMinTaskKey), tag.Dynamic("exclusiveMaxTaskKey", newVirtualSliceState.Range.ExclusiveMaxTaskKey))
 		vq.AppendSlices(s)
 		m.nextForceNewSliceTime = now.Add(m.queueManagerOptions.VirtualSliceForceAppendInterval())
 		return
 	}
+	m.logger.Debug("merge slice to virtual queue", tag.Dynamic("currentTime", now), tag.Dynamic("nextForceNewSliceTime", m.nextForceNewSliceTime), tag.Dynamic("inclusiveMinTaskKey", newVirtualSliceState.Range.InclusiveMinTaskKey), tag.Dynamic("exclusiveMaxTaskKey", newVirtualSliceState.Range.ExclusiveMaxTaskKey))
 	vq.MergeSlices(s)
 }

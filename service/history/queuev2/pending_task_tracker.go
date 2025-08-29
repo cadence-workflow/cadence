@@ -35,7 +35,7 @@ type (
 		// AddTask adds a task to the pending task tracker.
 		AddTask(task.Task)
 		// PruneAckedTasks prunes the acked tasks from the pending task tracker.
-		PruneAckedTasks()
+		PruneAckedTasks() int
 		// GetMinimumTaskKey returns the minimum task key in the pending task tracker, if there are no pending tasks, it returns MaximumHistoryTaskKey.
 		GetMinimumTaskKey() (persistence.HistoryTaskKey, bool)
 		// GetTasks returns all the tasks in the pending task tracker, the result should be read-only.
@@ -85,12 +85,14 @@ func (t *pendingTaskTrackerImpl) GetTasks() map[persistence.HistoryTaskKey]task.
 	return t.taskMap
 }
 
-func (t *pendingTaskTrackerImpl) PruneAckedTasks() {
+func (t *pendingTaskTrackerImpl) PruneAckedTasks() int {
+	prunedCount := 0
 	minTaskKey := persistence.MaximumHistoryTaskKey
 	for key, task := range t.taskMap {
 		if task.State() == ctask.TaskStateAcked {
 			delete(t.taskMap, key)
 			t.taskCountPerDomain[task.GetDomainID()]--
+			prunedCount++
 			continue
 		}
 
@@ -99,6 +101,7 @@ func (t *pendingTaskTrackerImpl) PruneAckedTasks() {
 		}
 	}
 	t.minTaskKey = minTaskKey
+	return prunedCount
 }
 
 func (t *pendingTaskTrackerImpl) GetPendingTaskCount() int {

@@ -111,6 +111,7 @@ func newQueueBase(
 	if err != nil {
 		logger.Fatal("Failed to get queue state, probably task category is not supported", tag.Error(err), tag.Dynamic("category", category))
 	}
+	logger.Info("loading queue state", tag.Dynamic("queue-state", persistenceQueueState))
 	queueState := FromPersistenceQueueState(persistenceQueueState)
 	exclusiveAckLevel, _ := getExclusiveAckLevelAndMaxQueueIDFromQueueState(queueState)
 
@@ -266,7 +267,7 @@ func (q *queueBase) processNewTasks() bool {
 	}
 	q.newVirtualSliceState = remainingVirtualSliceState
 
-	newVirtualSlice := NewVirtualSlice(newVirtualSliceState, q.taskInitializer, q.queueReader, NewPendingTaskTracker())
+	newVirtualSlice := NewVirtualSlice(newVirtualSliceState, q.taskInitializer, q.queueReader, NewPendingTaskTracker(), q.logger)
 
 	q.logger.Debug("processing new tasks", tag.Dynamic("inclusiveMinTaskKey", newVirtualSliceState.Range.InclusiveMinTaskKey), tag.Dynamic("exclusiveMaxTaskKey", newVirtualSliceState.Range.ExclusiveMaxTaskKey))
 	q.virtualQueueManager.AddNewVirtualSliceToRootQueue(newVirtualSlice)
@@ -326,7 +327,7 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 
 	// even though the ack level is not updated, we still need to update the queue state
 	persistenceQueueState := ToPersistenceQueueState(queueState)
-	q.logger.Debug("store queue state", tag.Dynamic("queue-state", persistenceQueueState))
+	q.logger.Debug("store queue state", tag.Dynamic("queue-state", persistenceQueueState), tag.PendingTaskCount(pendingTaskCount))
 	err := q.shard.UpdateQueueState(q.category, persistenceQueueState)
 	if err != nil {
 		q.logger.Error("Failed to update queue state", tag.Error(err))

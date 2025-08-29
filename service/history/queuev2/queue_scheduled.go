@@ -138,12 +138,13 @@ func (q *scheduledQueue) UnlockTaskProcessing() {
 }
 
 func (q *scheduledQueue) NotifyNewTask(clusterName string, info *hcommon.NotifyTaskInfo) {
-	if len(info.Tasks) == 0 {
+	numTasks := len(info.Tasks)
+	if numTasks == 0 {
 		return
 	}
 
 	nextTime := info.Tasks[0].GetVisibilityTimestamp()
-	for i := 1; i < len(info.Tasks); i++ {
+	for i := 1; i < numTasks; i++ {
 		ts := info.Tasks[i].GetVisibilityTimestamp()
 		if ts.Before(nextTime) {
 			nextTime = ts
@@ -151,6 +152,7 @@ func (q *scheduledQueue) NotifyNewTask(clusterName string, info *hcommon.NotifyT
 	}
 
 	q.notify(nextTime)
+	q.base.metricsScope.AddCounter(metrics.NewHistoryTaskCounter, int64(numTasks))
 }
 
 func (q *scheduledQueue) notify(t time.Time) {

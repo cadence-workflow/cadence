@@ -18,6 +18,7 @@ func TestPendingTaskTracker(t *testing.T) {
 		name             string
 		setupTasks       func(ctrl *gomock.Controller) []*task.MockTask
 		pruneAcked       bool
+		pruneAckedCount  int
 		clear            bool
 		wantMinKey       persistence.HistoryTaskKey
 		wantHasMinKey    bool
@@ -92,6 +93,7 @@ func TestPendingTaskTracker(t *testing.T) {
 				return []*task.MockTask{task1, task2, task3}
 			},
 			pruneAcked:       true,
+			pruneAckedCount:  2,
 			wantMinKey:       persistence.NewHistoryTaskKey(testTime, 2),
 			wantHasMinKey:    true,
 			wantTaskCount:    1,
@@ -113,6 +115,7 @@ func TestPendingTaskTracker(t *testing.T) {
 				return []*task.MockTask{task1, task2}
 			},
 			pruneAcked:       true,
+			pruneAckedCount:  2,
 			wantMinKey:       persistence.MaximumHistoryTaskKey,
 			wantHasMinKey:    false,
 			wantTaskCount:    0,
@@ -162,7 +165,8 @@ func TestPendingTaskTracker(t *testing.T) {
 
 			// Prune acked tasks if needed
 			if tt.pruneAcked {
-				tracker.PruneAckedTasks()
+				prunedCount := tracker.PruneAckedTasks()
+				assert.Equal(t, tt.pruneAckedCount, prunedCount)
 			}
 
 			// Clear all tasks if needed
