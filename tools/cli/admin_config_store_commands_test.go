@@ -27,7 +27,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/urfave/cli/v2"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
@@ -35,51 +34,40 @@ import (
 	"github.com/uber/cadence/tools/cli/clitest"
 )
 
-const testDynamicConfigName = "test-dynamic-config-name"
-
 func TestAdminGetDynamicConfig(t *testing.T) {
 	tests := []struct {
 		name        string
-		testSetup   func(td *cliTestData) *cli.Context
+		cmdline     string
+		setupMock   func(td *cliTestData)
 		errContains string // empty if no error is expected
 	}{
 		{
-			name: "no arguments provided",
-			testSetup: func(td *cliTestData) *cli.Context {
-				return clitest.NewCLIContext(t, td.app /* arguments are missing */)
+			cmdline: `cadence admin config get --name ""`,
+			name:    "no arguments provided",
+			setupMock: func(td *cliTestData) {
+				// empty since arguments are missing
 			},
 			errContains: "Required flag not found",
 		},
 		{
-			name: "failed to get dynamic config values",
-			testSetup: func(td *cliTestData) *cli.Context {
-				cliCtx := clitest.NewCLIContext(
-					t,
-					td.app,
-					clitest.StringArgument(FlagDynamicConfigName, testDynamicConfigName),
-				)
-
+			name:    "failed to get dynamic config values",
+			cmdline: `cadence admin config get --name test-dynamic-config-name`,
+			setupMock: func(td *cliTestData) {
 				td.mockAdminClient.EXPECT().GetDynamicConfig(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ context.Context, request *types.GetDynamicConfigRequest, _ ...yarpc.CallOption) (*types.GetDynamicConfigResponse, error) {
-						assert.Equal(t, request.ConfigName, testDynamicConfigName)
+						assert.Equal(t, "test-dynamic-config-name", request.ConfigName)
 						return nil, assert.AnError
 					})
-				return cliCtx
 			},
 			errContains: "Failed to get dynamic config value",
 		},
 		{
-			name: "received a dynamic config value successfully",
-			testSetup: func(td *cliTestData) *cli.Context {
-				cliCtx := clitest.NewCLIContext(
-					t,
-					td.app,
-					clitest.StringArgument(FlagDynamicConfigName, testDynamicConfigName),
-				)
-
+			name:    "received a dynamic config value successfully",
+			cmdline: `cadence admin config get --name test-dynamic-config-name`,
+			setupMock: func(td *cliTestData) {
 				td.mockAdminClient.EXPECT().GetDynamicConfig(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ context.Context, request *types.GetDynamicConfigRequest, _ ...yarpc.CallOption) (*types.GetDynamicConfigResponse, error) {
-						assert.Equal(t, request.ConfigName, testDynamicConfigName)
+						assert.Equal(t, "test-dynamic-config-name", request.ConfigName)
 						return &types.GetDynamicConfigResponse{
 							Value: &types.DataBlob{
 								EncodingType: types.EncodingTypeThriftRW.Ptr(),
@@ -87,24 +75,16 @@ func TestAdminGetDynamicConfig(t *testing.T) {
 							},
 						}, nil
 					})
-				return cliCtx
 			},
 			errContains: "",
 		},
 		{
-			name: "received a dynamic config value with filters successfully",
-			testSetup: func(td *cliTestData) *cli.Context {
-				cliCtx := clitest.NewCLIContext(
-					t,
-					td.app,
-					clitest.StringArgument(FlagDynamicConfigName, testDynamicConfigName),
-					clitest.StringArgument(FlagDynamicConfigFilter,
-						`{"domainName":"test-domain", "shardID": 1, "isEnabled": true}`),
-				)
-
+			name:    "received a dynamic config value with filters successfully",
+			cmdline: `cadence admin config get --name test-dynamic-config-name --filter '{"domainName":"test-domain", "shardID": 1, "isEnabled": true}'`,
+			setupMock: func(td *cliTestData) {
 				td.mockAdminClient.EXPECT().GetDynamicConfig(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ context.Context, request *types.GetDynamicConfigRequest, _ ...yarpc.CallOption) (*types.GetDynamicConfigResponse, error) {
-						assert.Equal(t, request.ConfigName, testDynamicConfigName)
+						assert.Equal(t, "test-dynamic-config-name", request.ConfigName)
 						assert.ElementsMatch(t, request.Filters, []*types.DynamicConfigFilter{
 							{
 								Name: "domainName",
@@ -135,7 +115,6 @@ func TestAdminGetDynamicConfig(t *testing.T) {
 							},
 						}, nil
 					})
-				return cliCtx
 			},
 			errContains: "",
 		},
@@ -144,9 +123,9 @@ func TestAdminGetDynamicConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			td := newCLITestData(t)
-			cliCtx := tt.testSetup(td)
+			tt.setupMock(td)
 
-			err := AdminGetDynamicConfig(cliCtx)
+			err := clitest.RunCommandLine(t, td.app, tt.cmdline)
 			if tt.errContains == "" {
 				assert.NoError(t, err)
 			} else {
@@ -159,45 +138,31 @@ func TestAdminGetDynamicConfig(t *testing.T) {
 func TestAdminUpdateDynamicConfig(t *testing.T) {
 	tests := []struct {
 		name        string
-		testSetup   func(td *cliTestData) *cli.Context
+		cmdline     string
+		setupMocks  func(td *cliTestData)
 		errContains string // empty if no error is expected
 	}{
 		{
-			name: "no arguments provided",
-			testSetup: func(td *cliTestData) *cli.Context {
-				return clitest.NewCLIContext(t, td.app /* arguments are missing */)
+			name:    "no arguments provided",
+			cmdline: `cadence admin config update --name "" --value ""`,
+			setupMocks: func(td *cliTestData) {
+				// empty since arguments are missing
 			},
 			errContains: "Required flag not found",
 		},
 		{
-			name: "calling with required arguments",
-			testSetup: func(td *cliTestData) *cli.Context {
-				cliCtx := clitest.NewCLIContext(
-					t,
-					td.app,
-					clitest.StringArgument(FlagDynamicConfigName, testDynamicConfigName),
-					clitest.StringArgument(FlagDynamicConfigValue, "'{'Value':some-value,'Filters':[]}'"),
-				)
-
+			name:    "calling with required arguments",
+			cmdline: `cadence admin config update --name test-dynamic-config-name --value "{}"`,
+			setupMocks: func(td *cliTestData) {
 				td.mockAdminClient.EXPECT().UpdateDynamicConfig(gomock.Any(), gomock.Any()).Return(nil)
-
-				return cliCtx
 			},
 			errContains: "",
 		},
 		{
-			name: "failed to update dynamic config values",
-			testSetup: func(td *cliTestData) *cli.Context {
-				cliCtx := clitest.NewCLIContext(
-					t,
-					td.app,
-					clitest.StringArgument(FlagDynamicConfigName, testDynamicConfigName),
-					clitest.StringArgument(FlagDynamicConfigValue, "'{'Value':some-value,'Filters':[]}'"),
-				)
-
+			name:    "failed to update dynamic config values",
+			cmdline: `cadence admin config update --name test-dynamic-config-name --value "{}"`,
+			setupMocks: func(td *cliTestData) {
 				td.mockAdminClient.EXPECT().UpdateDynamicConfig(gomock.Any(), gomock.Any()).Return(assert.AnError)
-
-				return cliCtx
 			},
 			errContains: "Failed to update dynamic config value",
 		},
@@ -206,9 +171,9 @@ func TestAdminUpdateDynamicConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			td := newCLITestData(t)
-			cliCtx := tt.testSetup(td)
+			tt.setupMocks(td)
 
-			err := AdminUpdateDynamicConfig(cliCtx)
+			err := clitest.RunCommandLine(t, td.app, tt.cmdline)
 			if tt.errContains == "" {
 				assert.NoError(t, err)
 			} else {
@@ -221,45 +186,31 @@ func TestAdminUpdateDynamicConfig(t *testing.T) {
 func TestAdminRestoreDynamicConfig(t *testing.T) {
 	tests := []struct {
 		name        string
-		testSetup   func(td *cliTestData) *cli.Context
+		cmdline     string
+		setupMocks  func(td *cliTestData)
 		errContains string // empty if no error is expected
 	}{
 		{
-			name: "no arguments provided",
-			testSetup: func(td *cliTestData) *cli.Context {
-				return clitest.NewCLIContext(t, td.app /* arguments are missing */)
+			name:    "no arguments provided",
+			cmdline: `cadence admin config restore --name ''`,
+			setupMocks: func(td *cliTestData) {
+				// empty since args are missing
 			},
 			errContains: "Required flag not found",
 		},
 		{
-			name: "calling with required arguments",
-			testSetup: func(td *cliTestData) *cli.Context {
-				cliCtx := clitest.NewCLIContext(
-					t,
-					td.app,
-					clitest.StringArgument(FlagDynamicConfigName, testDynamicConfigName),
-					clitest.StringArgument(FlagDynamicConfigFilter, `{"domainName":"test-domain"}`),
-				)
-
+			name:    "calling with required arguments",
+			cmdline: `cadence admin config restore --name test-dynamic-config-name --filter '{"domainName":"test-domain"}'`,
+			setupMocks: func(td *cliTestData) {
 				td.mockAdminClient.EXPECT().RestoreDynamicConfig(gomock.Any(), gomock.Any()).Return(nil)
-
-				return cliCtx
 			},
 			errContains: "",
 		},
 		{
-			name: "failed to update dynamic config values",
-			testSetup: func(td *cliTestData) *cli.Context {
-				cliCtx := clitest.NewCLIContext(
-					t,
-					td.app,
-					clitest.StringArgument(FlagDynamicConfigName, testDynamicConfigName),
-					clitest.StringArgument(FlagDynamicConfigValue, "'{'Value':some-value,'Filters':[]}'"),
-				)
-
+			name:    "failed to update dynamic config values",
+			cmdline: `cadence admin config restore --name test-dynamic-config-name --filter '{"Value":"some-value","Filters":[]}'`,
+			setupMocks: func(td *cliTestData) {
 				td.mockAdminClient.EXPECT().RestoreDynamicConfig(gomock.Any(), gomock.Any()).Return(assert.AnError)
-
-				return cliCtx
 			},
 			errContains: "Failed to restore dynamic config value",
 		},
@@ -268,9 +219,9 @@ func TestAdminRestoreDynamicConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			td := newCLITestData(t)
-			cliCtx := tt.testSetup(td)
+			tt.setupMocks(td)
 
-			err := AdminRestoreDynamicConfig(cliCtx)
+			err := clitest.RunCommandLine(t, td.app, tt.cmdline)
 			if tt.errContains == "" {
 				assert.NoError(t, err)
 			} else {
@@ -283,49 +234,30 @@ func TestAdminRestoreDynamicConfig(t *testing.T) {
 func TestAdminListDynamicConfig(t *testing.T) {
 	tests := []struct {
 		name        string
-		testSetup   func(td *cliTestData) *cli.Context
+		setupMocks  func(td *cliTestData)
 		errContains string // empty if no error is expected
 	}{
 		{
 			name: "failed with no dynamic config values stored to list",
-			testSetup: func(td *cliTestData) *cli.Context {
-				cliCtx := clitest.NewCLIContext(
-					t,
-					td.app,
-				)
-
+			setupMocks: func(td *cliTestData) {
 				td.mockAdminClient.EXPECT().ListDynamicConfig(gomock.Any(), gomock.Any()).Return(nil, nil)
-
-				return cliCtx
 			},
 			errContains: "",
 		},
 		{
 			name: "failed to list dynamic config values",
-			testSetup: func(td *cliTestData) *cli.Context {
-				cliCtx := clitest.NewCLIContext(
-					t,
-					td.app,
-				)
-
+			setupMocks: func(td *cliTestData) {
 				td.mockAdminClient.EXPECT().ListDynamicConfig(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
-
-				return cliCtx
 			},
 			errContains: "Failed to list dynamic config value(s)",
 		},
 		{
 			name: "succeeded to list dynamic config values",
-			testSetup: func(td *cliTestData) *cli.Context {
-				cliCtx := clitest.NewCLIContext(
-					t,
-					td.app,
-				)
-
+			setupMocks: func(td *cliTestData) {
 				td.mockAdminClient.EXPECT().ListDynamicConfig(gomock.Any(), gomock.Any()).Return(&types.ListDynamicConfigResponse{
 					Entries: []*types.DynamicConfigEntry{
 						{
-							Name: testDynamicConfigName,
+							Name: "test-dynamic-config-name",
 							Values: []*types.DynamicConfigValue{
 								{
 									Value: &types.DataBlob{
@@ -345,8 +277,6 @@ func TestAdminListDynamicConfig(t *testing.T) {
 							},
 						},
 					}}, nil)
-
-				return cliCtx
 			},
 			errContains: "",
 		},
@@ -355,9 +285,9 @@ func TestAdminListDynamicConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			td := newCLITestData(t)
-			cliCtx := tt.testSetup(td)
+			tt.setupMocks(td)
 
-			err := AdminListDynamicConfig(cliCtx)
+			err := clitest.RunCommandLine(t, td.app, "cadence admin config list")
 			if tt.errContains == "" {
 				assert.NoError(t, err)
 			} else {
@@ -370,9 +300,6 @@ func TestAdminListDynamicConfig(t *testing.T) {
 func TestAdminListConfigKeys(t *testing.T) {
 	t.Run("list config keys", func(t *testing.T) {
 		td := newCLITestData(t)
-		cliCtx := clitest.NewCLIContext(t, td.app)
-
-		err := AdminListConfigKeys(cliCtx)
-		assert.NoError(t, err)
+		assert.NoError(t, clitest.RunCommandLine(t, td.app, "cadence admin config listall"))
 	})
 }
