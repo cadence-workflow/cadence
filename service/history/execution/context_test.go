@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
@@ -113,7 +112,7 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusContinuedAsNew,
 				},
 				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
-					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
 						&persistence.HistoryReplicationTask{},
 					},
 				},
@@ -132,7 +131,7 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusContinuedAsNew,
 				},
 				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
-					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
 						&persistence.HistoryReplicationTask{},
 					},
 				},
@@ -152,14 +151,14 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusContinuedAsNew,
 				},
 				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
-					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
 						&persistence.SyncActivityTask{},
 					},
 				},
 			},
 			newWorkflowSnapshot: &persistence.WorkflowSnapshot{
 				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
-					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
 						&persistence.HistoryReplicationTask{},
 					},
 				},
@@ -178,14 +177,14 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusContinuedAsNew,
 				},
 				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
-					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
 						&persistence.HistoryReplicationTask{},
 					},
 				},
 			},
 			newWorkflowSnapshot: &persistence.WorkflowSnapshot{
 				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
-					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
 						&persistence.HistoryReplicationTask{},
 					},
 				},
@@ -242,17 +241,17 @@ func TestNotifyTasksFromWorkflowSnapshot(t *testing.T) {
 					},
 				},
 				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
-					persistence.HistoryTaskCategoryTransfer: []persistence.Task{
+					persistence.HistoryTaskCategoryTransfer: {
 						&persistence.ActivityTask{
 							TaskList: "test-tl",
 						},
 					},
-					persistence.HistoryTaskCategoryTimer: []persistence.Task{
+					persistence.HistoryTaskCategoryTimer: {
 						&persistence.ActivityTimeoutTask{
 							Attempt: 10,
 						},
 					},
-					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
 						&persistence.HistoryReplicationTask{
 							FirstEventID: 1,
 							NextEventID:  10,
@@ -372,17 +371,17 @@ func TestNotifyTasksFromWorkflowMutation(t *testing.T) {
 					},
 				},
 				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
-					persistence.HistoryTaskCategoryTransfer: []persistence.Task{
+					persistence.HistoryTaskCategoryTransfer: {
 						&persistence.ActivityTask{
 							TaskList: "test-tl",
 						},
 					},
-					persistence.HistoryTaskCategoryTimer: []persistence.Task{
+					persistence.HistoryTaskCategoryTimer: {
 						&persistence.ActivityTimeoutTask{
 							Attempt: 10,
 						},
 					},
-					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
 						&persistence.HistoryReplicationTask{
 							FirstEventID: 1,
 							NextEventID:  10,
@@ -3027,9 +3026,9 @@ func TestReapplyEvents(t *testing.T) {
 			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
 			mockEngine := engine.NewMockEngine(mockCtrl)
 			mockActiveClusterManager := activecluster.NewMockManager(mockCtrl)
-			resource := resource.NewTest(t, mockCtrl, metrics.Common)
+			testResource := resource.NewTest(t, mockCtrl, metrics.Common)
 			if tc.mockSetup != nil {
-				tc.mockSetup(mockShard, mockDomainCache, resource, mockEngine, mockActiveClusterManager)
+				tc.mockSetup(mockShard, mockDomainCache, testResource, mockEngine, mockActiveClusterManager)
 			}
 			ctx := &contextImpl{
 				shard: mockShard,
@@ -3160,8 +3159,8 @@ func TestGetWorkflowExecutionWithRetry(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			mockShard := shard.NewMockContext(mockCtrl)
-			mockLogger := new(log.MockLogger)
-			mockLogger.On("Helper").Return(mockLogger)
+			mockLogger := log.NewMockLogger(gomock.NewController(t))
+			mockLogger.EXPECT().Helper().Return(mockLogger)
 			timeSource := clock.NewMockedTimeSource()
 			mockShard.EXPECT().GetTimeSource().Return(timeSource).AnyTimes()
 			policy := backoff.NewExponentialRetryPolicy(time.Millisecond)
@@ -3183,9 +3182,8 @@ func TestGetWorkflowExecutionWithRetry(t *testing.T) {
 	}
 }
 
-func expectLog(mockLogger *log.MockLogger, err error) *mock.Call {
-	return mockLogger.On(
-		"Error",
+func expectLog(mockLogger *log.MockLogger, err error) *gomock.Call {
+	return mockLogger.EXPECT().Error(
 		"Persistent fetch operation failure",
 		[]tag.Tag{
 			tag.StoreOperationGetWorkflowExecution,
