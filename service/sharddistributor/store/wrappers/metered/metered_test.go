@@ -43,22 +43,20 @@ func TestMeteredStore_GetHeartbeat(t *testing.T) {
 		{
 			name: "NotFound",
 			setupMocks: func(logger *log.MockLogger) {
-				logger.On(
-					"Error",
+				logger.EXPECT().Error(
 					"Executor not found.",
 					[]tag.Tag{tag.Error(store.ErrExecutorNotFound), tag.MetricScope(metrics.ShardDistributorStoreGetHeartbeatScope)},
-				).Once()
+				).Times(1)
 			},
 			error: store.ErrExecutorNotFound,
 		},
 		{
 			name: "Failure",
 			setupMocks: func(logger *log.MockLogger) {
-				logger.On(
-					"Error",
+				logger.EXPECT().Error(
 					"Store failed with internal error.",
 					[]tag.Tag{tag.Error(&types.InternalServiceError{}), tag.MetricScope(metrics.ShardDistributorStoreGetHeartbeatScope)},
-				).Once()
+				).Times(1)
 			},
 			error: &types.InternalServiceError{},
 		},
@@ -77,8 +75,8 @@ func TestMeteredStore_GetHeartbeat(t *testing.T) {
 				timeSource.Advance(time.Second)
 			}).Return(heartbeatRes, assignedState, tt.error)
 
-			mockLogger := log.NewMockLogger(t)
-			mockLogger.On("Helper").Return(mockLogger)
+			mockLogger := log.NewMockLogger(ctrl)
+			mockLogger.EXPECT().Helper().Return(mockLogger).AnyTimes()
 
 			wrapped := NewStore(mockHandler, metricsClient, mockLogger, timeSource).(*meteredStore)
 			tt.setupMocks(mockLogger)
