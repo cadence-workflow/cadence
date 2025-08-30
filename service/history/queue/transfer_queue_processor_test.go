@@ -73,7 +73,7 @@ func setupTransferQueueProcessor(t *testing.T, cfg *config.Config) (*gomock.Cont
 		task.NewMockProcessor(ctrl),
 		execution.NewCache(mockShard),
 		reset.NewMockWorkflowResetter(ctrl),
-		&archiver.ClientMock{},
+		archiver.NewMockClient(ctrl),
 		invariant.NewMockInvariant(ctrl),
 		workflowcache.NewMockWFCache(ctrl),
 	).(*transferQueueProcessor)

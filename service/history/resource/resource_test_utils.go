@@ -53,7 +53,7 @@ func NewTest(
 	return &Test{
 		Test:           resource.NewTest(t, controller, serviceMetricsIndex),
 		EventCache:     events.NewMockCache(controller),
-		archiverClient: &archiver.ClientMock{},
+		archiverClient: archiver.NewMockClient(controller),
 	}
 }
 

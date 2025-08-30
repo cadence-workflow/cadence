@@ -80,7 +80,7 @@ type (
 		mockVisibilityMgr           *mocks.VisibilityManager
 		mockExecutionMgr            *mocks.ExecutionManager
 		mockHistoryV2Mgr            *mocks.HistoryV2Manager
-		mockArchivalClient          *warchiver.ClientMock
+		mockArchivalClient          *warchiver.MockClient
 		mockArchivalMetadata        *archiver.MockArchivalMetadata
 		mockArchiverProvider        *provider.MockArchiverProvider
 		mockParentClosePolicyClient *parentclosepolicy.ClientMock
@@ -119,7 +119,7 @@ func (s *transferActiveTaskExecutorSuite) SetupTest() {
 
 	s.controller = gomock.NewController(s.T())
 
-	config := config.NewForTest()
+	testConfig := config.NewForTest()
 	s.mockShard = shard.NewTestContext(
 		s.T(),
 		s.controller,
@@ -128,7 +128,7 @@ func (s *transferActiveTaskExecutorSuite) SetupTest() {
 			RangeID:          1,
 			TransferAckLevel: 0,
 		},
-		config,
+		testConfig,
 	)
 	s.mockShard.SetEventsCache(events.NewCache(
 		s.mockShard.GetShardID(),
@@ -148,7 +148,7 @@ func (s *transferActiveTaskExecutorSuite) SetupTest() {
 	s.mockShard.SetEngine(s.mockEngine)
 
 	s.mockParentClosePolicyClient = &parentclosepolicy.ClientMock{}
-	s.mockArchivalClient = &warchiver.ClientMock{}
+	s.mockArchivalClient = warchiver.NewMockClient(s.controller)
 	s.mockMatchingClient = s.mockShard.Resource.MatchingClient
 	s.mockHistoryClient = s.mockShard.Resource.HistoryClient
 	s.mockExecutionMgr = s.mockShard.Resource.ExecutionMgr
@@ -177,7 +177,7 @@ func (s *transferActiveTaskExecutorSuite) SetupTest() {
 		execution.NewCache(s.mockShard),
 		nil,
 		s.logger,
-		config,
+		testConfig,
 		s.mockWFCache,
 	).(*transferActiveTaskExecutor)
 	s.transferActiveTaskExecutor.parentClosePolicyClient = s.mockParentClosePolicyClient
@@ -187,7 +187,6 @@ func (s *transferActiveTaskExecutorSuite) TearDownTest() {
 	s.transferActiveTaskExecutor.Stop()
 	s.controller.Finish()
 	s.mockShard.Finish(s.T())
-	s.mockArchivalClient.AssertExpectations(s.T())
 	s.mockParentClosePolicyClient.AssertExpectations(s.T())
 }
 
@@ -819,7 +818,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_NoParent() {
 		true),
 	).Return(nil).Once()
 	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "random URI"))
-	s.mockArchivalClient.On("Archive", mock.Anything, mock.Anything).Return(nil, nil).Once()
+	s.mockArchivalClient.EXPECT().Archive(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 	// switch on context header in viz
 	s.mockShard.GetConfig().EnableContextHeaderInVisibility = func(domain string) bool {
 		return true
@@ -876,8 +875,8 @@ func (s *transferActiveTaskExecutorSuite) expectCancelRequest(childDomainName st
 			s.Equal(childDomainID, request.DomainUUID)
 			s.Equal(childDomainName, request.CancelRequest.Domain)
 			s.True(request.GetChildWorkflowOnly())
-			errors := []error{nil, &types.CancellationAlreadyRequestedError{}, &types.EntityNotExistsError{}}
-			return errors[rand.Intn(len(errors))]
+			errs := []error{nil, &types.CancellationAlreadyRequestedError{}, &types.EntityNotExistsError{}}
+			return errs[rand.Intn(len(errs))]
 		},
 	).Times(1)
 }
@@ -893,8 +892,8 @@ func (s *transferActiveTaskExecutorSuite) expectTerminateRequest(childDomainName
 		) error {
 			s.Equal(childDomainID, request.DomainUUID)
 			s.Equal(childDomainName, request.TerminateRequest.Domain)
-			errors := []error{nil, &types.EntityNotExistsError{}}
-			return errors[rand.Intn(len(errors))]
+			errs := []error{nil, &types.EntityNotExistsError{}}
+			return errs[rand.Intn(len(errs))]
 		},
 	).Times(1)
 }
@@ -1269,7 +1268,6 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCancelExecution_WorkflowCan
 
 func (s *transferActiveTaskExecutorSuite) TestProcessSignalExecution_Success() {
 	s.testProcessSignalExecution(
-		constants.TestDomainID,
 		func(
 			mutableState execution.MutableState,
 			workflowExecution, targetExecution types.WorkflowExecution,
@@ -1346,7 +1344,6 @@ func (s *transferActiveTaskExecutorSuite) TestProcessSignalExecution_Failure() {
 
 func (s *transferActiveTaskExecutorSuite) TestProcessSignalExecution_Duplication() {
 	s.testProcessSignalExecution(
-		constants.TestDomainID,
 		func(
 			mutableState execution.MutableState,
 			workflowExecution, targetExecution types.WorkflowExecution,
@@ -1423,7 +1420,6 @@ func (s *transferActiveTaskExecutorSuite) TestProcessSignalExecution_WorkflowSig
 }
 
 func (s *transferActiveTaskExecutorSuite) testProcessSignalExecution(
-	targetDomainID string,
 	setupMockFn func(
 		mutableState execution.MutableState,
 		workflowExecution, targetExecution types.WorkflowExecution,

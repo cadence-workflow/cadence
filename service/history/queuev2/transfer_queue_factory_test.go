@@ -31,7 +31,7 @@ func TestTransferQueueFactory_CreateQueuev2(t *testing.T) {
 	// Create the factory
 	factory := &transferQueueFactory{
 		taskProcessor:  task.NewMockProcessor(ctrl),
-		archivalClient: &archiver.ClientMock{},
+		archivalClient: archiver.NewMockClient(ctrl),
 	}
 
 	// Test the createQueuev2 method
@@ -56,7 +56,7 @@ func TestTransferQueueFactory_CreateQueuev1(t *testing.T) {
 	// Create the factory
 	factory := &transferQueueFactory{
 		taskProcessor:  task.NewMockProcessor(ctrl),
-		archivalClient: &archiver.ClientMock{},
+		archivalClient: archiver.NewMockClient(ctrl),
 	}
 
 	// Test the createQueuev1 method

@@ -31,7 +31,7 @@ func TestTimerQueueFactory_CreateQueuev2(t *testing.T) {
 	// Create the factory
 	factory := &timerQueueFactory{
 		taskProcessor:  task.NewMockProcessor(ctrl),
-		archivalClient: &archiver.ClientMock{},
+		archivalClient: archiver.NewMockClient(ctrl),
 	}
 
 	// Test the createQueuev2 method

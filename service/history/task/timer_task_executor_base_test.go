@@ -57,7 +57,7 @@ type (
 		mockExecutionManager  *mocks.ExecutionManager
 		mockVisibilityManager *mocks.VisibilityManager
 		mockHistoryV2Manager  *mocks.HistoryV2Manager
-		mockArchivalClient    *archiver.ClientMock
+		mockArchivalClient    *archiver.MockClient
 
 		timerQueueTaskExecutorBase *timerTaskExecutorBase
 	}
@@ -83,7 +83,7 @@ func (s *timerQueueTaskExecutorBaseSuite) SetupTest() {
 	s.mockWorkflowExecutionContext = execution.NewMockContext(s.controller)
 	s.mockMutableState = execution.NewMockMutableState(s.controller)
 
-	config := config.NewForTest()
+	testConfig := config.NewForTest()
 	s.mockShard = shard.NewTestContext(
 		s.T(),
 		s.controller,
@@ -92,13 +92,13 @@ func (s *timerQueueTaskExecutorBaseSuite) SetupTest() {
 			RangeID:          1,
 			TransferAckLevel: 0,
 		},
-		config,
+		testConfig,
 	)
 
 	s.mockExecutionManager = s.mockShard.Resource.ExecutionMgr
 	s.mockVisibilityManager = s.mockShard.Resource.VisibilityMgr
 	s.mockHistoryV2Manager = s.mockShard.Resource.HistoryMgr
-	s.mockArchivalClient = &archiver.ClientMock{}
+	s.mockArchivalClient = archiver.NewMockClient(s.controller)
 
 	logger := s.mockShard.GetLogger()
 
@@ -108,14 +108,13 @@ func (s *timerQueueTaskExecutorBaseSuite) SetupTest() {
 		nil,
 		logger,
 		s.mockShard.GetMetricsClient(),
-		config,
+		testConfig,
 	)
 }
 
 func (s *timerQueueTaskExecutorBaseSuite) TearDownTest() {
 	s.controller.Finish()
 	s.mockShard.Finish(s.T())
-	s.mockArchivalClient.AssertExpectations(s.T())
 	s.timerQueueTaskExecutorBase.Stop()
 }
 
@@ -163,7 +162,7 @@ func (s *timerQueueTaskExecutorBaseSuite) TestArchiveHistory_NoErr_InlineArchiva
 	s.mockExecutionManager.On("DeleteActiveClusterSelectionPolicy", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockVisibilityManager.On("DeleteWorkflowExecution", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 
-	s.mockArchivalClient.On("Archive", mock.Anything, mock.MatchedBy(func(req *archiver.ClientRequest) bool {
+	s.mockArchivalClient.EXPECT().Archive(gomock.Any(), gomock.Cond(func(req *archiver.ClientRequest) bool {
 		return req.CallerService == service.History && req.AttemptArchiveInline && req.ArchiveRequest.Targets[0] == archiver.ArchiveTargetHistory
 	})).Return(&archiver.ClientResponse{
 		HistoryArchivedInline: false,
@@ -199,7 +198,7 @@ func (s *timerQueueTaskExecutorBaseSuite) TestArchiveHistory_SendSignalErr() {
 	s.mockMutableState.EXPECT().GetLastWriteVersion().Return(int64(1234), nil).Times(1)
 	s.mockMutableState.EXPECT().GetNextEventID().Return(int64(101)).Times(1)
 
-	s.mockArchivalClient.On("Archive", mock.Anything, mock.MatchedBy(func(req *archiver.ClientRequest) bool {
+	s.mockArchivalClient.EXPECT().Archive(gomock.Any(), gomock.Cond(func(req *archiver.ClientRequest) bool {
 		return req.CallerService == service.History && !req.AttemptArchiveInline && req.ArchiveRequest.Targets[0] == archiver.ArchiveTargetHistory
 	})).Return(nil, errors.New("failed to send signal"))
 
@@ -291,7 +290,7 @@ func TestExecuteDeleteHistoryEventTask(t *testing.T) {
 
 				return newTimerTaskExecutorBase(
 					mockShard,
-					&archiver.ClientMock{},
+					&archiver.MockClient{},
 					executionCache,
 					mockShard.GetLogger(),
 					mockShard.GetMetricsClient(),
@@ -370,7 +369,7 @@ func TestExecuteDeleteHistoryEventTask(t *testing.T) {
 
 				return newTimerTaskExecutorBase(
 					mockShard,
-					&archiver.ClientMock{},
+					&archiver.MockClient{},
 					executionCache,
 					mockShard.GetLogger(),
 					mockShard.GetMetricsClient(),

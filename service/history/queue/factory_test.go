@@ -49,7 +49,7 @@ func TestTransferQueueFactory(t *testing.T) {
 	defer mockShard.Finish(t)
 
 	mockProcessor := task.NewMockProcessor(ctrl)
-	mockArchiver := &archiver.ClientMock{}
+	mockArchiver := archiver.NewMockClient(ctrl)
 	mockInvariant := invariant.NewMockInvariant(ctrl)
 	mockWorkflowCache := workflowcache.NewMockWFCache(ctrl)
 
@@ -75,7 +75,7 @@ func TestTimerQueueFactory(t *testing.T) {
 	defer mockShard.Finish(t)
 
 	mockProcessor := task.NewMockProcessor(ctrl)
-	mockArchiver := &archiver.ClientMock{}
+	mockArchiver := archiver.NewMockClient(ctrl)
 	mockInvariant := invariant.NewMockInvariant(ctrl)
 
 	f := NewTimerQueueFactory(mockProcessor, mockArchiver)

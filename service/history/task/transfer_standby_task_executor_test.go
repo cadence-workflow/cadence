@@ -66,7 +66,7 @@ type (
 
 		mockVisibilityMgr    *mocks.VisibilityManager
 		mockExecutionMgr     *mocks.ExecutionManager
-		mockArchivalClient   *warchiver.ClientMock
+		mockArchivalClient   *warchiver.MockClient
 		mockArchivalMetadata *archiver.MockArchivalMetadata
 		mockArchiverProvider *provider.MockArchiverProvider
 
@@ -97,16 +97,16 @@ func (s *transferStandbyTaskExecutorSuite) SetupSuite() {
 func (s *transferStandbyTaskExecutorSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 
-	config := config.NewForTest()
+	testConfig := config.NewForTest()
 	s.domainID = constants.TestDomainID
 	s.domainName = constants.TestDomainName
 	s.domainEntry = constants.TestGlobalDomainEntry
 	s.version = s.domainEntry.GetFailoverVersion()
 
 	s.timeSource = clock.NewMockedTimeSource()
-	s.fetchHistoryDuration = config.StandbyTaskMissingEventsResendDelay() +
-		(config.StandbyTaskMissingEventsDiscardDelay()-config.StandbyTaskMissingEventsResendDelay())/2
-	s.discardDuration = config.StandbyTaskMissingEventsDiscardDelay() * 2
+	s.fetchHistoryDuration = testConfig.StandbyTaskMissingEventsResendDelay() +
+		(testConfig.StandbyTaskMissingEventsDiscardDelay()-testConfig.StandbyTaskMissingEventsResendDelay())/2
+	s.discardDuration = testConfig.StandbyTaskMissingEventsDiscardDelay() * 2
 
 	s.controller = gomock.NewController(s.T())
 	s.mockNDCHistoryResender = ndc.NewMockHistoryResender(s.controller)
@@ -118,7 +118,7 @@ func (s *transferStandbyTaskExecutorSuite) SetupTest() {
 			RangeID:          1,
 			TransferAckLevel: 0,
 		},
-		config,
+		testConfig,
 	)
 	s.mockShard.SetEventsCache(events.NewCache(
 		s.mockShard.GetShardID(),
@@ -133,7 +133,7 @@ func (s *transferStandbyTaskExecutorSuite) SetupTest() {
 	s.mockMatchingClient = s.mockShard.Resource.MatchingClient
 	s.mockExecutionMgr = s.mockShard.Resource.ExecutionMgr
 	s.mockVisibilityMgr = s.mockShard.Resource.VisibilityMgr
-	s.mockArchivalClient = &warchiver.ClientMock{}
+	s.mockArchivalClient = warchiver.NewMockClient(s.controller)
 	s.mockArchivalMetadata = s.mockShard.Resource.ArchivalMetadata
 	s.mockArchiverProvider = s.mockShard.Resource.ArchiverProvider
 	s.mockDomainCache = s.mockShard.Resource.DomainCache
@@ -156,7 +156,7 @@ func (s *transferStandbyTaskExecutorSuite) SetupTest() {
 		s.mockNDCHistoryResender,
 		s.logger,
 		s.clusterName,
-		config,
+		testConfig,
 	).(*transferStandbyTaskExecutor)
 	s.transferStandbyTaskExecutor.getRemoteClusterNameFn = func(ctx context.Context, taskInfo persistence.Task) (string, error) {
 		return s.clusterName, nil
@@ -166,7 +166,6 @@ func (s *transferStandbyTaskExecutorSuite) SetupTest() {
 func (s *transferStandbyTaskExecutorSuite) TearDownTest() {
 	s.controller.Finish()
 	s.mockShard.Finish(s.T())
-	s.mockArchivalClient.AssertExpectations(s.T())
 	s.transferStandbyTaskExecutor.Stop()
 }
 
