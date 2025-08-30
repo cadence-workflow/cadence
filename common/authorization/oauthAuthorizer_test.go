@@ -28,7 +28,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc/api/encoding"
@@ -65,7 +64,7 @@ func TestOAuthSuite(t *testing.T) {
 }
 
 func (s *oauthSuite) SetupTest() {
-	s.logger = log.NewMockLogger(s.T())
+	s.logger = log.NewMockLogger(gomock.NewController(s.T()))
 	s.cfg = config.OAuthAuthorizer{
 		Enable: true,
 		JwtCredentials: &config.JwtCredentials{
@@ -155,7 +154,7 @@ func (s *oauthSuite) TestEmptyToken() {
 	s.NoError(err)
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.On("Debug", "request is not authorized", mock.MatchedBy(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "token is not set in header"
 	}))
 	result, _ := authorizer.Authorize(ctx, &s.att)
@@ -189,7 +188,7 @@ func (s *oauthSuite) TestMaxTTLLargerInToken() {
 	s.cfg.MaxJwtTTL = 1
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.On("Debug", "request is not authorized", mock.MatchedBy(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
 		return strings.HasPrefix(fmt.Sprintf("%v", t[0].Field().Interface), "token TTL:")
 	}))
 	result, _ := authorizer.Authorize(s.ctx, &s.att)
@@ -205,7 +204,7 @@ func (s *oauthSuite) TestIncorrectToken() {
 	s.NoError(err)
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.On("Debug", "request is not authorized", mock.MatchedBy(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "token is malformed: token contains an invalid number of segments"
 	}))
 	result, _ := authorizer.Authorize(ctx, &s.att)
@@ -223,7 +222,7 @@ func (s *oauthSuite) TestIatExpiredToken() {
 	s.NoError(err)
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.On("Debug", "request is not authorized", mock.MatchedBy(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "token is expired"
 	}))
 	result, _ := authorizer.Authorize(ctx, &s.att)
@@ -236,7 +235,7 @@ func (s *oauthSuite) TestDifferentGroup() {
 	s.att.Permission = PermissionWrite
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.On("Debug", "request is not authorized", mock.MatchedBy(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "token doesn't have the right permission, jwt groups: [a b c], allowed groups: map[]"
 	}))
 	result, _ := authorizer.Authorize(s.ctx, &s.att)
@@ -255,7 +254,7 @@ func (s *oauthSuite) TestIncorrectPermission() {
 	s.att.Permission = Permission(15)
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
 	s.NoError(err)
-	s.logger.On("Debug", "request is not authorized", mock.MatchedBy(func(t []tag.Tag) bool {
+	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
 		return fmt.Sprintf("%v", t[0].Field().Interface) == "permission 15 is not supported"
 	}))
 	result, err := authorizer.Authorize(s.ctx, &s.att)
