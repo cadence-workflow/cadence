@@ -27,7 +27,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 
 	"github.com/uber/cadence/common/asyncworkflow/queue/consumer"
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
