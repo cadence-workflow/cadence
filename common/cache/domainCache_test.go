@@ -376,7 +376,7 @@ func Test_IsActiveIn(t *testing.T) {
 func (s *domainCacheSuite) TestRegisterCallback_CatchUp() {
 	prepareCallbackInvoked := false
 	callBackInvoked := false
-	entriesNotification := []*DomainCacheEntry{}
+	var entriesNotification []*DomainCacheEntry
 
 	s.domainCache.RegisterDomainChangeCallback(
 		"0",
@@ -489,7 +489,7 @@ func (s *domainCacheSuite) TestUpdateCache_TriggerCallBack() {
 	domainNotificationVersion++
 
 	prepareCallbackInvoked := false
-	entriesNew := []*DomainCacheEntry{}
+	var entriesNew []*DomainCacheEntry
 	s.domainCache.RegisterDomainChangeCallback(
 		"0",
 		func(domainCache DomainCache, prepareCallback PrepareCallbackFn, callback CallbackFn) {},
@@ -652,13 +652,13 @@ func (s *domainCacheSuite) TestStart_Stop() {
 }
 
 func (s *domainCacheSuite) TestStart_Error() {
-	mockLogger := log.NewMockLogger(s.T())
+	mockLogger := log.NewMockLogger(gomock.NewController(s.T()))
 	s.domainCache.logger = mockLogger
 
 	s.Equal(domainCacheInitialized, s.domainCache.status)
 
 	s.metadataMgr.On("GetMetadata", mock.Anything).Return(nil, assert.AnError).Once()
-	mockLogger.On("Fatal", "Unable to initialize domain cache", mock.Anything).Once()
+	mockLogger.EXPECT().Fatal("Unable to initialize domain cache", gomock.Any()).Times(1)
 
 	s.domainCache.Start()
 }
@@ -1013,8 +1013,8 @@ func (s *domainCacheSuite) buildEntryFromRecord(record *persistence.GetDomainRes
 	newEntry.replicationConfig = &persistence.DomainReplicationConfig{
 		ActiveClusterName: record.ReplicationConfig.ActiveClusterName,
 	}
-	for _, cluster := range record.ReplicationConfig.Clusters {
-		newEntry.replicationConfig.Clusters = append(newEntry.replicationConfig.Clusters, &*cluster)
+	for _, testCluster := range record.ReplicationConfig.Clusters {
+		newEntry.replicationConfig.Clusters = append(newEntry.replicationConfig.Clusters, &*testCluster)
 	}
 	newEntry.configVersion = record.ConfigVersion
 	newEntry.failoverVersion = record.FailoverVersion
