@@ -23,9 +23,9 @@ package task
 import (
 	"testing"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
@@ -50,7 +50,7 @@ func TestEventLoggerSuite(t *testing.T) {
 func (s *eventLoggerSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 
-	s.mockLogger = log.NewMockLogger(s.T())
+	s.mockLogger = log.NewMockLogger(gomock.NewController(s.T()))
 
 	s.eventLogger = newEventLogger(
 		s.mockLogger,
@@ -80,7 +80,7 @@ func (s *eventLoggerSuite) TestFlushEvents() {
 		}
 
 		expectedEventsFlushed := min(numEvents, defaultTaskEventLoggerSize)
-		s.mockLogger.On("Info", mock.Anything, mock.Anything, mock.Anything).Times(1)
+		s.mockLogger.EXPECT().Info(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 
 		s.Equal(expectedEventsFlushed, s.eventLogger.FlushEvents("some random message"))
 	}
