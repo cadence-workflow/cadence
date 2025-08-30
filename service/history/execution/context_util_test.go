@@ -79,7 +79,7 @@ func TestEmitLargeWorkflowShardIDStats(t *testing.T) {
 			},
 			shardConfig: createTestConfig(),
 			loggerExpectations: func(logger *log.MockLogger) {
-				logger.On("SampleInfo", "Workflow writing a large blob", 100, mock.Anything)
+				logger.EXPECT().SampleInfo("Workflow writing a large blob", 100, gomock.Any())
 			},
 			assertMetrics: func(t *testing.T, snapshot tally.Snapshot) {
 				countersSnapshot := snapshot.Counters()
@@ -100,7 +100,7 @@ func TestEmitLargeWorkflowShardIDStats(t *testing.T) {
 			},
 			shardConfig: createTestConfig(),
 			loggerExpectations: func(logger *log.MockLogger) {
-				logger.On("SampleInfo", "Workflow writing a large blob", 100, mock.Anything)
+				logger.EXPECT().SampleInfo("Workflow writing a large blob", 100, gomock.Any())
 			},
 			assertMetrics: func(t *testing.T, snapshot tally.Snapshot) {
 				countersSnapshot := snapshot.Counters()
@@ -120,7 +120,7 @@ func TestEmitLargeWorkflowShardIDStats(t *testing.T) {
 			},
 			shardConfig: createTestConfig(),
 			loggerExpectations: func(logger *log.MockLogger) {
-				logger.On("SampleInfo", "Workflow writing a large blob", 100, mock.Anything)
+				logger.EXPECT().SampleInfo("Workflow writing a large blob", 100, gomock.Any())
 			},
 			assertMetrics: func(t *testing.T, snapshot tally.Snapshot) {
 				countersSnapshot := snapshot.Counters()
@@ -158,7 +158,7 @@ func TestEmitLargeWorkflowShardIDStats(t *testing.T) {
 			mockShard := shard.NewMockContext(mockCtrl)
 			metricScope := tally.NewTestScope("test", make(map[string]string))
 			mockMetricsClient := metrics.NewClient(metricScope, metrics.History)
-			mockLogger := log.NewMockLogger(t)
+			mockLogger := log.NewMockLogger(gomock.NewController(t))
 			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
 			context := &contextImpl{
 				shard:         mockShard,
