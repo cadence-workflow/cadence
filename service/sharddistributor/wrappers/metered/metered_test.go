@@ -63,12 +63,11 @@ func TestMetricsHandler_GetShardOwner(t *testing.T) {
 		{
 			name: "Failure",
 			setupMocks: func(logger *log.MockLogger) {
-				logger.On("Helper").Return(logger)
-				logger.On(
-					"Error",
+				logger.EXPECT().Helper().Return(logger)
+				logger.EXPECT().Error(
 					"Internal service error",
 					[]tag.Tag{tag.Error(&types.InternalServiceError{})},
-				).Once()
+				).Times(1)
 			},
 			error: &types.InternalServiceError{},
 		},
@@ -84,13 +83,13 @@ func TestMetricsHandler_GetShardOwner(t *testing.T) {
 
 			mockHandler.EXPECT().GetShardOwner(gomock.Any(), request).Return(response, tt.error)
 
-			mockLogger := log.NewMockLogger(t)
-			mockLogger.On("WithTags", []tag.Tag{tag.ShardNamespace("test-namespace")}).Return(mockLogger)
+			mockLogger := log.NewMockLogger(ctrl)
+			mockLogger.EXPECT().WithTags([]tag.Tag{tag.ShardNamespace("test-namespace")}).Return(mockLogger)
 
-			handler := NewMetricsHandler(mockHandler, mockLogger, metricsClient).(*metricsHandler)
+			mockMetricHandler := NewMetricsHandler(mockHandler, mockLogger, metricsClient).(*metricsHandler)
 			tt.setupMocks(mockLogger)
 
-			gotResponse, err := handler.GetShardOwner(context.Background(), request)
+			gotResponse, err := mockMetricHandler.GetShardOwner(context.Background(), request)
 
 			assert.Equal(t, response, gotResponse)
 			assert.Equal(t, tt.error, err)
@@ -102,11 +101,11 @@ func TestMetricsHandler_GetShardOwner(t *testing.T) {
 			assert.Equal(t, int64(1), requestCounter.Value())
 
 			latencyTimerName := "test.shard_distributor_latency+namespace=test-namespace,operation=GetShardOwner"
-			lantencyTimer := testScope.Snapshot().Timers()[latencyTimerName]
-			assert.NotNil(t, lantencyTimer)
+			latencyTimer := testScope.Snapshot().Timers()[latencyTimerName]
+			assert.NotNil(t, latencyTimer)
 
 			// check that the latency timer was run, and is not 0
-			assert.Greater(t, lantencyTimer.Values()[0], int64(0))
+			assert.Greater(t, latencyTimer.Values()[0], int64(0))
 		})
 	}
 }
@@ -157,11 +156,11 @@ func TestPassThroughMethods(t *testing.T) {
 			mockHandler := handler.NewMockHandler(ctrl)
 
 			// We expect _no_ log calls
-			mockLogger := log.NewMockLogger(t)
+			mockLogger := log.NewMockLogger(ctrl)
 
-			handler := NewMetricsHandler(mockHandler, mockLogger, metricsClient).(*metricsHandler)
+			testMetricsHandler := NewMetricsHandler(mockHandler, mockLogger, metricsClient).(*metricsHandler)
 
-			tt.call(t, handler, mockHandler)
+			tt.call(t, testMetricsHandler, mockHandler)
 
 			// check that no metrics were emitted for this method
 			assert.Empty(t, testScope.Snapshot().Counters())
@@ -185,11 +184,10 @@ func TestHandleErr(t *testing.T) {
 			err:           &types.InternalServiceError{},
 			expectedError: &types.InternalServiceError{},
 			setupMocks: func(mockLogger *log.MockLogger) {
-				mockLogger.On(
-					"Error",
+				mockLogger.EXPECT().Error(
 					"Internal service error",
 					[]tag.Tag{tag.Error(&types.InternalServiceError{})},
-				).Once()
+				).Times(1)
 			},
 			metricName: "shard_distributor_failures",
 		},
@@ -212,11 +210,10 @@ func TestHandleErr(t *testing.T) {
 			err:           context.DeadlineExceeded,
 			expectedError: context.DeadlineExceeded,
 			setupMocks: func(mockLogger *log.MockLogger) {
-				mockLogger.On(
-					"Error",
+				mockLogger.EXPECT().Error(
 					"request timeout",
 					[]tag.Tag{tag.Error(context.DeadlineExceeded)},
-				).Once()
+				).Times(1)
 			},
 			metricName: "shard_distributor_err_context_timeout",
 		},
@@ -225,11 +222,10 @@ func TestHandleErr(t *testing.T) {
 			err:           errors.New("uncategorized error"),
 			expectedError: errors.New("uncategorized error"),
 			setupMocks: func(mockLogger *log.MockLogger) {
-				mockLogger.On(
-					"Error",
+				mockLogger.EXPECT().Error(
 					"internal uncategorized error",
 					[]tag.Tag{tag.Error(errors.New("uncategorized error"))},
-				).Once()
+				).Times(1)
 			},
 			metricName: "shard_distributor_failures",
 		},
@@ -239,8 +235,8 @@ func TestHandleErr(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testScope := tally.NewTestScope("test", nil)
 			metricsClient := metrics.NewClient(testScope, metrics.ShardDistributor)
-			mockLogger := log.NewMockLogger(t)
-			mockLogger.On("Helper").Return(mockLogger)
+			mockLogger := log.NewMockLogger(gomock.NewController(t))
+			mockLogger.EXPECT().Helper().Return(mockLogger)
 
 			tt.setupMocks(mockLogger)
 			err := handleErr(tt.err, metricsClient.Scope(metrics.ShardDistributorGetShardOwnerScope), mockLogger)
