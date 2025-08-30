@@ -138,10 +138,9 @@ func TestWfCache_AllowError(t *testing.T) {
 	domainCache.EXPECT().GetDomainName(testDomainID).Return(testDomainName, nil).Times(2)
 
 	// Setup the mock logger
-	logger := new(log.MockLogger)
+	logger := log.NewMockLogger(ctrl)
 
-	logger.On(
-		"Error",
+	logger.EXPECT().Error(
 		"Unexpected error from workflow cache",
 		[]tag.Tag{
 			tag.Error(assert.AnError),
@@ -150,7 +149,7 @@ func TestWfCache_AllowError(t *testing.T) {
 			tag.WorkflowIDCacheSize(0),
 		},
 	).Times(2)
-	logger.On("Info",
+	logger.EXPECT().Info(
 		"LRU cache initialized",
 		[]tag.Tag{
 			tag.Value(map[string]interface{}{
@@ -179,9 +178,6 @@ func TestWfCache_AllowError(t *testing.T) {
 	// We fail open
 	assert.True(t, wfCache.AllowExternal(testDomainID, testWorkflowID))
 	assert.True(t, wfCache.AllowInternal(testDomainID, testWorkflowID))
-
-	// We log the error
-	logger.AssertExpectations(t)
 }
 
 // TestWfCache_AllowDomainCacheError tests that the cache will allow requests through if there is an error getting the domain name.
@@ -192,10 +188,9 @@ func TestWfCache_AllowDomainCacheError(t *testing.T) {
 	domainCache.EXPECT().GetDomainName(testDomainID).Return("", assert.AnError).Times(2)
 
 	// Setup the mock logger
-	logger := new(log.MockLogger)
+	logger := log.NewMockLogger(ctrl)
 
-	logger.On(
-		"Error",
+	logger.EXPECT().Error(
 		"Unexpected error from workflow cache",
 		[]tag.Tag{
 			tag.Error(errDomainName),
@@ -204,7 +199,7 @@ func TestWfCache_AllowDomainCacheError(t *testing.T) {
 			tag.WorkflowIDCacheSize(0),
 		},
 	).Times(2)
-	logger.On("Info",
+	logger.EXPECT().Info(
 		"LRU cache initialized",
 		[]tag.Tag{
 			tag.Value(map[string]interface{}{
@@ -228,9 +223,6 @@ func TestWfCache_AllowDomainCacheError(t *testing.T) {
 	// We fail open
 	assert.True(t, wfCache.AllowExternal(testDomainID, testWorkflowID))
 	assert.True(t, wfCache.AllowInternal(testDomainID, testWorkflowID))
-
-	// We log the error
-	logger.AssertExpectations(t)
 }
 
 func TestWfCache_RejectLog(t *testing.T) {
@@ -254,9 +246,9 @@ func TestWfCache_RejectLog(t *testing.T) {
 	internalLimiterFactory.EXPECT().GetLimiter(testDomainName).Return(internalLimiter).Times(1)
 
 	// Setup the mock logger
-	logger := new(log.MockLogger)
+	logger := log.NewMockLogger(ctrl)
 
-	logger.On("Info",
+	logger.EXPECT().Info(
 		"LRU cache initialized",
 		[]tag.Tag{
 			tag.Value(map[string]interface{}{
@@ -266,9 +258,7 @@ func TestWfCache_RejectLog(t *testing.T) {
 			}),
 		}).Times(1)
 
-	logger.On("Warn",
-		"Cache is strictly count-based because value *workflowcache.cacheValue does not implement sizable",
-		[]tag.Tag(nil)).Times(1)
+	logger.EXPECT().Warn("Cache is strictly count-based because value *workflowcache.cacheValue does not implement sizable").Times(1)
 
 	expectRatelimitLog(logger, "external")
 	expectRatelimitLog(logger, "internal")
@@ -285,13 +275,10 @@ func TestWfCache_RejectLog(t *testing.T) {
 
 	assert.False(t, wfCache.AllowExternal(testDomainID, testWorkflowID))
 	assert.False(t, wfCache.AllowInternal(testDomainID, testWorkflowID))
-
-	logger.AssertExpectations(t)
 }
 
 func expectRatelimitLog(logger *log.MockLogger, requestType string) {
-	logger.On(
-		"Info",
+	logger.EXPECT().Info(
 		"Rate limiting workflowID",
 		[]tag.Tag{
 			tag.RequestType(requestType),

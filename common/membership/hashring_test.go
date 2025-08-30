@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
@@ -188,17 +187,17 @@ func TestFailingToSubscribeIsFatal(t *testing.T) {
 	td := newHashringTestData(t)
 
 	// we need to intercept logger calls, use mock
-	mockLogger := log.NewMockLogger(t)
+	mockLogger := log.NewMockLogger(gomock.NewController(t))
 	td.hashRing.logger = mockLogger
 
-	mockLogger.On("Fatal", mock.Anything, mock.Anything).Run(
-		func(arguments mock.Arguments) {
+	mockLogger.EXPECT().Fatal(gomock.Any(), gomock.Any()).Do(
+		func(msg string, args ...any) {
 			// we need to stop goroutine like log.Fatal() does with an entire program
 			runtime.Goexit()
 		},
 	).Times(1)
 
-	mockLogger.On("Info", mock.Anything, mock.Anything).Times(2)
+	mockLogger.EXPECT().Info(gomock.Any(), gomock.Any()).Times(2)
 
 	td.mockPeerProvider.EXPECT().
 		Subscribe(gomock.Any(), gomock.Any()).

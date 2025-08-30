@@ -33,6 +33,7 @@ import (
 	"go.uber.org/cadence/.gen/go/shared"
 	"go.uber.org/cadence/testsuite"
 	"go.uber.org/cadence/workflow"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
@@ -62,8 +63,8 @@ func (s *handlerSuite) SetupSuite() {
 func (s *handlerSuite) SetupTest() {
 	handlerTestMetrics = &mmocks.Client{}
 	handlerTestMetrics.On("StartTimer", mock.Anything, mock.Anything).Return(metrics.NopStopwatch())
-	handlerTestLogger = log.NewMockLogger(s.T())
-	handlerTestLogger.On("WithTags", mock.Anything).Return(handlerTestLogger)
+	handlerTestLogger = log.NewMockLogger(gomock.NewController(s.T()))
+	handlerTestLogger.EXPECT().WithTags(gomock.Any()).Return(handlerTestLogger).AnyTimes()
 }
 
 func (s *handlerSuite) TearDownTest() {
@@ -73,7 +74,7 @@ func (s *handlerSuite) TearDownTest() {
 func (s *handlerSuite) TestHandleHistoryRequest_UploadFails_NonRetryableError() {
 	handlerTestMetrics.On("IncCounter", metrics.ArchiverScope, metrics.ArchiverUploadFailedAllRetriesCount).Once()
 	handlerTestMetrics.On("IncCounter", metrics.ArchiverScope, metrics.ArchiverDeleteSuccessCount).Once()
-	handlerTestLogger.On("Error", mock.Anything, mock.Anything).Once()
+	handlerTestLogger.EXPECT().Error(gomock.Any(), gomock.Any()).Times(1)
 
 	env := s.NewTestWorkflowEnvironment()
 	env.OnActivity(uploadHistoryActivityFnName, mock.Anything, mock.Anything).Return(errors.New("some random error"))
@@ -88,7 +89,7 @@ func (s *handlerSuite) TestHandleHistoryRequest_UploadFails_NonRetryableError() 
 func (s *handlerSuite) TestHandleHistoryRequest_UploadFails_ExpireRetryTimeout() {
 	handlerTestMetrics.On("IncCounter", metrics.ArchiverScope, metrics.ArchiverUploadFailedAllRetriesCount).Once()
 	handlerTestMetrics.On("IncCounter", metrics.ArchiverScope, metrics.ArchiverDeleteSuccessCount).Once()
-	handlerTestLogger.On("Error", mock.Anything, mock.Anything).Once()
+	handlerTestLogger.EXPECT().Error(gomock.Any(), gomock.Any()).Times(1)
 
 	timeoutErr := workflow.NewTimeoutError(shared.TimeoutTypeStartToClose)
 	env := s.NewTestWorkflowEnvironment()
@@ -118,7 +119,7 @@ func (s *handlerSuite) TestHandleHistoryRequest_UploadSuccess() {
 func (s *handlerSuite) TestHandleHistoryRequest_DeleteFails_NonRetryableError() {
 	handlerTestMetrics.On("IncCounter", metrics.ArchiverScope, metrics.ArchiverUploadSuccessCount).Once()
 	handlerTestMetrics.On("IncCounter", metrics.ArchiverScope, metrics.ArchiverDeleteFailedAllRetriesCount).Once()
-	handlerTestLogger.On("Error", mock.Anything, mock.Anything).Once()
+	handlerTestLogger.EXPECT().Error(gomock.Any(), gomock.Any()).Times(1)
 
 	env := s.NewTestWorkflowEnvironment()
 	env.OnActivity(uploadHistoryActivityFnName, mock.Anything, mock.Anything).Return(nil)
@@ -155,7 +156,7 @@ func (s *handlerSuite) TestHandleHistoryRequest_DeleteFailsThenSucceeds() {
 
 func (s *handlerSuite) TestHandleVisibilityRequest_Fail() {
 	handlerTestMetrics.On("IncCounter", metrics.ArchiverScope, metrics.ArchiverHandleVisibilityFailedAllRetiresCount).Once()
-	handlerTestLogger.On("Error", mock.Anything, mock.Anything).Once()
+	handlerTestLogger.EXPECT().Error(gomock.Any(), gomock.Any()).Times(1)
 
 	env := s.NewTestWorkflowEnvironment()
 	env.OnActivity(archiveVisibilityActivityFnName, mock.Anything, mock.Anything).Return(errors.New("some random error"))

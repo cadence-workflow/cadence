@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/cadence/testsuite"
 	"go.uber.org/cadence/workflow"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
@@ -59,7 +60,7 @@ func (s *pumpSuite) SetupSuite() {
 func (s *pumpSuite) SetupTest() {
 	pumpTestMetrics = &mmocks.Client{}
 	pumpTestMetrics.On("StartTimer", mock.Anything, mock.Anything).Return(metrics.NopStopwatch()).Once()
-	pumpTestLogger = log.NewMockLogger(s.T())
+	pumpTestLogger = log.NewMockLogger(gomock.NewController(s.T()))
 }
 
 func (s *pumpSuite) TearDownTest() {
@@ -140,7 +141,7 @@ func (s *pumpSuite) TestPumpRun_SignalsAndCarryover() {
 func (s *pumpSuite) TestPumpRun_SignalChannelClosedUnexpectedly() {
 	pumpTestMetrics.On("UpdateGauge", metrics.ArchiverPumpScope, metrics.ArchiverBacklogSizeGauge, float64(0)).Once()
 	pumpTestMetrics.On("IncCounter", metrics.ArchiverPumpScope, metrics.ArchiverPumpSignalChannelClosedCount).Once()
-	pumpTestLogger.On("Error", mock.Anything, mock.Anything).Once()
+	pumpTestLogger.EXPECT().Error(gomock.Any(), gomock.Any()).Times(1)
 
 	env := s.NewTestWorkflowEnvironment()
 	env.ExecuteWorkflow(signalChClosePumpWorkflow, 10, 5)
@@ -170,9 +171,7 @@ func carryoverSatisfiesLimitWorkflow(ctx workflow.Context, requestLimit int, car
 	return nil
 }
 
-func pumpWorkflow(ctx workflow.Context, requestLimit int, numRequests int) error {
-	signalCh := workflow.NewBufferedChannel(ctx, requestLimit)
-	signalsSent, signalHashes := sendRequestsToChannel(ctx, signalCh, numRequests)
+func runPumpWorkflow(ctx workflow.Context, requestLimit int, numRequests int, signalCh workflow.Channel, signalHashes []uint64, signalsSent []ArchiveRequest) error {
 	requestCh := workflow.NewBufferedChannel(ctx, requestLimit)
 	pump := NewPump(ctx, pumpTestLogger, pumpTestMetrics, nil, time.Nanosecond, requestLimit, requestCh, signalCh)
 	actual := pump.Run()
@@ -190,25 +189,17 @@ func pumpWorkflow(ctx workflow.Context, requestLimit int, numRequests int) error
 	return nil
 }
 
+func pumpWorkflow(ctx workflow.Context, requestLimit int, numRequests int) error {
+	signalCh := workflow.NewBufferedChannel(ctx, requestLimit)
+	signalsSent, signalHashes := sendRequestsToChannel(ctx, signalCh, numRequests)
+	return runPumpWorkflow(ctx, requestLimit, numRequests, signalCh, signalHashes, signalsSent)
+}
+
 func signalChClosePumpWorkflow(ctx workflow.Context, requestLimit int, numRequests int) error {
 	signalCh := workflow.NewBufferedChannel(ctx, requestLimit)
 	signalsSent, signalHashes := sendRequestsToChannelBlocking(ctx, signalCh, numRequests)
 	signalCh.Close()
-	requestCh := workflow.NewBufferedChannel(ctx, requestLimit)
-	pump := NewPump(ctx, pumpTestLogger, pumpTestMetrics, nil, time.Nanosecond, requestLimit, requestCh, signalCh)
-	actual := pump.Run()
-	expected := PumpResult{
-		PumpedHashes:          signalHashes,
-		UnhandledCarryover:    nil,
-		TimeoutWithoutSignals: numRequests == 0,
-	}
-	if !pumpResultsEqual(expected, actual) {
-		return errors.New("did not get expected pump result")
-	}
-	if !channelContainsExpected(ctx, requestCh, signalsSent) {
-		return errors.New("request channel was not populated with expected values")
-	}
-	return nil
+	return runPumpWorkflow(ctx, requestLimit, numRequests, signalCh, signalHashes, signalsSent)
 }
 
 func signalAndCarryoverPumpWorkflow(ctx workflow.Context, requestLimit int, carryoverSize, numSignals int) error {

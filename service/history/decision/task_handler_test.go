@@ -1133,10 +1133,10 @@ func TestHandleDecisionCancelWorkflow(t *testing.T) {
 			attributes: &types.CancelWorkflowExecutionDecisionAttributes{Details: []byte("some-details")},
 			expectMockCalls: func(taskHandler *taskHandlerImpl, attr *types.CancelWorkflowExecutionDecisionAttributes) {
 				taskHandler.metricsClient = new(mocks.Client)
-				taskHandler.logger = new(log.MockLogger)
+				taskHandler.logger = log.NewMockLogger(gomock.NewController(t))
 				taskHandler.metricsClient.(*mocks.Client).On("IncCounter", metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DecisionTypeCancelWorkflowCounter)
 				taskHandler.metricsClient.(*mocks.Client).On("IncCounter", metrics.HistoryRespondDecisionTaskCompletedScope, metrics.MultipleCompletionDecisionsCounter)
-				taskHandler.logger.(*log.MockLogger).On("Warn", "Multiple completion decisions", []tag.Tag{tag.WorkflowDecisionType(int64(types.DecisionTypeCancelWorkflowExecution)), tag.ErrorTypeMultipleCompletionDecisions})
+				taskHandler.logger.(*log.MockLogger).EXPECT().Warn("Multiple completion decisions", []tag.Tag{tag.WorkflowDecisionType(int64(types.DecisionTypeCancelWorkflowExecution)), tag.ErrorTypeMultipleCompletionDecisions})
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().IsWorkflowExecutionRunning().Return(false)
 			},
 			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, attr *types.CancelWorkflowExecutionDecisionAttributes, err error) {
@@ -1515,10 +1515,10 @@ func TestHandleDecisionContinueAsNewWorkflow(t *testing.T) {
 				taskHandler.attrValidator.domainCache.(*cache.MockDomainCache).EXPECT().GetDomainName(testdata.DomainID).Return(testdata.DomainName, nil)
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().IsWorkflowExecutionRunning().Return(false)
 				taskHandler.metricsClient = new(mocks.Client)
-				taskHandler.logger = new(log.MockLogger)
+				taskHandler.logger = log.NewMockLogger(gomock.NewController(t))
 				taskHandler.metricsClient.(*mocks.Client).On("IncCounter", metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DecisionTypeContinueAsNewCounter)
 				taskHandler.metricsClient.(*mocks.Client).On("IncCounter", metrics.HistoryRespondDecisionTaskCompletedScope, metrics.MultipleCompletionDecisionsCounter)
-				taskHandler.logger.(*log.MockLogger).On("Warn", "Multiple completion decisions", []tag.Tag{tag.WorkflowDecisionType(int64(types.DecisionTypeContinueAsNewWorkflowExecution)), tag.ErrorTypeMultipleCompletionDecisions})
+				taskHandler.logger.(*log.MockLogger).EXPECT().Warn("Multiple completion decisions", []tag.Tag{tag.WorkflowDecisionType(int64(types.DecisionTypeContinueAsNewWorkflowExecution)), tag.ErrorTypeMultipleCompletionDecisions})
 			},
 			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, attr *types.ContinueAsNewWorkflowExecutionDecisionAttributes, err error) {
 				assert.Nil(t, err)

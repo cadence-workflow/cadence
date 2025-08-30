@@ -36,9 +36,9 @@ import (
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc/yarpcerrors"
 	"golang.org/x/exp/maps"
 
@@ -96,7 +96,6 @@ func TestIsServiceTransientError(t *testing.T) {
 			require.Equal(t, c.want, IsServiceTransientError(c.err))
 		})
 	}
-
 }
 
 func TestIsExpectedError(t *testing.T) {
@@ -247,7 +246,7 @@ func TestFirstDecisionTaskBackoffDuringStartWorkflow(t *testing.T) {
 		{false, 15, 600, "future"},
 	}
 
-	rand.Seed(int64(time.Now().Nanosecond()))
+	rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
 
 	for idx, tt := range tests {
 		t.Run(strconv.Itoa(idx), func(t *testing.T) {
@@ -271,7 +270,7 @@ func TestFirstDecisionTaskBackoffDuringStartWorkflow(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, startRequest)
 
-				backoff := startRequest.GetFirstDecisionTaskBackoffSeconds()
+				backoffSeconds := startRequest.GetFirstDecisionTaskBackoffSeconds()
 
 				expectedWithoutJitter := tt.delayStartSeconds
 				if tt.cron {
@@ -279,19 +278,19 @@ func TestFirstDecisionTaskBackoffDuringStartWorkflow(t *testing.T) {
 				}
 				expectedMax := expectedWithoutJitter + tt.jitterStartSeconds
 
-				if backoff == expectedWithoutJitter {
+				if backoffSeconds == expectedWithoutJitter {
 					exactCount++
 				}
 
 				if tt.firstRunAtTimeCategory == "future" {
-					require.Equal(t, int32(2), backoff, "test specs = %v", tt)
+					require.Equal(t, int32(2), backoffSeconds, "test specs = %v", tt)
 				} else {
 					if tt.jitterStartSeconds == 0 {
-						require.Equal(t, expectedWithoutJitter, backoff, "test specs = %v", tt)
+						require.Equal(t, expectedWithoutJitter, backoffSeconds, "test specs = %v", tt)
 					} else {
-						require.True(t, backoff >= expectedWithoutJitter && backoff <= expectedMax,
+						require.True(t, backoffSeconds >= expectedWithoutJitter && backoffSeconds <= expectedMax,
 							"test specs = %v, backoff (%v) should be >= %v and <= %v",
-							tt, backoff, expectedWithoutJitter, expectedMax)
+							tt, backoffSeconds, expectedWithoutJitter, expectedMax)
 					}
 				}
 			}
@@ -368,15 +367,15 @@ func testExpirationTime(t *testing.T, delayStartSeconds int, cronSeconds int, ji
 		t,
 		time.Unix(0, expirationTime).Sub(now) >= (time.Duration(minDelay)+58)*time.Second,
 		"Integration test took too short: %f seconds vs %f seconds",
-		time.Duration(time.Unix(0, expirationTime).Sub(now)).Round(time.Millisecond).Seconds(),
-		time.Duration((time.Duration(minDelay)+58)*time.Second).Round(time.Millisecond).Seconds(),
+		time.Unix(0, expirationTime).Sub(now).Round(time.Millisecond).Seconds(),
+		((time.Duration(minDelay) + 58) * time.Second).Round(time.Millisecond).Seconds(),
 	)
 	require.True(
 		t,
 		time.Unix(0, expirationTime).Sub(now) < (time.Duration(maxDelay)+68)*time.Second,
 		"Integration test took too long: %f seconds vs %f seconds",
-		time.Duration(time.Unix(0, expirationTime).Sub(now)).Round(time.Millisecond).Seconds(),
-		time.Duration((time.Duration(minDelay)+68)*time.Second).Round(time.Millisecond).Seconds(),
+		time.Unix(0, expirationTime).Sub(now).Round(time.Millisecond).Seconds(),
+		((time.Duration(minDelay) + 68) * time.Second).Round(time.Millisecond).Seconds(),
 	)
 }
 
@@ -560,43 +559,36 @@ func TestIsValidIDLength(t *testing.T) {
 	)
 
 	mockWarnCall := func(logger *log.MockLogger) {
-		logger.On(
-			"Warn",
+		logger.EXPECT().Warn(
 			"ID length exceeds limit.",
 			[]tag.Tag{
 				tag.WorkflowDomainName(domainName),
 				tag.Name(id),
 				idTypeViolationTag,
 			},
-		).Once()
+		).Times(1)
 	}
 
 	t.Run("valid id length, no warnings", func(t *testing.T) {
-		logger := new(log.MockLogger)
+		logger := log.NewMockLogger(gomock.NewController(t))
 		got := IsValidIDLength(id, scope, 7, 10, metricCounter, domainName, logger, idTypeViolationTag)
 		require.True(t, got, "expected true, because id length is 5 and it's less than error limit 10")
 	})
 
 	t.Run("valid id length, with warnings", func(t *testing.T) {
-		logger := new(log.MockLogger)
+		logger := log.NewMockLogger(gomock.NewController(t))
 		mockWarnCall(logger)
 
 		got := IsValidIDLength(id, scope, 4, 10, metricCounter, domainName, logger, idTypeViolationTag)
 		require.True(t, got, "expected true, because id length is 5 and it's less than error limit 10")
-
-		// logger should be called once
-		logger.AssertExpectations(t)
 	})
 
 	t.Run("non valid id length", func(t *testing.T) {
-		logger := new(log.MockLogger)
+		logger := log.NewMockLogger(gomock.NewController(t))
 		mockWarnCall(logger)
 
 		got := IsValidIDLength(id, scope, 1, 4, metricCounter, domainName, logger, idTypeViolationTag)
 		require.False(t, got, "expected false, because id length is 5 and it's more than error limit 4")
-
-		// logger should be called once
-		logger.AssertExpectations(t)
 	})
 }
 
@@ -707,28 +699,28 @@ func TestCreateXXXRetryPolicyWithMaximumAttempts(t *testing.T) {
 func TestValidateRetryPolicy_Success(t *testing.T) {
 	for name, policy := range map[string]*types.RetryPolicy{
 		"nil policy": nil,
-		"MaximumAttempts is no zero": &types.RetryPolicy{
+		"MaximumAttempts is no zero": {
 			InitialIntervalInSeconds:    2,
 			BackoffCoefficient:          1,
 			MaximumIntervalInSeconds:    0,
 			MaximumAttempts:             1,
 			ExpirationIntervalInSeconds: 0,
 		},
-		"ExpirationIntervalInSeconds is no zero": &types.RetryPolicy{
+		"ExpirationIntervalInSeconds is no zero": {
 			InitialIntervalInSeconds:    2,
 			BackoffCoefficient:          1,
 			MaximumIntervalInSeconds:    0,
 			MaximumAttempts:             0,
 			ExpirationIntervalInSeconds: 1,
 		},
-		"MaximumIntervalInSeconds is greater than InitialIntervalInSeconds": &types.RetryPolicy{
+		"MaximumIntervalInSeconds is greater than InitialIntervalInSeconds": {
 			InitialIntervalInSeconds:    2,
 			BackoffCoefficient:          1,
 			MaximumIntervalInSeconds:    0,
 			MaximumAttempts:             0,
 			ExpirationIntervalInSeconds: 1,
 		},
-		"MaximumIntervalInSeconds equals InitialIntervalInSeconds": &types.RetryPolicy{
+		"MaximumIntervalInSeconds equals InitialIntervalInSeconds": {
 			InitialIntervalInSeconds:    2,
 			BackoffCoefficient:          1,
 			MaximumIntervalInSeconds:    2,
@@ -1076,7 +1068,7 @@ func TestDeserializeSearchAttributeValue_Success(t *testing.T) {
 		"double": {
 			value:     `1.1`,
 			valueType: types.IndexedValueTypeDouble,
-			wantValue: float64(1.1),
+			wantValue: 1.1,
 		},
 		"[]double": {
 			value:     `[1.1, 2.2, 3.3]`,
@@ -1517,9 +1509,8 @@ func TestValidateLongPollContextTimeout(t *testing.T) {
 	const handlerName = "testHandler"
 
 	t.Run("context timeout is not set", func(t *testing.T) {
-		logger := new(log.MockLogger)
-		logger.On(
-			"Error",
+		logger := log.NewMockLogger(gomock.NewController(t))
+		logger.EXPECT().Error(
 			"Context timeout not set for long poll API.",
 			[]tag.Tag{
 				tag.WorkflowHandlerName(handlerName),
@@ -1531,46 +1522,38 @@ func TestValidateLongPollContextTimeout(t *testing.T) {
 		got := ValidateLongPollContextTimeout(ctx, handlerName, logger)
 		require.Error(t, got)
 		require.ErrorIs(t, got, ErrContextTimeoutNotSet)
-		logger.AssertExpectations(t)
 	})
 
 	t.Run("context timeout is set, but less than MinLongPollTimeout", func(t *testing.T) {
-		logger := new(log.MockLogger)
-		logger.On(
-			"Error",
+		logger := log.NewMockLogger(gomock.NewController(t))
+		logger.EXPECT().Error(
 			"Context timeout is too short for long poll API.",
 			// we can't mock time between deadline and now, so we just check it as it is
-			mock.Anything,
+			gomock.Any(),
 		)
 		ctx, _ := context.WithTimeout(context.Background(), time.Second)
 		got := ValidateLongPollContextTimeout(ctx, handlerName, logger)
 		require.Error(t, got)
 		require.ErrorIs(t, got, ErrContextTimeoutTooShort, "should return ErrContextTimeoutTooShort, because context timeout is less than MinLongPollTimeout")
-		logger.AssertExpectations(t)
-
 	})
 
 	t.Run("context timeout is set, but less than CriticalLongPollTimeout", func(t *testing.T) {
-		logger := new(log.MockLogger)
-		logger.On(
-			"Debug",
+		logger := log.NewMockLogger(gomock.NewController(t))
+		logger.EXPECT().Debug(
 			"Context timeout is lower than critical value for long poll API.",
 			// we can't mock time between deadline and now, so we just check it as it is
-			mock.Anything,
+			gomock.Any(),
 		)
 		ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
 		got := ValidateLongPollContextTimeout(ctx, handlerName, logger)
 		require.NoError(t, got)
-		logger.AssertExpectations(t)
-
 	})
 
 	t.Run("context timeout is set, but greater than CriticalLongPollTimeout", func(t *testing.T) {
-		logger := new(log.MockLogger)
+		logger := log.NewMockLogger(gomock.NewController(t))
 		ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
 		got := ValidateLongPollContextTimeout(ctx, handlerName, logger)
 		require.NoError(t, got)
-		logger.AssertExpectations(t)
 	})
 }
 
@@ -1656,7 +1639,7 @@ func TestCheckEventBlobSizeLimit(t *testing.T) {
 			errSize:  30,
 			wantErr:  nil,
 			prepareLogger: func(logger *log.MockLogger) {
-				logger.On("Warn", "Blob size close to the limit.", mock.Anything).Once()
+				logger.EXPECT().Warn("Blob size close to the limit.", gomock.Any()).Times(1)
 			},
 		},
 		"blob size is greater than error limit": {
@@ -1665,7 +1648,7 @@ func TestCheckEventBlobSizeLimit(t *testing.T) {
 			errSize:  30,
 			wantErr:  ErrBlobSizeExceedsLimit,
 			prepareLogger: func(logger *log.MockLogger) {
-				logger.On("Error", "Blob size exceeds limit.", mock.Anything).Once()
+				logger.EXPECT().Error("Blob size exceeds limit.", gomock.Any()).Times(1)
 			},
 			assertMetrics: func(snapshot tally.Snapshot) {
 				counters := snapshot.Counters()
@@ -1681,15 +1664,15 @@ func TestCheckEventBlobSizeLimit(t *testing.T) {
 			errSize:  20,
 			wantErr:  ErrBlobSizeExceedsLimit,
 			prepareLogger: func(logger *log.MockLogger) {
-				logger.On("Warn", "Error limit is less than warn limit.", mock.Anything).Once()
-				logger.On("Error", "Blob size exceeds limit.", mock.Anything).Once()
+				logger.EXPECT().Warn("Error limit is less than warn limit.", gomock.Any()).Times(1)
+				logger.EXPECT().Error("Blob size exceeds limit.", gomock.Any()).Times(1)
 			},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			testScope := tally.NewTestScope("test", nil)
 			metricsClient := metrics.NewClient(testScope, metrics.History)
-			logger := log.NewMockLogger(t)
+			logger := log.NewMockLogger(gomock.NewController(t))
 
 			if c.prepareLogger != nil {
 				c.prepareLogger(logger)
