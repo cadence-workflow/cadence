@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -77,7 +76,7 @@ func (s *transferQueueValidatorSuite) SetupTest() {
 		},
 		config.NewForTest(),
 	)
-	s.mockLogger = log.NewMockLogger(s.T())
+	s.mockLogger = log.NewMockLogger(gomock.NewController(s.T()))
 	s.mockMetricScope = &mocks.Scope{}
 
 	s.processor = &transferQueueProcessorBase{
@@ -150,7 +149,7 @@ func (s *transferQueueValidatorSuite) TestAddTasks_TaskDropped() {
 	}
 
 	numDroppedTasks := expectedPendingTasksLen + len(tasks) - defaultMaxPendingTasksSize
-	s.mockLogger.On("Warn", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Times(1)
+	s.mockLogger.EXPECT().Warn(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 	s.mockMetricScope.On("AddCounter", metrics.QueueValidatorDropTaskCounter, int64(numDroppedTasks)).Times(1)
 
 	s.validator.addTasks(&hcommon.NotifyTaskInfo{ExecutionInfo: executionInfo, Tasks: tasks, PersistenceError: false})
@@ -215,7 +214,7 @@ func (s *transferQueueValidatorSuite) TestAckTasks_TaskLost() {
 	}
 
 	time.Sleep(testValidationInterval)
-	s.mockLogger.On("Error", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Times(1)
+	s.mockLogger.EXPECT().Error(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 	s.mockMetricScope.On("IncCounter", metrics.QueueValidatorValidationCounter).Times(1)
 	s.mockMetricScope.On("IncCounter", metrics.QueueValidatorLostTaskCounter).Times(1)
 
@@ -235,7 +234,7 @@ func (s *transferQueueValidatorSuite) TestAckTasks_LostRequestNotContinuous() {
 	maxReadLevel = newTransferTaskKey(15)
 	s.validator.ackTasks(defaultProcessingQueueLevel, readLevel, maxReadLevel, nil)
 
-	s.mockLogger.On("Error", mock.Anything, mock.Anything).Times(1)
+	s.mockLogger.EXPECT().Error(gomock.Any(), gomock.Any()).Times(1)
 	s.mockMetricScope.On("IncCounter", metrics.QueueValidatorInvalidLoadCounter).Times(1)
 
 	readLevel = newTransferTaskKey(16)
