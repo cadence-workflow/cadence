@@ -34,7 +34,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 )
 
-//go:generate mockgen -package=parentclosepolicy -destination=client_mock.go github.com/uber/cadence/service/worker/parentclosepolicy Client
+//go:generate mockgen -package=$GOPACKAGE -destination=client_mock.go -self_package=github.com/uber/cadence/service/worker/parentclosepolicy github.com/uber/cadence/service/worker/parentclosepolicy Client
 
 type (
 
