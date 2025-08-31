@@ -241,16 +241,6 @@ const (
 	TransferTaskTypeApplyParentClosePolicy // Deprecated: this is related to cross-cluster tasks
 )
 
-// Deprecated: Types of cross-cluster tasks. These are deprecated as of
-// May 2024
-const (
-	CrossClusterTaskTypeStartChildExecution = iota + 1
-	CrossClusterTaskTypeCancelExecution
-	CrossClusterTaskTypeSignalExecution
-	CrossClusterTaskTypeRecordChildExeuctionCompleted
-	CrossClusterTaskTypeApplyParentClosePolicy
-)
-
 // Types of replication tasks
 const (
 	ReplicationTaskTypeHistory = iota
@@ -314,10 +304,6 @@ const (
 	// TransferTaskTransferTargetRunID is the the dummy run ID for transfer tasks of types
 	// that do not have a target workflow
 	TransferTaskTransferTargetRunID = "30000000-0000-f000-f000-000000000002"
-	// Deprecated: This is deprecated as of May 24
-	// CrossClusterTaskDefaultTargetRunID is the the dummy run ID for cross-cluster tasks of types
-	// that do not have a target workflow
-	CrossClusterTaskDefaultTargetRunID = TransferTaskTransferTargetRunID
 
 	// indicate invalid workflow state transition
 	invalidStateTransitionMsg = "unable to change workflow state from %v to %v, close status %v"
