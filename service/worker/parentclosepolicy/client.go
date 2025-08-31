@@ -34,6 +34,8 @@ import (
 	"github.com/uber/cadence/common/metrics"
 )
 
+//go:generate mockgen -package=parentclosepolicy -destination=client_mock.go github.com/uber/cadence/service/worker/parentclosepolicy Client
+
 type (
 
 	// Client is used to send request to processor workflow
