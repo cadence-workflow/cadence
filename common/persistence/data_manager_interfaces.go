@@ -53,6 +53,7 @@ package persistence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -1645,7 +1646,8 @@ type (
 
 // IsTimeoutError check whether error is TimeoutError
 func IsTimeoutError(err error) bool {
-	_, ok := err.(*TimeoutError)
+	var timeoutError *TimeoutError
+	ok := errors.As(err, &timeoutError)
 	return ok
 }
 
@@ -2030,7 +2032,7 @@ func (s *ShardInfo) copy() *ShardInfo {
 // SerializeClusterConfigs makes an array of *ClusterReplicationConfig serializable
 // by flattening them into map[string]interface{}
 func SerializeClusterConfigs(replicationConfigs []*ClusterReplicationConfig) []map[string]interface{} {
-	serializedReplicationConfigs := []map[string]interface{}{}
+	var serializedReplicationConfigs []map[string]interface{}
 	for index := range replicationConfigs {
 		serializedReplicationConfigs = append(serializedReplicationConfigs, replicationConfigs[index].serialize())
 	}
@@ -2164,8 +2166,11 @@ func NewGetReplicationTasksFromDLQRequest(
 
 // IsTransientError checks if the error is a transient persistence error
 func IsTransientError(err error) bool {
-	switch err.(type) {
-	case *types.InternalServiceError, *types.ServiceBusyError, *TimeoutError:
+	var internalServiceError *types.InternalServiceError
+	var serviceBusyError *types.ServiceBusyError
+	var timeoutError *TimeoutError
+	switch {
+	case errors.As(err, &internalServiceError), errors.As(err, &serviceBusyError), errors.As(err, &timeoutError):
 		return true
 	}
 
@@ -2174,8 +2179,10 @@ func IsTransientError(err error) bool {
 
 // IsBackgroundTransientError checks if the error is a transient error on background jobs
 func IsBackgroundTransientError(err error) bool {
-	switch err.(type) {
-	case *types.InternalServiceError, *TimeoutError:
+	var internalServiceError *types.InternalServiceError
+	var timeoutError *TimeoutError
+	switch {
+	case errors.As(err, &internalServiceError), errors.As(err, &timeoutError):
 		return true
 	}
 
