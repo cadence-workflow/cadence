@@ -28,12 +28,13 @@ default: help
 
 # temporary build products and book-keeping targets that are always good to / safe to clean.
 BUILD := .build
-# bins that are `make clean` friendly, i.e. they build quickly and do not require new downloads.
+# bins that depend on something that isn't super stable and reliable, and can be recreated easily
+# when something may have changed.  these are automatically rebuilt in a number of cases, and after `make clean`.
 # in particular this should include goimports, as it changes based on which version of go compiles it,
 # and few know to do more than `make clean`.
 BIN := $(BUILD)/bin
-# relatively stable build products, e.g. tools.
-# usually unnecessary to clean, and may require downloads to restore, so this folder is not automatically cleaned.
+# extra-stable build products, e.g. tools that are directly downloaded and don't depend on go.mod versions / caches / etc.
+# usually unnecessary to clean, and may require downloads to restore, so `make clean` warns about but does not remove these.
 STABLE_BIN := .bin
 
 # toolchain version we all use.
@@ -186,7 +187,7 @@ $(BIN)/mockgen: internal/tools/go.mod go.work
 	$(call go_build_tool,go.uber.org/mock/mockgen)
 
 $(BIN)/mockery: internal/tools/go.mod go.work
-	$(call go_build_tool,github.com/vektra/mockery/v2,mockery)
+	$(call go_build_tool,github.com/vektra/mockery/v3,mockery)
 
 $(BIN)/enumer: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/dmarkham/enumer)
@@ -214,6 +215,9 @@ $(BIN)/protoc-gen-yarpc-go: go.mod go.work | $(BIN)
 $(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
 	$Q # generated == used is occasionally important for gomock / mock libs in general.  this is not a definite problem if violated though.
 	$Q ./scripts/check-gomod-version.sh github.com/golang/mock/gomock $(if $(verbose),-v)
+	$Q # type-aware tools sometimes have tons of strange crashes if this version diverges or if Go is upgraded, best to just keep it identical.
+	$Q # UNFORTUNATELY this is disabled at the moment, as we can't upgrade golang.org/x/tools all the way in the main module yet due to internal dependencies.
+	$Q # ./scripts/check-gomod-version.sh golang.org/x/tools $(if $(verbose),-v)
 	$Q touch $@
 
 # copyright header checker/writer.  only requires stdlib, so no other dependencies are needed.
@@ -544,7 +548,7 @@ bins: $(BINS) ## Build all binaries, and any fast codegen needed (does not refre
 
 tools: $(TOOLS)
 
-go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `go generate` to regen mocks, enums, etc
+go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap $(BUILD)/go_mod_check ## Run `go generate` to regen mocks, enums, etc
 	$Q echo "running go generate ./..., this takes a minute or more..."
 	$Q # add our bins to PATH so `go generate` can find them
 	$Q $(BIN_PATH) go generate $(if $(verbose),-v) ./...
@@ -571,13 +575,16 @@ build: ## `go build` all packages and tests (a quick compile check only, skips a
 tidy: ## `go mod tidy` all packages
 	$Q # tidy in dependency order
 	$Q go mod tidy
-	$Q cd common/archiver/gcloud; go mod tidy || (echo "failed to tidy gcloud plugin, try manually copying go.mod contents into common/archiver/gcloud/go.mod and rerunning" >&2; exit 1)
-	$Q cd cmd/server; go mod tidy || (echo "failed to tidy main server module, try manually copying go.mod and common/archiver/gcloud/go.mod contents into cmd/server/go.mod and rerunning" >&2; exit 1)
+	$Q cd common/archiver/gcloud; go mod tidy || (echo "failed to tidy gcloud plugin" >&2; exit 1)
+	$Q cd service/sharddistributor/store/etcd; go mod tidy || (echo "failed to tidy etcd plugin" >&2; exit 1)
+	$Q cd cmd/server; go mod tidy || (echo "failed to tidy main server module" >&2; exit 1)
+	$Q # pull everything to the newest selected versions for consistency.  this is generally preferred, but is not necessary if we need to diverge.
+	$Q go work sync
 
 clean: ## Clean build products and SQLite database
 	rm -f $(BINS)
 	rm -Rf $(BUILD)
-	rm *.db
+	rm -f *.db
 	$(if \
 		$(wildcard $(STABLE_BIN)/*), \
 		$(warning usually-stable build tools still exist, delete the $(STABLE_BIN) folder to rebuild them),)
