@@ -19,7 +19,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Geneate rate limiter wrappers.
+// Generate rate limiter wrappers.
 //go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,ExecutionManagerFactory,TaskManager,HistoryManager,DomainManager,QueueManager,ConfigStoreManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
@@ -29,7 +29,7 @@
 //go:generate gowrap gen -g -p . -i TaskManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/task_generated.go
 //go:generate gowrap gen -g -p . -i ShardManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/shard_generated.go
 
-// Geneate error injector wrappers.
+// Generate error injector wrappers.
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/configstore_generated.go
 //go:generate gowrap gen -g -p . -i ShardManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/shard_generated.go
 //go:generate gowrap gen -g -p . -i ExecutionManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/execution_generated.go
@@ -2030,23 +2030,23 @@ func (s *ShardInfo) copy() *ShardInfo {
 // SerializeClusterConfigs makes an array of *ClusterReplicationConfig serializable
 // by flattening them into map[string]interface{}
 func SerializeClusterConfigs(replicationConfigs []*ClusterReplicationConfig) []map[string]interface{} {
-	seriaizedReplicationConfigs := []map[string]interface{}{}
+	serializedReplicationConfigs := []map[string]interface{}{}
 	for index := range replicationConfigs {
-		seriaizedReplicationConfigs = append(seriaizedReplicationConfigs, replicationConfigs[index].serialize())
+		serializedReplicationConfigs = append(serializedReplicationConfigs, replicationConfigs[index].serialize())
 	}
-	return seriaizedReplicationConfigs
+	return serializedReplicationConfigs
 }
 
 // DeserializeClusterConfigs creates an array of ClusterReplicationConfigs from an array of map representations
 func DeserializeClusterConfigs(replicationConfigs []map[string]interface{}) []*ClusterReplicationConfig {
-	deseriaizedReplicationConfigs := []*ClusterReplicationConfig{}
+	deserializedReplicationConfigs := []*ClusterReplicationConfig{}
 	for index := range replicationConfigs {
-		deseriaizedReplicationConfig := &ClusterReplicationConfig{}
-		deseriaizedReplicationConfig.deserialize(replicationConfigs[index])
-		deseriaizedReplicationConfigs = append(deseriaizedReplicationConfigs, deseriaizedReplicationConfig)
+		deserializedReplicationConfig := &ClusterReplicationConfig{}
+		deserializedReplicationConfig.deserialize(replicationConfigs[index])
+		deserializedReplicationConfigs = append(deserializedReplicationConfigs, deserializedReplicationConfig)
 	}
 
-	return deseriaizedReplicationConfigs
+	return deserializedReplicationConfigs
 }
 
 func (config *ClusterReplicationConfig) serialize() map[string]interface{} {
