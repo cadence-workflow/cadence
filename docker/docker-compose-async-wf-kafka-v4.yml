@@ -72,7 +72,7 @@ services:
     ports:
       - '3000:3000'
   kafka:
-    image: docker.io/bitnamilegacy/kafka:4.0
+    image: apache/kafka:4.0.0
     hostname: kafka
     container_name: kafka
     ports:
