@@ -41,7 +41,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-//go:generate mockgen -package=archiver -destination=client_mock.go github.com/uber/cadence/service/worker/archiver Client
+//go:generate mockgen -package=$GOPACKAGE -destination=client_mock.go -self_package github.com/uber/cadence/service/worker/archiver github.com/uber/cadence/service/worker/archiver Client
 
 type (
 	// ClientRequest is the archive request sent to the archiver client
