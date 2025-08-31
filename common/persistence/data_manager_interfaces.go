@@ -89,7 +89,7 @@ type CreateWorkflowMode int
 // QueueType is an enum that represents various queue types in persistence
 type QueueType int
 
-// Queue types used in queue table
+// DomainReplicationQueueType queue types used in queue table
 // Use positive numbers for queue type
 // Negative numbers are reserved for DLQ
 const (
@@ -98,16 +98,16 @@ const (
 
 // Create Workflow Execution Mode
 const (
-	// Fail if current record exists
+	// CreateWorkflowModeBrandNew Fail if current record exists
 	// Only applicable for CreateWorkflowExecution
 	CreateWorkflowModeBrandNew CreateWorkflowMode = iota
-	// Update current record only if workflow is closed
+	// CreateWorkflowModeWorkflowIDReuse Update current record only if workflow is closed
 	// Only applicable for CreateWorkflowExecution
 	CreateWorkflowModeWorkflowIDReuse
-	// Update current record only if workflow is open
+	// CreateWorkflowModeContinueAsNew Update current record only if workflow is open
 	// Only applicable for UpdateWorkflowExecution
 	CreateWorkflowModeContinueAsNew
-	// Do not update current record since workflow to
+	// CreateWorkflowModeZombie Do not update current record since workflow to
 	// applicable for CreateWorkflowExecution, UpdateWorkflowExecution
 	CreateWorkflowModeZombie
 )
@@ -117,13 +117,13 @@ type UpdateWorkflowMode int
 
 // Update Workflow Execution Mode
 const (
-	// Update workflow, including current record
+	// UpdateWorkflowModeUpdateCurrent Update workflow, including current record
 	// NOTE: update on current record is a condition update
 	UpdateWorkflowModeUpdateCurrent UpdateWorkflowMode = iota
-	// Update workflow, without current record
+	// UpdateWorkflowModeBypassCurrent Update workflow, without current record
 	// NOTE: current record CANNOT point to the workflow to be updated
 	UpdateWorkflowModeBypassCurrent
-	// Update workflow, ignoring current record
+	// UpdateWorkflowModeIgnoreCurrent Update workflow, ignoring current record
 	// NOTE: current record may or may not point to the workflow
 	// this mode should only be used for (re-)generating workflow tasks
 	// and there's no other changes to the workflow
@@ -135,10 +135,10 @@ type ConflictResolveWorkflowMode int
 
 // Conflict Resolve Workflow Mode
 const (
-	// Conflict resolve workflow, including current record
+	// ConflictResolveWorkflowModeUpdateCurrent Conflict resolve workflow, including current record
 	// NOTE: update on current record is a condition update
 	ConflictResolveWorkflowModeUpdateCurrent ConflictResolveWorkflowMode = iota
-	// Conflict resolve workflow, without current record
+	// ConflictResolveWorkflowModeBypassCurrent Conflict resolve workflow, without current record
 	// NOTE: current record CANNOT point to the workflow to be updated
 	ConflictResolveWorkflowModeBypassCurrent
 )
@@ -275,11 +275,11 @@ type CreateWorkflowRequestMode int
 
 // Modes of create workflow request
 const (
-	// Fail if data with the same domain_id, workflow_id, request_id exists
+	// CreateWorkflowRequestModeNew Fail if data with the same domain_id, workflow_id, request_id exists
 	// It is used for transactions started by external API requests
 	// to allow us detecting duplicate requests
 	CreateWorkflowRequestModeNew CreateWorkflowRequestMode = iota
-	// Upsert the data without checking duplication
+	// CreateWorkflowRequestModeReplicated Upsert the data without checking duplication
 	// It is used for transactions started by replication stack to achieve
 	// eventual consistency
 	CreateWorkflowRequestModeReplicated
@@ -298,10 +298,10 @@ const (
 	// InitialFailoverNotificationVersion is the initial failover version for a domain
 	InitialFailoverNotificationVersion int64 = 0
 
-	// TransferTaskTransferTargetWorkflowID is the the dummy workflow ID for transfer tasks of types
+	// TransferTaskTransferTargetWorkflowID is the dummy workflow ID for transfer tasks of types
 	// that do not have a target workflow
 	TransferTaskTransferTargetWorkflowID = "20000000-0000-f000-f000-000000000001"
-	// TransferTaskTransferTargetRunID is the the dummy run ID for transfer tasks of types
+	// TransferTaskTransferTargetRunID is the dummy run ID for transfer tasks of types
 	// that do not have a target workflow
 	TransferTaskTransferTargetRunID = "30000000-0000-f000-f000-000000000002"
 
@@ -717,7 +717,7 @@ type (
 		RangeID    int64
 	}
 
-	// GetWorkflowExecutionResponse is the response to GetworkflowExecutionRequest
+	// GetWorkflowExecutionResponse is the response to GetWorkflowExecutionRequest
 	GetWorkflowExecutionResponse struct {
 		State             *WorkflowMutableState
 		MutableStateStats *MutableStateStats
@@ -805,7 +805,7 @@ type (
 
 		Mode ConflictResolveWorkflowMode
 
-		// workflow to be resetted
+		// workflow to be reset
 		ResetWorkflowSnapshot WorkflowSnapshot
 
 		// maybe new workflow
@@ -1052,7 +1052,7 @@ type (
 		Size int64
 	}
 
-	// CreateTasksRequest is used to create a new task for a workflow exectution
+	// CreateTasksRequest is used to create a new task for a workflow execution
 	CreateTasksRequest struct {
 		TaskListInfo     *TaskListInfo
 		Tasks            []*CreateTaskInfo
@@ -1523,6 +1523,7 @@ type (
 		IsWorkflowExecutionExists(ctx context.Context, request *IsWorkflowExecutionExistsRequest) (*IsWorkflowExecutionExistsResponse, error)
 
 		// Replication task related methods
+
 		PutReplicationTaskToDLQ(ctx context.Context, request *PutReplicationTaskToDLQRequest) error
 		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetHistoryTasksResponse, error)
 		GetReplicationDLQSize(ctx context.Context, request *GetReplicationDLQSizeRequest) (*GetReplicationDLQSizeResponse, error)
@@ -1535,6 +1536,7 @@ type (
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 
 		// Scan operations
+
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*ListConcreteExecutionsResponse, error)
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
 
@@ -1583,7 +1585,7 @@ type (
 		// ReadRawHistoryBranch returns history node raw data for a branch ByBatch
 		// NOTE: this API should only be used by 3+DC
 		ReadRawHistoryBranch(ctx context.Context, request *ReadHistoryBranchRequest) (*ReadRawHistoryBranchResponse, error)
-		// ForkHistoryBranch forks a new branch from a old branch
+		// ForkHistoryBranch forks a new branch from an old branch
 		ForkHistoryBranch(ctx context.Context, request *ForkHistoryBranchRequest) (*ForkHistoryBranchResponse, error)
 		// DeleteHistoryBranch removes a branch
 		// If this is the last branch to delete, it will also remove the root node
@@ -1926,6 +1928,7 @@ func (t *TimerTaskInfo) ToTask() (Task, error) {
 	}
 }
 
+// ToNilSafeCopy
 // TODO: it seems that we just need a nil safe shardInfo, deep copy is not necessary
 func (s *ShardInfo) ToNilSafeCopy() *ShardInfo {
 	if s == nil {
