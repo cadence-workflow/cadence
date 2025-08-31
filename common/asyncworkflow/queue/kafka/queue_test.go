@@ -135,7 +135,7 @@ func TestCreateConsumer(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			mockBroker := sarama.NewMockBroker(t, 0)
+			mockBroker := sarama.NewMockBrokerAddr(t, 0, "127.0.0.1:0")
 			defer mockBroker.Close()
 			mockBroker.SetHandlerByMap(map[string]sarama.MockResponse{
 				"MetadataRequest": sarama.NewMockMetadataResponse(t).
@@ -205,7 +205,7 @@ func TestCreateProducer(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			mockBroker := sarama.NewMockBroker(t, 0)
+			mockBroker := sarama.NewMockBrokerAddr(t, 0, "127.0.0.1:0")
 			defer mockBroker.Close()
 			mockBroker.SetHandlerByMap(map[string]sarama.MockResponse{
 				"MetadataRequest": sarama.NewMockMetadataResponse(t).
