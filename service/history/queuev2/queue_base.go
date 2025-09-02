@@ -295,7 +295,9 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 	// TODO: review the metrics and remove this comment or change the metric from gauge to histogram
 	q.metricsScope.UpdateGauge(metrics.PendingTaskGauge, float64(pendingTaskCount))
 
+	q.logger.Debug("complete history tasks", tag.Dynamic("oldExclusiveAckLevel", q.exclusiveAckLevel), tag.Dynamic("newExclusiveAckLevel", newExclusiveAckLevel))
 	if newExclusiveAckLevel.Compare(q.exclusiveAckLevel) > 0 {
+		q.metricsScope.IncCounter(metrics.TaskBatchCompleteCounter)
 		inclusiveMinTaskKey := q.exclusiveAckLevel
 		exclusiveMaxTaskKey := newExclusiveAckLevel
 		if q.category.Type() == persistence.HistoryTaskCategoryTypeScheduled {
