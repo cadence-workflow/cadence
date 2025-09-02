@@ -1385,3 +1385,407 @@ func TestVirtualQueue_AppendSlices(t *testing.T) {
 		})
 	}
 }
+
+func TestVirtualQueue_MergeWithLastSlice(t *testing.T) {
+	tests := []struct {
+		name                   string
+		setupMocks             func(ctrl *gomock.Controller) ([]VirtualSlice, VirtualSlice, Monitor)
+		expectedStates         []VirtualSliceState
+		expectedSliceToReadIdx *int // nil if sliceToRead should be nil, otherwise index of expected slice
+	}{
+		{
+			name: "Merge with empty queue",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, VirtualSlice, Monitor) {
+				incomingSlice := NewMockVirtualSlice(ctrl)
+				monitor := NewMockMonitor(ctrl)
+
+				incomingSlice.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				incomingSlice.EXPECT().GetPendingTaskCount().Return(5)
+				incomingSlice.EXPECT().HasMoreTasks().Return(true)
+				monitor.EXPECT().SetSlicePendingTaskCount(incomingSlice, 5)
+
+				return []VirtualSlice{}, incomingSlice, monitor
+			},
+			expectedStates: []VirtualSliceState{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+			},
+			expectedSliceToReadIdx: common.Ptr(0),
+		},
+		{
+			name: "Merge with last slice - no merge possible",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, VirtualSlice, Monitor) {
+				existingSlice1 := NewMockVirtualSlice(ctrl)
+				existingSlice2 := NewMockVirtualSlice(ctrl)
+				incomingSlice := NewMockVirtualSlice(ctrl)
+				monitor := NewMockMonitor(ctrl)
+
+				existingSlice1.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				existingSlice1.EXPECT().HasMoreTasks().Return(false)
+
+				existingSlice2.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(6),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				existingSlice2.EXPECT().TryMergeWithVirtualSlice(incomingSlice).Return([]VirtualSlice{}, false)
+				existingSlice2.EXPECT().HasMoreTasks().Return(true)
+
+				incomingSlice.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(15),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(20),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				incomingSlice.EXPECT().GetPendingTaskCount().Return(3)
+				monitor.EXPECT().SetSlicePendingTaskCount(incomingSlice, 3)
+
+				return []VirtualSlice{existingSlice1, existingSlice2}, incomingSlice, monitor
+			},
+			expectedStates: []VirtualSliceState{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(6),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(15),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(20),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+			},
+			expectedSliceToReadIdx: common.Ptr(1), // existingSlice1 has more tasks
+		},
+		{
+			name: "Merge with last slice - successful merge",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, VirtualSlice, Monitor) {
+				existingSlice1 := NewMockVirtualSlice(ctrl)
+				existingSlice2 := NewMockVirtualSlice(ctrl)
+				incomingSlice := NewMockVirtualSlice(ctrl)
+				mergedSlice := NewMockVirtualSlice(ctrl)
+				monitor := NewMockMonitor(ctrl)
+
+				existingSlice1.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				existingSlice1.EXPECT().HasMoreTasks().Return(true)
+
+				existingSlice2.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(6),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				existingSlice2.EXPECT().TryMergeWithVirtualSlice(incomingSlice).Return([]VirtualSlice{mergedSlice}, true)
+
+				incomingSlice.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(8),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(15),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+
+				mergedSlice.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(6),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(15),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				mergedSlice.EXPECT().GetPendingTaskCount().Return(7)
+
+				monitor.EXPECT().RemoveSlice(existingSlice2)
+				monitor.EXPECT().RemoveSlice(incomingSlice)
+				monitor.EXPECT().SetSlicePendingTaskCount(mergedSlice, 7)
+
+				return []VirtualSlice{existingSlice1, existingSlice2}, incomingSlice, monitor
+			},
+			expectedStates: []VirtualSliceState{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(6),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(15),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+			},
+			expectedSliceToReadIdx: common.Ptr(0), // existingSlice1 has more tasks
+		},
+		{
+			name: "Merge with last slice - multiple merged slices result",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, VirtualSlice, Monitor) {
+				existingSlice := NewMockVirtualSlice(ctrl)
+				incomingSlice := NewMockVirtualSlice(ctrl)
+				mergedSlice1 := NewMockVirtualSlice(ctrl)
+				mergedSlice2 := NewMockVirtualSlice(ctrl)
+				monitor := NewMockMonitor(ctrl)
+
+				existingSlice.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				existingSlice.EXPECT().TryMergeWithVirtualSlice(incomingSlice).Return([]VirtualSlice{mergedSlice1, mergedSlice2}, true)
+
+				incomingSlice.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(15),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+
+				mergedSlice1.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(7),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				mergedSlice1.EXPECT().GetPendingTaskCount().Return(4)
+				mergedSlice1.EXPECT().HasMoreTasks().Return(true)
+
+				mergedSlice2.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(7),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(15),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				mergedSlice2.EXPECT().GetPendingTaskCount().Return(6)
+
+				monitor.EXPECT().RemoveSlice(existingSlice)
+				monitor.EXPECT().RemoveSlice(incomingSlice)
+				monitor.EXPECT().SetSlicePendingTaskCount(mergedSlice1, 4)
+				monitor.EXPECT().SetSlicePendingTaskCount(mergedSlice2, 6)
+
+				return []VirtualSlice{existingSlice}, incomingSlice, monitor
+			},
+			expectedStates: []VirtualSliceState{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(7),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(7),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(15),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+			},
+			expectedSliceToReadIdx: common.Ptr(0), // mergedSlice1 has more tasks
+		},
+		{
+			name: "Merge with single existing slice - no merge possible",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, VirtualSlice, Monitor) {
+				existingSlice := NewMockVirtualSlice(ctrl)
+				incomingSlice := NewMockVirtualSlice(ctrl)
+				monitor := NewMockMonitor(ctrl)
+
+				existingSlice.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				existingSlice.EXPECT().TryMergeWithVirtualSlice(incomingSlice).Return([]VirtualSlice{}, false)
+				existingSlice.EXPECT().HasMoreTasks().Return(true)
+
+				incomingSlice.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(10),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(15),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				incomingSlice.EXPECT().GetPendingTaskCount().Return(2)
+				monitor.EXPECT().SetSlicePendingTaskCount(incomingSlice, 2)
+
+				return []VirtualSlice{existingSlice}, incomingSlice, monitor
+			},
+			expectedStates: []VirtualSliceState{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(10),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(15),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+			},
+			expectedSliceToReadIdx: common.Ptr(0), // existingSlice has more tasks
+		},
+		{
+			name: "Merge with single existing slice - successful merge",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, VirtualSlice, Monitor) {
+				existingSlice := NewMockVirtualSlice(ctrl)
+				incomingSlice := NewMockVirtualSlice(ctrl)
+				mergedSlice := NewMockVirtualSlice(ctrl)
+				monitor := NewMockMonitor(ctrl)
+
+				existingSlice.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				existingSlice.EXPECT().TryMergeWithVirtualSlice(incomingSlice).Return([]VirtualSlice{mergedSlice}, true)
+
+				incomingSlice.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+
+				mergedSlice.EXPECT().GetState().Return(VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+					},
+					Predicate: NewUniversalPredicate(),
+				}).AnyTimes()
+				mergedSlice.EXPECT().GetPendingTaskCount().Return(5)
+				mergedSlice.EXPECT().HasMoreTasks().Return(true)
+
+				monitor.EXPECT().RemoveSlice(existingSlice)
+				monitor.EXPECT().RemoveSlice(incomingSlice)
+				monitor.EXPECT().SetSlicePendingTaskCount(mergedSlice, 5)
+
+				return []VirtualSlice{existingSlice}, incomingSlice, monitor
+			},
+			expectedStates: []VirtualSliceState{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+			},
+			expectedSliceToReadIdx: common.Ptr(0), // mergedSlice has more tasks
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockProcessor := task.NewMockProcessor(ctrl)
+			mockRescheduler := task.NewMockRescheduler(ctrl)
+			mockLogger := testlogger.New(t)
+			mockMetricsScope := metrics.NoopScope
+			mockTimeSource := clock.NewMockedTimeSource()
+			mockRateLimiter := quotas.NewMockLimiter(ctrl)
+
+			existingSlices, incomingSlice, monitor := tt.setupMocks(ctrl)
+
+			queue := NewVirtualQueue(
+				mockProcessor,
+				mockRescheduler,
+				mockLogger,
+				mockMetricsScope,
+				mockTimeSource,
+				mockRateLimiter,
+				monitor,
+				existingSlices,
+				&VirtualQueueOptions{
+					PageSize:                             dynamicproperties.GetIntPropertyFn(10),
+					MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+					PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+					PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
+				},
+			)
+
+			queue.MergeWithLastSlice(incomingSlice)
+			states := queue.GetState()
+
+			assert.Equal(t, tt.expectedStates, states)
+
+			// Check sliceToRead
+			queueImpl := queue.(*virtualQueueImpl)
+			if tt.expectedSliceToReadIdx == nil {
+				assert.Nil(t, queueImpl.sliceToRead, "sliceToRead should be nil")
+			} else {
+				assert.NotNil(t, queueImpl.sliceToRead, "sliceToRead should not be nil")
+				if queueImpl.sliceToRead != nil {
+					// For MergeWithLastSlice, we need to build the final slice list differently
+					// since the incoming slice is merged/appended to the existing slices
+					var finalSlices []VirtualSlice
+					for _, state := range states {
+						// Find the slice that matches this state
+						for e := queueImpl.virtualSlices.Front(); e != nil; e = e.Next() {
+							slice := e.Value.(VirtualSlice)
+							if slice.GetState() == state {
+								finalSlices = append(finalSlices, slice)
+								break
+							}
+						}
+					}
+					expectedSlice := finalSlices[*tt.expectedSliceToReadIdx]
+					assert.Equal(t, expectedSlice, queueImpl.sliceToRead.Value.(VirtualSlice))
+				}
+			}
+		})
+	}
+}

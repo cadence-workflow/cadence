@@ -491,7 +491,7 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 			},
 			newSlice: nil, // Will be replaced with mock
 			setupMockQueues: func(mocks map[int64]*MockVirtualQueue, slice *MockVirtualSlice) {
-				mocks[rootQueueID].EXPECT().MergeSlices(slice)
+				mocks[rootQueueID].EXPECT().MergeWithLastSlice(slice)
 				slice.EXPECT().GetState().Return(VirtualSliceState{
 					Range: Range{
 						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),

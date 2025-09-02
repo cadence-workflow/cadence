@@ -221,6 +221,7 @@ func (m *virtualQueueManagerImpl) AddNewVirtualSliceToRootQueue(s VirtualSlice) 
 func (m *virtualQueueManagerImpl) appendOrMergeSlice(vq VirtualQueue, s VirtualSlice) {
 	now := m.timeSource.Now()
 	newVirtualSliceState := s.GetState()
+	// TODO: we should set a limit on the number of virtual slices to prevent the size of queue state from being too large to be stored in database
 	if now.After(m.nextForceNewSliceTime) {
 		m.logger.Debug("append new slice to virtual queue", tag.Dynamic("currentTime", now), tag.Dynamic("nextForceNewSliceTime", m.nextForceNewSliceTime), tag.Dynamic("inclusiveMinTaskKey", newVirtualSliceState.Range.InclusiveMinTaskKey), tag.Dynamic("exclusiveMaxTaskKey", newVirtualSliceState.Range.ExclusiveMaxTaskKey))
 		vq.AppendSlices(s)
@@ -228,5 +229,5 @@ func (m *virtualQueueManagerImpl) appendOrMergeSlice(vq VirtualQueue, s VirtualS
 		return
 	}
 	m.logger.Debug("merge slice to virtual queue", tag.Dynamic("currentTime", now), tag.Dynamic("nextForceNewSliceTime", m.nextForceNewSliceTime), tag.Dynamic("inclusiveMinTaskKey", newVirtualSliceState.Range.InclusiveMinTaskKey), tag.Dynamic("exclusiveMaxTaskKey", newVirtualSliceState.Range.ExclusiveMaxTaskKey))
-	vq.MergeSlices(s)
+	vq.MergeWithLastSlice(s)
 }

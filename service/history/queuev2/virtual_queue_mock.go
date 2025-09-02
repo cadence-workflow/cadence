@@ -110,6 +110,18 @@ func (mr *MockVirtualQueueMockRecorder) MergeSlices(arg0 ...any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MergeSlices", reflect.TypeOf((*MockVirtualQueue)(nil).MergeSlices), arg0...)
 }
 
+// MergeWithLastSlice mocks base method.
+func (m *MockVirtualQueue) MergeWithLastSlice(arg0 VirtualSlice) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "MergeWithLastSlice", arg0)
+}
+
+// MergeWithLastSlice indicates an expected call of MergeWithLastSlice.
+func (mr *MockVirtualQueueMockRecorder) MergeWithLastSlice(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MergeWithLastSlice", reflect.TypeOf((*MockVirtualQueue)(nil).MergeWithLastSlice), arg0)
+}
+
 // Pause mocks base method.
 func (m *MockVirtualQueue) Pause(arg0 time.Duration) {
 	m.ctrl.T.Helper()

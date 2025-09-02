@@ -52,9 +52,11 @@ type (
 		GetState() []VirtualSliceState
 		// UpdateAndGetState update the state of the virtual queue and return the current state
 		UpdateAndGetState() []VirtualSliceState
-		// MergeSlices merge the incoming slices into the virtual queue
+		// MergeSlices merge the incoming slices into the virtual queue, this is used when we want to merge slices to a non-root virtual queue
 		MergeSlices(...VirtualSlice)
-		// AppendSlices append the incoming slices to the virtual queue
+		// MergeWithLastSlice merge the incoming slice with the last slice in the virtual queue, this is used when we want to add a new slice to the root virtual queue to avoid nullify the effect of AppendSlices
+		MergeWithLastSlice(VirtualSlice)
+		// AppendSlices append the incoming slices to the virtual queue, this is used when we want to add a new slice to the root virtual queue to prevent infinite growth of the virtual slice
 		AppendSlices(...VirtualSlice)
 		// IterateSlices iterate over the slices in the virtual queue
 		IterateSlices(func(VirtualSlice))
@@ -234,6 +236,14 @@ func (q *virtualQueueImpl) MergeSlices(incomingSlices ...VirtualSlice) {
 
 	q.virtualSlices.Init()
 	q.virtualSlices = mergedSlices
+	q.resetNextReadSliceLocked()
+}
+
+func (q *virtualQueueImpl) MergeWithLastSlice(incomingSlice VirtualSlice) {
+	q.Lock()
+	defer q.Unlock()
+
+	q.appendOrMergeSlice(q.virtualSlices, incomingSlice)
 	q.resetNextReadSliceLocked()
 }
 
