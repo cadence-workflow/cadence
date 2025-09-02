@@ -317,7 +317,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_Ratelimits() {
 	s.NoError(err)
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
 
-	// expected calls to match if task processing is allowed
+	// expected calls to the matching service if task processing is allowed
 	s.mockMatchingClient.EXPECT().AddActivityTask(gomock.Any(), createAddActivityTaskRequest(transferTaskInRatelimitedDomain, ai, mutableState.GetExecutionInfo().PartitionConfig)).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
 	s.mockMatchingClient.EXPECT().AddActivityTask(gomock.Any(), createAddActivityTaskRequest(transferTask, ai, mutableState.GetExecutionInfo().PartitionConfig)).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
 
@@ -489,7 +489,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessDecisionTask_Ratelimits() {
 	s.NoError(err)
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
 
-	// expected calls to match if task processing is allowed
+	// expected calls to the matching service if task processing is allowed
 	s.mockMatchingClient.EXPECT().AddDecisionTask(gomock.Any(), createAddDecisionTaskRequest(transferTask, mutableState)).Return(&types.AddDecisionTaskResponse{}, nil).Times(1)
 	s.mockMatchingClient.EXPECT().AddDecisionTask(gomock.Any(), createAddDecisionTaskRequest(rateLimitedTransferTask, mutableState)).Return(&types.AddDecisionTaskResponse{}, nil).Times(1)
 
@@ -727,9 +727,9 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_HasParent_Fa
 func (s *transferActiveTaskExecutorSuite) testProcessCloseExecutionWithParent(
 	targetDomainID string,
 	setupMockFn func(
-		mutableState execution.MutableState,
-		workflowExecution, targetExecution types.WorkflowExecution,
-	),
+	mutableState execution.MutableState,
+	workflowExecution, targetExecution types.WorkflowExecution,
+),
 	failRecordChild bool,
 ) {
 
@@ -1158,12 +1158,12 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCancelExecution_Duplication
 func (s *transferActiveTaskExecutorSuite) testProcessCancelExecution(
 	targetDomainID string,
 	setupMockFn func(
-		mutableState execution.MutableState,
-		workflowExecution, targetExecution types.WorkflowExecution,
-		cancelInitEvent *types.HistoryEvent,
-		transferTask Task,
-		requestCancelInfo *persistence.RequestCancelInfo,
-	),
+	mutableState execution.MutableState,
+	workflowExecution, targetExecution types.WorkflowExecution,
+	cancelInitEvent *types.HistoryEvent,
+	transferTask Task,
+	requestCancelInfo *persistence.RequestCancelInfo,
+),
 ) {
 	s.testProcessCancelExecutionWithError(targetDomainID, setupMockFn, nil)
 }
@@ -1171,12 +1171,12 @@ func (s *transferActiveTaskExecutorSuite) testProcessCancelExecution(
 func (s *transferActiveTaskExecutorSuite) testProcessCancelExecutionWithError(
 	targetDomainID string,
 	setupMockFn func(
-		mutableState execution.MutableState,
-		workflowExecution, targetExecution types.WorkflowExecution,
-		cancelInitEvent *types.HistoryEvent,
-		transferTask Task,
-		requestCancelInfo *persistence.RequestCancelInfo,
-	),
+	mutableState execution.MutableState,
+	workflowExecution, targetExecution types.WorkflowExecution,
+	cancelInitEvent *types.HistoryEvent,
+	transferTask Task,
+	requestCancelInfo *persistence.RequestCancelInfo,
+),
 	expectedErr error,
 ) {
 	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
@@ -1420,12 +1420,12 @@ func (s *transferActiveTaskExecutorSuite) TestProcessSignalExecution_WorkflowSig
 
 func (s *transferActiveTaskExecutorSuite) testProcessSignalExecution(
 	setupMockFn func(
-		mutableState execution.MutableState,
-		workflowExecution, targetExecution types.WorkflowExecution,
-		signalInitEvent *types.HistoryEvent,
-		transferTask Task,
-		signalInfo *persistence.SignalInfo,
-	),
+	mutableState execution.MutableState,
+	workflowExecution, targetExecution types.WorkflowExecution,
+	signalInitEvent *types.HistoryEvent,
+	transferTask Task,
+	signalInfo *persistence.SignalInfo,
+),
 ) {
 	s.testProcessSignalExecutionWithErrorAndLogs(constants.TestDomainID, setupMockFn, nil, nil)
 }
@@ -1433,12 +1433,12 @@ func (s *transferActiveTaskExecutorSuite) testProcessSignalExecution(
 func (s *transferActiveTaskExecutorSuite) testProcessSignalExecutionWithErrorAndLogs(
 	targetDomainID string,
 	setupMockFn func(
-		mutableState execution.MutableState,
-		workflowExecution, targetExecution types.WorkflowExecution,
-		signalInitEvent *types.HistoryEvent,
-		transferTask Task,
-		signalInfo *persistence.SignalInfo,
-	),
+	mutableState execution.MutableState,
+	workflowExecution, targetExecution types.WorkflowExecution,
+	signalInitEvent *types.HistoryEvent,
+	transferTask Task,
+	signalInfo *persistence.SignalInfo,
+),
 	expectedErr error,
 	expectedLogs []string,
 ) {
@@ -1713,12 +1713,12 @@ func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_Started
 func (s *transferActiveTaskExecutorSuite) testProcessStartChildExecution(
 	targetDomainID string,
 	setupMockFn func(
-		mutableState execution.MutableState,
-		workflowExecution, targetExecution types.WorkflowExecution,
-		childInitEvent *types.HistoryEvent,
-		transferTask Task,
-		childInfo *persistence.ChildExecutionInfo,
-	),
+	mutableState execution.MutableState,
+	workflowExecution, targetExecution types.WorkflowExecution,
+	childInitEvent *types.HistoryEvent,
+	transferTask Task,
+	childInfo *persistence.ChildExecutionInfo,
+),
 ) {
 	s.testProcessStartChildExecutionWithError(targetDomainID, setupMockFn, nil)
 }
@@ -1726,12 +1726,12 @@ func (s *transferActiveTaskExecutorSuite) testProcessStartChildExecution(
 func (s *transferActiveTaskExecutorSuite) testProcessStartChildExecutionWithError(
 	targetDomainID string,
 	setupMockFn func(
-		mutableState execution.MutableState,
-		workflowExecution, targetExecution types.WorkflowExecution,
-		childInitEvent *types.HistoryEvent,
-		transferTask Task,
-		childInfo *persistence.ChildExecutionInfo,
-	),
+	mutableState execution.MutableState,
+	workflowExecution, targetExecution types.WorkflowExecution,
+	childInitEvent *types.HistoryEvent,
+	transferTask Task,
+	childInfo *persistence.ChildExecutionInfo,
+),
 	expectedErr error,
 ) {
 	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
