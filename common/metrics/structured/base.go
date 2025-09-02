@@ -120,7 +120,9 @@ func (b Emitter) Gauge(name string, val float64, meta any) {
 	b.scope.Tagged(b.getTags(meta).m).Gauge(name).Update(val)
 }
 
-// Tags is a simple read-only map wrapper, to prevent accidental mutation
+// Tags is a simple read-only map wrapper, to prevent accidental mutation.
+//
+// The zero value is ready to use, but generally you should be asking the Emitter to create one for you.
 type Tags struct{ m map[string]string }
 
 func (t Tags) With(key, value string, pairs ...string) Tags {
