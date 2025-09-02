@@ -1,9 +1,12 @@
 package structured
 
 import (
+	"fmt"
 	"maps"
+	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,33 +16,12 @@ import (
 
 var Module = fx.Options(
 	fx.Provide(func(s tally.Scope) Emitter {
-		return Emitter{scope: s}
+		return Emitter{
+			scope: s,
+			types: &sync.Map{},
+		}
 	}),
 )
-
-// Metadata is a shared interface for all "...Tags" structs.
-//
-// You are generally NOT expected to implement any of this yourself.
-// Just define your struct, and let the code generator take care of it (`make metrics`).
-//
-// For the intended usage and implementation, see generated code.
-type Metadata interface {
-	NumTags() int                   // for efficient pre-allocation
-	PutTags(into map[string]string) // populates the map
-	GetTags() map[string]string     // returns a pre-allocated and pre-populated map
-}
-
-// DynamicTags is a very simple helper for treating an arbitrary map as a Metadata.
-//
-// This can be used externally (for completely manual metrics) or in metrics-emitting
-// methods to simplify adding custom tags (e.g. it is returned from GetTags).
-type DynamicTags map[string]string
-
-var _ Metadata = DynamicTags{}
-
-func (o DynamicTags) NumTags() int                   { return len(o) }
-func (o DynamicTags) PutTags(into map[string]string) { maps.Copy(into, o) }
-func (o DynamicTags) GetTags() map[string]string     { return maps.Clone(o) }
 
 // Emitter is the base helper for emitting metrics, and it contains only low-level
 // metrics-emitting funcs to keep it as simple as possible.
@@ -66,21 +48,20 @@ type Emitter struct {
 	// but essentially no others (aside from platform-level stuff).
 	// you can get the instance from go.uber.org/fx, as just `tally.Scope`.
 	scope tally.Scope
+
+	// cached type information for metadata containers
+	types *sync.Map
 }
 
 // Histogram records a duration-based histogram with the provided data.
 // It adds a "histogram_scale" tag, so histograms can be accurately subset in queries or via middleware.
-func (b Emitter) Histogram(name string, buckets SubsettableHistogram, dur time.Duration, meta Metadata) {
-	tags := make(DynamicTags, meta.NumTags()+1)
-	meta.PutTags(tags)
-
+//
+// `meta` must be either a DynamicTags or a struct with appropriate fields, checked by a linter.
+func (b Emitter) Histogram(name string, buckets SubsettableHistogram, dur time.Duration, meta any) {
+	tags := b.getTags(meta)
 	// all subsettable histograms need to emit scale values so scale changes
 	// can be correctly merged at query time.
-	if _, ok := tags["histogram_scale"]; ok {
-		// rewrite the existing tag so it can be noticed
-		tags["error_rename_this_tag_histogram_scale"] = tags["histogram_scale"]
-	}
-	tags["histogram_scale"] = strconv.Itoa(buckets.scale)
+	tags = tags.With("histogram_scale", strconv.Itoa(buckets.scale))
 
 	if !strings.HasSuffix(name, "_ns") {
 		// duration-based histograms are always in nanoseconds,
@@ -90,22 +71,19 @@ func (b Emitter) Histogram(name string, buckets SubsettableHistogram, dur time.D
 		// hopefully this is never used, but it'll at least make it clear if it is.
 		name = name + "_error_missing_suffix_ns"
 	}
-	b.scope.Tagged(tags).Histogram(name, buckets).RecordDuration(dur)
+	b.scope.Tagged(tags.m).Histogram(name, buckets).RecordDuration(dur)
 }
 
 // IntHistogram records a count-based histogram with the provided data.
 // It adds a "histogram_scale" tag, so histograms can be accurately subset in queries or via middleware.
-func (b Emitter) IntHistogram(name string, buckets IntSubsettableHistogram, num int, meta Metadata) {
-	tags := make(DynamicTags, meta.NumTags()+1)
-	meta.PutTags(tags)
+//
+// `meta` must be either a DynamicTags or a struct with appropriate fields, checked by a linter.
+func (b Emitter) IntHistogram(name string, buckets IntSubsettableHistogram, num int, meta any) {
+	tags := b.getTags(meta)
 
 	// all subsettable histograms need to emit scale values so scale changes
 	// can be correctly merged at query time.
-	if _, ok := tags["histogram_scale"]; ok {
-		// rewrite the existing tag so it can be noticed
-		tags["error_rename_this_tag_histogram_scale"] = tags["histogram_scale"]
-	}
-	tags["histogram_scale"] = strconv.Itoa(buckets.scale)
+	tags = tags.With("histogram_scale", strconv.Itoa(buckets.scale))
 
 	if !strings.HasSuffix(name, "_counts") {
 		// int-based histograms are always in "_counts" (currently anyway),
@@ -115,7 +93,7 @@ func (b Emitter) IntHistogram(name string, buckets IntSubsettableHistogram, num 
 		// hopefully this is never used, but it'll at least make it clear if it is.
 		name = name + "_error_missing_suffix_counts"
 	}
-	b.scope.Tagged(tags).Histogram(name, buckets).RecordDuration(time.Duration(num))
+	b.scope.Tagged(tags.m).Histogram(name, buckets).RecordDuration(time.Duration(num))
 }
 
 // TODO: make a MinMaxHistogram helper which maintains a precise, rolling
@@ -129,13 +107,172 @@ func (b Emitter) IntHistogram(name string, buckets IntSubsettableHistogram, num 
 // Maybe OTEL / Prometheus will natively support this one day.  It'd be simple.
 
 // Count records a counter with the provided data.
-func (b Emitter) Count(name string, num int, meta Metadata) {
-	b.scope.Tagged(meta.GetTags()).Counter(name).Inc(int64(num))
+//
+// `meta` must be either a DynamicTags or a struct with appropriate fields, checked by a linter.
+func (b Emitter) Count(name string, num int, meta any) {
+	b.scope.Tagged(b.getTags(meta).m).Counter(name).Inc(int64(num))
 }
 
 // Gauge emits a gauge with the provided data.
-func (b Emitter) Gauge(name string, val float64, meta Metadata) {
-	b.scope.Tagged(meta.GetTags()).Gauge(name).Update(val)
+//
+// `meta` must be either a DynamicTags or a struct with appropriate fields, checked by a linter.
+func (b Emitter) Gauge(name string, val float64, meta any) {
+	b.scope.Tagged(b.getTags(meta).m).Gauge(name).Update(val)
+}
+
+// Tags is a simple read-only map wrapper, to prevent accidental mutation
+type Tags struct{ m map[string]string }
+
+func (t Tags) With(key, value string, pairs ...string) Tags {
+	dup := make(map[string]string, len(t.m)+1+(len(pairs)/2))
+	maps.Copy(dup, t.m)
+	dup[key] = value
+	for i := 0; i < len(pairs); i += 2 {
+		dup[pairs[i]] = pairs[i+1]
+	}
+	return Tags{dup}
+}
+
+func (b Emitter) TagsFrom(meta any) Tags {
+	return b.getTags(meta)
+}
+
+type fieldAccess struct {
+	index  []int         // path from outer tags-type to the usable field
+	name   string        // tag name to use, linter enforces uniqueness per nested structure
+	getter reflect.Value // optional getter func, must be func(self)string
+}
+
+func (b Emitter) getTags(tags any) Tags {
+	if t, ok := tags.(map[string]string); ok {
+		return Tags{maps.Clone(t)}
+	}
+	result := map[string]string{}
+
+	// find the type info
+	v := reflect.ValueOf(tags)
+	vt := v.Type()
+	fields := b.fields(vt)
+
+	// read the field access paths to get the values
+	for _, field := range fields {
+		ff := v.FieldByIndex(field.index)
+
+		// look for a custom getter
+		if field.getter.IsValid() {
+			got := field.getter.Call([]reflect.Value{v})
+			result[field.name] = got[0].Interface().(string)
+			continue
+		}
+
+		// must be a primitive type, enforced by the linter and panics if wrong.
+
+		// check for nils, dereference if ptr
+		if ff.Kind() == reflect.Ptr {
+			if ff.IsNil() {
+				result[field.name] = ""
+				continue
+			}
+			ff = ff.Elem()
+		}
+
+		// must be a trivial type, check it and convert if necessary
+		ffi := ff.Interface()
+		switch ffiv := ffi.(type) {
+		case int, int32, int64, bool:
+			result[field.name] = fmt.Sprintf("%v", ffiv)
+		case string:
+			result[field.name] = ffiv
+		default:
+			// prevented by the linter
+			panic(fmt.Sprintf("field %q (index %v) on type %T has an unexpected type: %T", field.name, field.index, tags, ffi))
+		}
+	}
+
+	return Tags{result}
+}
+
+// recursively gather types.  higher levels override lower.
+func (b Emitter) fields(t reflect.Type) []fieldAccess {
+	if val, ok := b.types.Load(t); ok {
+		return val.([]fieldAccess)
+	}
+
+	var result []fieldAccess
+	tagNames := make(map[string]bool, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i) // `t.Field(i)` == `f.Index` always has just one value == `i`
+
+		// embedded field (yes the name is bad)
+		if f.Anonymous {
+			contains := b.fields(f.Type)
+			for _, field := range contains {
+				if tagNames[field.name] {
+					// duplicates are checked to catch linter bugs, this should
+					// be prevented by the linter normally.
+					panic(fmt.Sprintf("duplicate tag name on type %v.%v field %v", t.PkgPath(), t.Name(), f.Name))
+				}
+				tagNames[field.name] = true
+				result = append(result, fieldAccess{
+					index:  append(f.Index, field.index...),
+					name:   field.name,
+					getter: field.getter,
+				})
+			}
+			continue
+		}
+
+		// check for `struct{}` embedding
+		if f.Type.Name() == "" {
+			// this is true of all anonymous types, but it seems fine to call this good enough, and let the linter prevent other types.
+			// reserved field, ignore
+			continue
+		}
+
+		// get the tag name
+		tagName := f.Tag.Get("tag")
+		if tagName == "" {
+			// prevented by the linter
+			panic(fmt.Sprintf("missing tag on type %v.%v field %v", t.PkgPath(), t.Name(), f.Name))
+		}
+		tagNames[tagName] = true
+
+		// get the custom getter func on the parent struct, if requested
+		var getter reflect.Value
+		getterName := f.Tag.Get("getter")
+		if getterName != "" {
+			// must be a method on the parent type
+			getterm, ok := t.MethodByName(getterName)
+			if !ok || !getterm.IsExported() {
+				// prevented by the linter
+				panic(fmt.Sprintf("missing exported getter func %q on type %v.%v field %v", getterName, t.PkgPath(), t.Name(), f.Name))
+			}
+			// must be the correct type signature
+			if getterm.Type.Kind() != reflect.Func ||
+				getterm.Type.NumIn() != 1 || getterm.Type.In(0) != t || // instance methods have an implicit self-arg of the receiver type
+				getterm.Type.NumOut() != 1 || getterm.Type.Out(0).Kind() != reflect.String {
+				// prevented by the linter
+				panic(fmt.Sprintf("getter %q on type %v.%v for field %v is invalid, must be a `func() string` method on the type", getterName, t.PkgPath(), t.Name(), f.Name))
+			}
+			getter = getterm.Func
+		}
+
+		// must be a public field or have a public getter
+		if !getter.IsValid() && !f.IsExported() {
+			panic(fmt.Sprintf("field %v on type %v.%v must be public or have a getter func on the parent struct", f.Name, t.PkgPath(), t.Name()))
+		}
+
+		result = append(result, fieldAccess{
+			index:  f.Index,
+			name:   tagName,
+			getter: getter,
+		})
+	}
+	prev, loaded := b.types.LoadOrStore(t, result)
+	if loaded {
+		return prev.([]fieldAccess)
+	}
+	return result
 }
 
 // NewTestEmitter creates an emitter for tests, optionally using the provided scope.
@@ -145,5 +282,8 @@ func NewTestEmitter(t *testing.T, scope tally.Scope) Emitter {
 	if scope == nil {
 		scope = tally.NoopScope
 	}
-	return Emitter{scope}
+	return Emitter{
+		scope: scope,
+		types: &sync.Map{},
+	}
 }

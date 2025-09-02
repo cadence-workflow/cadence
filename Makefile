@@ -211,9 +211,6 @@ $(BIN)/protoc-gen-gogofast: go.mod go.work | $(BIN)
 $(BIN)/protoc-gen-yarpc-go: go.mod go.work | $(BIN)
 	$(call go_mod_build_tool,go.uber.org/yarpc/encoding/protobuf/protoc-gen-yarpc-go)
 
-$(BIN)/metricsgen: internal/tools/go.mod go.work $(wildcard internal/tools/metricsgen/*) | $(BIN)
-	$(call go_build_tool,./metricsgen)
-
 $(BIN)/metricslint: internal/tools/go.mod go.work $(wildcard internal/tools/metricslint/* internal/tools/metricslint/cmd/*) | $(BIN)
 	$(call go_build_tool,./metricslint/cmd,metricslint)
 
@@ -356,10 +353,6 @@ $(BUILD)/protoc: $(PROTO_FILES) $(STABLE_BIN)/$(PROTOC_VERSION_BIN) $(BIN)/proto
 		cp -R $(PROTO_OUT)/uber/cadence/* $(PROTO_OUT)/; \
 		rm -r $(PROTO_OUT)/uber; \
 	   fi
-	$Q touch $@
-
-$(BUILD)/metrics: $(ALL_SRC) $(BIN)/metricsgen
-	$Q $(BIN_PATH) go generate -run=metricsgen ./...
 	$Q touch $@
 
 # ====================================
@@ -559,7 +552,7 @@ bins: $(BINS) ## Build all binaries, and any fast codegen needed (does not refre
 
 tools: $(TOOLS)
 
-go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap $(BIN)/metricsgen ## Run `go generate` to regen mocks, enums, etc
+go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `go generate` to regen mocks, enums, etc
 	$Q echo "running go generate ./..., this takes a minute or more..."
 	$Q # add our bins to PATH so `go generate` can find them
 	$Q $(BIN_PATH) go generate $(if $(verbose),-v) ./...
@@ -567,11 +560,6 @@ go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap $(BIN)/m
 	$Q $(MAKE) --no-print-directory fmt
 # 	$Q echo "updating copyright headers"
 # 	$Q $(MAKE) --no-print-directory copyright
-
-metrics: $(BIN)/metricsgen ## metrics-only code regen, much faster than go-generate
-	$Q echo "re-generating metrics structs..."
-	$Q $(MAKE) $(BUILD)/metrics
-	$Q $(MAKE) fmt # clean up imports
 
 release: ## Re-generate generated code and run tests
 	$(MAKE) --no-print-directory go-generate

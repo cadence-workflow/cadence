@@ -38,8 +38,10 @@ var emitterMethods = map[string]map[string]bool{
 	"IntHistogram": {"_counts": true}, // differentiates from durations, will likely have multiple suffixes
 	"Count":        nil,
 	"Gauge":        nil,
+	"TagsFrom":     nil,
 }
 
+// TODO: does not yet ensure deep structure is valid, required by this reflection-branch to be safe at runtime
 func run(pass *analysis.Pass) (interface{}, error) {
 	i := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
@@ -114,6 +116,9 @@ func checkTargetNamesMap(pass *analysis.Pass) {
 	maps.Copy(foundTargets, emitterMethods)
 	for i := 0; i < ms.Len(); i++ {
 		m := ms.At(i)
+		if !m.Obj().Exported() {
+			continue // private methods are irrelevant
+		}
 		_, ok := emitterMethods[m.Obj().Name()]
 		if !ok {
 			foundTargets[m.Obj().Name()] = nil // add any missing keys to the map

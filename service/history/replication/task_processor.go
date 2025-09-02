@@ -120,11 +120,9 @@ type (
 	}
 )
 
-//go:generate metricsgen
-
 func (p perDomainTaskMetricTags) taskProcessed(operation int, domain string, processingStart time.Time, task *types.ReplicationTask, legacyScope metrics.Scope) {
-	tags := p.GetTags(operation)
-	tags["domain"] = domain
+	tags := p.TagsFrom(p).With("domain", domain)
+	tags = p.WithOperationInt(operation, tags)
 
 	now := p.ts.Now()
 	processingLatency := now.Sub(processingStart)
@@ -188,11 +186,11 @@ func NewTaskProcessor(
 		historySerializer: persistence.NewPayloadSerializer(),
 		config:            config,
 		metricsClient:     metricsClient,
-		perDomainTaskMetrics: newPerDomainTaskMetricTags(
-			emitter,
-			clock,
-			sourceCluster, // emitted as "target_cluster" and logged inconsistently, unsure why
-		),
+		perDomainTaskMetrics: perDomainTaskMetricTags{
+			Emitter:       emitter,
+			TargetCluster: sourceCluster, // emitted as "target_cluster" and logged inconsistently, unsure why
+			ts:            clock,
+		},
 		logger:                 shard.GetLogger().WithTags(tag.SourceCluster(sourceCluster), tag.ShardID(shardID)),
 		taskExecutor:           taskExecutor,
 		hostRateLimiter:        taskFetcher.GetRateLimiter(),
