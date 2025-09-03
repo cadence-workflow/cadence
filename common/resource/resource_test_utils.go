@@ -52,6 +52,7 @@ import (
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/metrics/structured"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
@@ -74,6 +75,7 @@ type (
 		TimeSource              clock.TimeSource
 		PayloadSerializer       persistence.PayloadSerializer
 		MetricsClient           metrics.Client
+		Emitter                 structured.Emitter
 		ArchivalMetadata        *archiver.MockArchivalMetadata
 		ArchiverProvider        *provider.MockArchiverProvider
 		BlobstoreClient         *blobstore.MockClient
@@ -188,6 +190,7 @@ func NewTest(
 		TimeSource:              clock.NewRealTimeSource(),
 		PayloadSerializer:       persistence.NewPayloadSerializer(),
 		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex),
+		Emitter:                 structured.NewTestEmitter(t, scope),
 		ArchivalMetadata:        &archiver.MockArchivalMetadata{},
 		ArchiverProvider:        &provider.MockArchiverProvider{},
 		BlobstoreClient:         &blobstore.MockClient{},
@@ -293,6 +296,11 @@ func (s *Test) GetTaskValidator() taskvalidator.Checker {
 // GetMetricsClient for testing
 func (s *Test) GetMetricsClient() metrics.Client {
 	return s.MetricsClient
+}
+
+// GetMetricsEmitter for testing
+func (s *Test) GetMetricsEmitter() structured.Emitter {
+	return s.Emitter
 }
 
 // GetMessagingClient for testing
