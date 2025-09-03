@@ -41,6 +41,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/metrics/structured"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/reconciliation"
@@ -81,6 +82,8 @@ type (
 		historySerializer persistence.PayloadSerializer
 		config            *config.Config
 		metricsClient     metrics.Client
+		metrics           structured.Emitter
+		metricTags        structured.Tags
 		logger            log.Logger
 		taskExecutor      TaskExecutor
 		hostRateLimiter   quotas.Limiter
@@ -113,6 +116,7 @@ func NewTaskProcessor(
 	historyEngine engine.Engine,
 	config *config.Config,
 	metricsClient metrics.Client,
+	emitter structured.Emitter,
 	taskFetcher TaskFetcher,
 	taskExecutor TaskExecutor,
 	clock clock.TimeSource,
@@ -134,14 +138,18 @@ func NewTaskProcessor(
 	noTaskBackoffPolicy.SetExpirationInterval(backoff.NoInterval)
 	noTaskRetrier := backoff.NewRetrier(noTaskBackoffPolicy, clock)
 	return &taskProcessorImpl{
-		currentCluster:         shard.GetClusterMetadata().GetCurrentClusterName(),
-		sourceCluster:          sourceCluster,
-		status:                 common.DaemonStatusInitialized,
-		shard:                  shard,
-		historyEngine:          historyEngine,
-		historySerializer:      persistence.NewPayloadSerializer(),
-		config:                 config,
-		metricsClient:          metricsClient,
+		currentCluster:    shard.GetClusterMetadata().GetCurrentClusterName(),
+		sourceCluster:     sourceCluster,
+		status:            common.DaemonStatusInitialized,
+		shard:             shard,
+		historyEngine:     historyEngine,
+		historySerializer: persistence.NewPayloadSerializer(),
+		config:            config,
+		metricsClient:     metricsClient,
+		metrics:           emitter,
+		metricTags: structured.TagsFromMap(map[string]string{
+			"target_cluster": sourceCluster, // looks backwards, but matches historical behavior
+		}),
 		logger:                 shard.GetLogger().WithTags(tag.SourceCluster(sourceCluster), tag.ShardID(shardID)),
 		taskExecutor:           taskExecutor,
 		hostRateLimiter:        taskFetcher.GetRateLimiter(),
@@ -467,28 +475,44 @@ func (p *taskProcessorImpl) processTaskOnce(replicationTask *types.ReplicationTa
 	if err != nil {
 		p.updateFailureMetric(scope, err, p.shard.GetShardID())
 	} else {
-		now := ts.Now()
 		mScope := p.metricsClient.Scope(scope, metrics.TargetClusterTag(p.sourceCluster))
 		domainID := replicationTask.HistoryTaskV2Attributes.GetDomainID()
+		var domainName string
 		if domainID != "" {
-			domainName, errorDomainName := p.shard.GetDomainCache().GetDomainName(domainID)
+			name, errorDomainName := p.shard.GetDomainCache().GetDomainName(domainID)
 			if errorDomainName != nil {
 				return errorDomainName
 			}
+			domainName = name
 			mScope = mScope.Tagged(metrics.DomainTag(domainName))
 		}
-		// emit single task processing latency
-		mScope.RecordTimer(metrics.TaskProcessingLatency, now.Sub(startTime))
-		// emit latency from task generated to task received
-		mScope.RecordTimer(
-			metrics.ReplicationTaskLatency,
-			now.Sub(time.Unix(0, replicationTask.GetCreationTime())),
+		tags := p.metricTags.With(
+			"operation", structured.GetOperationString(scope),
+			"domain", domainName,
 		)
-		// emit the number of replication tasks
+
+		now := ts.Now()
+		processingLatency := now.Sub(startTime)
+		replicationLatency := now.Sub(time.Unix(0, replicationTask.GetCreationTime()))
+
+		p.metrics.Histogram("task_processing_latency_ns", structured.Low1ms10s, processingLatency, tags)
+		// latency from task generated to task received
+		p.metrics.Histogram("task_replication_latency_ns", structured.Mid1ms24h, replicationLatency, tags)
+		// number of replication tasks
+		// this is an exact match for the legacy scope, so it would cause duplicates if emitted.
+		// because this is the first use of this new system, we'll verify the tags with the histograms first.
+		// p.metrics.Count("replication_tasks_applied_per_domain", 1, tags)
+
+		// emit single task processing latency
+		mScope.RecordTimer(metrics.TaskProcessingLatency, processingLatency)
+		// emit latency from task generated to task received
+		mScope.RecordTimer(metrics.ReplicationTaskLatency, replicationLatency)
+		// emit the number of replication tasks.
+		// when removing, be sure to un-comment the p.Count above
 		mScope.IncCounter(metrics.ReplicationTasksAppliedPerDomain)
+
 		shardScope := p.metricsClient.Scope(scope, metrics.TargetClusterTag(p.sourceCluster), metrics.InstanceTag(strconv.Itoa(p.shard.GetShardID())))
 		shardScope.IncCounter(metrics.ReplicationTasksApplied)
-
 	}
 
 	return err
