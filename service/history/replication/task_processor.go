@@ -470,13 +470,24 @@ func (p *taskProcessorImpl) processTaskOnce(replicationTask *types.ReplicationTa
 		now := ts.Now()
 		mScope := p.metricsClient.Scope(scope, metrics.TargetClusterTag(p.sourceCluster))
 		domainID := replicationTask.HistoryTaskV2Attributes.GetDomainID()
+		var domainName string
 		if domainID != "" {
-			domainName, errorDomainName := p.shard.GetDomainCache().GetDomainName(domainID)
+			cachedName, errorDomainName := p.shard.GetDomainCache().GetDomainName(domainID)
 			if errorDomainName != nil {
 				return errorDomainName
 			}
-			mScope = mScope.Tagged(metrics.DomainTag(domainName))
+			domainName = cachedName
 		}
+		mScope = mScope.Tagged(metrics.DomainTag(domainName)) // use consistent tags so Prometheus does not break
+
+		// emit single task processing latency
+		mScope.ExponentialHistogram(metrics.ExponentialTaskProcessingLatency, now.Sub(startTime))
+		// emit latency from task generated to task received
+		mScope.ExponentialHistogram(
+			metrics.ExponentialReplicationTaskLatency,
+			now.Sub(time.Unix(0, replicationTask.GetCreationTime())),
+		)
+
 		// emit single task processing latency
 		mScope.RecordTimer(metrics.TaskProcessingLatency, now.Sub(startTime))
 		// emit latency from task generated to task received
