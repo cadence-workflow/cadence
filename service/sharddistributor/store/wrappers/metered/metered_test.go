@@ -45,7 +45,7 @@ func TestMeteredStore_GetHeartbeat(t *testing.T) {
 			setupMocks: func(logger *log.MockLogger) {
 				logger.EXPECT().Error(
 					"Executor not found.",
-					[]tag.Tag{tag.Error(store.ErrExecutorNotFound), tag.MetricScope(metrics.ShardDistributorStoreGetHeartbeatScope)},
+					[]tag.Tag{tag.Error(store.ErrExecutorNotFound), tag.MetricScope(int(metrics.ShardDistributorStoreGetHeartbeatScope))},
 				).Times(1)
 			},
 			error: store.ErrExecutorNotFound,
@@ -55,7 +55,7 @@ func TestMeteredStore_GetHeartbeat(t *testing.T) {
 			setupMocks: func(logger *log.MockLogger) {
 				logger.EXPECT().Error(
 					"Store failed with internal error.",
-					[]tag.Tag{tag.Error(&types.InternalServiceError{}), tag.MetricScope(metrics.ShardDistributorStoreGetHeartbeatScope)},
+					[]tag.Tag{tag.Error(&types.InternalServiceError{}), tag.MetricScope(int(metrics.ShardDistributorStoreGetHeartbeatScope))},
 				).Times(1)
 			},
 			error: &types.InternalServiceError{},

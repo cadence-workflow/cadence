@@ -30,8 +30,8 @@ import (
 type ClientImpl struct {
 	// parentReporter is the parent scope for the metrics
 	parentScope tally.Scope
-	childScopes map[int]tally.Scope
-	metricDefs  map[int]metricDefinition
+	childScopes map[ScopeIdx]tally.Scope
+	metricDefs  map[MetricIdx]metricDefinition
 	serviceIdx  ServiceIdx
 }
 
@@ -43,7 +43,7 @@ func NewClient(scope tally.Scope, serviceIdx ServiceIdx) Client {
 	totalScopes := len(ScopeDefs[Common]) + len(ScopeDefs[serviceIdx])
 	metricsClient := &ClientImpl{
 		parentScope: scope,
-		childScopes: make(map[int]tally.Scope, totalScopes),
+		childScopes: make(map[ScopeIdx]tally.Scope, totalScopes),
 		metricDefs:  getMetricDefs(serviceIdx),
 		serviceIdx:  serviceIdx,
 	}
@@ -69,60 +69,60 @@ func NewClient(scope tally.Scope, serviceIdx ServiceIdx) Client {
 
 // IncCounter increments one for a counter and emits
 // to metrics backend
-func (m *ClientImpl) IncCounter(scopeIdx int, counterIdx int) {
+func (m *ClientImpl) IncCounter(scope ScopeIdx, counterIdx MetricIdx) {
 	name := string(m.metricDefs[counterIdx].metricName)
-	m.childScopes[scopeIdx].Counter(name).Inc(1)
+	m.childScopes[scope].Counter(name).Inc(1)
 }
 
 // AddCounter adds delta to the counter and
 // emits to the metrics backend
-func (m *ClientImpl) AddCounter(scopeIdx int, counterIdx int, delta int64) {
+func (m *ClientImpl) AddCounter(scope ScopeIdx, counterIdx MetricIdx, delta int64) {
 	name := string(m.metricDefs[counterIdx].metricName)
-	m.childScopes[scopeIdx].Counter(name).Inc(delta)
+	m.childScopes[scope].Counter(name).Inc(delta)
 }
 
 // StartTimer starts a timer for the given
 // metric name
-func (m *ClientImpl) StartTimer(scopeIdx int, timerIdx int) tally.Stopwatch {
+func (m *ClientImpl) StartTimer(scope ScopeIdx, timerIdx MetricIdx) tally.Stopwatch {
 	name := string(m.metricDefs[timerIdx].metricName)
-	return m.childScopes[scopeIdx].Timer(name).Start()
+	return m.childScopes[scope].Timer(name).Start()
 }
 
 // RecordTimer record and emit a timer for the given
 // metric name
-func (m *ClientImpl) RecordTimer(scopeIdx int, timerIdx int, d time.Duration) {
+func (m *ClientImpl) RecordTimer(scope ScopeIdx, timerIdx MetricIdx, d time.Duration) {
 	name := string(m.metricDefs[timerIdx].metricName)
-	m.childScopes[scopeIdx].Timer(name).Record(d)
+	m.childScopes[scope].Timer(name).Record(d)
 }
 
 // RecordHistogramDuration record and emit a duration
-func (m *ClientImpl) RecordHistogramDuration(scopeIdx int, timerIdx int, d time.Duration) {
+func (m *ClientImpl) RecordHistogramDuration(scope ScopeIdx, timerIdx MetricIdx, d time.Duration) {
 	name := string(m.metricDefs[timerIdx].metricName)
-	m.childScopes[scopeIdx].Histogram(name, m.getBuckets(timerIdx)).RecordDuration(d)
+	m.childScopes[scope].Histogram(name, m.getBuckets(timerIdx)).RecordDuration(d)
 }
 
 // UpdateGauge reports Gauge type metric
-func (m *ClientImpl) UpdateGauge(scopeIdx int, gaugeIdx int, value float64) {
+func (m *ClientImpl) UpdateGauge(scopeIdx ScopeIdx, gaugeIdx MetricIdx, value float64) {
 	name := string(m.metricDefs[gaugeIdx].metricName)
 	m.childScopes[scopeIdx].Gauge(name).Update(value)
 }
 
 // Scope return a new internal metrics scope that can be used to add additional
 // information to the metrics emitted
-func (m *ClientImpl) Scope(scopeIdx int, tags ...Tag) Scope {
-	scope := m.childScopes[scopeIdx]
-	return newMetricsScope(scope, scope, m.metricDefs, false).Tagged(tags...)
+func (m *ClientImpl) Scope(scope ScopeIdx, tags ...Tag) Scope {
+	sc := m.childScopes[scope]
+	return newMetricsScope(sc, sc, m.metricDefs, false).Tagged(tags...)
 }
 
-func (m *ClientImpl) getBuckets(id int) tally.Buckets {
+func (m *ClientImpl) getBuckets(id MetricIdx) tally.Buckets {
 	if m.metricDefs[id].buckets != nil {
 		return m.metricDefs[id].buckets
 	}
 	return tally.DefaultBuckets
 }
 
-func getMetricDefs(serviceIdx ServiceIdx) map[int]metricDefinition {
-	defs := make(map[int]metricDefinition)
+func getMetricDefs(serviceIdx ServiceIdx) map[MetricIdx]metricDefinition {
+	defs := make(map[MetricIdx]metricDefinition)
 	for idx, def := range MetricDefs[Common] {
 		defs[idx] = def
 	}

@@ -64,7 +64,7 @@ func InitializeLoggerForTask(
 func GetTransferTaskMetricsScope(
 	taskType int,
 	isActive bool,
-) int {
+) metrics.ScopeIdx {
 	switch taskType {
 	case persistence.TransferTaskTypeActivityTask:
 		if isActive {
@@ -138,7 +138,7 @@ func GetTransferTaskMetricsScope(
 func GetTimerTaskMetricScope(
 	taskType int,
 	isActive bool,
-) int {
+) metrics.ScopeIdx {
 	switch taskType {
 	case persistence.TaskTypeDecisionTimeout:
 		if isActive {

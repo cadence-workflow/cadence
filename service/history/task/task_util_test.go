@@ -82,7 +82,7 @@ func TestGetTransferTaskMetricsScope(t *testing.T) {
 		name          string
 		taskType      int
 		isActive      bool
-		expectedScope int
+		expectedScope metrics.ScopeIdx
 	}{
 		{
 			name:          "TransferTaskTypeActivityTask - active",
@@ -254,7 +254,7 @@ func TestGetTimerTaskMetricScope(t *testing.T) {
 		name          string
 		taskType      int
 		isActive      bool
-		expectedScope int
+		expectedScope metrics.ScopeIdx
 	}{
 		{
 			name:          "TimerTaskTypeDecisionTimeout - active",

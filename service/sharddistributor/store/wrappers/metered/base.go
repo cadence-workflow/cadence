@@ -38,20 +38,20 @@ type base struct {
 	timeSource   clock.TimeSource
 }
 
-func (p *base) updateErrorMetricPerNamespace(scope int, err error, scopeWithNamespaceTags metrics.Scope, logger log.Logger) {
+func (p *base) updateErrorMetricPerNamespace(scope metrics.ScopeIdx, err error, scopeWithNamespaceTags metrics.Scope, logger log.Logger) {
 	logger = logger.Helper()
 
 	switch {
 	case errors.Is(err, store.ErrExecutorNotFound):
 		scopeWithNamespaceTags.IncCounter(metrics.ShardDistributorStoreExecutorNotFound)
-		logger.Error("Executor not found.", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("Executor not found.", tag.Error(err), tag.MetricScope(int(scope))) // int???
 	default:
-		logger.Error("Store failed with internal error.", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("Store failed with internal error.", tag.Error(err), tag.MetricScope(int(scope))) // int???
 	}
 	scopeWithNamespaceTags.IncCounter(metrics.ShardDistributorStoreFailuresPerNamespace)
 }
 
-func (p *base) call(scope int, op func() error, tags ...metrics.Tag) error {
+func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag) error {
 	metricsScope := p.metricClient.Scope(scope, tags...)
 
 	metricsScope.IncCounter(metrics.ShardDistributorStoreRequestsPerNamespace)

@@ -70,7 +70,7 @@ func NewProducerManager(
 			InitialCapacity: 5,
 			MaxCount:        100,
 			Pin:             true,
-			MetricsScope:    metricsClient.Scope(metrics.Frontend),
+			MetricsScope:    metricsClient.Scope(metrics.PersistenceGetShardScope), // was metrics.Frontend, using incorrect int
 			Logger:          logger,
 		}),
 	}

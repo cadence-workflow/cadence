@@ -44,7 +44,7 @@ func newHandlerContext(
 	domainName string,
 	taskList *types.TaskList,
 	metricsClient metrics.Client,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	logger log.Logger,
 ) *handlerContext {
 	return &handlerContext{

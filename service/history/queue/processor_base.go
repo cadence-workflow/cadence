@@ -429,7 +429,7 @@ func (p *processorBase) submitTask(task task.Task) (bool, error) {
 	return true, nil
 }
 
-func getPendingTasksMetricIdx(scopeIdx int) int {
+func getPendingTasksMetricIdx(scopeIdx metrics.ScopeIdx) metrics.MetricIdx {
 	switch scopeIdx {
 	case metrics.TimerActiveQueueProcessorScope:
 		return metrics.ShardInfoTimerActivePendingTasksTimer

@@ -368,7 +368,7 @@ func (p *visibilityMetricsClient) DeleteUninitializedWorkflowExecution(
 	return err
 }
 
-func (p *visibilityMetricsClient) updateErrorMetric(scopeWithDomainTag metrics.Scope, scope int, err error) {
+func (p *visibilityMetricsClient) updateErrorMetric(scopeWithDomainTag metrics.Scope, scope metrics.ScopeIdx, err error) {
 
 	switch err.(type) {
 	case *types.BadRequestError:
@@ -379,7 +379,7 @@ func (p *visibilityMetricsClient) updateErrorMetric(scopeWithDomainTag metrics.S
 		scopeWithDomainTag.IncCounter(metrics.ElasticsearchErrBusyCounterPerDomain)
 		scopeWithDomainTag.IncCounter(metrics.ElasticsearchFailuresPerDomain)
 	default:
-		p.logger.Error("Operation failed with internal error.", tag.MetricScope(scope), tag.Error(err))
+		p.logger.Error("Operation failed with internal error.", tag.MetricScope(int(scope)), tag.Error(err))
 		scopeWithDomainTag.IncCounter(metrics.ElasticsearchFailuresPerDomain)
 	}
 }

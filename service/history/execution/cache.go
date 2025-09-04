@@ -254,7 +254,7 @@ func (c *cacheImpl) getOrCreateWorkflowExecutionInternal(
 	ctx context.Context,
 	domainID string,
 	execution types.WorkflowExecution,
-	scope int,
+	scope metrics.ScopeIdx,
 	forceClearContext bool,
 ) (Context, ReleaseFunc, error) {
 

@@ -663,7 +663,7 @@ func (p *taskProcessorImpl) shouldRetryDLQ(err error) bool {
 	}
 }
 
-func (p *taskProcessorImpl) updateFailureMetric(scope int, err error, shardID int) {
+func (p *taskProcessorImpl) updateFailureMetric(scope metrics.ScopeIdx, err error, shardID int) {
 	// Always update failure counter for all replicator errors
 	shardScope := p.metricsClient.Scope(scope, metrics.InstanceTag(strconv.Itoa(shardID)))
 	shardScope.IncCounter(metrics.ReplicatorFailures)

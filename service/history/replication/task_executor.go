@@ -39,7 +39,7 @@ import (
 type (
 	// TaskExecutor is the executor for replication task
 	TaskExecutor interface {
-		execute(replicationTask *types.ReplicationTask, forceApply bool) (int, error)
+		execute(replicationTask *types.ReplicationTask, forceApply bool) (metrics.ScopeIdx, error)
 	}
 
 	taskExecutorImpl struct {
@@ -83,10 +83,10 @@ func NewTaskExecutor(
 func (e *taskExecutorImpl) execute(
 	replicationTask *types.ReplicationTask,
 	forceApply bool,
-) (int, error) {
+) (metrics.ScopeIdx, error) {
 
 	var err error
-	var scope int
+	var scope metrics.ScopeIdx
 	switch replicationTask.GetTaskType() {
 	case types.ReplicationTaskTypeSyncActivity:
 		scope = metrics.SyncActivityTaskScope

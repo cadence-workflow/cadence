@@ -50,7 +50,7 @@ func NewReplayMetricsClient(client metrics.Client, ctx workflow.Context) metrics
 }
 
 // IncCounter increments a counter metric
-func (r *replayMetricsClient) IncCounter(scope int, counter int) {
+func (r *replayMetricsClient) IncCounter(scope metrics.ScopeIdx, counter metrics.MetricIdx) {
 	if workflow.IsReplaying(r.ctx) {
 		return
 	}
@@ -58,7 +58,7 @@ func (r *replayMetricsClient) IncCounter(scope int, counter int) {
 }
 
 // AddCounter adds delta to the counter metric
-func (r *replayMetricsClient) AddCounter(scope int, counter int, delta int64) {
+func (r *replayMetricsClient) AddCounter(scope metrics.ScopeIdx, counter metrics.MetricIdx, delta int64) {
 	if workflow.IsReplaying(r.ctx) {
 		return
 	}
@@ -66,7 +66,7 @@ func (r *replayMetricsClient) AddCounter(scope int, counter int, delta int64) {
 }
 
 // StartTimer starts a timer for the given metric name. Time will be recorded when stopwatch is stopped.
-func (r *replayMetricsClient) StartTimer(scope int, timer int) tally.Stopwatch {
+func (r *replayMetricsClient) StartTimer(scope metrics.ScopeIdx, timer metrics.MetricIdx) tally.Stopwatch {
 	if workflow.IsReplaying(r.ctx) {
 		return metrics.NopStopwatch()
 	}
@@ -74,7 +74,7 @@ func (r *replayMetricsClient) StartTimer(scope int, timer int) tally.Stopwatch {
 }
 
 // RecordTimer starts a timer for the given metric name
-func (r *replayMetricsClient) RecordTimer(scope int, timer int, d time.Duration) {
+func (r *replayMetricsClient) RecordTimer(scope metrics.ScopeIdx, timer metrics.MetricIdx, d time.Duration) {
 	if workflow.IsReplaying(r.ctx) {
 		return
 	}
@@ -82,7 +82,7 @@ func (r *replayMetricsClient) RecordTimer(scope int, timer int, d time.Duration)
 }
 
 // RecordHistogramDuration record and emit a duration
-func (r *replayMetricsClient) RecordHistogramDuration(scope int, timer int, d time.Duration) {
+func (r *replayMetricsClient) RecordHistogramDuration(scope metrics.ScopeIdx, timer metrics.MetricIdx, d time.Duration) {
 	if workflow.IsReplaying(r.ctx) {
 		return
 	}
@@ -90,7 +90,7 @@ func (r *replayMetricsClient) RecordHistogramDuration(scope int, timer int, d ti
 }
 
 // UpdateGauge reports Gauge type absolute value metric
-func (r *replayMetricsClient) UpdateGauge(scope int, gauge int, value float64) {
+func (r *replayMetricsClient) UpdateGauge(scope metrics.ScopeIdx, gauge metrics.MetricIdx, value float64) {
 	if workflow.IsReplaying(r.ctx) {
 		return
 	}
@@ -98,7 +98,7 @@ func (r *replayMetricsClient) UpdateGauge(scope int, gauge int, value float64) {
 }
 
 // Scope returns a client that adds the given tags to all metrics
-func (r *replayMetricsClient) Scope(scope int, tags ...metrics.Tag) metrics.Scope {
+func (r *replayMetricsClient) Scope(scope metrics.ScopeIdx, tags ...metrics.Tag) metrics.Scope {
 	return NewReplayMetricsScope(r.client.Scope(scope, tags...), r.ctx)
 }
 
@@ -111,7 +111,7 @@ func NewReplayMetricsScope(scope metrics.Scope, ctx workflow.Context) metrics.Sc
 }
 
 // IncCounter increments a counter metric
-func (r *replayMetricsScope) IncCounter(counter int) {
+func (r *replayMetricsScope) IncCounter(counter metrics.MetricIdx) {
 	if workflow.IsReplaying(r.ctx) {
 		return
 	}
@@ -119,7 +119,7 @@ func (r *replayMetricsScope) IncCounter(counter int) {
 }
 
 // AddCounter adds delta to the counter metric
-func (r *replayMetricsScope) AddCounter(counter int, delta int64) {
+func (r *replayMetricsScope) AddCounter(counter metrics.MetricIdx, delta int64) {
 	if workflow.IsReplaying(r.ctx) {
 		return
 	}
@@ -127,7 +127,7 @@ func (r *replayMetricsScope) AddCounter(counter int, delta int64) {
 }
 
 // StartTimer starts a timer for the given metric name. Time will be recorded when stopwatch is stopped.
-func (r *replayMetricsScope) StartTimer(timer int) metrics.Stopwatch {
+func (r *replayMetricsScope) StartTimer(timer metrics.MetricIdx) metrics.Stopwatch {
 	if workflow.IsReplaying(r.ctx) {
 		return metrics.NewTestStopwatch()
 	}
@@ -135,7 +135,7 @@ func (r *replayMetricsScope) StartTimer(timer int) metrics.Stopwatch {
 }
 
 // RecordTimer starts a timer for the given metric name
-func (r *replayMetricsScope) RecordTimer(timer int, d time.Duration) {
+func (r *replayMetricsScope) RecordTimer(timer metrics.MetricIdx, d time.Duration) {
 	if workflow.IsReplaying(r.ctx) {
 		return
 	}
@@ -143,7 +143,7 @@ func (r *replayMetricsScope) RecordTimer(timer int, d time.Duration) {
 }
 
 // RecordHistogramDuration records a duration value in a histogram
-func (r *replayMetricsScope) RecordHistogramDuration(timer int, d time.Duration) {
+func (r *replayMetricsScope) RecordHistogramDuration(timer metrics.MetricIdx, d time.Duration) {
 	if workflow.IsReplaying(r.ctx) {
 		return
 	}
@@ -151,7 +151,7 @@ func (r *replayMetricsScope) RecordHistogramDuration(timer int, d time.Duration)
 }
 
 // RecordHistogramValue records a value in a histogram
-func (r *replayMetricsScope) RecordHistogramValue(timer int, value float64) {
+func (r *replayMetricsScope) RecordHistogramValue(timer metrics.MetricIdx, value float64) {
 	if workflow.IsReplaying(r.ctx) {
 		return
 	}
@@ -159,7 +159,7 @@ func (r *replayMetricsScope) RecordHistogramValue(timer int, value float64) {
 }
 
 // UpdateGauge reports Gauge type absolute value metric
-func (r *replayMetricsScope) UpdateGauge(gauge int, value float64) {
+func (r *replayMetricsScope) UpdateGauge(gauge metrics.MetricIdx, value float64) {
 	if workflow.IsReplaying(r.ctx) {
 		return
 	}

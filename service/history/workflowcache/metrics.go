@@ -50,7 +50,7 @@ func (cm *workflowIDCountMetric) updatePerDomainMaxWFRequestCount(
 	domainName string,
 	timeSource clock.TimeSource,
 	metricsClient metrics.Client,
-	metric int,
+	metric metrics.MetricIdx,
 ) {
 	cm.Lock()
 	defer cm.Unlock()

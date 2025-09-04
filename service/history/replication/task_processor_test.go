@@ -220,7 +220,7 @@ func (s *taskProcessorSuite) TestProcessorLoop_RespChanClosed() {
 func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteSuccess() {
 	// taskExecutor will fail to execute the task
 	// returning a non-retriable task to keep mocking simpler
-	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(0, nil).Times(1)
+	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(metrics.ScopeIdx(0), nil).Times(1)
 
 	// domain name will be fetched
 	s.mockDomainCache.EXPECT().GetDomainName(testDomainID).Return(testDomainName, nil).AnyTimes()
@@ -255,7 +255,7 @@ func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteSuccess() {
 func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteFailed_PutDLQSuccess() {
 	// taskExecutor will fail to execute the task
 	// returning a non-retriable task to keep mocking simpler
-	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(0, &types.BadRequestError{}).Times(1)
+	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(metrics.ScopeIdx(0), &types.BadRequestError{}).Times(1)
 
 	// domain name will be fetched
 	s.mockDomainCache.EXPECT().GetDomainName(testDomainID).Return(testDomainName, nil).AnyTimes()
@@ -305,7 +305,7 @@ func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteFailed_PutDLQSuccess()
 func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteFailed_PutDLQFailed() {
 	// taskExecutor will fail to execute the task
 	// returning a non-retriable task to keep mocking simpler
-	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(0, &types.BadRequestError{}).Times(1)
+	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(metrics.ScopeIdx(0), &types.BadRequestError{}).Times(1)
 
 	// domain name will be fetched
 	s.mockDomainCache.EXPECT().GetDomainName(testDomainID).Return(testDomainName, nil).AnyTimes()

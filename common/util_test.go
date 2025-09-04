@@ -552,7 +552,7 @@ func TestIsValidIDLength(t *testing.T) {
 		scope = metrics.NoopScope
 
 		// arguments
-		metricCounter      = 0
+		metricCounter      = metrics.MetricIdx(0)
 		idTypeViolationTag = tag.ClusterName("idTypeViolationTag")
 		domainName         = "domain_name"
 		id                 = "12345"

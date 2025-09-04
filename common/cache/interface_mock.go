@@ -292,7 +292,7 @@ func (m *MockDomainMetricsScopeCache) EXPECT() *MockDomainMetricsScopeCacheMockR
 }
 
 // Get mocks base method.
-func (m *MockDomainMetricsScopeCache) Get(domainID string, scopeIdx int) (metrics.Scope, bool) {
+func (m *MockDomainMetricsScopeCache) Get(domainID string, scopeIdx metrics.ScopeIdx) (metrics.Scope, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", domainID, scopeIdx)
 	ret0, _ := ret[0].(metrics.Scope)
@@ -307,7 +307,7 @@ func (mr *MockDomainMetricsScopeCacheMockRecorder) Get(domainID, scopeIdx any) *
 }
 
 // Put mocks base method.
-func (m *MockDomainMetricsScopeCache) Put(domainID string, scopeIdx int, metricsScope metrics.Scope) {
+func (m *MockDomainMetricsScopeCache) Put(domainID string, scopeIdx metrics.ScopeIdx, metricsScope metrics.Scope) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Put", domainID, scopeIdx, metricsScope)
 }

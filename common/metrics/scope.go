@@ -29,14 +29,14 @@ import (
 type metricsScope struct {
 	scope          tally.Scope
 	rootScope      tally.Scope
-	defs           map[int]metricDefinition
+	defs           map[MetricIdx]metricDefinition
 	isDomainTagged bool
 }
 
 func newMetricsScope(
 	rootScope tally.Scope,
 	scope tally.Scope,
-	defs map[int]metricDefinition,
+	defs map[MetricIdx]metricDefinition,
 	isDomain bool,
 ) Scope {
 	return &metricsScope{
@@ -47,11 +47,11 @@ func newMetricsScope(
 	}
 }
 
-func (m *metricsScope) IncCounter(id int) {
+func (m *metricsScope) IncCounter(id MetricIdx) {
 	m.AddCounter(id, 1)
 }
 
-func (m *metricsScope) AddCounter(id int, delta int64) {
+func (m *metricsScope) AddCounter(id MetricIdx, delta int64) {
 	def := m.defs[id]
 	m.scope.Counter(def.metricName.String()).Inc(delta)
 	if !def.metricRollupName.Empty() {
@@ -59,7 +59,7 @@ func (m *metricsScope) AddCounter(id int, delta int64) {
 	}
 }
 
-func (m *metricsScope) UpdateGauge(id int, value float64) {
+func (m *metricsScope) UpdateGauge(id MetricIdx, value float64) {
 	def := m.defs[id]
 	m.scope.Gauge(def.metricName.String()).Update(value)
 	if !def.metricRollupName.Empty() {
@@ -67,7 +67,7 @@ func (m *metricsScope) UpdateGauge(id int, value float64) {
 	}
 }
 
-func (m *metricsScope) StartTimer(id int) Stopwatch {
+func (m *metricsScope) StartTimer(id MetricIdx) Stopwatch {
 	def := m.defs[id]
 	timer := m.scope.Timer(def.metricName.String())
 	switch {
@@ -81,7 +81,7 @@ func (m *metricsScope) StartTimer(id int) Stopwatch {
 	}
 }
 
-func (m *metricsScope) RecordTimer(id int, d time.Duration) {
+func (m *metricsScope) RecordTimer(id MetricIdx, d time.Duration) {
 	def := m.defs[id]
 	m.scope.Timer(def.metricName.String()).Record(d)
 	switch {
@@ -94,7 +94,7 @@ func (m *metricsScope) RecordTimer(id int, d time.Duration) {
 	}
 }
 
-func (m *metricsScope) RecordHistogramDuration(id int, value time.Duration) {
+func (m *metricsScope) RecordHistogramDuration(id MetricIdx, value time.Duration) {
 	def := m.defs[id]
 	m.scope.Histogram(def.metricName.String(), m.getBuckets(id)).RecordDuration(value)
 	if !def.metricRollupName.Empty() {
@@ -102,7 +102,7 @@ func (m *metricsScope) RecordHistogramDuration(id int, value time.Duration) {
 	}
 }
 
-func (m *metricsScope) RecordHistogramValue(id int, value float64) {
+func (m *metricsScope) RecordHistogramValue(id MetricIdx, value float64) {
 	def := m.defs[id]
 	m.scope.Histogram(def.metricName.String(), m.getBuckets(id)).RecordValue(value)
 	if !def.metricRollupName.Empty() {
@@ -122,7 +122,7 @@ func (m *metricsScope) Tagged(tags ...Tag) Scope {
 	return newMetricsScope(m.rootScope, m.scope.Tagged(tagMap), m.defs, domainTagged)
 }
 
-func (m *metricsScope) getBuckets(id int) tally.Buckets {
+func (m *metricsScope) getBuckets(id MetricIdx) tally.Buckets {
 	if m.defs[id].buckets != nil {
 		return m.defs[id].buckets
 	}

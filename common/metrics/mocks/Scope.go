@@ -35,36 +35,36 @@ type Scope struct {
 }
 
 // AddCounter provides a mock function with given fields: counter, delta
-func (_m *Scope) AddCounter(counter int, delta int64) {
+func (_m *Scope) AddCounter(counter metrics.MetricIdx, delta int64) {
 	_m.Called(counter, delta)
 }
 
 // IncCounter provides a mock function with given fields: counter
-func (_m *Scope) IncCounter(counter int) {
+func (_m *Scope) IncCounter(counter metrics.MetricIdx) {
 	_m.Called(counter)
 }
 
 // RecordHistogramDuration provides a mock function with given fields: timer, d
-func (_m *Scope) RecordHistogramDuration(timer int, d time.Duration) {
+func (_m *Scope) RecordHistogramDuration(timer metrics.MetricIdx, d time.Duration) {
 	_m.Called(timer, d)
 }
 
 // RecordHistogramValue provides a mock function with given fields: timer, value
-func (_m *Scope) RecordHistogramValue(timer int, value float64) {
+func (_m *Scope) RecordHistogramValue(timer metrics.MetricIdx, value float64) {
 	_m.Called(timer, value)
 }
 
 // RecordTimer provides a mock function with given fields: timer, d
-func (_m *Scope) RecordTimer(timer int, d time.Duration) {
+func (_m *Scope) RecordTimer(timer metrics.MetricIdx, d time.Duration) {
 	_m.Called(timer, d)
 }
 
 // StartTimer provides a mock function with given fields: timer
-func (_m *Scope) StartTimer(timer int) metrics.Stopwatch {
+func (_m *Scope) StartTimer(timer metrics.MetricIdx) metrics.Stopwatch {
 	ret := _m.Called(timer)
 
 	var r0 metrics.Stopwatch
-	if rf, ok := ret.Get(0).(func(int) metrics.Stopwatch); ok {
+	if rf, ok := ret.Get(0).(func(idx metrics.MetricIdx) metrics.Stopwatch); ok {
 		r0 = rf(timer)
 	} else {
 		r0 = ret.Get(0).(metrics.Stopwatch)
@@ -96,6 +96,6 @@ func (_m *Scope) Tagged(tags ...metrics.Tag) metrics.Scope {
 }
 
 // UpdateGauge provides a mock function with given fields: gauge, value
-func (_m *Scope) UpdateGauge(gauge int, value float64) {
+func (_m *Scope) UpdateGauge(gauge metrics.MetricIdx, value float64) {
 	_m.Called(gauge, value)
 }

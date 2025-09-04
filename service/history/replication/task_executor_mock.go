@@ -14,6 +14,7 @@ import (
 
 	gomock "go.uber.org/mock/gomock"
 
+	metrics "github.com/uber/cadence/common/metrics"
 	types "github.com/uber/cadence/common/types"
 )
 
@@ -42,10 +43,10 @@ func (m *MockTaskExecutor) EXPECT() *MockTaskExecutorMockRecorder {
 }
 
 // execute mocks base method.
-func (m *MockTaskExecutor) execute(replicationTask *types.ReplicationTask, forceApply bool) (int, error) {
+func (m *MockTaskExecutor) execute(replicationTask *types.ReplicationTask, forceApply bool) (metrics.ScopeIdx, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "execute", replicationTask, forceApply)
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(metrics.ScopeIdx)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -99,7 +99,7 @@ func (s *historyArchiverSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 	s.container = &archiver.HistoryBootstrapContainer{
 		Logger:        testlogger.New(s.T()),
-		MetricsClient: metrics.NewClient(scope, metrics.HistoryArchiverScope),
+		MetricsClient: metrics.NewClient(scope, metrics.History),
 	}
 }
 

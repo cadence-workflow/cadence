@@ -66,7 +66,7 @@ func (s *domainMetricsCacheSuite) TestGetMetricsScope() {
 	var found bool
 
 	tests := []struct {
-		scopeID  int
+		scopeID  metrics.ScopeIdx
 		domainID string
 	}{
 		{1, "A"},
@@ -104,7 +104,7 @@ func (s *domainMetricsCacheSuite) TestGetMetricsScopeMultipleFlushLoop() {
 	var found bool
 
 	tests := []struct {
-		scopeID  int
+		scopeID  metrics.ScopeIdx
 		domainID string
 	}{
 		{1, "A"},
@@ -174,14 +174,14 @@ func (s *domainMetricsCacheSuite) TestConcurrentMetricsScopeAccess() {
 	for i := 0; i < 1000; i++ {
 		wg.Add(1)
 		// concurrent get and put
-		go func(scopeIdx int) {
+		go func(scopeIdx metrics.ScopeIdx) {
 			defer wg.Done()
 
 			<-ch
 
 			s.metricsCache.Get("test_domain", scopeIdx)
-			s.metricsCache.Put("test_domain", scopeIdx, s.metricsClient.Scope(scopeIdx%metrics.NumServices))
-		}(i)
+			s.metricsCache.Put("test_domain", scopeIdx, s.metricsClient.Scope(metrics.ScopeIdx(int(scopeIdx)%int(metrics.NumServices))))
+		}(metrics.ScopeIdx(i))
 	}
 
 	close(ch)
@@ -190,8 +190,8 @@ func (s *domainMetricsCacheSuite) TestConcurrentMetricsScopeAccess() {
 	time.Sleep(120 * time.Millisecond)
 
 	for i := 0; i < 1000; i++ {
-		metricsScope, found = s.metricsCache.Get("test_domain", i)
-		testMetricsScope = s.metricsClient.Scope(i % metrics.NumServices)
+		metricsScope, found = s.metricsCache.Get("test_domain", metrics.ScopeIdx(i))
+		testMetricsScope = s.metricsClient.Scope(metrics.ScopeIdx(i % int(metrics.NumServices)))
 
 		s.Equal(true, found)
 		s.Equal(testMetricsScope, metricsScope)

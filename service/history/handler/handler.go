@@ -2247,7 +2247,7 @@ func (h *handlerImpl) emitInfoOrDebugLog(
 	}
 }
 
-func (h *handlerImpl) startRequestProfile(ctx context.Context, scope int) (metrics.Scope, metrics.Stopwatch) {
+func (h *handlerImpl) startRequestProfile(ctx context.Context, scope metrics.ScopeIdx) (metrics.Scope, metrics.Stopwatch) {
 	metricsScope := h.GetMetricsClient().Scope(scope, metrics.GetContextTags(ctx)...)
 	metricsScope.IncCounter(metrics.CadenceRequests)
 	sw := metricsScope.StartTimer(metrics.CadenceLatency)

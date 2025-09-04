@@ -156,9 +156,9 @@ type GetCacheItemSizeFunc func(interface{}) uint64
 // DomainMetricsScopeCache represents a interface for mapping domainID and scopeIdx to metricsScope
 type DomainMetricsScopeCache interface {
 	// Get retrieves metrics scope for a domainID and scopeIdx
-	Get(domainID string, scopeIdx int) (metrics.Scope, bool)
+	Get(domainID string, scopeIdx metrics.ScopeIdx) (metrics.Scope, bool)
 	// Put adds metrics scope for a domainID and scopeIdx
-	Put(domainID string, scopeIdx int, metricsScope metrics.Scope)
+	Put(domainID string, scopeIdx metrics.ScopeIdx, metricsScope metrics.Scope)
 
 	common.Daemon
 }

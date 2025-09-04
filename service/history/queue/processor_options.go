@@ -22,6 +22,7 @@ package queue
 
 import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/metrics"
 )
 
 type queueProcessorOptions struct {
@@ -55,5 +56,5 @@ type queueProcessorOptions struct {
 	ValidationInterval                   dynamicproperties.DurationPropertyFn
 	// MaxPendingTaskSize is used in cross cluster queue to limit the pending task count
 	MaxPendingTaskSize dynamicproperties.IntPropertyFn
-	MetricScope        int
+	MetricScope        metrics.ScopeIdx
 }

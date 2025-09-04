@@ -124,7 +124,7 @@ func (s *visibilityArchiverSuite) SetupSuite() {
 
 	s.container = &archiver.VisibilityBootstrapContainer{
 		Logger:        testlogger.New(s.T()),
-		MetricsClient: metrics.NewClient(scope, metrics.VisibilityArchiverScope),
+		MetricsClient: metrics.NewClient(scope, metrics.History),
 	}
 	s.setupVisibilityDirectory()
 }

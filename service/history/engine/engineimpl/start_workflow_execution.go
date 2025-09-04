@@ -67,7 +67,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	ctx context.Context,
 	startRequest *types.HistoryStartWorkflowExecutionRequest,
 	domainEntry *cache.DomainCacheEntry,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	signalWithStartArg *signalWithStartArg,
 ) (resp *types.StartWorkflowExecutionResponse, retError error) {
 
@@ -515,7 +515,7 @@ func shouldTerminateAndStart(startRequest *types.HistoryStartWorkflowExecutionRe
 		(state == persistence.WorkflowStateRunning || state == persistence.WorkflowStateCreated)
 }
 
-func (e *historyEngineImpl) validateStartWorkflowExecutionRequest(request *types.StartWorkflowExecutionRequest, metricsScope int) error {
+func (e *historyEngineImpl) validateStartWorkflowExecutionRequest(request *types.StartWorkflowExecutionRequest, metricsScope metrics.ScopeIdx) error {
 	if len(request.GetRequestID()) == 0 {
 		return &types.BadRequestError{Message: "Missing request ID."}
 	}
@@ -584,7 +584,7 @@ func (e *historyEngineImpl) validateStartWorkflowExecutionRequest(request *types
 func (e *historyEngineImpl) overrideTaskStartToCloseTimeoutSeconds(
 	domainEntry *cache.DomainCacheEntry,
 	request *types.StartWorkflowExecutionRequest,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 ) {
 	domainName := domainEntry.GetInfo().Name
 	maxDecisionStartToCloseTimeoutSeconds := int32(e.config.MaxDecisionStartToCloseSeconds(domainName))

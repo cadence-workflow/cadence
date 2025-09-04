@@ -529,7 +529,7 @@ func (s *esProcessorSuite) TestBulkAfterAction_Nack_Shadow_WithError() {
 	// Mock Kafka message Nack and Value
 	mockKafkaMsg.On("Nack").Return(nil).Once()
 	mockKafkaMsg.On("Value").Return(payload).Once()
-	s.mockScope.On("IncCounter", mock.AnythingOfType("int")).Return()
+	s.mockScope.On("IncCounter", mock.AnythingOfType("metrics.MetricIdx")).Return()
 	// Execute bulkAfterAction for primary processor with error
 	s.esProcessor.bulkAfterAction(0, requests, response, mockErr)
 }

@@ -3324,7 +3324,7 @@ func constructRestartWorkflowRequest(w *types.WorkflowExecutionStartedEventAttri
 }
 
 func getMetricsScopeWithDomain(
-	scope int,
+	scope metrics.ScopeIdx,
 	d domainGetter,
 	metricsClient metrics.Client,
 ) metrics.Scope {

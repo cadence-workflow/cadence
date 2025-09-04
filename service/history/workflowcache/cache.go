@@ -172,7 +172,7 @@ func (c *wfCache) emitRateLimitMetrics(
 	workflowID string,
 	domainName string,
 	callType string,
-	metric int,
+	metric metrics.MetricIdx,
 ) {
 	c.metricsClient.Scope(
 		metrics.HistoryClientWfIDCacheScope,

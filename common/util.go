@@ -249,7 +249,7 @@ func IsValidIDLength(
 	scope metrics.Scope,
 	warnLimit int,
 	errorLimit int,
-	metricsCounter int,
+	metricsCounter metrics.MetricIdx,
 	domainName string,
 	logger log.Logger,
 	idTypeViolationTag tag.Tag,
@@ -981,7 +981,7 @@ func NewPerTaskListScope(
 	taskListName string,
 	taskListKind types.TaskListKind,
 	client metrics.Client,
-	scopeIdx int,
+	scopeIdx metrics.ScopeIdx,
 ) metrics.Scope {
 	domainTag := metrics.DomainUnknownTag()
 	taskListTag := metrics.TaskListUnknownTag()

@@ -851,7 +851,7 @@ func (t *timerActiveTaskExecutor) updateWorkflowExecution(
 
 func (t *timerActiveTaskExecutor) emitTimeoutMetricScopeWithDomainTag(
 	domainID string,
-	scope int,
+	scope metrics.ScopeIdx,
 	timerType execution.TimerType,
 	tags ...metrics.Tag,
 ) {

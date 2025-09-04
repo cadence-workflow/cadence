@@ -134,7 +134,7 @@ func TestMetricDefs(t *testing.T) {
 // Duplicate indexes with the same operation name are technically fine, but there doesn't seem to be any benefit in allowing it,
 // and it trivially ensures that all values have only one operation name.
 func TestOperationIndexesAreUnique(t *testing.T) {
-	seen := make(map[int]bool)
+	seen := make(map[ScopeIdx]bool)
 	for serviceIdx, serviceOps := range ScopeDefs {
 		for idx := range serviceOps {
 			if seen[idx] {
@@ -158,7 +158,7 @@ func TestOperationIndexesAreUnique(t *testing.T) {
 func TestMetricsAreUnique(t *testing.T) {
 	// Duplicate indexes is arguably fine, but there doesn't seem to be any benefit in allowing it.
 	t.Run("indexes", func(t *testing.T) {
-		seen := make(map[int]bool)
+		seen := make(map[MetricIdx]bool)
 		for _, serviceMetrics := range MetricDefs {
 			for idx := range serviceMetrics {
 				if seen[idx] {

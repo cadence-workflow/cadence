@@ -493,7 +493,7 @@ func logEvent(
 // otherwise, it creates a new domain-tagged scope, cache and return the scope
 func getOrCreateDomainTaggedScope(
 	shard shard.Context,
-	scopeIdx int,
+	scopeIdx metrics.ScopeIdx,
 	domainID string,
 	logger log.Logger,
 ) metrics.Scope {

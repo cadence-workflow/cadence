@@ -38,7 +38,7 @@ type (
 )
 
 func (handler *clusterRedirectionHandler) beforeCall(
-	scope int,
+	scope metrics.ScopeIdx,
 ) (metrics.Scope, time.Time) {
 	return handler.GetMetricsClient().Scope(scope), handler.GetTimeSource().Now()
 }

@@ -47,7 +47,7 @@ type base struct {
 	enableShardIDMetrics          dynamicproperties.BoolPropertyFn
 }
 
-func (p *base) updateErrorMetricPerDomain(scope int, err error, scopeWithDomainTag metrics.Scope, logger log.Logger) {
+func (p *base) updateErrorMetricPerDomain(scope metrics.ScopeIdx, err error, scopeWithDomainTag metrics.Scope, logger log.Logger) {
 	logger = logger.Helper()
 
 	switch {
@@ -78,14 +78,14 @@ func (p *base) updateErrorMetricPerDomain(scope int, err error, scopeWithDomainT
 	case errors.As(err, new(*persistence.DBUnavailableError)):
 		scopeWithDomainTag.IncCounter(metrics.PersistenceErrDBUnavailableCounterPerDomain)
 		scopeWithDomainTag.IncCounter(metrics.PersistenceFailuresPerDomain)
-		logger.Error("DBUnavailable Error:", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("DBUnavailable Error:", tag.Error(err), tag.MetricScope(int(scope)))
 	default:
-		logger.Error("Operation failed with internal error.", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("Operation failed with internal error.", tag.Error(err), tag.MetricScope(int(scope)))
 		scopeWithDomainTag.IncCounter(metrics.PersistenceFailuresPerDomain)
 	}
 }
 
-func (p *base) updateErrorMetric(scope int, err error, metricsScope metrics.Scope, logger log.Logger) {
+func (p *base) updateErrorMetric(scope metrics.ScopeIdx, err error, metricsScope metrics.Scope, logger log.Logger) {
 	logger = logger.Helper()
 
 	switch {
@@ -116,14 +116,14 @@ func (p *base) updateErrorMetric(scope int, err error, metricsScope metrics.Scop
 	case errors.As(err, new(*persistence.DBUnavailableError)):
 		metricsScope.IncCounter(metrics.PersistenceErrDBUnavailableCounter)
 		metricsScope.IncCounter(metrics.PersistenceFailures)
-		logger.Error("DBUnavailable Error:", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("DBUnavailable Error:", tag.Error(err), tag.MetricScope(int(scope)))
 	default:
-		logger.Error("Operation failed with internal error.", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("Operation failed with internal error.", tag.Error(err), tag.MetricScope(int(scope)))
 		metricsScope.IncCounter(metrics.PersistenceFailures)
 	}
 }
 
-func (p *base) call(scope int, op func() error, tags ...metrics.Tag) error {
+func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag) error {
 	metricsScope := p.metricClient.Scope(scope, tags...)
 	if len(tags) > 0 {
 		metricsScope.IncCounter(metrics.PersistenceRequestsPerDomain)
@@ -154,7 +154,7 @@ func (p *base) call(scope int, op func() error, tags ...metrics.Tag) error {
 	return err
 }
 
-func (p *base) callWithoutDomainTag(scope int, op func() error, tags ...metrics.Tag) error {
+func (p *base) callWithoutDomainTag(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag) error {
 	metricsScope := p.metricClient.Scope(scope, tags...)
 	metricsScope.IncCounter(metrics.PersistenceRequests)
 	before := time.Now()
@@ -171,7 +171,7 @@ func (p *base) callWithoutDomainTag(scope int, op func() error, tags ...metrics.
 	return err
 }
 
-func (p *base) callWithDomainAndShardScope(scope int, op func() error, domainTag metrics.Tag, shardIDTag metrics.Tag, additionalTags ...metrics.Tag) error {
+func (p *base) callWithDomainAndShardScope(scope metrics.ScopeIdx, op func() error, domainTag metrics.Tag, shardIDTag metrics.Tag, additionalTags ...metrics.Tag) error {
 	domainMetricsScope := p.metricClient.Scope(scope, append([]metrics.Tag{domainTag}, additionalTags...)...)
 	shardOperationsMetricsScope := p.metricClient.Scope(scope, append([]metrics.Tag{shardIDTag}, additionalTags...)...)
 	shardOverallMetricsScope := p.metricClient.Scope(metrics.PersistenceShardRequestCountScope, shardIDTag)
@@ -259,7 +259,7 @@ func (p *base) emptyMetric(methodName string, req any, res any, err error) {
 }
 
 var emptyCountedMethods = map[string]struct {
-	scope int
+	scope metrics.ScopeIdx
 }{
 	"ExecutionManager.ListCurrentExecutions": {
 		scope: metrics.PersistenceListCurrentExecutionsScope,
@@ -288,7 +288,7 @@ var emptyCountedMethods = map[string]struct {
 }
 
 var payloadSizeEmittingMethods = map[string]struct {
-	scope int
+	scope metrics.ScopeIdx
 }{
 	"ExecutionManager.ListCurrentExecutions": {
 		scope: metrics.PersistenceListCurrentExecutionsScope,

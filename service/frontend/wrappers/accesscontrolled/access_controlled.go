@@ -63,7 +63,7 @@ func (a *apiHandler) isAuthorized(
 
 // getMetricsScopeWithDomain return metrics scope with domain tag
 func (a *apiHandler) getMetricsScopeWithDomain(
-	scope int,
+	scope metrics.ScopeIdx,
 	domain string,
 ) metrics.Scope {
 	if domain != "" {

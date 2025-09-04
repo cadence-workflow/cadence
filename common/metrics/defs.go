@@ -51,6 +51,12 @@ type (
 
 	// ServiceIdx is an index that uniquely identifies the service
 	ServiceIdx int
+
+	// ScopeIdx is an index that uniquely identifies an operation, which is required to form a new metrics scope
+	ScopeIdx int
+
+	// MetricIdx is an index that uniquely identifies the metric definition
+	MetricIdx int
 )
 
 func (s scopeDefinition) GetOperationString() string {
@@ -67,12 +73,13 @@ const (
 
 // Service names for all services that emit metrics.
 const (
-	Common = iota
+	Common ServiceIdx = iota
 	Frontend
 	History
 	Matching
 	Worker
 	ShardDistributor
+
 	NumServices
 )
 
@@ -143,7 +150,7 @@ const (
 	// -- Common Operation scopes --
 
 	// PersistenceCreateShardScope tracks CreateShard calls made by service to persistence layer
-	PersistenceCreateShardScope = iota
+	PersistenceCreateShardScope ScopeIdx = iota
 	// PersistenceGetShardScope tracks GetShard calls made by service to persistence layer
 	PersistenceGetShardScope
 	// PersistenceUpdateShardScope tracks UpdateShard calls made by service to persistence layer
@@ -1466,7 +1473,7 @@ const (
 )
 
 // ScopeDefs record the scopes for all services
-var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
+var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 	// common scope Names
 	Common: {
 		PersistenceCreateShardScope:                              {operation: "CreateShard"},
@@ -2141,7 +2148,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 
 // Common Metrics enum
 const (
-	CadenceRequests = iota
+	CadenceRequests MetricIdx = iota
 	CadenceFailures
 	CadenceLatency
 	CadenceErrBadRequestCounter
@@ -2916,7 +2923,7 @@ const (
 )
 
 // MetricDefs record the metrics for all services
-var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
+var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 	Common: {
 		CadenceRequests:                                              {metricName: "cadence_requests", metricType: Counter},
 		CadenceFailures:                                              {metricName: "cadence_errors", metricType: Counter},

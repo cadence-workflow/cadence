@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -572,13 +573,13 @@ func (s *dlqHandlerSuite) TestMergeMessages_executeFailed() {
 }
 
 type fakeTaskExecutor struct {
-	scope int
+	scope metrics.ScopeIdx
 	err   error
 
 	executedTasks []*types.ReplicationTask
 }
 
-func (e *fakeTaskExecutor) execute(replicationTask *types.ReplicationTask, _ bool) (int, error) {
+func (e *fakeTaskExecutor) execute(replicationTask *types.ReplicationTask, _ bool) (metrics.ScopeIdx, error) {
 	e.executedTasks = append(e.executedTasks, replicationTask)
 	return e.scope, e.err
 }

@@ -110,7 +110,7 @@ func (h *handlerImpl) newHandlerContext(
 	ctx context.Context,
 	domainName string,
 	taskList *types.TaskList,
-	scope int,
+	scope metrics.ScopeIdx,
 ) *handlerContext {
 	return newHandlerContext(
 		ctx,

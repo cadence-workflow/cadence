@@ -206,7 +206,7 @@ func (v *attrValidator) validateActivityScheduleAttributes(
 	targetDomainID string,
 	attributes *types.ScheduleActivityTaskDecisionAttributes,
 	wfTimeout int32,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 ) error {
 
 	if err := v.validateCrossDomainCall(
@@ -369,7 +369,7 @@ func (v *attrValidator) validateActivityScheduleAttributes(
 
 func (v *attrValidator) validateTimerScheduleAttributes(
 	attributes *types.StartTimerDecisionAttributes,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	domain string,
 ) error {
 
@@ -400,7 +400,7 @@ func (v *attrValidator) validateTimerScheduleAttributes(
 
 func (v *attrValidator) validateActivityCancelAttributes(
 	attributes *types.RequestCancelActivityTaskDecisionAttributes,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	domain string,
 ) error {
 
@@ -427,7 +427,7 @@ func (v *attrValidator) validateActivityCancelAttributes(
 
 func (v *attrValidator) validateTimerCancelAttributes(
 	attributes *types.CancelTimerDecisionAttributes,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	domain string,
 ) error {
 
@@ -453,7 +453,7 @@ func (v *attrValidator) validateTimerCancelAttributes(
 
 func (v *attrValidator) validateRecordMarkerAttributes(
 	attributes *types.RecordMarkerDecisionAttributes,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	domain string,
 ) error {
 
@@ -515,7 +515,7 @@ func (v *attrValidator) validateCancelExternalWorkflowExecutionAttributes(
 	domainID string,
 	targetDomainID string,
 	attributes *types.RequestCancelExternalWorkflowExecutionDecisionAttributes,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 ) error {
 
 	if err := v.validateCrossDomainCall(
@@ -568,7 +568,7 @@ func (v *attrValidator) validateSignalExternalWorkflowExecutionAttributes(
 	domainID string,
 	targetDomainID string,
 	attributes *types.SignalExternalWorkflowExecutionDecisionAttributes,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 ) error {
 
 	if err := v.validateCrossDomainCall(
@@ -647,7 +647,7 @@ func (v *attrValidator) validateUpsertWorkflowSearchAttributes(
 func (v *attrValidator) validateContinueAsNewWorkflowExecutionAttributes(
 	attributes *types.ContinueAsNewWorkflowExecutionDecisionAttributes,
 	executionInfo *persistence.WorkflowExecutionInfo,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	domain string,
 ) error {
 
@@ -706,7 +706,7 @@ func (v *attrValidator) validateStartChildExecutionAttributes(
 	targetDomainID string,
 	attributes *types.StartChildWorkflowExecutionDecisionAttributes,
 	parentInfo *persistence.WorkflowExecutionInfo,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 ) error {
 
 	if err := v.validateCrossDomainCall(
@@ -797,7 +797,7 @@ func (v *attrValidator) validateStartChildExecutionAttributes(
 func (v *attrValidator) validatedTaskList(
 	taskList *types.TaskList,
 	defaultVal string,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	domain string,
 ) (*types.TaskList, error) {
 
