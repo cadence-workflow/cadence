@@ -129,6 +129,64 @@ func TestMetricDefs(t *testing.T) {
 	}
 }
 
+// "index -> operation" must be unique so they can be looked up without needing to know the service ID.
+//
+// Duplicate indexes with the same operation name are technically fine, but there doesn't seem to be any benefit in allowing it,
+// and it trivially ensures that all values have only one operation name.
+func TestOperationIndexesAreUnique(t *testing.T) {
+	seen := make(map[int]bool)
+	for serviceIdx, serviceOps := range ScopeDefs {
+		for idx := range serviceOps {
+			if seen[idx] {
+				t.Error("duplicate operation index:", idx, "with name:", serviceOps[idx].operation, "in service:", serviceIdx)
+			}
+			seen[idx] = true
+
+			// to serve as documentation: operations are NOT unique due to dups across services.
+			// this is probably fine, they're just used as metric tag values.
+			// but not being able to prevent dups means it's possible we have unintentional name collisions.
+			//
+			// name := serviceOps[idx].operation
+			// if seenNames[name] {
+			// 	t.Error("duplicate operation string:", name, "at different indexes")
+			// }
+			// seenNames[name] = true
+		}
+	}
+}
+
+func TestMetricsAreUnique(t *testing.T) {
+	// Duplicate indexes is arguably fine, but there doesn't seem to be any benefit in allowing it.
+	t.Run("indexes", func(t *testing.T) {
+		seen := make(map[int]bool)
+		for _, serviceMetrics := range MetricDefs {
+			for idx := range serviceMetrics {
+				if seen[idx] {
+					t.Error("duplicate metric index:", idx, "with name:", serviceMetrics[idx].metricName)
+				}
+				seen[idx] = true
+			}
+		}
+	})
+	// Duplicate names carry a high risk of causing different-tag collisions in Prometheus, and should not be allowed.
+	t.Run("names", func(t *testing.T) {
+		seen := make(map[string]bool)
+		for _, serviceMetrics := range MetricDefs {
+			for _, met := range serviceMetrics {
+				name := met.metricName.String()
+				if seen[name] {
+					switch name {
+					case "cache_full", "cache_miss", "cache_hit", "cadence_requests_per_tl", "cross_cluster_fetch_errors":
+						continue // known dup.  worth changing as some cause problems.
+					}
+					t.Errorf("duplicate metric name %q", name)
+				}
+				seen[name] = true
+			}
+		}
+	})
+}
+
 func TestExponentialDurationBuckets(t *testing.T) {
 	factor := math.Pow(2, 0.25)
 	assert.Equal(t, 80, len(ExponentialDurationBuckets))

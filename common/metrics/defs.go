@@ -53,6 +53,10 @@ type (
 	ServiceIdx int
 )
 
+func (s scopeDefinition) GetOperationString() string {
+	return s.operation
+}
+
 // MetricTypes which are supported
 const (
 	Counter MetricType = iota
@@ -1070,7 +1074,7 @@ const (
 // -- Operation scopes for History service --
 const (
 	// HistoryStartWorkflowExecutionScope tracks StartWorkflowExecution API calls received by service
-	HistoryStartWorkflowExecutionScope = iota + NumCommonScopes
+	HistoryStartWorkflowExecutionScope = iota + NumFrontendScopes
 	// HistoryRecordActivityTaskHeartbeatScope tracks RecordActivityTaskHeartbeat API calls received by service
 	HistoryRecordActivityTaskHeartbeatScope
 	// HistoryRespondDecisionTaskCompletedScope tracks RespondDecisionTaskCompleted API calls received by service
@@ -1358,7 +1362,7 @@ const (
 // -- Operation scopes for Matching service --
 const (
 	// PollForDecisionTaskScope tracks PollForDecisionTask API calls received by service
-	MatchingPollForDecisionTaskScope = iota + NumCommonScopes
+	MatchingPollForDecisionTaskScope = iota + NumHistoryScopes
 	// PollForActivityTaskScope tracks PollForActivityTask API calls received by service
 	MatchingPollForActivityTaskScope
 	// MatchingAddActivityTaskScope tracks AddActivityTask API calls received by service
@@ -1394,7 +1398,7 @@ const (
 // -- Operation scopes for Worker service --
 const (
 	// ReplicationScope is the scope used by all metric emitted by replicator
-	ReplicatorScope = iota + NumCommonScopes
+	ReplicatorScope = iota + NumMatchingScopes
 	// DomainReplicationTaskScope is the scope used by domain task replication processing
 	DomainReplicationTaskScope
 	// ESProcessorScope is scope used by all metric emitted by esProcessor
@@ -1442,7 +1446,7 @@ const (
 // -- Operation scopes for ShardDistributor service --
 const (
 	// ShardDistributorGetShardOwnerScope tracks GetShardOwner API calls received by service
-	ShardDistributorGetShardOwnerScope = iota + NumCommonScopes
+	ShardDistributorGetShardOwnerScope = iota + NumWorkerScopes
 	ShardDistributorHeartbeatScope
 	ShardDistributorAssignLoopScope
 
@@ -2404,6 +2408,8 @@ const (
 	// cluster forwarding policy metrics
 	ClusterForwardingPolicyRequests
 
+	RingResolverError
+
 	NumCommonMetrics // Needs to be last on this list for iota numbering
 )
 
@@ -2708,12 +2714,13 @@ const (
 	VirtualQueueCountGauge
 	VirtualQueuePausedGauge
 	VirtualQueueRunningGauge
+
 	NumHistoryMetrics
 )
 
 // Matching metrics enum
 const (
-	PollSuccessPerTaskListCounter = iota + NumCommonMetrics
+	PollSuccessPerTaskListCounter = iota + NumHistoryMetrics
 	PollTimeoutPerTaskListCounter
 	PollSuccessWithSyncPerTaskListCounter
 	LeaseRequestPerTaskListCounter
@@ -2791,12 +2798,13 @@ const (
 	IsolationGroupUpscale
 	IsolationGroupDownscale
 	PartitionDrained
+
 	NumMatchingMetrics
 )
 
 // Worker metrics enum
 const (
-	ReplicatorMessages = iota + NumCommonMetrics
+	ReplicatorMessages = iota + NumMatchingMetrics
 	ReplicatorFailures
 	ReplicatorMessagesDropped
 	ReplicatorLatency
@@ -2880,12 +2888,13 @@ const (
 	DiagnosticsWorkflowStartedCount
 	DiagnosticsWorkflowSuccess
 	DiagnosticsWorkflowExecutionLatency
+
 	NumWorkerMetrics
 )
 
 // ShardDistributor metrics enum
 const (
-	ShardDistributorRequests = iota + NumCommonMetrics
+	ShardDistributorRequests = iota + NumWorkerMetrics
 	ShardDistributorFailures
 	ShardDistributorLatency
 	ShardDistributorErrContextTimeoutCounter
@@ -3188,6 +3197,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ActiveClusterManagerLookupLatency:      {metricName: "active_cluster_manager_lookup_latency", metricType: Histogram, buckets: ExponentialDurationBuckets},
 
 		ClusterForwardingPolicyRequests: {metricName: "cluster_forwarding_policy_requests", metricType: Counter},
+
+		RingResolverError: {metricName: "ring_resolver_error", metricType: Counter},
 	},
 	History: {
 		TaskRequests:             {metricName: "task_requests", metricType: Counter},

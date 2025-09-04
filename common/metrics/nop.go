@@ -27,9 +27,9 @@ import (
 )
 
 var (
-	NoopClient    = &noopClientImpl{}
-	NoopScope     = &noopScopeImpl{}
-	NoopStopwatch = tally.NewStopwatch(time.Now(), &nopStopwatchRecorder{})
+	NoopClient    Client = &noopClientImpl{}
+	NoopScope     Scope  = &noopScopeImpl{}
+	NoopStopwatch        = tally.NewStopwatch(time.Now(), &nopStopwatchRecorder{})
 )
 
 type nopStopwatchRecorder struct{}
