@@ -45,4 +45,6 @@ import (
 	_ "go.uber.org/yarpc/encoding/thrift/thriftrw-plugin-yarpc"
 	// removes unused imports and formats
 	_ "golang.org/x/tools/cmd/goimports"
+	// dependency checks on licenses
+	_ "github.com/google/go-licenses/v2"
 )

@@ -112,6 +112,18 @@ endif
 
 PROJECT_ROOT = github.com/uber/cadence
 
+# go submodules only, the top-level go.mod is easy enough to type by hand
+SUBMODULE_PATHS = $(shell \
+	find . \
+		-type f \
+		-name "go.mod" \
+		-not -path "./go.mod" \
+		-not -path "./idls/*" \
+		-exec dirname {} \; \
+	| sed 's|^\./||' \
+)
+SUBMODULE_FILES = $(foreach MOD,$(SUBMODULE_PATHS),$(MOD)/go.mod)
+
 # helper for executing bins that need other bins, just `$(BIN_PATH) the_command ...`
 # I'd recommend not exporting this in general, to reduce the chance of accidentally using non-versioned tools.
 BIN_PATH := PATH="$(abspath $(BIN)):$(abspath $(STABLE_BIN)):$$PATH"
@@ -215,6 +227,24 @@ $(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
 	$Q # generated == used is occasionally important for gomock / mock libs in general.  this is not a definite problem if violated though.
 	$Q ./scripts/check-gomod-version.sh github.com/golang/mock/gomock $(if $(verbose),-v)
 	$Q touch $@
+
+# for unknown reasons, go 1.23.4 (current toolchain version) and at least some
+# of 1.24 is interpreting `./...` as "also check all stdlib packages", which is
+# wrong - that's `...`, not `./...`.
+# go 1.25 does not do this, but we can't upgrade to that until we fix mockery.
+# so until then, cheat a bit: force a newer version for the build for just this
+# one command.
+#
+# unfortunately both build-time AND run-time must be 1.25+, which makes this
+# extra annoying to deal with since we can't just upgrade the tools module.
+#
+# https://github.com/google/go-licenses/issues/335
+#
+# you can work around this locally with `GOTOOLCHAIN=go1.25.0`, but this is
+# not currently going to be supported in CI.  Upgrade the whole repo instead.
+$(BIN)/licenses: internal/tools/go.mod | $(BIN)
+	$Q [[ "$$(go version)" =~ "go1.25" ]] || (echo "license linter requires go 1.25+: https://github.com/google/go-licenses/issues/335"; exit 1)
+	$(call go_build_tool,github.com/google/go-licenses/v2,licenses)
 
 # copyright header checker/writer.  only requires stdlib, so no other dependencies are needed.
 # $(BIN)/copyright: cmd/tools/copyright/licensegen.go
@@ -372,12 +402,11 @@ $(BUILD)/proto-lint: $(PROTO_FILES) $(STABLE_BIN)/$(BUF_VERSION_BIN) | $(BUILD)
 
 # lints that go modules are as expected, e.g. parent does not import submodule.
 # tool builds that need to be in sync with the parent are partially checked through go_mod_build_tool, but should probably be checked here too
-$(BUILD)/gomod-lint: go.mod internal/tools/go.mod common/archiver/gcloud/go.mod | $(BUILD)
+$(BUILD)/gomod-lint: go.mod $(SUBMODULE_FILES) | $(BUILD)
 	$Q echo "checking for direct submodule dependencies in root go.mod..."
 	$Q ( \
 		MAIN_MODULE=$$(grep "^module " go.mod | awk '{print $$2}'); \
-		SUBMODULES=$$(find . -type f -name "go.mod" -not -path "./go.mod" -not -path "./idls/*" -exec dirname {} \; | sed 's|^\./||'); \
-		for submodule in $$SUBMODULES; do \
+		for submodule in $(SUBMODULE_PATHS); do \
 			submodule_path="$$MAIN_MODULE/$$submodule"; \
 			if grep -q "$$submodule_path" go.mod; then \
 				echo "ERROR: Root go.mod directly depends on submodule: $$submodule_path" >&2; \
@@ -408,6 +437,35 @@ $(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile${DO
 	$Q echo "checking go version..."
 	$Q # intentionally using go.work toolchain, as GOTOOLCHAIN is user-overridable
 	$Q ./scripts/check-go-toolchain.sh $(GOWORK_TOOLCHAIN)
+	$Q touch $@
+
+# license checker for following CNCF rules.
+#
+# manually validated exclusions:
+# 	thrift has a loose GPL variant, it seems safer to just exclude the library since it's old and pinned and on the way out: GNU-All-permissive-Copying-License
+# 		--ignore github.com/apache/thrift/lib/go/thrift
+#	statsd is MIT: https://github.com/cactus/go-statsd-client/
+#   	--ignore github.com/cactus/go-statsd-client/statsd
+#	jmespath is Apache-2.0: https://github.com/jmespath/go-jmespath
+#		--ignore github.com/jmespath/go-jmespath
+#
+# W0905, ".s$", and ".h$" greps are for ignoring error messages due to native code,
+# as oddly there is no flag to ignore it.
+#
+# and last but not least, the final grep must be wrapped in an `|| true` because
+# it will `exit 1` if no lines pass the final filter, but that represents a
+# successful run for this linter.
+$(BUILD)/licenses-lint: $(BIN)/licenses $(SUBMODULE_FILES)
+	$Q [[ "$$(go version)" =~ "go1.25" ]] || (echo "license linter requires go 1.25+: https://github.com/google/go-licenses/issues/335"; exit 1)
+	$Q $(BIN_PATH) licenses check \
+		--allowed_licenses MIT,Apache-2.0,BSD-3-Clause,BSD-2-Clause,ISC,MPL-2.0 \
+		--ignore github.com/apache/thrift/lib/go/thrift \
+		--ignore github.com/cactus/go-statsd-client/statsd \
+		--ignore github.com/jmespath/go-jmespath \
+		./... 2>&1 \
+		| grep -v W0905 \
+		| (grep -v "\.h$$" || true) \
+		| (grep -v "\.s$$" || true)
 	$Q touch $@
 
 # fmt and copyright are mutually cyclic with their inputs, so if a copyright header is modified:
@@ -459,6 +517,10 @@ endef
 # reuse the intermediates for simplicity and consistency.
 lint: ## (Re)run the linter
 	$(call remake,proto-lint gomod-lint code-lint goversion-lint)
+
+licenses: ## run the dependency-license linter (requires go 1.25+)
+	$Q [[ "$$(go version)" =~ "go1.25" ]] || (echo "rerun with GOTOOLCHAIN=go1.25.0 or newer"; exit 1)
+	$Q rm -f $(BUILD)/licenses-lint; $(MAKE) $(BUILD)/licenses-lint
 
 # intentionally not re-making, it's a bit slow and it's clear when it's unnecessary
 fmt: $(BUILD)/fmt ## Run `gofmt` / organize imports / etc
