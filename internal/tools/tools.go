@@ -30,6 +30,8 @@ import (
 	_ "github.com/dmarkham/enumer"
 	// protobuf stuff
 	_ "github.com/gogo/protobuf/protoc-gen-gofast"
+	// dependency checks on licenses
+	_ "github.com/google/go-licenses/v2"
 	// gowrap for generating decorators for interface
 	_ "github.com/hexdigest/gowrap"
 	// replaces golint - configurable and much faster
@@ -45,6 +47,4 @@ import (
 	_ "go.uber.org/yarpc/encoding/thrift/thriftrw-plugin-yarpc"
 	// removes unused imports and formats
 	_ "golang.org/x/tools/cmd/goimports"
-	// dependency checks on licenses
-	_ "github.com/google/go-licenses/v2"
 )
