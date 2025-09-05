@@ -158,6 +158,20 @@ func (r *replayMetricsScope) RecordHistogramValue(timer metrics.MetricIdx, value
 	r.scope.RecordHistogramValue(timer, value)
 }
 
+func (r *replayMetricsScope) ExponentialHistogram(hist metrics.MetricIdx, d time.Duration) {
+	if workflow.IsReplaying(r.ctx) {
+		return
+	}
+	r.scope.ExponentialHistogram(hist, d)
+}
+
+func (r *replayMetricsScope) IntExponentialHistogram(hist metrics.MetricIdx, value int) {
+	if workflow.IsReplaying(r.ctx) {
+		return
+	}
+	r.scope.IntExponentialHistogram(hist, value)
+}
+
 // UpdateGauge reports Gauge type absolute value metric
 func (r *replayMetricsScope) UpdateGauge(gauge metrics.MetricIdx, value float64) {
 	if workflow.IsReplaying(r.ctx) {

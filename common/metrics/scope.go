@@ -110,6 +110,16 @@ func (m *metricsScope) RecordHistogramValue(id MetricIdx, value float64) {
 	}
 }
 
+func (m *metricsScope) ExponentialHistogram(id MetricIdx, value time.Duration) {
+	def := m.defs[id]
+	m.scope.Tagged(def.exponentialBuckets.tags()).Histogram(def.metricName.String(), def.exponentialBuckets.buckets()).RecordDuration(value)
+}
+
+func (m *metricsScope) IntExponentialHistogram(id MetricIdx, value int) {
+	def := m.defs[id]
+	m.scope.Tagged(def.intExponentialBuckets.tags()).Histogram(def.metricName.String(), def.intExponentialBuckets.buckets()).RecordDuration(time.Duration(value))
+}
+
 func (m *metricsScope) Tagged(tags ...Tag) Scope {
 	domainTagged := m.isDomainTagged
 	tagMap := make(map[string]string, len(tags))

@@ -65,6 +65,10 @@ type (
 		RecordHistogramDuration(timer MetricIdx, d time.Duration)
 		// RecordHistogramValue records a histogram value for the given metric name
 		RecordHistogramValue(timer MetricIdx, value float64)
+		// ExponentialHistogram records a subsettable exponential histogram value for the given metric name
+		ExponentialHistogram(hist MetricIdx, d time.Duration)
+		// IntExponentialHistogram records a subsettable exponential histogram value for the given metric name
+		IntExponentialHistogram(hist MetricIdx, value int)
 		// UpdateGauge reports Gauge type absolute value metric
 		UpdateGauge(gauge MetricIdx, value float64)
 		// Tagged return an internal scope that can be used to add additional

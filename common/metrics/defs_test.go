@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -185,6 +186,23 @@ func TestMetricsAreUnique(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestHistogramSuffixes(t *testing.T) {
+	for _, serviceMetrics := range MetricDefs {
+		for _, def := range serviceMetrics {
+			if def.intExponentialBuckets != nil {
+				if !strings.HasSuffix(def.metricName.String(), "_counts") {
+					t.Errorf("int-exponential-histogram metric %q should have suffix \"_counts\"", def.metricName.String())
+				}
+			}
+			if def.exponentialBuckets != nil {
+				if !strings.HasSuffix(def.metricName.String(), "_ns") {
+					t.Errorf("exponential-histogram metric %q should have suffix \"_ns\"", def.metricName.String())
+				}
+			}
+		}
+	}
 }
 
 func TestExponentialDurationBuckets(t *testing.T) {

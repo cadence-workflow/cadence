@@ -54,6 +54,14 @@ func (_m *Scope) RecordHistogramValue(timer metrics.MetricIdx, value float64) {
 	_m.Called(timer, value)
 }
 
+func (_m *Scope) ExponentialHistogram(hist metrics.MetricIdx, d time.Duration) {
+	_m.Called(hist, d)
+}
+
+func (_m *Scope) IntExponentialHistogram(hist metrics.MetricIdx, value int) {
+	_m.Called(hist, value)
+}
+
 // RecordTimer provides a mock function with given fields: timer, d
 func (_m *Scope) RecordTimer(timer metrics.MetricIdx, d time.Duration) {
 	_m.Called(timer, d)
