@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/uber-go/tally"
@@ -123,6 +124,22 @@ func (i IntSubsettableHistogram) subsetTo(newScale int) IntSubsettableHistogram 
 	return IntSubsettableHistogram(SubsettableHistogram(i).subsetTo(newScale))
 }
 
+func (s SubsettableHistogram) tags() map[string]string {
+	return map[string]string{
+		"histogram_start": s.start().String(),
+		"histogram_end":   s.end().String(),
+		"histogram_scale": strconv.Itoa(s.scale),
+	}
+}
+
+func (i IntSubsettableHistogram) tags() map[string]string {
+	return map[string]string{
+		"histogram_start": strconv.Itoa(int(i.start())),
+		"histogram_end":   strconv.Itoa(int(i.end())),
+		"histogram_scale": strconv.Itoa(i.scale),
+	}
+}
+
 // makeSubsettableHistogram is a replacement for tally.MustMakeExponentialDurationBuckets,
 // tailored to make "construct a range" or "ensure N buckets" simpler for OTEL-compatible exponential histograms
 // (i.e. https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exponentialhistogram).
@@ -238,6 +255,7 @@ type histogrammy[T any] interface {
 	end() time.Duration             // last bucket
 	buckets() tally.DurationBuckets // access to all buckets
 	subsetTo(newScale int) T        // generic so specific types can be returned
+	tags() map[string]string        // start, end, and scale tags that need to be implicitly added
 
 	print(to func(string, ...any)) // test-oriented printer
 }

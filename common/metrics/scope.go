@@ -21,7 +21,6 @@
 package metrics
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/uber-go/tally"
@@ -113,24 +112,12 @@ func (m *metricsScope) RecordHistogramValue(id MetricIdx, value float64) {
 
 func (m *metricsScope) ExponentialHistogram(id MetricIdx, value time.Duration) {
 	def := m.defs[id]
-	m.scope.Tagged(
-		map[string]string{
-			"histogram_start": def.exponentialBuckets.start().String(),
-			"histogram_end":   def.exponentialBuckets.end().String(),
-			"histogram_scale": strconv.Itoa(def.exponentialBuckets.histScale()),
-		},
-	).Histogram(def.metricName.String(), def.exponentialBuckets.buckets()).RecordDuration(value)
+	m.scope.Tagged(def.exponentialBuckets.tags()).Histogram(def.metricName.String(), def.exponentialBuckets.buckets()).RecordDuration(value)
 }
 
 func (m *metricsScope) IntExponentialHistogram(id MetricIdx, value int) {
 	def := m.defs[id]
-	m.scope.Tagged(
-		map[string]string{
-			"histogram_start": def.intExponentialBuckets.start().String(),
-			"histogram_end":   def.intExponentialBuckets.end().String(),
-			"histogram_scale": strconv.Itoa(def.intExponentialBuckets.histScale()),
-		},
-	).Histogram(def.metricName.String(), def.intExponentialBuckets.buckets()).RecordDuration(time.Duration(value))
+	m.scope.Tagged(def.intExponentialBuckets.tags()).Histogram(def.metricName.String(), def.intExponentialBuckets.buckets()).RecordDuration(time.Duration(value))
 }
 
 func (m *metricsScope) Tagged(tags ...Tag) Scope {
