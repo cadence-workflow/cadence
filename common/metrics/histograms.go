@@ -93,6 +93,12 @@ type IntSubsettableHistogram SubsettableHistogram
 // 		scale int
 // 	}
 
+// subsetTo takes an existing histogram and reduces its detail level.
+//
+// this can be replaced by simply creating a new histogram with the same args
+// as the original but half the length, but it's added because: 1) it works too,
+// and 2) to document how the process works, because we'll likely be doing this
+// at query time to reduce the level of detail in small / over-crowded graphs.
 func (s SubsettableHistogram) subsetTo(newScale int) SubsettableHistogram {
 	if newScale >= s.scale {
 		panic(fmt.Sprintf("scale %v is not less than the current scale %v", newScale, s.scale))
