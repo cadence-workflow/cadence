@@ -1974,6 +1974,8 @@ func (s *workflowHandlerSuite) TestRestartWorkflowExecution__Success() {
 				TaskList: &types.TaskList{
 					Name: "tasklist",
 				},
+				CronOverlapPolicy:               types.CronOverlapPolicySkipped.Ptr(),
+				FirstDecisionTaskBackoffSeconds: common.Int32Ptr(10),
 			},
 		}},
 	}, nil).Once()
