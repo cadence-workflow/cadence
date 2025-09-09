@@ -1384,6 +1384,10 @@ func (d *handlerImpl) updateReplicationConfig(
 				d.logger.Debugf("Setting activeCluster for region %v to %v. no update case, just copy the existing active cluster", region, activeCluster)
 			}
 		}
+
+		// adjust failover versions so that same cluster in different regions have same failover versions
+		d.adjustFailoverVersions(finalActiveClusters)
+
 		config.ActiveClusters = &types.ActiveClusters{
 			ActiveClustersByRegion: finalActiveClusters,
 		}
@@ -1392,6 +1396,22 @@ func (d *handlerImpl) updateReplicationConfig(
 	}
 
 	return config, clusterUpdated, activeClusterUpdated, nil
+}
+
+func (d *handlerImpl) adjustFailoverVersions(activeClusters map[string]types.ActiveClusterInfo) {
+	clusterToRegions := make(map[string][]string)
+	clusterMaxFailoverVersion := make(map[string]int64)
+	for region, activeCluster := range activeClusters {
+		clusterToRegions[activeCluster.ActiveClusterName] = append(clusterToRegions[activeCluster.ActiveClusterName], region)
+		clusterMaxFailoverVersion[activeCluster.ActiveClusterName] = max(clusterMaxFailoverVersion[activeCluster.ActiveClusterName], activeCluster.FailoverVersion)
+	}
+	for cluster, regions := range clusterToRegions {
+		for _, region := range regions {
+			activeCluster := activeClusters[region]
+			activeCluster.FailoverVersion = clusterMaxFailoverVersion[cluster]
+			activeClusters[region] = activeCluster
+		}
+	}
 }
 
 func (d *handlerImpl) handleGracefulFailover(

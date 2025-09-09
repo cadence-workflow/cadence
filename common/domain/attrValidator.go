@@ -22,6 +22,7 @@ package domain
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/persistence"
@@ -117,6 +118,7 @@ func (d *AttrValidatorImpl) validateDomainReplicationConfigForGlobalDomain(
 	}
 
 	if replicationConfig.IsActiveActive() {
+		// validate cluster names and check whether they exist
 		for _, cluster := range activeClusters.ActiveClustersByRegion {
 			if err := d.validateClusterName(cluster.ActiveClusterName); err != nil {
 				return err
@@ -125,6 +127,12 @@ func (d *AttrValidatorImpl) validateDomainReplicationConfigForGlobalDomain(
 			if !isInClusters(cluster.ActiveClusterName) {
 				return errActiveClusterNotInClusters
 			}
+		}
+
+		// check region mappings are valid
+		err := d.checkActiveClusterRegionMappings(activeClusters)
+		if err != nil {
+			return err
 		}
 	} else {
 		if err := d.validateClusterName(activeCluster); err != nil {
@@ -175,5 +183,42 @@ func (d *AttrValidatorImpl) validateClusterName(
 			clusterName,
 		)}
 	}
+	return nil
+}
+
+// checkActiveClusterRegionMappings validates:
+//  1. There's no cycle in region dependencies.
+//     e.g. Following not allowed: region0 maps to a cluster in region1, and region1 maps to a cluster in region0.
+//  2. There's at most one hop in the region dependency chain.
+//     e.g. Following not allowed: region0 maps to a cluster in region1, and region1 maps to a cluster in region2
+func (d *AttrValidatorImpl) checkActiveClusterRegionMappings(activeClusters *types.ActiveClusters) error {
+	inbounds := make(map[string][]string)
+	outbounds := make(map[string]string)
+	allClusters := d.clusterMetadata.GetAllClusterInfo()
+	for fromRegion, cluster := range activeClusters.ActiveClustersByRegion {
+		clusterInfo, ok := allClusters[cluster.ActiveClusterName]
+		if !ok {
+			return &types.BadRequestError{Message: fmt.Sprintf("Cluster %v not found", cluster.ActiveClusterName)}
+		}
+
+		toRegion := clusterInfo.Region
+		if fromRegion == toRegion {
+			continue
+		}
+
+		inbounds[toRegion] = append(inbounds[toRegion], fromRegion)
+		outbounds[fromRegion] = toRegion
+	}
+
+	// The entries that point to a cluster in the same region is omitted in inbounds and outbounds
+	// So if a region X is in inbounds it means a cluster in X region is used by other region(s).
+	// Region X must not be in outbounds. (allow at most one hop rule)
+	// Validating this also ensures that there's no cycle in region dependencies.
+	for toRegion := range inbounds {
+		if _, ok := outbounds[toRegion]; ok {
+			return &types.BadRequestError{Message: "Region " + toRegion + " cannot map to a cluster in another region because it is used as target region by other regions: " + strings.Join(inbounds[toRegion], ", ")}
+		}
+	}
+
 	return nil
 }

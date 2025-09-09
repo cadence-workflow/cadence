@@ -16,6 +16,7 @@ jobs:
           - activeactive
           - activeactive_cron
           - activeactive_regional_failover
+          - activeactive_regional_failover_start_same_wfid
           - activepassive_to_activeactive
           - clusterredirection
           - default
