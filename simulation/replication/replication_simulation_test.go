@@ -155,7 +155,7 @@ func startWorkflow(
 	if err != nil {
 		if op.Want.Error != "" {
 			if strings.Contains(err.Error(), op.Want.Error) {
-				simTypes.Logf(t, "Start workflow got expected error: %s on domain: %s on cluster: %s. Error: %s", op.Want.Error, op.WorkflowID, op.Domain, op.Cluster, err.Error())
+				simTypes.Logf(t, "Start workflow got expected error: %s on domain: %s on cluster: %s. Error: %s", op.WorkflowID, op.Domain, op.Cluster, err.Error())
 				return nil
 			}
 			return fmt.Errorf("expected error: %s, but got: %s", op.Want.Error, err.Error())
