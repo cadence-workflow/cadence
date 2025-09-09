@@ -3312,10 +3312,11 @@ func constructRestartWorkflowRequest(w *types.WorkflowExecutionStartedEventAttri
 		TaskStartToCloseTimeoutSeconds:      w.TaskStartToCloseTimeoutSeconds,
 		Identity:                            identity,
 		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyTerminateIfRunning.Ptr(),
+		CronOverlapPolicy:                   w.CronOverlapPolicy,
 	}
 	startRequest.CronSchedule = w.CronSchedule
 	startRequest.RetryPolicy = w.RetryPolicy
-	startRequest.DelayStartSeconds = w.FirstDecisionTaskBackoffSeconds
+	startRequest.DelayStartSeconds = common.Int32Ptr(0)
 	startRequest.Header = w.Header
 	startRequest.Memo = w.Memo
 	startRequest.SearchAttributes = w.SearchAttributes
