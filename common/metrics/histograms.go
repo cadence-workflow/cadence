@@ -104,15 +104,15 @@ func (s SubsettableHistogram) subsetTo(newScale int) SubsettableHistogram {
 		tallyBuckets: slices.Clone(s.tallyBuckets),
 		scale:        s.scale,
 	}
-	// remove every other bucket per -1 scale
+	// compress every other bucket per -1 scale
 	for dup.scale > newScale {
 		if (len(dup.tallyBuckets)-1)%2 != 0 {
 			panic(fmt.Sprintf("cannot subset from scale %v to %v, %v-buckets is not divisible by 2", dup.scale, dup.scale-1, len(dup.tallyBuckets)-1))
 		}
 		half := make(tally.DurationBuckets, 0, ((len(dup.tallyBuckets)-1)/2)+1)
-		half = append(half, dup.tallyBuckets[0]) // keep the zero value
+		half = append(half, dup.tallyBuckets[0]) // keep the zero value intact
 		for i := 1; i < len(dup.tallyBuckets); i += 2 {
-			half = append(half, dup.tallyBuckets[i]) // add first, third, etc
+			half = append(half, dup.tallyBuckets[i]) // compress the first, third, etc
 		}
 		dup.tallyBuckets = half
 		dup.scale--
@@ -162,43 +162,58 @@ func (i IntSubsettableHistogram) tags() map[string]string {
 //
 // For all values produced, please add a test to print the concrete values, and record the length so they
 // can be quickly checked when reading.
-func makeSubsettableHistogram(start time.Duration, scale int, stop func(last time.Duration, length int) bool) SubsettableHistogram {
+func makeSubsettableHistogram(start time.Duration, scale int, stop func(last time.Duration, count int) bool) SubsettableHistogram {
 	if start <= 0 {
 		panic(fmt.Sprintf("start must be greater than 0 or it will not grow exponentially, got %v", start))
 	}
 	if scale < 0 || scale > 3 {
-		// anything outside this range is currently not expected and probably a mistake
+		// anything outside this range is currently not expected and probably a mistake,
+		// but any value is technically sound.
 		panic(fmt.Sprintf("scale must be between 0 (grows by *2) and 3 (grows by *2^1/8), got scale: %v", scale))
 	}
-	buckets := tally.DurationBuckets{
-		time.Duration(0), // else "too low" and "negative" are impossible to tell apart.
-		// ^ note this must be excluded from calculations below, hence -1 everywhere.
-	}
+	var buckets tally.DurationBuckets
 	for {
 		if len(buckets) > 320 {
 			panic(fmt.Sprintf("over 320 buckets is too many, choose a smaller range or smaller scale.  "+
 				"started at: %v, scale: %v, last value: %v",
-				start, scale, buckets[len(buckets)-1]))
+				start, scale, last(buckets)))
 		}
-		buckets = append(buckets, nextBucket(start, len(buckets)-1, scale))
+		buckets = append(buckets, nextBucket(start, len(buckets), scale))
 
 		// stop when requested.
-		if stop(buckets[len(buckets)-1], len(buckets)-1) {
+		if stop(last(buckets), len(buckets)) {
 			break
 		}
 	}
 
-	// fill in as many buckets as are necessary to make a full "row", i.e. just
-	// before the next power of 2 from the original value.
-	// this ensures subsetting keeps "round" numbers as long as possible.
+	// make sure the number of buckets completes a "full" row,
+	// i.e. the next bucket would be a power of 2 of the start value.
+	//
+	// for a more visual example of what this means, see the logged strings in tests:
+	// each "row" of values must be the same width.
+	//
+	// adding a couple buckets to ensure this is met costs very little, and ensures
+	// subsetting combines values more consistently (not crossing rows) for longer.
 	powerOfTwoWidth := int(math.Pow(2, float64(scale))) // num of buckets needed to double a value
-	for (len(buckets)-1)%powerOfTwoWidth != 0 {
-		buckets = append(buckets, nextBucket(start, len(buckets)-1, scale))
+	missing := len(buckets) % powerOfTwoWidth
+	if missing != 0 {
+		panic(fmt.Sprintf(`number of buckets must "fill" a power of 2 to end at a consistent row width.  `+
+			`got %d, probably raise to %d`,
+			len(buckets), len(buckets)+missing))
 	}
 	return SubsettableHistogram{
-		tallyBuckets: buckets,
-		scale:        scale,
+		tallyBuckets: append(
+			// always include a zero value at the beginning, so negative values are noticeable ("-inf to 0" bucket)
+			tally.DurationBuckets{0},
+			buckets...,
+		),
+		scale: scale,
 	}
+}
+
+// last-item-in-slice helper to eliminate some magic `-1`s
+func last[T any, X ~[]T](s X) T {
+	return s[len(s)-1]
 }
 
 func nextBucket(start time.Duration, num int, scale int) time.Duration {
