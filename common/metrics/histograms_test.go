@@ -9,9 +9,8 @@ import (
 )
 
 func TestHistogramValues(t *testing.T) {
-	t.Run("default_1ms_to_10m", func(t *testing.T) {
-		checkHistogram(t, Default1ms10m, 81,
-			`
+	t.Run("default_1ms_to_100s", func(t *testing.T) {
+		checkHistogram(t, Default1ms100s, `
 [0s]
 [1ms 1.189207ms 1.414213ms 1.681792ms]
 [2ms 2.378414ms 2.828427ms 3.363585ms]
@@ -35,9 +34,8 @@ func TestHistogramValues(t *testing.T) {
 [8m44.288s 10m23.48701991s 12m21.455200189s 14m41.743799521s]
 `)
 	})
-	t.Run("low_1ms_to_10m", func(t *testing.T) {
-		checkHistogram(t, Low1ms10m, 41,
-			`
+	t.Run("low_1ms_to_100s", func(t *testing.T) {
+		checkHistogram(t, Low1ms100s, `
 [0s]
 [1ms 1.414213ms]
 [2ms 2.828427ms]
@@ -62,8 +60,7 @@ func TestHistogramValues(t *testing.T) {
 `)
 	})
 	t.Run("high_1ms_to_24h", func(t *testing.T) {
-		checkHistogram(t, High1ms24h, 113,
-			`
+		checkHistogram(t, High1ms24h, `
 [0s]
 [1ms 1.189207ms 1.414213ms 1.681792ms]
 [2ms 2.378414ms 2.828427ms 3.363585ms]
@@ -96,7 +93,7 @@ func TestHistogramValues(t *testing.T) {
 `)
 	})
 	t.Run("mid_1ms_24h", func(t *testing.T) {
-		checkHistogram(t, Mid1ms24h, 57, `
+		checkHistogram(t, Mid1ms24h, `
 [0s]
 [1ms 1.414213ms]
 [2ms 2.828427ms]
@@ -128,7 +125,7 @@ func TestHistogramValues(t *testing.T) {
 [37h16m57.728s 52h43m32.531248503s]
 `)
 	})
-	t.Run("mid_to_32k_ints", func(t *testing.T) {
+	t.Run("mid_to_16k_ints", func(t *testing.T) {
 		// note: this histogram has some duplicates.
 		//
 		// this wastes a bit of memory, but Tally will choose the same index each
@@ -138,7 +135,7 @@ func TestHistogramValues(t *testing.T) {
 		// if this turns out to be expensive in Prometheus / etc, it's easy
 		// enough to start the histogram at 8, and dual-emit a non-exponential
 		// histogram for lower values.
-		checkHistogram(t, Mid1To32k, 65, `
+		checkHistogram(t, Mid1To16k, `
 [0]
 [1 1 1 1]
 [2 2 2 3]
@@ -161,7 +158,7 @@ func TestHistogramValues(t *testing.T) {
 }
 
 // most histograms should pass this check, but fuzzy comparison is fine if needed for extreme cases.
-func checkHistogram[T any](t *testing.T, h histogrammy[T], length int, expected string) {
+func checkHistogram[T any](t *testing.T, h histogrammy[T], expected string) {
 	var buf strings.Builder
 	h.print(func(s string, a ...any) {
 		str := fmt.Sprintf(s, a...)
@@ -171,8 +168,6 @@ func checkHistogram[T any](t *testing.T, h histogrammy[T], length int, expected 
 	if strings.TrimSpace(expected) != strings.TrimSpace(buf.String()) {
 		t.Error("histogram definition changed, update the test if this is intended")
 	}
-
-	assert.Equal(t, length, h.len(), "wrong number of buckets")
 
 	buckets := h.buckets()
 	assert.EqualValues(t, 0, buckets[0], "first bucket should always be zero")

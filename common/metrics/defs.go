@@ -3221,7 +3221,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskNotActiveCounter:             {metricName: "task_errors_not_active_counter", metricType: Counter},
 		TaskLimitExceededCounter:         {metricName: "task_errors_limit_exceeded_counter", metricType: Counter},
 		TaskProcessingLatency:            {metricName: "task_latency_processing", metricType: Timer},
-		ExponentialTaskProcessingLatency: {metricName: "task_latency_processing_ns", metricType: Histogram, exponentialBuckets: Low1ms10m},
+		ExponentialTaskProcessingLatency: {metricName: "task_latency_processing_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		TaskQueueLatency:                 {metricName: "task_latency_queue", metricType: Timer},
 		ScheduleToStartHistoryQueueLatencyPerTaskList: {metricName: "schedule_to_start_history_queue_latency_per_tl", metricType: Timer},
 		TaskRequestsOldScheduler:                      {metricName: "task_requests_old_scheduler", metricType: Counter},

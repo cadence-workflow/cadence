@@ -12,14 +12,19 @@ import (
 
 // Nearly all histograms should use pre-defined buckets here, to encourage consistency.
 //
-// Name them more by their intent than their exact ranges, because the ranges will be adjusted to
-// add a small bit of safety buffer and round to a nicely-divisible count.
-// For this reason, if you need something outside the intent but within the technical boundaries,
-// you should probably make a new bucket instead so you have more of an unexpected-value safety buffer.
+// When creating a new one, make sure to read makeSubsettableHistogram for context, and choose
+// values that communicate your *intent*, not the actual final value.  Add a test to show the
+// resulting buckets, so reviewers can see just how much / how little you chose.
+//
+// Similarly, name them more by their intent than their exact ranges, because "it has just barely
+// enough buckets" is almost always not *actually* enough when things misbehave.
+// Choosing by intent also helps make adjusting these values safer if needed (e.g. subsetting or
+// reducing the range), because we can be sure all intents match.
 var (
-	// Default1ms10m is our "default" set of buckets, targeting at least 1ms through 100s,
+	// Default1ms100s is our "default" set of buckets, targeting at least 1ms through 100s,
 	// and is "rounded up" slightly to reach 80 buckets (100s needs 68 buckets),
-	// plus multi-minute exceptions are common enough to support for the small additional cost.
+	// plus multi-minute exceptions are common enough to support for the small additional cost
+	// (this goes up to ~15m).
 	//
 	// That makes this *relatively* costly, but hopefully good enough for most metrics without
 	// needing any careful thought.  If this proves incorrect, it will be down-scaled without
@@ -28,42 +33,36 @@ var (
 	//
 	// If you need sub-millisecond precision, or substantially longer durations than about 1 minute,
 	// consider using a different histogram.
-	Default1ms10m = makeSubsettableHistogram(time.Millisecond, 2, func(last time.Duration, length int) bool {
-		return last >= 10*time.Minute && length == 80
-	})
+	Default1ms100s = makeSubsettableHistogram(2, time.Millisecond, 100*time.Second, 80)
 
-	// Low1ms10m is a half-resolution version of Default1ms10m, intended for use any time the default
+	// Low1ms100s is a half-resolution version of Default1ms100s, intended for use any time the default
 	// is expected to be more costly than we feel comfortable with.  Or for automatic down-scaling
 	// at runtime via dynamic config, if that's ever built.
 	//
-	// This uses only 41 buckets, so it's likely good enough for most <10m purposes, e.g. database operations.
-	// E.g. reducing to "1ms to 10s" seems reasonable, but that still needs ~32 buckets, which isn't a big savings
-	// and reduces our ability to notice abnormally slow events.
-	Low1ms10m = Default1ms10m.subsetTo(1)
+	// This uses only 40 buckets, so it's likely good enough for most purposes, e.g. database operations
+	// that might have high cardinality but should not exceed about a minute even in exceptional cases.
+	// Reducing this to "1ms to 10s" seems reasonable for some cases, but that still needs ~32 buckets,
+	// which isn't a big savings and reduces our ability to notice abnormally slow events.
+	Low1ms100s = Default1ms100s.subsetTo(1)
 
 	// High1ms24h covers things like activity latency, where ranges are very large but
 	// "longer than 1 day" is not particularly worth being precise about.
 	//
 	// This uses a lot of buckets, so it must be used with relatively-low cardinality elsewhere,
 	// and/or consider dual emitting (Mid1ms24h or lower) so overviews can be queried efficiently.
-	High1ms24h = makeSubsettableHistogram(time.Millisecond, 2, func(last time.Duration, length int) bool {
-		// 24h leads to 108 buckets, raise to 112 for better subsetting
-		return last >= 24*time.Hour && length == 112
-	})
+	High1ms24h = makeSubsettableHistogram(2, time.Millisecond, 24*time.Hour, 112)
 
 	// Mid1ms24h is a one-scale-lower version of High1ms24h,
 	// for use when we know it's too detailed to be worth emitting.
 	//
-	// This uses 57 buckets, half of High1ms24h's 113
+	// This uses 56 buckets, half of High1ms24h's 112
 	Mid1ms24h = High1ms24h.subsetTo(1)
 
-	// Mid1To32k is a histogram for small counters, like "how many replication tasks did we receive".
-	// This targets 1 to ~10k with some buffer, and ends just below 64k (so do not rely on it for 64k, make a new histogram)
-	Mid1To32k = IntSubsettableHistogram(makeSubsettableHistogram(1, 2, func(last time.Duration, length int) bool {
-		// 10k needs 56 buckets and is uncomfortably close to the limit for e.g.
-		// replication batch sizes, raise to 64 for better subsetting
-		return last >= 10000 && length == 64
-	}))
+	// Mid1To16k is a histogram for small counters, like "how many replication tasks did we receive".
+	//
+	// This targets 1 to ~10k with some buffer, and ends just below 64k.
+	// Do not rely on this for values which can ever reach 64k, make a new histogram.
+	Mid1To16k = IntSubsettableHistogram(makeSubsettableHistogram(2, 1, 16384, 64))
 )
 
 // SubsettableHistogram is a duration-based histogram that can be subset to a lower scale
@@ -81,6 +80,7 @@ type SubsettableHistogram struct {
 // to SubsettableHistogram but built as a separate type so you cannot pass the wrong one.
 //
 // These histograms MUST always have a "_counts" suffix in their name to avoid confusion with timers.
+// (more suffixes will likely be allowed as needed)
 type IntSubsettableHistogram SubsettableHistogram
 
 // currently we have no apparent need for float-histograms,
@@ -126,6 +126,9 @@ func (i IntSubsettableHistogram) subsetTo(newScale int) IntSubsettableHistogram 
 
 func (s SubsettableHistogram) tags() map[string]string {
 	return map[string]string{
+		// use the duration string func, as "1ms" duration suffix is clearer than "1000000" for nanoseconds.
+		// this also helps differentiate "tracks time" from "may be a general value distribution",
+		// both visually when querying by hand and for any future automation (if needed).
 		"histogram_start": s.start().String(),
 		"histogram_end":   s.end().String(),
 		"histogram_scale": strconv.Itoa(s.scale),
@@ -149,43 +152,37 @@ func (i IntSubsettableHistogram) tags() map[string]string {
 // and avoids some bugs with low values (tally.MustMakeExponentialDurationBuckets misbehaves for small numbers,
 // causing all buckets to == the minimum value).
 //
-// Start time must be positive, scale must be 0..3 (inclusive), and the loop MUST stop within 320 or fewer steps,
-// to prevent extremely-costly histograms.
-// Even 320 is far too many tbh, target a max of 160 for very-high-value data, and generally around 80 or less
-// (ideally a value that is divisible by 2 many times, to allow "clean" subsetting, but this is NOT necessary).
+// # To use
 //
-// The stop callback will be given the current largest value and the number of values generated so far.
-// This excludes the zero value (you should ignore it anyway), so you can stop at your target value,
-// or == a highly-divisible-by-2 number (do not go over).
-// The buckets produced may be padded further to reach a "full" power-of-2 row, as this simplifies math elsewhere
-// and costs very little compared to the rest of the histogram.
+// Choose scale/start/end values that match your *intent*, i.e. the range you want to capture, and then choose
+// a length that EXCEEDS that by at least 2x, ideally 4x-10x, and ends at a highly-divisible-by-2 value.
 //
-// For all values produced, please add a test to print the concrete values, and record the length so they
-// can be quickly checked when reading.
-func makeSubsettableHistogram(start time.Duration, scale int, stop func(last time.Duration, count int) bool) SubsettableHistogram {
-	if start <= 0 {
-		panic(fmt.Sprintf("start must be greater than 0 or it will not grow exponentially, got %v", start))
-	}
+// The exact length / exceeding / etc does not matter (just write a test so it's documented and can be reviewed),
+// it just serves to document your intent and to make sure that we have some head-room so we can understand how
+// wrongly we guessed at our needs if it's exceeded during an incident of some kind.  We've failed at this
+// multiple times in the past, it's worth paying a bit extra to be able to diagnose problems.
+//
+// For all histograms produced, add a test to print the concrete values, so they can be quickly checked when reading.
+func makeSubsettableHistogram(scale int, start, end time.Duration, length int) SubsettableHistogram {
 	if scale < 0 || scale > 3 {
 		// anything outside this range is currently not expected and probably a mistake,
 		// but any value is technically sound.
 		panic(fmt.Sprintf("scale must be between 0 (grows by *2) and 3 (grows by *2^1/8), got scale: %v", scale))
 	}
-	var buckets tally.DurationBuckets
-	for {
-		if len(buckets) > 320 {
-			panic(fmt.Sprintf("over 320 buckets is too many, choose a smaller range or smaller scale.  "+
-				"started at: %v, scale: %v, last value: %v",
-				start, scale, last(buckets)))
-		}
-		buckets = append(buckets, nextBucket(start, len(buckets), scale))
-
-		// stop when requested.
-		if stop(last(buckets), len(buckets)) {
-			break
-		}
+	if start <= 0 {
+		panic(fmt.Sprintf("start must be greater than 0 or it will not grow exponentially, got %v", start))
 	}
-
+	if start >= end {
+		panic(fmt.Sprintf("start must be less than end (%v < %v)", start, end))
+	}
+	if length < 12 || length > 160 {
+		// 160 is probably higher than we should consider, but going further is currently risking much too high costs.
+		// if this changes, e.g. due to metrics optimizations, just adjust this validation.
+		//
+		// 12 is pretty arbitrary, I just don't expect us to ever make a histogram that small, so it's probably
+		// from accidentally passing scale or something to the wrong argument.
+		panic(fmt.Sprintf("length must be between 12 < %d <=160", length))
+	}
 	// make sure the number of buckets completes a "full" row,
 	// i.e. the next bucket would be a power of 2 of the start value.
 	//
@@ -195,12 +192,26 @@ func makeSubsettableHistogram(start time.Duration, scale int, stop func(last tim
 	// adding a couple buckets to ensure this is met costs very little, and ensures
 	// subsetting combines values more consistently (not crossing rows) for longer.
 	powerOfTwoWidth := int(math.Pow(2, float64(scale))) // num of buckets needed to double a value
-	missing := len(buckets) % powerOfTwoWidth
+	missing := length % powerOfTwoWidth
 	if missing != 0 {
 		panic(fmt.Sprintf(`number of buckets must "fill" a power of 2 to end at a consistent row width.  `+
 			`got %d, probably raise to %d`,
-			len(buckets), len(buckets)+missing))
+			length, length+missing))
 	}
+
+	var buckets tally.DurationBuckets
+	for i := 0; i < length; i++ {
+		buckets = append(buckets, nextBucket(start, len(buckets), scale))
+	}
+
+	if last(buckets) <= end*2 {
+		panic(fmt.Sprintf("not enough buckets (%d) to exceed the end target (%v) by at least 2x. "+
+			"you are STRONGLY encouraged to include ~2x-10x more range than your intended end value, "+
+			"because we almost always underestimate the ranges needed during incidents",
+			length, last(buckets)),
+		)
+	}
+
 	return SubsettableHistogram{
 		tallyBuckets: append(
 			// always include a zero value at the beginning, so negative values are noticeable ("-inf to 0" bucket)
