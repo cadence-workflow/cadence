@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/IBM/sarama"
+	"github.com/Shopify/sarama"
 	"github.com/uber-go/tally"
 
 	"github.com/uber/cadence/common/authorization"

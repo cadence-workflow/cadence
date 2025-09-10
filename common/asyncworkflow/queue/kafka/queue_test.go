@@ -26,7 +26,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/IBM/sarama"
+	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
