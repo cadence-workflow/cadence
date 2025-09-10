@@ -123,6 +123,14 @@ func (s *virtualSliceImpl) GetTasks(ctx context.Context, pageSize int) ([]task.T
 			PageSize:  pageSize - len(tasks),
 		})
 		if err != nil {
+			// NOTE: we must return the tasks here to let them either be submitted to scheduler or rescheduler
+			// because they are already added to pending task tracker. Otherwise, they will become zombie tasks,
+			// and won't be processed until shard restart.
+			// The number of tasks returned here doesn't need to be the same as the page size even if there is still more tasks to read.
+			// HasMoreTasks() method will still return true in this case.
+			if len(tasks) > 0 {
+				return tasks, nil
+			}
 			return nil, err
 		}
 

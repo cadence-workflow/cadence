@@ -1541,6 +1541,156 @@ func TestGetTasks(t *testing.T) {
 			expectedTasksCount: 0,
 			expectedError:      assert.AnError,
 		},
+		{
+			name: "Single page of tasks with error from queue reader",
+			slice: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(1),
+					},
+				},
+			},
+			pageSize: 2,
+			setupMock: func(mockQueueReader *MockQueueReader, mockPendingTaskTracker *MockPendingTaskTracker) {
+				mockQueueReader.EXPECT().GetTask(gomock.Any(), &GetTaskRequest{
+					Progress: &GetTaskProgress{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(1),
+					},
+					Predicate: NewUniversalPredicate(),
+					PageSize:  2,
+				}).Return(&GetTaskResponse{
+					Tasks: []persistence.Task{historyTasks[0]},
+					Progress: &GetTaskProgress{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey:   persistence.NewImmediateTaskKey(3),
+						NextPageToken: []byte("token"),
+					},
+				}, nil)
+				mockPendingTaskTracker.EXPECT().AddTask(gomock.Any()).Times(1)
+				mockQueueReader.EXPECT().GetTask(gomock.Any(), &GetTaskRequest{
+					Progress: &GetTaskProgress{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey:   persistence.NewImmediateTaskKey(3),
+						NextPageToken: []byte("token"),
+					},
+					Predicate: NewUniversalPredicate(),
+					PageSize:  1,
+				}).Return(nil, assert.AnError)
+			},
+			expectedTasksCount: 1,
+			expectedError:      nil,
+			expectedProgress: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+					NextPageToken: []byte("token"),
+				},
+			},
+		},
+		{
+			name: "Multiple pages of tasks with error from queue reader",
+			slice: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey:   persistence.NewImmediateTaskKey(3),
+						NextPageToken: []byte("token"),
+					},
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+				},
+			},
+			pageSize: 3,
+			setupMock: func(mockQueueReader *MockQueueReader, mockPendingTaskTracker *MockPendingTaskTracker) {
+				// First page
+				mockQueueReader.EXPECT().GetTask(gomock.Any(), &GetTaskRequest{
+					Progress: &GetTaskProgress{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey:   persistence.NewImmediateTaskKey(3),
+						NextPageToken: []byte("token"),
+					},
+					Predicate: NewUniversalPredicate(),
+					PageSize:  3,
+				}).Return(&GetTaskResponse{
+					Tasks: []persistence.Task{historyTasks[0], historyTasks[1]},
+					Progress: &GetTaskProgress{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+				}, nil)
+
+				// Second page
+				mockQueueReader.EXPECT().GetTask(gomock.Any(), &GetTaskRequest{
+					Progress: &GetTaskProgress{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewUniversalPredicate(),
+					PageSize:  1,
+				}).Return(nil, assert.AnError)
+
+				mockPendingTaskTracker.EXPECT().AddTask(gomock.Any()).Times(2)
+			},
+			expectedTasksCount: 2,
+			expectedError:      nil,
+			expectedProgress: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					NextTaskKey: persistence.NewImmediateTaskKey(5),
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
