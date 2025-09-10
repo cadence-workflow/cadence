@@ -3316,6 +3316,8 @@ func constructRestartWorkflowRequest(w *types.WorkflowExecutionStartedEventAttri
 	}
 	startRequest.CronSchedule = w.CronSchedule
 	startRequest.RetryPolicy = w.RetryPolicy
+	startRequest.JitterStartSeconds = w.JitterStartSeconds
+	startRequest.ActiveClusterSelectionPolicy = w.ActiveClusterSelectionPolicy
 	startRequest.DelayStartSeconds = common.Int32Ptr(0)
 	startRequest.Header = w.Header
 	startRequest.Memo = w.Memo
