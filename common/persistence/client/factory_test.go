@@ -26,7 +26,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/Shopify/sarama/mocks"
+	"github.com/IBM/sarama/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"

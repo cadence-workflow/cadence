@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"golang.org/x/net/context"
 
 	"github.com/uber/cadence/common"
@@ -194,7 +194,7 @@ func (h *consumerHandlerImpl) completeMessage(message *messageImpl, isAck bool) 
 	if !isAck {
 		op := func(ctx context.Context) error {
 			// NOTE: current KafkaProducer is not taking use the this context, because saramaProducer doesn't support it
-			// https://github.com/Shopify/sarama/issues/1849
+			// https://github.com/IBM/sarama/issues/1849
 			ctx, cancel := context.WithTimeout(ctx, dlqPublishTimeout)
 			err := h.dlqProducer.Publish(ctx, message.saramaMsg)
 			cancel()

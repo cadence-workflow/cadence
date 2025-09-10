@@ -28,7 +28,7 @@ import (
 	"github.com/xdg/scram"
 )
 
-// NOTE: the code is copied from https://github.com/Shopify/sarama/blob/master/examples/sasl_scram_client/scram_client.go
+// NOTE: the code is copied from https://github.com/IBM/sarama/blob/master/examples/sasl_scram_client/scram_client.go
 
 // SHA256 algorithm
 var SHA256 scram.HashGeneratorFcn = func() hash.Hash { return sha256.New() }
