@@ -114,7 +114,18 @@ func (s SubsettableHistogram) subsetTo(newScale int) SubsettableHistogram {
 	// compress every other bucket per -1 scale
 	for dup.scale > newScale {
 		if (len(dup.tallyBuckets)-2)%2 != 0 { // -2 for 0 and last-2^N
-			panic(fmt.Sprintf("cannot subset from scale %v to %v, %v-buckets is not divisible by 2", dup.scale, dup.scale-1, len(dup.tallyBuckets)-2))
+			panic(fmt.Sprintf(
+				"cannot subset from scale %v to %v, %v-buckets is not divisible by 2",
+				dup.scale, dup.scale-1, len(dup.tallyBuckets)-2))
+		}
+		if len(dup.tallyBuckets) <= 3 {
+			// at 3 buckets, there's just 0, start, end.
+			//
+			// this is well past the point of being useful,
+			// and it means we might try to slice `[1:0]` or similar.
+			panic(fmt.Sprintf(
+				"not enough buckets to subset from scale %d to %d, only have %d: %v",
+				dup.scale, dup.scale-1, len(dup.tallyBuckets), dup.tallyBuckets))
 		}
 
 		// the first and last buckets will be kept, the rest will lose half per scale
