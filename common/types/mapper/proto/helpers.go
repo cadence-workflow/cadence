@@ -184,3 +184,37 @@ func (fs fieldSet) isSet(field string) bool {
 func newFieldMask(fields []string) *gogo.FieldMask {
 	return &gogo.FieldMask{Paths: fields}
 }
+
+// safeFromEnum safely converts an internal enum pointer to proto enum with fallback to invalid value
+// This eliminates panics by returning the invalidValue for any unknown or nil input
+func safeFromEnum[T ~int32, P any](internalValue *T, invalidValue P, mappingFunc func(T) P) P {
+	if internalValue == nil {
+		return invalidValue
+	}
+	
+	// Use defer+recover to catch any panics from the mapping function and return invalid value
+	defer func() {
+		if recover() != nil {
+			// Mapping function panicked, but we'll return invalidValue instead
+		}
+	}()
+	
+	return mappingFunc(*internalValue)
+}
+
+// safeToEnum safely converts a proto enum to internal enum pointer with fallback to nil
+// This eliminates panics by returning nil for any unknown input values
+func safeToEnum[P ~int32, T any](protoValue P, invalidValue P, mappingFunc func(P) *T) *T {
+	if protoValue == invalidValue {
+		return nil
+	}
+	
+	// Use defer+recover to catch any panics from the mapping function and return nil
+	defer func() {
+		if recover() != nil {
+			// Mapping function panicked, but we'll return nil instead
+		}
+	}()
+	
+	return mappingFunc(protoValue)
+}

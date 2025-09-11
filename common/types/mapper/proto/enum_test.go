@@ -44,8 +44,15 @@ func TestTaskSource(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToTaskSource(FromTaskSource(item)))
 	}
-	assert.Panics(t, func() { ToTaskSource(sharedv1.TaskSource(UnknownValue)) })
-	assert.Panics(t, func() { FromTaskSource(types.TaskSource(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToTaskSource(sharedv1.TaskSource(UnknownValue)) })
+	assert.NotPanics(t, func() { FromTaskSource(types.TaskSource(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToTaskSource(sharedv1.TaskSource(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, sharedv1.TaskSource_TASK_SOURCE_INVALID, FromTaskSource(types.TaskSource(UnknownValue).Ptr()))
 }
 func TestDLQType(t *testing.T) {
 	for _, item := range []*types.DLQType{
@@ -55,8 +62,15 @@ func TestDLQType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToDLQType(FromDLQType(item)))
 	}
-	assert.Panics(t, func() { ToDLQType(adminv1.DLQType(UnknownValue)) })
-	assert.Panics(t, func() { FromDLQType(types.DLQType(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToDLQType(adminv1.DLQType(UnknownValue)) })
+	assert.NotPanics(t, func() { FromDLQType(types.DLQType(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToDLQType(adminv1.DLQType(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, adminv1.DLQType_DLQ_TYPE_INVALID, FromDLQType(types.DLQType(UnknownValue).Ptr()))
 }
 func TestDomainOperation(t *testing.T) {
 	for _, item := range []*types.DomainOperation{
@@ -66,8 +80,15 @@ func TestDomainOperation(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToDomainOperation(FromDomainOperation(item)))
 	}
-	assert.Panics(t, func() { ToDomainOperation(adminv1.DomainOperation(UnknownValue)) })
-	assert.Panics(t, func() { FromDomainOperation(types.DomainOperation(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToDomainOperation(adminv1.DomainOperation(UnknownValue)) })
+	assert.NotPanics(t, func() { FromDomainOperation(types.DomainOperation(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToDomainOperation(adminv1.DomainOperation(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, adminv1.DomainOperation_DOMAIN_OPERATION_INVALID, FromDomainOperation(types.DomainOperation(UnknownValue).Ptr()))
 }
 func TestReplicationTaskType(t *testing.T) {
 	for _, item := range []*types.ReplicationTaskType{
@@ -82,8 +103,15 @@ func TestReplicationTaskType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToReplicationTaskType(FromReplicationTaskType(item)))
 	}
-	assert.Panics(t, func() { ToReplicationTaskType(adminv1.ReplicationTaskType(UnknownValue)) })
-	assert.Panics(t, func() { FromReplicationTaskType(types.ReplicationTaskType(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToReplicationTaskType(adminv1.ReplicationTaskType(UnknownValue)) })
+	assert.NotPanics(t, func() { FromReplicationTaskType(types.ReplicationTaskType(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToReplicationTaskType(adminv1.ReplicationTaskType(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_INVALID, FromReplicationTaskType(types.ReplicationTaskType(UnknownValue).Ptr()))
 }
 func TestArchivalStatus(t *testing.T) {
 	for _, item := range []*types.ArchivalStatus{
@@ -93,8 +121,15 @@ func TestArchivalStatus(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToArchivalStatus(FromArchivalStatus(item)))
 	}
-	assert.Panics(t, func() { ToArchivalStatus(apiv1.ArchivalStatus(UnknownValue)) })
-	assert.Panics(t, func() { FromArchivalStatus(types.ArchivalStatus(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToArchivalStatus(apiv1.ArchivalStatus(UnknownValue)) })
+	assert.NotPanics(t, func() { FromArchivalStatus(types.ArchivalStatus(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToArchivalStatus(apiv1.ArchivalStatus(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.ArchivalStatus_ARCHIVAL_STATUS_INVALID, FromArchivalStatus(types.ArchivalStatus(UnknownValue).Ptr()))
 }
 func TestCancelExternalWorkflowExecutionFailedCause(t *testing.T) {
 	for _, item := range []*types.CancelExternalWorkflowExecutionFailedCause{
@@ -104,12 +139,15 @@ func TestCancelExternalWorkflowExecutionFailedCause(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToCancelExternalWorkflowExecutionFailedCause(FromCancelExternalWorkflowExecutionFailedCause(item)))
 	}
-	assert.Panics(t, func() {
-		ToCancelExternalWorkflowExecutionFailedCause(apiv1.CancelExternalWorkflowExecutionFailedCause(UnknownValue))
-	})
-	assert.Panics(t, func() {
-		FromCancelExternalWorkflowExecutionFailedCause(types.CancelExternalWorkflowExecutionFailedCause(UnknownValue).Ptr())
-	})
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToCancelExternalWorkflowExecutionFailedCause(apiv1.CancelExternalWorkflowExecutionFailedCause(UnknownValue)) })
+	assert.NotPanics(t, func() { FromCancelExternalWorkflowExecutionFailedCause(types.CancelExternalWorkflowExecutionFailedCause(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToCancelExternalWorkflowExecutionFailedCause(apiv1.CancelExternalWorkflowExecutionFailedCause(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.CancelExternalWorkflowExecutionFailedCause_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID, FromCancelExternalWorkflowExecutionFailedCause(types.CancelExternalWorkflowExecutionFailedCause(UnknownValue).Ptr()))
 }
 func TestChildWorkflowExecutionFailedCause(t *testing.T) {
 	for _, item := range []*types.ChildWorkflowExecutionFailedCause{
@@ -118,10 +156,17 @@ func TestChildWorkflowExecutionFailedCause(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToChildWorkflowExecutionFailedCause(FromChildWorkflowExecutionFailedCause(item)))
 	}
-	assert.Panics(t, func() { ToChildWorkflowExecutionFailedCause(apiv1.ChildWorkflowExecutionFailedCause(UnknownValue)) })
-	assert.Panics(t, func() {
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToChildWorkflowExecutionFailedCause(apiv1.ChildWorkflowExecutionFailedCause(UnknownValue)) })
+	assert.NotPanics(t, func() {
 		FromChildWorkflowExecutionFailedCause(types.ChildWorkflowExecutionFailedCause(UnknownValue).Ptr())
 	})
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToChildWorkflowExecutionFailedCause(apiv1.ChildWorkflowExecutionFailedCause(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.ChildWorkflowExecutionFailedCause_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID, FromChildWorkflowExecutionFailedCause(types.ChildWorkflowExecutionFailedCause(UnknownValue).Ptr()))
 }
 func TestContinueAsNewInitiator(t *testing.T) {
 	for _, item := range []*types.ContinueAsNewInitiator{
@@ -132,8 +177,15 @@ func TestContinueAsNewInitiator(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToContinueAsNewInitiator(FromContinueAsNewInitiator(item)))
 	}
-	assert.Panics(t, func() { ToContinueAsNewInitiator(apiv1.ContinueAsNewInitiator(UnknownValue)) })
-	assert.Panics(t, func() { FromContinueAsNewInitiator(types.ContinueAsNewInitiator(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToContinueAsNewInitiator(apiv1.ContinueAsNewInitiator(UnknownValue)) })
+	assert.NotPanics(t, func() { FromContinueAsNewInitiator(types.ContinueAsNewInitiator(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToContinueAsNewInitiator(apiv1.ContinueAsNewInitiator(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.ContinueAsNewInitiator_CONTINUE_AS_NEW_INITIATOR_INVALID, FromContinueAsNewInitiator(types.ContinueAsNewInitiator(UnknownValue).Ptr()))
 }
 func TestCrossClusterTaskFailedCause(t *testing.T) {
 	for _, item := range []*types.CrossClusterTaskFailedCause{
@@ -147,8 +199,15 @@ func TestCrossClusterTaskFailedCause(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToCrossClusterTaskFailedCause(FromCrossClusterTaskFailedCause(item)))
 	}
-	assert.Panics(t, func() { ToCrossClusterTaskFailedCause(adminv1.CrossClusterTaskFailedCause(UnknownValue)) })
-	assert.Panics(t, func() { FromCrossClusterTaskFailedCause(types.CrossClusterTaskFailedCause(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToCrossClusterTaskFailedCause(adminv1.CrossClusterTaskFailedCause(UnknownValue)) })
+	assert.NotPanics(t, func() { FromCrossClusterTaskFailedCause(types.CrossClusterTaskFailedCause(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToCrossClusterTaskFailedCause(adminv1.CrossClusterTaskFailedCause(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, adminv1.CrossClusterTaskFailedCause_CROSS_CLUSTER_TASK_FAILED_CAUSE_INVALID, FromCrossClusterTaskFailedCause(types.CrossClusterTaskFailedCause(UnknownValue).Ptr()))
 }
 func TestDecisionTaskFailedCause(t *testing.T) {
 	for _, item := range []*types.DecisionTaskFailedCause{
@@ -179,8 +238,15 @@ func TestDecisionTaskFailedCause(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToDecisionTaskFailedCause(FromDecisionTaskFailedCause(item)))
 	}
-	assert.Panics(t, func() { ToDecisionTaskFailedCause(apiv1.DecisionTaskFailedCause(UnknownValue)) })
-	assert.Panics(t, func() { FromDecisionTaskFailedCause(types.DecisionTaskFailedCause(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToDecisionTaskFailedCause(apiv1.DecisionTaskFailedCause(UnknownValue)) })
+	assert.NotPanics(t, func() { FromDecisionTaskFailedCause(types.DecisionTaskFailedCause(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToDecisionTaskFailedCause(apiv1.DecisionTaskFailedCause(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_INVALID, FromDecisionTaskFailedCause(types.DecisionTaskFailedCause(UnknownValue).Ptr()))
 }
 func TestDomainStatus(t *testing.T) {
 	for _, item := range []*types.DomainStatus{
@@ -191,8 +257,15 @@ func TestDomainStatus(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToDomainStatus(FromDomainStatus(item)))
 	}
-	assert.Panics(t, func() { ToDomainStatus(apiv1.DomainStatus(UnknownValue)) })
-	assert.Panics(t, func() { FromDomainStatus(types.DomainStatus(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToDomainStatus(apiv1.DomainStatus(UnknownValue)) })
+	assert.NotPanics(t, func() { FromDomainStatus(types.DomainStatus(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToDomainStatus(apiv1.DomainStatus(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.DomainStatus_DOMAIN_STATUS_INVALID, FromDomainStatus(types.DomainStatus(UnknownValue).Ptr()))
 }
 func TestEncodingType(t *testing.T) {
 	for _, item := range []*types.EncodingType{
@@ -202,8 +275,15 @@ func TestEncodingType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToEncodingType(FromEncodingType(item)))
 	}
-	assert.Panics(t, func() { ToEncodingType(apiv1.EncodingType(UnknownValue)) })
-	assert.Panics(t, func() { FromEncodingType(types.EncodingType(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToEncodingType(apiv1.EncodingType(UnknownValue)) })
+	assert.NotPanics(t, func() { FromEncodingType(types.EncodingType(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToEncodingType(apiv1.EncodingType(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.EncodingType_ENCODING_TYPE_INVALID, FromEncodingType(types.EncodingType(UnknownValue).Ptr()))
 }
 func TestEventFilterType(t *testing.T) {
 	for _, item := range []*types.HistoryEventFilterType{
@@ -213,8 +293,15 @@ func TestEventFilterType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToEventFilterType(FromEventFilterType(item)))
 	}
-	assert.Panics(t, func() { ToEventFilterType(apiv1.EventFilterType(UnknownValue)) })
-	assert.Panics(t, func() { FromEventFilterType(types.HistoryEventFilterType(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToEventFilterType(apiv1.EventFilterType(UnknownValue)) })
+	assert.NotPanics(t, func() { FromEventFilterType(types.HistoryEventFilterType(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToEventFilterType(apiv1.EventFilterType(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.EventFilterType_EVENT_FILTER_TYPE_INVALID, FromEventFilterType(types.HistoryEventFilterType(UnknownValue).Ptr()))
 }
 func TestIndexedValueType(t *testing.T) {
 	for _, item := range []types.IndexedValueType{
@@ -227,9 +314,17 @@ func TestIndexedValueType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToIndexedValueType(FromIndexedValueType(item)))
 	}
-	assert.Panics(t, func() { ToIndexedValueType(apiv1.IndexedValueType_INDEXED_VALUE_TYPE_INVALID) })
-	assert.Panics(t, func() { ToIndexedValueType(apiv1.IndexedValueType(UnknownValue)) })
-	assert.Panics(t, func() { FromIndexedValueType(types.IndexedValueType(UnknownValue)) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToIndexedValueType(apiv1.IndexedValueType_INDEXED_VALUE_TYPE_INVALID) })
+	assert.NotPanics(t, func() { ToIndexedValueType(apiv1.IndexedValueType(UnknownValue)) })
+	assert.NotPanics(t, func() { FromIndexedValueType(types.IndexedValueType(UnknownValue)) })
+	
+	// Unknown proto enum values should map to zero value (STRING)
+	assert.Equal(t, types.IndexedValueTypeString, ToIndexedValueType(apiv1.IndexedValueType_INDEXED_VALUE_TYPE_INVALID))
+	assert.Equal(t, types.IndexedValueTypeString, ToIndexedValueType(apiv1.IndexedValueType(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.IndexedValueType_INDEXED_VALUE_TYPE_INVALID, FromIndexedValueType(types.IndexedValueType(UnknownValue)))
 }
 func TestParentClosePolicy(t *testing.T) {
 	for _, item := range []*types.ParentClosePolicy{
@@ -240,8 +335,15 @@ func TestParentClosePolicy(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToParentClosePolicy(FromParentClosePolicy(item)))
 	}
-	assert.Panics(t, func() { ToParentClosePolicy(apiv1.ParentClosePolicy(UnknownValue)) })
-	assert.Panics(t, func() { FromParentClosePolicy(types.ParentClosePolicy(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToParentClosePolicy(apiv1.ParentClosePolicy(UnknownValue)) })
+	assert.NotPanics(t, func() { FromParentClosePolicy(types.ParentClosePolicy(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToParentClosePolicy(apiv1.ParentClosePolicy(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.ParentClosePolicy_PARENT_CLOSE_POLICY_INVALID, FromParentClosePolicy(types.ParentClosePolicy(UnknownValue).Ptr()))
 }
 func TestPendingActivityState(t *testing.T) {
 	for _, item := range []*types.PendingActivityState{
@@ -252,8 +354,15 @@ func TestPendingActivityState(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToPendingActivityState(FromPendingActivityState(item)))
 	}
-	assert.Panics(t, func() { ToPendingActivityState(apiv1.PendingActivityState(UnknownValue)) })
-	assert.Panics(t, func() { FromPendingActivityState(types.PendingActivityState(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToPendingActivityState(apiv1.PendingActivityState(UnknownValue)) })
+	assert.NotPanics(t, func() { FromPendingActivityState(types.PendingActivityState(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToPendingActivityState(apiv1.PendingActivityState(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.PendingActivityState_PENDING_ACTIVITY_STATE_INVALID, FromPendingActivityState(types.PendingActivityState(UnknownValue).Ptr()))
 }
 func TestPendingDecisionState(t *testing.T) {
 	for _, item := range []*types.PendingDecisionState{
@@ -263,8 +372,15 @@ func TestPendingDecisionState(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToPendingDecisionState(FromPendingDecisionState(item)))
 	}
-	assert.Panics(t, func() { ToPendingDecisionState(apiv1.PendingDecisionState(UnknownValue)) })
-	assert.Panics(t, func() { FromPendingDecisionState(types.PendingDecisionState(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToPendingDecisionState(apiv1.PendingDecisionState(UnknownValue)) })
+	assert.NotPanics(t, func() { FromPendingDecisionState(types.PendingDecisionState(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToPendingDecisionState(apiv1.PendingDecisionState(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.PendingDecisionState_PENDING_DECISION_STATE_INVALID, FromPendingDecisionState(types.PendingDecisionState(UnknownValue).Ptr()))
 }
 func TestQueryConsistencyLevel(t *testing.T) {
 	for _, item := range []*types.QueryConsistencyLevel{
@@ -274,8 +390,15 @@ func TestQueryConsistencyLevel(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToQueryConsistencyLevel(FromQueryConsistencyLevel(item)))
 	}
-	assert.Panics(t, func() { ToQueryConsistencyLevel(apiv1.QueryConsistencyLevel(UnknownValue)) })
-	assert.Panics(t, func() { FromQueryConsistencyLevel(types.QueryConsistencyLevel(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToQueryConsistencyLevel(apiv1.QueryConsistencyLevel(UnknownValue)) })
+	assert.NotPanics(t, func() { FromQueryConsistencyLevel(types.QueryConsistencyLevel(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToQueryConsistencyLevel(apiv1.QueryConsistencyLevel(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.QueryConsistencyLevel_QUERY_CONSISTENCY_LEVEL_INVALID, FromQueryConsistencyLevel(types.QueryConsistencyLevel(UnknownValue).Ptr()))
 }
 func TestQueryRejectCondition(t *testing.T) {
 	for _, item := range []*types.QueryRejectCondition{
@@ -285,8 +408,15 @@ func TestQueryRejectCondition(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToQueryRejectCondition(FromQueryRejectCondition(item)))
 	}
-	assert.Panics(t, func() { ToQueryRejectCondition(apiv1.QueryRejectCondition(UnknownValue)) })
-	assert.Panics(t, func() { FromQueryRejectCondition(types.QueryRejectCondition(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToQueryRejectCondition(apiv1.QueryRejectCondition(UnknownValue)) })
+	assert.NotPanics(t, func() { FromQueryRejectCondition(types.QueryRejectCondition(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToQueryRejectCondition(apiv1.QueryRejectCondition(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.QueryRejectCondition_QUERY_REJECT_CONDITION_INVALID, FromQueryRejectCondition(types.QueryRejectCondition(UnknownValue).Ptr()))
 }
 func TestQueryResultType(t *testing.T) {
 	for _, item := range []*types.QueryResultType{
@@ -296,8 +426,15 @@ func TestQueryResultType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToQueryResultType(FromQueryResultType(item)))
 	}
-	assert.Panics(t, func() { ToQueryResultType(apiv1.QueryResultType(UnknownValue)) })
-	assert.Panics(t, func() { FromQueryResultType(types.QueryResultType(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToQueryResultType(apiv1.QueryResultType(UnknownValue)) })
+	assert.NotPanics(t, func() { FromQueryResultType(types.QueryResultType(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToQueryResultType(apiv1.QueryResultType(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.QueryResultType_QUERY_RESULT_TYPE_INVALID, FromQueryResultType(types.QueryResultType(UnknownValue).Ptr()))
 }
 func TestQueryTaskCompletedType(t *testing.T) {
 	for _, item := range []*types.QueryTaskCompletedType{
@@ -307,8 +444,15 @@ func TestQueryTaskCompletedType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToQueryTaskCompletedType(FromQueryTaskCompletedType(item)))
 	}
-	assert.Panics(t, func() { ToQueryTaskCompletedType(apiv1.QueryResultType(UnknownValue)) })
-	assert.Panics(t, func() { FromQueryTaskCompletedType(types.QueryTaskCompletedType(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToQueryTaskCompletedType(apiv1.QueryResultType(UnknownValue)) })
+	assert.NotPanics(t, func() { FromQueryTaskCompletedType(types.QueryTaskCompletedType(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToQueryTaskCompletedType(apiv1.QueryResultType(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.QueryResultType_QUERY_RESULT_TYPE_INVALID, FromQueryTaskCompletedType(types.QueryTaskCompletedType(UnknownValue).Ptr()))
 }
 func TestSignalExternalWorkflowExecutionFailedCause(t *testing.T) {
 	for _, item := range []*types.SignalExternalWorkflowExecutionFailedCause{
@@ -318,12 +462,19 @@ func TestSignalExternalWorkflowExecutionFailedCause(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToSignalExternalWorkflowExecutionFailedCause(FromSignalExternalWorkflowExecutionFailedCause(item)))
 	}
-	assert.Panics(t, func() {
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() {
 		ToSignalExternalWorkflowExecutionFailedCause(apiv1.SignalExternalWorkflowExecutionFailedCause(UnknownValue))
 	})
-	assert.Panics(t, func() {
+	assert.NotPanics(t, func() {
 		FromSignalExternalWorkflowExecutionFailedCause(types.SignalExternalWorkflowExecutionFailedCause(UnknownValue).Ptr())
 	})
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToSignalExternalWorkflowExecutionFailedCause(apiv1.SignalExternalWorkflowExecutionFailedCause(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.SignalExternalWorkflowExecutionFailedCause_SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID, FromSignalExternalWorkflowExecutionFailedCause(types.SignalExternalWorkflowExecutionFailedCause(UnknownValue).Ptr()))
 }
 func TestTaskListKind(t *testing.T) {
 	for _, item := range []*types.TaskListKind{
@@ -334,8 +485,15 @@ func TestTaskListKind(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToTaskListKind(FromTaskListKind(item)))
 	}
-	assert.Panics(t, func() { ToTaskListKind(apiv1.TaskListKind(UnknownValue)) })
-	assert.Panics(t, func() { FromTaskListKind(types.TaskListKind(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToTaskListKind(apiv1.TaskListKind(UnknownValue)) })
+	assert.NotPanics(t, func() { FromTaskListKind(types.TaskListKind(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToTaskListKind(apiv1.TaskListKind(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.TaskListKind_TASK_LIST_KIND_INVALID, FromTaskListKind(types.TaskListKind(UnknownValue).Ptr()))
 }
 func TestTaskListType(t *testing.T) {
 	for _, item := range []*types.TaskListType{
@@ -345,8 +503,15 @@ func TestTaskListType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToTaskListType(FromTaskListType(item)))
 	}
-	assert.Panics(t, func() { ToTaskListType(apiv1.TaskListType(UnknownValue)) })
-	assert.Panics(t, func() { FromTaskListType(types.TaskListType(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToTaskListType(apiv1.TaskListType(UnknownValue)) })
+	assert.NotPanics(t, func() { FromTaskListType(types.TaskListType(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToTaskListType(apiv1.TaskListType(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.TaskListType_TASK_LIST_TYPE_INVALID, FromTaskListType(types.TaskListType(UnknownValue).Ptr()))
 }
 func TestTimeoutType(t *testing.T) {
 	for _, item := range []*types.TimeoutType{
@@ -358,8 +523,15 @@ func TestTimeoutType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToTimeoutType(FromTimeoutType(item)))
 	}
-	assert.Panics(t, func() { ToTimeoutType(apiv1.TimeoutType(UnknownValue)) })
-	assert.Panics(t, func() { FromTimeoutType(types.TimeoutType(UnknownValue).Ptr()) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToTimeoutType(apiv1.TimeoutType(UnknownValue)) })
+	assert.NotPanics(t, func() { FromTimeoutType(types.TimeoutType(UnknownValue).Ptr()) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToTimeoutType(apiv1.TimeoutType(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, apiv1.TimeoutType_TIMEOUT_TYPE_INVALID, FromTimeoutType(types.TimeoutType(UnknownValue).Ptr()))
 }
 func TestDecisionTaskTimedOutCause(t *testing.T) {
 	for _, item := range []*types.DecisionTaskTimedOutCause{
@@ -369,8 +541,12 @@ func TestDecisionTaskTimedOutCause(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToDecisionTaskTimedOutCause(FromDecisionTaskTimedOutCause(item)))
 	}
-	assert.Panics(t, func() { ToDecisionTaskTimedOutCause(apiv1.DecisionTaskTimedOutCause(UnknownValue)) })
-	assert.Panics(t, func() { FromDecisionTaskTimedOutCause(types.DecisionTaskTimedOutCause(UnknownValue).Ptr()) })
+	// Test safe behavior for unknown enum values
+	assert.NotPanics(t, func() { ToDecisionTaskTimedOutCause(apiv1.DecisionTaskTimedOutCause(UnknownValue)) })
+	assert.NotPanics(t, func() { FromDecisionTaskTimedOutCause(types.DecisionTaskTimedOutCause(UnknownValue).Ptr()) })
+	// Verify safe return values
+	assert.Nil(t, ToDecisionTaskTimedOutCause(apiv1.DecisionTaskTimedOutCause(UnknownValue)))
+	assert.Equal(t, apiv1.DecisionTaskTimedOutCause_DECISION_TASK_TIMED_OUT_CAUSE_INVALID, FromDecisionTaskTimedOutCause(types.DecisionTaskTimedOutCause(UnknownValue).Ptr()))
 }
 func TestWorkflowExecutionCloseStatus(t *testing.T) {
 	for _, item := range []*types.WorkflowExecutionCloseStatus{
@@ -384,8 +560,12 @@ func TestWorkflowExecutionCloseStatus(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToWorkflowExecutionCloseStatus(FromWorkflowExecutionCloseStatus(item)))
 	}
-	assert.Panics(t, func() { ToWorkflowExecutionCloseStatus(apiv1.WorkflowExecutionCloseStatus(UnknownValue)) })
-	assert.Panics(t, func() { FromWorkflowExecutionCloseStatus(types.WorkflowExecutionCloseStatus(UnknownValue).Ptr()) })
+	// Test safe behavior for unknown enum values
+	assert.NotPanics(t, func() { ToWorkflowExecutionCloseStatus(apiv1.WorkflowExecutionCloseStatus(UnknownValue)) })
+	assert.NotPanics(t, func() { FromWorkflowExecutionCloseStatus(types.WorkflowExecutionCloseStatus(UnknownValue).Ptr()) })
+	// Verify safe return values
+	assert.Nil(t, ToWorkflowExecutionCloseStatus(apiv1.WorkflowExecutionCloseStatus(UnknownValue)))
+	assert.Equal(t, apiv1.WorkflowExecutionCloseStatus_WORKFLOW_EXECUTION_CLOSE_STATUS_INVALID, FromWorkflowExecutionCloseStatus(types.WorkflowExecutionCloseStatus(UnknownValue).Ptr()))
 }
 func TestWorkflowIDReusePolicy(t *testing.T) {
 	for _, item := range []*types.WorkflowIDReusePolicy{
@@ -397,8 +577,12 @@ func TestWorkflowIDReusePolicy(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToWorkflowIDReusePolicy(FromWorkflowIDReusePolicy(item)))
 	}
-	assert.Panics(t, func() { ToWorkflowIDReusePolicy(apiv1.WorkflowIdReusePolicy(UnknownValue)) })
-	assert.Panics(t, func() { FromWorkflowIDReusePolicy(types.WorkflowIDReusePolicy(UnknownValue).Ptr()) })
+	// Test safe behavior for unknown enum values
+	assert.NotPanics(t, func() { ToWorkflowIDReusePolicy(apiv1.WorkflowIdReusePolicy(UnknownValue)) })
+	assert.NotPanics(t, func() { FromWorkflowIDReusePolicy(types.WorkflowIDReusePolicy(UnknownValue).Ptr()) })
+	// Verify safe return values
+	assert.Nil(t, ToWorkflowIDReusePolicy(apiv1.WorkflowIdReusePolicy(UnknownValue)))
+	assert.Equal(t, apiv1.WorkflowIdReusePolicy_WORKFLOW_ID_REUSE_POLICY_INVALID, FromWorkflowIDReusePolicy(types.WorkflowIDReusePolicy(UnknownValue).Ptr()))
 }
 func TestWorkflowState(t *testing.T) {
 	for _, item := range []*int32{
@@ -412,8 +596,15 @@ func TestWorkflowState(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToWorkflowState(FromWorkflowState(item)))
 	}
-	assert.Panics(t, func() { ToWorkflowState(sharedv1.WorkflowState(UnknownValue)) })
-	assert.Panics(t, func() { FromWorkflowState(common.Int32Ptr(UnknownValue)) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToWorkflowState(sharedv1.WorkflowState(UnknownValue)) })
+	assert.NotPanics(t, func() { FromWorkflowState(common.Int32Ptr(UnknownValue)) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToWorkflowState(sharedv1.WorkflowState(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, sharedv1.WorkflowState_WORKFLOW_STATE_INVALID, FromWorkflowState(common.Int32Ptr(UnknownValue)))
 }
 func TestTaskType(t *testing.T) {
 	for _, item := range []*int32{
@@ -425,6 +616,13 @@ func TestTaskType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToTaskType(FromTaskType(item)))
 	}
-	assert.Panics(t, func() { ToTaskType(adminv1.TaskType(UnknownValue)) })
-	assert.Panics(t, func() { FromTaskType(common.Int32Ptr(UnknownValue)) })
+	// Test safe handling of unknown values - should not panic
+	assert.NotPanics(t, func() { ToTaskType(adminv1.TaskType(UnknownValue)) })
+	assert.NotPanics(t, func() { FromTaskType(common.Int32Ptr(UnknownValue)) })
+	
+	// Unknown proto enum values should map to nil
+	assert.Nil(t, ToTaskType(adminv1.TaskType(UnknownValue)))
+	
+	// Unknown internal enum values should map to INVALID
+	assert.Equal(t, adminv1.TaskType_TASK_TYPE_INVALID, FromTaskType(common.Int32Ptr(UnknownValue)))
 }
