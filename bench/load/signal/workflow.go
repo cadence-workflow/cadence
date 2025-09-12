@@ -400,7 +400,7 @@ main_loop:
 			if workflow.Now(ctx).Sub(time.Unix(0, signal.Timestamp)) > time.Duration(params.MaxSignalDelayInSeconds)*time.Second {
 				signalDelayCount++
 				if signalDelayCount > params.MaxSignalDelayCount {
-					return fmt.Errorf(fmt.Sprintf("received %v signals are longer than %v seconds.", params.MaxSignalDelayCount, params.MaxSignalDelayInSeconds))
+					return fmt.Errorf("received %v signals are longer than %v seconds", params.MaxSignalDelayCount, params.MaxSignalDelayInSeconds)
 				}
 			}
 

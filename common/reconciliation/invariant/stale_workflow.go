@@ -125,7 +125,7 @@ func (c *staleWorkflowCheck) check(
 		},
 	})
 	if err != nil {
-		return false, c.failed("failed to get concrete execution record", err.Error())
+		return false, c.failed("failed to get concrete execution record", "%v", err)
 	}
 
 	pastExpiration, checkresult := c.CheckAge(concreteWorkflow)
@@ -331,7 +331,7 @@ func (c *staleWorkflowCheck) checkTimeInSaneRange(t time.Time, kind string) (ok 
 		// something screwed up, time is outside sane bounds
 		return false, c.failed(
 			fmt.Sprintf("calculated %v seems insane, failing", kind),
-			fmt.Sprintf("expected %v to be within range: %q < actual %q < %q", kind, impossiblyOld, t, impossiblyFuture))
+			"expected %v to be within range: %q < actual %q < %q", kind, impossiblyOld, t, impossiblyFuture)
 	}
 	return true, result
 }
@@ -513,7 +513,7 @@ func (c *staleWorkflowCheck) closeEventTime(workflow *persistence.GetWorkflowExe
 	}
 	last, err := c.getLastEvent(branchToken, domainName)
 	if err != nil {
-		return when, false, c.failed("failed to get last event", err.Error())
+		return when, false, c.failed("failed to get last event", "%v", err)
 	}
 	if last == nil {
 		return when, false, c.failed("empty last event, should be impossible", "") // successful totally-empty history seems impossible

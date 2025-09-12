@@ -35,7 +35,7 @@ import (
 	// replaces golint - configurable and much faster
 	_ "github.com/mgechev/revive"
 	// mockery for generating mocks
-	_ "github.com/vektra/mockery/v2"
+	_ "github.com/vektra/mockery/v3"
 	// mockgen for generating mocks
 	_ "go.uber.org/mock/mockgen"
 	// thriftrw code gen
