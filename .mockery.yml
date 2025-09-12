@@ -1,0 +1,85 @@
+all: false
+log-level: info
+dir: "{{.InterfaceDirRelative}}"
+structname: "Mock{{.InterfaceName}}"
+# interfacefile is an absolute path, get basename and rewrite
+filename: "{{.InterfaceFile | base | replaceAll \".go\" \"_mock.go\"}}"
+pkgname: "{{.SrcPackageName}}"
+packages:
+  github.com/aws/aws-sdk-go/service/s3/s3iface:
+    config:
+      dir: "common/archiver/s3store/mocks"
+      filename: "s3_api_mock.go"
+      structname: "{{.InterfaceName}}"
+      pkgname: "mocks"
+    interfaces:
+      S3API:
+  github.com/uber/cadence/common/archiver:
+    config:
+      filename: "interface_mock.go"
+      structname: "{{.InterfaceName}}Mock"
+    interfaces:
+      HistoryArchiver:
+      VisibilityArchiver:
+  github.com/uber/cadence/common/archiver/gcloud/connector:
+    config:
+      dir: "common/archiver/gcloud/connector/mocks"
+      pkgname: "mocks"
+      filename: "{{.InterfaceName}}.go"
+      structname: "{{.InterfaceName}}"
+    interfaces:
+      Client:
+      GcloudStorageClient:
+      BucketHandleWrapper:
+      ObjectHandleWrapper:
+      ObjectIteratorWrapper:
+      ReaderWrapper:
+      WriterWrapper:
+  github.com/uber/cadence/common/archiver/provider:
+    interfaces:
+      ArchiverProvider:
+  github.com/uber/cadence/common/blobstore:
+    interfaces:
+      Client:
+  github.com/uber/cadence/common/elasticsearch:
+    config:
+      dir: "common/elasticsearch/mocks"
+      pkgname: "mocks"
+      filename: "{{.InterfaceName}}.go"
+      structname: "{{.InterfaceName}}"
+    interfaces:
+      GenericClient:
+  github.com/uber/cadence/common/elasticsearch/bulk:
+    config:
+      dir: "common/elasticsearch/bulk/mocks"
+      pkgname: "mocks" 
+      filename: "{{.InterfaceName}}.go"
+      structname: "{{.InterfaceName}}"
+    interfaces:
+      GenericBulkableRequest:
+      GenericBulkProcessor:
+  github.com/uber/cadence/common/metrics:
+    config:
+      dir: "common/metrics/mocks"
+      pkgname: "mocks"
+      filename: "{{.InterfaceName}}.go"
+      structname: "{{.InterfaceName}}"
+    interfaces:
+        Client:
+        Scope:
+  github.com/uber/cadence/common/persistence:
+    config:
+      dir: "common/mocks"
+      pkgname: "mocks"
+      filename: "{{.InterfaceName}}.go"
+      structname: "{{.InterfaceName}}"
+    interfaces:
+      ExecutionManager:
+      TaskManager:
+      VisibilityManager:
+      ShardManager:
+  github.com/uber/cadence/service/worker/parentclosepolicy:
+    config:
+      structname: "ClientMock"
+    interfaces:
+      Client:
