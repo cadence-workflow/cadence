@@ -538,6 +538,11 @@ cadence-releaser: $(BINS_DEPEND_ON)
 	$Q echo "compiling cadence-releaser with OS: $(GOOS), ARCH: $(GOARCH)"
 	$Q ./scripts/build-with-ldflags.sh -o $@ cmd/tools/releaser/releaser.go
 
+BINS  += cadence-releasetagger
+cadence-releasetagger: $(BINS_DEPEND_ON)
+	$Q echo "compiling cadence-releasetagger with OS: $(GOOS), ARCH: $(GOARCH)"
+	$Q go build -o $@ cmd/tools/releasetagger/main.go
+
 .PHONY: go-generate bins tools release clean
 
 bins: $(BINS) ## Build all binaries, and any fast codegen needed (does not refresh wrappers or mocks)
@@ -555,6 +560,10 @@ go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `
 release: ## Re-generate generated code and run tests
 	$(MAKE) --no-print-directory go-generate
 	$(MAKE) --no-print-directory test
+
+tag-release: cadence-releasetagger ## Tag all submodules and print the push command
+	$(if $(VERSION),,$(error VERSION is not set))
+	$Q ./cadence-releasetagger $(VERSION)
 
 build: ## `go build` all packages and tests (a quick compile check only, skips all other steps)
 	$Q echo 'Building all packages and submodules...'
