@@ -3,6 +3,8 @@ package types
 import (
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type byteSizer interface{ ByteSize() uint64 }
@@ -29,9 +31,7 @@ func AssertByteSizeMatchesReflect(t *testing.T, v any) {
 			}
 		}
 	}
-	if !ok {
-		t.Fatalf("%T does not implement ByteSize()", v)
-	}
+	assert.True(t, ok, "%T does not implement ByteSize()", v)
 
 	// Ensure pointer fields are non-nil so new fields are exercised.
 	autoPopulateNonNil(rv)
@@ -44,9 +44,7 @@ func AssertByteSizeMatchesReflect(t *testing.T, v any) {
 	exp := uint64(root.Type().Size()) + structPayloadSize(root)
 	got := bs.ByteSize()
 
-	if got != exp {
-		t.Fatalf("ByteSize mismatch for %T: got=%d expected=%d (likely a new/changed field not reflected in ByteSize)", v, got, exp)
-	}
+	assert.Equal(t, exp, got, "ByteSize mismatch for %T: got=%d expected=%d (likely a new/changed field not reflected in ByteSize)", v, got, exp)
 }
 
 // AssertReachablesImplementByteSize ensures every reachable named struct
@@ -56,9 +54,9 @@ func AssertReachablesImplementByteSize(t *testing.T, root any) {
 	t.Helper()
 
 	rt := reflect.TypeOf(root)
-	if rt == nil {
-		t.Fatalf("nil type")
-	}
+
+	assert.NotNil(t, rt, "nil type")
+
 	if rt.Kind() == reflect.Ptr {
 		rt = rt.Elem()
 	}
@@ -67,9 +65,7 @@ func AssertReachablesImplementByteSize(t *testing.T, root any) {
 	var missing []string
 	checkStructHasByteSize(rt, seen, &missing)
 
-	if len(missing) > 0 {
-		t.Fatalf("reachable struct types missing ByteSize(): %v", missing)
-	}
+	assert.Equal(t, 0, len(missing), "reachable struct types missing ByteSize(): %v", missing)
 }
 
 // ------------------- helpers -------------------
