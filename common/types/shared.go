@@ -2038,8 +2038,7 @@ func (v *DomainConfiguration) ByteSize() uint64 {
 	if v == nil {
 		return 0
 	}
-	var size uint64
-	size += uint64(unsafe.Sizeof(*v))
+	size := uint64(unsafe.Sizeof(*v))
 	size += v.BadBinaries.ByteSize()
 	size += v.HistoryArchivalStatus.ByteSize()
 	size += uint64(len(v.HistoryArchivalURI))
@@ -2114,7 +2113,7 @@ func (v *DomainInfo) ByteSize() uint64 {
 		return 0
 	}
 
-	var size uint64
+	size := uint64(unsafe.Sizeof(*v))
 	size += uint64(len(v.Name))
 	size += v.Status.ByteSize()
 	size += uint64(len(v.Description))

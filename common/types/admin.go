@@ -372,7 +372,8 @@ func (i *IsolationGroupConfiguration) ByteSize() uint64 {
 	if i == nil {
 		return 0
 	}
-	var size uint64
+
+	size := uint64(unsafe.Sizeof(*i))
 	for k, v := range *i {
 		size += uint64(len(k)) + uint64(unsafe.Sizeof(v)) + uint64(len(v.Name))
 	}

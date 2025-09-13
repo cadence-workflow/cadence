@@ -116,23 +116,23 @@ func typePayloadSize(v reflect.Value) uint64 {
 	if !v.IsValid() {
 		return 0
 	}
+
 	switch v.Kind() {
 	case reflect.Ptr:
 		if v.IsNil() {
 			return 0
 		}
-		if bs, ok := v.Interface().(byteSizer); ok {
-			// Trust nested ByteSize(), so the check fails
-			// if implementers forget to account for new fields.
-			return bs.ByteSize()
-		}
+		// DO NOT call ByteSize() here — keep independence
 		elem := v.Elem()
-		if isScalar(elem.Kind()) {
-			// pointer-to-scalar: count pointed value
+		// Add the pointed-to value's header size (since it's a separate allocation)
+		// plus its dynamic payload.
+		switch elem.Kind() {
+		case reflect.Struct, reflect.String, reflect.Slice, reflect.Map, reflect.Array:
+			return uint64(elem.Type().Size()) + typePayloadSize(elem)
+		default:
+			// scalar pointed-to: just the scalar's size
 			return uint64(elem.Type().Size())
 		}
-		// pointer-to-struct/complex: header + payload
-		return uint64(elem.Type().Size()) + typePayloadSize(elem)
 
 	case reflect.Struct:
 		var sum uint64
@@ -142,7 +142,7 @@ func typePayloadSize(v reflect.Value) uint64 {
 		return sum
 
 	case reflect.String:
-		return uint64(v.Len()) // header counted in parent
+		return uint64(v.Len()) // header counted by parent (or pointer case above)
 
 	case reflect.Slice:
 		return slicePayloadSize(v)
@@ -155,7 +155,6 @@ func typePayloadSize(v reflect.Value) uint64 {
 		return sum
 
 	case reflect.Map:
-		// Approximate: sum key/value payloads (ignores map bucket overhead)
 		var sum uint64
 		for _, k := range v.MapKeys() {
 			sum += typePayloadSize(k)
@@ -164,13 +163,25 @@ func typePayloadSize(v reflect.Value) uint64 {
 		return sum
 
 	default:
-		return 0 // basic scalar: no extra payload
+		return 0
 	}
 }
 
 func fieldPayloadSize(f reflect.Value) uint64 {
 	switch f.Kind() {
-	case reflect.Ptr, reflect.Struct, reflect.Map:
+	case reflect.Ptr:
+		// pointer slot already in parent header; add referent header+payload
+		if f.IsNil() {
+			return 0
+		}
+		elem := f.Elem()
+		switch elem.Kind() {
+		case reflect.Struct, reflect.String, reflect.Slice, reflect.Map, reflect.Array:
+			return uint64(elem.Type().Size()) + typePayloadSize(elem)
+		default:
+			return uint64(elem.Type().Size())
+		}
+	case reflect.Struct, reflect.Map:
 		return typePayloadSize(f)
 	case reflect.String:
 		return uint64(f.Len())
