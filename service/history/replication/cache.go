@@ -28,6 +28,7 @@ import (
 	"sync"
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -37,7 +38,7 @@ var (
 )
 
 // Cache is an in-memory implementation of a cache for storing hydrated replication messages.
-// Messages can come out of order as long as their task ID is higher than last acknowledged message.
+// Messages can come out of order as long as their task ID is higher than the last acknowledged message.
 // Out of order is expected as different source clusters will share hydrated replication messages.
 //
 // Cache utilizes heap to keep replication messages in order. This is needed for efficient acknowledgements in O(log N).
@@ -48,26 +49,41 @@ var (
 type Cache struct {
 	mu sync.RWMutex
 
-	capacity dynamicproperties.IntPropertyFn
+	maxCount dynamicproperties.IntPropertyFn
 
 	order int64Heap
 	cache map[int64]*types.ReplicationTask
 
 	lastAck int64
+
+	maxSize  dynamicproperties.IntPropertyFn
+	currSize uint64
+
+	logger log.Logger
 }
 
 // NewCache create a new instance of replication cache
-func NewCache(capacity dynamicproperties.IntPropertyFn) *Cache {
-	initialCapacity := capacity()
+func NewCache(maxCount dynamicproperties.IntPropertyFn, maxSize dynamicproperties.IntPropertyFn, logger log.Logger) *Cache {
+	initialCount := maxCount()
 	return &Cache{
-		capacity: capacity,
-		order:    make(int64Heap, 0, initialCapacity),
-		cache:    make(map[int64]*types.ReplicationTask, initialCapacity),
+		maxSize:  maxSize,
+		maxCount: maxCount,
+		order:    make(int64Heap, 0, initialCount),
+		cache:    make(map[int64]*types.ReplicationTask, initialCount),
+		logger:   logger,
 	}
 }
 
 // Size returns current size of the cache
-func (c *Cache) Size() int {
+func (c *Cache) Size() uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.currSize
+}
+
+// Count returns current count of the cache
+func (c *Cache) Count() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -81,14 +97,9 @@ func (c *Cache) Put(task *types.ReplicationTask) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Check for full cache
-	if len(c.order) >= c.capacity() {
-		return errCacheFull
-	}
-
 	taskID := task.SourceTaskID
 
-	// Reject task as it was already acknowledged
+	// Reject the task as it was already acknowledged
 	if c.lastAck >= taskID {
 		return errAlreadyAcked
 	}
@@ -98,14 +109,22 @@ func (c *Cache) Put(task *types.ReplicationTask) error {
 		return nil
 	}
 
+	taskSize := task.ByteSize()
+
+	// Check for full cache
+	if (len(c.order) >= c.maxCount()) || (c.currSize+taskSize) >= uint64(c.maxSize()) {
+		return errCacheFull
+	}
+
 	c.cache[taskID] = task
-	heap.Push(&c.order, taskID)
+	heap.Push(&c.order, heapTaskInfo{taskID: taskID, size: taskSize})
+	c.currSize += taskSize
 
 	return nil
 }
 
 // Get will return a stored task having a given taskID.
-// If task is not cache, nil is returned.
+// If the task is not in the cache, nil is returned.
 func (c *Cache) Get(taskID int64) *types.ReplicationTask {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -120,21 +139,26 @@ func (c *Cache) Ack(level int64) {
 	defer c.mu.Unlock()
 
 	for c.order.Len() > 0 && c.order.Peek() <= level {
-		taskID := heap.Pop(&c.order).(int64)
-		delete(c.cache, taskID)
+		taskInfo := heap.Pop(&c.order).(heapTaskInfo)
+		delete(c.cache, taskInfo.taskID)
+		c.currSize -= uint64(taskInfo.size)
 	}
 
 	c.lastAck = level
 }
 
-type int64Heap []int64
+type heapTaskInfo struct {
+	taskID int64
+	size   uint64
+}
+type int64Heap []heapTaskInfo
 
 func (h int64Heap) Len() int           { return len(h) }
-func (h int64Heap) Less(i, j int) bool { return h[i] < h[j] }
+func (h int64Heap) Less(i, j int) bool { return h[i].taskID < h[j].taskID }
 func (h int64Heap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
 func (h *int64Heap) Push(x interface{}) {
-	*h = append(*h, x.(int64))
+	*h = append(*h, x.(heapTaskInfo))
 }
 
 func (h *int64Heap) Pop() interface{} {
@@ -146,5 +170,5 @@ func (h *int64Heap) Pop() interface{} {
 }
 
 func (h *int64Heap) Peek() int64 {
-	return (*h)[0]
+	return (*h)[0].taskID
 }
