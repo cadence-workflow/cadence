@@ -1,7 +1,9 @@
 package types
 
-import "reflect"
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 type byteSizer interface{ ByteSize() uint64 }
 
