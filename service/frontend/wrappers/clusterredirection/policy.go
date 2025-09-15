@@ -271,7 +271,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	targetDC, enableDomainNotActiveForwarding := policy.getTargetClusterAndIsDomainNotActiveAutoForwarding(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel)
 	domainName := domainEntry.GetInfo().Name
 
-	policy.logger.Info(
+	policy.logger.Debug(
 		"Calling API on target cluster for domain",
 		tag.OperationName(apiName),
 		tag.ClusterName(policy.currentClusterName),
