@@ -254,7 +254,6 @@ func FromTaskSource(t *types.TaskSource) sharedv1.TaskSource {
 	case types.TaskSourceDbBacklog:
 		return sharedv1.TaskSource_TASK_SOURCE_DB_BACKLOG
 	}
-	// Return invalid value instead of panicking for unknown enum values
 	return sharedv1.TaskSource_TASK_SOURCE_INVALID
 }
 
@@ -267,7 +266,6 @@ func ToTaskSource(t sharedv1.TaskSource) *types.TaskSource {
 	case sharedv1.TaskSource_TASK_SOURCE_DB_BACKLOG:
 		return types.TaskSourceDbBacklog.Ptr()
 	}
-	// Return nil instead of panicking for unknown enum values
 	return nil
 }
 
@@ -369,7 +367,6 @@ func FromWorkflowState(t *int32) sharedv1.WorkflowState {
 	case persistence.WorkflowStateCorrupted:
 		return sharedv1.WorkflowState_WORKFLOW_STATE_CORRUPTED
 	}
-	// Return invalid value instead of panicking for unknown enum values
 	return sharedv1.WorkflowState_WORKFLOW_STATE_INVALID
 }
 
@@ -396,7 +393,6 @@ func ToWorkflowState(t sharedv1.WorkflowState) *int32 {
 		v := int32(persistence.WorkflowStateCorrupted)
 		return &v
 	}
-	// Return nil instead of panicking for unknown enum values
 	return nil
 }
 
@@ -476,7 +472,6 @@ func FromDLQType(t *types.DLQType) adminv1.DLQType {
 	case types.DLQTypeDomain:
 		return adminv1.DLQType_DLQ_TYPE_DOMAIN
 	}
-	// Return invalid value instead of panicking for unknown enum values
 	return adminv1.DLQType_DLQ_TYPE_INVALID
 }
 
@@ -489,7 +484,6 @@ func ToDLQType(t adminv1.DLQType) *types.DLQType {
 	case adminv1.DLQType_DLQ_TYPE_DOMAIN:
 		return types.DLQTypeDomain.Ptr()
 	}
-	// Return nil instead of panicking for unknown enum values
 	return nil
 }
 
@@ -505,7 +499,6 @@ func FromDomainOperation(t *types.DomainOperation) adminv1.DomainOperation {
 	case types.DomainOperationDelete:
 		return adminv1.DomainOperation_DOMAIN_OPERATION_DELETE
 	}
-	// Return invalid value instead of panicking for unknown enum values
 	return adminv1.DomainOperation_DOMAIN_OPERATION_INVALID
 }
 
@@ -520,7 +513,6 @@ func ToDomainOperation(t adminv1.DomainOperation) *types.DomainOperation {
 	case adminv1.DomainOperation_DOMAIN_OPERATION_DELETE:
 		return types.DomainOperationDelete.Ptr()
 	}
-	// Return nil instead of panicking for unknown enum values
 	return nil
 }
 
@@ -713,7 +705,6 @@ func FromReplicationTaskType(t *types.ReplicationTaskType) adminv1.ReplicationTa
 	case types.ReplicationTaskTypeFailoverMarker:
 		return adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_FAILOVER_MARKER
 	}
-	// Return invalid value instead of panicking for unknown enum values
 	return adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_INVALID
 }
 
@@ -736,7 +727,6 @@ func ToReplicationTaskType(t adminv1.ReplicationTaskType) *types.ReplicationTask
 	case adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_FAILOVER_MARKER:
 		return types.ReplicationTaskTypeFailoverMarker.Ptr()
 	}
-	// Return nil instead of panicking for unknown enum values
 	return nil
 }
 
@@ -1011,7 +1001,6 @@ func FromTaskType(t *int32) adminv1.TaskType {
 	case constants.TaskTypeCrossCluster:
 		return adminv1.TaskType_TASK_TYPE_CROSS_CLUSTER
 	}
-	// Return invalid value instead of panicking for unknown enum values
 	return adminv1.TaskType_TASK_TYPE_INVALID
 }
 
@@ -1028,7 +1017,6 @@ func ToTaskType(t adminv1.TaskType) *int32 {
 	case adminv1.TaskType_TASK_TYPE_CROSS_CLUSTER:
 		return common.Int32Ptr(int32(constants.TaskTypeCrossCluster))
 	}
-	// Return nil instead of panicking for unknown enum values
 	return nil
 }
 
@@ -1117,7 +1105,6 @@ func FromCrossClusterTaskType(t *types.CrossClusterTaskType) adminv1.CrossCluste
 	case types.CrossClusterTaskTypeApplyParentPolicy:
 		return adminv1.CrossClusterTaskType_CROSS_CLUSTER_TASK_TYPE_APPLY_PARENT_CLOSE_POLICY
 	}
-	// Return invalid value instead of panicking for unknown enum values
 	return adminv1.CrossClusterTaskType_CROSS_CLUSTER_TASK_TYPE_INVALID
 }
 
@@ -1137,7 +1124,6 @@ func ToCrossClusterTaskType(t adminv1.CrossClusterTaskType) *types.CrossClusterT
 	case adminv1.CrossClusterTaskType_CROSS_CLUSTER_TASK_TYPE_APPLY_PARENT_CLOSE_POLICY:
 		return types.CrossClusterTaskTypeApplyParentPolicy.Ptr()
 	}
-	// Return nil instead of panicking for unknown enum values
 	return nil
 }
 
@@ -1160,7 +1146,6 @@ func FromCrossClusterTaskFailedCause(t *types.CrossClusterTaskFailedCause) admin
 	case types.CrossClusterTaskFailedCauseUncategorized:
 		return adminv1.CrossClusterTaskFailedCause_CROSS_CLUSTER_TASK_FAILED_CAUSE_UNCATEGORIZED
 	}
-	// Return invalid value instead of panicking for unknown enum values
 	return adminv1.CrossClusterTaskFailedCause_CROSS_CLUSTER_TASK_FAILED_CAUSE_INVALID
 }
 
@@ -1183,7 +1168,6 @@ func ToCrossClusterTaskFailedCause(t adminv1.CrossClusterTaskFailedCause) *types
 		return types.CrossClusterTaskFailedCauseUncategorized.Ptr()
 
 	}
-	// Return nil instead of panicking for unknown enum values
 	return nil
 }
 
@@ -1202,7 +1186,6 @@ func FromGetTaskFailedCause(t *types.GetTaskFailedCause) adminv1.GetTaskFailedCa
 	case types.GetTaskFailedCauseUncategorized:
 		return adminv1.GetTaskFailedCause_GET_TASK_FAILED_CAUSE_UNCATEGORIZED
 	}
-	// Return invalid value instead of panicking for unknown enum values
 	return adminv1.GetTaskFailedCause_GET_TASK_FAILED_CAUSE_INVALID
 }
 
@@ -1220,7 +1203,6 @@ func ToGetTaskFailedCause(t adminv1.GetTaskFailedCause) *types.GetTaskFailedCaus
 	case adminv1.GetTaskFailedCause_GET_TASK_FAILED_CAUSE_UNCATEGORIZED:
 		return types.GetTaskFailedCauseUncategorized.Ptr()
 	}
-	// Return nil instead of panicking for unknown enum values
 	return nil
 }
 
