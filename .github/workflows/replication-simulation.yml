@@ -17,6 +17,7 @@ jobs:
           - activeactive_cron
           - activeactive_regional_failover
           - activeactive_regional_failover_start_same_wfid
+          - activeactive_regional_failover_start_same_wfid_2
           - activepassive_to_activeactive
           - clusterredirection
           - reset

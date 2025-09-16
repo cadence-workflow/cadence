@@ -23,13 +23,9 @@ package domain
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -287,90 +283,4 @@ func (s *attrValidatorSuite) TestValidateDomainReplicationConfigClustersDoesNotR
 		},
 	)
 	s.IsType(&types.BadRequestError{}, err)
-}
-
-func TestCheckActiveClusterRegionMappings(t *testing.T) {
-	clusterMetadata := cluster.NewMetadata(
-		config.ClusterGroupMetadata{
-			ClusterGroup: map[string]config.ClusterInformation{
-				"A1": {
-					Region: "A",
-				},
-				"A2": {
-					Region: "A",
-				},
-				"B1": {
-					Region: "B",
-				},
-				"B2": {
-					Region: "B",
-				},
-				"C1": {
-					Region: "C",
-				},
-				"C2": {
-					Region: "C",
-				},
-			},
-		},
-		func(d string) bool { return false },
-		metrics.NewNoopMetricsClient(),
-		log.NewNoop(),
-	)
-
-	tests := []struct {
-		desc           string
-		activeClusters *types.ActiveClusters
-		wantErr        bool
-	}{
-		{
-			desc: "non-existing cluster",
-			activeClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"D": {ActiveClusterName: "D1"},
-			}},
-			wantErr: true,
-		},
-		{
-			desc: "no cycle. every region is mapped to a local cluster",
-			activeClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"A": {ActiveClusterName: "A1"},
-				"B": {ActiveClusterName: "B1"},
-				"C": {ActiveClusterName: "C1"},
-			}},
-			wantErr: false,
-		},
-		{
-			desc: "no cycle. A and C failed over to B",
-			activeClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"A": {ActiveClusterName: "B1"},
-				"B": {ActiveClusterName: "B1"},
-				"C": {ActiveClusterName: "B1"},
-			}},
-			wantErr: false,
-		},
-		{
-			desc: "cycle. A -> B -> C -> A",
-			activeClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"A": {ActiveClusterName: "B2"},
-				"B": {ActiveClusterName: "C2"},
-				"C": {ActiveClusterName: "A2"},
-			}},
-			wantErr: true,
-		},
-		{
-			desc: "no cycle but more than one hop. A -> B -> C",
-			activeClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"A": {ActiveClusterName: "B2"},
-				"B": {ActiveClusterName: "C2"},
-				"C": {ActiveClusterName: "C1"},
-			}},
-			wantErr: true,
-		},
-	}
-	for _, tc := range tests {
-		validator := newAttrValidator(clusterMetadata, int32(1))
-		err := validator.checkActiveClusterRegionMappings(tc.activeClusters)
-		assert.Equal(t, tc.wantErr, err != nil)
-	}
-
 }

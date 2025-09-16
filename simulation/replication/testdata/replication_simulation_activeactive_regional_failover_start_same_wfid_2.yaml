@@ -1,0 +1,60 @@
+# This file is a replication simulation scenario spec.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive_regional_failover_start_same_wfid_2
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_regional_failover_start_same_wfid_2.yml
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+domains:
+  test-domain-aa:
+    activeClustersByRegion:
+      region0: cluster0
+      region1: cluster1
+
+operations:
+  # Start wf1 on cluster1 before failover.
+  - op: start_workflow
+    at: 0s
+    workflowID: wf1
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster1
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 70s
+    workflowDuration: 60s
+
+
+  # Failover from cluster1 to cluster0
+  - op: change_active_clusters
+    at: 10s
+    domain: test-domain-aa
+    newActiveClustersByRegion:
+      region1: cluster0
+
+  # Attempt to start wf1 on cluster0. It should reject with error "Workflow execution is already running".
+  - op: start_workflow
+    at: 30s
+    workflowID: wf1
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 70s
+    workflowDuration: 60s
+    want:
+      error: "Workflow execution is already running"
+
+  # Validate that wf1 is completed in cluster0.
+  - op: validate
+    at: 80s
+    workflowID: wf1
+    cluster: cluster1
+    domain: test-domain-aa
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster1
+      completedByWorkersInCluster: cluster0

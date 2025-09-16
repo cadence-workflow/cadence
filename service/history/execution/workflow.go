@@ -112,6 +112,7 @@ func (r *workflowImpl) GetVectorClock() (int64, int64, error) {
 	return lastWriteVersion, lastEventTaskID, nil
 }
 
+// TODO(active-active): update this to make it work for active-active domains
 func (r *workflowImpl) HappensAfter(
 	that Workflow,
 ) (bool, error) {

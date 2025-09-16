@@ -250,10 +250,25 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		}
 
 		if curMutableState.GetCurrentVersion() < t.LastWriteVersion {
-			return nil, e.newDomainNotActiveError(
-				domainEntry,
-				t.LastWriteVersion,
-			)
+			if !domainEntry.GetReplicationConfig().IsActiveActive() {
+				return nil, e.newDomainNotActiveError(
+					domainEntry,
+					t.LastWriteVersion,
+				)
+			}
+			// TODO(active-active): we should update this logic to support external entity policy
+			if request.ActiveClusterSelectionPolicy != nil && request.ActiveClusterSelectionPolicy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
+				res, err := e.shard.GetActiveClusterManager().LookupWorkflow(ctx, domainID, workflowID, t.RunID)
+				if err != nil {
+					return nil, err
+				}
+				if res.Region == request.ActiveClusterSelectionPolicy.StickyRegion {
+					return nil, e.newDomainNotActiveError(
+						domainEntry,
+						t.LastWriteVersion,
+					)
+				}
+			}
 		}
 
 		prevRunID = t.RunID
@@ -601,6 +616,8 @@ func (e *historyEngineImpl) overrideTaskStartToCloseTimeoutSeconds(
 	}
 }
 
+// TODO(active-active): this logic should be moved to frontend before auto-forwarding
+// the start workflow request received by history should always expect an active cluster selection policy for active-active domains
 func (e *historyEngineImpl) overrideActiveClusterSelectionPolicy(
 	domainEntry *cache.DomainCacheEntry,
 	request *types.StartWorkflowExecutionRequest,
