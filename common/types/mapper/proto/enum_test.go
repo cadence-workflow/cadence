@@ -101,7 +101,7 @@ func TestFromTaskSource(t *testing.T) {
 	}
 }
 
-func TestDLQType(t *testing.T) {
+func TestRoundTripDLQType(t *testing.T) {
 	for _, item := range []*types.DLQType{
 		nil,
 		types.DLQTypeReplication.Ptr(),
@@ -109,35 +109,136 @@ func TestDLQType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToDLQType(FromDLQType(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToDLQType(adminv1.DLQType(UnknownValue)) })
-	assert.NotPanics(t, func() { FromDLQType(types.DLQType(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToDLQType(adminv1.DLQType(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, adminv1.DLQType_DLQ_TYPE_INVALID, FromDLQType(types.DLQType(UnknownValue).Ptr()))
 }
-func TestDomainOperation(t *testing.T) {
+
+func TestToDLQType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    adminv1.DLQType
+		expected *types.DLQType
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    adminv1.DLQType_DLQ_TYPE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    UnknownValue,
+			expected: nil,
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    adminv1.DLQType_DLQ_TYPE_REPLICATION,
+			expected: types.DLQTypeReplication.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToDLQType(tc.input))
+		})
+	}
+}
+
+func TestFromDLQType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.DLQType
+		expected adminv1.DLQType
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: adminv1.DLQType_DLQ_TYPE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.DLQType(UnknownValue).Ptr(),
+			expected: adminv1.DLQType_DLQ_TYPE_INVALID,
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    types.DLQTypeReplication.Ptr(),
+			expected: adminv1.DLQType_DLQ_TYPE_REPLICATION,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromDLQType(tc.input))
+		})
+	}
+}
+
+func TestRoundTripDomainOperation(t *testing.T) {
 	for _, item := range []*types.DomainOperation{
 		nil,
 		types.DomainOperationCreate.Ptr(),
 		types.DomainOperationUpdate.Ptr(),
+		types.DomainOperationDelete.Ptr(),
 	} {
 		assert.Equal(t, item, ToDomainOperation(FromDomainOperation(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToDomainOperation(adminv1.DomainOperation(UnknownValue)) })
-	assert.NotPanics(t, func() { FromDomainOperation(types.DomainOperation(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToDomainOperation(adminv1.DomainOperation(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, adminv1.DomainOperation_DOMAIN_OPERATION_INVALID, FromDomainOperation(types.DomainOperation(UnknownValue).Ptr()))
 }
-func TestReplicationTaskType(t *testing.T) {
+
+func TestToDomainOperation(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    adminv1.DomainOperation
+		expected *types.DomainOperation
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    adminv1.DomainOperation_DOMAIN_OPERATION_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    UnknownValue,
+			expected: nil,
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    adminv1.DomainOperation_DOMAIN_OPERATION_CREATE,
+			expected: types.DomainOperationCreate.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToDomainOperation(tc.input))
+		})
+	}
+}
+
+func TestFromDomainOperation(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.DomainOperation
+		expected adminv1.DomainOperation
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: adminv1.DomainOperation_DOMAIN_OPERATION_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.DomainOperation(UnknownValue).Ptr(),
+			expected: adminv1.DomainOperation_DOMAIN_OPERATION_INVALID,
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    types.DomainOperationCreate.Ptr(),
+			expected: adminv1.DomainOperation_DOMAIN_OPERATION_CREATE,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromDomainOperation(tc.input))
+		})
+	}
+}
+
+func TestRoundTripReplicationTaskType(t *testing.T) {
 	for _, item := range []*types.ReplicationTaskType{
 		nil,
 		types.ReplicationTaskTypeDomain.Ptr(),
@@ -150,17 +251,66 @@ func TestReplicationTaskType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToReplicationTaskType(FromReplicationTaskType(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToReplicationTaskType(adminv1.ReplicationTaskType(UnknownValue)) })
-	assert.NotPanics(t, func() { FromReplicationTaskType(types.ReplicationTaskType(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToReplicationTaskType(adminv1.ReplicationTaskType(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_INVALID, FromReplicationTaskType(types.ReplicationTaskType(UnknownValue).Ptr()))
 }
-func TestArchivalStatus(t *testing.T) {
+
+func TestToReplicationTaskType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    adminv1.ReplicationTaskType
+		expected *types.ReplicationTaskType
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    adminv1.ReplicationTaskType(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_DOMAIN,
+			expected: types.ReplicationTaskTypeDomain.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToReplicationTaskType(tc.input))
+		})
+	}
+}
+
+func TestFromReplicationTaskType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.ReplicationTaskType
+		expected adminv1.ReplicationTaskType
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.ReplicationTaskType(UnknownValue).Ptr(),
+			expected: adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_INVALID,
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    types.ReplicationTaskTypeDomain.Ptr(),
+			expected: adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_DOMAIN,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromReplicationTaskType(tc.input))
+		})
+	}
+}
+func TestRoundTripArchivalStatus(t *testing.T) {
 	for _, item := range []*types.ArchivalStatus{
 		nil,
 		types.ArchivalStatusDisabled.Ptr(),
@@ -168,17 +318,66 @@ func TestArchivalStatus(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToArchivalStatus(FromArchivalStatus(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToArchivalStatus(apiv1.ArchivalStatus(UnknownValue)) })
-	assert.NotPanics(t, func() { FromArchivalStatus(types.ArchivalStatus(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToArchivalStatus(apiv1.ArchivalStatus(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.ArchivalStatus_ARCHIVAL_STATUS_INVALID, FromArchivalStatus(types.ArchivalStatus(UnknownValue).Ptr()))
 }
-func TestCancelExternalWorkflowExecutionFailedCause(t *testing.T) {
+
+func TestToArchivalStatus(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.ArchivalStatus
+		expected *types.ArchivalStatus
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.ArchivalStatus_ARCHIVAL_STATUS_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.ArchivalStatus(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is disabled it should return the correctly mapped value",
+			input:    apiv1.ArchivalStatus_ARCHIVAL_STATUS_DISABLED,
+			expected: types.ArchivalStatusDisabled.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToArchivalStatus(tc.input))
+		})
+	}
+}
+
+func TestFromArchivalStatus(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.ArchivalStatus
+		expected apiv1.ArchivalStatus
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.ArchivalStatus_ARCHIVAL_STATUS_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.ArchivalStatus(UnknownValue).Ptr(),
+			expected: apiv1.ArchivalStatus_ARCHIVAL_STATUS_INVALID,
+		},
+		{
+			name:     "when input is disabled it should return the correctly mapped value",
+			input:    types.ArchivalStatusDisabled.Ptr(),
+			expected: apiv1.ArchivalStatus_ARCHIVAL_STATUS_DISABLED,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromArchivalStatus(tc.input))
+		})
+	}
+}
+func TestRoundTripCancelExternalWorkflowExecutionFailedCause(t *testing.T) {
 	for _, item := range []*types.CancelExternalWorkflowExecutionFailedCause{
 		nil,
 		types.CancelExternalWorkflowExecutionFailedCauseUnknownExternalWorkflowExecution.Ptr(),
@@ -186,40 +385,132 @@ func TestCancelExternalWorkflowExecutionFailedCause(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToCancelExternalWorkflowExecutionFailedCause(FromCancelExternalWorkflowExecutionFailedCause(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() {
-		ToCancelExternalWorkflowExecutionFailedCause(apiv1.CancelExternalWorkflowExecutionFailedCause(UnknownValue))
-	})
-	assert.NotPanics(t, func() {
-		FromCancelExternalWorkflowExecutionFailedCause(types.CancelExternalWorkflowExecutionFailedCause(UnknownValue).Ptr())
-	})
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToCancelExternalWorkflowExecutionFailedCause(apiv1.CancelExternalWorkflowExecutionFailedCause(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.CancelExternalWorkflowExecutionFailedCause_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID, FromCancelExternalWorkflowExecutionFailedCause(types.CancelExternalWorkflowExecutionFailedCause(UnknownValue).Ptr()))
 }
-func TestChildWorkflowExecutionFailedCause(t *testing.T) {
+
+func TestToCancelExternalWorkflowExecutionFailedCause(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.CancelExternalWorkflowExecutionFailedCause
+		expected *types.CancelExternalWorkflowExecutionFailedCause
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.CancelExternalWorkflowExecutionFailedCause_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.CancelExternalWorkflowExecutionFailedCause(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is unknown external workflow execution it should return the correctly mapped value",
+			input:    apiv1.CancelExternalWorkflowExecutionFailedCause_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_UNKNOWN_EXTERNAL_WORKFLOW_EXECUTION,
+			expected: types.CancelExternalWorkflowExecutionFailedCauseUnknownExternalWorkflowExecution.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToCancelExternalWorkflowExecutionFailedCause(tc.input))
+		})
+	}
+}
+
+func TestFromCancelExternalWorkflowExecutionFailedCause(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.CancelExternalWorkflowExecutionFailedCause
+		expected apiv1.CancelExternalWorkflowExecutionFailedCause
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.CancelExternalWorkflowExecutionFailedCause_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.CancelExternalWorkflowExecutionFailedCause(UnknownValue).Ptr(),
+			expected: apiv1.CancelExternalWorkflowExecutionFailedCause_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID,
+		},
+		{
+			name:     "when input is unknown external workflow execution it should return the correctly mapped value",
+			input:    types.CancelExternalWorkflowExecutionFailedCauseUnknownExternalWorkflowExecution.Ptr(),
+			expected: apiv1.CancelExternalWorkflowExecutionFailedCause_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_UNKNOWN_EXTERNAL_WORKFLOW_EXECUTION,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromCancelExternalWorkflowExecutionFailedCause(tc.input))
+		})
+	}
+}
+func TestRoundTripChildWorkflowExecutionFailedCause(t *testing.T) {
 	for _, item := range []*types.ChildWorkflowExecutionFailedCause{
 		nil,
 		types.ChildWorkflowExecutionFailedCauseWorkflowAlreadyRunning.Ptr(),
 	} {
 		assert.Equal(t, item, ToChildWorkflowExecutionFailedCause(FromChildWorkflowExecutionFailedCause(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToChildWorkflowExecutionFailedCause(apiv1.ChildWorkflowExecutionFailedCause(UnknownValue)) })
-	assert.NotPanics(t, func() {
-		FromChildWorkflowExecutionFailedCause(types.ChildWorkflowExecutionFailedCause(UnknownValue).Ptr())
-	})
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToChildWorkflowExecutionFailedCause(apiv1.ChildWorkflowExecutionFailedCause(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.ChildWorkflowExecutionFailedCause_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID, FromChildWorkflowExecutionFailedCause(types.ChildWorkflowExecutionFailedCause(UnknownValue).Ptr()))
 }
-func TestContinueAsNewInitiator(t *testing.T) {
+
+func TestToChildWorkflowExecutionFailedCause(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.ChildWorkflowExecutionFailedCause
+		expected *types.ChildWorkflowExecutionFailedCause
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.ChildWorkflowExecutionFailedCause_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.ChildWorkflowExecutionFailedCause(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is workflow already running it should return the correctly mapped value",
+			input:    apiv1.ChildWorkflowExecutionFailedCause_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_RUNNING,
+			expected: types.ChildWorkflowExecutionFailedCauseWorkflowAlreadyRunning.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToChildWorkflowExecutionFailedCause(tc.input))
+		})
+	}
+}
+
+func TestFromChildWorkflowExecutionFailedCause(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.ChildWorkflowExecutionFailedCause
+		expected apiv1.ChildWorkflowExecutionFailedCause
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.ChildWorkflowExecutionFailedCause_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.ChildWorkflowExecutionFailedCause(UnknownValue).Ptr(),
+			expected: apiv1.ChildWorkflowExecutionFailedCause_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID,
+		},
+		{
+			name:     "when input is workflow already running it should return the correctly mapped value",
+			input:    types.ChildWorkflowExecutionFailedCauseWorkflowAlreadyRunning.Ptr(),
+			expected: apiv1.ChildWorkflowExecutionFailedCause_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_RUNNING,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromChildWorkflowExecutionFailedCause(tc.input))
+		})
+	}
+}
+func TestRoundTripContinueAsNewInitiator(t *testing.T) {
 	for _, item := range []*types.ContinueAsNewInitiator{
 		nil,
 		types.ContinueAsNewInitiatorDecider.Ptr(),
@@ -228,17 +519,66 @@ func TestContinueAsNewInitiator(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToContinueAsNewInitiator(FromContinueAsNewInitiator(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToContinueAsNewInitiator(apiv1.ContinueAsNewInitiator(UnknownValue)) })
-	assert.NotPanics(t, func() { FromContinueAsNewInitiator(types.ContinueAsNewInitiator(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToContinueAsNewInitiator(apiv1.ContinueAsNewInitiator(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.ContinueAsNewInitiator_CONTINUE_AS_NEW_INITIATOR_INVALID, FromContinueAsNewInitiator(types.ContinueAsNewInitiator(UnknownValue).Ptr()))
 }
-func TestCrossClusterTaskFailedCause(t *testing.T) {
+
+func TestToContinueAsNewInitiator(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.ContinueAsNewInitiator
+		expected *types.ContinueAsNewInitiator
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.ContinueAsNewInitiator_CONTINUE_AS_NEW_INITIATOR_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.ContinueAsNewInitiator(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is decider it should return the correctly mapped value",
+			input:    apiv1.ContinueAsNewInitiator_CONTINUE_AS_NEW_INITIATOR_DECIDER,
+			expected: types.ContinueAsNewInitiatorDecider.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToContinueAsNewInitiator(tc.input))
+		})
+	}
+}
+
+func TestFromContinueAsNewInitiator(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.ContinueAsNewInitiator
+		expected apiv1.ContinueAsNewInitiator
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.ContinueAsNewInitiator_CONTINUE_AS_NEW_INITIATOR_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.ContinueAsNewInitiator(UnknownValue).Ptr(),
+			expected: apiv1.ContinueAsNewInitiator_CONTINUE_AS_NEW_INITIATOR_INVALID,
+		},
+		{
+			name:     "when input is decider it should return the correctly mapped value",
+			input:    types.ContinueAsNewInitiatorDecider.Ptr(),
+			expected: apiv1.ContinueAsNewInitiator_CONTINUE_AS_NEW_INITIATOR_DECIDER,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromContinueAsNewInitiator(tc.input))
+		})
+	}
+}
+func TestRoundTripCrossClusterTaskFailedCause(t *testing.T) {
 	for _, item := range []*types.CrossClusterTaskFailedCause{
 		nil,
 		types.CrossClusterTaskFailedCauseDomainNotActive.Ptr(),
@@ -250,17 +590,66 @@ func TestCrossClusterTaskFailedCause(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToCrossClusterTaskFailedCause(FromCrossClusterTaskFailedCause(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToCrossClusterTaskFailedCause(adminv1.CrossClusterTaskFailedCause(UnknownValue)) })
-	assert.NotPanics(t, func() { FromCrossClusterTaskFailedCause(types.CrossClusterTaskFailedCause(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToCrossClusterTaskFailedCause(adminv1.CrossClusterTaskFailedCause(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, adminv1.CrossClusterTaskFailedCause_CROSS_CLUSTER_TASK_FAILED_CAUSE_INVALID, FromCrossClusterTaskFailedCause(types.CrossClusterTaskFailedCause(UnknownValue).Ptr()))
 }
-func TestDecisionTaskFailedCause(t *testing.T) {
+
+func TestToCrossClusterTaskFailedCause(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    adminv1.CrossClusterTaskFailedCause
+		expected *types.CrossClusterTaskFailedCause
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    adminv1.CrossClusterTaskFailedCause_CROSS_CLUSTER_TASK_FAILED_CAUSE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    adminv1.CrossClusterTaskFailedCause(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is domain not active it should return the correctly mapped value",
+			input:    adminv1.CrossClusterTaskFailedCause_CROSS_CLUSTER_TASK_FAILED_CAUSE_DOMAIN_NOT_ACTIVE,
+			expected: types.CrossClusterTaskFailedCauseDomainNotActive.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToCrossClusterTaskFailedCause(tc.input))
+		})
+	}
+}
+
+func TestFromCrossClusterTaskFailedCause(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.CrossClusterTaskFailedCause
+		expected adminv1.CrossClusterTaskFailedCause
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: adminv1.CrossClusterTaskFailedCause_CROSS_CLUSTER_TASK_FAILED_CAUSE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.CrossClusterTaskFailedCause(UnknownValue).Ptr(),
+			expected: adminv1.CrossClusterTaskFailedCause_CROSS_CLUSTER_TASK_FAILED_CAUSE_INVALID,
+		},
+		{
+			name:     "when input is domain not active it should return the correctly mapped value",
+			input:    types.CrossClusterTaskFailedCauseDomainNotActive.Ptr(),
+			expected: adminv1.CrossClusterTaskFailedCause_CROSS_CLUSTER_TASK_FAILED_CAUSE_DOMAIN_NOT_ACTIVE,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromCrossClusterTaskFailedCause(tc.input))
+		})
+	}
+}
+func TestRoundTripDecisionTaskFailedCause(t *testing.T) {
 	for _, item := range []*types.DecisionTaskFailedCause{
 		nil,
 		types.DecisionTaskFailedCauseUnhandledDecision.Ptr(),
@@ -289,17 +678,66 @@ func TestDecisionTaskFailedCause(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToDecisionTaskFailedCause(FromDecisionTaskFailedCause(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToDecisionTaskFailedCause(apiv1.DecisionTaskFailedCause(UnknownValue)) })
-	assert.NotPanics(t, func() { FromDecisionTaskFailedCause(types.DecisionTaskFailedCause(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToDecisionTaskFailedCause(apiv1.DecisionTaskFailedCause(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_INVALID, FromDecisionTaskFailedCause(types.DecisionTaskFailedCause(UnknownValue).Ptr()))
 }
-func TestDomainStatus(t *testing.T) {
+
+func TestToDecisionTaskFailedCause(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.DecisionTaskFailedCause
+		expected *types.DecisionTaskFailedCause
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.DecisionTaskFailedCause(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is unhandled decision it should return the correctly mapped value",
+			input:    apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_UNHANDLED_DECISION,
+			expected: types.DecisionTaskFailedCauseUnhandledDecision.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToDecisionTaskFailedCause(tc.input))
+		})
+	}
+}
+
+func TestFromDecisionTaskFailedCause(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.DecisionTaskFailedCause
+		expected apiv1.DecisionTaskFailedCause
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.DecisionTaskFailedCause(UnknownValue).Ptr(),
+			expected: apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_INVALID,
+		},
+		{
+			name:     "when input is unhandled decision it should return the correctly mapped value",
+			input:    types.DecisionTaskFailedCauseUnhandledDecision.Ptr(),
+			expected: apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_UNHANDLED_DECISION,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromDecisionTaskFailedCause(tc.input))
+		})
+	}
+}
+func TestRoundTripDomainStatus(t *testing.T) {
 	for _, item := range []*types.DomainStatus{
 		nil,
 		types.DomainStatusRegistered.Ptr(),
@@ -308,17 +746,64 @@ func TestDomainStatus(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToDomainStatus(FromDomainStatus(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToDomainStatus(apiv1.DomainStatus(UnknownValue)) })
-	assert.NotPanics(t, func() { FromDomainStatus(types.DomainStatus(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToDomainStatus(apiv1.DomainStatus(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.DomainStatus_DOMAIN_STATUS_INVALID, FromDomainStatus(types.DomainStatus(UnknownValue).Ptr()))
 }
-func TestEncodingType(t *testing.T) {
+
+func TestToDomainStatus(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.DomainStatus
+		expected *types.DomainStatus
+	}{
+		{
+			name:  "when input is invalid it should return nil",
+			input: apiv1.DomainStatus_DOMAIN_STATUS_INVALID,
+		},
+		{
+			name:  "when input is out of range it should return nil",
+			input: apiv1.DomainStatus(UnknownValue),
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    apiv1.DomainStatus_DOMAIN_STATUS_REGISTERED,
+			expected: types.DomainStatusRegistered.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToDomainStatus(tc.input))
+		})
+	}
+}
+
+func TestFromDomainStatus(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.DomainStatus
+		expected apiv1.DomainStatus
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.DomainStatus_DOMAIN_STATUS_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.DomainStatus(UnknownValue).Ptr(),
+			expected: apiv1.DomainStatus_DOMAIN_STATUS_INVALID,
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    types.DomainStatusRegistered.Ptr(),
+			expected: apiv1.DomainStatus_DOMAIN_STATUS_REGISTERED,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromDomainStatus(tc.input))
+		})
+	}
+}
+func TestRoundTripEncodingType(t *testing.T) {
 	for _, item := range []*types.EncodingType{
 		nil,
 		types.EncodingTypeThriftRW.Ptr(),
@@ -326,17 +811,64 @@ func TestEncodingType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToEncodingType(FromEncodingType(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToEncodingType(apiv1.EncodingType(UnknownValue)) })
-	assert.NotPanics(t, func() { FromEncodingType(types.EncodingType(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToEncodingType(apiv1.EncodingType(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.EncodingType_ENCODING_TYPE_INVALID, FromEncodingType(types.EncodingType(UnknownValue).Ptr()))
 }
-func TestEventFilterType(t *testing.T) {
+
+func TestToEncodingType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.EncodingType
+		expected *types.EncodingType
+	}{
+		{
+			name:  "when input is invalid it should return nil",
+			input: apiv1.EncodingType_ENCODING_TYPE_INVALID,
+		},
+		{
+			name:  "when input is out of range it should return nil",
+			input: apiv1.EncodingType(UnknownValue),
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    apiv1.EncodingType_ENCODING_TYPE_THRIFTRW,
+			expected: types.EncodingTypeThriftRW.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToEncodingType(tc.input))
+		})
+	}
+}
+
+func TestFromEncodingType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.EncodingType
+		expected apiv1.EncodingType
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.EncodingType_ENCODING_TYPE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.EncodingType(UnknownValue).Ptr(),
+			expected: apiv1.EncodingType_ENCODING_TYPE_INVALID,
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    types.EncodingTypeThriftRW.Ptr(),
+			expected: apiv1.EncodingType_ENCODING_TYPE_THRIFTRW,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromEncodingType(tc.input))
+		})
+	}
+}
+func TestRoundTripEventFilterType(t *testing.T) {
 	for _, item := range []*types.HistoryEventFilterType{
 		nil,
 		types.HistoryEventFilterTypeAllEvent.Ptr(),
@@ -344,17 +876,64 @@ func TestEventFilterType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToEventFilterType(FromEventFilterType(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToEventFilterType(apiv1.EventFilterType(UnknownValue)) })
-	assert.NotPanics(t, func() { FromEventFilterType(types.HistoryEventFilterType(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToEventFilterType(apiv1.EventFilterType(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.EventFilterType_EVENT_FILTER_TYPE_INVALID, FromEventFilterType(types.HistoryEventFilterType(UnknownValue).Ptr()))
 }
-func TestIndexedValueType(t *testing.T) {
+
+func TestToEventFilterType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.EventFilterType
+		expected *types.HistoryEventFilterType
+	}{
+		{
+			name:  "when input is invalid it should return nil",
+			input: apiv1.EventFilterType_EVENT_FILTER_TYPE_INVALID,
+		},
+		{
+			name:  "when input is out of range it should return nil",
+			input: apiv1.EventFilterType(UnknownValue),
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    apiv1.EventFilterType_EVENT_FILTER_TYPE_ALL_EVENT,
+			expected: types.HistoryEventFilterTypeAllEvent.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToEventFilterType(tc.input))
+		})
+	}
+}
+
+func TestFromEventFilterType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.HistoryEventFilterType
+		expected apiv1.EventFilterType
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.EventFilterType_EVENT_FILTER_TYPE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.HistoryEventFilterType(UnknownValue).Ptr(),
+			expected: apiv1.EventFilterType_EVENT_FILTER_TYPE_INVALID,
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    types.HistoryEventFilterTypeAllEvent.Ptr(),
+			expected: apiv1.EventFilterType_EVENT_FILTER_TYPE_ALL_EVENT,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromEventFilterType(tc.input))
+		})
+	}
+}
+func TestRoundTripIndexedValueType(t *testing.T) {
 	for _, item := range []types.IndexedValueType{
 		types.IndexedValueTypeString,
 		types.IndexedValueTypeKeyword,
@@ -365,19 +944,61 @@ func TestIndexedValueType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToIndexedValueType(FromIndexedValueType(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToIndexedValueType(apiv1.IndexedValueType_INDEXED_VALUE_TYPE_INVALID) })
-	assert.NotPanics(t, func() { ToIndexedValueType(apiv1.IndexedValueType(UnknownValue)) })
-	assert.NotPanics(t, func() { FromIndexedValueType(types.IndexedValueType(UnknownValue)) })
-
-	// Unknown proto enum values should map to zero value (STRING)
-	assert.Equal(t, types.IndexedValueTypeString, ToIndexedValueType(apiv1.IndexedValueType_INDEXED_VALUE_TYPE_INVALID))
-	assert.Equal(t, types.IndexedValueTypeString, ToIndexedValueType(apiv1.IndexedValueType(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.IndexedValueType_INDEXED_VALUE_TYPE_INVALID, FromIndexedValueType(types.IndexedValueType(UnknownValue)))
 }
-func TestParentClosePolicy(t *testing.T) {
+
+func TestToIndexedValueType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.IndexedValueType
+		expected types.IndexedValueType
+	}{
+		{
+			name:     "when input is invalid it should return string",
+			input:    apiv1.IndexedValueType_INDEXED_VALUE_TYPE_INVALID,
+			expected: types.IndexedValueTypeString,
+		},
+		{
+			name:     "when input is out of range it should return string",
+			input:    apiv1.IndexedValueType(UnknownValue),
+			expected: types.IndexedValueTypeString,
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    apiv1.IndexedValueType_INDEXED_VALUE_TYPE_STRING,
+			expected: types.IndexedValueTypeString,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToIndexedValueType(tc.input))
+		})
+	}
+}
+
+func TestFromIndexedValueType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    types.IndexedValueType
+		expected apiv1.IndexedValueType
+	}{
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.IndexedValueType(UnknownValue),
+			expected: apiv1.IndexedValueType_INDEXED_VALUE_TYPE_INVALID,
+		},
+		{
+			name:     "when input is valid it should return the correctly mapped value",
+			input:    types.IndexedValueTypeString,
+			expected: apiv1.IndexedValueType_INDEXED_VALUE_TYPE_STRING,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromIndexedValueType(tc.input))
+		})
+	}
+}
+func TestRoundTripParentClosePolicy(t *testing.T) {
 	for _, item := range []*types.ParentClosePolicy{
 		nil,
 		types.ParentClosePolicyAbandon.Ptr(),
@@ -386,17 +1007,66 @@ func TestParentClosePolicy(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToParentClosePolicy(FromParentClosePolicy(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToParentClosePolicy(apiv1.ParentClosePolicy(UnknownValue)) })
-	assert.NotPanics(t, func() { FromParentClosePolicy(types.ParentClosePolicy(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToParentClosePolicy(apiv1.ParentClosePolicy(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.ParentClosePolicy_PARENT_CLOSE_POLICY_INVALID, FromParentClosePolicy(types.ParentClosePolicy(UnknownValue).Ptr()))
 }
-func TestPendingActivityState(t *testing.T) {
+
+func TestToParentClosePolicy(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.ParentClosePolicy
+		expected *types.ParentClosePolicy
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.ParentClosePolicy_PARENT_CLOSE_POLICY_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.ParentClosePolicy(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is abandon it should return the correctly mapped value",
+			input:    apiv1.ParentClosePolicy_PARENT_CLOSE_POLICY_ABANDON,
+			expected: types.ParentClosePolicyAbandon.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToParentClosePolicy(tc.input))
+		})
+	}
+}
+
+func TestFromParentClosePolicy(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.ParentClosePolicy
+		expected apiv1.ParentClosePolicy
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.ParentClosePolicy_PARENT_CLOSE_POLICY_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.ParentClosePolicy(UnknownValue).Ptr(),
+			expected: apiv1.ParentClosePolicy_PARENT_CLOSE_POLICY_INVALID,
+		},
+		{
+			name:     "when input is abandon it should return the correctly mapped value",
+			input:    types.ParentClosePolicyAbandon.Ptr(),
+			expected: apiv1.ParentClosePolicy_PARENT_CLOSE_POLICY_ABANDON,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromParentClosePolicy(tc.input))
+		})
+	}
+}
+func TestRoundTripPendingActivityState(t *testing.T) {
 	for _, item := range []*types.PendingActivityState{
 		nil,
 		types.PendingActivityStateScheduled.Ptr(),
@@ -405,17 +1075,66 @@ func TestPendingActivityState(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToPendingActivityState(FromPendingActivityState(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToPendingActivityState(apiv1.PendingActivityState(UnknownValue)) })
-	assert.NotPanics(t, func() { FromPendingActivityState(types.PendingActivityState(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToPendingActivityState(apiv1.PendingActivityState(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.PendingActivityState_PENDING_ACTIVITY_STATE_INVALID, FromPendingActivityState(types.PendingActivityState(UnknownValue).Ptr()))
 }
-func TestPendingDecisionState(t *testing.T) {
+
+func TestToPendingActivityState(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.PendingActivityState
+		expected *types.PendingActivityState
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.PendingActivityState_PENDING_ACTIVITY_STATE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.PendingActivityState(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is scheduled it should return the correctly mapped value",
+			input:    apiv1.PendingActivityState_PENDING_ACTIVITY_STATE_SCHEDULED,
+			expected: types.PendingActivityStateScheduled.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToPendingActivityState(tc.input))
+		})
+	}
+}
+
+func TestFromPendingActivityState(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.PendingActivityState
+		expected apiv1.PendingActivityState
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.PendingActivityState_PENDING_ACTIVITY_STATE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.PendingActivityState(UnknownValue).Ptr(),
+			expected: apiv1.PendingActivityState_PENDING_ACTIVITY_STATE_INVALID,
+		},
+		{
+			name:     "when input is scheduled it should return the correctly mapped value",
+			input:    types.PendingActivityStateScheduled.Ptr(),
+			expected: apiv1.PendingActivityState_PENDING_ACTIVITY_STATE_SCHEDULED,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromPendingActivityState(tc.input))
+		})
+	}
+}
+func TestRoundTripPendingDecisionState(t *testing.T) {
 	for _, item := range []*types.PendingDecisionState{
 		nil,
 		types.PendingDecisionStateScheduled.Ptr(),
@@ -423,17 +1142,66 @@ func TestPendingDecisionState(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToPendingDecisionState(FromPendingDecisionState(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToPendingDecisionState(apiv1.PendingDecisionState(UnknownValue)) })
-	assert.NotPanics(t, func() { FromPendingDecisionState(types.PendingDecisionState(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToPendingDecisionState(apiv1.PendingDecisionState(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.PendingDecisionState_PENDING_DECISION_STATE_INVALID, FromPendingDecisionState(types.PendingDecisionState(UnknownValue).Ptr()))
 }
-func TestQueryConsistencyLevel(t *testing.T) {
+
+func TestToPendingDecisionState(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.PendingDecisionState
+		expected *types.PendingDecisionState
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.PendingDecisionState_PENDING_DECISION_STATE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.PendingDecisionState(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is scheduled it should return the correctly mapped value",
+			input:    apiv1.PendingDecisionState_PENDING_DECISION_STATE_SCHEDULED,
+			expected: types.PendingDecisionStateScheduled.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToPendingDecisionState(tc.input))
+		})
+	}
+}
+
+func TestFromPendingDecisionState(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.PendingDecisionState
+		expected apiv1.PendingDecisionState
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.PendingDecisionState_PENDING_DECISION_STATE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.PendingDecisionState(UnknownValue).Ptr(),
+			expected: apiv1.PendingDecisionState_PENDING_DECISION_STATE_INVALID,
+		},
+		{
+			name:     "when input is scheduled it should return the correctly mapped value",
+			input:    types.PendingDecisionStateScheduled.Ptr(),
+			expected: apiv1.PendingDecisionState_PENDING_DECISION_STATE_SCHEDULED,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromPendingDecisionState(tc.input))
+		})
+	}
+}
+func TestRoundTripQueryConsistencyLevel(t *testing.T) {
 	for _, item := range []*types.QueryConsistencyLevel{
 		nil,
 		types.QueryConsistencyLevelEventual.Ptr(),
@@ -441,17 +1209,66 @@ func TestQueryConsistencyLevel(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToQueryConsistencyLevel(FromQueryConsistencyLevel(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToQueryConsistencyLevel(apiv1.QueryConsistencyLevel(UnknownValue)) })
-	assert.NotPanics(t, func() { FromQueryConsistencyLevel(types.QueryConsistencyLevel(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToQueryConsistencyLevel(apiv1.QueryConsistencyLevel(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.QueryConsistencyLevel_QUERY_CONSISTENCY_LEVEL_INVALID, FromQueryConsistencyLevel(types.QueryConsistencyLevel(UnknownValue).Ptr()))
 }
-func TestQueryRejectCondition(t *testing.T) {
+
+func TestToQueryConsistencyLevel(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.QueryConsistencyLevel
+		expected *types.QueryConsistencyLevel
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.QueryConsistencyLevel_QUERY_CONSISTENCY_LEVEL_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.QueryConsistencyLevel(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is eventual it should return the correctly mapped value",
+			input:    apiv1.QueryConsistencyLevel_QUERY_CONSISTENCY_LEVEL_EVENTUAL,
+			expected: types.QueryConsistencyLevelEventual.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToQueryConsistencyLevel(tc.input))
+		})
+	}
+}
+
+func TestFromQueryConsistencyLevel(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.QueryConsistencyLevel
+		expected apiv1.QueryConsistencyLevel
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.QueryConsistencyLevel_QUERY_CONSISTENCY_LEVEL_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.QueryConsistencyLevel(UnknownValue).Ptr(),
+			expected: apiv1.QueryConsistencyLevel_QUERY_CONSISTENCY_LEVEL_INVALID,
+		},
+		{
+			name:     "when input is eventual it should return the correctly mapped value",
+			input:    types.QueryConsistencyLevelEventual.Ptr(),
+			expected: apiv1.QueryConsistencyLevel_QUERY_CONSISTENCY_LEVEL_EVENTUAL,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromQueryConsistencyLevel(tc.input))
+		})
+	}
+}
+func TestRoundTripQueryRejectCondition(t *testing.T) {
 	for _, item := range []*types.QueryRejectCondition{
 		nil,
 		types.QueryRejectConditionNotOpen.Ptr(),
@@ -459,17 +1276,66 @@ func TestQueryRejectCondition(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToQueryRejectCondition(FromQueryRejectCondition(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToQueryRejectCondition(apiv1.QueryRejectCondition(UnknownValue)) })
-	assert.NotPanics(t, func() { FromQueryRejectCondition(types.QueryRejectCondition(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToQueryRejectCondition(apiv1.QueryRejectCondition(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.QueryRejectCondition_QUERY_REJECT_CONDITION_INVALID, FromQueryRejectCondition(types.QueryRejectCondition(UnknownValue).Ptr()))
 }
-func TestQueryResultType(t *testing.T) {
+
+func TestToQueryRejectCondition(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.QueryRejectCondition
+		expected *types.QueryRejectCondition
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.QueryRejectCondition_QUERY_REJECT_CONDITION_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.QueryRejectCondition(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is not open it should return the correctly mapped value",
+			input:    apiv1.QueryRejectCondition_QUERY_REJECT_CONDITION_NOT_OPEN,
+			expected: types.QueryRejectConditionNotOpen.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToQueryRejectCondition(tc.input))
+		})
+	}
+}
+
+func TestFromQueryRejectCondition(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.QueryRejectCondition
+		expected apiv1.QueryRejectCondition
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.QueryRejectCondition_QUERY_REJECT_CONDITION_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.QueryRejectCondition(UnknownValue).Ptr(),
+			expected: apiv1.QueryRejectCondition_QUERY_REJECT_CONDITION_INVALID,
+		},
+		{
+			name:     "when input is not open it should return the correctly mapped value",
+			input:    types.QueryRejectConditionNotOpen.Ptr(),
+			expected: apiv1.QueryRejectCondition_QUERY_REJECT_CONDITION_NOT_OPEN,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromQueryRejectCondition(tc.input))
+		})
+	}
+}
+func TestRoundTripQueryResultType(t *testing.T) {
 	for _, item := range []*types.QueryResultType{
 		nil,
 		types.QueryResultTypeAnswered.Ptr(),
@@ -477,17 +1343,66 @@ func TestQueryResultType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToQueryResultType(FromQueryResultType(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToQueryResultType(apiv1.QueryResultType(UnknownValue)) })
-	assert.NotPanics(t, func() { FromQueryResultType(types.QueryResultType(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToQueryResultType(apiv1.QueryResultType(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.QueryResultType_QUERY_RESULT_TYPE_INVALID, FromQueryResultType(types.QueryResultType(UnknownValue).Ptr()))
 }
-func TestQueryTaskCompletedType(t *testing.T) {
+
+func TestToQueryResultType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.QueryResultType
+		expected *types.QueryResultType
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.QueryResultType_QUERY_RESULT_TYPE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.QueryResultType(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is answered it should return the correctly mapped value",
+			input:    apiv1.QueryResultType_QUERY_RESULT_TYPE_ANSWERED,
+			expected: types.QueryResultTypeAnswered.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToQueryResultType(tc.input))
+		})
+	}
+}
+
+func TestFromQueryResultType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.QueryResultType
+		expected apiv1.QueryResultType
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.QueryResultType_QUERY_RESULT_TYPE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.QueryResultType(UnknownValue).Ptr(),
+			expected: apiv1.QueryResultType_QUERY_RESULT_TYPE_INVALID,
+		},
+		{
+			name:     "when input is answered it should return the correctly mapped value",
+			input:    types.QueryResultTypeAnswered.Ptr(),
+			expected: apiv1.QueryResultType_QUERY_RESULT_TYPE_ANSWERED,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromQueryResultType(tc.input))
+		})
+	}
+}
+func TestRoundTripQueryTaskCompletedType(t *testing.T) {
 	for _, item := range []*types.QueryTaskCompletedType{
 		nil,
 		types.QueryTaskCompletedTypeCompleted.Ptr(),
@@ -495,17 +1410,66 @@ func TestQueryTaskCompletedType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToQueryTaskCompletedType(FromQueryTaskCompletedType(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToQueryTaskCompletedType(apiv1.QueryResultType(UnknownValue)) })
-	assert.NotPanics(t, func() { FromQueryTaskCompletedType(types.QueryTaskCompletedType(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToQueryTaskCompletedType(apiv1.QueryResultType(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.QueryResultType_QUERY_RESULT_TYPE_INVALID, FromQueryTaskCompletedType(types.QueryTaskCompletedType(UnknownValue).Ptr()))
 }
-func TestSignalExternalWorkflowExecutionFailedCause(t *testing.T) {
+
+func TestToQueryTaskCompletedType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.QueryResultType
+		expected *types.QueryTaskCompletedType
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.QueryResultType_QUERY_RESULT_TYPE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.QueryResultType(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is completed it should return the correctly mapped value",
+			input:    apiv1.QueryResultType_QUERY_RESULT_TYPE_ANSWERED,
+			expected: types.QueryTaskCompletedTypeCompleted.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToQueryTaskCompletedType(tc.input))
+		})
+	}
+}
+
+func TestFromQueryTaskCompletedType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.QueryTaskCompletedType
+		expected apiv1.QueryResultType
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.QueryResultType_QUERY_RESULT_TYPE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.QueryTaskCompletedType(UnknownValue).Ptr(),
+			expected: apiv1.QueryResultType_QUERY_RESULT_TYPE_INVALID,
+		},
+		{
+			name:     "when input is completed it should return the correctly mapped value",
+			input:    types.QueryTaskCompletedTypeCompleted.Ptr(),
+			expected: apiv1.QueryResultType_QUERY_RESULT_TYPE_ANSWERED,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromQueryTaskCompletedType(tc.input))
+		})
+	}
+}
+func TestRoundTripSignalExternalWorkflowExecutionFailedCause(t *testing.T) {
 	for _, item := range []*types.SignalExternalWorkflowExecutionFailedCause{
 		nil,
 		types.SignalExternalWorkflowExecutionFailedCauseUnknownExternalWorkflowExecution.Ptr(),
@@ -513,21 +1477,67 @@ func TestSignalExternalWorkflowExecutionFailedCause(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToSignalExternalWorkflowExecutionFailedCause(FromSignalExternalWorkflowExecutionFailedCause(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() {
-		ToSignalExternalWorkflowExecutionFailedCause(apiv1.SignalExternalWorkflowExecutionFailedCause(UnknownValue))
-	})
-	assert.NotPanics(t, func() {
-		FromSignalExternalWorkflowExecutionFailedCause(types.SignalExternalWorkflowExecutionFailedCause(UnknownValue).Ptr())
-	})
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToSignalExternalWorkflowExecutionFailedCause(apiv1.SignalExternalWorkflowExecutionFailedCause(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.SignalExternalWorkflowExecutionFailedCause_SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID, FromSignalExternalWorkflowExecutionFailedCause(types.SignalExternalWorkflowExecutionFailedCause(UnknownValue).Ptr()))
 }
-func TestTaskListKind(t *testing.T) {
+
+func TestToSignalExternalWorkflowExecutionFailedCause(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.SignalExternalWorkflowExecutionFailedCause
+		expected *types.SignalExternalWorkflowExecutionFailedCause
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.SignalExternalWorkflowExecutionFailedCause_SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.SignalExternalWorkflowExecutionFailedCause(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is unknown external workflow execution it should return the correctly mapped value",
+			input:    apiv1.SignalExternalWorkflowExecutionFailedCause_SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_UNKNOWN_EXTERNAL_WORKFLOW_EXECUTION,
+			expected: types.SignalExternalWorkflowExecutionFailedCauseUnknownExternalWorkflowExecution.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToSignalExternalWorkflowExecutionFailedCause(tc.input))
+		})
+	}
+}
+
+func TestFromSignalExternalWorkflowExecutionFailedCause(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.SignalExternalWorkflowExecutionFailedCause
+		expected apiv1.SignalExternalWorkflowExecutionFailedCause
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.SignalExternalWorkflowExecutionFailedCause_SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.SignalExternalWorkflowExecutionFailedCause(UnknownValue).Ptr(),
+			expected: apiv1.SignalExternalWorkflowExecutionFailedCause_SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID,
+		},
+		{
+			name:     "when input is unknown external workflow execution it should return the correctly mapped value",
+			input:    types.SignalExternalWorkflowExecutionFailedCauseUnknownExternalWorkflowExecution.Ptr(),
+			expected: apiv1.SignalExternalWorkflowExecutionFailedCause_SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_UNKNOWN_EXTERNAL_WORKFLOW_EXECUTION,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromSignalExternalWorkflowExecutionFailedCause(tc.input))
+		})
+	}
+}
+
+func TestRoundTripTaskListKind(t *testing.T) {
 	for _, item := range []*types.TaskListKind{
 		nil,
 		types.TaskListKindNormal.Ptr(),
@@ -536,17 +1546,67 @@ func TestTaskListKind(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToTaskListKind(FromTaskListKind(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToTaskListKind(apiv1.TaskListKind(UnknownValue)) })
-	assert.NotPanics(t, func() { FromTaskListKind(types.TaskListKind(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToTaskListKind(apiv1.TaskListKind(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.TaskListKind_TASK_LIST_KIND_INVALID, FromTaskListKind(types.TaskListKind(UnknownValue).Ptr()))
 }
-func TestTaskListType(t *testing.T) {
+
+func TestToTaskListKind(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.TaskListKind
+		expected *types.TaskListKind
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.TaskListKind_TASK_LIST_KIND_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.TaskListKind(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is normal it should return the correctly mapped value",
+			input:    apiv1.TaskListKind_TASK_LIST_KIND_NORMAL,
+			expected: types.TaskListKindNormal.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToTaskListKind(tc.input))
+		})
+	}
+}
+
+func TestFromTaskListKind(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.TaskListKind
+		expected apiv1.TaskListKind
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.TaskListKind_TASK_LIST_KIND_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.TaskListKind(UnknownValue).Ptr(),
+			expected: apiv1.TaskListKind_TASK_LIST_KIND_INVALID,
+		},
+		{
+			name:     "when input is normal it should return the correctly mapped value",
+			input:    types.TaskListKindNormal.Ptr(),
+			expected: apiv1.TaskListKind_TASK_LIST_KIND_NORMAL,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromTaskListKind(tc.input))
+		})
+	}
+}
+
+func TestRoundTripTaskListType(t *testing.T) {
 	for _, item := range []*types.TaskListType{
 		nil,
 		types.TaskListTypeDecision.Ptr(),
@@ -554,17 +1614,66 @@ func TestTaskListType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToTaskListType(FromTaskListType(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToTaskListType(apiv1.TaskListType(UnknownValue)) })
-	assert.NotPanics(t, func() { FromTaskListType(types.TaskListType(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToTaskListType(apiv1.TaskListType(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.TaskListType_TASK_LIST_TYPE_INVALID, FromTaskListType(types.TaskListType(UnknownValue).Ptr()))
 }
-func TestTimeoutType(t *testing.T) {
+
+func TestToTaskListType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.TaskListType
+		expected *types.TaskListType
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.TaskListType_TASK_LIST_TYPE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.TaskListType(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is decision it should return the correctly mapped value",
+			input:    apiv1.TaskListType_TASK_LIST_TYPE_DECISION,
+			expected: types.TaskListTypeDecision.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToTaskListType(tc.input))
+		})
+	}
+}
+
+func TestFromTaskListType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.TaskListType
+		expected apiv1.TaskListType
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.TaskListType_TASK_LIST_TYPE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.TaskListType(UnknownValue).Ptr(),
+			expected: apiv1.TaskListType_TASK_LIST_TYPE_INVALID,
+		},
+		{
+			name:     "when input is decision it should return the correctly mapped value",
+			input:    types.TaskListTypeDecision.Ptr(),
+			expected: apiv1.TaskListType_TASK_LIST_TYPE_DECISION,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromTaskListType(tc.input))
+		})
+	}
+}
+func TestRoundTripTimeoutType(t *testing.T) {
 	for _, item := range []*types.TimeoutType{
 		nil,
 		types.TimeoutTypeStartToClose.Ptr(),
@@ -574,17 +1683,66 @@ func TestTimeoutType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToTimeoutType(FromTimeoutType(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToTimeoutType(apiv1.TimeoutType(UnknownValue)) })
-	assert.NotPanics(t, func() { FromTimeoutType(types.TimeoutType(UnknownValue).Ptr()) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToTimeoutType(apiv1.TimeoutType(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, apiv1.TimeoutType_TIMEOUT_TYPE_INVALID, FromTimeoutType(types.TimeoutType(UnknownValue).Ptr()))
 }
-func TestDecisionTaskTimedOutCause(t *testing.T) {
+
+func TestToTimeoutType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.TimeoutType
+		expected *types.TimeoutType
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.TimeoutType_TIMEOUT_TYPE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.TimeoutType(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is start to close it should return the correctly mapped value",
+			input:    apiv1.TimeoutType_TIMEOUT_TYPE_START_TO_CLOSE,
+			expected: types.TimeoutTypeStartToClose.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToTimeoutType(tc.input))
+		})
+	}
+}
+
+func TestFromTimeoutType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.TimeoutType
+		expected apiv1.TimeoutType
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.TimeoutType_TIMEOUT_TYPE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.TimeoutType(UnknownValue).Ptr(),
+			expected: apiv1.TimeoutType_TIMEOUT_TYPE_INVALID,
+		},
+		{
+			name:     "when input is start to close it should return the correctly mapped value",
+			input:    types.TimeoutTypeStartToClose.Ptr(),
+			expected: apiv1.TimeoutType_TIMEOUT_TYPE_START_TO_CLOSE,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromTimeoutType(tc.input))
+		})
+	}
+}
+func TestRoundTripDecisionTaskTimedOutCause(t *testing.T) {
 	for _, item := range []*types.DecisionTaskTimedOutCause{
 		nil,
 		types.DecisionTaskTimedOutCauseTimeout.Ptr(),
@@ -592,14 +1750,66 @@ func TestDecisionTaskTimedOutCause(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToDecisionTaskTimedOutCause(FromDecisionTaskTimedOutCause(item)))
 	}
-	// Test safe behavior for unknown enum values
-	assert.NotPanics(t, func() { ToDecisionTaskTimedOutCause(apiv1.DecisionTaskTimedOutCause(UnknownValue)) })
-	assert.NotPanics(t, func() { FromDecisionTaskTimedOutCause(types.DecisionTaskTimedOutCause(UnknownValue).Ptr()) })
-	// Verify safe return values
-	assert.Nil(t, ToDecisionTaskTimedOutCause(apiv1.DecisionTaskTimedOutCause(UnknownValue)))
-	assert.Equal(t, apiv1.DecisionTaskTimedOutCause_DECISION_TASK_TIMED_OUT_CAUSE_INVALID, FromDecisionTaskTimedOutCause(types.DecisionTaskTimedOutCause(UnknownValue).Ptr()))
 }
-func TestWorkflowExecutionCloseStatus(t *testing.T) {
+
+func TestToDecisionTaskTimedOutCause(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.DecisionTaskTimedOutCause
+		expected *types.DecisionTaskTimedOutCause
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.DecisionTaskTimedOutCause_DECISION_TASK_TIMED_OUT_CAUSE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.DecisionTaskTimedOutCause(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is timeout it should return the correctly mapped value",
+			input:    apiv1.DecisionTaskTimedOutCause_DECISION_TASK_TIMED_OUT_CAUSE_TIMEOUT,
+			expected: types.DecisionTaskTimedOutCauseTimeout.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToDecisionTaskTimedOutCause(tc.input))
+		})
+	}
+}
+
+func TestFromDecisionTaskTimedOutCause(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.DecisionTaskTimedOutCause
+		expected apiv1.DecisionTaskTimedOutCause
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.DecisionTaskTimedOutCause_DECISION_TASK_TIMED_OUT_CAUSE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.DecisionTaskTimedOutCause(UnknownValue).Ptr(),
+			expected: apiv1.DecisionTaskTimedOutCause_DECISION_TASK_TIMED_OUT_CAUSE_INVALID,
+		},
+		{
+			name:     "when input is timeout it should return the correctly mapped value",
+			input:    types.DecisionTaskTimedOutCauseTimeout.Ptr(),
+			expected: apiv1.DecisionTaskTimedOutCause_DECISION_TASK_TIMED_OUT_CAUSE_TIMEOUT,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromDecisionTaskTimedOutCause(tc.input))
+		})
+	}
+}
+func TestRoundTripWorkflowExecutionCloseStatus(t *testing.T) {
 	for _, item := range []*types.WorkflowExecutionCloseStatus{
 		nil,
 		types.WorkflowExecutionCloseStatusCompleted.Ptr(),
@@ -611,14 +1821,66 @@ func TestWorkflowExecutionCloseStatus(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToWorkflowExecutionCloseStatus(FromWorkflowExecutionCloseStatus(item)))
 	}
-	// Test safe behavior for unknown enum values
-	assert.NotPanics(t, func() { ToWorkflowExecutionCloseStatus(apiv1.WorkflowExecutionCloseStatus(UnknownValue)) })
-	assert.NotPanics(t, func() { FromWorkflowExecutionCloseStatus(types.WorkflowExecutionCloseStatus(UnknownValue).Ptr()) })
-	// Verify safe return values
-	assert.Nil(t, ToWorkflowExecutionCloseStatus(apiv1.WorkflowExecutionCloseStatus(UnknownValue)))
-	assert.Equal(t, apiv1.WorkflowExecutionCloseStatus_WORKFLOW_EXECUTION_CLOSE_STATUS_INVALID, FromWorkflowExecutionCloseStatus(types.WorkflowExecutionCloseStatus(UnknownValue).Ptr()))
 }
-func TestWorkflowIDReusePolicy(t *testing.T) {
+
+func TestToWorkflowExecutionCloseStatus(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.WorkflowExecutionCloseStatus
+		expected *types.WorkflowExecutionCloseStatus
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.WorkflowExecutionCloseStatus_WORKFLOW_EXECUTION_CLOSE_STATUS_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.WorkflowExecutionCloseStatus(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is completed it should return the correctly mapped value",
+			input:    apiv1.WorkflowExecutionCloseStatus_WORKFLOW_EXECUTION_CLOSE_STATUS_COMPLETED,
+			expected: types.WorkflowExecutionCloseStatusCompleted.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToWorkflowExecutionCloseStatus(tc.input))
+		})
+	}
+}
+
+func TestFromWorkflowExecutionCloseStatus(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.WorkflowExecutionCloseStatus
+		expected apiv1.WorkflowExecutionCloseStatus
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.WorkflowExecutionCloseStatus_WORKFLOW_EXECUTION_CLOSE_STATUS_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.WorkflowExecutionCloseStatus(UnknownValue).Ptr(),
+			expected: apiv1.WorkflowExecutionCloseStatus_WORKFLOW_EXECUTION_CLOSE_STATUS_INVALID,
+		},
+		{
+			name:     "when input is completed it should return the correctly mapped value",
+			input:    types.WorkflowExecutionCloseStatusCompleted.Ptr(),
+			expected: apiv1.WorkflowExecutionCloseStatus_WORKFLOW_EXECUTION_CLOSE_STATUS_COMPLETED,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromWorkflowExecutionCloseStatus(tc.input))
+		})
+	}
+}
+func TestRoundTripWorkflowIDReusePolicy(t *testing.T) {
 	for _, item := range []*types.WorkflowIDReusePolicy{
 		nil,
 		types.WorkflowIDReusePolicyAllowDuplicateFailedOnly.Ptr(),
@@ -628,14 +1890,66 @@ func TestWorkflowIDReusePolicy(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToWorkflowIDReusePolicy(FromWorkflowIDReusePolicy(item)))
 	}
-	// Test safe behavior for unknown enum values
-	assert.NotPanics(t, func() { ToWorkflowIDReusePolicy(apiv1.WorkflowIdReusePolicy(UnknownValue)) })
-	assert.NotPanics(t, func() { FromWorkflowIDReusePolicy(types.WorkflowIDReusePolicy(UnknownValue).Ptr()) })
-	// Verify safe return values
-	assert.Nil(t, ToWorkflowIDReusePolicy(apiv1.WorkflowIdReusePolicy(UnknownValue)))
-	assert.Equal(t, apiv1.WorkflowIdReusePolicy_WORKFLOW_ID_REUSE_POLICY_INVALID, FromWorkflowIDReusePolicy(types.WorkflowIDReusePolicy(UnknownValue).Ptr()))
 }
-func TestWorkflowState(t *testing.T) {
+
+func TestToWorkflowIDReusePolicy(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    apiv1.WorkflowIdReusePolicy
+		expected *types.WorkflowIDReusePolicy
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    apiv1.WorkflowIdReusePolicy_WORKFLOW_ID_REUSE_POLICY_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    apiv1.WorkflowIdReusePolicy(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is allow duplicate failed only it should return the correctly mapped value",
+			input:    apiv1.WorkflowIdReusePolicy_WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
+			expected: types.WorkflowIDReusePolicyAllowDuplicateFailedOnly.Ptr(),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToWorkflowIDReusePolicy(tc.input))
+		})
+	}
+}
+
+func TestFromWorkflowIDReusePolicy(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *types.WorkflowIDReusePolicy
+		expected apiv1.WorkflowIdReusePolicy
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: apiv1.WorkflowIdReusePolicy_WORKFLOW_ID_REUSE_POLICY_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    types.WorkflowIDReusePolicy(UnknownValue).Ptr(),
+			expected: apiv1.WorkflowIdReusePolicy_WORKFLOW_ID_REUSE_POLICY_INVALID,
+		},
+		{
+			name:     "when input is allow duplicate failed only it should return the correctly mapped value",
+			input:    types.WorkflowIDReusePolicyAllowDuplicateFailedOnly.Ptr(),
+			expected: apiv1.WorkflowIdReusePolicy_WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromWorkflowIDReusePolicy(tc.input))
+		})
+	}
+}
+func TestRoundTripWorkflowState(t *testing.T) {
 	for _, item := range []*int32{
 		nil,
 		common.Int32Ptr(persistence.WorkflowStateCreated),
@@ -647,17 +1961,66 @@ func TestWorkflowState(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToWorkflowState(FromWorkflowState(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToWorkflowState(sharedv1.WorkflowState(UnknownValue)) })
-	assert.NotPanics(t, func() { FromWorkflowState(common.Int32Ptr(UnknownValue)) })
-
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToWorkflowState(sharedv1.WorkflowState(UnknownValue)))
-
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, sharedv1.WorkflowState_WORKFLOW_STATE_INVALID, FromWorkflowState(common.Int32Ptr(UnknownValue)))
 }
-func TestTaskType(t *testing.T) {
+
+func TestToWorkflowState(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    sharedv1.WorkflowState
+		expected *int32
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    sharedv1.WorkflowState_WORKFLOW_STATE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    sharedv1.WorkflowState(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is created it should return the correctly mapped value",
+			input:    sharedv1.WorkflowState_WORKFLOW_STATE_CREATED,
+			expected: common.Int32Ptr(persistence.WorkflowStateCreated),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToWorkflowState(tc.input))
+		})
+	}
+}
+
+func TestFromWorkflowState(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *int32
+		expected sharedv1.WorkflowState
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: sharedv1.WorkflowState_WORKFLOW_STATE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    common.Int32Ptr(UnknownValue),
+			expected: sharedv1.WorkflowState_WORKFLOW_STATE_INVALID,
+		},
+		{
+			name:     "when input is created it should return the correctly mapped value",
+			input:    common.Int32Ptr(persistence.WorkflowStateCreated),
+			expected: sharedv1.WorkflowState_WORKFLOW_STATE_CREATED,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromWorkflowState(tc.input))
+		})
+	}
+}
+func TestRoundTripTaskType(t *testing.T) {
 	for _, item := range []*int32{
 		nil,
 		common.Int32Ptr(int32(constants.TaskTypeTransfer)),
@@ -667,13 +2030,62 @@ func TestTaskType(t *testing.T) {
 	} {
 		assert.Equal(t, item, ToTaskType(FromTaskType(item)))
 	}
-	// Test safe handling of unknown values - should not panic
-	assert.NotPanics(t, func() { ToTaskType(adminv1.TaskType(UnknownValue)) })
-	assert.NotPanics(t, func() { FromTaskType(common.Int32Ptr(UnknownValue)) })
+}
 
-	// Unknown proto enum values should map to nil
-	assert.Nil(t, ToTaskType(adminv1.TaskType(UnknownValue)))
+func TestToTaskType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    adminv1.TaskType
+		expected *int32
+	}{
+		{
+			name:     "when input is invalid it should return nil",
+			input:    adminv1.TaskType_TASK_TYPE_INVALID,
+			expected: nil,
+		},
+		{
+			name:     "when input is out of range it should return nil",
+			input:    adminv1.TaskType(UnknownValue),
+			expected: nil,
+		},
+		{
+			name:     "when input is transfer it should return the correctly mapped value",
+			input:    adminv1.TaskType_TASK_TYPE_TRANSFER,
+			expected: common.Int32Ptr(int32(constants.TaskTypeTransfer)),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ToTaskType(tc.input))
+		})
+	}
+}
 
-	// Unknown internal enum values should map to INVALID
-	assert.Equal(t, adminv1.TaskType_TASK_TYPE_INVALID, FromTaskType(common.Int32Ptr(UnknownValue)))
+func TestFromTaskType(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    *int32
+		expected adminv1.TaskType
+	}{
+		{
+			name:     "when input is nil it should return INVALID",
+			input:    nil,
+			expected: adminv1.TaskType_TASK_TYPE_INVALID,
+		},
+		{
+			name:     "when input is out of range it should return INVALID",
+			input:    common.Int32Ptr(UnknownValue),
+			expected: adminv1.TaskType_TASK_TYPE_INVALID,
+		},
+		{
+			name:     "when input is transfer it should return the correctly mapped value",
+			input:    common.Int32Ptr(int32(constants.TaskTypeTransfer)),
+			expected: adminv1.TaskType_TASK_TYPE_TRANSFER,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, FromTaskType(tc.input))
+		})
+	}
 }
