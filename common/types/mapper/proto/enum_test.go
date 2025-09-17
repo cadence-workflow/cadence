@@ -36,7 +36,7 @@ import (
 
 const UnknownValue = 9999
 
-func TestRoundTripTaskSource(t *testing.T) {
+func TestTaskSource(t *testing.T) {
 	for _, item := range []*types.TaskSource{
 		nil,
 		types.TaskSourceHistory.Ptr(),
@@ -101,7 +101,7 @@ func TestFromTaskSource(t *testing.T) {
 	}
 }
 
-func TestRoundTripDLQType(t *testing.T) {
+func TestDLQType(t *testing.T) {
 	for _, item := range []*types.DLQType{
 		nil,
 		types.DLQTypeReplication.Ptr(),
@@ -169,7 +169,7 @@ func TestFromDLQType(t *testing.T) {
 	}
 }
 
-func TestRoundTripDomainOperation(t *testing.T) {
+func TestDomainOperation(t *testing.T) {
 	for _, item := range []*types.DomainOperation{
 		nil,
 		types.DomainOperationCreate.Ptr(),
@@ -238,7 +238,7 @@ func TestFromDomainOperation(t *testing.T) {
 	}
 }
 
-func TestRoundTripReplicationTaskType(t *testing.T) {
+func TestReplicationTaskType(t *testing.T) {
 	for _, item := range []*types.ReplicationTaskType{
 		nil,
 		types.ReplicationTaskTypeDomain.Ptr(),
@@ -310,7 +310,7 @@ func TestFromReplicationTaskType(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripArchivalStatus(t *testing.T) {
+func TestArchivalStatus(t *testing.T) {
 	for _, item := range []*types.ArchivalStatus{
 		nil,
 		types.ArchivalStatusDisabled.Ptr(),
@@ -377,7 +377,7 @@ func TestFromArchivalStatus(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripCancelExternalWorkflowExecutionFailedCause(t *testing.T) {
+func TestCancelExternalWorkflowExecutionFailedCause(t *testing.T) {
 	for _, item := range []*types.CancelExternalWorkflowExecutionFailedCause{
 		nil,
 		types.CancelExternalWorkflowExecutionFailedCauseUnknownExternalWorkflowExecution.Ptr(),
@@ -444,7 +444,7 @@ func TestFromCancelExternalWorkflowExecutionFailedCause(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripChildWorkflowExecutionFailedCause(t *testing.T) {
+func TestChildWorkflowExecutionFailedCause(t *testing.T) {
 	for _, item := range []*types.ChildWorkflowExecutionFailedCause{
 		nil,
 		types.ChildWorkflowExecutionFailedCauseWorkflowAlreadyRunning.Ptr(),
@@ -510,7 +510,7 @@ func TestFromChildWorkflowExecutionFailedCause(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripContinueAsNewInitiator(t *testing.T) {
+func TestContinueAsNewInitiator(t *testing.T) {
 	for _, item := range []*types.ContinueAsNewInitiator{
 		nil,
 		types.ContinueAsNewInitiatorDecider.Ptr(),
@@ -578,7 +578,7 @@ func TestFromContinueAsNewInitiator(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripCrossClusterTaskFailedCause(t *testing.T) {
+func TestCrossClusterTaskFailedCause(t *testing.T) {
 	for _, item := range []*types.CrossClusterTaskFailedCause{
 		nil,
 		types.CrossClusterTaskFailedCauseDomainNotActive.Ptr(),
@@ -649,7 +649,7 @@ func TestFromCrossClusterTaskFailedCause(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripDecisionTaskFailedCause(t *testing.T) {
+func TestDecisionTaskFailedCause(t *testing.T) {
 	for _, item := range []*types.DecisionTaskFailedCause{
 		nil,
 		types.DecisionTaskFailedCauseUnhandledDecision.Ptr(),
@@ -737,7 +737,7 @@ func TestFromDecisionTaskFailedCause(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripDomainStatus(t *testing.T) {
+func TestDomainStatus(t *testing.T) {
 	for _, item := range []*types.DomainStatus{
 		nil,
 		types.DomainStatusRegistered.Ptr(),
@@ -803,7 +803,7 @@ func TestFromDomainStatus(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripEncodingType(t *testing.T) {
+func TestEncodingType(t *testing.T) {
 	for _, item := range []*types.EncodingType{
 		nil,
 		types.EncodingTypeThriftRW.Ptr(),
@@ -868,7 +868,7 @@ func TestFromEncodingType(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripEventFilterType(t *testing.T) {
+func TestEventFilterType(t *testing.T) {
 	for _, item := range []*types.HistoryEventFilterType{
 		nil,
 		types.HistoryEventFilterTypeAllEvent.Ptr(),
@@ -933,7 +933,7 @@ func TestFromEventFilterType(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripIndexedValueType(t *testing.T) {
+func TestIndexedValueType(t *testing.T) {
 	for _, item := range []types.IndexedValueType{
 		types.IndexedValueTypeString,
 		types.IndexedValueTypeKeyword,
@@ -998,7 +998,7 @@ func TestFromIndexedValueType(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripParentClosePolicy(t *testing.T) {
+func TestParentClosePolicy(t *testing.T) {
 	for _, item := range []*types.ParentClosePolicy{
 		nil,
 		types.ParentClosePolicyAbandon.Ptr(),
@@ -1066,7 +1066,7 @@ func TestFromParentClosePolicy(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripPendingActivityState(t *testing.T) {
+func TestPendingActivityState(t *testing.T) {
 	for _, item := range []*types.PendingActivityState{
 		nil,
 		types.PendingActivityStateScheduled.Ptr(),
@@ -1134,7 +1134,7 @@ func TestFromPendingActivityState(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripPendingDecisionState(t *testing.T) {
+func TestPendingDecisionState(t *testing.T) {
 	for _, item := range []*types.PendingDecisionState{
 		nil,
 		types.PendingDecisionStateScheduled.Ptr(),
@@ -1201,7 +1201,7 @@ func TestFromPendingDecisionState(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripQueryConsistencyLevel(t *testing.T) {
+func TestQueryConsistencyLevel(t *testing.T) {
 	for _, item := range []*types.QueryConsistencyLevel{
 		nil,
 		types.QueryConsistencyLevelEventual.Ptr(),
@@ -1268,7 +1268,7 @@ func TestFromQueryConsistencyLevel(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripQueryRejectCondition(t *testing.T) {
+func TestQueryRejectCondition(t *testing.T) {
 	for _, item := range []*types.QueryRejectCondition{
 		nil,
 		types.QueryRejectConditionNotOpen.Ptr(),
@@ -1335,7 +1335,7 @@ func TestFromQueryRejectCondition(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripQueryResultType(t *testing.T) {
+func TestQueryResultType(t *testing.T) {
 	for _, item := range []*types.QueryResultType{
 		nil,
 		types.QueryResultTypeAnswered.Ptr(),
@@ -1402,7 +1402,7 @@ func TestFromQueryResultType(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripQueryTaskCompletedType(t *testing.T) {
+func TestQueryTaskCompletedType(t *testing.T) {
 	for _, item := range []*types.QueryTaskCompletedType{
 		nil,
 		types.QueryTaskCompletedTypeCompleted.Ptr(),
@@ -1469,7 +1469,7 @@ func TestFromQueryTaskCompletedType(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripSignalExternalWorkflowExecutionFailedCause(t *testing.T) {
+func TestSignalExternalWorkflowExecutionFailedCause(t *testing.T) {
 	for _, item := range []*types.SignalExternalWorkflowExecutionFailedCause{
 		nil,
 		types.SignalExternalWorkflowExecutionFailedCauseUnknownExternalWorkflowExecution.Ptr(),
@@ -1537,7 +1537,7 @@ func TestFromSignalExternalWorkflowExecutionFailedCause(t *testing.T) {
 	}
 }
 
-func TestRoundTripTaskListKind(t *testing.T) {
+func TestTaskListKind(t *testing.T) {
 	for _, item := range []*types.TaskListKind{
 		nil,
 		types.TaskListKindNormal.Ptr(),
@@ -1606,7 +1606,7 @@ func TestFromTaskListKind(t *testing.T) {
 	}
 }
 
-func TestRoundTripTaskListType(t *testing.T) {
+func TestTaskListType(t *testing.T) {
 	for _, item := range []*types.TaskListType{
 		nil,
 		types.TaskListTypeDecision.Ptr(),
@@ -1673,7 +1673,7 @@ func TestFromTaskListType(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripTimeoutType(t *testing.T) {
+func TestTimeoutType(t *testing.T) {
 	for _, item := range []*types.TimeoutType{
 		nil,
 		types.TimeoutTypeStartToClose.Ptr(),
@@ -1742,7 +1742,7 @@ func TestFromTimeoutType(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripDecisionTaskTimedOutCause(t *testing.T) {
+func TestDecisionTaskTimedOutCause(t *testing.T) {
 	for _, item := range []*types.DecisionTaskTimedOutCause{
 		nil,
 		types.DecisionTaskTimedOutCauseTimeout.Ptr(),
@@ -1809,7 +1809,7 @@ func TestFromDecisionTaskTimedOutCause(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripWorkflowExecutionCloseStatus(t *testing.T) {
+func TestWorkflowExecutionCloseStatus(t *testing.T) {
 	for _, item := range []*types.WorkflowExecutionCloseStatus{
 		nil,
 		types.WorkflowExecutionCloseStatusCompleted.Ptr(),
@@ -1880,7 +1880,7 @@ func TestFromWorkflowExecutionCloseStatus(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripWorkflowIDReusePolicy(t *testing.T) {
+func TestWorkflowIDReusePolicy(t *testing.T) {
 	for _, item := range []*types.WorkflowIDReusePolicy{
 		nil,
 		types.WorkflowIDReusePolicyAllowDuplicateFailedOnly.Ptr(),
@@ -1949,7 +1949,7 @@ func TestFromWorkflowIDReusePolicy(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripWorkflowState(t *testing.T) {
+func TestWorkflowState(t *testing.T) {
 	for _, item := range []*int32{
 		nil,
 		common.Int32Ptr(persistence.WorkflowStateCreated),
@@ -2020,7 +2020,7 @@ func TestFromWorkflowState(t *testing.T) {
 		})
 	}
 }
-func TestRoundTripTaskType(t *testing.T) {
+func TestTaskType(t *testing.T) {
 	for _, item := range []*int32{
 		nil,
 		common.Int32Ptr(int32(constants.TaskTypeTransfer)),
