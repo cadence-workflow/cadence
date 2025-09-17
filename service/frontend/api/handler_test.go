@@ -2121,8 +2121,6 @@ func (s *workflowHandlerSuite) TestRestartWorkflowExecution() {
 				WorkflowExecution: &types.WorkflowExecution{
 					WorkflowID: testWorkflowID,
 				},
-				CronOverlapPolicy:               types.CronOverlapPolicySkipped.Ptr(),
-				FirstDecisionTaskBackoffSeconds: common.Int32Ptr(10),
 			},
 			setupContext: func() context.Context {
 				return context.Background()
