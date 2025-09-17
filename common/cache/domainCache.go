@@ -1000,6 +1000,7 @@ func (entry *DomainCacheEntry) IsSampledForLongerRetention(
 	return false
 }
 
+// TODO(active-active): This function should accept active cluster selection policy as a parameter
 func GetActiveDomainByID(cache DomainCache, currentCluster string, domainID string) (*DomainCacheEntry, error) {
 	if err := common.ValidateDomainUUID(domainID); err != nil {
 		return nil, err

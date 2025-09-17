@@ -1343,6 +1343,14 @@ func (handler *clusterRedirectionHandler) SignalWithStartWorkflowExecution(ctx c
 
 	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
 	var workflowExecution *types.WorkflowExecution
+	if sp1.ActiveClusterSelectionPolicy == nil {
+		sp1.ActiveClusterSelectionPolicy = &types.ActiveClusterSelectionPolicy{
+			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+			StickyRegion:                   handler.GetActiveClusterManager().CurrentRegion(),
+		}
+	} else if sp1.ActiveClusterSelectionPolicy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
+		sp1.ActiveClusterSelectionPolicy.StickyRegion = handler.GetActiveClusterManager().CurrentRegion()
+	}
 	actClSelPolicyForNewWF = sp1.ActiveClusterSelectionPolicy
 
 	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
@@ -1383,6 +1391,14 @@ func (handler *clusterRedirectionHandler) SignalWithStartWorkflowExecutionAsync(
 
 	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
 	var workflowExecution *types.WorkflowExecution
+	if sp1.ActiveClusterSelectionPolicy == nil {
+		sp1.ActiveClusterSelectionPolicy = &types.ActiveClusterSelectionPolicy{
+			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+			StickyRegion:                   handler.GetActiveClusterManager().CurrentRegion(),
+		}
+	} else if sp1.ActiveClusterSelectionPolicy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
+		sp1.ActiveClusterSelectionPolicy.StickyRegion = handler.GetActiveClusterManager().CurrentRegion()
+	}
 	actClSelPolicyForNewWF = sp1.ActiveClusterSelectionPolicy
 
 	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
@@ -1463,6 +1479,14 @@ func (handler *clusterRedirectionHandler) StartWorkflowExecution(ctx context.Con
 
 	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
 	var workflowExecution *types.WorkflowExecution
+	if sp1.ActiveClusterSelectionPolicy == nil {
+		sp1.ActiveClusterSelectionPolicy = &types.ActiveClusterSelectionPolicy{
+			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+			StickyRegion:                   handler.GetActiveClusterManager().CurrentRegion(),
+		}
+	} else if sp1.ActiveClusterSelectionPolicy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
+		sp1.ActiveClusterSelectionPolicy.StickyRegion = handler.GetActiveClusterManager().CurrentRegion()
+	}
 	actClSelPolicyForNewWF = sp1.ActiveClusterSelectionPolicy
 
 	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
@@ -1503,6 +1527,14 @@ func (handler *clusterRedirectionHandler) StartWorkflowExecutionAsync(ctx contex
 
 	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
 	var workflowExecution *types.WorkflowExecution
+	if sp1.ActiveClusterSelectionPolicy == nil {
+		sp1.ActiveClusterSelectionPolicy = &types.ActiveClusterSelectionPolicy{
+			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+			StickyRegion:                   handler.GetActiveClusterManager().CurrentRegion(),
+		}
+	} else if sp1.ActiveClusterSelectionPolicy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
+		sp1.ActiveClusterSelectionPolicy.StickyRegion = handler.GetActiveClusterManager().CurrentRegion()
+	}
 	actClSelPolicyForNewWF = sp1.ActiveClusterSelectionPolicy
 
 	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
