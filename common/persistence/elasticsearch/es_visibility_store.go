@@ -1095,7 +1095,7 @@ func injectWildcardQueries(dsl *fastjson.Value, likes []likeClause) error {
 		wildcardValue := strings.ReplaceAll(clause.Pattern, "%", "*")
 		wildcardValue = strings.ReplaceAll(wildcardValue, "_", "?")
 
-		wildcard := fmt.Sprintf(`{"wildcard": {"%s": {"value": "%s*"}}}`, clause.Field, wildcardValue)
+		wildcard := fmt.Sprintf(`{"wildcard": {"%s": {"value": "%s*", "case_insensitive": true}}}`, clause.Field, wildcardValue)
 		v, err := fastjson.Parse(wildcard)
 		if err != nil {
 			return err
