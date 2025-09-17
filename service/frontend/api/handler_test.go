@@ -5025,8 +5025,9 @@ func TestConstructRestartWorkflowRequest(t *testing.T) {
 			assert.Equal(t, tc.originalAttributes.Memo, startRequest.Memo, "Memo should match")
 			assert.Equal(t, tc.originalAttributes.SearchAttributes, startRequest.SearchAttributes, "SearchAttributes should match")
 
-			// Validate DelayStartSeconds equals FirstDecisionTaskBackoffSeconds
-			assert.Equal(t, tc.originalAttributes.FirstDecisionTaskBackoffSeconds, startRequest.DelayStartSeconds, "DelayStartSeconds should equal FirstDecisionTaskBackoffSeconds")
+			// Validate DelayStartSeconds is set to 0 for restart requests
+			assert.NotNil(t, startRequest.DelayStartSeconds, "DelayStartSeconds should not be nil")
+			assert.Equal(t, int32(0), *startRequest.DelayStartSeconds, "DelayStartSeconds should be 0 for restart requests")
 		})
 	}
 }
