@@ -1227,3 +1227,8 @@ func TestSyncShardStatus_GetTimestamp(t *testing.T) {
 	res = nilStruct.GetTimestamp()
 	assert.Equal(t, int64(0), res)
 }
+
+func TestReplicationTask_ByteSize(t *testing.T) {
+	AssertReachablesImplementByteSize(t, (*ReplicationTask)(nil))
+	AssertByteSizeMatchesReflect(t, &ReplicationTask{})
+}
