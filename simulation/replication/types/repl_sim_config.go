@@ -100,6 +100,9 @@ type Operation struct {
 	NewActiveClustersByRegion map[string]string `yaml:"newActiveClustersByRegion"`
 	FailoverTimeout           *int32            `yaml:"failoverTimeoutSec"`
 
+	// RunIDKey specifies a key to store/retrieve RunID for this operation
+	RunIDKey string `yaml:"runIDKey"`
+
 	Want Validation `yaml:"want"`
 }
 
