@@ -60,7 +60,7 @@ const (
 	dlqMetricsEmitTimerCoefficient = 0.05
 
 	// replication latency log threshold, aligned with alert critical = 25min
-	replicationLatencyLogThreshold = 25 * time.Minute
+	replicationLatencyLogThresholdSwitchOff = 0
 )
 
 var (
@@ -497,8 +497,8 @@ func (p *taskProcessorImpl) processTaskOnce(replicationTask *types.ReplicationTa
 		// emit latency from task generated to task received
 		mScope.RecordTimer(metrics.ReplicationTaskLatency, e2eLatency)
 
-		// if latency exceeds threshold, emit structured log
-		if e2eLatency >= replicationLatencyLogThreshold {
+		// if latency is not switched off, and exceeds threshold, emit structured log
+		if e2eLatency != replicationLatencyLogThresholdSwitchOff && e2eLatency >= p.config.ReplicationTaskProcessorLatencyLogThreshold() {
 			attr := replicationTask.GetHistoryTaskV2Attributes()
 			var workflowID, runID string
 			if attr != nil {
