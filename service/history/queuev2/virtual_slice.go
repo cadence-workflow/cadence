@@ -35,6 +35,7 @@ import (
 type (
 	VirtualSlice interface {
 		GetState() VirtualSliceState
+		IsEmpty() bool
 		GetTasks(context.Context, int) ([]task.Task, error)
 		HasMoreTasks() bool
 		UpdateAndGetState() VirtualSliceState
@@ -98,6 +99,10 @@ func (s *virtualSliceImpl) GetPendingTaskCount() int {
 	return s.pendingTaskTracker.GetPendingTaskCount()
 }
 
+func (s *virtualSliceImpl) IsEmpty() bool {
+	return s.state.IsEmpty() && !s.HasMoreTasks()
+}
+
 func (s *virtualSliceImpl) Clear() {
 	s.UpdateAndGetState()
 	s.pendingTaskTracker.Clear()
@@ -140,7 +145,9 @@ func (s *virtualSliceImpl) GetTasks(ctx context.Context, pageSize int) ([]task.T
 			s.pendingTaskTracker.AddTask(task)
 		}
 
-		if len(resp.Progress.NextPageToken) != 0 {
+		// The persistence layer may return non-empty next page token even if there are no more tasks to read
+		// We compare the next task key with the exclusive max task key to determine if there are more tasks to read instead
+		if resp.Progress.NextTaskKey.Compare(s.progress[0].ExclusiveMaxTaskKey) < 0 {
 			s.progress[0] = resp.Progress
 		} else {
 			s.progress = s.progress[1:]

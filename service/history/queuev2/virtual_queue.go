@@ -43,6 +43,7 @@ import (
 
 var (
 	taskSchedulerThrottleBackoffInterval = time.Second * 5
+	taskReaderErrorBackoffInterval       = time.Second
 )
 
 type (
@@ -191,7 +192,7 @@ func (q *virtualQueueImpl) UpdateAndGetState() []VirtualSliceState {
 		next = e.Next()
 		slice := e.Value.(VirtualSlice)
 		state := slice.UpdateAndGetState()
-		if state.IsEmpty() {
+		if slice.IsEmpty() {
 			q.virtualSlices.Remove(e)
 			q.monitor.RemoveSlice(slice)
 		} else {
@@ -373,19 +374,21 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 	sliceToRead := q.sliceToRead.Value.(VirtualSlice)
 
 	// This logic is to avoid the loop of loading tasks from max virtual queue -> pending task count exceeds critical task count -> unload tasks from max virtual queue
-	// for non-root virtual queue, we know that maxTaskCout < ciriticalTaskCount
+	// for non-root virtual queue, we know that maxTaskCount < criticalTaskCount
 	remainingSize := maxTaskCount - pendingTaskCount
 	if remainingSize <= 0 {
 		remainingSize = 1
-		q.logger.Error("unexpected error, virtual queue is not paused when pending task count exceeds max task cout limit", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount))
+		q.logger.Error("unexpected error, virtual queue is not paused when pending task count exceeds max task count limit", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount))
 	}
 	pageSize := min(q.queueOptions.PageSize(), remainingSize)
-	q.logger.Debug("get tasks from virtual queue", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount), tag.Counter(pageSize))
+	q.logger.Debug("getting tasks from virtual queue", tag.PendingTaskCount(pendingTaskCount), tag.MaxTaskCount(maxTaskCount), tag.Counter(pageSize))
 	tasks, err := sliceToRead.GetTasks(q.ctx, pageSize)
 	if err != nil {
 		q.logger.Error("Virtual queue failed to get tasks", tag.Error(err))
+		q.pauseController.Pause(taskReaderErrorBackoffInterval)
 		return
 	}
+	q.logger.Debug("got tasks from virtual queue", tag.Counter(len(tasks)))
 
 	q.monitor.SetSlicePendingTaskCount(sliceToRead, sliceToRead.GetPendingTaskCount())
 
@@ -399,7 +402,7 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 		}
 
 		scheduledTime := task.GetTaskKey().GetScheduledTime()
-		// if the scheduled time is in the future, we need to redispatch the task
+		// if the scheduled time is in the future, we need to reschedule the task
 		if now.Before(scheduledTime) {
 			q.rescheduler.RescheduleTask(task, scheduledTime)
 			continue
