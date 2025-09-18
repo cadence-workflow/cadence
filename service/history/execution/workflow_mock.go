@@ -96,13 +96,12 @@ func (mr *MockWorkflowMockRecorder) GetReleaseFn() *gomock.Call {
 }
 
 // GetVectorClock mocks base method.
-func (m *MockWorkflow) GetVectorClock() (int64, int64, error) {
+func (m *MockWorkflow) GetVectorClock() (WorkflowVectorClock, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetVectorClock")
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(int64)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(WorkflowVectorClock)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // GetVectorClock indicates an expected call of GetVectorClock.

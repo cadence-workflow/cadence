@@ -2142,6 +2142,20 @@ type ActiveClusterSelectionPolicy struct {
 	ExternalEntityKey  string `json:"externalEntityKey,omitempty"`
 }
 
+func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolicy) bool {
+	if p == nil && other == nil {
+		return true
+	}
+	if p == nil || other == nil {
+		return false
+	}
+
+	return p.GetStrategy() == other.GetStrategy() &&
+		p.StickyRegion == other.StickyRegion &&
+		p.ExternalEntityType == other.ExternalEntityType &&
+		p.ExternalEntityKey == other.ExternalEntityKey
+}
+
 func (p *ActiveClusterSelectionPolicy) GetStrategy() ActiveClusterSelectionStrategy {
 	if p == nil || p.ActiveClusterSelectionStrategy == nil {
 		return ActiveClusterSelectionStrategyRegionSticky
