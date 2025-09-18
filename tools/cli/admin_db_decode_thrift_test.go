@@ -117,7 +117,6 @@ func TestThriftDecodeHelper(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			data, err := decodeUserInput(tc.input, tc.encoding)

@@ -84,7 +84,6 @@ func TestReplicationSimulation(t *testing.T) {
 	startTime := time.Now().UTC()
 	simTypes.Logf(t, "Simulation start time: %v", startTime)
 	for i, op := range simCfg.Operations {
-		op := op
 		waitForOpTime(t, op, startTime)
 		var err error
 		switch op.Type {
