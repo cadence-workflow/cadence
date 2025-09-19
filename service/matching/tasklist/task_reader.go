@@ -96,9 +96,19 @@ type (
 func newTaskReader(tlMgr *taskListManagerImpl, isolationGroups []string) *taskReader {
 	ctx, cancel := context.WithCancel(context.Background())
 	taskBuffers := make(map[string]chan *persistence.TaskInfo)
-	taskBuffers[defaultTaskBufferIsolationGroup] = make(chan *persistence.TaskInfo, tlMgr.config.GetTasksBatchSize()-1)
+
+	// Validate batch size to prevent system failures
+	batchSize := tlMgr.config.GetTasksBatchSize()
+	if batchSize <= 0 {
+		tlMgr.logger.Warn("matching.getTasksBatchSize is set to invalid value, using minimum valid value",
+			tag.Dynamic("invalidBatchSize", batchSize),
+			tag.Dynamic("correctedBatchSize", 1))
+		batchSize = 1
+	}
+
+	taskBuffers[defaultTaskBufferIsolationGroup] = make(chan *persistence.TaskInfo, batchSize-1)
 	for _, g := range isolationGroups {
-		taskBuffers[g] = make(chan *persistence.TaskInfo, tlMgr.config.GetTasksBatchSize()-1)
+		taskBuffers[g] = make(chan *persistence.TaskInfo, batchSize-1)
 	}
 	return &taskReader{
 		tlMgr:          tlMgr,
@@ -259,8 +269,18 @@ getTasksPumpLoop:
 
 func (tr *taskReader) getTaskBatchWithRange(readLevel int64, maxReadLevel int64) ([]*persistence.TaskInfo, error) {
 	var response *persistence.GetTasksResponse
+
+	// Validate batch size to prevent requesting 0 tasks
+	batchSize := tr.config.GetTasksBatchSize()
+	if batchSize <= 0 {
+		tr.logger.Warn("matching.getTasksBatchSize is set to invalid value, using minimum valid value",
+			tag.Dynamic("invalidBatchSize", batchSize),
+			tag.Dynamic("correctedBatchSize", 1))
+		batchSize = 1
+	}
+
 	op := func(ctx context.Context) (err error) {
-		response, err = tr.db.GetTasks(readLevel, maxReadLevel, tr.config.GetTasksBatchSize())
+		response, err = tr.db.GetTasks(readLevel, maxReadLevel, batchSize)
 		return
 	}
 	err := tr.throttleRetry.Do(context.Background(), op)

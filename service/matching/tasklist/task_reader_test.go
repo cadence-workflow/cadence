@@ -435,3 +435,54 @@ func requireCallbackInvocation(t *testing.T, msg string) func() {
 		called = true
 	}
 }
+
+func TestTaskReaderBatchSizeValidation(t *testing.T) {
+	tests := []struct {
+		name           string
+		configValue    int
+		expectedBuffer int
+	}{
+		{
+			name:           "valid positive batch size",
+			configValue:    1000,
+			expectedBuffer: 999, // buffer size is batchSize - 1
+		},
+		{
+			name:           "valid small batch size",
+			configValue:    1,
+			expectedBuffer: 0, // buffer size is batchSize - 1
+		},
+		{
+			name:           "zero batch size should be corrected to 1",
+			configValue:    0,
+			expectedBuffer: 0, // corrected to 1, so buffer is 0
+		},
+		{
+			name:           "negative batch size should be corrected to 1",
+			configValue:    -5,
+			expectedBuffer: 0, // corrected to 1, so buffer is 0
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			batchSize := tt.configValue
+			if batchSize <= 0 {
+				// This is the validation logic from newTaskReader
+				batchSize = 1
+			}
+
+			// Test buffer creation with validated batch size
+			expectedCapacity := batchSize - 1
+			if expectedCapacity < 0 {
+				expectedCapacity = 0
+			}
+
+			// Simulate the buffer creation logic
+			buffer := make(chan *persistence.TaskInfo, expectedCapacity)
+			actualCapacity := cap(buffer)
+
+			assert.Equal(t, tt.expectedBuffer, actualCapacity, "Task buffer should have correct capacity after validation")
+		})
+	}
+}

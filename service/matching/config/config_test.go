@@ -185,3 +185,52 @@ func getValue(f *reflect.Value) interface{} {
 func isolationGroupsHelper() []string {
 	return []string{"zone-1", "zone-2"}
 }
+
+func TestGetTasksBatchSizeValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		configValue int
+		expected    int
+	}{
+		{
+			name:        "valid positive batch size",
+			configValue: 1000,
+			expected:    1000,
+		},
+		{
+			name:        "valid small batch size",
+			configValue: 1,
+			expected:    1,
+		},
+		{
+			name:        "zero batch size returns zero (validation happens at usage site)",
+			configValue: 0,
+			expected:    0,
+		},
+		{
+			name:        "negative batch size returns negative (validation happens at usage site)",
+			configValue: -5,
+			expected:    -5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a mock dynamic config client
+			client := dynamicconfig.NewInMemoryClient()
+			err := client.UpdateValue(dynamicproperties.MatchingGetTasksBatchSize, tt.configValue)
+			assert.NoError(t, err)
+
+			dc := dynamicconfig.NewCollection(client, testlogger.New(t))
+			config := NewConfig(dc, "test-host", isolationGroupsHelper)
+
+			// Test that GetTasksBatchSize returns the raw value (validation happens at usage site)
+			result := config.GetTasksBatchSize("test-domain", "test-tasklist", int(types.TaskListTypeDecision))
+			assert.Equal(t, tt.expected, result, "GetTasksBatchSize should return raw config value")
+
+			// Test with different task list types
+			result = config.GetTasksBatchSize("test-domain", "test-tasklist", int(types.TaskListTypeActivity))
+			assert.Equal(t, tt.expected, result, "GetTasksBatchSize should return raw config value for activity task list")
+		})
+	}
+}
