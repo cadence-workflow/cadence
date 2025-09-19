@@ -52,6 +52,7 @@ const (
 	ReplicationSimulationOperationSignalWithStartWorkflow     ReplicationSimulationOperation = "signal_with_start_workflow"
 	ReplicationSimulationOperationMigrateDomainToActiveActive ReplicationSimulationOperation = "migrate_domain_to_active_active"
 	ReplicationSimulationOperationValidateWorkflowReplication ReplicationSimulationOperation = "validate_workflow_replication"
+	ReplicationSimulationOperationValidateConflict            ReplicationSimulationOperation = "validate_conflict"
 )
 
 type ReplicationSimulationConfig struct {
@@ -64,6 +65,10 @@ type ReplicationSimulationConfig struct {
 	Domains map[string]ReplicationDomainConfig `yaml:"domains"`
 
 	Operations []*Operation `yaml:"operations"`
+
+	// RunIDRegistry stores captured RunIDs for later reference
+	// It should never be set as part of the configuration
+	RunIDRegistry map[string]string
 }
 
 type ReplicationDomainConfig struct {
@@ -100,15 +105,24 @@ type Operation struct {
 	NewActiveClustersByRegion map[string]string `yaml:"newActiveClustersByRegion"`
 	FailoverTimeout           *int32            `yaml:"failoverTimeoutSec"`
 
+	// RunIDKey specifies a key to store/retrieve RunID for this operation
+	RunIDKey string `yaml:"runIDKey"`
+
+	// ConflictRunIDKeys specifies two RunID keys to compare for conflict validation
+	ConflictRunIDKeys []string `yaml:"conflictRunIDKeys"`
+
 	Want Validation `yaml:"want"`
 }
 
 type Validation struct {
-	Status                      string `yaml:"status"`
-	StartedByWorkersInCluster   string `yaml:"startedByWorkersInCluster"`
-	CompletedByWorkersInCluster string `yaml:"completedByWorkersInCluster"`
-	Error                       string `yaml:"error"`
-	QueryResult                 any    `yaml:"queryResult"`
+	Status                      string   `yaml:"status"`
+	StartedByWorkersInCluster   string   `yaml:"startedByWorkersInCluster"`
+	CompletedByWorkersInCluster string   `yaml:"completedByWorkersInCluster"`
+	Error                       string   `yaml:"error"`
+	QueryResult                 any      `yaml:"queryResult"`
+
+	// Statuses array for conflict validation - contains expected workflow statuses
+	Statuses []string `yaml:"statuses"`
 }
 
 type Cluster struct {
@@ -133,6 +147,9 @@ func LoadConfig() (*ReplicationSimulationConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+
+	// Initialize RunIDRegistry
+	cfg.RunIDRegistry = make(map[string]string)
 
 	fmt.Printf("Loaded config from path: %s\n", path)
 	return &cfg, nil
@@ -177,6 +194,22 @@ func (s *ReplicationSimulationConfig) MustInitClientsFor(t *testing.T, clusterNa
 
 func (s *ReplicationSimulationConfig) IsActiveActiveDomain(domainName string) bool {
 	return len(s.Domains[domainName].ActiveClustersByRegion) > 0
+}
+
+// StoreRunID stores a RunID with the given key for later reference
+func (s *ReplicationSimulationConfig) StoreRunID(key, runID string) {
+	if s.RunIDRegistry == nil {
+		s.RunIDRegistry = make(map[string]string)
+	}
+	s.RunIDRegistry[key] = runID
+}
+
+// GetRunID retrieves a stored RunID by key, returns empty string if not found
+func (s *ReplicationSimulationConfig) GetRunID(key string) string {
+	if s.RunIDRegistry == nil {
+		return ""
+	}
+	return s.RunIDRegistry[key]
 }
 
 func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T, domainName string, domainCfg ReplicationDomainConfig) {

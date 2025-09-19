@@ -1,0 +1,97 @@
+# This file is a replication simulation scenario spec.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulation for this file can be run via ./simulation/replication/run.sh signalwithstart_activeactive_conflict
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_signalwithstart_activeactive_conflict.yml
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+domains:
+  test-domain-aa-conflict:
+    activeClustersByRegion:
+      region0: cluster0
+      region1: cluster1
+
+# Test scenario: Active-Active domain conflict resolution (non-deterministic)
+# 1. Create workflows with SignalWithStart at t=0 with same workflowID in both clusters
+# 2. Capture each workflow's RunID using runIDKey for later specific validation
+# 3. Use validate_conflict to handle non-deterministic conflict resolution:
+#    - At t=10s: Validate that one workflow is running and one is terminated
+#    - At t=70s: Validate that one workflow completed and one remains terminated
+# 4. Query both RunIDs to validate that each received their respective signals
+# Note: We cannot predict which cluster's workflow will survive the conflict
+
+operations:
+  # SignalWithStart workflow with same workflowID in cluster0
+  - op: signal_with_start_workflow
+    at: 0s
+    workflowID: conflict-wf
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa-conflict
+    signalName: signal-from-cluster0
+    signalInput: "cluster0-signal-data"
+    workflowExecutionStartToCloseTimeout: 65s
+    workflowDuration: 35s
+    runIDKey: cluster0-run
+
+  # SignalWithStart workflow with SAME workflowID in cluster1 - testing conflict resolution
+  - op: signal_with_start_workflow
+    at: 0s
+    workflowID: conflict-wf
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster1
+    domain: test-domain-aa-conflict
+    signalName: signal-from-cluster1
+    signalInput: "cluster1-signal-data"
+    workflowExecutionStartToCloseTimeout: 65s
+    workflowDuration: 35s
+    runIDKey: cluster1-run
+
+  # Validate conflict resolution occurred: one workflow running, one terminated
+  - op: validate_conflict
+    at: 10s
+    workflowID: conflict-wf
+    cluster: cluster0
+    domain: test-domain-aa-conflict
+    conflictRunIDKeys: ["cluster0-run", "cluster1-run"]
+    want:
+      statuses: ["running", "terminated"]
+
+  # Validate final state: one workflow completed, one terminated
+  - op: validate_conflict
+    at: 70s
+    workflowID: conflict-wf
+    cluster: cluster0
+    domain: test-domain-aa-conflict
+    conflictRunIDKeys: ["cluster0-run", "cluster1-run"]
+    want:
+      statuses: ["completed", "terminated"]
+
+  # Query the cluster0 run to check if signal was received (should have cluster0 signal)
+  - op: query_workflow
+    at: 75s
+    workflowID: conflict-wf
+    cluster: cluster0
+    domain: test-domain-aa-conflict
+    query: "get_signals_received"
+    runIDKey: cluster0-run
+    want:
+      queryResult: ["signal-from-cluster0"]
+
+  # Query the cluster1 run to check if signal was received (should have cluster1 signal)
+  - op: query_workflow
+    at: 75s
+    workflowID: conflict-wf
+    cluster: cluster1
+    domain: test-domain-aa-conflict
+    query: "get_signals_received"
+    runIDKey: cluster1-run
+    want:
+      queryResult: ["signal-from-cluster1"]
