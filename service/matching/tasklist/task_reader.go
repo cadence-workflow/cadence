@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
@@ -100,10 +101,11 @@ func newTaskReader(tlMgr *taskListManagerImpl, isolationGroups []string) *taskRe
 	// Validate batch size to prevent system failures
 	batchSize := tlMgr.config.GetTasksBatchSize()
 	if batchSize <= 0 {
-		tlMgr.logger.Warn("matching.getTasksBatchSize is set to invalid value, using minimum valid value",
+		fallback := dynamicproperties.IntKeys[dynamicproperties.MatchingGetTasksBatchSize].DefaultValue
+		tlMgr.logger.Warn("matching.getTasksBatchSize is set to invalid value, using default value",
 			tag.Dynamic("invalidBatchSize", batchSize),
-			tag.Dynamic("correctedBatchSize", 1))
-		batchSize = 1
+			tag.Dynamic("correctedBatchSize", fallback))
+		batchSize = fallback
 	}
 
 	taskBuffers[defaultTaskBufferIsolationGroup] = make(chan *persistence.TaskInfo, batchSize-1)
@@ -273,10 +275,11 @@ func (tr *taskReader) getTaskBatchWithRange(readLevel int64, maxReadLevel int64)
 	// Validate batch size to prevent requesting 0 tasks
 	batchSize := tr.config.GetTasksBatchSize()
 	if batchSize <= 0 {
-		tr.logger.Warn("matching.getTasksBatchSize is set to invalid value, using minimum valid value",
+		fallback := dynamicproperties.IntKeys[dynamicproperties.MatchingGetTasksBatchSize].DefaultValue
+		tr.logger.Warn("matching.getTasksBatchSize is set to invalid value, using default value",
 			tag.Dynamic("invalidBatchSize", batchSize),
-			tag.Dynamic("correctedBatchSize", 1))
-		batchSize = 1
+			tag.Dynamic("correctedBatchSize", fallback))
+		batchSize = fallback
 	}
 
 	op := func(ctx context.Context) (err error) {

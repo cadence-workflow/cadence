@@ -453,14 +453,14 @@ func TestTaskReaderBatchSizeValidation(t *testing.T) {
 			expectedBuffer: 0, // buffer size is batchSize - 1
 		},
 		{
-			name:           "zero batch size should be corrected to 1",
+			name:           "zero batch size should be corrected to default (1000)",
 			configValue:    0,
-			expectedBuffer: 0, // corrected to 1, so buffer is 0
+			expectedBuffer: 999, // corrected to 1000, so buffer is 999
 		},
 		{
-			name:           "negative batch size should be corrected to 1",
+			name:           "negative batch size should be corrected to default (1000)",
 			configValue:    -5,
-			expectedBuffer: 0, // corrected to 1, so buffer is 0
+			expectedBuffer: 999, // corrected to 1000, so buffer is 999
 		},
 	}
 
@@ -468,8 +468,8 @@ func TestTaskReaderBatchSizeValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			batchSize := tt.configValue
 			if batchSize <= 0 {
-				// This is the validation logic from newTaskReader
-				batchSize = 1
+				// This is the validation logic from newTaskReader - use default value (1000)
+				batchSize = 1000
 			}
 
 			// Test buffer creation with validated batch size
