@@ -7403,6 +7403,40 @@ func (v *UpdateDomainResponse) GetIsGlobalDomain() (o bool) {
 	return
 }
 
+// UpdateDomainReplicationConfigRequest is the request for domain replication update operations
+type UpdateDomainReplicationConfigRequest struct {
+	Name                     string                             `json:"name,omitempty"`
+	ActiveClusterName        *string                            `json:"activeClusterName,omitempty"`
+	ActiveClusters           *ActiveClusters                    `json:"activeClusters,omitempty"`
+	Clusters                 []*ClusterReplicationConfiguration `json:"clusters,omitempty"`
+	FailoverTimeoutInSeconds *int32                             `json:"failoverTimeoutInSeconds,omitempty"`
+}
+
+// UpdateDomainReplicationConfigResponse is the response for domain replication update operations
+type UpdateDomainReplicationConfigResponse struct {
+	DomainInfo               *DomainInfo                     `json:"domainInfo,omitempty"`
+	Configuration            *DomainConfiguration            `json:"configuration,omitempty"`
+	ReplicationConfiguration *DomainReplicationConfiguration `json:"replicationConfiguration,omitempty"`
+	FailoverVersion          int64                           `json:"failoverVersion,omitempty"`
+	IsGlobalDomain           bool                            `json:"isGlobalDomain,omitempty"`
+}
+
+// GetName is an internal getter (TBD...)
+func (v *UpdateDomainReplicationConfigRequest) GetName() (o string) {
+	if v != nil {
+		return v.Name
+	}
+	return
+}
+
+// GetFailoverTimeoutInSeconds is an internal getter (TBD...)
+func (v *UpdateDomainReplicationConfigRequest) GetFailoverTimeoutInSeconds() (o int32) {
+	if v != nil && v.FailoverTimeoutInSeconds != nil {
+		return *v.FailoverTimeoutInSeconds
+	}
+	return
+}
+
 // UpsertWorkflowSearchAttributesDecisionAttributes is an internal type (TBD...)
 type UpsertWorkflowSearchAttributesDecisionAttributes struct {
 	SearchAttributes *SearchAttributes `json:"searchAttributes,omitempty"`
