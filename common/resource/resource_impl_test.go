@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
@@ -148,8 +147,8 @@ func TestStartStop(t *testing.T) {
 	persistenceClientBean.EXPECT().Close().Times(1)
 
 	// archiver provider mocks
-	archiveProvider := &provider.MockArchiverProvider{}
-	archiveProvider.On("RegisterBootstrapContainer", mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(1)
+	archiveProvider := provider.NewMockArchiverProvider(ctrl)
+	archiveProvider.EXPECT().RegisterBootstrapContainer(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	// params
 	params := &Params{

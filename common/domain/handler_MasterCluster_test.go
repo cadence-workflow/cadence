@@ -126,7 +126,6 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) SetupTest() {
 
 func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TearDownTest() {
 	s.mockProducer.AssertExpectations(s.T())
-	s.mockArchiverProvider.AssertExpectations(s.T())
 }
 
 func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestRegisterGetDomain_LocalDomain_InvalidCluster() {
