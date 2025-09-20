@@ -73,6 +73,7 @@ type ReplicationDomainConfig struct {
 }
 
 type Operation struct {
+	ID            string                         `yaml:"id"`
 	Type          ReplicationSimulationOperation `yaml:"op"`
 	At            time.Duration                  `yaml:"at"`
 	Cluster       string                         `yaml:"cluster"`
@@ -81,6 +82,7 @@ type Operation struct {
 
 	WorkflowType                         string        `yaml:"workflowType"`
 	WorkflowID                           string        `yaml:"workflowID"`
+	RunIDFromOp                          string        `yaml:"runIDFromOp"`
 	WorkflowExecutionStartToCloseTimeout time.Duration `yaml:"workflowExecutionStartToCloseTimeout"`
 	WorkflowDuration                     time.Duration `yaml:"workflowDuration"`
 	ActivityCount                        int           `yaml:"activityCount"`

@@ -83,19 +83,20 @@ func TestReplicationSimulation(t *testing.T) {
 
 	startTime := time.Now().UTC()
 	simTypes.Logf(t, "Simulation start time: %v", startTime)
+	runIDMap := make(map[string]string)
 	for i, op := range simCfg.Operations {
 		op := op
 		waitForOpTime(t, op, startTime)
 		var err error
 		switch op.Type {
 		case simTypes.ReplicationSimulationOperationStartWorkflow:
-			err = startWorkflow(t, op, simCfg)
+			err = startWorkflow(t, op, simCfg, runIDMap)
 		case simTypes.ReplicationSimulationOperationResetWorkflow:
 			err = resetWorkflow(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationChangeActiveClusters:
 			err = changeActiveClusters(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationValidate:
-			err = validate(t, op, simCfg)
+			err = validate(t, op, simCfg, runIDMap)
 		case simTypes.ReplicationSimulationOperationQueryWorkflow:
 			err = queryWorkflow(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationSignalWithStartWorkflow:
@@ -127,6 +128,7 @@ func startWorkflow(
 	t *testing.T,
 	op *simTypes.Operation,
 	simCfg *simTypes.ReplicationSimulationConfig,
+	runIDMap map[string]string,
 ) error {
 	t.Helper()
 
@@ -166,6 +168,9 @@ func startWorkflow(
 	}
 
 	simTypes.Logf(t, "Started workflow: %s on domain: %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, resp.GetRunID())
+	if len(op.ID) > 0 {
+		runIDMap[op.ID] = resp.RunID
+	}
 
 	return nil
 }
@@ -398,11 +403,16 @@ func validate(
 	t *testing.T,
 	op *simTypes.Operation,
 	simCfg *simTypes.ReplicationSimulationConfig,
+	runIDMap map[string]string,
 ) error {
 	t.Helper()
 
 	simTypes.Logf(t, "Validating workflow: %s on cluster: %s", op.WorkflowID, op.Cluster)
 
+	runID := ""
+	if len(op.RunIDFromOp) > 0 {
+		runID = runIDMap[op.RunIDFromOp]
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).DescribeWorkflowExecution(ctx,
@@ -410,6 +420,7 @@ func validate(
 			Domain: op.Domain,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: op.WorkflowID,
+				RunID:      runID,
 			},
 		})
 	if err != nil {

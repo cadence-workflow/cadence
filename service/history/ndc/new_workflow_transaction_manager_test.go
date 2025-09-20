@@ -213,7 +213,9 @@ func (s *transactionManagerForNewWorkflowSuite) TestDispatchForNewWorkflow_Creat
 		WorkflowID: workflowID,
 		RunID:      currentRunID,
 	}).AnyTimes()
-	currentWorkflow.EXPECT().GetVectorClock().Return(currentLastWriteVersion, int64(0), nil)
+	currentWorkflow.EXPECT().GetVectorClock().Return(execution.WorkflowVectorClock{
+		LastWriteVersion: currentLastWriteVersion,
+	}, nil)
 
 	targetContext.EXPECT().PersistNonStartWorkflowBatchEvents(
 		gomock.Any(),

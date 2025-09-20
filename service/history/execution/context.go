@@ -116,6 +116,8 @@ type (
 			persistedHistory events.PersistedBlob,
 			createMode persistence.CreateWorkflowMode,
 			prevRunID string,
+			// TODO(active-active): only passing prevLastWriteVersion might not be enough for active-active workflows, we may consider passing ActiveClusterSelectionPolicy as well
+			// and include ActiveClusterSelectionPolicy in conditional update of current execution record
 			prevLastWriteVersion int64,
 			workflowRequestMode persistence.CreateWorkflowRequestMode,
 		) error
