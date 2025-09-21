@@ -5,6 +5,8 @@
 
 set -eo pipefail
 
+cd $(dirname $0)/../..
+
 testCase="${1:-default}"
 testCfg="testdata/matching_simulation_$testCase.yaml"
 now="$(date '+%Y-%m-%d-%H-%M-%S')"

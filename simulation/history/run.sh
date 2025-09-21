@@ -1,9 +1,11 @@
 #!/bin/bash
 
 # This script can be used to run history simulator and check the critical flow via logs
-#
+
 
 set -eo pipefail
+
+cd $(dirname $0)/../..
 
 testCase="${1:-default}"
 testCfg="testdata/history_simulation_$testCase.yaml"
