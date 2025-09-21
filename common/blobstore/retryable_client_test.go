@@ -28,115 +28,174 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/backoff"
 )
 
-func TestRetryableClient_Put(t *testing.T) {
-	mockClient := new(MockClient)
-	policy := backoff.NewExponentialRetryPolicy(0)
-	client := NewRetryableClient(mockClient, policy)
+func runCRUDTest(
+	t *testing.T,
+	retryPolicy backoff.RetryPolicy,
+	retryableError bool,
+	req, resp any,
+	expectFn func(*MockClient, any, any),
+	callFn func(Client, context.Context, any) (any, error),
+	assertFn func(*testing.T, any, any, any, error),
+) {
+	mockClient := NewMockClient(gomock.NewController(t))
+	throttleRetryOptions := []backoff.ThrottleRetryOption{
+		backoff.WithRetryPolicy(retryPolicy),
+	}
+	if retryableError {
+		throttleRetryOptions = append(throttleRetryOptions, backoff.WithRetryableError(mockClient.IsRetryableError))
+	}
+	client := &retryableClient{
+		client:        mockClient,
+		throttleRetry: backoff.NewThrottleRetry(throttleRetryOptions...),
+	}
 
-	req := &PutRequest{}
-	resp := &PutResponse{}
-	mockClient.On("Put", mock.Anything, req).Return(resp, nil).Once()
-
-	result, err := client.Put(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Equal(t, resp, result)
-
-	mockClient.AssertExpectations(t)
+	expectFn(mockClient, req, resp)
+	result, err := callFn(client, context.Background(), req)
+	assertFn(t, req, resp, result, err)
 }
 
-func TestRetryableClient_Get(t *testing.T) {
-	mockClient := new(MockClient)
-	policy := backoff.NewExponentialRetryPolicy(0)
-	client := NewRetryableClient(mockClient, policy)
+func TestRetryableClient(t *testing.T) {
+	tests := []struct {
+		name           string
+		retryPolicy    backoff.RetryPolicy
+		retryableError bool
+		req            any
+		resp           any
+		expectFn       func(*MockClient, any, any)
+		callFn         func(Client, context.Context, any) (any, error)
+		assertFn       func(*testing.T, any, any, any, error)
+	}{
+		{
+			name:           "Put",
+			retryPolicy:    backoff.NewExponentialRetryPolicy(0),
+			retryableError: false,
+			req:            &PutRequest{},
+			resp:           &PutResponse{},
+			expectFn: func(m *MockClient, req, resp any) {
+				m.EXPECT().Put(gomock.Any(), req.(*PutRequest)).Return(resp.(*PutResponse), nil).Times(1)
+			},
+			callFn: func(c Client, ctx context.Context, req any) (any, error) {
+				return c.Put(ctx, req.(*PutRequest))
+			},
+			assertFn: func(t *testing.T, req any, resp any, result any, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, resp.(*PutResponse), result)
+			},
+		},
+		{
+			name:           "Get",
+			retryPolicy:    backoff.NewExponentialRetryPolicy(0),
+			retryableError: false,
+			req:            &GetRequest{},
+			resp:           &GetResponse{},
+			expectFn: func(m *MockClient, req, resp any) {
+				m.EXPECT().Get(gomock.Any(), req.(*GetRequest)).Return(resp.(*GetResponse), nil).Times(1)
+			},
+			callFn: func(c Client, ctx context.Context, req any) (any, error) {
+				return c.Get(ctx, req.(*GetRequest))
+			},
+			assertFn: func(t *testing.T, req any, resp any, result any, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, resp.(*GetResponse), result)
+			},
+		},
+		{
+			name:           "Exists",
+			retryPolicy:    backoff.NewExponentialRetryPolicy(0),
+			retryableError: false,
+			req:            &ExistsRequest{},
+			resp:           &ExistsResponse{},
+			expectFn: func(m *MockClient, req, resp any) {
+				m.EXPECT().Exists(gomock.Any(), req.(*ExistsRequest)).Return(resp.(*ExistsResponse), nil).Times(1)
+			},
+			callFn: func(c Client, ctx context.Context, req any) (any, error) {
+				return c.Exists(ctx, req.(*ExistsRequest))
+			},
+			assertFn: func(t *testing.T, req any, resp any, result any, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, resp.(*ExistsResponse), result)
+			},
+		},
+		{
+			name:           "Delete",
+			retryPolicy:    backoff.NewExponentialRetryPolicy(0),
+			retryableError: false,
+			req:            &DeleteRequest{},
+			resp:           &DeleteResponse{},
+			expectFn: func(m *MockClient, req, resp any) {
+				m.EXPECT().Delete(gomock.Any(), req.(*DeleteRequest)).Return(resp.(*DeleteResponse), nil).Times(1)
+			},
+			callFn: func(c Client, ctx context.Context, req any) (any, error) {
+				return c.Delete(ctx, req.(*DeleteRequest))
+			},
+			assertFn: func(t *testing.T, req any, resp any, result any, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, resp.(*DeleteResponse), result)
+			},
+		},
+		{
+			name:           "RetryOnError",
+			retryPolicy:    backoff.NewExponentialRetryPolicy(1),
+			retryableError: true,
+			req:            &PutRequest{},
+			resp:           &PutResponse{},
+			expectFn: func(m *MockClient, req, resp any) {
+				retryableError := errors.New("retryable error")
+				m.EXPECT().Put(gomock.Any(), req.(*PutRequest)).Return(nil, retryableError).Times(1)
+				m.EXPECT().IsRetryableError(retryableError).Return(true).Times(1)
+				m.EXPECT().Put(gomock.Any(), req.(*PutRequest)).Return(resp, nil).Times(1)
+			},
+			callFn: func(c Client, ctx context.Context, req any) (any, error) {
+				return c.Put(ctx, req.(*PutRequest))
+			},
+			assertFn: func(t *testing.T, req any, resp any, result any, err error) {
+				assert.NoError(t, err, "Expected no error on successful retry")
+				assert.Equal(t, resp.(*PutResponse), result, "Expected the response to match")
+			},
+		},
+		{
+			name:           "NotRetryOnError",
+			retryPolicy:    backoff.NewExponentialRetryPolicy(0),
+			retryableError: true,
+			req:            &PutRequest{},
+			expectFn: func(m *MockClient, req, resp any) {
+				nonRetryableError := errors.New("non-retryable error")
+				m.EXPECT().Put(gomock.Any(), req.(*PutRequest)).Return(nil, nonRetryableError).Times(1)
+				m.EXPECT().IsRetryableError(nonRetryableError).Return(false).Times(1)
+			},
+			callFn: func(c Client, ctx context.Context, req any) (any, error) {
+				return c.Put(ctx, req.(*PutRequest))
+			},
+			assertFn: func(t *testing.T, req any, resp any, result any, err error) {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			},
+		},
+	}
 
-	req := &GetRequest{}
-	resp := &GetResponse{}
-	mockClient.On("Get", mock.Anything, req).Return(resp, nil).Once()
-
-	result, err := client.Get(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Equal(t, resp, result)
-
-	mockClient.AssertExpectations(t)
-}
-
-func TestRetryableClient_Exists(t *testing.T) {
-	mockClient := new(MockClient)
-	policy := backoff.NewExponentialRetryPolicy(0)
-	client := NewRetryableClient(mockClient, policy)
-
-	req := &ExistsRequest{}
-	resp := &ExistsResponse{}
-	mockClient.On("Exists", mock.Anything, req).Return(resp, nil).Once()
-
-	result, err := client.Exists(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Equal(t, resp, result)
-
-	mockClient.AssertExpectations(t)
-}
-
-func TestRetryableClient_Delete(t *testing.T) {
-	mockClient := new(MockClient)
-	policy := backoff.NewExponentialRetryPolicy(0)
-	client := NewRetryableClient(mockClient, policy)
-
-	req := &DeleteRequest{}
-	resp := &DeleteResponse{}
-	mockClient.On("Delete", mock.Anything, req).Return(resp, nil).Once()
-
-	result, err := client.Delete(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Equal(t, resp, result)
-
-	mockClient.AssertExpectations(t)
-}
-
-func TestRetryableClient_RetryOnError(t *testing.T) {
-	mockClient := new(MockClient)
-	policy := backoff.NewExponentialRetryPolicy(1) // Adjusting the retry interval to ensure retry is attempted
-	client := NewRetryableClient(mockClient, policy)
-
-	req := &PutRequest{}
-	resp := &PutResponse{}
-	retryableError := errors.New("retryable error")
-
-	mockClient.On("Put", mock.Anything, req).Return(nil, retryableError).Once()
-	mockClient.On("IsRetryableError", retryableError).Return(true).Once()
-	mockClient.On("Put", mock.Anything, req).Return(resp, nil).Once()
-
-	result, err := client.Put(context.Background(), req)
-	assert.NoError(t, err, "Expected no error on successful retry")
-	assert.Equal(t, resp, result, "Expected the response to match")
-
-	mockClient.AssertExpectations(t)
-}
-
-func TestRetryableClient_NotRetryOnError(t *testing.T) {
-	mockClient := new(MockClient)
-	policy := backoff.NewExponentialRetryPolicy(0)
-	client := NewRetryableClient(mockClient, policy)
-
-	req := &PutRequest{}
-	nonRetryableError := errors.New("non-retryable error")
-
-	mockClient.On("Put", mock.Anything, req).Return(nil, nonRetryableError).Once()
-	mockClient.On("IsRetryableError", nonRetryableError).Return(false).Once()
-
-	result, err := client.Put(context.Background(), req)
-	assert.Error(t, err)
-	assert.Nil(t, result)
-
-	mockClient.AssertExpectations(t)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			runCRUDTest(
+				t,
+				tc.retryPolicy,
+				tc.retryableError,
+				tc.req,
+				tc.resp,
+				tc.expectFn,
+				tc.callFn,
+				tc.assertFn,
+			)
+		})
+	}
 }
 
 func TestRetryableClient_IsRetryableError(t *testing.T) {
-	mockClient := new(MockClient)
+	mockClient := NewMockClient(gomock.NewController(t))
 	client := &retryableClient{
 		client: mockClient,
 		throttleRetry: backoff.NewThrottleRetry(
@@ -146,11 +205,8 @@ func TestRetryableClient_IsRetryableError(t *testing.T) {
 	}
 
 	retryableError := errors.New("retryable error")
+	mockClient.EXPECT().IsRetryableError(retryableError).Return(true).Times(1)
 
-	mockClient.On("IsRetryableError", retryableError).Return(true).Once()
-
-	isRetryable := client.IsRetryableError(retryableError)
-	assert.True(t, isRetryable, "Expected error to be retryable")
-
-	mockClient.AssertExpectations(t)
+	isRetryableError := client.IsRetryableError(retryableError)
+	assert.True(t, isRetryableError, "Expected error to be retryable")
 }
