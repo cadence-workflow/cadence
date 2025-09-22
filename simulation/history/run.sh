@@ -1,14 +1,130 @@
 #!/bin/bash
 
-# This script can be used to run history simulator and check the critical flow via logs
+# Cadence History Simulation Test Script
 #
+# This script runs history simulator tests to validate critical history processing flows.
+# It analyzes task creation, execution patterns, and identifies any tasks that were
+# created but not executed, providing detailed breakdowns by shard, task category, and type.
+# Results are saved in history-simulator-output/ folder.
+#
+# Usage:
+#   ./simulation/history/run.sh [OPTIONS]
+#
+# Examples:
+#   # Run a scenario
+#   ./simulation/history/run.sh --scenario queuev2
+#
+#   # Run with custom timestamp
+#   ./simulation/history/run.sh --scenario default --timestamp 2024-01-15-10-30-00
 
 set -eo pipefail
 
-testCase="${1:-default}"
+show_help() {
+    cat << EOF
+Cadence History Simulation Test Script
+
+USAGE:
+    $0 [OPTIONS]
+
+OPTIONS:
+    -s, --scenario SCENARIO      Test scenario to run (default: default)
+                                Corresponds to testdata/history_simulation_SCENARIO.yaml
+
+    -t, --timestamp TIMESTAMP   Custom timestamp for test naming (default: current time)
+                                Format: YYYY-MM-DD-HH-MM-SS
+
+    -d, --dockerfile-suffix SUFFIX  Dockerfile suffix for custom builds (default: empty)
+                                   Example: .local for Dockerfile.local
+
+    -h, --help                  Show this help message
+
+EXAMPLES:
+    # Run default scenario
+    $0
+
+    # Run specific scenario
+    $0 --scenario queuev2
+
+    # Run with custom timestamp
+    $0 --scenario default --timestamp 2024-01-15-10-30-00
+
+    # Run with custom dockerfile
+    $0 --scenario queuev2 --dockerfile-suffix .local
+
+OUTPUT:
+    - Event logs: history-simulator-output/test-\${scenario}-\${timestamp}-events.json
+    - Summary: history-simulator-output/test-\${scenario}-\${timestamp}-summary.txt
+    - Grafana dashboard: http://localhost:3000/
+
+ANALYSIS PROVIDED:
+    - Tasks created vs executed breakdown by shard
+    - Task categorization by type and category
+    - Identification of unexecuted tasks with details
+    - Task scheduling and timing analysis
+
+FILES:
+    - Scenario config: testdata/history_simulation_\${scenario}.yaml
+    - Output directory: history-simulator-output/
+
+EOF
+}
+
+# Default values
+testCase=""
+timestamp=""
+dockerFileSuffix=""
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -s|--scenario)
+            testCase="$2"
+            shift 2
+            ;;
+        -t|--timestamp)
+            timestamp="$2"
+            shift 2
+            ;;
+        -d|--dockerfile-suffix)
+            dockerFileSuffix="$2"
+            shift 2
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            echo "Use --help for usage information." >&2
+            exit 1
+            ;;
+        *)
+            echo "Unexpected positional argument: $1" >&2
+            echo "Use --scenario to specify the test scenario." >&2
+            echo "Use --help for usage information." >&2
+            exit 1
+            ;;
+    esac
+done
+
+# Require scenario parameter
+if [[ -z "$testCase" ]]; then
+    echo "Error: --scenario parameter is required" >&2
+    echo "" >&2
+    show_help
+    exit 1
+fi
+
+# Set default timestamp if not provided
+if [[ -z "$timestamp" ]]; then
+    timestamp="$(date '+%Y-%m-%d-%H-%M-%S')"
+fi
+
 testCfg="testdata/history_simulation_$testCase.yaml"
-now="$(date '+%Y-%m-%d-%H-%M-%S')"
-timestamp="${2:-$now}"
 testName="test-$testCase-$timestamp"
 resultFolder="history-simulator-output"
 mkdir -p "$resultFolder"
@@ -16,7 +132,7 @@ eventLogsFile="$resultFolder/$testName-events.json"
 testSummaryFile="$resultFolder/$testName-summary.txt"
 
 echo "Building test image"
-DOCKERFILE_SUFFIX=$DOCKERFILE_SUFFIX docker compose -f docker/github_actions/docker-compose-local-history-simulation.yml \
+DOCKERFILE_SUFFIX=$dockerFileSuffix docker compose -f docker/github_actions/docker-compose-local-history-simulation.yml \
   build history-simulator
 
 function check_test_failure()
@@ -37,7 +153,7 @@ function check_test_failure()
 trap check_test_failure EXIT
 
 echo "Running the test $testCase"
-DOCKERFILE_SUFFIX=$DOCKERFILE_SUFFIX docker compose \
+DOCKERFILE_SUFFIX=$dockerFileSuffix docker compose \
   -f docker/github_actions/docker-compose-local-history-simulation.yml \
   run -e HISTORY_SIMULATION_CONFIG=$testCfg --rm --remove-orphans --service-ports --use-aliases \
   history-simulator \

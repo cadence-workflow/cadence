@@ -1,14 +1,134 @@
 #!/bin/bash
 
-# This script can be used to run matching simulator and check the critical flow via logs
+# Cadence Matching Simulation Test Script
 #
+# This script runs matching simulator tests to validate critical matching flows and analyze
+# task distribution, latency metrics, and matching efficiency across isolation groups.
+# The output includes detailed performance metrics and task containment analysis.
+# Results are saved in matching-simulator-output/ folder.
+#
+# Usage:
+#   ./simulation/matching/run.sh [OPTIONS]
+#
+# Examples:
+#   # Run default scenario
+#   ./simulation/matching/run.sh
+#
+#   # Run specific scenario
+#   ./simulation/matching/run.sh --scenario throughput
+#
+#   # Run with custom timestamp
+#   ./simulation/matching/run.sh --scenario default --timestamp 2024-01-15-10-30-00
 
 set -eo pipefail
 
-testCase="${1:-default}"
+show_help() {
+    cat << EOF
+Cadence Matching Simulation Test Script
+
+USAGE:
+    $0 [OPTIONS]
+
+OPTIONS:
+    -s, --scenario SCENARIO      Test scenario to run (default: default)
+                                Corresponds to testdata/matching_simulation_SCENARIO.yaml
+
+    -t, --timestamp TIMESTAMP   Custom timestamp for test naming (default: current time)
+                                Format: YYYY-MM-DD-HH-MM-SS
+
+    -d, --dockerfile-suffix SUFFIX  Dockerfile suffix for custom builds (default: empty)
+                                   Example: .local for Dockerfile.local
+
+    -h, --help                  Show this help message
+
+EXAMPLES:
+    # Run default scenario
+    $0
+
+    # Run specific scenario
+    $0 --scenario throughput
+
+    # Run with custom timestamp
+    $0 --scenario default --timestamp 2024-01-15-10-30-00
+
+    # Run with custom dockerfile
+    $0 --scenario throughput --dockerfile-suffix .local
+
+OUTPUT:
+    - Event logs: matching-simulator-output/test-\${scenario}-\${timestamp}-events.json
+    - Summary: matching-simulator-output/test-\${scenario}-\${timestamp}-summary.txt
+    - Grafana dashboard: http://localhost:3000/
+
+METRICS ANALYZED:
+    - Task latency (average, P50, P75, P95, P99, max)
+    - Task containment per isolation group
+    - Sync vs async matches
+    - Task forwarding statistics
+    - Per-tasklist and per-isolation-group breakdowns
+
+FILES:
+    - Scenario config: testdata/matching_simulation_\${scenario}.yaml
+    - Output directory: matching-simulator-output/
+
+EOF
+}
+
+# Default values
+testCase=""
+timestamp=""
+dockerFileSuffix=""
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -s|--scenario)
+            testCase="$2"
+            shift 2
+            ;;
+        -t|--timestamp)
+            timestamp="$2"
+            shift 2
+            ;;
+        -d|--dockerfile-suffix)
+            dockerFileSuffix="$2"
+            shift 2
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            echo "Use --help for usage information." >&2
+            exit 1
+            ;;
+        *)
+            echo "Unexpected positional argument: $1" >&2
+            echo "Use --scenario to specify the test scenario." >&2
+            echo "Use --help for usage information." >&2
+            exit 1
+            ;;
+    esac
+done
+
+# Require scenario parameter
+if [[ -z "$testCase" ]]; then
+    echo "Error: --scenario parameter is required" >&2
+    echo "" >&2
+    show_help
+    exit 1
+fi
+
+# Set default timestamp if not provided
+if [[ -z "$timestamp" ]]; then
+    timestamp="$(date '+%Y-%m-%d-%H-%M-%S')"
+fi
+
 testCfg="testdata/matching_simulation_$testCase.yaml"
-now="$(date '+%Y-%m-%d-%H-%M-%S')"
-timestamp="${2:-$now}"
 testName="test-$testCase-$timestamp"
 resultFolder="matching-simulator-output"
 mkdir -p "$resultFolder"
@@ -16,7 +136,7 @@ eventLogsFile="$resultFolder/$testName-events.json"
 testSummaryFile="$resultFolder/$testName-summary.txt"
 
 echo "Building test image"
-docker compose -f docker/github_actions/docker-compose-local-matching-simulation.yml \
+DOCKERFILE_SUFFIX=$dockerFileSuffix docker compose -f docker/github_actions/docker-compose-local-matching-simulation.yml \
   build matching-simulator
 
 function check_test_failure()
@@ -37,7 +157,7 @@ function check_test_failure()
 trap check_test_failure EXIT
 
 echo "Running the test $testCase"
-docker compose \
+DOCKERFILE_SUFFIX=$dockerFileSuffix docker compose \
   -f docker/github_actions/docker-compose-local-matching-simulation.yml \
   run -e MATCHING_SIMULATION_CONFIG=$testCfg --rm --remove-orphans --service-ports --use-aliases \
   matching-simulator \
