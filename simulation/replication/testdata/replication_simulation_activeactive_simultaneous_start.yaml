@@ -18,15 +18,6 @@ domains:
       region0: cluster0
       region1: cluster1
 
-# Test scenario: Active-Active domain conflict resolution (non-deterministic)
-# 1. Create workflows with SignalWithStart at t=0 with same workflowID in both clusters
-# 2. Capture each workflow's RunID using runIDKey for later specific validation
-# 3. Use validate_conflict to handle non-deterministic conflict resolution:
-#    - At t=10s: Validate that one workflow is running and one is terminated
-#    - At t=70s: Validate that one workflow completed and one remains terminated
-# 4. Query both RunIDs to validate that each received their respective signals
-# Note: We cannot predict which cluster's workflow will survive the conflict
-
 operations:
   # SignalWithStart workflow with same workflowID in cluster0
   - op: signal_with_start_workflow
@@ -43,7 +34,7 @@ operations:
 
   # SignalWithStart workflow with SAME workflowID in cluster1 - testing conflict resolution
   - op: signal_with_start_workflow
-    at: 0s
+    at: 1s
     workflowID: conflict-wf
     workflowType: timer-activity-loop-workflow
     cluster: cluster1
@@ -54,29 +45,30 @@ operations:
     workflowDuration: 35s
     runIDKey: cluster1-run
 
-  # Validate conflict resolution occurred: one workflow running, one terminated
-  - op: validate_conflict
+  - op: validate
     at: 10s
     workflowID: conflict-wf
+    runIDKey: cluster0-run
     cluster: cluster0
     domain: test-domain-aa-conflict
-    conflictRunIDKeys: ["cluster0-run", "cluster1-run"]
     want:
-      statuses: ["running", "terminated"]
+      status: terminated
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0
 
-  # Validate final state: one workflow completed, one terminated
-  - op: validate_conflict
-    at: 70s
+  - op: validate
+    at: 10s
     workflowID: conflict-wf
+    runIDKey: cluster1-run
     cluster: cluster0
     domain: test-domain-aa-conflict
-    conflictRunIDKeys: ["cluster0-run", "cluster1-run"]
     want:
-      statuses: ["completed", "terminated"]
+      status: running
+      startedByWorkersInCluster: cluster1
 
   # Query the cluster0 run to check if signal was received (should have cluster0 signal)
   - op: query_workflow
-    at: 75s
+    at: 15s
     workflowID: conflict-wf
     cluster: cluster0
     domain: test-domain-aa-conflict
@@ -87,7 +79,7 @@ operations:
 
   # Query the cluster1 run to check if signal was received (should have cluster1 signal)
   - op: query_workflow
-    at: 75s
+    at: 15s
     workflowID: conflict-wf
     cluster: cluster1
     domain: test-domain-aa-conflict
@@ -95,3 +87,14 @@ operations:
     runIDKey: cluster1-run
     want:
       queryResult: ["signal-from-cluster1"]
+  
+  - op: validate
+    at: 70s
+    workflowID: conflict-wf
+    runIDKey: cluster1-run
+    cluster: cluster0
+    domain: test-domain-aa-conflict
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster1
+      completedByWorkersInCluster: cluster1

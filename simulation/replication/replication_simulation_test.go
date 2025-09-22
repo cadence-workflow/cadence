@@ -63,6 +63,9 @@ func TestReplicationSimulation(t *testing.T) {
 	simCfg, err := simTypes.LoadConfig()
 	require.NoError(t, err, "failed to load config")
 
+	// initialize replication simulation
+	sim := simTypes.NewReplicationSimulation()
+
 	// initialize cadence clients
 	for clusterName := range simCfg.Clusters {
 		simCfg.MustInitClientsFor(t, clusterName)
@@ -88,23 +91,21 @@ func TestReplicationSimulation(t *testing.T) {
 		var err error
 		switch op.Type {
 		case simTypes.ReplicationSimulationOperationStartWorkflow:
-			err = startWorkflow(t, op, simCfg)
+			err = startWorkflow(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationResetWorkflow:
 			err = resetWorkflow(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationChangeActiveClusters:
 			err = changeActiveClusters(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationValidate:
-			err = validate(t, op, simCfg)
+			err = validate(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationQueryWorkflow:
-			err = queryWorkflow(t, op, simCfg)
+			err = queryWorkflow(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationSignalWithStartWorkflow:
-			err = signalWithStartWorkflow(t, op, simCfg)
+			err = signalWithStartWorkflow(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationMigrateDomainToActiveActive:
 			err = migrateDomainToActiveActive(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationValidateWorkflowReplication:
 			err = validateWorkflowReplication(t, op, simCfg)
-		case simTypes.ReplicationSimulationOperationValidateConflict:
-			err = validateConflict(t, op, simCfg)
 		default:
 			require.Failf(t, "unknown operation type", "operation type: %s", op.Type)
 		}
@@ -128,6 +129,7 @@ func startWorkflow(
 	t *testing.T,
 	op *simTypes.Operation,
 	simCfg *simTypes.ReplicationSimulationConfig,
+	sim *simTypes.ReplicationSimulation,
 ) error {
 	t.Helper()
 
@@ -171,7 +173,7 @@ func startWorkflow(
 
 	// Store RunID if runIDKey is specified
 	if op.RunIDKey != "" {
-		simCfg.StoreRunID(op.RunIDKey, runID)
+		sim.StoreRunID(op.RunIDKey, runID)
 		simTypes.Logf(t, "Stored RunID %s with key: %s", runID, op.RunIDKey)
 	}
 
@@ -327,7 +329,7 @@ func migrateDomainToActiveActive(t *testing.T, op *simTypes.Operation, simCfg *s
 	return nil
 }
 
-func queryWorkflow(t *testing.T, op *simTypes.Operation, simCfg *simTypes.ReplicationSimulationConfig) error {
+func queryWorkflow(t *testing.T, op *simTypes.Operation, simCfg *simTypes.ReplicationSimulationConfig, sim *simTypes.ReplicationSimulation) error {
 	t.Helper()
 
 	simTypes.Logf(t, "Querying workflow: %s on domain %s on cluster: %s", op.WorkflowID, op.Domain, op.Cluster)
@@ -346,7 +348,7 @@ func queryWorkflow(t *testing.T, op *simTypes.Operation, simCfg *simTypes.Replic
 		WorkflowID: op.WorkflowID,
 	}
 	if op.RunIDKey != "" {
-		if runID := simCfg.GetRunID(op.RunIDKey); runID != "" {
+		if runID, err := sim.GetRunID(op.RunIDKey); err == nil && runID != "" {
 			executionRequest.RunID = runID
 			simTypes.Logf(t, "Using stored RunID %s for query (key: %s)", runID, op.RunIDKey)
 		} else {
@@ -381,6 +383,7 @@ func signalWithStartWorkflow(
 	t *testing.T,
 	op *simTypes.Operation,
 	simCfg *simTypes.ReplicationSimulationConfig,
+	sim *simTypes.ReplicationSimulation,
 ) error {
 	t.Helper()
 	simTypes.Logf(t, "SignalWithStart workflow: %s on domain %s on cluster: %s", op.WorkflowID, op.Domain, op.Cluster)
@@ -411,7 +414,7 @@ func signalWithStartWorkflow(
 
 	// Store RunID if runIDKey is specified
 	if op.RunIDKey != "" {
-		simCfg.StoreRunID(op.RunIDKey, runID)
+		sim.StoreRunID(op.RunIDKey, runID)
 		simTypes.Logf(t, "Stored RunID %s with key: %s", runID, op.RunIDKey)
 	}
 
@@ -425,6 +428,7 @@ func validate(
 	t *testing.T,
 	op *simTypes.Operation,
 	simCfg *simTypes.ReplicationSimulationConfig,
+	sim *simTypes.ReplicationSimulation,
 ) error {
 	t.Helper()
 
@@ -443,7 +447,7 @@ func validate(
 		WorkflowID: op.WorkflowID,
 	}
 	if op.RunIDKey != "" {
-		if runID := simCfg.GetRunID(op.RunIDKey); runID != "" {
+		if runID, err := sim.GetRunID(op.RunIDKey); err == nil && runID != "" {
 			executionRequest.RunID = runID
 			simTypes.Logf(t, "Using stored RunID %s for validation (key: %s)", runID, op.RunIDKey)
 		} else {
@@ -507,7 +511,10 @@ func validate(
 	// Some workflows start in cluster0 and complete in cluster1. This is to validate that
 	var runID string
 	if op.RunIDKey != "" {
-		runID = simCfg.GetRunID(op.RunIDKey)
+		runID, err = sim.GetRunID(op.RunIDKey)
+		if err != nil {
+			return err
+		}
 	}
 	history, err := getAllHistory(t, simCfg, op.Cluster, op.Domain, op.WorkflowID, runID)
 	if err != nil {
@@ -583,117 +590,6 @@ func validateWorkflowReplication(
 		return fmt.Errorf("workflow execution info mismatch between source cluster %s and target cluster %s for workflow %s. \nSource: %+v\nTarget: %+v", op.SourceCluster, op.TargetCluster, op.WorkflowID, *sourceClusterWorkflowExecution, *targetClusterWorkflowExecution)
 	}
 
-	return nil
-}
-
-func validateConflict(
-	t *testing.T,
-	op *simTypes.Operation,
-	simCfg *simTypes.ReplicationSimulationConfig,
-) error {
-	t.Helper()
-
-	simTypes.Logf(t, "Validating conflict resolution for workflow: %s", op.WorkflowID)
-
-	// Validate that we have at least 2 RunID keys for comparison
-	if len(op.ConflictRunIDKeys) < 2 {
-		return fmt.Errorf("validate_conflict requires at least 2 conflictRunIDKeys, got %d", len(op.ConflictRunIDKeys))
-	}
-
-	// Collect workflow information for each RunID
-	type WorkflowInfo struct {
-		RunIDKey  string
-		RunID     string
-		Status    string
-		IsRunning bool
-		CloseTime int64
-	}
-
-	var workflows []WorkflowInfo
-
-	for _, runIDKey := range op.ConflictRunIDKeys {
-		runID := simCfg.GetRunID(runIDKey)
-		if runID == "" {
-			return fmt.Errorf("RunID not found for key: %s", runIDKey)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).DescribeWorkflowExecution(ctx,
-			&types.DescribeWorkflowExecutionRequest{
-				Domain: op.Domain,
-				Execution: &types.WorkflowExecution{
-					WorkflowID: op.WorkflowID,
-					RunID:      runID,
-				},
-			})
-
-		if err != nil {
-			return fmt.Errorf("failed to describe workflow %s (RunID: %s): %w", op.WorkflowID, runID, err)
-		}
-
-		// Extract workflow information
-		closeStatus := resp.GetWorkflowExecutionInfo().GetCloseStatus()
-		closeTime := resp.GetWorkflowExecutionInfo().GetCloseTime()
-		isRunning := closeTime == 0
-
-		// Convert status to string representation
-		var statusStr string
-		if isRunning {
-			statusStr = "running"
-		} else {
-			switch closeStatus {
-			case types.WorkflowExecutionCloseStatusCompleted:
-				statusStr = "completed"
-			case types.WorkflowExecutionCloseStatusFailed:
-				statusStr = "failed"
-			case types.WorkflowExecutionCloseStatusCanceled:
-				statusStr = "canceled"
-			case types.WorkflowExecutionCloseStatusTerminated:
-				statusStr = "terminated"
-			case types.WorkflowExecutionCloseStatusContinuedAsNew:
-				statusStr = "continued-as-new"
-			case types.WorkflowExecutionCloseStatusTimedOut:
-				statusStr = "timed-out"
-			default:
-				statusStr = "unknown"
-			}
-		}
-
-		workflows = append(workflows, WorkflowInfo{
-			RunIDKey:  runIDKey,
-			RunID:     runID,
-			Status:    statusStr,
-			IsRunning: isRunning,
-			CloseTime: closeTime,
-		})
-
-		simTypes.Logf(t, "Workflow %s (RunID: %s): status=%s, running=%t", runIDKey, runID, statusStr, isRunning)
-	}
-
-	// Extract actual statuses and compare with expected
-	actualStatuses := make([]string, len(workflows))
-	for i, wf := range workflows {
-		actualStatuses[i] = wf.Status
-	}
-
-	expectedStatuses := op.Want.Statuses
-	if len(expectedStatuses) != len(actualStatuses) {
-		return fmt.Errorf("expected %d statuses but got %d workflows", len(expectedStatuses), len(actualStatuses))
-	}
-
-	// Sort both arrays for comparison (since conflict resolution is non-deterministic)
-	sort.Strings(actualStatuses)
-	sort.Strings(expectedStatuses)
-
-	// Compare the sorted status arrays
-	for i := range expectedStatuses {
-		if actualStatuses[i] != expectedStatuses[i] {
-			return fmt.Errorf("status mismatch: expected %v, got %v", expectedStatuses, actualStatuses)
-		}
-	}
-
-	simTypes.Logf(t, "Conflict validation passed: expected statuses %v match actual statuses %v", expectedStatuses, actualStatuses)
 	return nil
 }
 
