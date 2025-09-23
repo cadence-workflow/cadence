@@ -33,6 +33,7 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
@@ -79,6 +80,7 @@ type (
 	// TestBase wraps the base setup needed to create workflows over persistence layer.
 	TestBase struct {
 		*suite.Suite
+		Controller                *gomock.Controller
 		ShardMgr                  persistence.ShardManager
 		ExecutionMgrFactory       client.Factory
 		ExecutionManager          persistence.ExecutionManager
@@ -218,6 +220,7 @@ func (s *TestBase) Setup() {
 	shardID := 10
 	clusterName := s.ClusterMetadata.GetCurrentClusterName()
 
+	s.Controller = gomock.NewController(s.T())
 	s.Logger = testlogger.New(s.T())
 
 	s.DefaultTestCluster.SetupTestDatabase()

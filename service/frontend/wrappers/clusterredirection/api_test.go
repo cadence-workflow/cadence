@@ -915,6 +915,7 @@ func (s *clusterRedirectionHandlerSuite) TestSignalWithStartWorkflowExecution() 
 		},
 	}
 
+	s.mockResource.ActiveClusterMgr.EXPECT().CurrentRegion().Return("region-a").Times(1)
 	s.mockClusterRedirectionPolicy.EXPECT().Redirect(ctx, s.domainCacheEntry, nil, req.ActiveClusterSelectionPolicy, apiName, types.QueryConsistencyLevelEventual, gomock.Any()).
 		DoAndReturn(func(ctx context.Context, domainCacheEntry *cache.DomainCacheEntry, wfExec *types.WorkflowExecution, selPlcy *types.ActiveClusterSelectionPolicy, apiName string, consistencyLevel types.QueryConsistencyLevel, callFn func(targetDC string) error) error {
 			// validate callFn logic
@@ -974,6 +975,7 @@ func (s *clusterRedirectionHandlerSuite) TestStartWorkflowExecution() {
 		},
 	}
 
+	s.mockResource.ActiveClusterMgr.EXPECT().CurrentRegion().Return("region-a").Times(1)
 	s.mockClusterRedirectionPolicy.EXPECT().Redirect(ctx, s.domainCacheEntry, nil, req.ActiveClusterSelectionPolicy, apiName, types.QueryConsistencyLevelEventual, gomock.Any()).
 		DoAndReturn(func(ctx context.Context, domainCacheEntry *cache.DomainCacheEntry, wfExec *types.WorkflowExecution, selPlcy *types.ActiveClusterSelectionPolicy, apiName string, consistencyLevel types.QueryConsistencyLevel, callFn func(targetDC string) error) error {
 			// validate callFn logic

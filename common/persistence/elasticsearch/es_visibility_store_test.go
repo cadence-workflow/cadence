@@ -824,7 +824,7 @@ func (s *ESVisibilitySuite) TestListWorkflowExecutions() {
 
 func (s *ESVisibilitySuite) TestListWorkflowExecutionsWithLike() {
 	s.mockESClient.On("SearchByQuery", mock.Anything, mock.MatchedBy(func(input *es.SearchByQueryRequest) bool {
-		s.True(strings.Contains(input.Query, `{"wildcard":{"WorkflowID":{"value":"wid*"}}}`))
+		s.True(strings.Contains(input.Query, `{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}}`))
 		s.Equal(esIndexMaxResultWindow, input.MaxResultWindow)
 		return true
 	})).Return(testSearchResult, nil).Once()
@@ -1137,12 +1137,12 @@ func (s *ESVisibilitySuite) TestGetCustomizedDSLFromSQL() {
 	sql := "select * from dummy where WorkflowID like 'wid' LIMIT 100"
 	dsl, err := getCustomizedDSLFromSQL(sql, testDomainID)
 	s.NoError(err)
-	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"wildcard":{"WorkflowID":{"value":"wid*"}}}]}}]}},"from":0,"size":100}`, dsl.String())
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}}]}}]}},"from":0,"size":100}`, dsl.String())
 
 	sql = "select * from dummy where Attr.CustomizedKeywordField like 'test'"
 	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
 	s.NoError(err)
-	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"wildcard":{"Attr.CustomizedKeywordField":{"value":"test*"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"wildcard":{"Attr.CustomizedKeywordField":{"value":"test*","case_insensitive":true}}}]}}]}},"from":0,"size":1}`, dsl.String())
 
 	sql = "select * from dummy where WorkflowID = 'wid'"
 	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
@@ -1157,15 +1157,25 @@ func (s *ESVisibilitySuite) TestGetCustomizedDSLFromSQL() {
 	sql = "select * from dummy where WorkflowID like 'wid' and Attr.CustomizedKeywordField = 'test'"
 	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
 	s.NoError(err)
-	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"match_phrase":{"Attr.CustomizedKeywordField":{"query":"test"}}},{"wildcard":{"WorkflowID":{"value":"wid*"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"match_phrase":{"Attr.CustomizedKeywordField":{"query":"test"}}},{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}}]}}]}},"from":0,"size":1}`, dsl.String())
 
 	sql = "select * from dummy where WorkflowID like 'like' and Attr.CustomizedKeywordField = 'like'"
 	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
 	s.NoError(err)
-	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"match_phrase":{"Attr.CustomizedKeywordField":{"query":"like"}}},{"wildcard":{"WorkflowID":{"value":"like*"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"match_phrase":{"Attr.CustomizedKeywordField":{"query":"like"}}},{"wildcard":{"WorkflowID":{"value":"like*","case_insensitive":true}}}]}}]}},"from":0,"size":1}`, dsl.String())
 
 	sql = "select * from dummy where WorkflowID like 'wid' and Attr.CustomizedKeywordField like 'test'"
 	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
 	s.NoError(err)
-	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"wildcard":{"WorkflowID":{"value":"wid*"}}},{"wildcard":{"Attr.CustomizedKeywordField":{"value":"test*"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}},{"wildcard":{"Attr.CustomizedKeywordField":{"value":"test*","case_insensitive":true}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	sql = "select * from dummy where WorkflowID = 'wid' OR RunID = 'runid'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"should":[{"match_phrase":{"WorkflowID":{"query":"wid"}}},{"match_phrase":{"RunID":{"query":"runid"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	sql = "select * from dummy where WorkflowID like 'wid' OR Attr.CustomizedKeywordField like 'test'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"should":[{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}},{"wildcard":{"Attr.CustomizedKeywordField":{"value":"test*","case_insensitive":true}}}]}}]}},"from":0,"size":1}`, dsl.String())
 }

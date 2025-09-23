@@ -118,6 +118,7 @@ func TestVirtualQueueImpl_UpdateAndGetState(t *testing.T) {
 		Predicate: NewUniversalPredicate(),
 	})
 	mockVirtualSlice1.EXPECT().GetPendingTaskCount().Return(1)
+	mockVirtualSlice1.EXPECT().IsEmpty().Return(false)
 	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice1, 1)
 
 	mockVirtualSlice2.EXPECT().UpdateAndGetState().Return(VirtualSliceState{
@@ -127,6 +128,7 @@ func TestVirtualQueueImpl_UpdateAndGetState(t *testing.T) {
 		},
 		Predicate: NewUniversalPredicate(),
 	})
+	mockVirtualSlice2.EXPECT().IsEmpty().Return(true)
 	mockMonitor.EXPECT().RemoveSlice(mockVirtualSlice2)
 
 	mockTimeSource := clock.NewMockedTimeSource()

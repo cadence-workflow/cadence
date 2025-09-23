@@ -54,6 +54,9 @@ func (e *historyEngineImpl) StartWorkflowExecution(
 	if err != nil {
 		return nil, err
 	}
+	if domainEntry.GetReplicationConfig().IsActiveActive() && startRequest.StartRequest.ActiveClusterSelectionPolicy == nil {
+		return nil, &types.BadRequestError{Message: "ActiveClusterSelectionPolicy is required for active-active domains"}
+	}
 
 	return e.startWorkflowHelper(
 		ctx,
@@ -81,11 +84,6 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		return nil, err
 	}
 	e.overrideTaskStartToCloseTimeoutSeconds(domainEntry, request, metricsScope)
-
-	err = e.overrideActiveClusterSelectionPolicy(domainEntry, request)
-	if err != nil {
-		return nil, err
-	}
 
 	workflowID := request.GetWorkflowID()
 	domainID := domainEntry.GetInfo().ID
@@ -337,6 +335,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	}, nil
 }
 
+// TODO(active-active): Review this method for active-active domains
 func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 	ctx context.Context,
 	signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest,
@@ -348,6 +347,9 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 	}
 	if domainEntry.GetInfo().Status != persistence.DomainStatusRegistered {
 		return nil, errDomainDeprecated
+	}
+	if domainEntry.GetReplicationConfig().IsActiveActive() && signalWithStartRequest.SignalWithStartRequest.ActiveClusterSelectionPolicy == nil {
+		return nil, &types.BadRequestError{Message: "ActiveClusterSelectionPolicy is required for active-active domains"}
 	}
 	domainID := domainEntry.GetInfo().ID
 
@@ -613,51 +615,6 @@ func (e *historyEngineImpl) overrideTaskStartToCloseTimeoutSeconds(
 			metricsScope,
 			metrics.DomainTag(domainName),
 		).IncCounter(metrics.DecisionStartToCloseTimeoutOverrideCount)
-	}
-}
-
-// TODO(active-active): this logic should be moved to frontend before auto-forwarding
-// the start workflow request received by history should always expect an active cluster selection policy for active-active domains
-func (e *historyEngineImpl) overrideActiveClusterSelectionPolicy(
-	domainEntry *cache.DomainCacheEntry,
-	request *types.StartWorkflowExecutionRequest,
-) error {
-	activeClusterSelectionPolicy, err := e.getActiveClusterSelectionPolicy(domainEntry, request.ActiveClusterSelectionPolicy)
-	if err != nil {
-		return err
-	}
-	request.ActiveClusterSelectionPolicy = activeClusterSelectionPolicy
-	return nil
-}
-
-func (e *historyEngineImpl) getActiveClusterSelectionPolicy(
-	domainEntry *cache.DomainCacheEntry,
-	policy *types.ActiveClusterSelectionPolicy,
-) (*types.ActiveClusterSelectionPolicy, error) {
-
-	if !domainEntry.GetReplicationConfig().IsActiveActive() {
-		return nil, nil
-	}
-
-	if policy == nil {
-		return &types.ActiveClusterSelectionPolicy{
-			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-			StickyRegion:                   e.shard.GetActiveClusterManager().CurrentRegion(),
-		}, nil
-	}
-
-	switch policy.GetStrategy() {
-	case types.ActiveClusterSelectionStrategyExternalEntity:
-		if !e.shard.GetActiveClusterManager().SupportedExternalEntityType(policy.ExternalEntityType) {
-			return nil, fmt.Errorf("external entity type %s is not supported", policy.ExternalEntityType)
-		}
-		return policy, nil
-	case types.ActiveClusterSelectionStrategyRegionSticky:
-		// override sticky region with current region
-		policy.StickyRegion = e.shard.GetActiveClusterManager().CurrentRegion()
-		return policy, nil
-	default:
-		return nil, fmt.Errorf("unsupported active cluster selection strategy %s", policy.GetStrategy().String())
 	}
 }
 

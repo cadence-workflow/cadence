@@ -112,6 +112,20 @@ func (mr *MockVirtualSliceMockRecorder) HasMoreTasks() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasMoreTasks", reflect.TypeOf((*MockVirtualSlice)(nil).HasMoreTasks))
 }
 
+// IsEmpty mocks base method.
+func (m *MockVirtualSlice) IsEmpty() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsEmpty")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsEmpty indicates an expected call of IsEmpty.
+func (mr *MockVirtualSliceMockRecorder) IsEmpty() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockVirtualSlice)(nil).IsEmpty))
+}
+
 // PendingTaskStats mocks base method.
 func (m *MockVirtualSlice) PendingTaskStats() PendingTaskStats {
 	m.ctrl.T.Helper()

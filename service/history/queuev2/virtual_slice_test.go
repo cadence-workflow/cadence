@@ -1691,6 +1691,55 @@ func TestGetTasks(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Single page of tasks with next task key equal to exclusive max task key but non-empty next page token",
+			slice: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(1),
+					},
+				},
+			},
+			pageSize: 2,
+			setupMock: func(mockQueueReader *MockQueueReader, mockPendingTaskTracker *MockPendingTaskTracker) {
+				mockQueueReader.EXPECT().GetTask(gomock.Any(), &GetTaskRequest{
+					Progress: &GetTaskProgress{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(1),
+					},
+					Predicate: NewUniversalPredicate(),
+					PageSize:  2,
+				}).Return(&GetTaskResponse{
+					Tasks: []persistence.Task{historyTasks[0]},
+					Progress: &GetTaskProgress{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey:   persistence.NewImmediateTaskKey(5),
+						NextPageToken: []byte("token"),
+					},
+				}, nil)
+				mockPendingTaskTracker.EXPECT().AddTask(gomock.Any()).Times(1)
+			},
+			expectedTasksCount: 1,
+			expectedError:      nil,
+			expectedProgress:   []*GetTaskProgress{},
+		},
 	}
 
 	for _, tt := range tests {

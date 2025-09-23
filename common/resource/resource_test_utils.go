@@ -189,7 +189,7 @@ func NewTest(
 		PayloadSerializer:       persistence.NewPayloadSerializer(),
 		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex),
 		ArchivalMetadata:        &archiver.MockArchivalMetadata{},
-		ArchiverProvider:        &provider.MockArchiverProvider{},
+		ArchiverProvider:        provider.NewMockArchiverProvider(controller),
 		BlobstoreClient:         &blobstore.MockClient{},
 		MockPayloadSerializer:   persistence.NewMockPayloadSerializer(controller),
 
@@ -464,7 +464,6 @@ func (s *Test) Finish(
 	t mock.TestingT,
 ) {
 	s.ArchivalMetadata.AssertExpectations(t)
-	s.ArchiverProvider.AssertExpectations(t)
 
 	s.MetadataMgr.AssertExpectations(t)
 	s.TaskMgr.AssertExpectations(t)

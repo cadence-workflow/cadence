@@ -1054,7 +1054,7 @@ func extractLikeClauses(sql string) ([]likeClause, string) {
 		})
 		// Remove LIKE clause from SQL
 		// Replace LIKE with a dummy expression that elasticsql can parse
-		replacement := fmt.Sprintf(`__dummy_field__ = '__dummy_value__'`)
+		replacement := `__dummy_field__ = '__dummy_value__'`
 		strippedSQL = strings.Replace(strippedSQL, match[0], replacement, 1)
 	}
 	return clauses, strippedSQL
@@ -1075,26 +1075,36 @@ func injectWildcardQueries(dsl *fastjson.Value, likes []likeClause) error {
 		return fmt.Errorf("missing 'bool' query")
 	}
 
-	mustArr := boolObj.GetArray("must")
-	if mustArr == nil {
-		// if must doesn't exist, create it
-		mustArr = []*fastjson.Value{}
+	// Check if we have a 'should' array (for OR queries) or 'must' array (for AND queries)
+	var targetArray []*fastjson.Value
+	var arrayKey string
+
+	if shouldArr := boolObj.GetArray("should"); shouldArr != nil {
+		targetArray = shouldArr
+		arrayKey = "should"
+	} else if mustArr := boolObj.GetArray("must"); mustArr != nil {
+		targetArray = mustArr
+		arrayKey = "must"
+	} else {
+		// if neither exists, create a must array
+		targetArray = []*fastjson.Value{}
+		arrayKey = "must"
 	}
 
 	for _, clause := range likes {
 		wildcardValue := strings.ReplaceAll(clause.Pattern, "%", "*")
 		wildcardValue = strings.ReplaceAll(wildcardValue, "_", "?")
 
-		wildcard := fmt.Sprintf(`{"wildcard": {"%s": {"value": "%s*"}}}`, clause.Field, wildcardValue)
+		wildcard := fmt.Sprintf(`{"wildcard": {"%s": {"value": "%s*", "case_insensitive": true}}}`, clause.Field, wildcardValue)
 		v, err := fastjson.Parse(wildcard)
 		if err != nil {
 			return err
 		}
-		mustArr = append(mustArr, v)
+		targetArray = append(targetArray, v)
 	}
 
-	// Inject updated must array
-	boolObj.Set("must", fastjson.MustParse(fmt.Sprintf("[%s]", joinFastjson(mustArr, ","))))
+	// Inject updated array
+	boolObj.Set(arrayKey, fastjson.MustParse(fmt.Sprintf("[%s]", joinFastjson(targetArray, ","))))
 	return nil
 }
 
