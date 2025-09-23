@@ -185,7 +185,7 @@ func (r *transactionManagerForNewWorkflowImpl) createAsCurrent(
 		// current workflow exists, need to do compare and swap
 		createMode := persistence.CreateWorkflowModeWorkflowIDReuse
 		prevRunID := currentWorkflow.GetMutableState().GetExecutionInfo().RunID
-		prevLastWriteVersion, _, err := currentWorkflow.GetVectorClock()
+		prevVectorClock, err := currentWorkflow.GetVectorClock()
 		if err != nil {
 			return err
 		}
@@ -195,7 +195,7 @@ func (r *transactionManagerForNewWorkflowImpl) createAsCurrent(
 			targetWorkflowHistoryBlob,
 			createMode,
 			prevRunID,
-			prevLastWriteVersion,
+			prevVectorClock.LastWriteVersion,
 			persistence.CreateWorkflowRequestModeReplicated,
 		)
 	}

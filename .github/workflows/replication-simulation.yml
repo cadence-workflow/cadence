@@ -14,6 +14,7 @@ jobs:
       matrix:
         scenario:
           - activeactive
+          - activeactive_same_wfid
           - activeactive_cron
           - activeactive_regional_failover
           - activeactive_regional_failover_start_same_wfid

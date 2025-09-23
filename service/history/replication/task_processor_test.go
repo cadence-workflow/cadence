@@ -48,6 +48,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -710,4 +711,28 @@ func TestIsShuttingDown(t *testing.T) {
 	assert.False(t, taskProcessor.isShuttingDown())
 	close(taskProcessor.done)
 	assert.True(t, taskProcessor.isShuttingDown())
+}
+
+func (s *taskProcessorSuite) TestProcessTaskOnce_OverThreshold_WithNoopLogger() {
+	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(metrics.ScopeIdx(0), nil).Times(1)
+	// Domain cache is called for tagging
+	s.mockDomainCache.EXPECT().GetDomainName(testDomainID).Return(testDomainName, nil).AnyTimes()
+
+	// Use noop logger (no capturing, just to exercise the path)
+	s.taskProcessor.logger = log.NewNoop()
+
+	// Make e2e latency > threshold (e.g., 26 minutes)
+	creation := time.Now().Add(-26 * time.Minute).UnixNano()
+	task := &types.ReplicationTask{
+		TaskType: types.ReplicationTaskTypeHistoryV2.Ptr(),
+		HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{
+			DomainID:   testDomainID,
+			WorkflowID: testWorkflowID,
+			RunID:      testRunID,
+		},
+		CreationTime: common.Int64Ptr(creation),
+	}
+
+	err := s.taskProcessor.processTaskOnce(task)
+	s.NoError(err)
 }

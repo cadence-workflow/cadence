@@ -63,6 +63,9 @@ func TestReplicationSimulation(t *testing.T) {
 	simCfg, err := simTypes.LoadConfig()
 	require.NoError(t, err, "failed to load config")
 
+	// initialize replication simulation
+	sim := simTypes.NewReplicationSimulation()
+
 	// initialize cadence clients
 	for clusterName := range simCfg.Clusters {
 		simCfg.MustInitClientsFor(t, clusterName)
@@ -89,13 +92,13 @@ func TestReplicationSimulation(t *testing.T) {
 		var err error
 		switch op.Type {
 		case simTypes.ReplicationSimulationOperationStartWorkflow:
-			err = startWorkflow(t, op, simCfg)
+			err = startWorkflow(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationResetWorkflow:
 			err = resetWorkflow(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationChangeActiveClusters:
 			err = changeActiveClusters(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationValidate:
-			err = validate(t, op, simCfg)
+			err = validate(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationQueryWorkflow:
 			err = queryWorkflow(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationSignalWithStartWorkflow:
@@ -127,6 +130,7 @@ func startWorkflow(
 	t *testing.T,
 	op *simTypes.Operation,
 	simCfg *simTypes.ReplicationSimulationConfig,
+	sim *simTypes.ReplicationSimulation,
 ) error {
 	t.Helper()
 
@@ -165,7 +169,14 @@ func startWorkflow(
 		return err
 	}
 
-	simTypes.Logf(t, "Started workflow: %s on domain: %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, resp.GetRunID())
+	runID := resp.GetRunID()
+	simTypes.Logf(t, "Started workflow: %s on domain: %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, runID)
+
+	// Store RunID if runIDKey is specified
+	if op.RunIDKey != "" {
+		sim.StoreRunID(op.RunIDKey, runID)
+		simTypes.Logf(t, "Stored RunID %s with key: %s", runID, op.RunIDKey)
+	}
 
 	return nil
 }
@@ -398,6 +409,7 @@ func validate(
 	t *testing.T,
 	op *simTypes.Operation,
 	simCfg *simTypes.ReplicationSimulationConfig,
+	sim *simTypes.ReplicationSimulation,
 ) error {
 	t.Helper()
 
@@ -405,12 +417,23 @@ func validate(
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
+
+	// Prepare workflow execution - use specific RunID if provided via runIDKey
+	execution := &types.WorkflowExecution{
+		WorkflowID: op.WorkflowID,
+	}
+	if op.RunIDKey != "" {
+		if runID, err := sim.GetRunID(op.RunIDKey); err == nil && runID != "" {
+			execution.RunID = runID
+			simTypes.Logf(t, "Using stored RunID %s for validation (key: %s)", runID, op.RunIDKey)
+		} else {
+			return fmt.Errorf("runIDKey %s specified but no RunID found in registry", op.RunIDKey)
+		}
+	}
 	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).DescribeWorkflowExecution(ctx,
 		&types.DescribeWorkflowExecutionRequest{
-			Domain: op.Domain,
-			Execution: &types.WorkflowExecution{
-				WorkflowID: op.WorkflowID,
-			},
+			Domain:    op.Domain,
+			Execution: execution,
 		})
 	if err != nil {
 		return err
