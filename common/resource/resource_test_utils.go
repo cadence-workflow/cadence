@@ -169,9 +169,6 @@ func NewTest(
 	asyncWorkflowQueueProvider := queue.NewMockProvider(controller)
 
 	activeClusterMgr := activecluster.NewMockManager(controller)
-	activeClusterMgr.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
-		return cluster.TestActiveClusterMetadata.ClusterNameForFailoverVersion(version)
-	}).AnyTimes()
 
 	return &Test{
 		MetricsScope: scope,

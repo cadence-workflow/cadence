@@ -138,7 +138,6 @@ func (e *historyEngineImpl) ReapplyEvents(
 					execution.NewWorkflow(
 						ctx,
 						e.shard.GetClusterMetadata(),
-						e.shard.GetActiveClusterManager(),
 						wfContext,
 						mutableState,
 						execution.NoopReleaseFn,

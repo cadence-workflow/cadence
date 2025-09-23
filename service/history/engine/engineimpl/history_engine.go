@@ -377,7 +377,7 @@ func (e *historyEngineImpl) newDomainNotActiveError(
 	domainEntry *cache.DomainCacheEntry,
 	failoverVersion int64,
 ) error {
-	activeClusterName, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(failoverVersion, domainEntry.GetInfo().ID)
+	activeClusterName, err := e.shard.GetClusterMetadata().ClusterNameForFailoverVersion(failoverVersion)
 	if err != nil {
 		activeClusterName = "_unknown_"
 	}

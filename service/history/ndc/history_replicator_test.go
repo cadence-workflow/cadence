@@ -32,7 +32,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
@@ -98,37 +97,9 @@ func createTestHistoryReplicator(t *testing.T, domainID string) historyReplicato
 	// going back to NewHistoryReplicator
 	mockHistoryResource.EXPECT().GetClusterMetadata().Return(clusterMetadata).Times(1)
 
-	activeClusterManager := newActiveClusterManager(t, clusterMetadata, domainID, log.NewNoop())
-	mockShard.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
-
 	replicator := NewHistoryReplicator(mockShard, testExecutionCache, mockEventsReapplier, log.NewNoop())
 	replicatorImpl := replicator.(*historyReplicatorImpl)
 	return *replicatorImpl
-}
-
-func newActiveClusterManager(t *testing.T, clusterMetadata cluster.Metadata, domainID string, logger log.Logger) activecluster.Manager {
-	domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-		return cache.NewGlobalDomainCacheEntryForTest(
-			&persistence.DomainInfo{
-				ID:   domainID,
-				Name: "test",
-			},
-			&persistence.DomainConfig{},
-			&persistence.DomainReplicationConfig{
-				ActiveClusterName: cluster.TestCurrentClusterName,
-				Clusters: []*persistence.ClusterReplicationConfig{
-					{ClusterName: cluster.TestCurrentClusterName},
-					{ClusterName: cluster.TestAlternativeClusterName},
-				},
-			},
-			clusterMetadata.GetAllClusterInfo()[cluster.TestCurrentClusterName].InitialFailoverVersion,
-		), nil
-	}
-	activeClusterMgr, err := activecluster.NewManager(domainIDToDomainFn, clusterMetadata, metrics.NoopClient, logger, nil, nil, 0)
-	if err != nil {
-		t.Fatalf("failed to create active cluster manager, error: %v", err)
-	}
-	return activeClusterMgr
 }
 
 func TestNewHistoryReplicator(t *testing.T) {
@@ -156,9 +127,6 @@ func TestNewHistoryReplicator_newBranchManager(t *testing.T) {
 	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
 	mockShard.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
 	mockShard.EXPECT().GetShardID().Return(testShardID).AnyTimes()
-
-	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
-	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).Times(1)
 
 	testExecutionCache := execution.NewCache(mockShard)
 	mockEventsReapplier := NewMockEventsReapplier(ctrl)
@@ -210,9 +178,6 @@ func TestNewHistoryReplicator_newConflictResolver(t *testing.T) {
 	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
 	mockShard.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
 	mockShard.EXPECT().GetShardID().Return(testShardID).AnyTimes()
-
-	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
-	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).Times(1)
 
 	testExecutionCache := execution.NewCache(mockShard)
 	mockEventsReapplier := NewMockEventsReapplier(ctrl)
@@ -267,9 +232,6 @@ func TestNewHistoryReplicator_newWorkflowResetter(t *testing.T) {
 	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
 	mockShard.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
 	mockShard.EXPECT().GetShardID().Return(testShardID).AnyTimes()
-
-	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
-	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).Times(1)
 
 	testExecutionCache := execution.NewCache(mockShard)
 	mockEventsReapplier := NewMockEventsReapplier(ctrl)
@@ -332,9 +294,6 @@ func TestNewHistoryReplicator_newStateBuilder(t *testing.T) {
 	mockShard.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
 	mockShard.EXPECT().GetShardID().Return(testShardID).AnyTimes()
 
-	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
-	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).Times(1)
-
 	testExecutionCache := execution.NewCache(mockShard)
 	mockEventsReapplier := NewMockEventsReapplier(ctrl)
 
@@ -385,9 +344,6 @@ func TestNewHistoryReplicator_newMutableState(t *testing.T) {
 	mockShard.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
 	mockShard.EXPECT().GetShardID().Return(testShardID).AnyTimes()
 
-	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
-	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).Times(1)
-
 	testExecutionCache := execution.NewCache(mockShard)
 	mockEventsReapplier := NewMockEventsReapplier(ctrl)
 
@@ -431,7 +387,7 @@ func TestNewHistoryReplicator_newMutableState(t *testing.T) {
 func TestApplyEvents(t *testing.T) {
 	replicator := createTestHistoryReplicator(t, uuid.New())
 	replicator.newReplicationTaskFn = func(
-		activeClusterManager activecluster.Manager,
+		clusterMetadata cluster.Metadata,
 		historySerializer persistence.PayloadSerializer,
 		taskStartTime time.Time,
 		logger log.Logger,
@@ -1212,8 +1168,6 @@ func Test_applyStartEvents(t *testing.T) {
 			mockReplicationTask := NewMockreplicationTask(ctrl)
 			mockTransactionManager := NewMocktransactionManager(ctrl)
 			mockShard := shard.NewMockContext(ctrl)
-			mockActiveClusterManager := activecluster.NewMockManager(ctrl)
-			mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).AnyTimes()
 			logger := log.NewNoop()
 
 			// Mock affordances
@@ -1614,8 +1568,6 @@ func Test_applyNonStartEventsToCurrentBranch(t *testing.T) {
 			mockMutableState := execution.NewMockMutableState(ctrl)
 			mockTransactionManager := NewMocktransactionManager(ctrl)
 			mockShard := shard.NewMockContext(ctrl)
-			mockActiveClusterManager := activecluster.NewMockManager(ctrl)
-			mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).AnyTimes()
 			logger := log.NewNoop()
 
 			// Mock affordances
@@ -1916,8 +1868,6 @@ func Test_applyNonStartEventsToNoneCurrentBranchWithoutContinueAsNew(t *testing.
 			test.mockTransactionManagerAffordance(mockTransactionManager)
 
 			mockShard := shard.NewMockContext(ctrl)
-			activeClusterManager := activecluster.NewMockManager(ctrl)
-			mockShard.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
 			// Call the function under test
 			err := applyNonStartEventsToNoneCurrentBranchWithoutContinueAsNew(
 				ctx.Background(),
@@ -2201,8 +2151,6 @@ func Test_applyNonStartEventsResetWorkflow(t *testing.T) {
 			mockStateBuilder := execution.NewMockStateBuilder(ctrl)
 			mockTransactionManager := NewMocktransactionManager(ctrl)
 			mockShard := shard.NewMockContext(ctrl)
-			mockActiveClusterManager := activecluster.NewMockManager(ctrl)
-			mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).AnyTimes()
 			logger := log.NewNoop()
 
 			// Mock affordances
@@ -2297,8 +2245,6 @@ func Test_notify(t *testing.T) {
 
 			// Mock Shard Context
 			mockShard := shard.NewMockContext(ctrl)
-			mockActiveClusterManager := activecluster.NewMockManager(ctrl)
-			mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).AnyTimes()
 			if test.expectSetCurrentTime {
 				mockShard.EXPECT().GetConfig().Return(&config.Config{
 					StandbyClusterDelay: dynamicproperties.GetDurationPropertyFn(5 * time.Minute),

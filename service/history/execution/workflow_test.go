@@ -33,11 +33,8 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/activecluster"
-	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/log/testlogger"
-	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -100,7 +97,6 @@ func (s *workflowSuite) TestGetMethods() {
 	nDCWorkflow := NewWorkflow(
 		context.Background(),
 		cluster.TestActiveClusterMetadata,
-		s.newTestActiveClusterManager(cluster.TestActiveClusterMetadata),
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
@@ -131,7 +127,6 @@ func (s *workflowSuite) TestSuppressWorkflowBy_Error() {
 	nDCWorkflow := NewWorkflow(
 		context.Background(),
 		cluster.TestActiveClusterMetadata,
-		s.newTestActiveClusterManager(cluster.TestActiveClusterMetadata),
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
@@ -143,7 +138,6 @@ func (s *workflowSuite) TestSuppressWorkflowBy_Error() {
 	incomingNDCWorkflow := NewWorkflow(
 		context.Background(),
 		cluster.TestActiveClusterMetadata,
-		s.newTestActiveClusterManager(cluster.TestActiveClusterMetadata),
 		incomingMockContext,
 		incomingMockMutableState,
 		NoopReleaseFn,
@@ -191,7 +185,6 @@ func (s *workflowSuite) TestSuppressWorkflowBy_Terminate() {
 	nDCWorkflow := NewWorkflow(
 		context.Background(),
 		cluster.TestActiveClusterMetadata,
-		s.newTestActiveClusterManager(cluster.TestActiveClusterMetadata),
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
@@ -206,7 +199,6 @@ func (s *workflowSuite) TestSuppressWorkflowBy_Terminate() {
 	incomingNDCWorkflow := NewWorkflow(
 		context.Background(),
 		cluster.TestActiveClusterMetadata,
-		s.newTestActiveClusterManager(cluster.TestActiveClusterMetadata),
 		incomingMockContext,
 		incomingMockMutableState,
 		NoopReleaseFn,
@@ -274,7 +266,6 @@ func (s *workflowSuite) TestSuppressWorkflowBy_Zombiefy() {
 	nDCWorkflow := NewWorkflow(
 		context.Background(),
 		cluster.TestActiveClusterMetadata,
-		s.newTestActiveClusterManager(cluster.TestActiveClusterMetadata),
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
@@ -289,7 +280,6 @@ func (s *workflowSuite) TestSuppressWorkflowBy_Zombiefy() {
 	incomingNDCWorkflow := NewWorkflow(
 		context.Background(),
 		cluster.TestActiveClusterMetadata,
-		s.newTestActiveClusterManager(cluster.TestActiveClusterMetadata),
 		incomingMockContext,
 		incomingMockMutableState,
 		NoopReleaseFn,
@@ -325,7 +315,6 @@ func (s *workflowSuite) TestRevive_Zombie_Error() {
 	nDCWorkflow := NewWorkflow(
 		context.Background(),
 		cluster.TestActiveClusterMetadata,
-		s.newTestActiveClusterManager(cluster.TestActiveClusterMetadata),
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
@@ -343,7 +332,6 @@ func (s *workflowSuite) TestRevive_Zombie_Success() {
 	nDCWorkflow := NewWorkflow(
 		context.Background(),
 		cluster.TestActiveClusterMetadata,
-		s.newTestActiveClusterManager(cluster.TestActiveClusterMetadata),
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
@@ -359,7 +347,6 @@ func (s *workflowSuite) TestRevive_NonZombie_Success() {
 	nDCWorkflow := NewWorkflow(
 		context.Background(),
 		cluster.TestActiveClusterMetadata,
-		s.newTestActiveClusterManager(cluster.TestActiveClusterMetadata),
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
@@ -391,7 +378,6 @@ func (s *workflowSuite) TestFlushBufferedEvents_Success() {
 	nDCWorkflow := NewWorkflow(
 		context.Background(),
 		cluster.TestActiveClusterMetadata,
-		s.newTestActiveClusterManager(cluster.TestActiveClusterMetadata),
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
@@ -408,7 +394,6 @@ func (s *workflowSuite) TestFlushBufferedEvents_NoBuffer_Success() {
 	nDCWorkflow := NewWorkflow(
 		context.Background(),
 		cluster.TestActiveClusterMetadata,
-		s.newTestActiveClusterManager(cluster.TestActiveClusterMetadata),
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
@@ -439,7 +424,6 @@ func (s *workflowSuite) TestFlushBufferedEvents_NoDecision_Success() {
 	nDCWorkflow := NewWorkflow(
 		context.Background(),
 		cluster.TestActiveClusterMetadata,
-		s.newTestActiveClusterManager(cluster.TestActiveClusterMetadata),
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
@@ -447,41 +431,6 @@ func (s *workflowSuite) TestFlushBufferedEvents_NoDecision_Success() {
 	)
 	err := nDCWorkflow.FlushBufferedEvents()
 	s.NoError(err)
-}
-
-func (s *workflowSuite) newTestActiveClusterManager(clusterMetadata cluster.Metadata) activecluster.Manager {
-	domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-		return cache.NewGlobalDomainCacheEntryForTest(
-			&persistence.DomainInfo{
-				ID:   s.domainID,
-				Name: s.domainName,
-			},
-			&persistence.DomainConfig{},
-			&persistence.DomainReplicationConfig{
-				ActiveClusterName: cluster.TestCurrentClusterName,
-				Clusters: []*persistence.ClusterReplicationConfig{
-					{ClusterName: cluster.TestCurrentClusterName},
-					{ClusterName: cluster.TestAlternativeClusterName},
-				},
-			},
-			clusterMetadata.GetAllClusterInfo()[cluster.TestCurrentClusterName].InitialFailoverVersion,
-		), nil
-	}
-
-	// Create and return the active cluster manager
-	activeClusterMgr, err := activecluster.NewManager(
-		domainIDToDomainFn,
-		clusterMetadata,
-		metrics.NoopClient,
-		testlogger.New(s.T()),
-		nil,
-		nil,
-		0,
-	)
-	if err != nil {
-		s.T().Fatalf("failed to create active cluster manager, error: %v", err)
-	}
-	return activeClusterMgr
 }
 
 func TestWorkflowHappensAfter(t *testing.T) {

@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -57,9 +56,8 @@ type (
 	}
 
 	workflowImpl struct {
-		logger               log.Logger
-		clusterMetadata      cluster.Metadata
-		activeClusterManager activecluster.Manager
+		logger          log.Logger
+		clusterMetadata cluster.Metadata
 
 		ctx          context.Context
 		context      Context
@@ -80,7 +78,6 @@ type (
 func NewWorkflow(
 	ctx context.Context,
 	clusterMetadata cluster.Metadata,
-	activeClusterManager activecluster.Manager,
 	context Context,
 	mutableState MutableState,
 	releaseFn ReleaseFunc,
@@ -88,13 +85,12 @@ func NewWorkflow(
 ) Workflow {
 
 	return &workflowImpl{
-		ctx:                  ctx,
-		clusterMetadata:      clusterMetadata,
-		activeClusterManager: activeClusterManager,
-		logger:               logger,
-		context:              context,
-		mutableState:         mutableState,
-		releaseFn:            releaseFn,
+		ctx:             ctx,
+		clusterMetadata: clusterMetadata,
+		logger:          logger,
+		context:         context,
+		mutableState:    mutableState,
+		releaseFn:       releaseFn,
 	}
 }
 
@@ -201,7 +197,7 @@ func (r *workflowImpl) SuppressBy(
 		return TransactionPolicyPassive, nil
 	}
 
-	lastWriteCluster, err := r.activeClusterManager.ClusterNameForFailoverVersion(currentVectorClock.LastWriteVersion, r.mutableState.GetExecutionInfo().DomainID)
+	lastWriteCluster, err := r.clusterMetadata.ClusterNameForFailoverVersion(currentVectorClock.LastWriteVersion)
 	if err != nil {
 		return TransactionPolicyActive, err
 	}
@@ -228,7 +224,7 @@ func (r *workflowImpl) FlushBufferedEvents() error {
 		return err
 	}
 
-	lastWriteCluster, err := r.activeClusterManager.ClusterNameForFailoverVersion(currentVectorClock.LastWriteVersion, r.mutableState.GetExecutionInfo().DomainID)
+	lastWriteCluster, err := r.clusterMetadata.ClusterNameForFailoverVersion(currentVectorClock.LastWriteVersion)
 	if err != nil {
 		// TODO: add a test for this
 		return err
