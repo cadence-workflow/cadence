@@ -34,6 +34,7 @@ type (
 		persistence ShardStore
 		serializer  PayloadSerializer
 		timeSrc     clock.TimeSource
+		dc          *DynamicConfiguration
 	}
 )
 
@@ -52,12 +53,14 @@ func WithSerializer(serializer PayloadSerializer) ShardManagerOption {
 // NewShardManager returns a new ShardManager
 func NewShardManager(
 	persistence ShardStore,
+	dc *DynamicConfiguration,
 	options ...ShardManagerOption,
 ) ShardManager {
 	manager := &shardManager{
 		persistence: persistence,
 		serializer:  NewPayloadSerializer(),
 		timeSrc:     clock.NewRealTimeSource(),
+		dc:          dc,
 	}
 	for _, option := range options {
 		option(manager)
@@ -74,7 +77,7 @@ func (m *shardManager) Close() {
 }
 
 func (m *shardManager) CreateShard(ctx context.Context, request *CreateShardRequest) error {
-	shardInfo, err := m.toInternalShardInfo(request.ShardInfo)
+	shardInfo, err := m.toInternalShardInfo(request.ShardInfo, constants.EncodingType(m.dc.SerializationEncoding()))
 	if err != nil {
 		return err
 	}
@@ -104,7 +107,7 @@ func (m *shardManager) GetShard(ctx context.Context, request *GetShardRequest) (
 }
 
 func (m *shardManager) UpdateShard(ctx context.Context, request *UpdateShardRequest) error {
-	shardInfo, err := m.toInternalShardInfo(request.ShardInfo)
+	shardInfo, err := m.toInternalShardInfo(request.ShardInfo, constants.EncodingType(m.dc.SerializationEncoding()))
 	if err != nil {
 		return err
 	}
@@ -116,19 +119,19 @@ func (m *shardManager) UpdateShard(ctx context.Context, request *UpdateShardRequ
 	return m.persistence.UpdateShard(ctx, internalRequest)
 }
 
-func (m *shardManager) toInternalShardInfo(shardInfo *ShardInfo) (*InternalShardInfo, error) {
+func (m *shardManager) toInternalShardInfo(shardInfo *ShardInfo, encodingType constants.EncodingType) (*InternalShardInfo, error) {
 	if shardInfo == nil {
 		return nil, nil
 	}
-	serializedTransferProcessingQueueStates, err := m.serializer.SerializeProcessingQueueStates(shardInfo.TransferProcessingQueueStates, constants.EncodingTypeThriftRW)
+	serializedTransferProcessingQueueStates, err := m.serializer.SerializeProcessingQueueStates(shardInfo.TransferProcessingQueueStates, encodingType)
 	if err != nil {
 		return nil, err
 	}
-	serializedTimerProcessingQueueStates, err := m.serializer.SerializeProcessingQueueStates(shardInfo.TimerProcessingQueueStates, constants.EncodingTypeThriftRW)
+	serializedTimerProcessingQueueStates, err := m.serializer.SerializeProcessingQueueStates(shardInfo.TimerProcessingQueueStates, encodingType)
 	if err != nil {
 		return nil, err
 	}
-	pendingFailoverMarker, err := m.serializer.SerializePendingFailoverMarkers(shardInfo.PendingFailoverMarkers, constants.EncodingTypeThriftRW)
+	pendingFailoverMarker, err := m.serializer.SerializePendingFailoverMarkers(shardInfo.PendingFailoverMarkers, encodingType)
 	if err != nil {
 		return nil, err
 	}

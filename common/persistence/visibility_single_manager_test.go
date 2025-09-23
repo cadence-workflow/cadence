@@ -31,6 +31,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -48,7 +50,9 @@ func TestNewVisibilityManagerImpl(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
 			assert.NotPanics(t, func() {
-				NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+				NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+					SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+				})
 			})
 		})
 	}
@@ -67,7 +71,9 @@ func TestClose(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
 			mockVisibilityStore.EXPECT().Close().Return().Times(1)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 			assert.NotPanics(t, func() {
 				visibilityManager.Close()
 			})
@@ -88,7 +94,9 @@ func TestGetName(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
 			mockVisibilityStore.EXPECT().GetName().Return(testTableName).Times(1)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			assert.NotPanics(t, func() {
 				visibilityManager.GetName()
@@ -151,7 +159,9 @@ func TestRecordWorkflowExecutionStarted(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -215,7 +225,9 @@ func TestRecordWorkflowExecutionClosed(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -269,7 +281,9 @@ func TestRecordWorkflowExecutionUninitialized(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -333,7 +347,9 @@ func TestUpsertWorkflowExecution(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -377,7 +393,9 @@ func TestDeleteWorkflowExecution(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -421,7 +439,9 @@ func TestDeleteUninitializedWorkflowExecution(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -465,7 +485,9 @@ func TestListOpenWorkflowExecutions(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -509,7 +531,9 @@ func TestListClosedWorkflowExecutions(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -553,7 +577,9 @@ func TestListOpenWorkflowExecutionsByType(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -597,7 +623,9 @@ func TestTestListClosedWorkflowExecutionsByType(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -641,7 +669,9 @@ func TestListOpenWorkflowExecutionsByWorkflowID(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -685,7 +715,9 @@ func TestListClosedWorkflowExecutionsByWorkflowID(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -729,7 +761,9 @@ func TestListClosedWorkflowExecutionsByStatus(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -780,7 +814,9 @@ func TestGetClosedWorkflowExecution(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -839,7 +875,9 @@ func TestListWorkflowExecutions(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -883,7 +921,9 @@ func TestScanWorkflowExecutions(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -927,7 +967,9 @@ func TestCountWorkflowExecutions(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.visibilityStoreAffordance(mockVisibilityStore)
 
@@ -963,7 +1005,9 @@ func TestGetSearchAttributes(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 			visibilityManagerImpl := visibilityManager.(*visibilityManagerImpl)
 
 			actualOutput, actualErr := visibilityManagerImpl.getSearchAttributes(*test.input)
@@ -1013,7 +1057,9 @@ func TestConvertVisibilityWorkflowExecutionInfo(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockVisibilityStore := NewMockVisibilityStore(ctrl)
-			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+			visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 			visibilityManagerImpl := visibilityManager.(*visibilityManagerImpl)
 
 			actualOutput := visibilityManagerImpl.convertVisibilityWorkflowExecutionInfo(test.input)
@@ -1025,7 +1071,9 @@ func TestConvertVisibilityWorkflowExecutionInfo(t *testing.T) {
 func TestToInternalListWorkflowExecutionsRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockVisibilityStore := NewMockVisibilityStore(ctrl)
-	visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+	visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
 	visibilityManagerImpl := visibilityManager.(*visibilityManagerImpl)
 
 	assert.Nil(t, visibilityManagerImpl.toInternalListWorkflowExecutionsRequest(nil))
@@ -1036,7 +1084,9 @@ func TestSerializeMemo(t *testing.T) {
 	mockVisibilityStore := NewMockVisibilityStore(ctrl)
 	mockPayloadSerializer := NewMockPayloadSerializer(ctrl)
 	mockPayloadSerializer.EXPECT().SerializeVisibilityMemo(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("error")).Times(1)
-	visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop())
+	visibilityManager := NewVisibilityManagerImpl(mockVisibilityStore, log.NewNoop(), &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
 	visibilityManagerImpl := visibilityManager.(*visibilityManagerImpl)
 	visibilityManagerImpl.serializer = mockPayloadSerializer
 	assert.NotPanics(t, func() {

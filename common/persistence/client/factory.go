@@ -191,7 +191,7 @@ func (f *factoryImpl) NewShardManager() (p.ShardManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := p.NewShardManager(store)
+	result := p.NewShardManager(store, f.dc)
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewShardManager(result, errorRate, f.logger)
 	}
@@ -233,7 +233,7 @@ func (f *factoryImpl) NewDomainManager() (p.DomainManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := p.NewDomainManagerImpl(store, f.logger, p.NewPayloadSerializer())
+	result := p.NewDomainManagerImpl(store, f.logger, p.NewPayloadSerializer(), f.dc)
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewDomainManager(result, errorRate, f.logger)
 	}
@@ -253,7 +253,7 @@ func (f *factoryImpl) NewExecutionManager(shardID int) (p.ExecutionManager, erro
 	if err != nil {
 		return nil, err
 	}
-	result := p.NewExecutionManagerImpl(store, f.logger, p.NewPayloadSerializer())
+	result := p.NewExecutionManagerImpl(store, f.logger, p.NewPayloadSerializer(), f.dc)
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewExecutionManager(result, errorRate, f.logger)
 	}
@@ -286,7 +286,7 @@ func (f *factoryImpl) NewVisibilityManager(
 
 	switch params.PersistenceConfig.AdvancedVisibilityStore {
 	case constants.PinotVisibilityStoreName:
-		visibilityFromPinot, err = setupPinotVisibilityManager(params, resourceConfig, f.logger)
+		visibilityFromPinot, err = setupPinotVisibilityManager(params, resourceConfig, f.logger, f.dc)
 		if err != nil {
 			f.logger.Fatal("Creating Pinot advanced visibility manager failed", tag.Error(err))
 		}
@@ -297,7 +297,7 @@ func (f *factoryImpl) NewVisibilityManager(
 		}
 
 		if params.PinotConfig.Migration.Enabled {
-			visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger)
+			visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger, f.dc)
 			if err != nil {
 				f.logger.Fatal("Creating ES advanced visibility manager failed", tag.Error(err))
 			}
@@ -314,7 +314,7 @@ func (f *factoryImpl) NewVisibilityManager(
 			f.logger,
 		), nil
 	case constants.OSVisibilityStoreName:
-		visibilityFromOS, err = setupOSVisibilityManager(params, resourceConfig, f.logger)
+		visibilityFromOS, err = setupOSVisibilityManager(params, resourceConfig, f.logger, f.dc)
 		if err != nil {
 			f.logger.Fatal("Creating OS advanced visibility manager failed", tag.Error(err))
 		}
@@ -324,7 +324,7 @@ func (f *factoryImpl) NewVisibilityManager(
 			constants.VisibilityModeOS: visibilityFromOS,
 		}
 		if params.OSConfig.Migration.Enabled {
-			visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger)
+			visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger, f.dc)
 			if err != nil {
 				f.logger.Fatal("Creating ES advanced visibility manager failed", tag.Error(err))
 			}
@@ -340,7 +340,7 @@ func (f *factoryImpl) NewVisibilityManager(
 			f.logger,
 		), nil
 	case constants.ESVisibilityStoreName:
-		visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger)
+		visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger, f.dc)
 		if err != nil {
 			f.logger.Fatal("Creating advanced visibility manager failed", tag.Error(err))
 		}
@@ -383,9 +383,10 @@ func newPinotVisibilityManager(
 	producer messaging.Producer,
 	metricsClient metrics.Client,
 	log log.Logger,
+	dc *p.DynamicConfiguration,
 ) p.VisibilityManager {
 	visibilityFromPinotStore := pinotVisibility.NewPinotVisibilityStore(pinotClient, visibilityConfig, producer, log)
-	visibilityFromPinot := p.NewVisibilityManagerImpl(visibilityFromPinotStore, log)
+	visibilityFromPinot := p.NewVisibilityManagerImpl(visibilityFromPinotStore, log, dc)
 
 	// wrap with rate limiter
 	if visibilityConfig.PersistenceMaxQPS != nil && visibilityConfig.PersistenceMaxQPS() != 0 {
@@ -411,10 +412,11 @@ func newESVisibilityManager(
 	producer messaging.Producer,
 	metricsClient metrics.Client,
 	log log.Logger,
+	dc *p.DynamicConfiguration,
 ) p.VisibilityManager {
 
 	visibilityFromESStore := elasticsearch.NewElasticSearchVisibilityStore(esClient, indexName, producer, visibilityConfig, log)
-	visibilityFromES := p.NewVisibilityManagerImpl(visibilityFromESStore, log)
+	visibilityFromES := p.NewVisibilityManagerImpl(visibilityFromESStore, log, dc)
 
 	// wrap with rate limiter
 	if visibilityConfig.PersistenceMaxQPS != nil && visibilityConfig.PersistenceMaxQPS() != 0 {
@@ -444,7 +446,7 @@ func (f *factoryImpl) newDBVisibilityManager(
 	if err != nil {
 		return nil, err
 	}
-	result := p.NewVisibilityManagerImpl(store, f.logger)
+	result := p.NewVisibilityManagerImpl(store, f.logger, f.dc)
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
 		result = errorinjectors.NewVisibilityManager(result, errorRate, f.logger)
 	}
@@ -598,28 +600,28 @@ func buildRatelimiters(cfg *config.Persistence, maxQPS quotas.RPSFunc) map[strin
 	return result
 }
 
-func setupPinotVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger) (p.VisibilityManager, error) {
+func setupPinotVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger, dc *p.DynamicConfiguration) (p.VisibilityManager, error) {
 	visibilityProducer, err := params.MessagingClient.NewProducer(constants.PinotVisibilityAppName)
 	if err != nil {
 		return nil, err
 	}
-	return newPinotVisibilityManager(params.PinotClient, resourceConfig, visibilityProducer, params.MetricsClient, logger), nil
+	return newPinotVisibilityManager(params.PinotClient, resourceConfig, visibilityProducer, params.MetricsClient, logger, dc), nil
 }
 
-func setupESVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger) (p.VisibilityManager, error) {
+func setupESVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger, dc *p.DynamicConfiguration) (p.VisibilityManager, error) {
 	visibilityIndexName := params.ESConfig.Indices[constants.VisibilityAppName]
 	visibilityProducer, err := params.MessagingClient.NewProducer(constants.VisibilityAppName)
 	if err != nil {
 		return nil, err
 	}
-	return newESVisibilityManager(visibilityIndexName, params.ESClient, resourceConfig, visibilityProducer, params.MetricsClient, logger), nil
+	return newESVisibilityManager(visibilityIndexName, params.ESClient, resourceConfig, visibilityProducer, params.MetricsClient, logger, dc), nil
 }
 
-func setupOSVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger) (p.VisibilityManager, error) {
+func setupOSVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger, dc *p.DynamicConfiguration) (p.VisibilityManager, error) {
 	visibilityIndexName := params.OSConfig.Indices[constants.VisibilityAppName]
 	visibilityProducer, err := params.MessagingClient.NewProducer(constants.VisibilityAppName)
 	if err != nil {
 		return nil, err
 	}
-	return newESVisibilityManager(visibilityIndexName, params.OSClient, resourceConfig, visibilityProducer, params.MetricsClient, logger), nil
+	return newESVisibilityManager(visibilityIndexName, params.OSClient, resourceConfig, visibilityProducer, params.MetricsClient, logger, dc), nil
 }
