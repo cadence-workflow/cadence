@@ -57,7 +57,7 @@ operations:
     query: latest-signal-content
     runIDKey: cluster0-run
     want:
-      queryResult: "cluster0-signal-data"
+      queryResult: ["cluster0-signal-data"]
 
   # Query the cluster1 run to validate it was started with the correct signal
   - op: query_workflow
@@ -68,7 +68,7 @@ operations:
     query: latest-signal-content
     runIDKey: cluster1-run
     want:
-      queryResult: "cluster1-signal-data"
+      queryResult: ["cluster1-signal-data"]
   
   - op: validate
     at: 30s

@@ -41,9 +41,9 @@ func Workflow(ctx workflow.Context, input types.WorkflowInput) (types.WorkflowOu
 	logger.Sugar().Infof("timer-activity-loop-workflow started with input: %+v", input)
 
 	signalContent := make([]string, 0)
-	err := workflow.SetQueryHandler(ctx, latestSignalContentQuery, func() (string, error) {
-		logger.Sugar().Infof("query handler called. returning latest signal content: %s", signalContent)
-		return signalContent[len(signalContent)-1], nil
+	err := workflow.SetQueryHandler(ctx, latestSignalContentQuery, func() ([]string, error) {
+		logger.Sugar().Infof("query handler called. returning all signal content: %s", signalContent)
+		return signalContent, nil
 	})
 	if err != nil {
 		logger.Sugar().Errorf("failed to set query handler: %v", err)
