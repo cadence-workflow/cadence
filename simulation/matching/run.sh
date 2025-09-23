@@ -2,23 +2,23 @@
 
 # Cadence Matching Simulation Test Script
 #
-# This script runs matching simulator tests to validate critical matching flows and analyze
-# task distribution, latency metrics, and matching efficiency across isolation groups.
-# The output includes detailed performance metrics and task containment analysis.
-# Results are saved in matching-simulator-output/ folder.
-#
 # Usage:
 #   ./simulation/matching/run.sh [OPTIONS]
 #
 # Examples:
 #   # Run default scenario
-#   ./simulation/matching/run.sh
+#   ./simulation/matching/run.sh --scenario default
 #
 #   # Run specific scenario
 #   ./simulation/matching/run.sh --scenario throughput
 #
 #   # Run with custom timestamp
 #   ./simulation/matching/run.sh --scenario default --timestamp 2024-01-15-10-30-00
+#
+#   # Run with custom dockerfile
+#   ./simulation/matching/run.sh --scenario throughput --dockerfile-suffix .local
+#
+# TODO: Add README with more information on how to analyse the test results, as well as more detailed information on the comparison tests.  
 
 set -eo pipefail
 
@@ -30,7 +30,7 @@ USAGE:
     $0 [OPTIONS]
 
 OPTIONS:
-    -s, --scenario SCENARIO      Test scenario to run (default: default)
+    -s, --scenario SCENARIO      Test scenario to run (required)
                                 Corresponds to testdata/matching_simulation_SCENARIO.yaml
 
     -t, --timestamp TIMESTAMP   Custom timestamp for test naming (default: current time)
@@ -43,7 +43,7 @@ OPTIONS:
 
 EXAMPLES:
     # Run default scenario
-    $0
+    $0 --scenario default
 
     # Run specific scenario
     $0 --scenario throughput
@@ -53,22 +53,6 @@ EXAMPLES:
 
     # Run with custom dockerfile
     $0 --scenario throughput --dockerfile-suffix .local
-
-OUTPUT:
-    - Event logs: matching-simulator-output/test-\${scenario}-\${timestamp}-events.json
-    - Summary: matching-simulator-output/test-\${scenario}-\${timestamp}-summary.txt
-    - Grafana dashboard: http://localhost:3000/
-
-METRICS ANALYZED:
-    - Task latency (average, P50, P75, P95, P99, max)
-    - Task containment per isolation group
-    - Sync vs async matches
-    - Task forwarding statistics
-    - Per-tasklist and per-isolation-group breakdowns
-
-FILES:
-    - Scenario config: testdata/matching_simulation_\${scenario}.yaml
-    - Output directory: matching-simulator-output/
 
 EOF
 }

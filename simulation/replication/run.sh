@@ -2,26 +2,23 @@
 
 # Cadence Replication Simulation Test Script
 #
-# This script runs replication simulator tests to validate critical replication flows.
-# Scenario specs are located at host/testdata/replication_simulation_${scenario}.yaml
-# Dynamic configs are located at config/dynamicconfig/replication_simulation_${scenario}.yml
-# The output of the simulation is saved in replication-simulator-output/ folder
-#
 # Usage:
 #   ./simulation/replication/run.sh [OPTIONS]
 #
 # Examples:
 #   # Run default scenario
-#   ./simulation/replication/run.sh
+#   ./simulation/replication/run.sh --scenario default
 #
 #   # Run specific scenario with custom dockerfile
-#   ./simulation/replication/run.sh --scenario default --dockerfile-suffix .local
+#   ./simulation/replication/run.sh --scenario activeactive --dockerfile-suffix .local
 #
 #   # Rerun without rebuilding images
 #   ./simulation/replication/run.sh --scenario default --rerun
 #
 #   # Run with custom timestamp
 #   ./simulation/replication/run.sh --scenario activeactive --timestamp 2024-01-15-10-30-00
+#
+# See simulation/replication/README.md for scenario details and output information.
 
 set -eo pipefail
 
@@ -33,7 +30,7 @@ USAGE:
     $0 [OPTIONS]
 
 OPTIONS:
-    -s, --scenario SCENARIO          Test scenario to run (default: default)
+    -s, --scenario SCENARIO          Test scenario to run (required)
                                    Corresponds to testdata/replication_simulation_SCENARIO.yaml
 
     -r, --rerun                     Skip rebuilding images and reuse existing containers
@@ -49,21 +46,16 @@ OPTIONS:
 
 EXAMPLES:
     # Run default scenario
-    $0
+    $0 --scenario default
 
     # Run specific scenario with custom dockerfile
-    $0 --scenario default --dockerfile-suffix .local
+    $0 --scenario activeactive --dockerfile-suffix .local
 
     # Rerun without rebuilding images
     $0 --scenario default --rerun
 
     # Run with all options
-    $0 --scenario activeactive --rerun --timestamp 2024-01-15-10-30-00 --dockerfile-suffix .dev
-
-FILES:
-    - Scenario config: testdata/replication_simulation_\${scenario}.yaml
-    - Dynamic config: config/dynamicconfig/replication_simulation_\${scenario}.yml
-    - Output directory: replication-simulator-output/
+    $0 --scenario activeactive --rerun --timestamp 2024-01-15-10-30-00 --dockerfile-suffix .local
 
 EOF
 }

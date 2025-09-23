@@ -2,20 +2,23 @@
 
 # Cadence History Simulation Test Script
 #
-# This script runs history simulator tests to validate critical history processing flows.
-# It analyzes task creation, execution patterns, and identifies any tasks that were
-# created but not executed, providing detailed breakdowns by shard, task category, and type.
-# Results are saved in history-simulator-output/ folder.
-#
 # Usage:
 #   ./simulation/history/run.sh [OPTIONS]
 #
 # Examples:
-#   # Run a scenario
+#   # Run default scenario
+#   ./simulation/history/run.sh --scenario default
+#
+#   # Run specific scenario
 #   ./simulation/history/run.sh --scenario queuev2
 #
 #   # Run with custom timestamp
 #   ./simulation/history/run.sh --scenario default --timestamp 2024-01-15-10-30-00
+#
+#   # Run with custom dockerfile
+#   ./simulation/history/run.sh --scenario queuev2 --dockerfile-suffix .local
+#
+# TODO: Add simulation/history/README.md.  
 
 set -eo pipefail
 
@@ -27,7 +30,7 @@ USAGE:
     $0 [OPTIONS]
 
 OPTIONS:
-    -s, --scenario SCENARIO      Test scenario to run (default: default)
+    -s, --scenario SCENARIO      Test scenario to run (required)
                                 Corresponds to testdata/history_simulation_SCENARIO.yaml
 
     -t, --timestamp TIMESTAMP   Custom timestamp for test naming (default: current time)
@@ -40,7 +43,7 @@ OPTIONS:
 
 EXAMPLES:
     # Run default scenario
-    $0
+    $0 --scenario default
 
     # Run specific scenario
     $0 --scenario queuev2
@@ -50,21 +53,6 @@ EXAMPLES:
 
     # Run with custom dockerfile
     $0 --scenario queuev2 --dockerfile-suffix .local
-
-OUTPUT:
-    - Event logs: history-simulator-output/test-\${scenario}-\${timestamp}-events.json
-    - Summary: history-simulator-output/test-\${scenario}-\${timestamp}-summary.txt
-    - Grafana dashboard: http://localhost:3000/
-
-ANALYSIS PROVIDED:
-    - Tasks created vs executed breakdown by shard
-    - Task categorization by type and category
-    - Identification of unexecuted tasks with details
-    - Task scheduling and timing analysis
-
-FILES:
-    - Scenario config: testdata/history_simulation_\${scenario}.yaml
-    - Output directory: history-simulator-output/
 
 EOF
 }
