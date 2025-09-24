@@ -111,7 +111,7 @@ func (s *domainHandlerCommonSuite) SetupTest() {
 		false,
 		&config.ArchivalDomainDefaults{},
 	)
-	s.mockArchiverProvider = provider.NewMockArchiverProvider(s.T())
+	s.mockArchiverProvider = provider.NewMockArchiverProvider(s.Controller)
 	domainConfig := Config{
 		MinRetentionDays:       dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
 		MaxBadBinaryCount:      dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),

@@ -62,7 +62,7 @@ func TestClientSuite(t *testing.T) {
 func (s *clientSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 	s.controller = gomock.NewController(s.T())
-	s.archiverProvider = provider.NewMockArchiverProvider(s.T())
+	s.archiverProvider = provider.NewMockArchiverProvider(s.controller)
 	s.historyArchiver = &carchiver.HistoryArchiverMock{}
 	s.visibilityArchiver = &carchiver.VisibilityArchiverMock{}
 	s.metricsClient = &mmocks.Client{}

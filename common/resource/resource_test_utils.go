@@ -186,8 +186,8 @@ func NewTest(
 		PayloadSerializer:       persistence.NewPayloadSerializer(),
 		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex),
 		ArchivalMetadata:        &archiver.MockArchivalMetadata{},
-		ArchiverProvider:        provider.NewMockArchiverProvider(t),
-		BlobstoreClient:         blobstore.NewMockClient(t),
+		ArchiverProvider:        provider.NewMockArchiverProvider(controller),
+		BlobstoreClient:         blobstore.NewMockClient(controller),
 		MockPayloadSerializer:   persistence.NewMockPayloadSerializer(controller),
 
 		// membership infos

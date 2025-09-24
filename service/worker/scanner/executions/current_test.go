@@ -396,7 +396,7 @@ func Test_currentExecutionScannerIterator(t *testing.T) {
 
 func Test_currentExecutionFixerIterator(t *testing.T) {
 	ctx := context.Background()
-	mockClient := blobstore.NewMockClient(t)
+	mockClient := blobstore.NewMockClient(gomock.NewController(t))
 	req := &blobstore.GetRequest{
 		Key: CurrentExecutionsFixerTaskListName + "_0.",
 	}

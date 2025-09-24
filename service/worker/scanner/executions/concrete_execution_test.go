@@ -402,7 +402,7 @@ func Test_concreteExecutionScannerIterator(t *testing.T) {
 
 func Test_concreteExecutionFixerIterator(t *testing.T) {
 	ctx := context.Background()
-	mockClient := blobstore.NewMockClient(t)
+	mockClient := blobstore.NewMockClient(gomock.NewController(t))
 	req := &blobstore.GetRequest{
 		Key: concreteExecutionsFixerTaskListName + "_0.",
 	}

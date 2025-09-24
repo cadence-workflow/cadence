@@ -147,7 +147,7 @@ func TestStartStop(t *testing.T) {
 	persistenceClientBean.EXPECT().Close().Times(1)
 
 	// archiver provider mocks
-	archiveProvider := provider.NewMockArchiverProvider(t)
+	archiveProvider := provider.NewMockArchiverProvider(ctrl)
 	archiveProvider.EXPECT().RegisterBootstrapContainer(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	// params

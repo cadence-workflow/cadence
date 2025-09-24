@@ -42,7 +42,7 @@ func runCRUDTest(
 	callFn func(Client, context.Context, any) (any, error),
 	assertFn func(*testing.T, any, any, any, error),
 ) {
-	mockClient := NewMockClient(t)
+	mockClient := NewMockClient(gomock.NewController(t))
 	throttleRetryOptions := []backoff.ThrottleRetryOption{
 		backoff.WithRetryPolicy(retryPolicy),
 	}
@@ -148,7 +148,7 @@ func TestRetryableClient(t *testing.T) {
 				retryableError := errors.New("retryable error")
 				m.EXPECT().Put(gomock.Any(), req.(*PutRequest)).Return(nil, retryableError).Times(1)
 				m.EXPECT().IsRetryableError(retryableError).Return(true).Times(1)
-				m.EXPECT().Put(gomock.Any(), req.(*PutRequest)).Return(resp.(*PutResponse), nil).Times(1)
+				m.EXPECT().Put(gomock.Any(), req.(*PutRequest)).Return(resp, nil).Times(1)
 			},
 			callFn: func(c Client, ctx context.Context, req any) (any, error) {
 				return c.Put(ctx, req.(*PutRequest))
@@ -195,7 +195,7 @@ func TestRetryableClient(t *testing.T) {
 }
 
 func TestRetryableClient_IsRetryableError(t *testing.T) {
-	mockClient := NewMockClient(t)
+	mockClient := NewMockClient(gomock.NewController(t))
 	client := &retryableClient{
 		client: mockClient,
 		throttleRetry: backoff.NewThrottleRetry(
