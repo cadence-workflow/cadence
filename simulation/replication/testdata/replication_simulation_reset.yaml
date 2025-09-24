@@ -1,6 +1,6 @@
 # This file is a replication simulation scenario spec.
 # It is parsed into ReplicationSimulationConfig struct.
-# Replication simulation for this file can be run via ./simulation/replication/run.sh reset
+# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario reset
 # Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_reset.yml
 # Tests the behaviour of workflows when failovers and reset commands are issued
 

@@ -1,6 +1,6 @@
 # This file is a replication simulation scenario spec.
 # It is parsed into ReplicationSimulationConfig struct.
-# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive_regional_failover_start_same_wfid
+# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario activeactive_regional_failover_start_same_wfid
 # Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_regional_failover_start_same_wfid.yml
 # When a domain is configured as active-active
 # And a workflow is running in one cluster

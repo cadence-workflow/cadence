@@ -1,6 +1,6 @@
 # This file is a replication simulation scenario spec.
 # It is parsed into ReplicationSimulationConfig struct.
-# Replication simulations can be run via ./simulation/replication/run.sh
+# Replication simulations can be run via ./simulation/replication/run.sh --scenario default
 #
 # Test workflow behaviour during a failover
 # When a workflow is running in a cluster

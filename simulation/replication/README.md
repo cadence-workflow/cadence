@@ -1,10 +1,12 @@
 # Replication Simulation
 
-Tests cross-cluster replication flows, failover scenarios, and cluster redirection. Validates critical replication behavior across multiple clusters.
+These simulations test replication of workflows across clusters. As replication is handled at the application layer there are many edge case scenarios that lead to conflict resolution when:
 
-## Purpose
+- there is a delay in replication
+- a domain is failed over from one cluster to another
+- active-active is enabled and a customer is making requests to both clusters
 
-Runs replication simulator tests to validate critical replication flows. Tests complex cross-cluster replication scenarios including failover, active-active configurations, and cluster redirection.
+There are also sanity checks for the request routing layer. 
 
 ## Quick Run
 
