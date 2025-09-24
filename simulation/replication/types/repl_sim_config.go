@@ -51,6 +51,7 @@ const (
 	ReplicationSimulationOperationQueryWorkflow               ReplicationSimulationOperation = "query_workflow"
 	ReplicationSimulationOperationSignalWithStartWorkflow     ReplicationSimulationOperation = "signal_with_start_workflow"
 	ReplicationSimulationOperationMigrateDomainToActiveActive ReplicationSimulationOperation = "migrate_domain_to_active_active"
+	ReplicationSimulationOperationValidateWorkflowReplication ReplicationSimulationOperation = "validate_workflow_replication"
 )
 
 type ReplicationSimulationConfig struct {
@@ -72,9 +73,11 @@ type ReplicationDomainConfig struct {
 }
 
 type Operation struct {
-	Type    ReplicationSimulationOperation `yaml:"op"`
-	At      time.Duration                  `yaml:"at"`
-	Cluster string                         `yaml:"cluster"`
+	Type          ReplicationSimulationOperation `yaml:"op"`
+	At            time.Duration                  `yaml:"at"`
+	Cluster       string                         `yaml:"cluster"`
+	SourceCluster string                         `yaml:"sourceCluster"`
+	TargetCluster string                         `yaml:"targetCluster"`
 
 	WorkflowType                         string        `yaml:"workflowType"`
 	WorkflowID                           string        `yaml:"workflowID"`
@@ -96,6 +99,9 @@ type Operation struct {
 	NewActiveCluster          string            `yaml:"newActiveCluster"`
 	NewActiveClustersByRegion map[string]string `yaml:"newActiveClustersByRegion"`
 	FailoverTimeout           *int32            `yaml:"failoverTimeoutSec"`
+
+	// RunIDKey specifies a key to store/retrieve RunID for this operation
+	RunIDKey string `yaml:"runIDKey"`
 
 	Want Validation `yaml:"want"`
 }

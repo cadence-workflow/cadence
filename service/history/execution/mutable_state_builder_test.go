@@ -2597,9 +2597,6 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 
 			activeClusterManager := activecluster.NewMockManager(ctrl)
-			activeClusterManager.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
-				return clusterMetadata.ClusterNameForFailoverVersion(version)
-			}).AnyTimes()
 			shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
 
 			decisionManager := NewMockmutableStateDecisionTaskManager(ctrl)
@@ -3627,10 +3624,6 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			ms := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 			td.mutableStateSetup(ms)
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
-
-			activeClusterManager.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
-				return cluster.TestActiveClusterMetadata.GetCurrentClusterName(), nil
-			}).AnyTimes()
 
 			mutation, workflowEvents, err := ms.CloseTransactionAsMutation(now, td.transactionPolicy)
 			assert.Equal(t, td.expectedMutation, mutation)

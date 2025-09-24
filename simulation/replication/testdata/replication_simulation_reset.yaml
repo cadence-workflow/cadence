@@ -53,8 +53,63 @@ operations:
       startedByWorkersInCluster: cluster0
       completedByWorkersInCluster: cluster0
 
+  - op: validate_workflow_replication
+    at: 62s
+    workflowID: activity-loop-workflow1
+    sourceCluster: cluster0
+    targetCluster: cluster1
+    domain: test-domain-2
+
   - op: validate
     at: 62s
+    workflowID: activity-loop-workflow1
+    cluster: cluster0
+    domain: test-domain
+    want:
+      status: timed-out
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster1
+
+  - op: validate_workflow_replication
+    at: 62s
+    workflowID: activity-loop-workflow1
+    sourceCluster: cluster0
+    targetCluster: cluster1
+    domain: test-domain
+
+  - op: reset_workflow
+    at: 70s
+    workflowID: activity-loop-workflow1
+    cluster: cluster0
+    domain: test-domain-2
+    eventID: 94
+
+  - op: reset_workflow
+    at: 70s
+    workflowID: activity-loop-workflow1
+    cluster: cluster1
+    domain: test-domain
+    eventID: 94
+
+  - op: validate
+    at: 132s
+    workflowID: activity-loop-workflow1
+    cluster: cluster0
+    domain: test-domain-2
+    want:
+      status: timed-out
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0
+
+  - op: validate_workflow_replication
+    at: 132s
+    workflowID: activity-loop-workflow1
+    sourceCluster: cluster0
+    targetCluster: cluster1
+    domain: test-domain-2
+
+  - op: validate
+    at: 132s
     workflowID: activity-loop-workflow1
     cluster: cluster1
     domain: test-domain
@@ -63,41 +118,29 @@ operations:
       startedByWorkersInCluster: cluster0
       completedByWorkersInCluster: cluster1
 
-  - op: reset_workflow
-    at: 65s
+  - op: validate_workflow_replication
+    at: 132s
     workflowID: activity-loop-workflow1
-    cluster: cluster0
-    domain: test-domain-2
-    eventID: 94
-
-  - op: reset_workflow
-    at: 65s
-    workflowID: activity-loop-workflow1
-    cluster: cluster1
+    sourceCluster: cluster1
+    targetCluster: cluster0
     domain: test-domain
-    eventID: 94
-    want:
-      error: "workflow is not resettable"
-
-  - op: validate
-    at: 127s
-    workflowID: activity-loop-workflow1
-    cluster: cluster0
-    domain: test-domain-2
-    want:
-      status: timed-out
-      startedByWorkersInCluster: cluster0
-      completedByWorkersInCluster: cluster0
 
   - op: reset_workflow
-    at: 130s
+    at: 140s
     workflowID: activity-loop-workflow1
     cluster: cluster0
     domain: test-domain-2
     eventID: 205
 
+  - op: reset_workflow
+    at: 140s
+    workflowID: activity-loop-workflow1
+    cluster: cluster1
+    domain: test-domain
+    eventID: 205
+
   - op: validate
-    at: 192s
+    at: 202s
     workflowID: activity-loop-workflow1
     cluster: cluster0
     domain: test-domain-2
@@ -105,3 +148,28 @@ operations:
       status: completed
       startedByWorkersInCluster: cluster0
       completedByWorkersInCluster: cluster0
+
+
+  - op: validate_workflow_replication
+    at: 202s
+    workflowID: activity-loop-workflow1
+    sourceCluster: cluster0
+    targetCluster: cluster1
+    domain: test-domain-2
+
+  - op: validate
+    at: 202s
+    workflowID: activity-loop-workflow1
+    cluster: cluster1
+    domain: test-domain
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster1
+
+  - op: validate_workflow_replication
+    at: 202s
+    workflowID: activity-loop-workflow1
+    sourceCluster: cluster1
+    targetCluster: cluster0
+    domain: test-domain

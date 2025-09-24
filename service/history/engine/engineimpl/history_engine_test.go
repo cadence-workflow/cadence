@@ -148,10 +148,6 @@ func (s *engineSuite) SetupTest() {
 	s.mockDomainCache.EXPECT().GetDomain(constants.TestDomainName).Return(constants.TestLocalDomainEntry, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomainID(constants.TestDomainName).Return(constants.TestDomainID, nil).AnyTimes()
 
-	s.mockShard.Resource.ActiveClusterMgr.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
-		return s.mockShard.GetClusterMetadata().ClusterNameForFailoverVersion(version)
-	}).AnyTimes()
-
 	historyEventNotifier := events.NewNotifier(
 		clock.NewRealTimeSource(),
 		s.mockShard.Resource.MetricsClient,

@@ -1091,9 +1091,15 @@ const (
 	// ReplicatorCacheCapacity is the capacity of replication cache in number of tasks
 	// KeyName: history.replicatorCacheCapacity
 	// Value type: Int
-	// Default value: 10000
+	// Default value: 0
 	// Allowed filters: N/A
 	ReplicatorCacheCapacity
+	// ReplicatorCacheMaxSize is the max size of the replication cache in bytes
+	// KeyName: history.replicatorCacheSize
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
+	ReplicatorCacheMaxSize
 
 	// ExecutionMgrNumConns is persistence connections number for ExecutionManager
 	// KeyName: history.executionMgrNumConns
@@ -2819,6 +2825,12 @@ const (
 	// Default value: 5s (5* time.Second)
 	// Allowed filters: ShardID
 	ReplicationTaskProcessorStartWait
+	// ReplicationTaskProcessorLatencyLogThreshold is the threshold of whether history will log history replication latency
+	// KeyName: history.ReplicationTaskProcessorLatencyLogThreshold
+	// Value type: Duration
+	// Default value: 0
+	// Allowed filters: N/A
+	ReplicationTaskProcessorLatencyLogThreshold
 	// WorkerESProcessorFlushInterval is flush interval for esProcessor
 	// KeyName: worker.ESProcessorFlushInterval
 	// Value type: Duration
@@ -3685,6 +3697,11 @@ var IntKeys = map[IntKey]DynamicInt{
 	ReplicatorCacheCapacity: {
 		KeyName:      "history.replicatorCacheCapacity",
 		Description:  "ReplicatorCacheCapacity is the capacity of replication cache in number of tasks",
+		DefaultValue: 0,
+	},
+	ReplicatorCacheMaxSize: {
+		KeyName:      "history.replicatorCacheSize",
+		Description:  "ReplicatorCacheMaxSize is the max size of the replication cache in bytes",
 		DefaultValue: 0,
 	},
 	ExecutionMgrNumConns: {
@@ -5316,6 +5333,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{ShardID},
 		Description:  "ReplicationTaskProcessorStartWait is the wait time before each task processing batch",
 		DefaultValue: time.Second * 5,
+	},
+	ReplicationTaskProcessorLatencyLogThreshold: {
+		KeyName:      "history.ReplicationTaskProcessorLatencyLogThreshold",
+		Description:  "ReplicationTaskProcessorLatencyLogThreshold is is the threshold of whether history will log history replication latency.",
+		DefaultValue: 0,
 	},
 	WorkerESProcessorFlushInterval: {
 		KeyName:      "worker.ESProcessorFlushInterval",

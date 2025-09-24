@@ -44,7 +44,7 @@ func (e *historyEngineImpl) NotifyNewTransferTasks(info *hcommon.NotifyTaskInfo)
 	}
 
 	task := info.Tasks[0]
-	clusterName, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(task.GetVersion(), info.ExecutionInfo.DomainID)
+	clusterName, err := e.shard.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
 	if err == nil {
 		transferProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTransfer]
 		if !ok {
@@ -61,7 +61,7 @@ func (e *historyEngineImpl) NotifyNewTimerTasks(info *hcommon.NotifyTaskInfo) {
 	}
 
 	task := info.Tasks[0]
-	clusterName, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(task.GetVersion(), info.ExecutionInfo.DomainID)
+	clusterName, err := e.shard.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
 	if err == nil {
 		timerProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTimer]
 		if !ok {

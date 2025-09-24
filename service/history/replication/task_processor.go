@@ -490,16 +490,31 @@ func (p *taskProcessorImpl) processTaskOnce(replicationTask *types.ReplicationTa
 
 		// emit single task processing latency
 		mScope.RecordTimer(metrics.TaskProcessingLatency, now.Sub(startTime))
+		e2eLatency := now.Sub(time.Unix(0, replicationTask.GetCreationTime()))
 		// emit latency from task generated to task received
-		mScope.RecordTimer(
-			metrics.ReplicationTaskLatency,
-			now.Sub(time.Unix(0, replicationTask.GetCreationTime())),
-		)
+		mScope.RecordTimer(metrics.ReplicationTaskLatency, e2eLatency)
+
+		// if latency is not switched off, and exceeds threshold, emit structured log
+		if p.config.ReplicationTaskProcessorLatencyLogThreshold() > 0 && e2eLatency >= p.config.ReplicationTaskProcessorLatencyLogThreshold() {
+			attr := replicationTask.GetHistoryTaskV2Attributes()
+			var workflowID, runID string
+			if attr != nil {
+				workflowID = attr.GetWorkflowID()
+				runID = attr.GetRunID()
+			}
+			p.logger.Warn("high replication latency",
+				tag.WorkflowDomainID(domainID),
+				tag.WorkflowID(workflowID),
+				tag.WorkflowRunID(runID),
+				tag.ShardID(p.shard.GetShardID()),
+				tag.SourceCluster(p.sourceCluster),
+			)
+		}
+
 		// emit the number of replication tasks
 		mScope.IncCounter(metrics.ReplicationTasksAppliedPerDomain)
 		shardScope := p.metricsClient.Scope(scope, metrics.TargetClusterTag(p.sourceCluster), metrics.InstanceTag(strconv.Itoa(p.shard.GetShardID())))
 		shardScope.IncCounter(metrics.ReplicationTasksApplied)
-
 	}
 
 	return err

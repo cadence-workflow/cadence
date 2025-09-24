@@ -111,6 +111,14 @@ func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
 	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
 	var workflowExecution *types.WorkflowExecution
 	{{- if has $method.Name $startWFAPIs}}
+	if {{(index $method.Params 1).Name}}.ActiveClusterSelectionPolicy == nil {
+		{{(index $method.Params 1).Name}}.ActiveClusterSelectionPolicy = &types.ActiveClusterSelectionPolicy{
+			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+			StickyRegion:                   handler.GetActiveClusterManager().CurrentRegion(),
+		}
+	} else if {{(index $method.Params 1).Name}}.ActiveClusterSelectionPolicy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
+		{{(index $method.Params 1).Name}}.ActiveClusterSelectionPolicy.StickyRegion = handler.GetActiveClusterManager().CurrentRegion()
+	}
 	actClSelPolicyForNewWF = {{(index $method.Params 1).Name}}.ActiveClusterSelectionPolicy
 	{{- else if has $method.Name $nonstartWFAPIs}}
 	workflowExecution = {{(index $method.Params 1).Name}}.GetWorkflowExecution()

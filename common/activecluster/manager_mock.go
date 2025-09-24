@@ -42,21 +42,6 @@ func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 	return m.recorder
 }
 
-// ClusterNameForFailoverVersion mocks base method.
-func (m *MockManager) ClusterNameForFailoverVersion(failoverVersion int64, domainID string) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ClusterNameForFailoverVersion", failoverVersion, domainID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ClusterNameForFailoverVersion indicates an expected call of ClusterNameForFailoverVersion.
-func (mr *MockManagerMockRecorder) ClusterNameForFailoverVersion(failoverVersion, domainID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClusterNameForFailoverVersion", reflect.TypeOf((*MockManager)(nil).ClusterNameForFailoverVersion), failoverVersion, domainID)
-}
-
 // CurrentRegion mocks base method.
 func (m *MockManager) CurrentRegion() string {
 	m.ctrl.T.Helper()
@@ -69,21 +54,6 @@ func (m *MockManager) CurrentRegion() string {
 func (mr *MockManagerMockRecorder) CurrentRegion() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentRegion", reflect.TypeOf((*MockManager)(nil).CurrentRegion))
-}
-
-// LookupCluster mocks base method.
-func (m *MockManager) LookupCluster(ctx context.Context, domainID, clusterName string) (*LookupResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupCluster", ctx, domainID, clusterName)
-	ret0, _ := ret[0].(*LookupResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// LookupCluster indicates an expected call of LookupCluster.
-func (mr *MockManagerMockRecorder) LookupCluster(ctx, domainID, clusterName any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupCluster", reflect.TypeOf((*MockManager)(nil).LookupCluster), ctx, domainID, clusterName)
 }
 
 // LookupNewWorkflow mocks base method.

@@ -113,10 +113,6 @@ func (s *engine3Suite) SetupTest() {
 
 	s.mockEventsCache.EXPECT().PutEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
-	s.mockShard.Resource.ActiveClusterMgr.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
-		return s.mockShard.GetClusterMetadata().ClusterNameForFailoverVersion(version)
-	}).AnyTimes()
-
 	s.logger = s.mockShard.GetLogger()
 
 	h := &historyEngineImpl{

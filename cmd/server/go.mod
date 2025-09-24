@@ -22,7 +22,7 @@ require (
 	github.com/cch123/elasticsql v0.0.0-20190321073543-a1a440758eb9 // indirect
 	github.com/cristalhq/jwt/v3 v3.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
+	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da // indirect
 	github.com/go-sql-driver/mysql v1.7.1 // indirect
 	github.com/gocql/gocql v0.0.0-20211015133455-b225f9b53fa1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -79,6 +79,7 @@ require (
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/fatih/color v1.13.0 // indirect
+	github.com/google/gofuzz v1.0.0 // indirect
 	github.com/mattn/go-colorable v0.1.9 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/ncruces/go-sqlite3 v0.22.0 // indirect

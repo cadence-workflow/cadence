@@ -1722,8 +1722,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 								cluster.TestRegion1: {
 									ActiveClusterName: cluster.TestCurrentClusterName,
-									// This is incremented to match below.
-									FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
 								},
 								cluster.TestRegion2: {
 									ActiveClusterName: cluster.TestCurrentClusterName,
@@ -1787,7 +1786,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 							cluster.TestRegion1: {
 								ActiveClusterName: cluster.TestCurrentClusterName,
-								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
 							},
 							cluster.TestRegion2: {
 								ActiveClusterName: cluster.TestCurrentClusterName,
@@ -1823,7 +1822,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 								cluster.TestRegion1: {
 									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
 								},
 								cluster.TestRegion2: {
 									ActiveClusterName: cluster.TestCurrentClusterName,
@@ -2886,7 +2885,7 @@ func TestUpdateReplicationConfig(t *testing.T) {
 					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 						cluster.TestRegion1: {
 							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
 						},
 						cluster.TestRegion2: {
 							ActiveClusterName: cluster.TestCurrentClusterName,

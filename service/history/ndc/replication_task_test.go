@@ -45,7 +45,6 @@ func TestReplicationTaskResetEvent(t *testing.T) {
 	runID := uuid.New()
 	logger := testlogger.New(t)
 	clusterMetadata := cluster.GetTestClusterMetadata(true)
-	activeClusterManager := newActiveClusterManager(t, clusterMetadata, domainID, logger)
 
 	historySerializer := persistence.NewPayloadSerializer()
 	versionHistoryItems := []*types.VersionHistoryItem{}
@@ -79,7 +78,7 @@ func TestReplicationTaskResetEvent(t *testing.T) {
 		NewRunEvents:        nil,
 	}
 
-	task, err := newReplicationTask(activeClusterManager, historySerializer, taskStartTime, logger, request)
+	task, err := newReplicationTask(clusterMetadata, historySerializer, taskStartTime, logger, request)
 	require.NoError(t, err)
 	assert.True(t, task.isWorkflowReset())
 }
@@ -263,7 +262,7 @@ func TestNewReplicationTask(t *testing.T) {
 			}
 			replicator := createTestHistoryReplicator(t, domainID)
 			_, err := newReplicationTask(
-				replicator.shard.GetActiveClusterManager(),
+				replicator.clusterMetadata,
 				replicator.historySerializer,
 				time.Now(),
 				replicator.logger,

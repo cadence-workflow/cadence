@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unsafe"
 )
 
 // DLQType is an internal type (TBD...)
@@ -97,6 +98,14 @@ func (e DomainOperation) String() string {
 		return "Delete"
 	}
 	return fmt.Sprintf("DomainOperation(%d)", w)
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (e *DomainOperation) ByteSize() uint64 {
+	if e == nil {
+		return 0
+	}
+	return uint64(unsafe.Sizeof(*e))
 }
 
 // UnmarshalText parses enum value from string representation
@@ -195,6 +204,22 @@ func (v *DomainTaskAttributes) GetPreviousFailoverVersion() (o int64) {
 	return
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *DomainTaskAttributes) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += v.DomainOperation.ByteSize()
+	size += uint64(len(v.ID))
+	size += v.Info.ByteSize()
+	size += v.Config.ByteSize()
+	size += v.ReplicationConfig.ByteSize()
+
+	return size
+}
+
 // FailoverMarkerAttributes is an internal type (TBD...)
 type FailoverMarkerAttributes struct {
 	DomainID        string `json:"domainID,omitempty"`
@@ -224,6 +249,21 @@ func (v *FailoverMarkerAttributes) GetCreationTime() (o int64) {
 		return *v.CreationTime
 	}
 	return
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *FailoverMarkerAttributes) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.DomainID))
+	if v.CreationTime != nil {
+		size += uint64(unsafe.Sizeof(*v.CreationTime))
+	}
+
+	return size
 }
 
 // FailoverMarkers is an internal type (TBD...)
@@ -397,6 +437,28 @@ func (v *HistoryTaskV2Attributes) GetNewRunEvents() (o *DataBlob) {
 		return v.NewRunEvents
 	}
 	return
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *HistoryTaskV2Attributes) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.DomainID))
+	size += uint64(len(v.WorkflowID))
+	size += uint64(len(v.RunID))
+
+	size += uint64(len(v.VersionHistoryItems)) * uint64(unsafe.Sizeof((*VersionHistoryItem)(nil)))
+	for _, item := range v.VersionHistoryItems {
+		size += item.ByteSize()
+	}
+
+	size += v.Events.ByteSize()
+	size += v.NewRunEvents.ByteSize()
+
+	return size
 }
 
 type CountDLQMessagesRequest struct {
@@ -656,8 +718,11 @@ func (v *ReplicationMessages) GetEarliestCreationTime() *int64 {
 	return &result
 }
 
-// ReplicationMessagesSizeFn is a function type to calculate size of ReplicationMessages
+// ReplicationMessagesSizeFn is a function type to calculate the size of ReplicationMessages
 type ReplicationMessagesSizeFn func(v *ReplicationMessages) int
+
+// ReplicationTaskSizeFn is a function type to calculate the size of a single ReplicationTask
+type ReplicationTaskSizeFn func(v *ReplicationTask) int
 
 // ReplicationTask is an internal type (TBD...)
 type ReplicationTask struct {
@@ -725,6 +790,26 @@ func (v *ReplicationTask) GetCreationTime() (o int64) {
 		return *v.CreationTime
 	}
 	return
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *ReplicationTask) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += v.TaskType.ByteSize()
+	size += v.DomainTaskAttributes.ByteSize()
+	size += v.SyncShardStatusTaskAttributes.ByteSize()
+	size += v.SyncActivityTaskAttributes.ByteSize()
+	size += v.HistoryTaskV2Attributes.ByteSize()
+	size += v.FailoverMarkerAttributes.ByteSize()
+	if v.CreationTime != nil {
+		size += uint64(unsafe.Sizeof(*v.CreationTime))
+	}
+
+	return size
 }
 
 // ReplicationTaskInfo is an internal type (TBD...)
@@ -898,6 +983,14 @@ const (
 	ReplicationTaskTypeFailoverMarker
 )
 
+// ByteSize returns the approximate memory used in bytes
+func (e *ReplicationTaskType) ByteSize() uint64 {
+	if e == nil {
+		return 0
+	}
+	return uint64(unsafe.Sizeof(*e))
+}
+
 // ReplicationToken is an internal type (TBD...)
 type ReplicationToken struct {
 	ShardID                int32 `json:"shardID,omitempty"`
@@ -1028,6 +1121,37 @@ func (v *SyncActivityTaskAttributes) GetVersionHistory() (o *VersionHistory) {
 	return
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *SyncActivityTaskAttributes) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.DomainID))
+	size += uint64(len(v.WorkflowID))
+	size += uint64(len(v.RunID))
+	if v.ScheduledTime != nil {
+		size += uint64(unsafe.Sizeof(*v.ScheduledTime))
+	}
+	if v.StartedTime != nil {
+		size += uint64(unsafe.Sizeof(*v.StartedTime))
+	}
+	if v.LastHeartbeatTime != nil {
+		size += uint64(unsafe.Sizeof(*v.LastHeartbeatTime))
+	}
+	size += uint64(len(v.Details))
+	if v.LastFailureReason != nil {
+		size += uint64(unsafe.Sizeof(*v.LastFailureReason))
+		size += uint64(len(*v.LastFailureReason))
+	}
+	size += uint64(len(v.LastWorkerIdentity))
+	size += uint64(len(v.LastFailureDetails))
+	size += v.VersionHistory.ByteSize()
+
+	return size
+}
+
 // SyncShardStatus is an internal type (TBD...)
 type SyncShardStatus struct {
 	Timestamp *int64 `json:"timestamp,omitempty"`
@@ -1046,4 +1170,19 @@ type SyncShardStatusTaskAttributes struct {
 	SourceCluster string `json:"sourceCluster,omitempty"`
 	ShardID       int64  `json:"shardId,omitempty"`
 	Timestamp     *int64 `json:"timestamp,omitempty"`
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *SyncShardStatusTaskAttributes) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.SourceCluster))
+	if v.Timestamp != nil {
+		size += uint64(unsafe.Sizeof(*v.Timestamp))
+	}
+
+	return size
 }

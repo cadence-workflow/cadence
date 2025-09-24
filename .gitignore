@@ -38,6 +38,7 @@ dockerize
 /cadence-cassandra-tool
 /cadence-sql-tool
 /cadence-releaser
+/sharddistributor-canary
 
 # SQLite databases
 cadence.db*

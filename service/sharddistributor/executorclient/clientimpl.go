@@ -65,6 +65,7 @@ type executorImpl[SP ShardProcessor] struct {
 }
 
 func (e *executorImpl[SP]) Start(ctx context.Context) {
+	e.logger.Info("starting shard distributor executor", tag.ShardNamespace(e.namespace))
 	e.processLoopWG.Add(1)
 	go func() {
 		defer e.processLoopWG.Done()
@@ -73,6 +74,7 @@ func (e *executorImpl[SP]) Start(ctx context.Context) {
 }
 
 func (e *executorImpl[SP]) Stop() {
+	e.logger.Info("stopping shard distributor executor", tag.ShardNamespace(e.namespace))
 	close(e.stopC)
 	e.processLoopWG.Wait()
 }

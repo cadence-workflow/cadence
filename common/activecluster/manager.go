@@ -245,25 +245,7 @@ func (m *managerImpl) LookupNewWorkflow(ctx context.Context, domainID string, po
 		}, nil
 	}
 
-	if policy.GetStrategy() != types.ActiveClusterSelectionStrategyExternalEntity {
-		return nil, fmt.Errorf("unsupported active cluster selection strategy: %s", policy.GetStrategy())
-	}
-
-	// find cluster name & failover version of the external entity
-	externalEntity, err := m.getExternalEntity(ctx, policy.ExternalEntityType, policy.ExternalEntityKey)
-	if err != nil {
-		return nil, err
-	}
-	cluster, err := m.ClusterNameForFailoverVersion(externalEntity.FailoverVersion, domainID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &LookupResult{
-		Region:          externalEntity.Region,
-		ClusterName:     cluster,
-		FailoverVersion: externalEntity.FailoverVersion,
-	}, nil
+	return nil, fmt.Errorf("unsupported active cluster selection strategy: %s", policy.GetStrategy())
 }
 
 func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (res *LookupResult, e error) {
@@ -345,7 +327,7 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 			return nil, err
 		}
 
-		cluster, err := m.ClusterNameForFailoverVersion(externalEntity.FailoverVersion, domainID)
+		cluster, err := m.clusterMetadata.ClusterNameForFailoverVersion(externalEntity.FailoverVersion)
 		if err != nil {
 			return nil, err
 		}
@@ -396,88 +378,6 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 		ClusterName:     cluster.ActiveClusterName,
 		FailoverVersion: cluster.FailoverVersion,
 	}, nil
-}
-
-func (m *managerImpl) LookupCluster(ctx context.Context, domainID, clusterName string) (res *LookupResult, e error) {
-	d, scope, err := m.getDomainAndScope(domainID, LookupClusterOpName)
-	if err != nil {
-		return nil, err
-	}
-	defer m.handleError(scope, &e, time.Now())
-
-	clusterInfo, ok := m.clusterMetadata.GetAllClusterInfo()[clusterName]
-	if !ok {
-		return nil, newClusterNotFoundError(clusterName)
-	}
-
-	if !d.GetReplicationConfig().IsActiveActive() {
-		// Not an active-active domain. return ActiveClusterName from domain entry
-		m.logger.Debug("LookupCluster: not an active-active domain. returning given clusterName",
-			tag.WorkflowDomainID(domainID),
-			tag.ClusterName(clusterName),
-		)
-
-		return &LookupResult{
-			ClusterName:     clusterName,
-			FailoverVersion: clusterInfo.InitialFailoverVersion,
-			Region:          clusterInfo.Region,
-		}, nil
-	}
-
-	region := clusterInfo.Region
-	activeCluster, ok := d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region]
-	if !ok {
-		return nil, newRegionNotFoundForDomainError(region, domainID)
-	}
-
-	return &LookupResult{
-		Region:          region,
-		ClusterName:     activeCluster.ActiveClusterName,
-		FailoverVersion: activeCluster.FailoverVersion,
-	}, nil
-}
-
-func (m *managerImpl) ClusterNameForFailoverVersion(failoverVersion int64, domainID string) (string, error) {
-	d, err := m.domainIDToDomainFn(domainID)
-	if err != nil {
-		return "", err
-	}
-
-	if !d.GetReplicationConfig().IsActiveActive() {
-		cluster, err := m.clusterMetadata.ClusterNameForFailoverVersion(failoverVersion)
-		if err != nil {
-			return "", err
-		}
-		return cluster, nil
-	}
-
-	// For active-active domains, the failover version might be mapped to a cluster or a region
-	// First check if it maps to a cluster
-	cluster, err := m.clusterMetadata.ClusterNameForFailoverVersion(failoverVersion)
-	if err == nil {
-		// failover version belongs to a cluster.
-		return cluster, nil
-	}
-
-	// Check if it maps to a region.
-	region, err := m.clusterMetadata.RegionForFailoverVersion(failoverVersion)
-	if err != nil {
-		return "", err
-	}
-
-	// Now we know the region, find the cluster in the domain's active cluster list which belongs to the region
-	cfg, ok := d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region]
-	if !ok {
-		return "", newRegionNotFoundForDomainError(region, domainID)
-	}
-
-	allClusters := m.clusterMetadata.GetAllClusterInfo()
-	_, ok = allClusters[cfg.ActiveClusterName]
-	if !ok {
-		return "", newClusterNotFoundForRegionError(cfg.ActiveClusterName, region)
-	}
-
-	return cfg.ActiveClusterName, nil
 }
 
 func (m *managerImpl) RegisterChangeCallback(shardID int, callback func(ChangeType)) {
