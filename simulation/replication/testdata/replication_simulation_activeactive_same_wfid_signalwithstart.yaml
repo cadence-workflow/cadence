@@ -1,7 +1,7 @@
 # This file is a replication simulation scenario spec.
 # It is parsed into ReplicationSimulationConfig struct.
-# Replication simulation for this file can be run via ./simulation/replication/run.sh signalwithstart_activeactive_conflict
-# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_signalwithstart_activeactive_conflict.yml
+# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive_same_wfid_signalwithstart
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_same_wfid_signalwithstart.yml
 # When a domain is configured as active-active
 # And the same workflow ID is used to SignalWithStart in multiple clusters
 # Then the 'earlier' workflow should be terminated 

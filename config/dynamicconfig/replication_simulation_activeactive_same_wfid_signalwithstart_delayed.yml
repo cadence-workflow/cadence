@@ -1,5 +1,5 @@
-# This file is used as dynamicconfig override for "signalwithstart_activeactive_conflict" replication simulation scenario
-# configured via simulation/replication/testdata/replication_simulation_signalwithstart_activeactive_conflict.yaml
+# This file is used as dynamicconfig override for "activeactive_same_wfid_signalwithstart_delayed" replication simulation scenario
+# configured via simulation/replication/testdata/replication_simulation_activeactive_same_wfid_signalwithstart_delayed.yaml
 system.writeVisibilityStoreName:
   - value: "db"
 system.readVisibilityStoreName:
