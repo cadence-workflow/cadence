@@ -2,6 +2,8 @@
 # It is parsed into ReplicationSimulationConfig struct.
 # Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive_same_wfid
 # Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_same_wfid.yml
+# Tests that the same wfid cannot be created in multiple clusters in active-active mode
+
 clusters:
   cluster0:
     grpcEndpoint: "cadence-cluster0:7833"

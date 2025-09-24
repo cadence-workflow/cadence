@@ -2,11 +2,9 @@
 # It is parsed into ReplicationSimulationConfig struct.
 # Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive_regional_failover_start_same_wfid_2
 # Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_regional_failover_start_same_wfid_2.yml
-# When a domain is configured as active-active
-# And a workflow is running in one cluster
-# And a failover occurs
-# It should not be possible to start another workflow with the same workflowID
-# And the request should be rejected with error "Workflow execution is already running"
+# This test is a variant of the activeactive_regional_failover_start_same_wfid test
+# It tests that when a workflow is already running in one cluster the same workflow cannot be started in another cluster
+# even after failover
 
 clusters:
   cluster0:

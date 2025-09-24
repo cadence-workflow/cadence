@@ -2,6 +2,7 @@
 # It is parsed into ReplicationSimulationConfig struct.
 # Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario activeactive_cron
 # Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_cron.yml
+# Tests active-active behaviour with cron workflows
 
 clusters:
   cluster0:
