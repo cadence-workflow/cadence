@@ -454,7 +454,7 @@ lint: ## (Re)run the linter
 fmt: $(BUILD)/fmt ## Run `gofmt` / organize imports / etc
 
 mockery: $(BIN)/mockery
-	$Q mockery
+	$Q $(BIN)/mockery
 	$Q $(call remake,fmt)
 
 define make_quietly
@@ -539,7 +539,7 @@ tools: $(TOOLS)
 
 go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `go generate` to regen mocks, enums, etc
 	$Q echo "running mockery..."
-	$Q mockery --log-level error
+	$Q $(BIN)/mockery --log-level error
 	$Q echo "running go generate ./..., this takes a few minutes..."
 	$Q # add our bins to PATH so `go generate` can find them
 	$Q $(BIN_PATH) go generate $(if $(verbose),-v) ./...
