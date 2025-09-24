@@ -190,7 +190,7 @@ func NewTest(
 		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex),
 		ArchivalMetadata:        &archiver.MockArchivalMetadata{},
 		ArchiverProvider:        provider.NewMockArchiverProvider(controller),
-		BlobstoreClient:         &blobstore.MockClient{},
+		BlobstoreClient:         blobstore.NewMockClient(controller),
 		MockPayloadSerializer:   persistence.NewMockPayloadSerializer(controller),
 
 		// membership infos

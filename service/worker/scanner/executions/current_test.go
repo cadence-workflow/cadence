@@ -46,21 +46,21 @@ import (
 	"github.com/uber/cadence/service/worker/scanner/shardscanner"
 )
 
-type currentExectionsWorkflowsSuite struct {
+type currentExecutionsWorkflowsSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
 }
 
 func TestCurrentScannerWorkflowSuite(t *testing.T) {
-	suite.Run(t, new(currentExectionsWorkflowsSuite))
+	suite.Run(t, new(currentExecutionsWorkflowsSuite))
 }
 
-func (s *currentExectionsWorkflowsSuite) SetupSuite() {
+func (s *currentExecutionsWorkflowsSuite) SetupSuite() {
 	workflow.Register(CurrentScannerWorkflow)
 
 }
 
-func (s *currentExectionsWorkflowsSuite) TestScannerWorkflow_Success() {
+func (s *currentExecutionsWorkflowsSuite) TestScannerWorkflow_Success() {
 	env := s.NewTestWorkflowEnvironment()
 	env.OnActivity(shardscanner.ActivityScannerConfig, mock.Anything, mock.Anything).Return(shardscanner.ResolvedScannerWorkflowConfig{
 		GenericScannerConfig: shardscanner.GenericScannerConfig{
@@ -124,10 +124,10 @@ func (s *currentExectionsWorkflowsSuite) TestScannerWorkflow_Success() {
 				})
 			}
 		}
-		var customc shardscanner.CustomScannerConfig
+		var customScannerConfig shardscanner.CustomScannerConfig
 		env.OnActivity(shardscanner.ActivityScanShard, mock.Anything, shardscanner.ScanShardActivityParams{
 			Shards:        batch,
-			ScannerConfig: customc,
+			ScannerConfig: customScannerConfig,
 		}).Return(reports, nil)
 	}
 
@@ -217,7 +217,7 @@ func (s *currentExectionsWorkflowsSuite) TestScannerWorkflow_Success() {
 	s.NoError(statusValue.Get(&status))
 	expected = make(map[int]shardscanner.ShardStatus)
 	for i := 5; i < 15; i++ {
-		if i == 0 || i == 1 || i == 2 || i == 15 || i == 16 || i == 17 {
+		if i == 0 || i == 1 || i == 2 {
 			expected[i] = shardscanner.ShardStatusControlFlowFailure
 		} else {
 			expected[i] = shardscanner.ShardStatusSuccess
@@ -244,7 +244,7 @@ func (s *currentExectionsWorkflowsSuite) TestScannerWorkflow_Success() {
 	s.Equal(shardscanner.ShardCorruptKeysResult(expectedCorrupted), shardCorruptKeysResult.Result)
 }
 
-func (s *currentExectionsWorkflowsSuite) TestScannerWorkflow_NewScannerWorkflow_Error() {
+func (s *currentExecutionsWorkflowsSuite) TestScannerWorkflow_NewScannerWorkflow_Error() {
 	env := s.NewTestWorkflowEnvironment()
 
 	env.ExecuteWorkflow(CurrentScannerWorkflow, shardscanner.ScannerWorkflowParams{})
@@ -253,7 +253,7 @@ func (s *currentExectionsWorkflowsSuite) TestScannerWorkflow_NewScannerWorkflow_
 	s.ErrorContains(env.GetWorkflowError(), "must provide either List or Range")
 }
 
-func (s *currentExectionsWorkflowsSuite) TestScannerWorkflow_Start_Error() {
+func (s *currentExecutionsWorkflowsSuite) TestScannerWorkflow_Start_Error() {
 	env := s.NewTestWorkflowEnvironment()
 	env.OnActivity(shardscanner.ActivityScannerConfig, mock.Anything, mock.Anything).Return(shardscanner.ResolvedScannerWorkflowConfig{}, assert.AnError)
 	env.ExecuteWorkflow(CurrentScannerWorkflow, shardscanner.ScannerWorkflowParams{
@@ -282,7 +282,7 @@ func Test_currentExecutionScannerManager(t *testing.T) {
 	assert.NotNil(t, manager)
 }
 
-func (s *currentExectionsWorkflowsSuite) TestCurrentFixerWorkflow_NewFixerWorkflow_Error() {
+func (s *currentExecutionsWorkflowsSuite) TestCurrentFixerWorkflow_NewFixerWorkflow_Error() {
 	env := s.NewTestWorkflowEnvironment()
 
 	env.OnActivity(shardscanner.ActivityFixerCorruptedKeys, mock.Anything, mock.Anything).Return(&shardscanner.FixerCorruptedKeysActivityResult{}, assert.AnError)
@@ -292,7 +292,7 @@ func (s *currentExectionsWorkflowsSuite) TestCurrentFixerWorkflow_NewFixerWorkfl
 	s.ErrorContains(env.GetWorkflowError(), assert.AnError.Error())
 }
 
-func (s *currentExectionsWorkflowsSuite) TestCurrentFixerWorkflow_Start_Error() {
+func (s *currentExecutionsWorkflowsSuite) TestCurrentFixerWorkflow_Start_Error() {
 	env := s.NewTestWorkflowEnvironment()
 
 	env.OnActivity(shardscanner.ActivityFixerCorruptedKeys, mock.Anything, mock.Anything).
@@ -309,7 +309,7 @@ func (s *currentExectionsWorkflowsSuite) TestCurrentFixerWorkflow_Start_Error() 
 	s.ErrorContains(env.GetWorkflowError(), assert.AnError.Error())
 }
 
-func (s *currentExectionsWorkflowsSuite) TestCurrentFixerWorkflow_Success() {
+func (s *currentExecutionsWorkflowsSuite) TestCurrentFixerWorkflow_Success() {
 	env := s.NewTestWorkflowEnvironment()
 
 	env.OnActivity(shardscanner.ActivityFixerCorruptedKeys, mock.Anything, mock.Anything).
@@ -396,12 +396,12 @@ func Test_currentExecutionScannerIterator(t *testing.T) {
 
 func Test_currentExecutionFixerIterator(t *testing.T) {
 	ctx := context.Background()
-	mockClient := &blobstore.MockClient{}
+	mockClient := blobstore.NewMockClient(gomock.NewController(t))
 	req := &blobstore.GetRequest{
 		Key: CurrentExecutionsFixerTaskListName + "_0.",
 	}
 
-	mockClient.On("Get", ctx, req).Return(&blobstore.GetResponse{}, nil).Once()
+	mockClient.EXPECT().Get(ctx, req).Return(&blobstore.GetResponse{}, nil).Times(1)
 
 	it := currentExecutionFixerIterator(
 		ctx,

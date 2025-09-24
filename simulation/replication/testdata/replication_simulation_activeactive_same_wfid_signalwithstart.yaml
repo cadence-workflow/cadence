@@ -1,0 +1,103 @@
+# This file is a replication simulation scenario spec.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive_same_wfid_signalwithstart
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_same_wfid_signalwithstart.yml
+# When a domain is configured as active-active
+# And the same workflow ID is used to SignalWithStart in multiple clusters
+# Then the 'earlier' workflow should be terminated 
+# And the 'later' workflow should complete
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+domains:
+  test-domain-aa-conflict:
+    activeClustersByRegion:
+      region0: cluster0
+      region1: cluster1
+
+operations:
+  - op: signal_with_start_workflow
+    at: 0s
+    workflowID: conflict-wf
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa-conflict
+    signalName: custom-signal
+    signalInput: "cluster0-signal-data"
+    workflowExecutionStartToCloseTimeout: 65s
+    workflowDuration: 35s
+    runIDKey: cluster0-run
+
+  - op: signal_with_start_workflow
+    at: 2s
+    workflowID: conflict-wf
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster1
+    domain: test-domain-aa-conflict
+    signalName: custom-signal
+    signalInput: "cluster1-signal-data"
+    workflowExecutionStartToCloseTimeout: 65s
+    workflowDuration: 35s
+    runIDKey: cluster1-run
+
+  # Query the cluster0 run to validate it was started with the correct signal
+  # Note that if this query is delayed it will eventually see the signal from the 'later' workflow
+  - op: query_workflow
+    at: 3s
+    workflowID: conflict-wf
+    cluster: cluster0
+    domain: test-domain-aa-conflict
+    query: latest-signal-content
+    runIDKey: cluster0-run
+    want:
+      queryResult: ["cluster0-signal-data"]
+
+  # Query the cluster1 run to validate it was started with the correct signal
+  - op: query_workflow
+    at: 3s
+    workflowID: conflict-wf
+    cluster: cluster1
+    domain: test-domain-aa-conflict
+    query: latest-signal-content
+    runIDKey: cluster1-run
+    want:
+      queryResult: ["cluster1-signal-data"]
+  
+  - op: validate
+    at: 30s
+    workflowID: conflict-wf
+    runIDKey: cluster0-run
+    cluster: cluster0
+    domain: test-domain-aa-conflict
+    want:
+      status: terminated
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0
+
+  - op: validate
+    at: 30s
+    workflowID: conflict-wf
+    runIDKey: cluster1-run
+    cluster: cluster0
+    domain: test-domain-aa-conflict
+    want:
+      status: running
+      startedByWorkersInCluster: cluster1
+
+  - op: validate
+    at: 70s
+    workflowID: conflict-wf
+    runIDKey: cluster1-run
+    cluster: cluster0
+    domain: test-domain-aa-conflict
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster1
+      completedByWorkersInCluster: cluster1

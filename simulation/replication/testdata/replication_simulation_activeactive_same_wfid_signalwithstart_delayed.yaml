@@ -1,0 +1,75 @@
+# This file is a replication simulation scenario spec.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive_same_wfid_signalwithstart_delayed
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_same_wfid_signalwithstart_delayed.yml
+# When a domain is configured as active-active
+# And the same workflow ID is used to SignalWithStart in multiple clusters with a 20s delay
+# Then there should be no duplicate run - a single workflow should contain both signals
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+domains:
+  test-domain-aa-delayed:
+    activeClustersByRegion:
+      region0: cluster0
+      region1: cluster1
+
+operations:
+  - op: signal_with_start_workflow
+    at: 0s
+    workflowID: delayed-wf
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa-delayed
+    signalName: custom-signal
+    signalInput: "cluster0-signal-data"
+    workflowExecutionStartToCloseTimeout: 90s
+    workflowDuration: 60s
+
+  - op: signal_with_start_workflow
+    at: 20s
+    workflowID: delayed-wf
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster1
+    domain: test-domain-aa-delayed
+    signalName: custom-signal
+    signalInput: "cluster1-signal-data"
+    workflowExecutionStartToCloseTimeout: 90s
+    workflowDuration: 60s
+
+  # Query after the second signal to validate both signals are in the same workflow
+  - op: query_workflow
+    at: 25s
+    workflowID: delayed-wf
+    cluster: cluster0
+    domain: test-domain-aa-delayed
+    query: latest-signal-content
+    want:
+      queryResult: ["cluster0-signal-data", "cluster1-signal-data"]
+
+  - op: validate
+    at: 45s
+    workflowID: delayed-wf
+    cluster: cluster0
+    domain: test-domain-aa-delayed
+    want:
+      status: running
+      startedByWorkersInCluster: cluster0
+
+  # Validate workflow completes successfully with both signals
+  - op: validate
+    at: 70s
+    workflowID: delayed-wf
+    cluster: cluster1
+    domain: test-domain-aa-delayed
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0

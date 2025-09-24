@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 )
 
 // AccessDeniedError is an internal type (TBD...)
@@ -353,6 +354,14 @@ func (e ArchivalStatus) MarshalText() ([]byte, error) {
 	return []byte(e.String()), nil
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (e *ArchivalStatus) ByteSize() uint64 {
+	if e == nil {
+		return 0
+	}
+	return uint64(unsafe.Sizeof(*e))
+}
+
 const (
 	// ArchivalStatusDisabled is an option for ArchivalStatus
 	ArchivalStatusDisabled ArchivalStatus = iota
@@ -363,6 +372,20 @@ const (
 // BadBinaries is an internal type (TBD...)
 type BadBinaries struct {
 	Binaries map[string]*BadBinaryInfo `json:"binaries,omitempty"`
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (b *BadBinaries) ByteSize() uint64 {
+	if b == nil {
+		return 0
+	}
+	size := uint64(unsafe.Sizeof(*b))
+	if b.Binaries != nil {
+		for k, v := range b.Binaries {
+			size += uint64(len(k)) + v.ByteSize()
+		}
+	}
+	return size
 }
 
 // BadBinaryInfo is an internal type (TBD...)
@@ -394,6 +417,20 @@ func (v *BadBinaryInfo) GetCreatedTimeNano() (o int64) {
 		return *v.CreatedTimeNano
 	}
 	return
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *BadBinaryInfo) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.Reason))
+	size += uint64(len(v.Operator))
+	if v.CreatedTimeNano != nil {
+		size += uint64(unsafe.Sizeof(*v.CreatedTimeNano))
+	}
+	return size
 }
 
 // BadRequestError is an internal type (TBD...)
@@ -727,6 +764,16 @@ func (v *ClusterReplicationConfiguration) GetClusterName() (o string) {
 	return
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *ClusterReplicationConfiguration) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.ClusterName))
+	return size
+}
+
 // CompleteWorkflowExecutionDecisionAttributes is an internal type (TBD...)
 type CompleteWorkflowExecutionDecisionAttributes struct {
 	Result []byte `json:"result,omitempty"`
@@ -946,6 +993,18 @@ func (v *DataBlob) DeepCopy() *DataBlob {
 	}
 
 	return res
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *DataBlob) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += v.EncodingType.ByteSize()
+	size += uint64(len(v.Data))
+	return size
 }
 
 // Decision is an internal type (TBD...)
@@ -1974,6 +2033,23 @@ func (v *DomainConfiguration) GetAsyncWorkflowConfiguration() AsyncWorkflowConfi
 	return AsyncWorkflowConfiguration{}
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *DomainConfiguration) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += v.BadBinaries.ByteSize()
+	size += v.HistoryArchivalStatus.ByteSize()
+	size += uint64(len(v.HistoryArchivalURI))
+	size += v.VisibilityArchivalStatus.ByteSize()
+	size += uint64(len(v.VisibilityArchivalURI))
+	size += v.IsolationGroups.ByteSize()
+	size += v.AsyncWorkflowConfig.ByteSize()
+	return size
+}
+
 // DomainInfo is an internal type (TBD...)
 type DomainInfo struct {
 	Name        string            `json:"name,omitempty"`
@@ -2030,6 +2106,25 @@ func (v *DomainInfo) GetUUID() (o string) {
 		return v.UUID
 	}
 	return
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *DomainInfo) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.Name))
+	size += v.Status.ByteSize()
+	size += uint64(len(v.Description))
+	size += uint64(len(v.OwnerEmail))
+	for k, val := range v.Data {
+		size += uint64(len(k))
+		size += uint64(len(val))
+	}
+	size += uint64(len(v.UUID))
+	return size
 }
 
 // DomainNotActiveError is an internal type.
@@ -2097,6 +2192,22 @@ func (v *DomainReplicationConfiguration) GetActiveClusters() (o *ActiveClusters)
 	return
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *DomainReplicationConfiguration) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.ActiveClusterName))
+	size += uint64(len(v.Clusters)) * uint64(unsafe.Sizeof((*ClusterReplicationConfiguration)(nil)))
+	for _, e := range v.Clusters {
+		size += e.ByteSize()
+	}
+	size += v.ActiveClusters.ByteSize()
+	return size
+}
+
 type ActiveClusters struct {
 	ActiveClustersByRegion map[string]ActiveClusterInfo `json:"activeClustersByRegion,omitempty"`
 }
@@ -2108,9 +2219,31 @@ func (v *ActiveClusters) GetActiveClustersByRegion() (o map[string]ActiveCluster
 	return
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *ActiveClusters) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	for k, val := range v.ActiveClustersByRegion {
+		// ByteSize implementation must match the logic in the reflection-based calculator used in the tests from common/types/test_util.go.
+		// reflection-based calculator purposely ignores Go’s internal map bucket/storage and treats each map element as
+		// key: dynamic payload only (e.g., len(string)), no string header
+		// value: dynamic payload only (e.g., for a struct, just its fields’ dynamic payload), no struct header, no inline ints/bools
+		size += uint64(len(k)) + val.ByteSize() - uint64(unsafe.Sizeof(val))
+	}
+	return size
+}
+
 type ActiveClusterInfo struct {
 	ActiveClusterName string `json:"activeClusterName,omitempty"`
 	FailoverVersion   int64  `json:"failoverVersion,omitempty"`
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v ActiveClusterInfo) ByteSize() uint64 {
+	return uint64(unsafe.Sizeof(v)) + uint64(len(v.ActiveClusterName))
 }
 
 func (v *ActiveClusters) DeepCopy() *ActiveClusters {
@@ -2249,6 +2382,15 @@ func (e DomainStatus) MarshalText() ([]byte, error) {
 	return []byte(e.String()), nil
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (e *DomainStatus) ByteSize() uint64 {
+	if e == nil {
+		return 0
+	}
+
+	return uint64(unsafe.Sizeof(*e))
+}
+
 const (
 	// DomainStatusRegistered is an option for DomainStatus
 	DomainStatusRegistered DomainStatus = iota
@@ -2308,6 +2450,15 @@ const (
 	// EncodingTypeJSON is an option for EncodingType
 	EncodingTypeJSON
 )
+
+// ByteSize returns the approximate memory used in bytes
+func (e *EncodingType) ByteSize() uint64 {
+	if e == nil {
+		return 0
+	}
+
+	return uint64(unsafe.Sizeof(*e))
+}
 
 // EntityNotExistsError is an internal type (TBD...)
 type EntityNotExistsError struct {
@@ -7477,6 +7628,24 @@ func (v *VersionHistory) GetItems() (o []*VersionHistoryItem) {
 	return
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *VersionHistory) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.BranchToken))
+
+	// [] *VersionHistoryItem backing array: len * pointer size
+	size += uint64(len(v.Items)) * uint64(unsafe.Sizeof((*VersionHistoryItem)(nil)))
+	for _, e := range v.Items {
+		size += e.ByteSize()
+	}
+
+	return size
+}
+
 // VersionHistoryItem is an internal type (TBD...)
 type VersionHistoryItem struct {
 	EventID int64 `json:"eventID,omitempty"`
@@ -7489,6 +7658,15 @@ func (v *VersionHistoryItem) GetVersion() (o int64) {
 		return v.Version
 	}
 	return
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *VersionHistoryItem) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	return uint64(unsafe.Sizeof(*v))
 }
 
 // WorkerVersionInfo is an internal type (TBD...)
