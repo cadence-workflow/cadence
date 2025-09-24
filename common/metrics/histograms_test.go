@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/yarpc"
 )
 
 func TestHistogramValues(t *testing.T) {
@@ -166,7 +165,6 @@ func checkHistogram[T any](t *testing.T, h histogrammy[T], expected string) {
 		t.Log(str)
 		buf.WriteString(str)
 	})
-	yarpc.CallFromContext(ctx).Transport()
 	if strings.TrimSpace(expected) != strings.TrimSpace(buf.String()) {
 		t.Error("histogram definition changed, update the test if this is intended")
 	}
