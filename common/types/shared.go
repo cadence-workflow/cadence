@@ -7568,6 +7568,29 @@ func (v *UpdateDomainResponse) GetIsGlobalDomain() (o bool) {
 	return
 }
 
+// FailoverDomainRequest is the request for domain failover
+type FailoverDomainRequest struct {
+	Name           string          `json:"name,omitempty"`
+	ActiveClusters *ActiveClusters `json:"activeClusters,omitempty"`
+}
+
+// FailoverDomainResponse is the response for domain failover
+type FailoverDomainResponse struct {
+	DomainInfo               *DomainInfo                     `json:"domainInfo,omitempty"`
+	Configuration            *DomainConfiguration            `json:"configuration,omitempty"`
+	ReplicationConfiguration *DomainReplicationConfiguration `json:"replicationConfiguration,omitempty"`
+	FailoverVersion          int64                           `json:"failoverVersion,omitempty"`
+	IsGlobalDomain           bool                            `json:"isGlobalDomain,omitempty"`
+}
+
+// GetName is an internal getter (TBD...)
+func (v *FailoverDomainRequest) GetName() (o string) {
+	if v != nil {
+		return v.Name
+	}
+	return
+}
+
 // UpsertWorkflowSearchAttributesDecisionAttributes is an internal type (TBD...)
 type UpsertWorkflowSearchAttributesDecisionAttributes struct {
 	SearchAttributes *SearchAttributes `json:"searchAttributes,omitempty"`
