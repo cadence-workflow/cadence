@@ -200,14 +200,6 @@ func TestLookupNewWorkflow(t *testing.T) {
 					Region:                 "us-east",
 				},
 			},
-			Regions: map[string]config.RegionInformation{
-				"us-west": {
-					InitialFailoverVersion: 0,
-				},
-				"us-east": {
-					InitialFailoverVersion: 2,
-				},
-			},
 			FailoverVersionIncrement: 100,
 			CurrentClusterName:       "cluster0",
 		},
@@ -345,14 +337,6 @@ func TestLookupWorkflow(t *testing.T) {
 				"cluster1": {
 					InitialFailoverVersion: 3,
 					Region:                 "us-east",
-				},
-			},
-			Regions: map[string]config.RegionInformation{
-				"us-west": {
-					InitialFailoverVersion: 0,
-				},
-				"us-east": {
-					InitialFailoverVersion: 2,
 				},
 			},
 			FailoverVersionIncrement: 100,

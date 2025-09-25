@@ -48,11 +48,6 @@ type (
 		// ClusterGroup contains information for each cluster within the replication group
 		// Key is the clusterName
 		ClusterGroup map[string]ClusterInformation `yaml:"clusterGroup"`
-		// Regions is a map of region name to region information.
-		// Key is the region name.
-		// Each cluster must belong to one and only one region. Specified in clusterGroup.
-		// Regions configuration is needed if active-active domains are enabled.
-		Regions map[string]RegionInformation `yaml:"regions"`
 		// Deprecated: please use ClusterGroup
 		ClusterInformation map[string]ClusterInformation `yaml:"clusterInformation"`
 	}
@@ -83,12 +78,6 @@ type (
 		TLS TLS `yaml:"tls"`
 		// Region is the region of the cluster.
 		Region string `yaml:"region"`
-	}
-
-	RegionInformation struct {
-		// InitialFailoverVersion is the identifier of each region.
-		// It is used for active-active domains to determine the region of workflows which don't have an external entity mapping. (origin stickyness)
-		InitialFailoverVersion int64 `yaml:"initialFailoverVersion"`
 	}
 
 	AuthorizationProvider struct {
