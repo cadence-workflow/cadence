@@ -1,6 +1,6 @@
 # This file is a replication simulation scenario spec.
 # It is parsed into ReplicationSimulationConfig struct.
-# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive_same_wfid_signalwithstart_delayed
+# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario activeactive_same_wfid_signalwithstart_delayed
 # Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_same_wfid_signalwithstart_delayed.yml
 # When a domain is configured as active-active
 # And the same workflow ID is used to SignalWithStart in multiple clusters with a 20s delay

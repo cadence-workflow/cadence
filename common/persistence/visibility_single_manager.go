@@ -37,20 +37,19 @@ type (
 		serializer  PayloadSerializer
 		persistence VisibilityStore
 		logger      log.Logger
+		dc          *DynamicConfiguration
 	}
 )
-
-// VisibilityEncoding is default encoding for visibility data
-const VisibilityEncoding = constants.EncodingTypeThriftRW
 
 var _ VisibilityManager = (*visibilityManagerImpl)(nil)
 
 // NewVisibilityManagerImpl returns new VisibilityManager via a VisibilityStore
-func NewVisibilityManagerImpl(persistence VisibilityStore, logger log.Logger) VisibilityManager {
+func NewVisibilityManagerImpl(persistence VisibilityStore, logger log.Logger, dc *DynamicConfiguration) VisibilityManager {
 	return &visibilityManagerImpl{
 		serializer:  NewPayloadSerializer(),
 		persistence: persistence,
 		logger:      logger,
+		dc:          dc,
 	}
 }
 
@@ -429,7 +428,7 @@ func (v *visibilityManagerImpl) toInternalListWorkflowExecutionsRequest(req *Lis
 }
 
 func (v *visibilityManagerImpl) serializeMemo(visibilityMemo *types.Memo, domainID, wID, rID string) *DataBlob {
-	memo, err := v.serializer.SerializeVisibilityMemo(visibilityMemo, VisibilityEncoding)
+	memo, err := v.serializer.SerializeVisibilityMemo(visibilityMemo, constants.EncodingType(v.dc.SerializationEncoding()))
 	if err != nil {
 		v.logger.WithTags(
 			tag.WorkflowDomainID(domainID),

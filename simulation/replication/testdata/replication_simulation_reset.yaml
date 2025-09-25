@@ -1,7 +1,9 @@
 # This file is a replication simulation scenario spec.
 # It is parsed into ReplicationSimulationConfig struct.
-# Replication simulation for this file can be run via ./simulation/replication/run.sh reset
+# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario reset
 # Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_reset.yml
+# Tests the behaviour of workflows when failovers and reset commands are issued
+
 clusters:
   cluster0:
     grpcEndpoint: "cadence-cluster0:7833"
@@ -19,6 +21,7 @@ domains:
     activeClusterName: cluster0
 
 operations:
+  # Start two workflows in different domains
   - op: start_workflow
     at: 0s
     workflowType: activity-loop-workflow
@@ -37,7 +40,8 @@ operations:
     domain: test-domain-2
     workflowExecutionStartToCloseTimeout: 60s
 
-  - op: change_active_clusters # failover from cluster0 to cluster1
+  # Failover from cluster0 to cluster1
+  - op: change_active_clusters 
     at: 20s
     domain: test-domain
     newActiveCluster: cluster1

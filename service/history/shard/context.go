@@ -123,6 +123,7 @@ type (
 		closeCallback        func(int, *historyShardsItem)
 		closedAt             atomic.Pointer[time.Time]
 		config               *config.Config
+		persistenceConfig    *persistence.DynamicConfiguration
 		logger               log.Logger
 		throttledLogger      log.Logger
 		engine               engine.Engine
@@ -836,6 +837,7 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 	if err != nil {
 		return nil, err
 	}
+
 	request.Encoding = s.getDefaultEncoding(domainEntry.GetInfo().Name)
 
 	s.Lock()

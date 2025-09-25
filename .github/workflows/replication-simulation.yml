@@ -43,7 +43,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 20
           command: |
-            ./simulation/replication/run.sh ${{ matrix.scenario }}
+            ./simulation/replication/run.sh --scenario ${{ matrix.scenario }}
 
       - name: Upload test logs
         uses: actions/upload-artifact@v4

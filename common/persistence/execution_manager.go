@@ -40,6 +40,7 @@ type (
 		statsComputer statsComputer
 		logger        log.Logger
 		timeSrc       clock.TimeSource
+		dc            *DynamicConfiguration
 	}
 )
 
@@ -50,6 +51,7 @@ func NewExecutionManagerImpl(
 	persistence ExecutionStore,
 	logger log.Logger,
 	serializer PayloadSerializer,
+	dc *DynamicConfiguration,
 ) ExecutionManager {
 	return &executionManagerImpl{
 		serializer:    serializer,
@@ -57,6 +59,7 @@ func NewExecutionManagerImpl(
 		statsComputer: statsComputer{},
 		logger:        logger,
 		timeSrc:       clock.NewRealTimeSource(),
+		dc:            dc,
 	}
 }
 
@@ -606,10 +609,7 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 	ctx context.Context,
 	request *CreateWorkflowExecutionRequest,
 ) (*CreateWorkflowExecutionResponse, error) {
-
-	encoding := constants.EncodingTypeThriftRW
-
-	serializedNewWorkflowSnapshot, err := m.SerializeWorkflowSnapshot(&request.NewWorkflowSnapshot, encoding)
+	serializedNewWorkflowSnapshot, err := m.SerializeWorkflowSnapshot(&request.NewWorkflowSnapshot, constants.EncodingType(m.dc.SerializationEncoding()))
 	if err != nil {
 		return nil, err
 	}

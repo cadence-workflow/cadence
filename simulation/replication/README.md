@@ -1,42 +1,47 @@
 # Replication Simulation
 
-This folder contains the replication simulation framework and scenarios.
+These simulations test replication of workflows across clusters. As replication is handled at the application layer there are many edge case scenarios that lead to conflict resolution when:
 
+- there is a delay in replication
+- a domain is failed over from one cluster to another
+- active-active is enabled and a customer is making requests to both clusters
 
-## Scenario descriptions
+There are also sanity checks for the request routing layer. 
 
-- `activeactive`: Active-active basic checks
-- `activeactive_cron`: Active-active with cron workflows
-- `activeactive_regional_failover`: Active-active with regional failover
-- `activepassive_to_activeactive`: Active-passive to active-active migration
-- `clusterredirection`: Cluster redirection checks
-- `default`: Default scenario
-- `reset`: Reset scenario
-
-## Conventions
-
-Scenario files are placed in `testdata/replication_simulation_<scenario>.yaml`.
-Scenario file is a YAML file that contains the simulation configuration that is parsed into `ReplicationSimulationConfig` struct.
-There should be a corresponding `config/dynamicconfig/replication_simulation_<scenario>.yml` file that contains the dynamic config overrides.
-
-## Running the simulation
+## Quick Run
 
 ```bash
-./simulation/replication/run.sh <scenario>
+# Basic test
+./simulation/replication/run.sh --scenario default
+
+# Active-active test
+./simulation/replication/run.sh --scenario activeactive
+
+# With custom dockerfile
+./simulation/replication/run.sh --scenario default --dockerfile-suffix .local
+
+# Rerun without rebuilding
+./simulation/replication/run.sh --scenario default --rerun
 ```
 
-If you have a custom dockerfile such as Dockerfile.local, you can pass it as an argument:
+### Results
 
-```bash
-./simulation/replication/run.sh <scenario> newrun "" ".local"
-```
+Results are output to the following files:
+- **Test logs**: `test.log` contains the summary of the test run
+- **Summary**: `replication-simulator-output/test-{scenario}-{timestamp}-summary.txt` contains a summary of the test run 
 
-After running the simulation, you can find the test logs in `test.log` file.
-Also check the Cadence UI on localhost:8088 to see the workflow executions.
+You can also use the [Cadence UI](http://localhost:8088) to debug the workflows that ran during your test. 
 
+To further debug, you can query for logs against the running docker containers.
 
-## Github Actions
+## Configuration
 
-Github Actions are used to run the simulation scenarios as part of the CI/CD pipeline.
-Configuration is in `.github/workflows/replication-simulation.yml`.
-If you add a new scenario (following the conventions above), also add it to the Github Actions matrix in `.github/workflows/replication-simulation.yml` once the test is passing.
+Scenarios are written in `testdata/replication_simulation_{scenario}.yaml`. 
+This naming convention is required by `run.sh` to find test scenarios to run. 
+
+To configure the cadence instances that are running for the test use a dynamic config file at `config/dynamicconfig/replication_simulation_{scenario}.yml`.
+Dynamic config can change any feature flag supported by Cadence - these feature flags can be used to hide full features, or to hide test-specific implementations that expose additional data required by your test.
+
+## CI/CD
+
+Scenarios run automatically in GitHub Actions via `.github/workflows/replication-simulation.yml`. Add new scenarios to the matrix once they pass locally.

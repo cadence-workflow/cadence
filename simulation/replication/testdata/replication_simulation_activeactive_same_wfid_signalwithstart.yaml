@@ -1,6 +1,6 @@
 # This file is a replication simulation scenario spec.
 # It is parsed into ReplicationSimulationConfig struct.
-# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive_same_wfid_signalwithstart
+# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario activeactive_same_wfid_signalwithstart
 # Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_same_wfid_signalwithstart.yml
 # When a domain is configured as active-active
 # And the same workflow ID is used to SignalWithStart in multiple clusters
@@ -36,7 +36,7 @@ operations:
     runIDKey: cluster0-run
 
   - op: signal_with_start_workflow
-    at: 2s
+    at: 0s
     workflowID: conflict-wf
     workflowType: timer-activity-loop-workflow
     cluster: cluster1
@@ -48,9 +48,9 @@ operations:
     runIDKey: cluster1-run
 
   # Query the cluster0 run to validate it was started with the correct signal
-  # Note that if this query is delayed it will eventually see the signal from the 'later' workflow
+  # Note that if this query is delayed it will eventually see the signal from the 'later' workflow, as conflict resolution will have occurred
   - op: query_workflow
-    at: 3s
+    at: 0s
     workflowID: conflict-wf
     cluster: cluster0
     domain: test-domain-aa-conflict
@@ -61,7 +61,7 @@ operations:
 
   # Query the cluster1 run to validate it was started with the correct signal
   - op: query_workflow
-    at: 3s
+    at: 0s
     workflowID: conflict-wf
     cluster: cluster1
     domain: test-domain-aa-conflict

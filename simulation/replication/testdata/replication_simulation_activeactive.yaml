@@ -1,7 +1,9 @@
 # This file is a replication simulation scenario spec.
 # It is parsed into ReplicationSimulationConfig struct.
-# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive
+# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario activeactive
 # Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive.yml
+# Tests that active-active allows workflows to be created in multiple clusters
+
 clusters:
   cluster0:
     grpcEndpoint: "cadence-cluster0:7833"

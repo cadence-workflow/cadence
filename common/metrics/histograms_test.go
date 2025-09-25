@@ -32,6 +32,7 @@ func TestHistogramValues(t *testing.T) {
 [2m11.072s 2m35.871754977s 3m5.363800047s 3m40.43594988s]
 [4m22.144s 5m11.743509955s 6m10.727600094s 7m20.87189976s]
 [8m44.288s 10m23.48701991s 12m21.455200189s 14m41.743799521s]
+[17m28.576s]
 `)
 	})
 	t.Run("low_1ms_to_100s", func(t *testing.T) {
@@ -57,6 +58,7 @@ func TestHistogramValues(t *testing.T) {
 [2m11.072s 3m5.363800047s]
 [4m22.144s 6m10.727600094s]
 [8m44.288s 12m21.455200189s]
+[17m28.576s]
 `)
 	})
 	t.Run("high_1ms_to_24h", func(t *testing.T) {
@@ -90,6 +92,7 @@ func TestHistogramValues(t *testing.T) {
 [9h19m14.432s 11h5m3.169274274s 13h10m53.132812125s 15h40m31.603169349s]
 [18h38m28.864s 22h10m6.338548549s 26h21m46.265624251s 31h21m3.206338698s]
 [37h16m57.728s 44h20m12.677097099s 52h43m32.531248503s 62h42m6.412677396s]
+[74h33m55.456s]
 `)
 	})
 	t.Run("mid_1ms_24h", func(t *testing.T) {
@@ -123,6 +126,7 @@ func TestHistogramValues(t *testing.T) {
 [9h19m14.432s 13h10m53.132812125s]
 [18h38m28.864s 26h21m46.265624251s]
 [37h16m57.728s 52h43m32.531248503s]
+[74h33m55.456s]
 `)
 	})
 	t.Run("mid_to_16k_ints", func(t *testing.T) {
@@ -153,6 +157,7 @@ func TestHistogramValues(t *testing.T) {
 [8192 9741 11585 13777]
 [16384 19483 23170 27554]
 [32768 38967 46340 55108]
+[65536]
 `)
 	})
 }
