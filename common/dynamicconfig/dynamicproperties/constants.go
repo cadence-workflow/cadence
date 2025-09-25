@@ -1091,9 +1091,15 @@ const (
 	// ReplicatorCacheCapacity is the capacity of replication cache in number of tasks
 	// KeyName: history.replicatorCacheCapacity
 	// Value type: Int
-	// Default value: 10000
+	// Default value: 0
 	// Allowed filters: N/A
 	ReplicatorCacheCapacity
+	// ReplicatorCacheMaxSize is the max size of the replication cache in bytes
+	// KeyName: history.replicatorCacheSize
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
+	ReplicatorCacheMaxSize
 
 	// ExecutionMgrNumConns is persistence connections number for ExecutionManager
 	// KeyName: history.executionMgrNumConns
@@ -3691,6 +3697,11 @@ var IntKeys = map[IntKey]DynamicInt{
 	ReplicatorCacheCapacity: {
 		KeyName:      "history.replicatorCacheCapacity",
 		Description:  "ReplicatorCacheCapacity is the capacity of replication cache in number of tasks",
+		DefaultValue: 0,
+	},
+	ReplicatorCacheMaxSize: {
+		KeyName:      "history.replicatorCacheSize",
+		Description:  "ReplicatorCacheMaxSize is the max size of the replication cache in bytes",
 		DefaultValue: 0,
 	},
 	ExecutionMgrNumConns: {

@@ -1737,7 +1737,6 @@ func (t *transferActiveTaskExecutor) resetWorkflow(
 		execution.NewWorkflow(
 			resetCtx,
 			t.shard.GetClusterMetadata(),
-			t.shard.GetActiveClusterManager(),
 			currentContext,
 			currentMutableState,
 			execution.NoopReleaseFn, // this is fine since caller will defer on release

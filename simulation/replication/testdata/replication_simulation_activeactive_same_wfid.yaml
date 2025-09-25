@@ -1,8 +1,8 @@
 # This file is a replication simulation scenario spec.
 # It is parsed into ReplicationSimulationConfig struct.
-# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario activeactive
-# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive.yml
-# Tests that active-active allows workflows to be created in multiple clusters
+# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario activeactive_same_wfid
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_same_wfid.yml
+# Tests that the same wfid cannot be created in multiple clusters in active-active mode
 
 clusters:
   cluster0:
@@ -29,34 +29,36 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 65s
     workflowDuration: 35s
+    runIDKey: cluster0
 
   # start workflow in cluster1
   - op: start_workflow
-    at: 0s
-    workflowID: wf2
+    at: 2s
+    workflowID: wf1
     workflowType: timer-activity-loop-workflow
     cluster: cluster1
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 65s
     workflowDuration: 35s
+    runIDKey: cluster1
 
-  # validate that wf1 is started in cluster0 and completed in cluster1
+  # validate that wf1 is started in cluster0 and terminated
   - op: validate
     at: 70s
     workflowID: wf1
     cluster: cluster0
     domain: test-domain-aa
+    runIDKey: cluster0
     want:
-      status: completed
-      startedByWorkersInCluster: cluster0
-      completedByWorkersInCluster: cluster0
+      status: terminated
 
   # validate that wf2 is started and completed in cluster1
   - op: validate
     at: 70s
-    workflowID: wf2
+    workflowID: wf1
     cluster: cluster1
     domain: test-domain-aa
+    runIDKey: cluster1
     want:
       status: completed
       startedByWorkersInCluster: cluster1

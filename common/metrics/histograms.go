@@ -110,16 +110,34 @@ func (s SubsettableHistogram) subsetTo(newScale int) SubsettableHistogram {
 		tallyBuckets: slices.Clone(s.tallyBuckets),
 		scale:        s.scale,
 	}
+
 	// compress every other bucket per -1 scale
 	for dup.scale > newScale {
-		if (len(dup.tallyBuckets)-1)%2 != 0 {
-			panic(fmt.Sprintf("cannot subset from scale %v to %v, %v-buckets is not divisible by 2", dup.scale, dup.scale-1, len(dup.tallyBuckets)-1))
+		if (len(dup.tallyBuckets)-2)%2 != 0 { // -2 for 0 and last-2^N
+			panic(fmt.Sprintf(
+				"cannot subset from scale %v to %v, %v-buckets is not divisible by 2",
+				dup.scale, dup.scale-1, len(dup.tallyBuckets)-2))
 		}
-		half := make(tally.DurationBuckets, 0, ((len(dup.tallyBuckets)-1)/2)+1)
+		if len(dup.tallyBuckets) <= 3 {
+			// at 3 buckets, there's just 0, start, end.
+			//
+			// this is well past the point of being useful,
+			// and it means we might try to slice `[1:0]` or similar.
+			panic(fmt.Sprintf(
+				"not enough buckets to subset from scale %d to %d, only have %d: %v",
+				dup.scale, dup.scale-1, len(dup.tallyBuckets), dup.tallyBuckets))
+		}
+
+		// the first and last buckets will be kept, the rest will lose half per scale
+		bucketsToCompress := dup.tallyBuckets[1 : len(dup.tallyBuckets)-2] // trim
+
+		half := make(tally.DurationBuckets, 0, (len(bucketsToCompress)/2)+2)
 		half = append(half, dup.tallyBuckets[0]) // keep the zero value intact
-		for i := 1; i < len(dup.tallyBuckets); i += 2 {
-			half = append(half, dup.tallyBuckets[i]) // compress the first, third, etc
+		for i := 0; i < len(bucketsToCompress); i += 2 {
+			half = append(half, bucketsToCompress[i]) // keep the first, third, etc
 		}
+		half = append(half, dup.tallyBuckets[len(dup.tallyBuckets)-1]) // keep the last 2^N intact
+
 		dup.tallyBuckets = half
 		dup.scale--
 	}
@@ -163,6 +181,14 @@ func (i IntSubsettableHistogram) tags() map[string]string {
 // Choose scale/start/end values that match your *intent*, i.e. the range you want to capture, and then choose
 // a length that EXCEEDS that by at least 2x, ideally 4x-10x, and ends at a highly-divisible-by-2 value.
 //
+// Length should ideally be a highly-divisible-by-2 value, to keep subsetting "clean" as long as possible,
+// i.e. the ranges of values in each bucket stays the same rather than having the second-to-last one cover
+// a smaller range.
+//
+// This length will be padded internally to add both a zero value and a next-power-of-2 value, to help keep
+// negative values identifiable, and keep the upper limit unchanged across all scales (as it cannot cleanly
+// subset, because it holds an infinite range of values).
+//
 // The exact length / exceeding / etc does not matter (just write a test so it's documented and can be reviewed),
 // it just serves to document your intent and to make sure that we have some head-room so we can understand how
 // wrongly we guessed at our needs if it's exceeded during an incident of some kind.  We've failed at this
@@ -190,30 +216,33 @@ func makeSubsettableHistogram(scale int, start, end time.Duration, length int) S
 		panic(fmt.Sprintf("length must be between 12 < %d <=160", length))
 	}
 	// make sure the number of buckets completes a "full" row,
-	// i.e. the next bucket would be a power of 2 of the start value.
+	// to which we will add one more to reach the next start*2^N value.
 	//
 	// for a more visual example of what this means, see the logged strings in tests:
-	// each "row" of values must be the same width.
+	// each "row" of values must be the same width, and it must have a single value in the last row.
 	//
 	// adding a couple buckets to ensure this is met costs very little, and ensures
 	// subsetting combines values more consistently (not crossing rows) for longer.
 	powerOfTwoWidth := int(math.Pow(2, float64(scale))) // num of buckets needed to double a value
 	missing := length % powerOfTwoWidth
 	if missing != 0 {
-		panic(fmt.Sprintf(`number of buckets must "fill" a power of 2 to end at a consistent row width.  `+
+		panic(fmt.Sprintf(`number of buckets must end at a power of 2 of the starting value.  `+
 			`got %d, probably raise to %d`,
-			length, length+missing))
+			length, length+missing,
+		))
 	}
 
 	var buckets tally.DurationBuckets
 	for i := 0; i < length; i++ {
 		buckets = append(buckets, nextBucket(start, len(buckets), scale))
 	}
+	// the loop above has "filled" a full row, we need one more to reach the next power of 2.
+	buckets = append(buckets, nextBucket(start, len(buckets), scale))
 
-	if last(buckets) <= end*2 {
+	if last(buckets) < end*2 {
 		panic(fmt.Sprintf("not enough buckets (%d) to exceed the end target (%v) by at least 2x. "+
 			"you are STRONGLY encouraged to include ~2x-10x more range than your intended end value, "+
-			"because we almost always underestimate the ranges needed during incidents",
+			"preferably 4x+, because we almost always underestimate the ranges needed during incidents",
 			length, last(buckets)),
 		)
 	}
@@ -251,7 +280,7 @@ func (s SubsettableHistogram) buckets() tally.DurationBuckets { return s.tallyBu
 func (s SubsettableHistogram) print(to func(string, ...any)) {
 	to("%v\n", s.tallyBuckets[0:1]) // zero value on its own row
 	for rowStart := 1; rowStart < s.len(); rowStart += s.width() {
-		to("%v\n", s.tallyBuckets[rowStart:rowStart+s.width()])
+		to("%v\n", s.tallyBuckets[rowStart:min(rowStart+s.width(), len(s.tallyBuckets))])
 	}
 }
 
@@ -268,7 +297,7 @@ func (i IntSubsettableHistogram) print(to func(string, ...any)) {
 	to("[%d]\n", int(i.tallyBuckets[0])) // zero value on its own row
 	for rowStart := 1; rowStart < i.len(); rowStart += i.width() {
 		ints := make([]int, 0, i.width())
-		for _, d := range i.tallyBuckets[rowStart : rowStart+i.width()] {
+		for _, d := range i.tallyBuckets[rowStart:min(rowStart+i.width(), len(i.tallyBuckets))] {
 			ints = append(ints, int(d))
 		}
 		to("%v\n", ints)

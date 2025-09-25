@@ -27,7 +27,6 @@ import (
 	"github.com/pborman/uuid"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/errors"
@@ -115,7 +114,7 @@ type (
 	) WorkflowResetter
 
 	newReplicationTaskFn func(
-		activeClusterManager activecluster.Manager,
+		clusterMetadata cluster.Metadata,
 		historySerializer persistence.PayloadSerializer,
 		taskStartTime time.Time,
 		logger log.Logger,
@@ -311,7 +310,7 @@ func (r *historyReplicatorImpl) ApplyEvents(
 
 	startTime := time.Now()
 	task, err := r.newReplicationTaskFn(
-		r.shard.GetActiveClusterManager(),
+		r.clusterMetadata,
 		r.historySerializer,
 		startTime,
 		r.logger,
@@ -445,7 +444,6 @@ func applyStartEvents(
 		execution.NewWorkflow(
 			ctx,
 			clusterMetadata,
-			shard.GetActiveClusterManager(),
 			context,
 			mutableState,
 			releaseFn,
@@ -554,7 +552,6 @@ func applyNonStartEventsToCurrentBranch(
 	targetWorkflow := execution.NewWorkflow(
 		ctx,
 		clusterMetadata,
-		shard.GetActiveClusterManager(),
 		context,
 		mutableState,
 		releaseFn,
@@ -578,7 +575,6 @@ func applyNonStartEventsToCurrentBranch(
 		newWorkflow = execution.NewWorkflow(
 			ctx,
 			clusterMetadata,
-			shard.GetActiveClusterManager(),
 			newContext,
 			newMutableState,
 			execution.NoopReleaseFn,
@@ -674,7 +670,6 @@ func applyNonStartEventsToNoneCurrentBranchWithoutContinueAsNew(
 		execution.NewWorkflow(
 			ctx,
 			clusterMetadata,
-			shard.GetActiveClusterManager(),
 			context,
 			mutableState,
 			releaseFn,
@@ -829,7 +824,6 @@ func applyNonStartEventsResetWorkflow(
 	targetWorkflow := execution.NewWorkflow(
 		ctx,
 		clusterMetadata,
-		shard.GetActiveClusterManager(),
 		context,
 		mutableState,
 		execution.NoopReleaseFn,

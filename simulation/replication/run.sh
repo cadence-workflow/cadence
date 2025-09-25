@@ -1,22 +1,126 @@
 #!/bin/bash
 
-# This script can be used to run replication simulator and check the critical flow via logs
-# Scenario specs are located at host/testdata/replication_simulation_${scenario}.yaml
-# Dynamic configs are located at config/dynamicconfig/replication_simulation_${scenario}.yml
-# The output of the simulation is saved in replication-simulator-output/ folder
-
-# Usage: ./simulation/replication/run.sh <scenario>
-# Example command that runs default scenario with a custom dockerfile:
-#   ./simulation/replication/run.sh default "" "" ".local"
+# Cadence Replication Simulation Test Script
+#
+# Usage:
+#   ./simulation/replication/run.sh [OPTIONS]
+#
+# Examples:
+#   # Run default scenario
+#   ./simulation/replication/run.sh --scenario default
+#
+#   # Run specific scenario with custom dockerfile
+#   ./simulation/replication/run.sh --scenario activeactive --dockerfile-suffix .local
+#
+#   # Rerun without rebuilding images
+#   ./simulation/replication/run.sh --scenario default --rerun
+#
+#   # Run with custom timestamp
+#   ./simulation/replication/run.sh --scenario activeactive --timestamp 2024-01-15-10-30-00
+#
+# See simulation/replication/README.md for scenario details and output information.
 
 set -eo pipefail
 
-testCase="${1:-default}"
+show_help() {
+    cat << EOF
+Cadence Replication Simulation Test Script
+
+USAGE:
+    $0 [OPTIONS]
+
+OPTIONS:
+    -s, --scenario SCENARIO          Test scenario to run (required)
+                                   Corresponds to testdata/replication_simulation_SCENARIO.yaml
+
+    -r, --rerun                     Skip rebuilding images and reuse existing containers
+                                   Useful for faster reruns during development
+
+    -t, --timestamp TIMESTAMP       Custom timestamp for test naming (default: current time)
+                                   Format: YYYY-MM-DD-HH-MM-SS
+
+    -d, --dockerfile-suffix SUFFIX  Dockerfile suffix for custom builds (default: empty)
+                                   Example: .local for Dockerfile.local
+
+    -h, --help                      Show this help message
+
+EXAMPLES:
+    # Run default scenario
+    $0 --scenario default
+
+    # Run specific scenario with custom dockerfile
+    $0 --scenario activeactive --dockerfile-suffix .local
+
+    # Rerun without rebuilding images
+    $0 --scenario default --rerun
+
+    # Run with all options
+    $0 --scenario activeactive --rerun --timestamp 2024-01-15-10-30-00 --dockerfile-suffix .local
+
+EOF
+}
+
+# Default values
+testCase=""
+rerun=""
+timestamp=""
+dockerFileSuffix=""
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -s|--scenario)
+            testCase="$2"
+            shift 2
+            ;;
+        -r|--rerun)
+            rerun="rerun"
+            shift
+            ;;
+        -t|--timestamp)
+            timestamp="$2"
+            shift 2
+            ;;
+        -d|--dockerfile-suffix)
+            dockerFileSuffix="$2"
+            shift 2
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            echo "Use --help for usage information." >&2
+            exit 1
+            ;;
+        *)
+            echo "Unexpected positional argument: $1" >&2
+            echo "Use --scenario to specify the test scenario." >&2
+            echo "Use --help for usage information." >&2
+            exit 1
+            ;;
+    esac
+done
+
+# Require scenario parameter
+if [[ -z "$testCase" ]]; then
+    echo "Error: --scenario parameter is required" >&2
+    echo "" >&2
+    show_help
+    exit 1
+fi
+
+# Set default timestamp if not provided
+if [[ -z "$timestamp" ]]; then
+    timestamp="$(date '+%Y-%m-%d-%H-%M-%S')"
+fi
+
 testCfg="testdata/replication_simulation_$testCase.yaml"
-now="$(date '+%Y-%m-%d-%H-%M-%S')"
-rerun="${2:-}"
-timestamp="${3:-$now}"
-dockerFileSuffix="${4:-}"
 testName="test-$testCase-$timestamp"
 resultFolder="replication-simulator-output"
 mkdir -p "$resultFolder"

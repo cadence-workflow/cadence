@@ -1,7 +1,11 @@
 # This file is a replication simulation scenario spec.
 # It is parsed into ReplicationSimulationConfig struct.
-# Replication simulation for this file can be run via ./simulation/replication/run.sh activepassive_to_activeactive
+# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario activepassive_to_activeactive
 # Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activepassive_to_activeactive.yml
+# Validates behaviour of workflows in a domain converted from active-passive to active-active
+# When a domain is migrated from active-passive to active-active
+# It should run new workflows in region sticky mode
+
 clusters:
   cluster0:
     grpcEndpoint: "cadence-cluster0:7833"
@@ -55,6 +59,7 @@ operations:
     domain: test-domain
     workflowExecutionStartToCloseTimeout: 60s
     workflowDuration: 30s
+
   - op: validate
     at: 110s
     workflowID: wf2

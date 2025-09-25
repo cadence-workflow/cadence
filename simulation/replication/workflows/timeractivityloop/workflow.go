@@ -31,10 +31,26 @@ import (
 	"github.com/uber/cadence/simulation/replication/types"
 )
 
+const (
+	latestSignalContentQuery = "latest-signal-content"
+	signalName               = "custom-signal"
+)
+
 func Workflow(ctx workflow.Context, input types.WorkflowInput) (types.WorkflowOutput, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Sugar().Infof("timer-activity-loop-workflow started with input: %+v", input)
 
+	signalContent := make([]string, 0)
+	err := workflow.SetQueryHandler(ctx, latestSignalContentQuery, func() ([]string, error) {
+		logger.Sugar().Infof("query handler called. returning all signal content: %s", signalContent)
+		return signalContent, nil
+	})
+	if err != nil {
+		logger.Sugar().Errorf("failed to set query handler: %v", err)
+		return types.WorkflowOutput{}, err
+	}
+
+	signalCh := workflow.GetSignalChannel(ctx, signalName)
 	endTime := workflow.Now(ctx).Add(input.Duration)
 	count := 0
 	for {
@@ -53,6 +69,14 @@ func Workflow(ctx workflow.Context, input types.WorkflowInput) (types.WorkflowOu
 		timerFuture := workflow.NewTimer(ctx, types.TimerInterval)
 		selector.AddFuture(timerFuture, func(f workflow.Future) {
 			logger.Info("timer-activity-loop-workflow timer fired")
+		})
+
+		selector.AddReceive(signalCh, func(c workflow.Channel, more bool) {
+			var signal string
+			for c.ReceiveAsync(&signal) {
+				logger.Sugar().Infof("signal received: %s", signal)
+				signalContent = append(signalContent, signal)
+			}
 		})
 
 		// wait for both activity and timer to complete
