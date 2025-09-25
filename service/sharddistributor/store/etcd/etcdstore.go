@@ -16,10 +16,6 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-func init() {
-	store.Register("etcd", fx.Provide(NewStore))
-}
-
 const (
 	executorHeartbeatKey      = "heartbeat"
 	executorStatusKey         = "status"

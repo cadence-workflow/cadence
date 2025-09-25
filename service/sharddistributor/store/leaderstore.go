@@ -2,9 +2,6 @@ package store
 
 import (
 	"context"
-	"fmt"
-
-	"go.uber.org/fx"
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=leaderstore_mock.go Elector,Election
@@ -28,23 +25,4 @@ type Election interface {
 	// Guard returns a transaction guard representing the current leadership term.
 	// This guard can be passed to the generic store to perform leader-protected writes.
 	Guard() GuardFunc
-}
-
-var (
-	leaderStoreRegistry = make(map[string]Impl)
-)
-
-// RegisterLeaderStore registers store implementation in the registry.
-func RegisterLeaderStore(name string, factory Impl) {
-	leaderStoreRegistry[name] = factory
-}
-
-// LeaderModule returns registered a leader store fx.Option from the configuration.
-// This can introduce extra dependency requirements to the fx application.
-func LeaderModule(name string) fx.Option {
-	factory, ok := leaderStoreRegistry[name]
-	if !ok {
-		panic(fmt.Sprintf("no leader store registered with name %s", name))
-	}
-	return factory
 }

@@ -13,10 +13,6 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-func init() {
-	store.RegisterLeaderStore("etcd", fx.Provide(NewLeaderStore))
-}
-
 type LeaderStore struct {
 	client         *clientv3.Client
 	electionConfig etcdCfg
