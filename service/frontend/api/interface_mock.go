@@ -716,3 +716,18 @@ func (mr *MockHandlerMockRecorder) UpdateDomain(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDomain", reflect.TypeOf((*MockHandler)(nil).UpdateDomain), arg0, arg1)
 }
+
+// UpdateDomainReplicationConfig mocks base method.
+func (m *MockHandler) UpdateDomainReplicationConfig(arg0 context.Context, arg1 *types.UpdateDomainReplicationConfigRequest) (*types.UpdateDomainReplicationConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateDomainReplicationConfig", arg0, arg1)
+	ret0, _ := ret[0].(*types.UpdateDomainReplicationConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateDomainReplicationConfig indicates an expected call of UpdateDomainReplicationConfig.
+func (mr *MockHandlerMockRecorder) UpdateDomainReplicationConfig(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDomainReplicationConfig", reflect.TypeOf((*MockHandler)(nil).UpdateDomainReplicationConfig), arg0, arg1)
+}

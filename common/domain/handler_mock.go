@@ -143,6 +143,21 @@ func (mr *MockHandlerMockRecorder) UpdateDomain(ctx, updateRequest any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDomain", reflect.TypeOf((*MockHandler)(nil).UpdateDomain), ctx, updateRequest)
 }
 
+// UpdateDomainReplicationConfig mocks base method.
+func (m *MockHandler) UpdateDomainReplicationConfig(ctx context.Context, updateReplicationRequest *types.UpdateDomainReplicationConfigRequest) (*types.UpdateDomainReplicationConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateDomainReplicationConfig", ctx, updateReplicationRequest)
+	ret0, _ := ret[0].(*types.UpdateDomainReplicationConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateDomainReplicationConfig indicates an expected call of UpdateDomainReplicationConfig.
+func (mr *MockHandlerMockRecorder) UpdateDomainReplicationConfig(ctx, updateReplicationRequest any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDomainReplicationConfig", reflect.TypeOf((*MockHandler)(nil).UpdateDomainReplicationConfig), ctx, updateReplicationRequest)
+}
+
 // UpdateIsolationGroups mocks base method.
 func (m *MockHandler) UpdateIsolationGroups(ctx context.Context, updateRequest types.UpdateDomainIsolationGroupsRequest) error {
 	m.ctrl.T.Helper()

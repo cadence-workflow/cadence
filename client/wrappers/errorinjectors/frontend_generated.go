@@ -939,3 +939,23 @@ func (c *frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDoma
 	}
 	return
 }
+
+func (c *frontendClient) UpdateDomainReplicationConfig(ctx context.Context, up1 *types.UpdateDomainReplicationConfigRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainReplicationConfigResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		up2, err = c.client.UpdateDomainReplicationConfig(ctx, up1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationUpdateDomainReplicationConfig,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}

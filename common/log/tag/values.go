@@ -385,6 +385,7 @@ var (
 	FrontendClientOperationStartWorkflowExecutionAsync           = clientOperation("frontend-start-wf-execution-async")
 	FrontendClientOperationTerminateWorkflowExecution            = clientOperation("frontend-terminate-wf-execution")
 	FrontendClientOperationUpdateDomain                          = clientOperation("frontend-update-domain")
+	FrontendClientOperationUpdateDomainReplicationConfig         = clientOperation("frontend-update-domain-replication-config")
 	FrontendClientOperationGetClusterInfo                        = clientOperation("frontend-get-cluster-info")
 	FrontendClientOperationListTaskListPartitions                = clientOperation("frontend-list-task-list-partitions")
 	FrontendClientOperationGetTaskListsByDomain                  = clientOperation("frontend-get-task-list-for-domain")

@@ -745,3 +745,7 @@ func (h *apiHandler) TerminateWorkflowExecution(ctx context.Context, tp1 *types.
 func (h *apiHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest) (up2 *types.UpdateDomainResponse, err error) {
 	return h.wrapped.UpdateDomain(ctx, up1)
 }
+
+func (h *apiHandler) UpdateDomainReplicationConfig(ctx context.Context, up1 *types.UpdateDomainReplicationConfigRequest) (up2 *types.UpdateDomainReplicationConfigResponse, err error) {
+	return h.wrapped.UpdateDomainReplicationConfig(ctx, up1)
+}

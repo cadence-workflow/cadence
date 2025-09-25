@@ -380,3 +380,11 @@ func (h *versionCheckHandler) UpdateDomain(ctx context.Context, up1 *types.Updat
 	}
 	return h.frontendHandler.UpdateDomain(ctx, up1)
 }
+
+func (h *versionCheckHandler) UpdateDomainReplicationConfig(ctx context.Context, up1 *types.UpdateDomainReplicationConfigRequest) (up2 *types.UpdateDomainReplicationConfigResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.UpdateDomainReplicationConfig(ctx, up1)
+}

@@ -4506,6 +4506,25 @@ func ToUpdateDomainResponse(t *apiv1.UpdateDomainResponse) *types.UpdateDomainRe
 	}
 }
 
+//func FromUpdateDomainReplicationConfigRequest(t *types.DeleteDomainRequest) *apiv1.DeleteDomainRequest {
+//	if t == nil {
+//		return nil
+//	}
+//	return &apiv1.DeleteDomainRequest{
+//		Name:          t.Name,
+//		SecurityToken: t.SecurityToken,
+//	}
+//}
+//
+//func ToUpdateDomainReplicationConfigRequest(t *apiv1.DeleteDomainRequest) *types.DeleteDomainRequest {
+//	if t == nil {
+//		return nil
+//	}
+//	return &types.DeleteDomainRequest{
+//		Name: t.Name,
+//	}
+//}
+
 func FromUpsertWorkflowSearchAttributesDecisionAttributes(t *types.UpsertWorkflowSearchAttributesDecisionAttributes) *apiv1.UpsertWorkflowSearchAttributesDecisionAttributes {
 	if t == nil {
 		return nil

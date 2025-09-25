@@ -1017,3 +1017,25 @@ func (c *frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDoma
 	}
 	return up2, err
 }
+
+func (c *frontendClient) UpdateDomainReplicationConfig(ctx context.Context, up1 *types.UpdateDomainReplicationConfigRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainReplicationConfigResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.FrontendClientUpdateDomainReplicationConfigScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.FrontendClientUpdateDomainReplicationConfigScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	up2, err = c.client.UpdateDomainReplicationConfig(ctx, up1, p1...)
+	sw.Stop()
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return up2, err
+}

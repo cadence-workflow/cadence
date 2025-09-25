@@ -819,3 +819,18 @@ func (h *apiHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRe
 	}
 	return up2, err
 }
+func (h *apiHandler) UpdateDomainReplicationConfig(ctx context.Context, up1 *types.UpdateDomainReplicationConfigRequest) (up2 *types.UpdateDomainReplicationConfigResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("UpdateDomainReplicationConfig")}
+	scope := h.metricsClient.Scope(metrics.FrontendUpdateDomainReplicationConfigScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainUnknownTag())...)
+	scope.IncCounter(metrics.CadenceRequests)
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tags...)
+
+	up2, err = h.handler.UpdateDomainReplicationConfig(ctx, up1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return up2, err
+}

@@ -1598,3 +1598,7 @@ func (handler *clusterRedirectionHandler) TerminateWorkflowExecution(ctx context
 func (handler *clusterRedirectionHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest) (up2 *types.UpdateDomainResponse, err error) {
 	return handler.frontendHandler.UpdateDomain(ctx, up1)
 }
+
+func (handler *clusterRedirectionHandler) UpdateDomainReplicationConfig(ctx context.Context, up1 *types.UpdateDomainReplicationConfigRequest) (up2 *types.UpdateDomainReplicationConfigResponse, err error) {
+	return handler.frontendHandler.UpdateDomainReplicationConfig(ctx, up1)
+}

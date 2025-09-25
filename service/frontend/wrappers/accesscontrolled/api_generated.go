@@ -648,3 +648,21 @@ func (a *apiHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRe
 	}
 	return a.handler.UpdateDomain(ctx, up1)
 }
+
+func (a *apiHandler) UpdateDomainReplicationConfig(ctx context.Context, up1 *types.UpdateDomainReplicationConfigRequest) (up2 *types.UpdateDomainReplicationConfigResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendUpdateDomainReplicationConfigScope, up1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "UpdateDomainReplicationConfig",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(up1),
+		DomainName:  up1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.UpdateDomainReplicationConfig(ctx, up1)
+}

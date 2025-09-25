@@ -305,3 +305,9 @@ func (c *frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDoma
 	defer cancel()
 	return c.client.UpdateDomain(ctx, up1, p1...)
 }
+
+func (c *frontendClient) UpdateDomainReplicationConfig(ctx context.Context, up1 *types.UpdateDomainReplicationConfigRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainReplicationConfigResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.UpdateDomainReplicationConfig(ctx, up1, p1...)
+}

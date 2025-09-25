@@ -245,3 +245,8 @@ func (g APIHandler) UpdateDomain(ctx context.Context, request *apiv1.UpdateDomai
 	response, err := g.h.UpdateDomain(ctx, proto.ToUpdateDomainRequest(request))
 	return proto.FromUpdateDomainResponse(response), proto.FromError(err)
 }
+
+func (g APIHandler) UpdateDomainReplicationConfig(ctx context.Context, request *apiv1.UpdateDomainReplicationConfigRequest) (*apiv1.UpdateDomainReplicationConfigResponse, error) {
+	response, err := g.h.UpdateDomainReplicationConfig(ctx, proto.ToUpdateDomainReplicationConfigRequest(request))
+	return proto.FromUpdateDomainReplicationConfigResponse(response), proto.FromError(err)
+}

@@ -237,3 +237,8 @@ func (g frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDomai
 	response, err := g.c.UpdateDomain(ctx, thrift.FromUpdateDomainRequest(up1), p1...)
 	return thrift.ToUpdateDomainResponse(response), thrift.ToError(err)
 }
+
+func (g frontendClient) UpdateDomainReplicationConfig(ctx context.Context, up1 *types.UpdateDomainReplicationConfigRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainReplicationConfigResponse, err error) {
+	response, err := g.c.UpdateDomainReplicationConfig(ctx, thrift.FromUpdateDomainReplicationConfigRequest(up1), p1...)
+	return thrift.ToUpdateDomainReplicationConfigResponse(response), thrift.ToError(err)
+}

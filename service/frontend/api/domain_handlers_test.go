@@ -417,3 +417,66 @@ func TestDeleteDomain(t *testing.T) {
 		})
 	}
 }
+
+//func TestUpdateDomainReplicationConfig(t *testing.T) {
+//	testCases := []struct {
+//		name          string
+//		req           *types.UpdateDomainReplicationConfigRequest
+//		setupMocks    func(*mockDeps)
+//		expectError   bool
+//		expectedError string
+//	}{
+//		{
+//			name: "success",
+//			req: &types.UpdateDomainReplicationConfigRequest{
+//				Name:              "domain-name",
+//				ActiveClusterName: ptr.String("c1"),
+//				Clusters: []*types.ClusterReplicationConfiguration{
+//					{ClusterName: "c1"}, {ClusterName: "c2"},
+//				},
+//				setupMocks: func(deps *mockDeps) {
+//					deps.mockRequestValidator.EXPECT().ValidateDeprecateDomainRequest(gomock.Any(), gomock.Any()).Return(nil)
+//					deps.mockDomainHandler.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(nil)
+//				},
+//				expectError: false,
+//			},
+//			{
+//				name: "validation error",
+//				req: &types.DeprecateDomainRequest{
+//					Name: "domain-name",
+//				},
+//				setupMocks: func(deps *mockDeps) {
+//					deps.mockRequestValidator.EXPECT().ValidateDeprecateDomainRequest(gomock.Any(), gomock.Any()).Return(errors.New("validation error"))
+//				},
+//				expectError:   true,
+//				expectedError: "validation error",
+//			},
+//			{
+//				name: "deprecate domain handler error",
+//				req: &types.DeprecateDomainRequest{
+//					Name: "domain-name",
+//				},
+//				setupMocks: func(deps *mockDeps) {
+//					deps.mockRequestValidator.EXPECT().ValidateDeprecateDomainRequest(gomock.Any(), gomock.Any()).Return(nil)
+//					deps.mockDomainHandler.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(errors.New("handler error"))
+//				},
+//				expectError:   true,
+//				expectedError: "handler error",
+//			},
+//		}
+//
+//		for _, tc := range testCases{
+//		t.Run(tc.name, func (t *testing.T){
+//		wh, deps := setupMocksForWorkflowHandler(t)
+//		tc.setupMocks(deps)
+//
+//		err := wh.DeprecateDomain(context.Background(), tc.req)
+//		if tc.expectError{
+//		assert.ErrorContains(t, err, tc.expectedError)
+//	} else{
+//		assert.NoError(t, err)
+//	}
+//	})
+//	}
+//	}
+//}

@@ -465,3 +465,14 @@ func (c *frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDoma
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
+
+func (c *frontendClient) UpdateDomainReplicationConfig(ctx context.Context, up1 *types.UpdateDomainReplicationConfigRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainReplicationConfigResponse, err error) {
+	var resp *types.UpdateDomainReplicationConfigResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.UpdateDomainReplicationConfig(ctx, up1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}

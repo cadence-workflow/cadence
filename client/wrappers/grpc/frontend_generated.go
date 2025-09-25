@@ -238,3 +238,8 @@ func (g frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDomai
 	response, err := g.c.UpdateDomain(ctx, proto.FromUpdateDomainRequest(up1), p1...)
 	return proto.ToUpdateDomainResponse(response), proto.ToError(err)
 }
+
+func (g frontendClient) UpdateDomainReplicationConfig(ctx context.Context, up1 *types.UpdateDomainReplicationConfigRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainReplicationConfigResponse, err error) {
+	response, err := g.c.UpdateDomainReplicationConfig(ctx, proto.FromUpdateDomainReplicationConfigRequest(up1), p1...)
+	return proto.ToUpdateDomainReplicationConfigResponse(response), proto.ToError(err)
+}

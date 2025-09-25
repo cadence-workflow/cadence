@@ -927,3 +927,23 @@ func (mr *MockClientMockRecorder) UpdateDomain(arg0, arg1 any, arg2 ...any) *gom
 	varargs := append([]any{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDomain", reflect.TypeOf((*MockClient)(nil).UpdateDomain), varargs...)
 }
+
+// UpdateDomainReplicationConfig mocks base method.
+func (m *MockClient) UpdateDomainReplicationConfig(arg0 context.Context, arg1 *types.UpdateDomainReplicationConfigRequest, arg2 ...yarpc.CallOption) (*types.UpdateDomainReplicationConfigResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "UpdateDomainReplicationConfig", varargs...)
+	ret0, _ := ret[0].(*types.UpdateDomainReplicationConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateDomainReplicationConfig indicates an expected call of UpdateDomainReplicationConfig.
+func (mr *MockClientMockRecorder) UpdateDomainReplicationConfig(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDomainReplicationConfig", reflect.TypeOf((*MockClient)(nil).UpdateDomainReplicationConfig), varargs...)
+}

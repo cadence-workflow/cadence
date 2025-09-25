@@ -238,6 +238,20 @@ func (mr *MockRequestValidatorMockRecorder) ValidateResetStickyTaskListRequest(a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateResetStickyTaskListRequest", reflect.TypeOf((*MockRequestValidator)(nil).ValidateResetStickyTaskListRequest), arg0, arg1)
 }
 
+// ValidateUpdateDomainReplicationConfigRequest mocks base method.
+func (m *MockRequestValidator) ValidateUpdateDomainReplicationConfigRequest(arg0 context.Context, arg1 *types.UpdateDomainReplicationConfigRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ValidateUpdateDomainReplicationConfigRequest", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ValidateUpdateDomainReplicationConfigRequest indicates an expected call of ValidateUpdateDomainReplicationConfigRequest.
+func (mr *MockRequestValidatorMockRecorder) ValidateUpdateDomainReplicationConfigRequest(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateUpdateDomainReplicationConfigRequest", reflect.TypeOf((*MockRequestValidator)(nil).ValidateUpdateDomainReplicationConfigRequest), arg0, arg1)
+}
+
 // ValidateUpdateDomainRequest mocks base method.
 func (m *MockRequestValidator) ValidateUpdateDomainRequest(arg0 context.Context, arg1 *types.UpdateDomainRequest) error {
 	m.ctrl.T.Helper()
