@@ -254,7 +254,7 @@ func FromTaskSource(t *types.TaskSource) sharedv1.TaskSource {
 	case types.TaskSourceDbBacklog:
 		return sharedv1.TaskSource_TASK_SOURCE_DB_BACKLOG
 	}
-	panic("unexpected enum value")
+	return sharedv1.TaskSource_TASK_SOURCE_INVALID
 }
 
 func ToTaskSource(t sharedv1.TaskSource) *types.TaskSource {
@@ -266,7 +266,7 @@ func ToTaskSource(t sharedv1.TaskSource) *types.TaskSource {
 	case sharedv1.TaskSource_TASK_SOURCE_DB_BACKLOG:
 		return types.TaskSourceDbBacklog.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromTransientDecisionInfo(t *types.TransientDecisionInfo) *sharedv1.TransientDecisionInfo {
@@ -367,7 +367,7 @@ func FromWorkflowState(t *int32) sharedv1.WorkflowState {
 	case persistence.WorkflowStateCorrupted:
 		return sharedv1.WorkflowState_WORKFLOW_STATE_CORRUPTED
 	}
-	panic("unexpected enum value")
+	return sharedv1.WorkflowState_WORKFLOW_STATE_INVALID
 }
 
 func ToWorkflowState(t sharedv1.WorkflowState) *int32 {
@@ -393,7 +393,7 @@ func ToWorkflowState(t sharedv1.WorkflowState) *int32 {
 		v := int32(persistence.WorkflowStateCorrupted)
 		return &v
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromHostInfoArray(t []*types.HostInfo) []*adminv1.HostInfo {
@@ -472,7 +472,7 @@ func FromDLQType(t *types.DLQType) adminv1.DLQType {
 	case types.DLQTypeDomain:
 		return adminv1.DLQType_DLQ_TYPE_DOMAIN
 	}
-	panic("unexpected enum value")
+	return adminv1.DLQType_DLQ_TYPE_INVALID
 }
 
 func ToDLQType(t adminv1.DLQType) *types.DLQType {
@@ -484,7 +484,7 @@ func ToDLQType(t adminv1.DLQType) *types.DLQType {
 	case adminv1.DLQType_DLQ_TYPE_DOMAIN:
 		return types.DLQTypeDomain.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromDomainOperation(t *types.DomainOperation) adminv1.DomainOperation {
@@ -499,7 +499,7 @@ func FromDomainOperation(t *types.DomainOperation) adminv1.DomainOperation {
 	case types.DomainOperationDelete:
 		return adminv1.DomainOperation_DOMAIN_OPERATION_DELETE
 	}
-	panic("unexpected enum value")
+	return adminv1.DomainOperation_DOMAIN_OPERATION_INVALID
 }
 
 func ToDomainOperation(t adminv1.DomainOperation) *types.DomainOperation {
@@ -513,7 +513,7 @@ func ToDomainOperation(t adminv1.DomainOperation) *types.DomainOperation {
 	case adminv1.DomainOperation_DOMAIN_OPERATION_DELETE:
 		return types.DomainOperationDelete.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromDomainTaskAttributes(t *types.DomainTaskAttributes) *adminv1.DomainTaskAttributes {
@@ -705,7 +705,7 @@ func FromReplicationTaskType(t *types.ReplicationTaskType) adminv1.ReplicationTa
 	case types.ReplicationTaskTypeFailoverMarker:
 		return adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_FAILOVER_MARKER
 	}
-	panic("unexpected enum value")
+	return adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_INVALID
 }
 
 func ToReplicationTaskType(t adminv1.ReplicationTaskType) *types.ReplicationTaskType {
@@ -727,7 +727,7 @@ func ToReplicationTaskType(t adminv1.ReplicationTaskType) *types.ReplicationTask
 	case adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_FAILOVER_MARKER:
 		return types.ReplicationTaskTypeFailoverMarker.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromReplicationToken(t *types.ReplicationToken) *adminv1.ReplicationToken {
@@ -1001,7 +1001,7 @@ func FromTaskType(t *int32) adminv1.TaskType {
 	case constants.TaskTypeCrossCluster:
 		return adminv1.TaskType_TASK_TYPE_CROSS_CLUSTER
 	}
-	panic("unexpected enum value")
+	return adminv1.TaskType_TASK_TYPE_INVALID
 }
 
 func ToTaskType(t adminv1.TaskType) *int32 {
@@ -1017,7 +1017,7 @@ func ToTaskType(t adminv1.TaskType) *int32 {
 	case adminv1.TaskType_TASK_TYPE_CROSS_CLUSTER:
 		return common.Int32Ptr(int32(constants.TaskTypeCrossCluster))
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromFailoverMarkerTokenArray(t []*types.FailoverMarkerToken) []*adminv1.FailoverMarkerToken {
@@ -1105,7 +1105,7 @@ func FromCrossClusterTaskType(t *types.CrossClusterTaskType) adminv1.CrossCluste
 	case types.CrossClusterTaskTypeApplyParentPolicy:
 		return adminv1.CrossClusterTaskType_CROSS_CLUSTER_TASK_TYPE_APPLY_PARENT_CLOSE_POLICY
 	}
-	panic("unexpected enum value")
+	return adminv1.CrossClusterTaskType_CROSS_CLUSTER_TASK_TYPE_INVALID
 }
 
 // ToCrossClusterTaskType converts proto CrossClusterTaskType type to internal
@@ -1124,7 +1124,7 @@ func ToCrossClusterTaskType(t adminv1.CrossClusterTaskType) *types.CrossClusterT
 	case adminv1.CrossClusterTaskType_CROSS_CLUSTER_TASK_TYPE_APPLY_PARENT_CLOSE_POLICY:
 		return types.CrossClusterTaskTypeApplyParentPolicy.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 // FromCrossClusterTaskFailedCause converts internal CrossClusterTaskFailedCause type to proto
@@ -1146,7 +1146,7 @@ func FromCrossClusterTaskFailedCause(t *types.CrossClusterTaskFailedCause) admin
 	case types.CrossClusterTaskFailedCauseUncategorized:
 		return adminv1.CrossClusterTaskFailedCause_CROSS_CLUSTER_TASK_FAILED_CAUSE_UNCATEGORIZED
 	}
-	panic("unexpected enum value")
+	return adminv1.CrossClusterTaskFailedCause_CROSS_CLUSTER_TASK_FAILED_CAUSE_INVALID
 }
 
 // ToCrossClusterTaskFailedCause converts proto CrossClusterTaskFailedCause type to internal
@@ -1168,7 +1168,7 @@ func ToCrossClusterTaskFailedCause(t adminv1.CrossClusterTaskFailedCause) *types
 		return types.CrossClusterTaskFailedCauseUncategorized.Ptr()
 
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 // FromGetTaskFailedCause converts internal GetTaskFailedCause type to proto
@@ -1186,7 +1186,7 @@ func FromGetTaskFailedCause(t *types.GetTaskFailedCause) adminv1.GetTaskFailedCa
 	case types.GetTaskFailedCauseUncategorized:
 		return adminv1.GetTaskFailedCause_GET_TASK_FAILED_CAUSE_UNCATEGORIZED
 	}
-	panic("unexpected enum value")
+	return adminv1.GetTaskFailedCause_GET_TASK_FAILED_CAUSE_INVALID
 }
 
 // ToGetTaskFailedCause converts proto GetTaskFailedCause type to internal
@@ -1203,7 +1203,7 @@ func ToGetTaskFailedCause(t adminv1.GetTaskFailedCause) *types.GetTaskFailedCaus
 	case adminv1.GetTaskFailedCause_GET_TASK_FAILED_CAUSE_UNCATEGORIZED:
 		return types.GetTaskFailedCauseUncategorized.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 // FromCrossClusterTaskInfo converts internal CrossClusterTaskInfo type to proto
