@@ -1466,14 +1466,7 @@ func (d *handlerImpl) activeClustersFromRegisterRequest(registerRequest *types.R
 	// Initialize ActiveClustersByRegion with given cluster names and their initial failover versions
 	activeClustersByRegion := make(map[string]types.ActiveClusterInfo, len(registerRequest.ActiveClustersByRegion))
 	clusters := d.clusterMetadata.GetAllClusterInfo()
-	regions := d.clusterMetadata.GetAllRegionInfo()
 	for region, cluster := range registerRequest.ActiveClustersByRegion {
-		if _, ok := regions[region]; !ok {
-			return nil, &types.BadRequestError{
-				Message: fmt.Sprintf("Region %v not found. Domain cannot be registered in this region.", region),
-			}
-		}
-
 		clusterInfo, ok := clusters[cluster]
 		if !ok {
 			return nil, &types.BadRequestError{
