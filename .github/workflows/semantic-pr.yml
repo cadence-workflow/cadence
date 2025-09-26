@@ -32,8 +32,6 @@ jobs:
             build
           # TODO: Remove this once we've decided on scopes
           requireScope: false
-          # Allow GitHub issue references in the subject like "#1234"
-          subjectPattern: ^(?=.{1,50}$).*(\(#\d+\)|\s#\d+)?.*$
           # Skip validation for certain labels if needed
           ignoreLabels: |
             skip-commit-format
@@ -54,7 +52,7 @@ jobs:
               This PR title doesn't follow the conventional commit format. Please update your PR title to follow this pattern:
 
               \`\`\`
-              <type>: <description> (#issue)
+              <type>: <description>
               \`\`\`
 
               **Allowed types:** fix, feat, docs, style, refactor, perf, test, chore, ci, build
