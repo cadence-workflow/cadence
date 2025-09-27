@@ -16,6 +16,7 @@ jobs:
 
     steps:
       - name: Validate PR title
+        id: lint_pr_title
         uses: amannn/action-semantic-pull-request@v5.4.0
         with:
           # Allow standard conventional commit types
@@ -39,7 +40,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Comment on PR if validation fails
-        if: failure()
+        if: steps.lint_pr_title.outputs.error_message != null
         uses: actions/github-script@v7
         with:
           script: |
@@ -49,8 +50,12 @@ jobs:
               repo: context.repo.repo,
               body: `⚠️ **Semantic PR Check Failed**
 
-              This PR title doesn't follow the conventional commit format. Please update your PR title to follow this pattern:
+              **Error Details:**
+              \`\`\`
+              ${{ steps.lint_pr_title.outputs.error_message }}
+              \`\`\`
 
+              **Required Format:**
               \`\`\`
               <type>: <description>
               \`\`\`
@@ -58,9 +63,10 @@ jobs:
               **Allowed types:** fix, feat, docs, style, refactor, perf, test, chore, ci, build
 
               **Examples:**
-              - \`feat: add user authentication (#1234)\`
-              - \`fix: resolve memory leak in worker pool (#5678)\`
+              - \`feat: add user authentication system\`
+              - \`fix: resolve memory leak in worker pool\`
               - \`docs: update API documentation\`
+              - \`test: add integration tests for auth flow\`
 
-              `
+              This is currently a **warning only** and won't block your PR from being merged.`
             })
