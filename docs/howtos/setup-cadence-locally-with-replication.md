@@ -45,8 +45,8 @@ All commands are expected to be run from the repo's base path.
 
 6. Register a global domain that has multiple clusters enabled using the cadence
    CLI, so that it's worklows will be replicated across clusters: 
-   `./cadence --env development --domain test-domain domain register --gd true --clusters cluster0,cluster1`
+   `./cadence --domain test-domain domain register --gd true --clusters cluster0,cluster1`
 
 7. Start and test workflows as needed and failover the domain to make another
-   cluster active with a command such as this: `./cadence --env development --domain test-domain domain update --ac cluster1`
+   cluster active with a command such as this: `./cadence --domain test-domain domain update --ac cluster1`
 
