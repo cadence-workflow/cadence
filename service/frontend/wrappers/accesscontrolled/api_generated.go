@@ -149,6 +149,10 @@ func (a *apiHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.D
 	return a.handler.DiagnoseWorkflowExecution(ctx, dp1)
 }
 
+func (a *apiHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest) (fp2 *types.FailoverDomainResponse, err error) {
+	return a.handler.FailoverDomain(ctx, fp1)
+}
+
 func (a *apiHandler) GetClusterInfo(ctx context.Context) (cp1 *types.ClusterInfo, err error) {
 	return a.handler.GetClusterInfo(ctx)
 }

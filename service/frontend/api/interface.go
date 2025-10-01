@@ -84,5 +84,6 @@ type (
 		StartWorkflowExecutionAsync(context.Context, *types.StartWorkflowExecutionAsyncRequest) (*types.StartWorkflowExecutionAsyncResponse, error)
 		TerminateWorkflowExecution(context.Context, *types.TerminateWorkflowExecutionRequest) error
 		UpdateDomain(context.Context, *types.UpdateDomainRequest) (*types.UpdateDomainResponse, error)
+		FailoverDomain(context.Context, *types.FailoverDomainRequest) (*types.FailoverDomainResponse, error)
 	}
 )

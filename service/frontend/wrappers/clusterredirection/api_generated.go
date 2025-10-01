@@ -199,6 +199,10 @@ func (handler *clusterRedirectionHandler) DiagnoseWorkflowExecution(ctx context.
 	return handler.frontendHandler.DiagnoseWorkflowExecution(ctx, dp1)
 }
 
+func (handler *clusterRedirectionHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest) (fp2 *types.FailoverDomainResponse, err error) {
+	return handler.frontendHandler.FailoverDomain(ctx, fp1)
+}
+
 func (handler *clusterRedirectionHandler) GetClusterInfo(ctx context.Context) (cp1 *types.ClusterInfo, err error) {
 	return handler.frontendHandler.GetClusterInfo(ctx)
 }

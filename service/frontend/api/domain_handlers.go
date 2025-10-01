@@ -191,3 +191,11 @@ func (wh *WorkflowHandler) DeprecateDomain(ctx context.Context, deprecateRequest
 	}
 	return wh.domainHandler.DeprecateDomain(ctx, deprecateRequest)
 }
+
+// FailoverDomain is used to failover a registered domain to different cluster.
+func (wh *WorkflowHandler) FailoverDomain(ctx context.Context, failoverRequest *types.FailoverDomainRequest) (*types.FailoverDomainResponse, error) {
+	if wh.isShuttingDown() {
+		return nil, validate.ErrShuttingDown
+	}
+	return nil, &types.BadRequestError{Message: "FailoverDomain is not implemented yet"}
+}

@@ -1738,6 +1738,85 @@ func (v *DescribeDomainResponse) GetFailoverInfo() (o *FailoverInfo) {
 	return
 }
 
+// FailoverDomainRequest is an internal type (TBD...)
+type FailoverDomainRequest struct {
+	DomainName              *string `json:"domainName,omitempty"`
+	DomainActiveClusterName *string `json:"domainActiveClusterName,omitempty"`
+}
+
+// GetDomainName is an internal getter (TBD...)
+func (v *FailoverDomainRequest) GetDomainName() (o string) {
+	if v != nil && v.DomainName != nil {
+		return *v.DomainName
+	}
+	return
+}
+
+// GetDomainActiveClusterName is an internal getter (TBD...)
+func (v *FailoverDomainRequest) GetDomainActiveClusterName() (o string) {
+	if v != nil && v.DomainActiveClusterName != nil {
+		return *v.DomainActiveClusterName
+	}
+	return
+}
+
+// GetDomain is an internal getter (TBD...)
+func (v *FailoverDomainRequest) GetDomain() (o string) {
+	if v != nil && v.DomainName != nil {
+		return *v.DomainName
+	}
+	return
+}
+
+// FailoverDomainResponse is an internal type (TBD...)
+type FailoverDomainResponse struct {
+	DomainInfo               *DomainInfo                     `json:"domainInfo,omitempty"`
+	Configuration            *DomainConfiguration            `json:"configuration,omitempty"`
+	ReplicationConfiguration *DomainReplicationConfiguration `json:"replicationConfiguration,omitempty"`
+	FailoverVersion          int64                           `json:"failoverVersion,omitempty"`
+	IsGlobalDomain           bool                            `json:"isGlobalDomain,omitempty"`
+}
+
+// GetDomainInfo is an internal getter (TBD...)
+func (v *FailoverDomainResponse) GetDomainInfo() (o *DomainInfo) {
+	if v != nil && v.DomainInfo != nil {
+		return v.DomainInfo
+	}
+	return
+}
+
+// GetConfiguration is an internal getter (TBD...)
+func (v *FailoverDomainResponse) GetConfiguration() (o *DomainConfiguration) {
+	if v != nil && v.Configuration != nil {
+		return v.Configuration
+	}
+	return
+}
+
+// GetReplicationConfiguration is an internal getter (TBD...)
+func (v *FailoverDomainResponse) GetReplicationConfiguration() (o *DomainReplicationConfiguration) {
+	if v != nil && v.ReplicationConfiguration != nil {
+		return v.ReplicationConfiguration
+	}
+	return
+}
+
+// GetFailoverVersion is an internal getter (TBD...)
+func (v *FailoverDomainResponse) GetFailoverVersion() (o int64) {
+	if v != nil {
+		return v.FailoverVersion
+	}
+	return
+}
+
+// GetIsGlobalDomain is an internal getter (TBD...)
+func (v *FailoverDomainResponse) GetIsGlobalDomain() (o bool) {
+	if v != nil {
+		return v.IsGlobalDomain
+	}
+	return
+}
+
 // DescribeHistoryHostRequest is an internal type (TBD...)
 type DescribeHistoryHostRequest struct {
 	HostAddress      *string            `json:"hostAddress,omitempty"`

@@ -1614,6 +1614,56 @@ func ToDescribeDomainResponse(t *shared.DescribeDomainResponse) *types.DescribeD
 	}
 }
 
+// FromFailoverDomainRequest converts internal FailoverDomainRequest type to thrift
+func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *shared.FailoverDomainRequest {
+	if t == nil {
+		return nil
+	}
+	return &shared.FailoverDomainRequest{
+		DomainName:              t.DomainName,
+		DomainActiveClusterName: t.DomainActiveClusterName,
+	}
+}
+
+// ToFailoverDomainRequest converts thrift FailoverDomainRequest type to internal
+func ToFailoverDomainRequest(t *shared.FailoverDomainRequest) *types.FailoverDomainRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.FailoverDomainRequest{
+		DomainName:              t.DomainName,
+		DomainActiveClusterName: t.DomainActiveClusterName,
+	}
+}
+
+// FromFailoverDomainResponse converts internal FailoverDomainResponse type to thrift
+func FromFailoverDomainResponse(t *types.FailoverDomainResponse) *shared.FailoverDomainResponse {
+	if t == nil {
+		return nil
+	}
+	return &shared.FailoverDomainResponse{
+		DomainInfo:               FromDomainInfo(t.DomainInfo),
+		Configuration:            FromDomainConfiguration(t.Configuration),
+		ReplicationConfiguration: FromDomainReplicationConfiguration(t.ReplicationConfiguration),
+		FailoverVersion:          &t.FailoverVersion,
+		IsGlobalDomain:           &t.IsGlobalDomain,
+	}
+}
+
+// ToFailoverDomainResponse converts thrift FailoverDomainResponse type to internal
+func ToFailoverDomainResponse(t *shared.FailoverDomainResponse) *types.FailoverDomainResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.FailoverDomainResponse{
+		DomainInfo:               ToDomainInfo(t.DomainInfo),
+		Configuration:            ToDomainConfiguration(t.Configuration),
+		ReplicationConfiguration: ToDomainReplicationConfiguration(t.ReplicationConfiguration),
+		FailoverVersion:          t.GetFailoverVersion(),
+		IsGlobalDomain:           t.GetIsGlobalDomain(),
+	}
+}
+
 // FromAdminDescribeHistoryHostRequest converts internal DescribeHistoryHostRequest type to thrift
 func FromAdminDescribeHistoryHostRequest(t *types.DescribeHistoryHostRequest) *shared.DescribeHistoryHostRequest {
 	if t == nil {

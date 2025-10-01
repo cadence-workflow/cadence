@@ -355,3 +355,9 @@ func toScanWorkflowExecutionsRequestTags(req *types.ListWorkflowExecutionsReques
 		tag.WorkflowDomainName(req.GetDomain()),
 	}
 }
+
+func toFailoverDomainRequestTags(req *types.FailoverDomainRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}

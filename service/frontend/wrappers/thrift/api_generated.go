@@ -46,6 +46,11 @@ func (g APIHandler) DiagnoseWorkflowExecution(ctx context.Context, DiagnoseReque
 	return thrift.FromDiagnoseWorkflowExecutionResponse(response), thrift.FromError(err)
 }
 
+func (g APIHandler) FailoverDomain(ctx context.Context, FailoverRequest *shared.FailoverDomainRequest) (fp1 *shared.FailoverDomainResponse, err error) {
+	response, err := g.h.FailoverDomain(ctx, thrift.ToFailoverDomainRequest(FailoverRequest))
+	return thrift.FromFailoverDomainResponse(response), thrift.FromError(err)
+}
+
 func (g APIHandler) GetClusterInfo(ctx context.Context) (cp1 *shared.ClusterInfo, err error) {
 	response, err := g.h.GetClusterInfo(ctx)
 	return thrift.FromGetClusterInfoResponse(response), thrift.FromError(err)

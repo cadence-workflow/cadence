@@ -628,6 +628,8 @@ const (
 	DCRedirectionDeleteDomainScope
 	// DCRedirectionDeleteDomainScope tracks RPC calls for dc redirection
 	DCRedirectionDeprecateDomainScope
+	// DCRedirectionFailoverDomainScope tracks RPC calls for dc redirection
+	DCRedirectionFailoverDomainScope
 	// DCRedirectionDescribeDomainScope tracks RPC calls for dc redirection
 	DCRedirectionDescribeDomainScope
 	// DCRedirectionDescribeTaskListScope tracks RPC calls for dc redirection
@@ -1049,6 +1051,8 @@ const (
 	FrontendDeleteDomainScope
 	// FrontendDeprecateDomainScope is the metric scope for frontend.DeprecateDomain
 	FrontendDeprecateDomainScope
+	// FrontendFailoverDomainScope is the metric scope for frontend.FailoverDomain
+	FrontendFailoverDomainScope
 	// FrontendQueryWorkflowScope is the metric scope for frontend.QueryWorkflow
 	FrontendQueryWorkflowScope
 	// FrontendDescribeWorkflowExecutionScope is the metric scope for frontend.DescribeWorkflowExecution
@@ -1729,6 +1733,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 
 		DCRedirectionDeleteDomainScope:                          {operation: "DCRedirectionDeleteDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDeprecateDomainScope:                       {operation: "DCRedirectionDeprecateDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionFailoverDomainScope:                        {operation: "DCRedirectionFailoverDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDescribeDomainScope:                        {operation: "DCRedirectionDescribeDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDescribeTaskListScope:                      {operation: "DCRedirectionDescribeTaskList", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDescribeWorkflowExecutionScope:             {operation: "DCRedirectionDescribeWorkflowExecution", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
@@ -1934,6 +1939,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendUpdateDomainScope:                          {operation: "UpdateDomain"},
 		FrontendDeleteDomainScope:                          {operation: "DeleteDomain"},
 		FrontendDeprecateDomainScope:                       {operation: "DeprecateDomain"},
+		FrontendFailoverDomainScope:                        {operation: "FailoverDomain"},
 		FrontendQueryWorkflowScope:                         {operation: "QueryWorkflow"},
 		FrontendDescribeWorkflowExecutionScope:             {operation: "DescribeWorkflowExecution"},
 		FrontendDiagnoseWorkflowExecutionScope:             {operation: "DiagnoseWorkflowExecution"},

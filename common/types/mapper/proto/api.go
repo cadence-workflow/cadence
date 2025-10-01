@@ -4506,6 +4506,55 @@ func ToUpdateDomainResponse(t *apiv1.UpdateDomainResponse) *types.UpdateDomainRe
 	}
 }
 
+func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *apiv1.FailoverDomainRequest {
+	if t == nil {
+		return nil
+	}
+	// Stub implementation - return empty request until we know the proto structure
+	return &apiv1.FailoverDomainRequest{}
+}
+
+func ToFailoverDomainRequest(t *apiv1.FailoverDomainRequest) *types.FailoverDomainRequest {
+	if t == nil {
+		return nil
+	}
+	// Stub implementation - return empty request until we know the proto structure
+	return &types.FailoverDomainRequest{
+		DomainName:              common.StringPtr(""),
+		DomainActiveClusterName: common.StringPtr(""),
+	}
+}
+
+func FromFailoverDomainResponse(t *types.FailoverDomainResponse) *apiv1.FailoverDomainResponse {
+	if t == nil {
+		return nil
+	}
+	// Create a simplified response for now - stub implementation
+	return &apiv1.FailoverDomainResponse{
+		Domain: &apiv1.Domain{
+			Id:   t.DomainInfo.GetUUID(),
+			Name: t.DomainInfo.GetName(),
+		},
+	}
+}
+
+func ToFailoverDomainResponse(t *apiv1.FailoverDomainResponse) *types.FailoverDomainResponse {
+	if t == nil || t.Domain == nil {
+		return nil
+	}
+	// Create a simplified response for now - stub implementation
+	return &types.FailoverDomainResponse{
+		DomainInfo: &types.DomainInfo{
+			Name: t.Domain.Name,
+			UUID: t.Domain.Id,
+		},
+		Configuration:            &types.DomainConfiguration{},
+		ReplicationConfiguration: &types.DomainReplicationConfiguration{},
+		FailoverVersion:          0,
+		IsGlobalDomain:           false,
+	}
+}
+
 func FromUpsertWorkflowSearchAttributesDecisionAttributes(t *types.UpsertWorkflowSearchAttributesDecisionAttributes) *apiv1.UpsertWorkflowSearchAttributesDecisionAttributes {
 	if t == nil {
 		return nil
