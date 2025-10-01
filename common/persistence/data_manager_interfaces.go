@@ -1151,6 +1151,7 @@ type (
 		// Applicable for active-passive domains.
 		ActiveClusterName string
 
+		// TODO(c-warren): Update documentation once ActiveClusterName is the default for active-active domains.
 		// ActiveClusters is only applicable for active-active domains.
 		// If this is set, ActiveClusterName is ignored.
 		ActiveClusters *types.ActiveClusters

@@ -3913,14 +3913,26 @@ func TestLoad_ActiveActive(t *testing.T) {
 		true,
 		&persistence.DomainReplicationConfig{
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region0": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   100,
+				AttributeScopes: map[string]*types.ClusterAttributeScope{
+					"cityID": {
+						ClusterAttributes: map[string]*types.ActiveClusterInfo{
+							"seattle": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+							"sydney": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   200,
+							},
+						},
 					},
-					"region1": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   200,
+					"regionID": {
+						ClusterAttributes: map[string]*types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
 					},
 				},
 			},
