@@ -2146,8 +2146,9 @@ func FromActiveClusters(t *types.ActiveClusters) *shared.ActiveClusters {
 		return nil
 	}
 
-	regionToCluster := make(map[string]*shared.ActiveClusterInfo)
+	var regionToCluster map[string]*shared.ActiveClusterInfo
 	if len(t.ActiveClustersByRegion) > 0 {
+		regionToCluster = make(map[string]*shared.ActiveClusterInfo)
 		for region, cluster := range t.ActiveClustersByRegion {
 			regionToCluster[region] = &shared.ActiveClusterInfo{
 				ActiveClusterName: &cluster.ActiveClusterName,
@@ -2156,8 +2157,9 @@ func FromActiveClusters(t *types.ActiveClusters) *shared.ActiveClusters {
 		}
 	}
 
-	activeClustersByClusterAttribute := make(map[string]*shared.ClusterAttributeScope)
+	var activeClustersByClusterAttribute map[string]*shared.ClusterAttributeScope
 	if t.AttributeScopes != nil {
+		activeClustersByClusterAttribute = make(map[string]*shared.ClusterAttributeScope)
 		for scopeType, scope := range t.AttributeScopes {
 			activeClustersByClusterAttribute[scopeType] = FromClusterAttributeScope(scope)
 		}
@@ -2175,8 +2177,9 @@ func ToActiveClusters(t *shared.ActiveClusters) *types.ActiveClusters {
 		return nil
 	}
 
-	activeClustersByRegion := make(map[string]types.ActiveClusterInfo)
+	var activeClustersByRegion map[string]types.ActiveClusterInfo
 	if len(t.ActiveClustersByRegion) > 0 {
+		activeClustersByRegion = make(map[string]types.ActiveClusterInfo)
 		for region, cluster := range t.ActiveClustersByRegion {
 			activeClustersByRegion[region] = types.ActiveClusterInfo{
 				ActiveClusterName: *cluster.ActiveClusterName,
@@ -2185,8 +2188,9 @@ func ToActiveClusters(t *shared.ActiveClusters) *types.ActiveClusters {
 		}
 	}
 
-	attributeScopes := make(map[string]*types.ClusterAttributeScope)
+	var attributeScopes map[string]*types.ClusterAttributeScope
 	if t.ActiveClustersByClusterAttribute != nil {
+		attributeScopes = make(map[string]*types.ClusterAttributeScope)
 		for scopeType, scope := range t.ActiveClustersByClusterAttribute {
 			attributeScopes[scopeType] = ToClusterAttributeScope(scope)
 		}
@@ -2204,8 +2208,9 @@ func FromClusterAttributeScope(t *types.ClusterAttributeScope) *shared.ClusterAt
 		return nil
 	}
 
-	clusterAttributes := make(map[string]*shared.ActiveClusterInfo)
+	var clusterAttributes map[string]*shared.ActiveClusterInfo
 	if len(t.ClusterAttributes) > 0 {
+		clusterAttributes = make(map[string]*shared.ActiveClusterInfo)
 		for name, clusterInfo := range t.ClusterAttributes {
 			if clusterInfo != nil {
 				clusterAttributes[name] = &shared.ActiveClusterInfo{
@@ -2227,8 +2232,9 @@ func ToClusterAttributeScope(t *shared.ClusterAttributeScope) *types.ClusterAttr
 		return nil
 	}
 
-	clusterAttributes := make(map[string]*types.ActiveClusterInfo)
+	var clusterAttributes map[string]*types.ActiveClusterInfo
 	if len(t.ClusterAttributes) > 0 {
+		clusterAttributes = make(map[string]*types.ActiveClusterInfo)
 		for name, clusterInfo := range t.ClusterAttributes {
 			if clusterInfo != nil {
 				clusterAttributes[name] = &types.ActiveClusterInfo{

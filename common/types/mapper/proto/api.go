@@ -5562,8 +5562,9 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 		return nil
 	}
 
-	regionToCluster := make(map[string]*apiv1.ActiveClusterInfo)
+	var regionToCluster map[string]*apiv1.ActiveClusterInfo
 	if len(t.ActiveClustersByRegion) > 0 {
+		regionToCluster = make(map[string]*apiv1.ActiveClusterInfo)
 		for region, cluster := range t.ActiveClustersByRegion {
 			regionToCluster[region] = &apiv1.ActiveClusterInfo{
 				ActiveClusterName: cluster.ActiveClusterName,
@@ -5572,8 +5573,9 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 		}
 	}
 
-	activeClustersByClusterAttribute := make(map[string]*apiv1.ClusterAttributeScope)
+	var activeClustersByClusterAttribute map[string]*apiv1.ClusterAttributeScope
 	if t.AttributeScopes != nil {
+		activeClustersByClusterAttribute = make(map[string]*apiv1.ClusterAttributeScope)
 		for scopeType, scope := range t.AttributeScopes {
 			activeClustersByClusterAttribute[scopeType] = FromClusterAttributeScope(scope)
 		}
@@ -5590,8 +5592,9 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 		return nil
 	}
 
-	activeClustersByRegion := make(map[string]types.ActiveClusterInfo)
+	var activeClustersByRegion map[string]types.ActiveClusterInfo
 	if len(t.RegionToCluster) > 0 {
+		activeClustersByRegion = make(map[string]types.ActiveClusterInfo)
 		for region, cluster := range t.RegionToCluster {
 			activeClustersByRegion[region] = types.ActiveClusterInfo{
 				ActiveClusterName: cluster.ActiveClusterName,
@@ -5600,8 +5603,9 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 		}
 	}
 
-	attributeScopes := make(map[string]*types.ClusterAttributeScope)
+	var attributeScopes map[string]*types.ClusterAttributeScope
 	if t.ActiveClustersByClusterAttribute != nil {
+		attributeScopes = make(map[string]*types.ClusterAttributeScope)
 		for scopeType, scope := range t.ActiveClustersByClusterAttribute {
 			attributeScopes[scopeType] = ToClusterAttributeScope(scope)
 		}
@@ -5618,8 +5622,9 @@ func FromClusterAttributeScope(t *types.ClusterAttributeScope) *apiv1.ClusterAtt
 		return nil
 	}
 
-	clusterAttributes := make(map[string]*apiv1.ActiveClusterInfo)
+	var clusterAttributes map[string]*apiv1.ActiveClusterInfo
 	if len(t.ClusterAttributes) > 0 {
+		clusterAttributes = make(map[string]*apiv1.ActiveClusterInfo)
 		for name, clusterInfo := range t.ClusterAttributes {
 			if clusterInfo != nil {
 				clusterAttributes[name] = &apiv1.ActiveClusterInfo{
@@ -5640,8 +5645,9 @@ func ToClusterAttributeScope(t *apiv1.ClusterAttributeScope) *types.ClusterAttri
 		return nil
 	}
 
-	clusterAttributes := make(map[string]*types.ActiveClusterInfo)
+	var clusterAttributes map[string]*types.ActiveClusterInfo
 	if len(t.ClusterAttributes) > 0 {
+		clusterAttributes = make(map[string]*types.ActiveClusterInfo)
 		for name, clusterInfo := range t.ClusterAttributes {
 			if clusterInfo != nil {
 				clusterAttributes[name] = &types.ActiveClusterInfo{

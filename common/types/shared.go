@@ -2353,10 +2353,16 @@ func (v *ActiveClusters) ByteSize() uint64 {
 	size := uint64(unsafe.Sizeof(*v))
 	for k, val := range v.ActiveClustersByRegion {
 		// ByteSize implementation must match the logic in the reflection-based calculator used in the tests from common/types/test_util.go.
-		// reflection-based calculator purposely ignores Go’s internal map bucket/storage and treats each map element as
+		// reflection-based calculator purposely ignores Go's internal map bucket/storage and treats each map element as
 		// key: dynamic payload only (e.g., len(string)), no string header
-		// value: dynamic payload only (e.g., for a struct, just its fields’ dynamic payload), no struct header, no inline ints/bools
+		// value: dynamic payload only (e.g., for a struct, just its fields' dynamic payload), no struct header, no inline ints/bools
 		size += uint64(len(k)) + val.ByteSize() - uint64(unsafe.Sizeof(val))
+	}
+	for k, scope := range v.AttributeScopes {
+		size += uint64(len(k))
+		if scope != nil {
+			size += scope.ByteSize()
+		}
 	}
 	return size
 }
@@ -2372,6 +2378,23 @@ func (v *ClusterAttributeScope) GetActiveClusterByClusterAttribute(name string) 
 		return v.ClusterAttributes[name]
 	}
 	return nil
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *ClusterAttributeScope) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+	size := uint64(unsafe.Sizeof(*v))
+	if v.ClusterAttributes != nil {
+		for k, clusterInfo := range v.ClusterAttributes {
+			size += uint64(len(k))
+			if clusterInfo != nil {
+				size += clusterInfo.ByteSize()
+			}
+		}
+	}
+	return size
 }
 
 // ActiveClusterInfo defines failover information for a ClusterAttribute.
