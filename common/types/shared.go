@@ -2350,6 +2350,7 @@ func (v *ActiveClusters) GetActiveClusterByClusterAttribute(scopeType, attribute
 
 // GetClusterByRegion retrieves the ActiveClusterInfo for a given region.
 // Returns an ActiveClusterInfo if the region is found, otherwise returns nil.
+// TODO: Replace existing calls to d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region] with this method.
 func (v *ActiveClusters) GetClusterByRegion(region string) (*ActiveClusterInfo, bool) {
 	if v == nil || region == "" {
 		return nil, false
@@ -2376,6 +2377,7 @@ func (v *ActiveClusters) GetClusterByRegion(region string) (*ActiveClusterInfo, 
 
 // GetAllRegions returns a sorted, deduplicated list of all region names from both
 // the new format (AttributeScopes) and old format (ActiveClustersByRegion).
+// Replace direct access of replicationConfig.ActiveClusters.ActiveClustersByRegion with this method.
 func (v *ActiveClusters) GetAllRegions() []string {
 	if v == nil {
 		return []string{}
@@ -2383,7 +2385,6 @@ func (v *ActiveClusters) GetAllRegions() []string {
 
 	regionMap := make(map[string]struct{})
 
-	// Collect from new format
 	if v.AttributeScopes != nil {
 		if scope := v.AttributeScopes[DefaultAttributeScopeType]; scope != nil && scope.ClusterAttributes != nil {
 			for region := range scope.ClusterAttributes {
@@ -2392,7 +2393,6 @@ func (v *ActiveClusters) GetAllRegions() []string {
 		}
 	}
 
-	// Collect from old format
 	if v.ActiveClustersByRegion != nil {
 		for region := range v.ActiveClustersByRegion {
 			regionMap[region] = struct{}{}
@@ -2414,6 +2414,7 @@ func (v *ActiveClusters) GetAllRegions() []string {
 // SetClusterForRegion sets the ActiveClusterInfo for a given region in both the new and old formats.
 // This dual-write approach ensures backward compatibility during migration.
 // If the receiver is nil, this method is a no-op.
+// TODO: Replace existing calls to v.ActiveClustersByRegion[region] = info with this method.
 func (v *ActiveClusters) SetClusterForRegion(region string, info ActiveClusterInfo) {
 	if v == nil {
 		return
@@ -2425,22 +2426,29 @@ func (v *ActiveClusters) SetClusterForRegion(region string, info ActiveClusterIn
 	}
 	v.ActiveClustersByRegion[region] = info
 
-	// Initialize new format maps if needed
+	v.SetClusterForClusterAttribute(DefaultAttributeScopeType, region, info)
+}
+
+func (v *ActiveClusters) SetClusterForClusterAttribute(scopeType, attributeName string, info ActiveClusterInfo) {
+	if v == nil {
+		return
+	}
+
 	if v.AttributeScopes == nil {
 		v.AttributeScopes = make(map[string]*ClusterAttributeScope)
 	}
-	if v.AttributeScopes[DefaultAttributeScopeType] == nil {
-		v.AttributeScopes[DefaultAttributeScopeType] = &ClusterAttributeScope{
+	if v.AttributeScopes[scopeType] == nil {
+		v.AttributeScopes[scopeType] = &ClusterAttributeScope{
 			ClusterAttributes: make(map[string]*ActiveClusterInfo),
 		}
 	}
-	if v.AttributeScopes[DefaultAttributeScopeType].ClusterAttributes == nil {
-		v.AttributeScopes[DefaultAttributeScopeType].ClusterAttributes = make(map[string]*ActiveClusterInfo)
+	if v.AttributeScopes[scopeType].ClusterAttributes == nil {
+		v.AttributeScopes[scopeType].ClusterAttributes = make(map[string]*ActiveClusterInfo)
 	}
 
 	// Store a copy in new format to prevent aliasing
 	infoCopy := info
-	v.AttributeScopes[DefaultAttributeScopeType].ClusterAttributes[region] = &infoCopy
+	v.AttributeScopes[scopeType].ClusterAttributes[attributeName] = &infoCopy
 }
 
 // ByteSize returns the approximate memory used in bytes

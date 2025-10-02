@@ -702,6 +702,7 @@ func newDomainRow(domain *types.DescribeDomainResponse) DomainRow {
 	}
 }
 
+// TODO: Support ClusterAttributes
 func newActiveClustersByRegion(activeClusters *types.ActiveClusters) []ActiveClusterInfoRow {
 	if activeClusters == nil {
 		return nil

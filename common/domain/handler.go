@@ -269,6 +269,7 @@ func (d *handlerImpl) RegisterDomain(
 	}
 
 	if activeClusters != nil {
+		// TODO: Leave a default activeClusterName for active-active domains
 		// active-active domain, activeClusterName is not used
 		activeClusterName = ""
 	}
