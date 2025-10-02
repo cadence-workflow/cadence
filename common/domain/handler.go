@@ -1596,16 +1596,15 @@ func (d *handlerImpl) updateReplicationConfig(
 		config.ActiveClusterName = *updateRequest.ActiveClusterName
 	}
 
-	if updateRequest.ActiveClusters != nil && updateRequest.ActiveClusters.ActiveClustersByRegion != nil {
+	if updateRequest.ActiveClusters != nil && updateRequest.ActiveClusters.AttributeScopes != nil {
 		existingActiveClusters := config.ActiveClusters
 		if existingActiveClusters == nil { // migration from active-passive to active-active
 			existingActiveClusters = &types.ActiveClusters{
-				ActiveClustersByRegion: make(map[string]types.ActiveClusterInfo),
+				AttributeScopes: make(map[string]*types.ClusterAttributeScope),
 			}
 		}
 		finalActiveClusters := make(map[string]types.ActiveClusterInfo)
 
-		// first add the ones that are not touched
 		for region, activeCluster := range existingActiveClusters.ActiveClustersByRegion {
 			if _, ok := updateRequest.ActiveClusters.ActiveClustersByRegion[region]; !ok {
 				finalActiveClusters[region] = activeCluster
@@ -1613,6 +1612,7 @@ func (d *handlerImpl) updateReplicationConfig(
 		}
 
 		// then add the ones that are modified
+		// todo (david.porter) replace this region stuff with attribute scopes
 		for region, activeCluster := range updateRequest.ActiveClusters.ActiveClustersByRegion {
 			existingActiveCluster, ok := existingActiveClusters.ActiveClustersByRegion[region]
 			if !ok {
@@ -1639,6 +1639,7 @@ func (d *handlerImpl) updateReplicationConfig(
 		}
 		config.ActiveClusters = &types.ActiveClusters{
 			ActiveClustersByRegion: finalActiveClusters,
+			AttributeScopes:        updateRequest.ActiveClusters.AttributeScopes,
 		}
 		d.logger.Debugf("Setting active clusters to %v, updateRequest.ActiveClusters.ActiveClustersByRegion: %v", finalActiveClusters, updateRequest.ActiveClusters.ActiveClustersByRegion)
 		activeClusterUpdated = true

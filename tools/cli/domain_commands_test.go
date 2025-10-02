@@ -24,7 +24,9 @@ package cli
 
 import (
 	"fmt"
+	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
@@ -385,6 +387,39 @@ func (s *cliAppSuite) TestListDomains() {
 	for _, tt := range testCases {
 		s.Run(tt.name, func() {
 			s.runTestCase(tt)
+		})
+	}
+}
+
+func TestParseActiveClustersByClusterAttribute(t *testing.T) {
+
+	testCases := map[string]struct {
+		clusters      string
+		expected      types.ActiveClusters
+		expectedError error
+	}{
+		"valid active clusters by cluster attribute": {
+			clusters: "region.newyork:cluster0,region.manilla:cluster1",
+			expected: types.ActiveClusters{
+				AttributeScopes: map[string]*types.ClusterAttributeScope{
+					"region": {ClusterAttributes: map[string]*types.ActiveClusterInfo{
+						"newyork": {ActiveClusterName: "cluster0"},
+						"manilla": {ActiveClusterName: "cluster1"},
+					}},
+				},
+			},
+		},
+		"Some invalid input": {
+			clusters:      "bad-data",
+			expectedError: fmt.Errorf("Option active_clusters format is invalid. Expected format is 'region1:cluster1,region2:cluster2'"),
+		},
+	}
+
+	for name, td := range testCases {
+		t.Run(name, func(t *testing.T) {
+			activeClusters, err := parseActiveClustersByClusterAttribute(td.clusters)
+			assert.Equal(t, td.expected, activeClusters)
+			assert.Equal(t, td.expectedError, err)
 		})
 	}
 }

@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -142,11 +143,6 @@ func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 		activeClusterName = c.String(FlagActiveClusterName)
 	}
 
-	activeClustersByRegion, err := parseActiveClustersByRegion(c, isActiveActiveDomain)
-	if err != nil {
-		return err
-	}
-
 	var clusters []*types.ClusterReplicationConfiguration
 	if c.IsSet(FlagClusters) {
 		for _, clusterStr := range c.StringSlice(FlagClusters) {
@@ -165,6 +161,15 @@ func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 		return fmt.Errorf("failed to parse %s flag: %w", FlagVisibilityArchivalStatus, err)
 	}
 
+	var activeClusters *types.ActiveClusters
+	if c.IsSet(FlagActiveClusters) {
+		ac, err := parseActiveClustersByClusterAttribute(c.String(FlagActiveClusters))
+		if err != nil {
+			return err
+		}
+		activeClusters = &ac
+	}
+
 	request := &types.RegisterDomainRequest{
 		Name:                                   domainName,
 		Description:                            description,
@@ -173,7 +178,7 @@ func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 		WorkflowExecutionRetentionPeriodInDays: int32(retentionDays),
 		Clusters:                               clusters,
 		ActiveClusterName:                      activeClusterName,
-		ActiveClustersByRegion:                 activeClustersByRegion,
+		ActiveClusters:                         activeClusters,
 		SecurityToken:                          securityToken,
 		HistoryArchivalStatus:                  has,
 		HistoryArchivalURI:                     c.String(FlagHistoryArchivalURI),
@@ -225,23 +230,16 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 			ActiveClusterName:        common.StringPtr(activeCluster),
 			FailoverTimeoutInSeconds: failoverTimeout,
 		}
-	} else if c.IsSet(FlagActiveClustersByRegion) { // active-active domain failover
-		activeClustersByRegion, err := parseActiveClustersByRegion(c, true)
+	} else if c.IsSet(FlagActiveClusters) { // active-active domain failover
+		activeClusters, err := parseActiveClustersByClusterAttribute(c.String(FlagActiveClusters))
 		if err != nil {
 			return err
-		}
-
-		acbr := make(map[string]types.ActiveClusterInfo)
-		for region, cluster := range activeClustersByRegion {
-			acbr[region] = types.ActiveClusterInfo{
-				ActiveClusterName: cluster,
-			}
 		}
 
 		updateRequest = &types.UpdateDomainRequest{
 			Name: domainName,
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: acbr,
+				AttributeScopes: activeClusters.AttributeScopes,
 			},
 		}
 	} else {
@@ -634,26 +632,27 @@ type ActiveClusterInfoRow struct {
 }
 
 type DomainRow struct {
-	Name                     string `header:"Name"`
-	UUID                     string `header:"UUID"`
-	Description              string
-	OwnerEmail               string
-	DomainData               map[string]string  `header:"Domain Data"`
-	Status                   types.DomainStatus `header:"Status"`
-	IsGlobal                 bool               `header:"Is Global Domain"`
-	ActiveCluster            string             `header:"Active Cluster"`
-	Clusters                 []string           `header:"Clusters"`
-	RetentionDays            int32              `header:"Retention Days"`
-	EmitMetrics              bool
-	HistoryArchivalStatus    types.ArchivalStatus `header:"History Archival Status"`
-	HistoryArchivalURI       string               `header:"History Archival URI"`
-	VisibilityArchivalStatus types.ArchivalStatus `header:"Visibility Archival Status"`
-	VisibilityArchivalURI    string               `header:"Visibility Archival URI"`
-	BadBinaries              []BadBinaryRow
-	FailoverInfo             *FailoverInfoRow
-	LongRunningWorkFlowNum   *int
-	IsActiveActiveDomain     bool
-	ActiveClustersByRegion   []ActiveClusterInfoRow
+	Name                             string `header:"Name"`
+	UUID                             string `header:"UUID"`
+	Description                      string
+	OwnerEmail                       string
+	DomainData                       map[string]string  `header:"Domain Data"`
+	Status                           types.DomainStatus `header:"Status"`
+	IsGlobal                         bool               `header:"Is Global Domain"`
+	ActiveCluster                    string             `header:"Active Cluster"`
+	Clusters                         []string           `header:"Clusters"`
+	RetentionDays                    int32              `header:"Retention Days"`
+	EmitMetrics                      bool
+	HistoryArchivalStatus            types.ArchivalStatus `header:"History Archival Status"`
+	HistoryArchivalURI               string               `header:"History Archival URI"`
+	VisibilityArchivalStatus         types.ArchivalStatus `header:"Visibility Archival Status"`
+	VisibilityArchivalURI            string               `header:"Visibility Archival URI"`
+	BadBinaries                      []BadBinaryRow
+	FailoverInfo                     *FailoverInfoRow
+	LongRunningWorkFlowNum           *int
+	IsActiveActiveDomain             bool
+	ActiveClustersByRegion           []ActiveClusterInfoRow // todo (david.porter) remove this as it's not in use
+	ActiveClustersByClusterAttribute []ActiveClusterInfoRow
 }
 
 type DomainMigrationRow struct {
@@ -924,27 +923,30 @@ func clustersToStrings(clusters []*types.ClusterReplicationConfiguration) []stri
 	return res
 }
 
-func parseActiveClustersByRegion(c *cli.Context, isActiveActiveDomain bool) (map[string]string, error) {
-	var activeClustersByRegion map[string]string
-	if c.IsSet(FlagActiveClustersByRegion) {
-		if !isActiveActiveDomain {
-			return nil, commoncli.Problem("Option --active_clusters_by_region is only supported for active-active domain. Use --active_cluster instead.", nil)
-		}
+func parseActiveClustersByClusterAttribute(clusters string) (types.ActiveClusters, error) {
+	split := regexp.MustCompile(`(?P<attribute>[a-zA-Z0-9_]+).(?P<scope>[a-zA-Z0-9_]+):(?P<name>[a-zA-Z0-9_]+)`)
+	matches := split.FindAllStringSubmatch(clusters, -1)
+	if len(matches) == 0 {
+		return types.ActiveClusters{}, fmt.Errorf("Option %s format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'", FlagActiveClusters)
+	}
 
-		activeClustersByRegion = make(map[string]string)
-		for _, regionCluster := range c.StringSlice(FlagActiveClustersByRegion) {
-			splitted := strings.Split(regionCluster, ":")
-			if len(splitted) != 2 {
-				return nil, commoncli.Problem(fmt.Sprintf("Option --%s format is invalid. Expected format is 'region1:cluster1,region2:cluster2'", FlagActiveClustersByRegion), nil)
+	out := types.ActiveClusters{
+		AttributeScopes: map[string]*types.ClusterAttributeScope{},
+	}
+
+	for _, match := range matches {
+		attribute := match[1]
+		scope := match[2]
+		name := match[3]
+
+		if _, ok := out.AttributeScopes[attribute]; !ok {
+			out.AttributeScopes[attribute] = &types.ClusterAttributeScope{
+				ClusterAttributes: map[string]*types.ActiveClusterInfo{},
 			}
-			region, cluster := strings.TrimSpace(splitted[0]), strings.TrimSpace(splitted[1])
-			activeClustersByRegion[region] = cluster
 		}
+
+		out.AttributeScopes[attribute].ClusterAttributes[scope] = &types.ActiveClusterInfo{ActiveClusterName: name}
 	}
 
-	if isActiveActiveDomain && len(activeClustersByRegion) == 0 {
-		return nil, commoncli.Problem("Option --active_clusters_by_region is required for active-active domain.", nil)
-	}
-
-	return activeClustersByRegion, nil
+	return out, nil
 }
