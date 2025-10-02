@@ -3576,3 +3576,95 @@ func TestActiveClusterSelectionPolicyConversion(t *testing.T) {
 	}
 
 }
+
+func TestActiveClustersConversion(t *testing.T) {
+	testCases := []*types.ActiveClusters{
+		nil,
+		{},
+		{
+			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+				"us-west-1": {
+					ActiveClusterName: "cluster1",
+					FailoverVersion:   1,
+				},
+				"us-east-1": {
+					ActiveClusterName: "cluster2",
+					FailoverVersion:   2,
+				},
+			},
+		},
+		{
+			AttributeScopes: map[string]*types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]*types.ActiveClusterInfo{
+						"us-west-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   1,
+						},
+						"us-east-1": {
+							ActiveClusterName: "cluster2",
+							FailoverVersion:   2,
+						},
+					},
+				},
+				"datacenter": {
+					ClusterAttributes: map[string]*types.ActiveClusterInfo{
+						"dc1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   10,
+						},
+					},
+				},
+			},
+		},
+		{
+			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+				"us-west-1": {
+					ActiveClusterName: "cluster1",
+					FailoverVersion:   1,
+				},
+			},
+			AttributeScopes: map[string]*types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]*types.ActiveClusterInfo{
+						"us-west-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   1,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromActiveClusters(original)
+		roundTripObj := ToActiveClusters(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestClusterAttributeScopeConversion(t *testing.T) {
+	testCases := []*types.ClusterAttributeScope{
+		nil,
+		{},
+		{
+			ClusterAttributes: map[string]*types.ActiveClusterInfo{
+				"us-west-1": {
+					ActiveClusterName: "cluster1",
+					FailoverVersion:   1,
+				},
+				"us-east-1": {
+					ActiveClusterName: "cluster2",
+					FailoverVersion:   2,
+				},
+			},
+		},
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromClusterAttributeScope(original)
+		roundTripObj := ToClusterAttributeScope(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
