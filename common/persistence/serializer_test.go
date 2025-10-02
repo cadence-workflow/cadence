@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common"
@@ -304,7 +305,9 @@ func TestSerializers(t *testing.T) {
 				return
 			}
 
-			if diff := cmp.Diff(tc.payload, deserialized); diff != "" {
+			// Use EquateEmpty to treat nil and empty maps/slices as equal, since different
+			// serializers handle them differently (thrift: empty map, json: nil)
+			if diff := cmp.Diff(tc.payload, deserialized, cmpopts.EquateEmpty()); diff != "" {
 				t.Fatalf("Mismatch (-payload +deserialized):\n%s", diff)
 			}
 		})
@@ -535,6 +538,8 @@ func generateActiveClusters() *types.ActiveClusters {
 				FailoverVersion:   3,
 			},
 		},
+		// Note: AttributeScopes is nil, but different serializers may deserialize it as empty map or nil
+		AttributeScopes: nil,
 	}
 }
 

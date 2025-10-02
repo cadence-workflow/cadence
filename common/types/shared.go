@@ -22,6 +22,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -2309,39 +2310,137 @@ func (v *DomainReplicationConfiguration) ByteSize() uint64 {
 type ActiveClusters struct {
 	// TODO(c-warren): Remove once refactor to ClusterAttribute is complete
 	ActiveClustersByRegion map[string]ActiveClusterInfo `json:"activeClustersByRegion,omitempty"`
-	// ClusterAttributes
-	// Keyed by a scope type (e.g region, datacenter, city, etc.).
-	// The value is a ClusterAttributeScope - a map of unique names (e.g seattle, san_francisco, etc.) to an ActiveClusterInfo.
+	// AttributeScopes maps scope types to their cluster attribute configurations.
+	// Keyed by a scope type (e.g., region, datacenter, city, etc.).
+	// The value is a ClusterAttributeScope - a map of unique names (e.g., seattle, san_francisco, etc.) to an ActiveClusterInfo.
 	AttributeScopes map[string]*ClusterAttributeScope `json:"attributeScopes,omitempty"`
 }
 
+// DefaultAttributeScopeType is the default scope type for backward compatibility with ActiveClustersByRegion
+const DefaultAttributeScopeType = "region"
+
 // TODO(c-warren): Remove once refactor to ClusterAttribute is complete
-func (v *ActiveClusters) GetActiveClustersByRegion() (o map[string]ActiveClusterInfo) {
+func (v *ActiveClusters) GetActiveClustersByRegion() map[string]ActiveClusterInfo {
 	if v != nil && v.ActiveClustersByRegion != nil {
 		return v.ActiveClustersByRegion
 	}
-	return
+	return nil
 }
 
-func (v *ActiveClusters) GetAttributeScopes() (o map[string]*ClusterAttributeScope) {
+func (v *ActiveClusters) GetAttributeScopes() map[string]*ClusterAttributeScope {
 	if v != nil && v.AttributeScopes != nil {
 		return v.AttributeScopes
 	}
-	return
+	return nil
 }
 
-func (v *ActiveClusters) GetAttributeScope(scopeType string) (o *ClusterAttributeScope) {
+func (v *ActiveClusters) GetAttributeScope(scopeType string) *ClusterAttributeScope {
 	if v != nil && v.AttributeScopes != nil {
 		return v.AttributeScopes[scopeType]
 	}
-	return
+	return nil
 }
 
-func (v *ActiveClusters) GetActiveClusterByClusterAttribute(scopeType, attributeName string) (o *ActiveClusterInfo) {
+func (v *ActiveClusters) GetActiveClusterByClusterAttribute(scopeType, attributeName string) *ActiveClusterInfo {
 	if v != nil && v.AttributeScopes != nil {
 		return v.AttributeScopes[scopeType].GetActiveClusterByClusterAttribute(attributeName)
 	}
-	return
+	return nil
+}
+
+// GetClusterByRegion retrieves the ActiveClusterInfo for a given region.
+// Returns an ActiveClusterInfo if the region is found, otherwise returns nil.
+func (v *ActiveClusters) GetClusterByRegion(region string) (*ActiveClusterInfo, bool) {
+	if v == nil || region == "" {
+		return nil, false
+	}
+
+	// Check new format first
+	if v.AttributeScopes != nil {
+		if scope := v.AttributeScopes[DefaultAttributeScopeType]; scope != nil {
+			if info := scope.GetActiveClusterByClusterAttribute(region); info != nil {
+				return info, true
+			}
+		}
+	}
+
+	// Fall back to old format
+	if v.ActiveClustersByRegion != nil {
+		if info, ok := v.ActiveClustersByRegion[region]; ok {
+			return &info, true
+		}
+	}
+
+	return nil, false
+}
+
+// GetAllRegions returns a sorted, deduplicated list of all region names from both
+// the new format (AttributeScopes) and old format (ActiveClustersByRegion).
+func (v *ActiveClusters) GetAllRegions() []string {
+	if v == nil {
+		return []string{}
+	}
+
+	regionMap := make(map[string]struct{})
+
+	// Collect from new format
+	if v.AttributeScopes != nil {
+		if scope := v.AttributeScopes[DefaultAttributeScopeType]; scope != nil && scope.ClusterAttributes != nil {
+			for region := range scope.ClusterAttributes {
+				regionMap[region] = struct{}{}
+			}
+		}
+	}
+
+	// Collect from old format
+	if v.ActiveClustersByRegion != nil {
+		for region := range v.ActiveClustersByRegion {
+			regionMap[region] = struct{}{}
+		}
+	}
+
+	// Convert to sorted slice
+	regions := make([]string, 0, len(regionMap))
+	for region := range regionMap {
+		regions = append(regions, region)
+	}
+
+	// Sort for deterministic output
+	sort.Strings(regions)
+
+	return regions
+}
+
+// SetClusterForRegion sets the ActiveClusterInfo for a given region in both the new and old formats.
+// This dual-write approach ensures backward compatibility during migration.
+// If the receiver is nil, this method is a no-op.
+func (v *ActiveClusters) SetClusterForRegion(region string, info ActiveClusterInfo) {
+	if v == nil {
+		return
+	}
+
+	// Initialize old format map if needed
+	if v.ActiveClustersByRegion == nil {
+		v.ActiveClustersByRegion = make(map[string]ActiveClusterInfo)
+	}
+	v.ActiveClustersByRegion[region] = info
+
+	// Initialize new format maps if needed
+	if v.AttributeScopes == nil {
+		v.AttributeScopes = make(map[string]*ClusterAttributeScope)
+	}
+	if v.AttributeScopes[DefaultAttributeScopeType] == nil {
+		v.AttributeScopes[DefaultAttributeScopeType] = &ClusterAttributeScope{
+			ClusterAttributes: make(map[string]*ActiveClusterInfo),
+		}
+	}
+	if v.AttributeScopes[DefaultAttributeScopeType].ClusterAttributes == nil {
+		v.AttributeScopes[DefaultAttributeScopeType].ClusterAttributes = make(map[string]*ActiveClusterInfo)
+	}
+
+	// Store a copy in new format to prevent aliasing
+	infoCopy := info
+	v.AttributeScopes[DefaultAttributeScopeType].ClusterAttributes[region] = &infoCopy
 }
 
 // ByteSize returns the approximate memory used in bytes
@@ -2386,12 +2485,13 @@ func (v *ClusterAttributeScope) ByteSize() uint64 {
 		return 0
 	}
 	size := uint64(unsafe.Sizeof(*v))
-	if v.ClusterAttributes != nil {
-		for k, clusterInfo := range v.ClusterAttributes {
-			size += uint64(len(k))
-			if clusterInfo != nil {
-				size += clusterInfo.ByteSize()
-			}
+	for k, val := range v.ClusterAttributes {
+		// ByteSize implementation must match the logic in the reflection-based calculator used in the tests
+		// key: dynamic payload only (e.g., len(string)), no string header
+		// value: dynamic payload only (pointer overhead not counted in reflection calculator)
+		size += uint64(len(k))
+		if val != nil {
+			size += val.ByteSize()
 		}
 	}
 	return size
