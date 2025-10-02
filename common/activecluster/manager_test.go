@@ -26,13 +26,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
@@ -48,142 +45,6 @@ import (
 const (
 	numShards = 10
 )
-
-func TestStartStop(t *testing.T) {
-	tests := []struct {
-		name                    string
-		externalEntityProviders func(ctrl *gomock.Controller) []ExternalEntityProvider
-		wantError               string
-	}{
-		{
-			name: "no external entity provider is provided",
-			externalEntityProviders: func(ctrl *gomock.Controller) []ExternalEntityProvider {
-				return nil
-			},
-		},
-		{
-			name: "external entity providers provided",
-			externalEntityProviders: func(ctrl *gomock.Controller) []ExternalEntityProvider {
-				p1 := NewMockExternalEntityProvider(ctrl)
-				p1.EXPECT().ChangeEvents().Return(make(chan ChangeType)).AnyTimes()
-				p1.EXPECT().SupportedType().Return("type1").AnyTimes()
-
-				p2 := NewMockExternalEntityProvider(ctrl)
-				p2.EXPECT().ChangeEvents().Return(make(chan ChangeType)).AnyTimes()
-				p2.EXPECT().SupportedType().Return("type2").AnyTimes()
-
-				return []ExternalEntityProvider{p1, p2}
-			},
-		},
-		{
-			name: "duplicate external entity providers provided",
-			externalEntityProviders: func(ctrl *gomock.Controller) []ExternalEntityProvider {
-				p1 := NewMockExternalEntityProvider(ctrl)
-				p1.EXPECT().ChangeEvents().Return(make(chan ChangeType)).AnyTimes()
-				p1.EXPECT().SupportedType().Return("type1").AnyTimes()
-
-				p2 := NewMockExternalEntityProvider(ctrl)
-				p2.EXPECT().ChangeEvents().Return(make(chan ChangeType)).AnyTimes()
-				p2.EXPECT().SupportedType().Return("type1").AnyTimes()
-
-				return []ExternalEntityProvider{p1, p1}
-			},
-			wantError: "already registered",
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			defer goleak.VerifyNone(t)
-			ctrl := gomock.NewController(t)
-			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-				return getDomainCacheEntry(nil, false), nil
-			}
-
-			metricsCl := metrics.NewNoopMetricsClient()
-			logger := log.NewNoop()
-			clusterMetadata := cluster.NewMetadata(
-				config.ClusterGroupMetadata{},
-				func(d string) bool { return false },
-				metricsCl,
-				logger,
-			)
-			timeSrc := clock.NewMockedTimeSource()
-			mgr, err := NewManager(domainIDToDomainFn, clusterMetadata, metricsCl, logger, tc.externalEntityProviders(ctrl), nil, numShards, WithTimeSource(timeSrc))
-			if tc.wantError != "" {
-				assert.ErrorContains(t, err, tc.wantError)
-				return
-			}
-			assert.NoError(t, err)
-			mgr.Start()
-			mgr.Stop()
-		})
-	}
-}
-
-func TestNotifyChangeCallbacks(t *testing.T) {
-	defer goleak.VerifyNone(t)
-	domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-		return getDomainCacheEntry(nil, false), nil
-	}
-
-	metricsCl := metrics.NewNoopMetricsClient()
-	logger := log.NewNoop()
-	clusterMetadata := cluster.NewMetadata(
-		config.ClusterGroupMetadata{},
-		func(d string) bool { return false },
-		metricsCl,
-		logger,
-	)
-	timeSrc := clock.NewMockedTimeSource()
-	ctrl := gomock.NewController(t)
-	externalEntityProvider := NewMockExternalEntityProvider(ctrl)
-
-	entityChangeEventsCh := make(chan ChangeType)
-	externalEntityProvider.EXPECT().ChangeEvents().Return(entityChangeEventsCh).AnyTimes()
-	externalEntityProvider.EXPECT().SupportedType().Return("test-type").AnyTimes()
-
-	mgr, err := NewManager(domainIDToDomainFn, clusterMetadata, metricsCl, logger, []ExternalEntityProvider{externalEntityProvider}, nil, numShards, WithTimeSource(timeSrc))
-	assert.NoError(t, err)
-	mgr.Start()
-	defer mgr.Stop()
-
-	// register change callbacks
-	var changeCallbackCount int32
-	mgr.RegisterChangeCallback(1, func(changeType ChangeType) {
-		atomic.AddInt32(&changeCallbackCount, 1)
-	})
-	defer mgr.UnregisterChangeCallback(1)
-	mgr.RegisterChangeCallback(2, func(changeType ChangeType) {
-		atomic.AddInt32(&changeCallbackCount, 1)
-	})
-	defer mgr.UnregisterChangeCallback(2)
-
-	// advance the time so ticker ticks
-	timeSrc.Advance(notifyChangeCallbacksInterval + 10*time.Millisecond)
-	// let other goroutine to execute
-	time.Sleep(20 * time.Millisecond)
-
-	// no external entity change event occurred so change callbacks should not be notified
-	assert.Equal(t, atomic.LoadInt32(&changeCallbackCount), int32(0))
-
-	// trigger a few external entity change events
-	for i := 0; i < 3; i++ {
-		select {
-		case entityChangeEventsCh <- ChangeTypeEntityMap:
-		default:
-		}
-	}
-	// let other goroutine to execute
-	time.Sleep(20 * time.Millisecond)
-
-	// advance the time so ticker ticks
-	timeSrc.Advance(notifyChangeCallbacksInterval + 10*time.Millisecond)
-	// let other goroutine to execute
-	time.Sleep(20 * time.Millisecond)
-
-	// assert that change callbacks are notified
-	assert.Equal(t, atomic.LoadInt32(&changeCallbackCount), int32(2), "change callbacks should be notified for 2 times for 2 shards registered")
-}
 
 func TestLookupNewWorkflow(t *testing.T) {
 	metricsCl := metrics.NewNoopMetricsClient()
@@ -209,12 +70,11 @@ func TestLookupNewWorkflow(t *testing.T) {
 	)
 
 	tests := []struct {
-		name                    string
-		policy                  *types.ActiveClusterSelectionPolicy
-		externalEntityProviders func(ctrl *gomock.Controller) []ExternalEntityProvider
-		activeClusterCfg        *types.ActiveClusters
-		expectedResult          *LookupResult
-		expectedError           string
+		name             string
+		policy           *types.ActiveClusterSelectionPolicy
+		activeClusterCfg *types.ActiveClusters
+		expectedResult   *LookupResult
+		expectedError    string
 	}{
 		{
 			name:             "not active-active domain, returns failover version of the domain",
@@ -293,17 +153,11 @@ func TestLookupNewWorkflow(t *testing.T) {
 			}
 
 			timeSrc := clock.NewMockedTimeSource()
-			ctrl := gomock.NewController(t)
-			var providers []ExternalEntityProvider
-			if tc.externalEntityProviders != nil {
-				providers = tc.externalEntityProviders(ctrl)
-			}
 			mgr, err := NewManager(
 				domainIDToDomainFn,
 				clusterMetadata,
 				metricsCl,
 				logger,
-				providers,
 				nil,
 				numShards,
 				WithTimeSource(timeSrc),
@@ -349,7 +203,6 @@ func TestLookupWorkflow(t *testing.T) {
 
 	tests := []struct {
 		name                        string
-		externalEntityProviders     func(ctrl *gomock.Controller) []ExternalEntityProvider
 		getClusterSelectionPolicyFn func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
 		mockFn                      func(em *persistence.MockExecutionManager)
 		activeClusterCfg            *types.ActiveClusters
@@ -565,10 +418,6 @@ func TestLookupWorkflow(t *testing.T) {
 
 			timeSrc := clock.NewMockedTimeSource()
 			ctrl := gomock.NewController(t)
-			var providers []ExternalEntityProvider
-			if tc.externalEntityProviders != nil {
-				providers = tc.externalEntityProviders(ctrl)
-			}
 
 			wfID := "test-workflow-id"
 			shardID := 6 // corresponds to wfID given numShards
@@ -584,7 +433,6 @@ func TestLookupWorkflow(t *testing.T) {
 				clusterMetadata,
 				metricsCl,
 				logger,
-				providers,
 				emProvider,
 				numShards,
 				WithTimeSource(timeSrc),

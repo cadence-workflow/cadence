@@ -25,7 +25,6 @@ import (
 	"context"
 	"sort"
 
-	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
@@ -90,22 +89,6 @@ func (e *historyEngineImpl) registerDomainFailoverCallback() {
 		e.lockTaskProcessingForDomainUpdate,
 		e.domainChangeCB,
 	)
-
-	// Register to active-active domain and external entity mapping changes
-	e.shard.GetActiveClusterManager().RegisterChangeCallback(
-		e.shard.GetShardID(),
-		e.activeActiveEntityMapChangeCB,
-	)
-}
-
-func (e *historyEngineImpl) activeActiveEntityMapChangeCB(changeType activecluster.ChangeType) {
-	if changeType != activecluster.ChangeTypeEntityMap {
-		return
-	}
-
-	e.logger.Info("Active cluster manager change callback received. will notify queues", tag.ActiveClusterChangeType(string(changeType)))
-
-	e.notifyQueues()
 }
 
 func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry) {
