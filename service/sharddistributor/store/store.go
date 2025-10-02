@@ -3,8 +3,6 @@ package store
 import (
 	"context"
 	"fmt"
-
-	"go.uber.org/fx"
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=store_mock.go Store
@@ -63,27 +61,4 @@ type Store interface {
 
 	GetHeartbeat(ctx context.Context, namespace string, executorID string) (*HeartbeatState, *AssignedState, error)
 	RecordHeartbeat(ctx context.Context, namespace, executorID string, state HeartbeatState) error
-}
-
-// Impl could be used to build an implementation in the registry.
-// We use registry based approach to avoid introduction of global etcd dependency.
-type Impl fx.Option
-
-var (
-	storeRegistry = make(map[string]Impl)
-)
-
-// Register registers store implementation in the registry.
-func Register(name string, factory Impl) {
-	storeRegistry[name] = factory
-}
-
-// Module returns registered a leader store fx.Option from the configuration.
-// This can introduce extra dependency requirements to the fx application.
-func Module(name string) fx.Option {
-	factory, ok := storeRegistry[name]
-	if !ok {
-		panic(fmt.Sprintf("no store registered with name %s", name))
-	}
-	return factory
 }
