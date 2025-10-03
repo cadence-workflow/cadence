@@ -2484,10 +2484,11 @@ func (v *ActiveClusters) ByteSize() uint64 {
 		// value: dynamic payload only (e.g., for a struct, just its fields' dynamic payload), no struct header, no inline ints/bools
 		size += uint64(len(k)) + val.ByteSize() - uint64(unsafe.Sizeof(val))
 	}
+
 	for k, scope := range v.AttributeScopes {
-		// Same reflection calculator rules apply: key length + value dynamic payload only (no struct header)
 		size += uint64(len(k)) + scope.ByteSize() - uint64(unsafe.Sizeof(scope))
 	}
+
 	return size
 }
 
