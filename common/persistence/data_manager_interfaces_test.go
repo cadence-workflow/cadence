@@ -651,9 +651,9 @@ func TestDomainReplicationConfig_IsActiveActive(t *testing.T) {
 			name: "only AttributeScopes populated should return true",
 			config: &DomainReplicationConfig{
 				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]*types.ClusterAttributeScope{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
 						"region": {
-							ClusterAttributes: map[string]*types.ActiveClusterInfo{
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
 								"us-west-1": {
 									ActiveClusterName: "cluster2",
 									FailoverVersion:   200,
@@ -675,9 +675,9 @@ func TestDomainReplicationConfig_IsActiveActive(t *testing.T) {
 							FailoverVersion:   100,
 						},
 					},
-					AttributeScopes: map[string]*types.ClusterAttributeScope{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
 						"region": {
-							ClusterAttributes: map[string]*types.ActiveClusterInfo{
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
 								"us-west-1": {
 									ActiveClusterName: "cluster2",
 									FailoverVersion:   200,
@@ -702,7 +702,7 @@ func TestDomainReplicationConfig_IsActiveActive(t *testing.T) {
 			name: "empty AttributeScopes map should return false",
 			config: &DomainReplicationConfig{
 				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]*types.ClusterAttributeScope{},
+					AttributeScopes: map[string]types.ClusterAttributeScope{},
 				},
 			},
 			want: false,
@@ -711,9 +711,9 @@ func TestDomainReplicationConfig_IsActiveActive(t *testing.T) {
 			name: "AttributeScopes with empty scope should return false",
 			config: &DomainReplicationConfig{
 				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]*types.ClusterAttributeScope{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
 						"region": {
-							ClusterAttributes: map[string]*types.ActiveClusterInfo{},
+							ClusterAttributes: map[string]types.ActiveClusterInfo{},
 						},
 					},
 				},

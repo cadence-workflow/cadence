@@ -530,9 +530,9 @@ func generateActiveClusters() *types.ActiveClusters {
 				FailoverVersion:   3,
 			},
 		},
-		AttributeScopes: map[string]*types.ClusterAttributeScope{
+		AttributeScopes: map[string]types.ClusterAttributeScope{
 			"region": {
-				ClusterAttributes: map[string]*types.ActiveClusterInfo{
+				ClusterAttributes: map[string]types.ActiveClusterInfo{
 					"region1": {
 						ActiveClusterName: "cluster1",
 						FailoverVersion:   2,

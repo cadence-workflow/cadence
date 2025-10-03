@@ -5577,7 +5577,7 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 	if t.AttributeScopes != nil {
 		activeClustersByClusterAttribute = make(map[string]*apiv1.ClusterAttributeScope)
 		for scopeType, scope := range t.AttributeScopes {
-			activeClustersByClusterAttribute[scopeType] = FromClusterAttributeScope(scope)
+			activeClustersByClusterAttribute[scopeType] = FromClusterAttributeScope(&scope)
 		}
 	}
 
@@ -5603,11 +5603,13 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 		}
 	}
 
-	var attributeScopes map[string]*types.ClusterAttributeScope
+	var attributeScopes map[string]types.ClusterAttributeScope
 	if t.ActiveClustersByClusterAttribute != nil {
-		attributeScopes = make(map[string]*types.ClusterAttributeScope)
+		attributeScopes = make(map[string]types.ClusterAttributeScope)
 		for scopeType, scope := range t.ActiveClustersByClusterAttribute {
-			attributeScopes[scopeType] = ToClusterAttributeScope(scope)
+			if converted := ToClusterAttributeScope(scope); converted != nil {
+				attributeScopes[scopeType] = *converted
+			}
 		}
 	}
 
@@ -5626,11 +5628,9 @@ func FromClusterAttributeScope(t *types.ClusterAttributeScope) *apiv1.ClusterAtt
 	if len(t.ClusterAttributes) > 0 {
 		clusterAttributes = make(map[string]*apiv1.ActiveClusterInfo)
 		for name, clusterInfo := range t.ClusterAttributes {
-			if clusterInfo != nil {
-				clusterAttributes[name] = &apiv1.ActiveClusterInfo{
-					ActiveClusterName: clusterInfo.ActiveClusterName,
-					FailoverVersion:   clusterInfo.FailoverVersion,
-				}
+			clusterAttributes[name] = &apiv1.ActiveClusterInfo{
+				ActiveClusterName: clusterInfo.ActiveClusterName,
+				FailoverVersion:   clusterInfo.FailoverVersion,
 			}
 		}
 	}
@@ -5645,12 +5645,12 @@ func ToClusterAttributeScope(t *apiv1.ClusterAttributeScope) *types.ClusterAttri
 		return nil
 	}
 
-	var clusterAttributes map[string]*types.ActiveClusterInfo
+	var clusterAttributes map[string]types.ActiveClusterInfo
 	if len(t.ClusterAttributes) > 0 {
-		clusterAttributes = make(map[string]*types.ActiveClusterInfo)
+		clusterAttributes = make(map[string]types.ActiveClusterInfo)
 		for name, clusterInfo := range t.ClusterAttributes {
 			if clusterInfo != nil {
-				clusterAttributes[name] = &types.ActiveClusterInfo{
+				clusterAttributes[name] = types.ActiveClusterInfo{
 					ActiveClusterName: clusterInfo.ActiveClusterName,
 					FailoverVersion:   clusterInfo.FailoverVersion,
 				}

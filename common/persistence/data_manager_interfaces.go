@@ -2292,15 +2292,10 @@ func (c *DomainReplicationConfig) IsActiveActive() bool {
 	}
 
 	// Check to see if a ClusterAttribute has been configured for this domain.
-	// TODO: If this becomes a bottleneck add a derived value to DomainReplicationConfig to track this.
 	if len(c.ActiveClusters.AttributeScopes) > 0 {
 		for _, scope := range c.ActiveClusters.AttributeScopes {
-			if scope != nil && len(scope.ClusterAttributes) > 0 {
-				for _, clusterInfo := range scope.ClusterAttributes {
-					if clusterInfo != nil {
-						return true
-					}
-				}
+			if len(scope.ClusterAttributes) > 0 {
+				return true
 			}
 		}
 	}

@@ -1251,9 +1251,9 @@ func TestActiveClustersConversion(t *testing.T) {
 			},
 		},
 		{
-			AttributeScopes: map[string]*types.ClusterAttributeScope{
+			AttributeScopes: map[string]types.ClusterAttributeScope{
 				"region": {
-					ClusterAttributes: map[string]*types.ActiveClusterInfo{
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
 						"us-west-1": {
 							ActiveClusterName: "cluster1",
 							FailoverVersion:   1,
@@ -1265,7 +1265,7 @@ func TestActiveClustersConversion(t *testing.T) {
 					},
 				},
 				"datacenter": {
-					ClusterAttributes: map[string]*types.ActiveClusterInfo{
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
 						"dc1": {
 							ActiveClusterName: "cluster1",
 							FailoverVersion:   10,
@@ -1281,9 +1281,9 @@ func TestActiveClustersConversion(t *testing.T) {
 					FailoverVersion:   1,
 				},
 			},
-			AttributeScopes: map[string]*types.ClusterAttributeScope{
+			AttributeScopes: map[string]types.ClusterAttributeScope{
 				"region": {
-					ClusterAttributes: map[string]*types.ActiveClusterInfo{
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
 						"us-west-1": {
 							ActiveClusterName: "cluster1",
 							FailoverVersion:   1,
@@ -1306,7 +1306,7 @@ func TestClusterAttributeScopeConversion(t *testing.T) {
 		nil,
 		{},
 		{
-			ClusterAttributes: map[string]*types.ActiveClusterInfo{
+			ClusterAttributes: map[string]types.ActiveClusterInfo{
 				"us-west-1": {
 					ActiveClusterName: "cluster1",
 					FailoverVersion:   1,
