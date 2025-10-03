@@ -139,7 +139,7 @@ func (s *taskProcessorSuite) SetupTest() {
 	s.mockEngine = engine.NewMockEngine(s.controller)
 	s.config = config.NewForTest()
 	s.config.ReplicationTaskProcessorNoTaskRetryWait = dynamicproperties.GetDurationPropertyFnFilteredByShardID(1 * time.Millisecond)
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History)
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
 	s.requestChan = make(chan *request, 10)
 
 	s.taskFetcher = &fakeTaskFetcher{
@@ -638,7 +638,7 @@ func TestProcessorLoop_TaskExecuteFailed_ShardChangeErr(t *testing.T) {
 	}
 
 	mockEngine := engine.NewMockEngine(ctrl)
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History)
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
 
 	taskExecutor := NewMockTaskExecutor(ctrl)
 

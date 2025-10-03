@@ -89,7 +89,7 @@ func (s *eventsCacheSuite) TearDownTest() {
 
 func (s *eventsCacheSuite) newTestEventsCache() *cacheImpl {
 	return newCacheWithOption(common.IntPtr(10), 16, 32, time.Minute, s.mockHistoryManager, false, s.logger,
-		metrics.NewClient(tally.NoopScope, metrics.History), dynamicproperties.GetBoolPropertyFn(false), dynamicproperties.GetIntPropertyFn(1000), s.domainCache)
+		metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}), dynamicproperties.GetBoolPropertyFn(false), dynamicproperties.GetIntPropertyFn(1000), s.domainCache)
 }
 
 func (s *eventsCacheSuite) TestEventsCacheHitSuccess() {

@@ -1618,7 +1618,7 @@ func TestHandleDecisions(t *testing.T) {
 	t.Run("workflow size exceeds limit", func(t *testing.T) {
 		taskHandler := newTaskHandlerForTest(t)
 		taskHandler.sizeLimitChecker.historyCountLimitError = 10
-		taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetNextEventID().Return(int64(12)) //nextEventID - 1 > historyCountLimit of 10
+		taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetNextEventID().Return(int64(12)) // nextEventID - 1 > historyCountLimit of 10
 		taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{})
 		taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddFailWorkflowEvent(taskHandler.sizeLimitChecker.completedID, &types.FailWorkflowExecutionDecisionAttributes{
 			Reason:  common.StringPtr(common.FailureReasonSizeExceedsLimit),
@@ -1652,7 +1652,7 @@ func newTaskHandlerForTest(t *testing.T) *taskHandlerImpl {
 		testTaskCompletedID,
 		mockMutableState,
 		&persistence.ExecutionStats{},
-		metrics.NewClient(tally.NoopScope, metrics.History).Scope(metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DomainTag(constants.TestDomainName)),
+		metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}).Scope(metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DomainTag(constants.TestDomainName)),
 		testLogger,
 	)
 	mockMutableState.EXPECT().HasBufferedEvents().Return(false)
@@ -1661,12 +1661,12 @@ func newTaskHandlerForTest(t *testing.T) *taskHandlerImpl {
 		testTaskCompletedID,
 		constants.TestLocalDomainEntry,
 		mockMutableState,
-		newAttrValidator(mockDomainCache, metrics.NewClient(tally.NoopScope, metrics.History), testConfig, testlogger.New(t)),
+		newAttrValidator(mockDomainCache, metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}), testConfig, testlogger.New(t)),
 		workflowSizeChecker,
 		common.NewMockTaskTokenSerializer(ctrl),
 		testLogger,
 		mockDomainCache,
-		metrics.NewClient(tally.NoopScope, metrics.History),
+		metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
 		testConfig,
 	)
 	return taskHandler

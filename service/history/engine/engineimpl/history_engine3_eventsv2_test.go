@@ -124,11 +124,11 @@ func (s *engine3Suite) SetupTest() {
 		executionCache:       execution.NewCache(s.mockShard),
 		logger:               s.logger,
 		throttledLogger:      s.logger,
-		metricsClient:        metrics.NewClient(tally.NoopScope, metrics.History),
+		metricsClient:        metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
 		tokenSerializer:      common.NewJSONTaskTokenSerializer(),
 		config:               s.config,
 		timeSource:           s.mockShard.GetTimeSource(),
-		historyEventNotifier: events.NewNotifier(clock.NewRealTimeSource(), metrics.NewClient(tally.NoopScope, metrics.History), func(string) int { return 0 }),
+		historyEventNotifier: events.NewNotifier(clock.NewRealTimeSource(), metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}), func(string) int { return 0 }),
 		queueProcessors: map[p.HistoryTaskCategory]queue.Processor{
 			p.HistoryTaskCategoryTransfer: s.mockTxProcessor,
 			p.HistoryTaskCategoryTimer:    s.mockTimerProcessor,

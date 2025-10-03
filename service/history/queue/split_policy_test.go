@@ -60,7 +60,7 @@ func (s *splitPolicySuite) SetupTest() {
 	s.controller = gomock.NewController(s.T())
 
 	s.logger = testlogger.New(s.Suite.T())
-	s.metricsScope = metrics.NewClient(tally.NoopScope, metrics.History).Scope(metrics.TimerQueueProcessorScope)
+	s.metricsScope = metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}).Scope(metrics.TimerQueueProcessorScope)
 }
 
 func (s *splitPolicySuite) TearDownTest() {

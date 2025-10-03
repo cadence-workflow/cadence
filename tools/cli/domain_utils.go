@@ -484,7 +484,7 @@ func initializeDynamicConfig(
 }
 
 func initializeMetricsClient() metrics.Client {
-	return metrics.NewClient(tally.NoopScope, metrics.Common)
+	return metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{})
 }
 
 func getEnvironment(c *cli.Context) string {

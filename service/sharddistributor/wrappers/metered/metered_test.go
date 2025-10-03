@@ -78,7 +78,7 @@ func TestMetricsHandler_GetShardOwner(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			testScope := tally.NewTestScope("test", nil)
-			metricsClient := metrics.NewClient(testScope, metrics.ShardDistributor)
+			metricsClient := metrics.NewClient(testScope, metrics.ShardDistributor, metrics.HistogramMigration{})
 			mockHandler := handler.NewMockHandler(ctrl)
 
 			mockHandler.EXPECT().GetShardOwner(gomock.Any(), request).Return(response, tt.error)
@@ -152,7 +152,7 @@ func TestPassThroughMethods(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			testScope := tally.NewTestScope("test", nil)
-			metricsClient := metrics.NewClient(testScope, metrics.ShardDistributor)
+			metricsClient := metrics.NewClient(testScope, metrics.ShardDistributor, metrics.HistogramMigration{})
 			mockHandler := handler.NewMockHandler(ctrl)
 
 			// We expect _no_ log calls
@@ -234,7 +234,7 @@ func TestHandleErr(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			testScope := tally.NewTestScope("test", nil)
-			metricsClient := metrics.NewClient(testScope, metrics.ShardDistributor)
+			metricsClient := metrics.NewClient(testScope, metrics.ShardDistributor, metrics.HistogramMigration{})
 			mockLogger := log.NewMockLogger(gomock.NewController(t))
 			mockLogger.EXPECT().Helper().Return(mockLogger)
 
