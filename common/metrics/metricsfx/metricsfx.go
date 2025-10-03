@@ -44,6 +44,9 @@ var ModuleForExternalScope = fx.Module("metricsfx",
 	fx.Provide(func(params serviceIdxParams) metrics.ServiceIdx {
 		return service.GetMetricsServiceIdx(params.ServiceFullName, params.Logger)
 	}),
+	fx.Provide(func(c config.Config) metrics.HistogramMigration {
+		return c.Histograms
+	}),
 	fx.Provide(buildClientFromTally))
 
 type clientParams struct {
