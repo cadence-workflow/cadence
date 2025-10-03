@@ -22,12 +22,16 @@ package config
 
 import (
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	uconfig "go.uber.org/config"
+	"gopkg.in/validator.v2"
 
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/service"
 )
 
@@ -386,4 +390,50 @@ func TestInvalidShardedNoSQLConfig_TasklistShardingRefersToUnknownConnection(t *
 
 	err := cfg.ValidateAndFillDefaults()
 	require.ErrorContains(t, err, "Unknown tasklist shard name")
+}
+
+func TestHistogramMigrationConfig(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		// intentionally avoiding the full config struct, as it has other required config
+		yaml, err := uconfig.NewYAML(uconfig.RawSource(strings.NewReader(`
+default: histogram
+keys:
+  key1: timer
+  key2: histogram
+  key3: both
+  key4:
+`)))
+		require.NoError(t, err)
+
+		var cfg metrics.HistogramMigration
+		err = yaml.Get(uconfig.Root).Populate(&cfg)
+		require.NoError(t, err)
+
+		err = validator.Validate(cfg)
+		require.NoError(t, err)
+
+		check := func(key string, timer, histogram bool) {
+			assert.Equalf(t, timer, cfg.EmitTimer(key), "wrong value for EmitTimer(%q)", key)
+			assert.Equalf(t, histogram, cfg.EmitHistogram(key), "wrong value for EmitHistogram(%q)", key)
+		}
+		check("key1", true, false)
+		check("key2", false, true)
+		check("key3", true, true)
+		check("key4", true, true)  // the type's default mode == both.  not truly intended behavior, and not documented, but it's fine.
+		check("key5", false, true) // configured default == histogram
+		if t.Failed() {
+			t.Logf("config: %#v", cfg)
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		yaml, err := uconfig.NewYAML(uconfig.RawSource(strings.NewReader(`
+keys:
+  key1: xyz
+`)))
+		require.NoError(t, err)
+
+		var cfg metrics.HistogramMigration
+		err = yaml.Get(uconfig.Root).Populate(&cfg)
+		assert.ErrorContains(t, err, `unsupported histogram migration mode "xyz", must be "timer", "histogram", or "both"`)
+	})
 }
