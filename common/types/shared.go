@@ -31,7 +31,7 @@ import (
 )
 
 // AccessDeniedError is an internal type (TBD...)
-// TODO: Move to common/types/errors.go
+// TODO(c-warren): Move to common/types/errors.go
 type AccessDeniedError struct {
 	Message string `json:"message,required"`
 }
@@ -437,7 +437,7 @@ func (v *BadBinaryInfo) ByteSize() uint64 {
 }
 
 // BadRequestError is an internal type (TBD...)
-// TODO: Move to common/types/errors.go
+// TODO(c-warren): Move to common/types/errors.go
 type BadRequestError struct {
 	Message string `json:"message,required"`
 }
@@ -2213,7 +2213,7 @@ func (v *DomainInfo) ByteSize() uint64 {
 // DomainNotActiveError is an internal type.
 // this is a retriable error and *must* be retried under at least
 // some circumstances due to domain failover races.
-// TODO: Move to common/types/errors.go
+// TODO(c-warren): Move to common/types/errors.go
 type DomainNotActiveError struct {
 	Message        string   `json:"message"`
 	DomainName     string   `json:"domainName"`
@@ -2338,7 +2338,7 @@ func (v *ActiveClusters) GetAttributeScopes() map[string]ClusterAttributeScope {
 	return nil
 }
 
-// TODO: Move to common/types/errors.go?
+// TODO(c-warren): Move to common/types/errors.go?
 var (
 	ErrActiveClusterInfoNotFound = errors.New("active cluster info not found")
 	ErrDomainNotActiveActive     = errors.New("domain is not configured for active-active")
