@@ -411,7 +411,7 @@ func TestParseActiveClustersByClusterAttribute(t *testing.T) {
 		},
 		"Some invalid input": {
 			clusters:      "bad-data",
-			expectedError: fmt.Errorf("Option active_clusters format is invalid. Expected format is 'region1:cluster1,region2:cluster2'"),
+			expectedError: fmt.Errorf("Option active_clusters format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'"),
 		},
 	}
 
