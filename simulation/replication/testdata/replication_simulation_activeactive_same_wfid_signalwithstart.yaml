@@ -18,9 +18,14 @@ primaryCluster: "cluster0"
 
 domains:
   test-domain-aa-conflict:
-    activeClustersByRegion:
-      region0: cluster0
-      region1: cluster1
+    activeClustersByAttribute:
+      attributeScopes:
+        region:
+          clusterAttributes:
+            region0:
+              activeClusterName: cluster0
+            region1:
+              activeClusterName: cluster1
 
 operations:
   - op: signal_with_start_workflow

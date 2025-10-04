@@ -2313,11 +2313,11 @@ func (v *DomainReplicationConfiguration) ByteSize() uint64 {
 // TODO(c-warren): Rename to ClusterAttributes
 type ActiveClusters struct {
 	// TODO(c-warren): Remove once refactor to ClusterAttribute is complete
-	ActiveClustersByRegion map[string]ActiveClusterInfo `json:"activeClustersByRegion,omitempty"`
-	// AttributeScopes maps scope types to their cluster attribute configurations.
-	// Keyed by a scope type (e.g., region, datacenter, city, etc.).
-	// The value is a ClusterAttributeScope - a map of unique names (e.g., seattle, san_francisco, etc.) to an ActiveClusterInfo.
-	AttributeScopes map[string]ClusterAttributeScope `json:"attributeScopes,omitempty"`
+	ActiveClustersByRegion map[string]ActiveClusterInfo `json:"activeClustersByRegion,omitempty" yaml:"activeClustersByRegion,omitempty"`
+	// ClusterAttributes
+	// Keyed by a scope type (e.g region, datacenter, city, etc.).
+	// The value is a ClusterAttributeScope - a map of unique names (e.g seattle, san_francisco, etc.) to an ActiveClusterInfo.
+	AttributeScopes map[string]ClusterAttributeScope `json:"attributeScopes,omitempty" yaml:"attributeScopes,omitempty"`
 }
 
 // DefaultAttributeScopeType is the default scope type for backward compatibility with ActiveClustersByRegion
@@ -2495,7 +2495,7 @@ func (v *ActiveClusters) ByteSize() uint64 {
 // ClusterAttributeScope is a map of unique attribute names to the active cluster for that attribute.
 // It can be used to determine the current failover version for a workflow associated with that attribute.
 type ClusterAttributeScope struct {
-	ClusterAttributes map[string]ActiveClusterInfo `json:"clusterAttributes,omitempty"`
+	ClusterAttributes map[string]ActiveClusterInfo `json:"clusterAttributes,omitempty" yaml:"clusterAttributes,omitempty"`
 }
 
 func (v *ClusterAttributeScope) GetActiveClusterByClusterAttribute(name string) (ActiveClusterInfo, error) {
@@ -2528,8 +2528,8 @@ func (v *ClusterAttributeScope) ByteSize() uint64 {
 
 // ActiveClusterInfo defines failover information for a ClusterAttribute.
 type ActiveClusterInfo struct {
-	ActiveClusterName string `json:"activeClusterName,omitempty"`
-	FailoverVersion   int64  `json:"failoverVersion,omitempty"`
+	ActiveClusterName string `json:"activeClusterName,omitempty" yaml:"activeClusterName,omitempty"`
+	FailoverVersion   int64  `json:"failoverVersion,omitempty" yaml:"failoverVersion,omitempty"`
 }
 
 // ByteSize returns the approximate memory used in bytes

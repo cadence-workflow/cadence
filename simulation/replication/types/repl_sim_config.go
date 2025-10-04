@@ -69,7 +69,8 @@ type ReplicationSimulationConfig struct {
 type ReplicationDomainConfig struct {
 	ActiveClusterName string `yaml:"activeClusterName"`
 
-	ActiveClustersByRegion map[string]string `yaml:"activeClustersByRegion"`
+	ActiveClustersByRegion    map[string]string    `yaml:"activeClustersByRegion"`
+	ActiveClustersByAttribute types.ActiveClusters `yaml:"activeClusters"`
 }
 
 type Operation struct {
@@ -179,7 +180,7 @@ func (s *ReplicationSimulationConfig) MustInitClientsFor(t *testing.T, clusterNa
 }
 
 func (s *ReplicationSimulationConfig) IsActiveActiveDomain(domainName string) bool {
-	return len(s.Domains[domainName].ActiveClustersByRegion) > 0
+	return len(s.Domains[domainName].ActiveClustersByRegion) > 0 || len(s.Domains[domainName].ActiveClustersByAttribute.AttributeScopes) > 0
 }
 
 func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T, domainName string, domainCfg ReplicationDomainConfig) {
@@ -204,8 +205,10 @@ func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T, domainNam
 		req.ActiveClusterName = domainCfg.ActiveClusterName
 	} else if len(domainCfg.ActiveClustersByRegion) > 0 {
 		req.ActiveClustersByRegion = domainCfg.ActiveClustersByRegion
+	} else if len(domainCfg.ActiveClustersByAttribute.AttributeScopes) > 0 {
+		req.ActiveClusters = &domainCfg.ActiveClustersByAttribute
 	} else {
-		require.Fail(t, "activeClusterName or activeClustersByRegion is required but missing for domain %s", domainName)
+		require.Fail(t, "activeClusterName, activeClustersByRegion, or activeClusters is required but missing for domain %s", domainName)
 	}
 
 	err := s.MustGetFrontendClient(t, s.PrimaryCluster).RegisterDomain(ctx, req)

@@ -24,7 +24,9 @@ package cli
 
 import (
 	"fmt"
+	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
@@ -59,31 +61,43 @@ func (s *cliAppSuite) TestDomainRegister() {
 		},
 		{
 			"active-active domain",
-			"cadence --do test-domain domain register --active_active_domain true --active_clusters_by_region region1:cluster1,region2:cluster2",
+			"cadence --do test-domain domain register --active_active_domain true --active_clusters region.region1:cluster1,region.region2:cluster2",
 			"",
 			func() {
 				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
 					Name:                                   "test-domain",
 					WorkflowExecutionRetentionPeriodInDays: 3,
 					IsGlobalDomain:                         true,
-					ActiveClustersByRegion: map[string]string{
-						"region1": "cluster1",
-						"region2": "cluster2",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"region1": {ActiveClusterName: "cluster1"},
+									"region2": {ActiveClusterName: "cluster2"},
+								},
+							},
+						},
 					},
 				}).Return(nil)
 			},
 		},
 		{
 			"active-active domain with invalid active clusters by region",
-			"cadence --do test-domain domain register --active_active_domain true --active_clusters_by_region region1=cluster1",
-			"Option --active_clusters_by_region format is invalid. Expected format is 'region1:cluster1,region2:cluster2'",
+			"cadence --do test-domain domain register --active_active_domain true --active_clusters region1=cluster1",
+			"Option active_clusters format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'",
 			nil,
 		},
 		{
 			"active-active domain with no active clusters by region",
 			"cadence --do test-domain domain register --active_active_domain true",
-			"Option --active_clusters_by_region is required for active-active domain.",
-			nil,
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
+					Name:                                   "test-domain",
+					WorkflowExecutionRetentionPeriodInDays: 3,
+					IsGlobalDomain:                         true,
+				}).Return(nil)
+			},
 		},
 		{
 			"domain with other options",
@@ -148,7 +162,7 @@ func (s *cliAppSuite) TestDomainRegister() {
 					Name:                                   "test-domain",
 					WorkflowExecutionRetentionPeriodInDays: 3,
 					IsGlobalDomain:                         true,
-				}).Return(&types.BadRequestError{"fake error"})
+				}).Return(&types.BadRequestError{Message: "fake error"})
 			},
 		},
 		{
@@ -293,15 +307,19 @@ func (s *cliAppSuite) TestDomainUpdate() {
 		},
 		{
 			"active-active domain failover",
-			"cadence --do test-domain domain update --active_clusters_by_region region1:c1,region2:c2",
+			"cadence --do test-domain domain update --active_clusters region.region1:c1,region.region2:c2",
 			"",
 			func() {
 				s.serverFrontendClient.EXPECT().UpdateDomain(gomock.Any(), &types.UpdateDomainRequest{
 					Name: "test-domain",
 					ActiveClusters: &types.ActiveClusters{
-						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-							"region1": {ActiveClusterName: "c1"},
-							"region2": {ActiveClusterName: "c2"},
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"region1": {ActiveClusterName: "c1"},
+									"region2": {ActiveClusterName: "c2"},
+								},
+							},
 						},
 					},
 				}).Return(&types.UpdateDomainResponse{}, nil)
@@ -385,6 +403,39 @@ func (s *cliAppSuite) TestListDomains() {
 	for _, tt := range testCases {
 		s.Run(tt.name, func() {
 			s.runTestCase(tt)
+		})
+	}
+}
+
+func TestParseActiveClustersByClusterAttribute(t *testing.T) {
+
+	testCases := map[string]struct {
+		clusters      string
+		expected      types.ActiveClusters
+		expectedError error
+	}{
+		"valid active clusters by cluster attribute": {
+			clusters: "region.newyork:cluster0,region.manilla:cluster1",
+			expected: types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"newyork": {ActiveClusterName: "cluster0"},
+						"manilla": {ActiveClusterName: "cluster1"},
+					}},
+				},
+			},
+		},
+		"Some invalid input": {
+			clusters:      "bad-data",
+			expectedError: fmt.Errorf("Option active_clusters format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'"),
+		},
+	}
+
+	for name, td := range testCases {
+		t.Run(name, func(t *testing.T) {
+			activeClusters, err := parseActiveClustersByClusterAttribute(td.clusters)
+			assert.Equal(t, td.expected, activeClusters)
+			assert.Equal(t, td.expectedError, err)
 		})
 	}
 }

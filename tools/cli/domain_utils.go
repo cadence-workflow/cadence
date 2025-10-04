@@ -73,9 +73,9 @@ var (
 			Usage:   "Active cluster name",
 		},
 		&cli.StringSliceFlag{
-			Name:    FlagActiveClustersByRegion,
-			Aliases: []string{"acbr"},
-			Usage:   "Active clusters by region in the format 'region1:cluster1,region2:cluster2'",
+			Name:    FlagActiveClusters,
+			Aliases: []string{"acs"},
+			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
 		},
 		&cli.StringSliceFlag{
 			Name:    FlagClusters,
@@ -149,9 +149,9 @@ var (
 			Usage:   "Active cluster name",
 		},
 		&cli.StringSliceFlag{
-			Name:    FlagActiveClustersByRegion,
-			Aliases: []string{"acbr"},
-			Usage:   "Active clusters by region in the format 'region1:cluster1,region2:cluster2'",
+			Name:    FlagActiveClusters,
+			Aliases: []string{"acbca"},
+			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
 		},
 		&cli.StringSliceFlag{
 			Name:    FlagClusters,

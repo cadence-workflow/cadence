@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
@@ -1712,30 +1713,126 @@ func (d *handlerImpl) validateDomainReplicationConfigForUpdateDomain(
 }
 
 func (d *handlerImpl) activeClustersFromRegisterRequest(registerRequest *types.RegisterDomainRequest) (*types.ActiveClusters, error) {
-	if !registerRequest.GetIsGlobalDomain() || registerRequest.ActiveClustersByRegion == nil {
-		// local or active-passive domain
+	if !registerRequest.GetIsGlobalDomain() {
+		// local domain
 		return nil, nil
 	}
 
-	// Initialize ActiveClustersByRegion with given cluster names and their initial failover versions
-	activeClustersByRegion := make(map[string]types.ActiveClusterInfo, len(registerRequest.ActiveClustersByRegion))
 	clusters := d.clusterMetadata.GetAllClusterInfo()
-	for region, cluster := range registerRequest.ActiveClustersByRegion {
-		clusterInfo, ok := clusters[cluster]
+
+	// Handle new ActiveClusters field with AttributeScopes
+	if registerRequest.ActiveClusters != nil {
+		return d.buildActiveClustersFromActiveClustersField(registerRequest.ActiveClusters, clusters)
+	}
+
+	// todo (david.porter) remove this once we've migrated to AttributeScopes
+	// Handle legacy ActiveClustersByRegion field (for backward compatibility)
+	if registerRequest.ActiveClustersByRegion != nil {
+		return d.buildActiveClustersFromLegacyRegionField(registerRequest.ActiveClustersByRegion, clusters)
+	}
+
+	// active-passive domain
+	return nil, nil
+}
+
+// buildActiveClustersFromActiveClustersField constructs ActiveClusters from the new ActiveClusters field containing AttributeScopes
+func (d *handlerImpl) buildActiveClustersFromActiveClustersField(requestActiveClusters *types.ActiveClusters, availableClusters map[string]config.ClusterInformation) (*types.ActiveClusters, error) {
+	activeClusters := &types.ActiveClusters{}
+
+	// Process ActiveClustersByRegion if present (for backward compatibility)
+	if len(requestActiveClusters.ActiveClustersByRegion) > 0 {
+		activeClustersByRegion, err := d.validateAndBuildActiveClustersByRegion(requestActiveClusters.ActiveClustersByRegion, availableClusters)
+		if err != nil {
+			return nil, err
+		}
+		activeClusters.ActiveClustersByRegion = activeClustersByRegion
+	}
+
+	// Process AttributeScopes (ClusterAttributes)
+	if len(requestActiveClusters.AttributeScopes) > 0 {
+		attributeScopes, err := d.validateAndBuildAttributeScopes(requestActiveClusters.AttributeScopes, availableClusters)
+		if err != nil {
+			return nil, err
+		}
+		activeClusters.AttributeScopes = attributeScopes
+	}
+
+	return activeClusters, nil
+}
+
+// buildActiveClustersFromLegacyRegionField constructs ActiveClusters from the legacy ActiveClustersByRegion field
+func (d *handlerImpl) buildActiveClustersFromLegacyRegionField(legacyRegions map[string]string, availableClusters map[string]config.ClusterInformation) (*types.ActiveClusters, error) {
+	activeClustersByRegion := make(map[string]types.ActiveClusterInfo, len(legacyRegions))
+
+	for region, clusterName := range legacyRegions {
+		clusterInfo, ok := availableClusters[clusterName]
 		if !ok {
 			return nil, &types.BadRequestError{
-				Message: fmt.Sprintf("Cluster %v not found. Domain cannot be registered in this cluster.", cluster),
+				Message: fmt.Sprintf("Cluster %v not found. Domain cannot be registered in this cluster.", clusterName),
 			}
 		}
 
 		activeClustersByRegion[region] = types.ActiveClusterInfo{
-			ActiveClusterName: cluster,
+			ActiveClusterName: clusterName,
 			FailoverVersion:   clusterInfo.InitialFailoverVersion,
 		}
 	}
+
 	return &types.ActiveClusters{
 		ActiveClustersByRegion: activeClustersByRegion,
 	}, nil
+}
+
+// todo (david.porter) remove this once we've migrated to AttributeScopes
+func (d *handlerImpl) validateAndBuildActiveClustersByRegion(regions map[string]types.ActiveClusterInfo, availableClusters map[string]config.ClusterInformation) (map[string]types.ActiveClusterInfo, error) {
+	activeClustersByRegion := make(map[string]types.ActiveClusterInfo, len(regions))
+
+	for region, clusterInfo := range regions {
+		clusterName := clusterInfo.ActiveClusterName
+		clusterMetadata, ok := availableClusters[clusterName]
+		if !ok {
+			return nil, &types.BadRequestError{
+				Message: fmt.Sprintf("Cluster %v not found. Domain cannot be registered in this cluster.", clusterName),
+			}
+		}
+
+		activeClustersByRegion[region] = types.ActiveClusterInfo{
+			ActiveClusterName: clusterName,
+			FailoverVersion:   clusterMetadata.InitialFailoverVersion,
+		}
+	}
+
+	return activeClustersByRegion, nil
+}
+
+// validateAndBuildAttributeScopes validates and builds AttributeScopes (ClusterAttributes) with failover versions
+func (d *handlerImpl) validateAndBuildAttributeScopes(scopes map[string]types.ClusterAttributeScope, availableClusters map[string]config.ClusterInformation) (map[string]types.ClusterAttributeScope, error) {
+	attributeScopes := make(map[string]types.ClusterAttributeScope, len(scopes))
+
+	for scopeType, scope := range scopes {
+		clusterAttributes := make(map[string]types.ActiveClusterInfo, len(scope.ClusterAttributes))
+
+		for attributeName, clusterInfo := range scope.ClusterAttributes {
+			clusterName := clusterInfo.ActiveClusterName
+			clusterMetadata, ok := availableClusters[clusterName]
+			if !ok {
+				return nil, &types.BadRequestError{
+					Message: fmt.Sprintf("Cluster %v not found. Domain cannot be registered in this cluster.", clusterName),
+				}
+			}
+
+			clusterAttributes[attributeName] = types.ActiveClusterInfo{
+				ActiveClusterName: clusterName,
+				FailoverVersion:   clusterMetadata.InitialFailoverVersion,
+			}
+		}
+
+		attributeScopes[scopeType] = types.ClusterAttributeScope{
+			ClusterAttributes: clusterAttributes,
+		}
+	}
+
+	return attributeScopes, nil
 }
 
 func getDomainStatus(info *persistence.DomainInfo) *types.DomainStatus {
