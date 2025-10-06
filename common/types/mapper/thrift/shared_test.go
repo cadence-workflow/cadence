@@ -2277,6 +2277,34 @@ func TestRegisterDomainRequestConversion(t *testing.T) {
 	}
 }
 
+func TestRegisterDomainRequestFuzz(t *testing.T) {
+	t.Run("round trip from internal", func(t *testing.T) {
+		testutils.EnsureFuzzCoverage(t, []string{
+			"nil", "empty", "filled",
+		}, func(t *testing.T, f *fuzz.Fuzzer) string {
+			// Configure fuzzer to generate valid enum values
+			fuzzer := f.Funcs(
+				func(e *types.ArchivalStatus, c fuzz.Continue) {
+					*e = types.ArchivalStatus(c.Intn(2)) // 0-1 are valid values (Disabled=0, Enabled=1)
+				},
+			).NilChance(0.3)
+
+			var orig *types.RegisterDomainRequest
+			fuzzer.Fuzz(&orig)
+			out := ToRegisterDomainRequest(FromRegisterDomainRequest(orig))
+			assert.Equal(t, orig, out, "RegisterDomainRequest did not survive round-tripping")
+
+			if orig == nil {
+				return "nil"
+			}
+			if orig.Name == "" && orig.ActiveClusterName == "" && orig.ActiveClusters == nil {
+				return "empty"
+			}
+			return "filled"
+		})
+	})
+}
+
 func TestRemoteSyncMatchedErrorConversion(t *testing.T) {
 	testCases := []*types.RemoteSyncMatchedError{
 		nil,
