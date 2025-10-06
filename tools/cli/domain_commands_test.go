@@ -61,7 +61,7 @@ func (s *cliAppSuite) TestDomainRegister() {
 		},
 		{
 			"active-active domain",
-			"cadence --do test-domain domain register --active_active_domain true --active_clusters region.region1:cluster1,region.region2:cluster2",
+			"cadence --do test-domain domain register --active_clusters region.region1:cluster1,region.region2:cluster2",
 			"",
 			func() {
 				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
@@ -83,21 +83,9 @@ func (s *cliAppSuite) TestDomainRegister() {
 		},
 		{
 			"active-active domain with invalid active clusters by region",
-			"cadence --do test-domain domain register --active_active_domain true --active_clusters region1=cluster1",
+			"cadence --do test-domain domain register --active_clusters region1=cluster1",
 			"Option active_clusters format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'",
 			nil,
-		},
-		{
-			"active-active domain with no active clusters by region",
-			"cadence --do test-domain domain register --active_active_domain true",
-			"",
-			func() {
-				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
-					Name:                                   "test-domain",
-					WorkflowExecutionRetentionPeriodInDays: 3,
-					IsGlobalDomain:                         true,
-				}).Return(nil)
-			},
 		},
 		{
 			"domain with other options",
