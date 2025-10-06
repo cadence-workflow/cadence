@@ -238,7 +238,7 @@ func (s *attrValidatorSuite) TestValidateDomainReplicationConfigForGlobalDomain(
 	)
 	s.NoError(err)
 
-	// Test missing ActiveClusterName for global domain (should fail)
+	// When ActiveClusterName is not provided, and ActiveClusters are not provided, it should return an error
 	err = s.validator.validateDomainReplicationConfigForGlobalDomain(
 		&persistence.DomainReplicationConfig{
 			ActiveClusterName: "",
@@ -250,7 +250,7 @@ func (s *attrValidatorSuite) TestValidateDomainReplicationConfigForGlobalDomain(
 	s.Error(err)
 	s.IsType(&types.BadRequestError{}, err)
 
-	// Test active-active domain with valid ActiveClusterName
+	// When ActiveClusterName and ActiveClusters are provided, it should not return an error
 	err = s.validator.validateDomainReplicationConfigForGlobalDomain(
 		&persistence.DomainReplicationConfig{
 			ActiveClusterName: cluster.TestCurrentClusterName,
@@ -268,7 +268,7 @@ func (s *attrValidatorSuite) TestValidateDomainReplicationConfigForGlobalDomain(
 	)
 	s.NoError(err)
 
-	// Test active-active domain with missing ActiveClusterName (should fail)
+	// When ActiveClusterName is not provided, and ActiveClusters are provided, it should return an error
 	err = s.validator.validateDomainReplicationConfigForGlobalDomain(
 		&persistence.DomainReplicationConfig{
 			ActiveClusterName: "",

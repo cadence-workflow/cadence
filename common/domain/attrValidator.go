@@ -101,8 +101,6 @@ func (d *AttrValidatorImpl) validateDomainReplicationConfigForGlobalDomain(
 	clusters := replicationConfig.Clusters
 	activeClusters := replicationConfig.ActiveClusters
 
-	// ActiveClusterName is required for all global domains (both active-passive and active-active)
-	// to serve as a fallback when there are issues with active-active configuration
 	if activeCluster == "" {
 		return errActiveClusterNameRequired
 	}
@@ -122,7 +120,6 @@ func (d *AttrValidatorImpl) validateDomainReplicationConfigForGlobalDomain(
 		return false
 	}
 
-	// Validate ActiveClusterName is in the clusters list
 	if err := d.validateClusterName(activeCluster); err != nil {
 		return err
 	}
