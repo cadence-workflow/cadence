@@ -2551,8 +2551,8 @@ func (v *ActiveClusters) DeepCopy() *ActiveClusters {
 }
 
 type ClusterAttribute struct {
-	Scope string `json:"scope,omitempty"`
-	Name  string `json:"name,omitempty"`
+	Scope string `json:"scope,omitempty" yaml:"scope,omitempty"`
+	Name  string `json:"name,omitempty" yaml:"name,omitempty"`
 }
 
 func (c *ClusterAttribute) Equals(other *ClusterAttribute) bool {
@@ -2581,7 +2581,7 @@ type ActiveClusterSelectionPolicy struct {
 	ExternalEntityKey  string `json:"externalEntityKey,omitempty"`
 
 	// TODO(active-active): Remove the fields above
-	ClusterAttribute *ClusterAttribute `json:"clusterAttribute,omitempty"`
+	ClusterAttribute *ClusterAttribute `json:"clusterAttribute,omitempty" yaml:"clusterAttribute,omitempty"`
 }
 
 func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolicy) bool {

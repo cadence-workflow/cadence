@@ -29,6 +29,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 65s
     workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
 
   # start workflow in cluster1
   - op: start_workflow
@@ -39,6 +43,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 65s
     workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
 
   # validate that wf1 is started in cluster0 and completed in cluster1
   - op: validate

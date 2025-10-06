@@ -32,6 +32,10 @@ operations:
     signalInput: "cluster0-signal-data"
     workflowExecutionStartToCloseTimeout: 90s
     workflowDuration: 60s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
 
   - op: signal_with_start_workflow
     at: 20s
@@ -43,6 +47,10 @@ operations:
     signalInput: "cluster1-signal-data"
     workflowExecutionStartToCloseTimeout: 90s
     workflowDuration: 60s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
 
   # Query after the second signal to validate both signals are in the same workflow
   - op: query_workflow

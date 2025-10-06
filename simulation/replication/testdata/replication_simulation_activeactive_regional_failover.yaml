@@ -29,6 +29,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 60s
     workflowID: wf1
@@ -56,6 +60,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 70s
     workflowID: wf2
@@ -77,6 +85,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
     delayStartSeconds: 10
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 70s
     workflowID: wf3
@@ -95,6 +107,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
     delayStartSeconds: 10
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 71s
     workflowID: wf4
@@ -113,6 +129,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
     delayStartSeconds: 10
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 72s
     workflowID: wf5
@@ -131,6 +151,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
     delayStartSeconds: 10
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 73s
     workflowID: wf6
@@ -150,6 +174,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 75s
     workflowID: wf7
