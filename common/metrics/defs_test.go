@@ -96,27 +96,27 @@ func TestScopeDefsMapped(t *testing.T) {
 func TestMetricDefsMapped(t *testing.T) {
 	for i := CadenceRequests; i < NumCommonMetrics; i++ {
 		key, ok := MetricDefs[Common][i]
-		require.True(t, ok)
+		require.True(t, ok, "common enum %v is missing a metric definition", i)
 		require.NotEmpty(t, key)
 	}
 	for i := TaskRequests; i < NumHistoryMetrics; i++ {
 		key, ok := MetricDefs[History][i]
-		require.True(t, ok)
+		require.True(t, ok, "history enum %v is missing a metric definition", i)
 		require.NotEmpty(t, key)
 	}
 	for i := PollSuccessPerTaskListCounter; i < NumMatchingMetrics; i++ {
 		key, ok := MetricDefs[Matching][i]
-		require.True(t, ok)
+		require.True(t, ok, "matching enum %v is missing a metric definition", i)
 		require.NotEmpty(t, key)
 	}
 	for i := ReplicatorMessages; i < NumWorkerMetrics; i++ {
 		key, ok := MetricDefs[Worker][i]
-		require.True(t, ok)
+		require.True(t, ok, "worker enum %v is missing a metric definition", i)
 		require.NotEmpty(t, key)
 	}
 	for i := ShardDistributorRequests; i < NumShardDistributorMetrics; i++ {
 		key, ok := MetricDefs[ShardDistributor][i]
-		require.True(t, ok)
+		require.True(t, ok, "shard distributor enum %v is missing a metric definition", i)
 		require.NotEmpty(t, key)
 	}
 }
