@@ -442,21 +442,6 @@ func TestRecordMarkerDecisionAttributes(t *testing.T) {
 		assert.Equal(t, item, ToRecordMarkerDecisionAttributes(FromRecordMarkerDecisionAttributes(item)))
 	}
 }
-func TestRegisterDomainRequest(t *testing.T) {
-	for _, item := range []*types.RegisterDomainRequest{nil, {EmitMetric: common.BoolPtr(true)}, &testdata.RegisterDomainRequest} {
-		result := ToRegisterDomainRequest(FromRegisterDomainRequest(item))
-
-		// Proto RegisterDomainRequest doesn't support EmitMetric field, so it will be lost during conversion
-		// Adjust expected value to match proto behavior
-		if item != nil {
-			expected := *item         // Copy the struct
-			expected.EmitMetric = nil // Proto doesn't support this field
-			assert.Equal(t, &expected, result)
-		} else {
-			assert.Equal(t, item, result)
-		}
-	}
-}
 
 func TestRegisterDomainRequestFuzz(t *testing.T) {
 	t.Run("round trip from internal", func(t *testing.T) {
