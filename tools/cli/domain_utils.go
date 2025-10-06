@@ -143,6 +143,11 @@ var (
 			Usage:   "Active cluster name",
 		},
 		&cli.StringSliceFlag{
+			Name:    FlagActiveClusters,
+			Aliases: []string{"acs"},
+			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
+		},
+		&cli.StringSliceFlag{
 			Name:    FlagClusters,
 			Aliases: []string{"cl"},
 			Usage:   FlagClustersUsage,
