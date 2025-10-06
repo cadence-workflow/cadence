@@ -268,12 +268,6 @@ func (d *handlerImpl) RegisterDomain(
 		return err
 	}
 
-	if activeClusters != nil {
-		// TODO: Leave a default activeClusterName for active-active domains
-		// active-active domain, activeClusterName is not used
-		activeClusterName = ""
-	}
-
 	replicationConfig := &persistence.DomainReplicationConfig{
 		ActiveClusterName: activeClusterName,
 		Clusters:          clusters,

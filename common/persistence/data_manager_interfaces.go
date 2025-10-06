@@ -1148,12 +1148,14 @@ type (
 		Clusters []*ClusterReplicationConfig
 
 		// ActiveClusterName is the name of the cluster that the domain is active in.
-		// Applicable for active-passive domains.
+		// Required for all global domains (both active-passive and active-active).
+		// For active-passive domains, this is the single active cluster.
+		// For active-active domains this is the default cluster whenever a ClusterAttribute is not provided
 		ActiveClusterName string
 
-		// TODO(c-warren): Update documentation once ActiveClusterName is the default for active-active domains.
 		// ActiveClusters is only applicable for active-active domains.
-		// If this is set, ActiveClusterName is ignored.
+		// When this is set, the domain is considered active-active and workflows are routed
+		// based on their ClusterAttributes.
 		ActiveClusters *types.ActiveClusters
 	}
 
