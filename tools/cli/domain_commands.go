@@ -113,16 +113,6 @@ func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 			return commoncli.Problem(fmt.Sprintf("Option %s format is invalid.", FlagIsGlobalDomain), err)
 		}
 	}
-	isActiveActiveDomain := false
-	if c.IsSet(FlagIsActiveActiveDomain) {
-		isActiveActiveDomain, err = strconv.ParseBool(c.String(FlagIsActiveActiveDomain))
-		if err != nil {
-			return commoncli.Problem(fmt.Sprintf("Option %s format is invalid.", FlagIsActiveActiveDomain), err)
-		}
-
-		// Also set isGlobalDomain to true if it is active-active domain
-		isGlobalDomain = isActiveActiveDomain
-	}
 
 	var domainData *flag.StringMap
 	if c.IsSet(FlagDomainData) {
@@ -137,9 +127,6 @@ func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 
 	activeClusterName := ""
 	if c.IsSet(FlagActiveClusterName) {
-		if isActiveActiveDomain {
-			return commoncli.Problem("Option --active_cluster is not supported for active-active domain. Use --active_clusters_by_region instead.", nil)
-		}
 		activeClusterName = c.String(FlagActiveClusterName)
 	}
 
@@ -696,7 +683,7 @@ func newDomainRow(domain *types.DescribeDomainResponse) DomainRow {
 		VisibilityArchivalURI:    domain.Configuration.GetVisibilityArchivalURI(),
 		BadBinaries:              newBadBinaryRows(domain.Configuration.BadBinaries),
 		FailoverInfo:             newFailoverInfoRow(domain.FailoverInfo),
-		IsActiveActiveDomain:     domain.ReplicationConfiguration.GetActiveClusters() != nil,
+		IsActiveActiveDomain:     domain.ReplicationConfiguration.IsActiveActiveDomain(),
 		ActiveClustersByRegion:   newActiveClustersByRegion(domain.ReplicationConfiguration.GetActiveClusters()),
 	}
 }
@@ -928,7 +915,7 @@ func parseActiveClustersByClusterAttribute(clusters string) (types.ActiveCluster
 	split := regexp.MustCompile(`(?P<attribute>[a-zA-Z0-9_]+).(?P<scope>[a-zA-Z0-9_]+):(?P<name>[a-zA-Z0-9_]+)`)
 	matches := split.FindAllStringSubmatch(clusters, -1)
 	if len(matches) == 0 {
-		return types.ActiveClusters{}, fmt.Errorf("Option %s format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'", FlagActiveClusters)
+		return types.ActiveClusters{}, fmt.Errorf("option %s format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'", FlagActiveClusters)
 	}
 
 	out := types.ActiveClusters{
@@ -936,14 +923,26 @@ func parseActiveClustersByClusterAttribute(clusters string) (types.ActiveCluster
 	}
 
 	for _, match := range matches {
+		if len(match) != 4 {
+			return types.ActiveClusters{}, fmt.Errorf("option %s format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'", FlagActiveClusters)
+		}
 		attribute := match[1]
 		scope := match[2]
 		name := match[3]
 
-		if _, ok := out.AttributeScopes[attribute]; !ok {
+		existing, ok := out.AttributeScopes[attribute]
+		if !ok {
 			out.AttributeScopes[attribute] = types.ClusterAttributeScope{
-				ClusterAttributes: map[string]types.ActiveClusterInfo{},
+				ClusterAttributes: map[string]types.ActiveClusterInfo{
+					scope: {ActiveClusterName: name},
+				},
 			}
+		} else {
+			if _, ok := existing.ClusterAttributes[scope]; ok {
+				return types.ActiveClusters{}, fmt.Errorf("option active_clusters format is invalid. the key %q was duplicated. This can only map to a single active cluster", scope)
+			}
+			existing.ClusterAttributes[scope] = types.ActiveClusterInfo{ActiveClusterName: name}
+			out.AttributeScopes[attribute] = existing
 		}
 
 		out.AttributeScopes[attribute].ClusterAttributes[scope] = types.ActiveClusterInfo{ActiveClusterName: name}

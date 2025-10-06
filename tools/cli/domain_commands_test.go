@@ -425,9 +425,31 @@ func TestParseActiveClustersByClusterAttribute(t *testing.T) {
 				},
 			},
 		},
+		"valid active clusters by cluster attribute with multiple scopes": {
+			clusters: "region.newyork:cluster0,location.brussels:cluster2,region.madrid:cluster1",
+			expected: types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"newyork": {ActiveClusterName: "cluster0"},
+						"madrid":  {ActiveClusterName: "cluster1"},
+					}},
+					"location": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"brussels": {ActiveClusterName: "cluster2"},
+					}},
+				},
+			},
+		},
+		"duplicate keys consistutes an error in parsing and shouldn't be allowed": {
+			clusters:      "region.newyork:cluster0,region.newyork:cluster1",
+			expectedError: fmt.Errorf(`option active_clusters format is invalid. the key "newyork" was duplicated. This can only map to a single active cluster`),
+		},
 		"Some invalid input": {
 			clusters:      "bad-data",
-			expectedError: fmt.Errorf("Option active_clusters format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'"),
+			expectedError: fmt.Errorf("option active_clusters format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'"),
+		},
+		"empty input": {
+			clusters:      "",
+			expectedError: fmt.Errorf("option active_clusters format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'"),
 		},
 	}
 

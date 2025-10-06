@@ -1710,6 +1710,13 @@ type DescribeDomainResponse struct {
 	FailoverInfo             *FailoverInfo                   `json:"failoverInfo,omitempty"`
 }
 
+func (v *DomainReplicationConfiguration) GetActiveClusters() (o *ActiveClusters) {
+	if v != nil && v.ActiveClusters != nil {
+		return v.ActiveClusters
+	}
+	return
+}
+
 // GetDomainInfo is an internal getter (TBD...)
 func (v *DescribeDomainResponse) GetDomainInfo() (o *DomainInfo) {
 	if v != nil && v.DomainInfo != nil {
@@ -2253,6 +2260,20 @@ type DomainReplicationConfiguration struct {
 	ActiveClusters    *ActiveClusters                    `json:"activeClusters,omitempty"`
 }
 
+func (v *DomainReplicationConfiguration) IsActiveActiveDomain() bool {
+	if v == nil || v.ActiveClusters == nil {
+		return false
+	}
+	if v.ActiveClusters.AttributeScopes != nil && len(v.ActiveClusters.AttributeScopes) > 0 {
+		return true
+	}
+	// todo (david.porter) remove this once we have fully migrated to AttributeScopes
+	if v.ActiveClusters.ActiveClustersByRegion != nil && len(v.ActiveClusters.ActiveClustersByRegion) > 0 {
+		return true
+	}
+	return false
+}
+
 // GetActiveClusterName is an internal getter (TBD...)
 func (v *DomainReplicationConfiguration) GetActiveClusterName() (o string) {
 	if v != nil {
@@ -2265,13 +2286,6 @@ func (v *DomainReplicationConfiguration) GetActiveClusterName() (o string) {
 func (v *DomainReplicationConfiguration) GetClusters() (o []*ClusterReplicationConfiguration) {
 	if v != nil && v.Clusters != nil {
 		return v.Clusters
-	}
-	return
-}
-
-func (v *DomainReplicationConfiguration) GetActiveClusters() (o *ActiveClusters) {
-	if v != nil && v.ActiveClusters != nil {
-		return v.ActiveClusters
 	}
 	return
 }
