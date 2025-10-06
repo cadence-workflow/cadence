@@ -84,7 +84,7 @@ func (s *cliAppSuite) TestDomainRegister() {
 		{
 			"active-active domain with invalid active clusters by region",
 			"cadence --do test-domain domain register --active_clusters region1=cluster1",
-			"Option active_clusters format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'",
+			"option active_clusters format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx",
 			nil,
 		},
 		{
