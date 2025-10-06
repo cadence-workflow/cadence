@@ -478,11 +478,10 @@ func TestRegisterDomainRequestFuzz(t *testing.T) {
 			fuzzer.Fuzz(&orig)
 			out := ToRegisterDomainRequest(FromRegisterDomainRequest(orig))
 
-			// Proto RegisterDomainRequest doesn't support EmitMetric field, so it will be lost during conversion
-			// Set the expected value to nil to match the proto behavior
+			// Proto RegisterDomainRequest doesn't support EmitMetric field, it's always fixed on
 			if orig != nil {
-				expected := *orig         // Copy the struct
-				expected.EmitMetric = nil // Proto doesn't support this field
+				expected := *orig                          // Copy the struct
+				expected.EmitMetric = common.BoolPtr(true) // this is a legacy field which is always true. It's probably safe to remove
 				assert.Equal(t, &expected, out, "RegisterDomainRequest did not survive round-tripping")
 			} else {
 				assert.Equal(t, orig, out, "RegisterDomainRequest did not survive round-tripping")

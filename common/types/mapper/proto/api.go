@@ -2614,6 +2614,7 @@ func ToRegisterDomainRequest(t *apiv1.RegisterDomainRequest) *types.RegisterDoma
 		Description:                            t.Description,
 		OwnerEmail:                             t.OwnerEmail,
 		WorkflowExecutionRetentionPeriodInDays: *durationToDays(t.WorkflowExecutionRetentionPeriod),
+		EmitMetric:                             common.BoolPtr(true), // this is a legacy field that doesn't exist in proto and probably can be removed
 		Clusters:                               ToClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      t.ActiveClusterName,
 		ActiveClustersByRegion:                 t.ActiveClustersByRegion,
