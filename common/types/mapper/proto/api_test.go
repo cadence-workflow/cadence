@@ -1301,6 +1301,24 @@ func TestActiveClustersConversion(t *testing.T) {
 	}
 }
 
+func TestClusterAttribute(t *testing.T) {
+	for _, item := range []*types.ClusterAttribute{nil, {}, &testdata.ClusterAttribute} {
+		assert.Equal(t, item, ToClusterAttribute(FromClusterAttribute(item)))
+	}
+}
+
+// TODO(active-active): Remove the comment once the strategy is removed
+/*
+func TestActiveClusterSelectionPolicy(t *testing.T) {
+	for _, item := range []*types.ActiveClusterSelectionPolicy{
+		nil,
+		{},
+		&testdata.ActiveClusterSelectionPolicyWithClusterAttribute,
+	} {
+		assert.Equal(t, item, ToActiveClusterSelectionPolicy(FromActiveClusterSelectionPolicy(item)))
+	}
+}*/
+
 func TestClusterAttributeScopeConversion(t *testing.T) {
 	testCases := []*types.ClusterAttributeScope{
 		nil,

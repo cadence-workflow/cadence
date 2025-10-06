@@ -2550,6 +2550,21 @@ func (v *ActiveClusters) DeepCopy() *ActiveClusters {
 	}
 }
 
+type ClusterAttribute struct {
+	Scope string `json:"scope,omitempty"`
+	Name  string `json:"name,omitempty"`
+}
+
+func (c *ClusterAttribute) Equals(other *ClusterAttribute) bool {
+	if c == nil && other == nil {
+		return true
+	}
+	if c == nil || other == nil {
+		return false
+	}
+	return c.Scope == other.Scope && c.Name == other.Name
+}
+
 type ActiveClusterSelectionStrategy int32
 
 const (
@@ -2564,6 +2579,9 @@ type ActiveClusterSelectionPolicy struct {
 
 	ExternalEntityType string `json:"externalEntityType,omitempty"`
 	ExternalEntityKey  string `json:"externalEntityKey,omitempty"`
+
+	// TODO(active-active): Remove the fields above
+	ClusterAttribute *ClusterAttribute `json:"clusterAttribute,omitempty"`
 }
 
 func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolicy) bool {
@@ -2577,7 +2595,7 @@ func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolic
 	return p.GetStrategy() == other.GetStrategy() &&
 		p.StickyRegion == other.StickyRegion &&
 		p.ExternalEntityType == other.ExternalEntityType &&
-		p.ExternalEntityKey == other.ExternalEntityKey
+		p.ExternalEntityKey == other.ExternalEntityKey && p.ClusterAttribute.Equals(other.ClusterAttribute)
 }
 
 func (p *ActiveClusterSelectionPolicy) GetStrategy() ActiveClusterSelectionStrategy {

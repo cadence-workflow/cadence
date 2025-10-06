@@ -6838,6 +6838,26 @@ func ToWorkflowExecutionStartedEventAttributes(t *shared.WorkflowExecutionStarte
 	}
 }
 
+func FromClusterAttribute(t *types.ClusterAttribute) *shared.ClusterAttribute {
+	if t == nil {
+		return nil
+	}
+	return &shared.ClusterAttribute{
+		Scope: &t.Scope,
+		Name:  &t.Name,
+	}
+}
+
+func ToClusterAttribute(t *shared.ClusterAttribute) *types.ClusterAttribute {
+	if t == nil {
+		return nil
+	}
+	return &types.ClusterAttribute{
+		Scope: t.GetScope(),
+		Name:  t.GetName(),
+	}
+}
+
 func FromActiveClusterSelectionPolicy(t *types.ActiveClusterSelectionPolicy) *shared.ActiveClusterSelectionPolicy {
 	if t == nil {
 		return nil
@@ -6847,6 +6867,7 @@ func FromActiveClusterSelectionPolicy(t *types.ActiveClusterSelectionPolicy) *sh
 		ExternalEntityType: &t.ExternalEntityType,
 		ExternalEntityKey:  &t.ExternalEntityKey,
 		StickyRegion:       &t.StickyRegion,
+		ClusterAttribute:   FromClusterAttribute(t.ClusterAttribute),
 	}
 }
 
@@ -6859,6 +6880,7 @@ func ToActiveClusterSelectionPolicy(t *shared.ActiveClusterSelectionPolicy) *typ
 		ExternalEntityType:             *t.ExternalEntityType,
 		ExternalEntityKey:              *t.ExternalEntityKey,
 		StickyRegion:                   *t.StickyRegion,
+		ClusterAttribute:               ToClusterAttribute(t.ClusterAttribute),
 	}
 }
 

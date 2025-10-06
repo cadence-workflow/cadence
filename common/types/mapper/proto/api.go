@@ -6522,10 +6522,31 @@ func ToCronOverlapPolicy(p apiv1.CronOverlapPolicy) *types.CronOverlapPolicy {
 	return nil
 }
 
+func FromClusterAttribute(c *types.ClusterAttribute) *apiv1.ClusterAttribute {
+	if c == nil {
+		return nil
+	}
+	return &apiv1.ClusterAttribute{
+		Scope: c.Scope,
+		Name:  c.Name,
+	}
+}
+
+func ToClusterAttribute(c *apiv1.ClusterAttribute) *types.ClusterAttribute {
+	if c == nil {
+		return nil
+	}
+	return &types.ClusterAttribute{
+		Scope: c.Scope,
+		Name:  c.Name,
+	}
+}
+
 func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *apiv1.ActiveClusterSelectionPolicy {
 	if p == nil {
 		return nil
 	}
+	// TODO(active-active): Remove the switch statement once the strategy is removed
 	switch p.GetStrategy() {
 	case types.ActiveClusterSelectionStrategyRegionSticky:
 		return &apiv1.ActiveClusterSelectionPolicy{
@@ -6535,6 +6556,7 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 					StickyRegion: p.StickyRegion,
 				},
 			},
+			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
 		}
 	case types.ActiveClusterSelectionStrategyExternalEntity:
 		return &apiv1.ActiveClusterSelectionPolicy{
@@ -6545,27 +6567,35 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 					ExternalEntityKey:  p.ExternalEntityKey,
 				},
 			},
+			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
 		}
 	}
-	panic("unexpected enum value")
+	return &apiv1.ActiveClusterSelectionPolicy{
+		ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
+	}
 }
 
 func ToActiveClusterSelectionPolicy(p *apiv1.ActiveClusterSelectionPolicy) *types.ActiveClusterSelectionPolicy {
 	if p == nil {
 		return nil
 	}
+	// TODO(active-active): Remove the switch statement once the strategy is removed
 	switch p.Strategy {
 	case apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY:
 		return &types.ActiveClusterSelectionPolicy{
 			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
 			StickyRegion:                   p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterStickyRegionConfig).ActiveClusterStickyRegionConfig.StickyRegion,
+			ClusterAttribute:               ToClusterAttribute(p.ClusterAttribute),
 		}
 	case apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_EXTERNAL_ENTITY:
 		return &types.ActiveClusterSelectionPolicy{
 			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
 			ExternalEntityType:             p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig).ActiveClusterExternalEntityConfig.ExternalEntityType,
 			ExternalEntityKey:              p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig).ActiveClusterExternalEntityConfig.ExternalEntityKey,
+			ClusterAttribute:               ToClusterAttribute(p.ClusterAttribute),
 		}
 	}
-	panic("unexpected enum value")
+	return &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: ToClusterAttribute(p.ClusterAttribute),
+	}
 }
