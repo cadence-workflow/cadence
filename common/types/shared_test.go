@@ -185,7 +185,7 @@ func TestIsActiveActiveDomain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.activeClusters.IsActiveActiveDomain()
+			got := tt.activeClusters.IsActiveActive()
 			assert.Equal(t, tt.want, got)
 		})
 	}
