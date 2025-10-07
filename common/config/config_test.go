@@ -419,7 +419,7 @@ keys:
 		check("key1", true, false)
 		check("key2", false, true)
 		check("key3", true, true)
-		check("key4", true, true)  // the type's default mode == both.  not truly intended behavior, and not documented, but it's fine.
+		check("key4", true, false) // the type's default mode == timer.  not truly intended behavior, and not documented, but it's fine.
 		check("key5", false, true) // configured default == histogram
 		if t.Failed() {
 			t.Logf("config: %#v", cfg)

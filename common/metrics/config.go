@@ -24,10 +24,11 @@ func (h HistogramMigration) EmitHistogram(key string) bool {
 
 // HistogramMigrationMode is a pseudo-enum to provide unmarshalling config and helper methods.
 // It should only be created by YAML unmarshaling, or by getting it from the HistogramMigration map.
-// Zero values from the map are valid, they are just the default mode (not the configured default).
+// Zero values from the map are valid, they are just the default mode (NOT the configured default).
 //
-// By default / when not specified / when an empty string, it currently means "both",
-// but this will change when timers are fully deprecated and removed.
+// By default / when not specified / when an empty string, it currently means "timer".
+// This will likely change when most or all timers have histograms available, and will
+// eventually be fully deprecated and removed.
 type HistogramMigrationMode string
 
 func (h *HistogramMigrationMode) UnmarshalYAML(read func(any) error) error {
@@ -55,7 +56,7 @@ func (h HistogramMigrationMode) EmitTimer() bool {
 
 func (h HistogramMigrationMode) EmitHistogram() bool {
 	switch h {
-	case "histogram", "both", "": // default == not specified == both
+	case "histogram", "both": // default == not specified == both
 		return true
 	default:
 		return false

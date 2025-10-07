@@ -96,9 +96,9 @@ func TestHistogramMode(t *testing.T) {
 	// both
 	assertFound(PersistenceLatency, true, false)
 	assertFound(PersistenceLatencyHistogram, false, true)
-	// both (via default)
+	// timers only (via default)
 	assertFound(CadenceDcRedirectionClientLatency, true, false)
-	assertFound(GlobalRatelimiterStartupUsageHistogram, false, true)
+	assertFound(GlobalRatelimiterStartupUsageHistogram, false, false)
 
-	// when fixing: check logs!  you should see metrics with values for: 1, 4, 5, 6, 7, 8.
+	// when fixing: check logs!  you should see metrics with values for: 1, 4, 5, 6, 7.
 }
