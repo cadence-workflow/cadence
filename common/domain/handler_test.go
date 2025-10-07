@@ -44,6 +44,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -3413,6 +3414,174 @@ func TestHandler_FailoverDomain(t *testing.T) {
 				assert.NotNil(t, response)
 				assert.Equal(t, tc.response(mockTimeSource), response)
 			}
+		})
+	}
+}
+
+func TestBuildActiveActiveClustersFromUpdateRequest(t *testing.T) {
+
+	testsCases := map[string]struct {
+		updateRequest          *types.UpdateDomainRequest
+		config                 *persistence.DomainReplicationConfig
+		domainName             string
+		handler                *handlerImpl
+		expectedActiveClusters *types.ActiveClusters
+		expectedIsChanged      bool
+	}{
+		"Success case - ActiveClusters - where there is the introduction of cluster attributes for the first time - we should see that these results are reflected": {
+			updateRequest: &types.UpdateDomainRequest{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"location": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"nyc": {
+									ActiveClusterName: "clusterA",
+									// failover version can be absent
+								},
+								"morocco": {
+									ActiveClusterName: "clusterB",
+									// failover version can be absent
+								},
+								"tokyo": {
+									ActiveClusterName: "clusterC",
+									// failover version can be absent
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedActiveClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"location": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"nyc": {
+								ActiveClusterName: "clusterA",
+								FailoverVersion:   0,
+							},
+							"morocco": {
+								ActiveClusterName: "clusterB",
+								FailoverVersion:   1,
+							},
+							"tokyo": {
+								ActiveClusterName: "clusterC",
+								FailoverVersion:   2,
+							},
+						},
+					},
+				},
+			},
+			expectedIsChanged: true,
+		},
+		"Success case - ActiveClusters - where there existing cluster attributes. These should be merged": {
+			updateRequest: &types.UpdateDomainRequest{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"location": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"nyc": {
+									ActiveClusterName: "clusterA",
+									// failover version can be absent
+								},
+							},
+						},
+					},
+				},
+			},
+			config: &persistence.DomainReplicationConfig{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"location": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"tokyo": {
+									ActiveClusterName: "clusterC",
+									FailoverVersion:   2,
+								},
+								"morocco": {
+									ActiveClusterName: "clusterB",
+									FailoverVersion:   1,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedActiveClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"location": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"nyc": {
+								ActiveClusterName: "clusterA",
+								FailoverVersion:   0,
+							},
+							"tokyo": {
+								ActiveClusterName: "clusterC",
+								FailoverVersion:   2,
+							},
+							"morocco": {
+								ActiveClusterName: "clusterB",
+								FailoverVersion:   1,
+							},
+						},
+					},
+				},
+			},
+			expectedIsChanged: true,
+		},
+		"Success case - AttributeScopes is nil": {
+			updateRequest: &types.UpdateDomainRequest{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: nil,
+				},
+			},
+			expectedActiveClusters: nil,
+			expectedIsChanged:      false,
+		},
+	}
+
+	for name, tc := range testsCases {
+		t.Run(name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockDomainManager := persistence.NewMockDomainManager(ctrl)
+
+			metadata := cluster.NewMetadata(
+				config.ClusterGroupMetadata{
+					FailoverVersionIncrement: 100,
+					ClusterGroup: map[string]config.ClusterInformation{
+						"clusterA": {
+							InitialFailoverVersion: 0,
+						},
+						"clusterB": {
+							InitialFailoverVersion: 1,
+						},
+						"clusterC": {
+							InitialFailoverVersion: 2,
+						},
+						"clusterD": {
+							InitialFailoverVersion: 3,
+						},
+					},
+				},
+				func(d string) bool { return false },
+				metrics.NewNoopMetricsClient(),
+				log.NewNoop(),
+			)
+
+			mockTimeSource := clock.NewMockedTimeSource()
+			handler := handlerImpl{
+				domainManager:    mockDomainManager,
+				clusterMetadata:  metadata,
+				archiverProvider: provider.NewArchiverProvider(nil, nil),
+				timeSource:       mockTimeSource,
+				logger:           log.NewNoop(),
+			}
+
+			activeClusters, isChanged := handler.buildActiveActiveClusterScopesFromUpdateRequest(tc.updateRequest, tc.config, tc.domainName)
+			assert.Equal(t, tc.expectedActiveClusters, activeClusters)
+			assert.Equal(t, tc.expectedIsChanged, isChanged)
 		})
 	}
 }
