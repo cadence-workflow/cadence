@@ -825,6 +825,37 @@ func (entry *DomainCacheEntry) GetFailoverEndTime() *int64 {
 	return entry.failoverEndTime
 }
 
+// GetActiveClusterInfoByClusterAttribute return the active cluster info for a given cluster attribute
+// if clusterAttribute is nil, return the domain-level active cluster info and true
+// if the clusterAttribute exists, return the active cluster info of the clusterAttribute and true
+// if the clusterAttribute is not found, return false
+func (entry *DomainCacheEntry) GetActiveClusterInfoByClusterAttribute(clusterAttribute *types.ClusterAttribute) (*types.ActiveClusterInfo, bool) {
+	if clusterAttribute == nil {
+		return &types.ActiveClusterInfo{
+			ActiveClusterName: entry.GetReplicationConfig().ActiveClusterName,
+			FailoverVersion:   entry.GetFailoverVersion(),
+		}, true
+	}
+	if entry.replicationConfig.ActiveClusters == nil {
+		return nil, false
+	}
+	if entry.replicationConfig.ActiveClusters.AttributeScopes == nil {
+		return nil, false
+	}
+	scope, ok := entry.replicationConfig.ActiveClusters.AttributeScopes[clusterAttribute.Scope]
+	if !ok {
+		return nil, false
+	}
+	info, ok := scope.ClusterAttributes[clusterAttribute.Name]
+	if !ok {
+		return nil, false
+	}
+	return &types.ActiveClusterInfo{
+		ActiveClusterName: info.ActiveClusterName,
+		FailoverVersion:   info.FailoverVersion,
+	}, true
+}
+
 // NewDomainNotActiveError return a domain not active error
 // currentCluster is the current cluster
 // activeCluster is the active cluster which is either domain's active cluster or it's inferred from workflow task version
