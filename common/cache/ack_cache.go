@@ -67,9 +67,9 @@ type AckCache[T AckCacheItem] interface {
 	Get(sequenceID int64) T
 
 	// Ack acknowledges all items with sequence ID <= level, removing them
-	// from the cache. Returns the total size of items that were removed.
+	// from the cache. Returns the total size of items that were removed and the count of items removed.
 	// This is the primary mechanism for freeing cache space.
-	Ack(level int64) uint64
+	Ack(level int64) (uint64, int)
 
 	// Size returns the current total byte size of all items in the cache.
 	Size() uint64
@@ -161,12 +161,13 @@ func (c *BoundedAckCache[T]) Get(sequenceID int64) T {
 	return c.cache[sequenceID]
 }
 
-// Ack acknowledges all items with sequence ID <= level and returns total freed size.
-func (c *BoundedAckCache[T]) Ack(level int64) uint64 {
+// Ack acknowledges all items with sequence ID <= level and returns total freed size and count of items removed.
+func (c *BoundedAckCache[T]) Ack(level int64) (uint64, int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	var freedSize uint64
+	var removedCount int
 
 	// Remove all items from heap with sequence ID <= level
 	for c.order.Len() > 0 && c.order.Peek().sequenceID <= level {
@@ -174,10 +175,11 @@ func (c *BoundedAckCache[T]) Ack(level int64) uint64 {
 		delete(c.cache, item.sequenceID)
 		c.currSize -= item.size
 		freedSize += item.size
+		removedCount++
 	}
 
 	c.lastAck = level
-	return freedSize
+	return freedSize, removedCount
 }
 
 // Size returns current total byte size.

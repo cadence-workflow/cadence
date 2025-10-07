@@ -31,6 +31,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 70s
     workflowDuration: 60s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
 
 
   # Failover from cluster1 to cluster0
@@ -49,6 +53,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 70s
     workflowDuration: 60s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
     want:
       error: "Workflow execution is already running"
 

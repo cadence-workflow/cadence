@@ -2283,8 +2283,23 @@ func (p *TaskListPartition) ToInternalType() *types.TaskListPartition {
 	return &types.TaskListPartition{IsolationGroups: p.IsolationGroups}
 }
 
-// IsActiveActive
+// IsActiveActive returns true if the domain has active-active configuration.
+// Returns true if ClusterAttributes (or legacy RegionToClusters) have been configured for this domain.
 // TODO(active-active): Update unit tests of all components that use this function to cover active-active case
 func (c *DomainReplicationConfig) IsActiveActive() bool {
-	return c != nil && c.ActiveClusters != nil && len(c.ActiveClusters.ActiveClustersByRegion) > 0
+	if c == nil || c.ActiveClusters == nil {
+		return false
+	}
+
+	// Check to see if a ClusterAttribute has been configured for this domain.
+	if len(c.ActiveClusters.AttributeScopes) > 0 {
+		for _, scope := range c.ActiveClusters.AttributeScopes {
+			if len(scope.ClusterAttributes) > 0 {
+				return true
+			}
+		}
+	}
+
+	// TODO(active-active): Remove this once we have completely migrated to ClusterAttributes
+	return len(c.ActiveClusters.ActiveClustersByRegion) > 0
 }

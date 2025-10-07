@@ -528,6 +528,8 @@ const (
 	FrontendClientTerminateWorkflowExecutionScope
 	// FrontendClientUpdateDomainScope tracks RPC calls to frontend service
 	FrontendClientUpdateDomainScope
+	// FrontendClientFailoverDomainScope tracks RPC calls to frontend service
+	FrontendClientFailoverDomainScope
 	// FrontendClientListWorkflowExecutionsScope tracks RPC calls to frontend service
 	FrontendClientListWorkflowExecutionsScope
 	// FrontendClientScanWorkflowExecutionsScope tracks RPC calls to frontend service
@@ -1681,6 +1683,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendClientStartWorkflowExecutionAsyncScope:           {operation: "FrontendClientStartWorkflowExecutionAsync", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientTerminateWorkflowExecutionScope:            {operation: "FrontendClientTerminateWorkflowExecution", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientUpdateDomainScope:                          {operation: "FrontendClientUpdateDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientFailoverDomainScope:                        {operation: "FrontendClientFailoverDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientListWorkflowExecutionsScope:                {operation: "FrontendClientListWorkflowExecutions", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientScanWorkflowExecutionsScope:                {operation: "FrontendClientScanWorkflowExecutions", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientCountWorkflowExecutionsScope:               {operation: "FrontendClientCountWorkflowExecutions", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},

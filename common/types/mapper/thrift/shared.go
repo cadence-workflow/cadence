@@ -2161,7 +2161,7 @@ func FromActiveClusters(t *types.ActiveClusters) *shared.ActiveClusters {
 	if t.AttributeScopes != nil {
 		activeClustersByClusterAttribute = make(map[string]*shared.ClusterAttributeScope)
 		for scopeType, scope := range t.AttributeScopes {
-			activeClustersByClusterAttribute[scopeType] = FromClusterAttributeScope(scope)
+			activeClustersByClusterAttribute[scopeType] = FromClusterAttributeScope(&scope)
 		}
 	}
 
@@ -2188,11 +2188,13 @@ func ToActiveClusters(t *shared.ActiveClusters) *types.ActiveClusters {
 		}
 	}
 
-	var attributeScopes map[string]*types.ClusterAttributeScope
+	var attributeScopes map[string]types.ClusterAttributeScope
 	if t.ActiveClustersByClusterAttribute != nil {
-		attributeScopes = make(map[string]*types.ClusterAttributeScope)
+		attributeScopes = make(map[string]types.ClusterAttributeScope)
 		for scopeType, scope := range t.ActiveClustersByClusterAttribute {
-			attributeScopes[scopeType] = ToClusterAttributeScope(scope)
+			if converted := ToClusterAttributeScope(scope); converted != nil {
+				attributeScopes[scopeType] = *converted
+			}
 		}
 	}
 
@@ -2212,11 +2214,9 @@ func FromClusterAttributeScope(t *types.ClusterAttributeScope) *shared.ClusterAt
 	if len(t.ClusterAttributes) > 0 {
 		clusterAttributes = make(map[string]*shared.ActiveClusterInfo)
 		for name, clusterInfo := range t.ClusterAttributes {
-			if clusterInfo != nil {
-				clusterAttributes[name] = &shared.ActiveClusterInfo{
-					ActiveClusterName: &clusterInfo.ActiveClusterName,
-					FailoverVersion:   &clusterInfo.FailoverVersion,
-				}
+			clusterAttributes[name] = &shared.ActiveClusterInfo{
+				ActiveClusterName: &clusterInfo.ActiveClusterName,
+				FailoverVersion:   &clusterInfo.FailoverVersion,
 			}
 		}
 	}
@@ -2232,12 +2232,12 @@ func ToClusterAttributeScope(t *shared.ClusterAttributeScope) *types.ClusterAttr
 		return nil
 	}
 
-	var clusterAttributes map[string]*types.ActiveClusterInfo
+	var clusterAttributes map[string]types.ActiveClusterInfo
 	if len(t.ClusterAttributes) > 0 {
-		clusterAttributes = make(map[string]*types.ActiveClusterInfo)
+		clusterAttributes = make(map[string]types.ActiveClusterInfo)
 		for name, clusterInfo := range t.ClusterAttributes {
 			if clusterInfo != nil {
-				clusterAttributes[name] = &types.ActiveClusterInfo{
+				clusterAttributes[name] = types.ActiveClusterInfo{
 					ActiveClusterName: *clusterInfo.ActiveClusterName,
 					FailoverVersion:   *clusterInfo.FailoverVersion,
 				}
@@ -4298,6 +4298,7 @@ func FromRegisterDomainRequest(t *types.RegisterDomainRequest) *shared.RegisterD
 		Clusters:                               FromClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      &t.ActiveClusterName,
 		ActiveClustersByRegion:                 t.ActiveClustersByRegion,
+		ActiveClusters:                         FromActiveClusters(t.ActiveClusters),
 		Data:                                   t.Data,
 		SecurityToken:                          &t.SecurityToken,
 		IsGlobalDomain:                         &t.IsGlobalDomain,
@@ -4322,6 +4323,7 @@ func ToRegisterDomainRequest(t *shared.RegisterDomainRequest) *types.RegisterDom
 		Clusters:                               ToClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      t.GetActiveClusterName(),
 		ActiveClustersByRegion:                 t.ActiveClustersByRegion,
+		ActiveClusters:                         ToActiveClusters(t.ActiveClusters),
 		Data:                                   t.Data,
 		SecurityToken:                          t.GetSecurityToken(),
 		IsGlobalDomain:                         t.GetIsGlobalDomain(),
@@ -6838,6 +6840,26 @@ func ToWorkflowExecutionStartedEventAttributes(t *shared.WorkflowExecutionStarte
 	}
 }
 
+func FromClusterAttribute(t *types.ClusterAttribute) *shared.ClusterAttribute {
+	if t == nil {
+		return nil
+	}
+	return &shared.ClusterAttribute{
+		Scope: &t.Scope,
+		Name:  &t.Name,
+	}
+}
+
+func ToClusterAttribute(t *shared.ClusterAttribute) *types.ClusterAttribute {
+	if t == nil {
+		return nil
+	}
+	return &types.ClusterAttribute{
+		Scope: t.GetScope(),
+		Name:  t.GetName(),
+	}
+}
+
 func FromActiveClusterSelectionPolicy(t *types.ActiveClusterSelectionPolicy) *shared.ActiveClusterSelectionPolicy {
 	if t == nil {
 		return nil
@@ -6847,6 +6869,7 @@ func FromActiveClusterSelectionPolicy(t *types.ActiveClusterSelectionPolicy) *sh
 		ExternalEntityType: &t.ExternalEntityType,
 		ExternalEntityKey:  &t.ExternalEntityKey,
 		StickyRegion:       &t.StickyRegion,
+		ClusterAttribute:   FromClusterAttribute(t.ClusterAttribute),
 	}
 }
 
@@ -6859,6 +6882,7 @@ func ToActiveClusterSelectionPolicy(t *shared.ActiveClusterSelectionPolicy) *typ
 		ExternalEntityType:             *t.ExternalEntityType,
 		ExternalEntityKey:              *t.ExternalEntityKey,
 		StickyRegion:                   *t.StickyRegion,
+		ClusterAttribute:               ToClusterAttribute(t.ClusterAttribute),
 	}
 }
 

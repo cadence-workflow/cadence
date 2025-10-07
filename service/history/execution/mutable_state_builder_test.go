@@ -3923,9 +3923,9 @@ func TestLoad_ActiveActive(t *testing.T) {
 						FailoverVersion:   200,
 					},
 				},
-				AttributeScopes: map[string]*types.ClusterAttributeScope{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"cityID": {
-						ClusterAttributes: map[string]*types.ActiveClusterInfo{
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
 							"seattle": {
 								ActiveClusterName: "cluster0",
 								FailoverVersion:   100,
@@ -3937,7 +3937,7 @@ func TestLoad_ActiveActive(t *testing.T) {
 						},
 					},
 					"regionID": {
-						ClusterAttributes: map[string]*types.ActiveClusterInfo{
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
 							"us-west": {
 								ActiveClusterName: "cluster0",
 								FailoverVersion:   100,

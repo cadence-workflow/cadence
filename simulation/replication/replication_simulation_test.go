@@ -155,6 +155,7 @@ func startWorkflow(
 			WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
 			DelayStartSeconds:                   common.Int32Ptr(op.DelayStartSeconds),
 			CronSchedule:                        op.CronSchedule,
+			ActiveClusterSelectionPolicy:        op.ActiveClusterSelectionPolicy,
 		})
 
 	if err != nil {
@@ -404,6 +405,7 @@ func signalWithStartWorkflow(
 		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32((op.WorkflowExecutionStartToCloseTimeout).Seconds())),
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(5),
 		Input:                               mustJSON(t, &simTypes.WorkflowInput{Duration: op.WorkflowDuration, ActivityCount: op.ActivityCount}),
+		ActiveClusterSelectionPolicy:        op.ActiveClusterSelectionPolicy,
 	})
 	if err != nil {
 		return err

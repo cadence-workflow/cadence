@@ -2594,6 +2594,7 @@ func FromRegisterDomainRequest(t *types.RegisterDomainRequest) *apiv1.RegisterDo
 		Clusters:                         FromClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                t.ActiveClusterName,
 		ActiveClustersByRegion:           t.ActiveClustersByRegion,
+		ActiveClusters:                   FromActiveClusters(t.ActiveClusters),
 		Data:                             t.Data,
 		SecurityToken:                    t.SecurityToken,
 		IsGlobalDomain:                   t.IsGlobalDomain,
@@ -2613,10 +2614,11 @@ func ToRegisterDomainRequest(t *apiv1.RegisterDomainRequest) *types.RegisterDoma
 		Description:                            t.Description,
 		OwnerEmail:                             t.OwnerEmail,
 		WorkflowExecutionRetentionPeriodInDays: *durationToDays(t.WorkflowExecutionRetentionPeriod),
-		EmitMetric:                             common.BoolPtr(true),
+		EmitMetric:                             common.BoolPtr(true), // this is a legacy field that doesn't exist in proto and probably can be removed
 		Clusters:                               ToClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      t.ActiveClusterName,
 		ActiveClustersByRegion:                 t.ActiveClustersByRegion,
+		ActiveClusters:                         ToActiveClusters(t.ActiveClusters),
 		Data:                                   t.Data,
 		SecurityToken:                          t.SecurityToken,
 		IsGlobalDomain:                         t.IsGlobalDomain,
@@ -5577,7 +5579,7 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 	if t.AttributeScopes != nil {
 		activeClustersByClusterAttribute = make(map[string]*apiv1.ClusterAttributeScope)
 		for scopeType, scope := range t.AttributeScopes {
-			activeClustersByClusterAttribute[scopeType] = FromClusterAttributeScope(scope)
+			activeClustersByClusterAttribute[scopeType] = FromClusterAttributeScope(&scope)
 		}
 	}
 
@@ -5603,11 +5605,13 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 		}
 	}
 
-	var attributeScopes map[string]*types.ClusterAttributeScope
+	var attributeScopes map[string]types.ClusterAttributeScope
 	if t.ActiveClustersByClusterAttribute != nil {
-		attributeScopes = make(map[string]*types.ClusterAttributeScope)
+		attributeScopes = make(map[string]types.ClusterAttributeScope)
 		for scopeType, scope := range t.ActiveClustersByClusterAttribute {
-			attributeScopes[scopeType] = ToClusterAttributeScope(scope)
+			if converted := ToClusterAttributeScope(scope); converted != nil {
+				attributeScopes[scopeType] = *converted
+			}
 		}
 	}
 
@@ -5626,11 +5630,9 @@ func FromClusterAttributeScope(t *types.ClusterAttributeScope) *apiv1.ClusterAtt
 	if len(t.ClusterAttributes) > 0 {
 		clusterAttributes = make(map[string]*apiv1.ActiveClusterInfo)
 		for name, clusterInfo := range t.ClusterAttributes {
-			if clusterInfo != nil {
-				clusterAttributes[name] = &apiv1.ActiveClusterInfo{
-					ActiveClusterName: clusterInfo.ActiveClusterName,
-					FailoverVersion:   clusterInfo.FailoverVersion,
-				}
+			clusterAttributes[name] = &apiv1.ActiveClusterInfo{
+				ActiveClusterName: clusterInfo.ActiveClusterName,
+				FailoverVersion:   clusterInfo.FailoverVersion,
 			}
 		}
 	}
@@ -5645,12 +5647,12 @@ func ToClusterAttributeScope(t *apiv1.ClusterAttributeScope) *types.ClusterAttri
 		return nil
 	}
 
-	var clusterAttributes map[string]*types.ActiveClusterInfo
+	var clusterAttributes map[string]types.ActiveClusterInfo
 	if len(t.ClusterAttributes) > 0 {
-		clusterAttributes = make(map[string]*types.ActiveClusterInfo)
+		clusterAttributes = make(map[string]types.ActiveClusterInfo)
 		for name, clusterInfo := range t.ClusterAttributes {
 			if clusterInfo != nil {
-				clusterAttributes[name] = &types.ActiveClusterInfo{
+				clusterAttributes[name] = types.ActiveClusterInfo{
 					ActiveClusterName: clusterInfo.ActiveClusterName,
 					FailoverVersion:   clusterInfo.FailoverVersion,
 				}
@@ -6522,10 +6524,31 @@ func ToCronOverlapPolicy(p apiv1.CronOverlapPolicy) *types.CronOverlapPolicy {
 	return nil
 }
 
+func FromClusterAttribute(c *types.ClusterAttribute) *apiv1.ClusterAttribute {
+	if c == nil {
+		return nil
+	}
+	return &apiv1.ClusterAttribute{
+		Scope: c.Scope,
+		Name:  c.Name,
+	}
+}
+
+func ToClusterAttribute(c *apiv1.ClusterAttribute) *types.ClusterAttribute {
+	if c == nil {
+		return nil
+	}
+	return &types.ClusterAttribute{
+		Scope: c.Scope,
+		Name:  c.Name,
+	}
+}
+
 func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *apiv1.ActiveClusterSelectionPolicy {
 	if p == nil {
 		return nil
 	}
+	// TODO(active-active): Remove the switch statement once the strategy is removed
 	switch p.GetStrategy() {
 	case types.ActiveClusterSelectionStrategyRegionSticky:
 		return &apiv1.ActiveClusterSelectionPolicy{
@@ -6535,6 +6558,7 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 					StickyRegion: p.StickyRegion,
 				},
 			},
+			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
 		}
 	case types.ActiveClusterSelectionStrategyExternalEntity:
 		return &apiv1.ActiveClusterSelectionPolicy{
@@ -6545,27 +6569,35 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 					ExternalEntityKey:  p.ExternalEntityKey,
 				},
 			},
+			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
 		}
 	}
-	panic("unexpected enum value")
+	return &apiv1.ActiveClusterSelectionPolicy{
+		ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
+	}
 }
 
 func ToActiveClusterSelectionPolicy(p *apiv1.ActiveClusterSelectionPolicy) *types.ActiveClusterSelectionPolicy {
 	if p == nil {
 		return nil
 	}
+	// TODO(active-active): Remove the switch statement once the strategy is removed
 	switch p.Strategy {
 	case apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY:
 		return &types.ActiveClusterSelectionPolicy{
 			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
 			StickyRegion:                   p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterStickyRegionConfig).ActiveClusterStickyRegionConfig.StickyRegion,
+			ClusterAttribute:               ToClusterAttribute(p.ClusterAttribute),
 		}
 	case apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_EXTERNAL_ENTITY:
 		return &types.ActiveClusterSelectionPolicy{
 			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
 			ExternalEntityType:             p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig).ActiveClusterExternalEntityConfig.ExternalEntityType,
 			ExternalEntityKey:              p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig).ActiveClusterExternalEntityConfig.ExternalEntityKey,
+			ClusterAttribute:               ToClusterAttribute(p.ClusterAttribute),
 		}
 	}
-	panic("unexpected enum value")
+	return &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: ToClusterAttribute(p.ClusterAttribute),
+	}
 }

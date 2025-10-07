@@ -213,7 +213,7 @@ func (m *TaskStore) Ack(cluster string, lastTaskID int64) error {
 		return ErrUnknownCluster
 	}
 
-	_ = cache.Ack(lastTaskID)
+	_, _ = cache.Ack(lastTaskID)
 
 	scope := m.scope.Tagged(metrics.SourceClusterTag(cluster))
 	scope.RecordTimer(metrics.CacheSize, time.Duration(cache.Count()))

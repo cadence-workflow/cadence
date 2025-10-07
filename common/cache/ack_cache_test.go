@@ -124,14 +124,16 @@ func TestBoundedAckCache_Acknowledgment(t *testing.T) {
 	assert.Equal(t, 4, cache.Count())
 
 	// Ack at level 0 - should not remove anything
-	freedSize := cache.Ack(0)
+	freedSize, removedCount := cache.Ack(0)
 	assert.Equal(t, uint64(0), freedSize)
+	assert.Equal(t, 0, removedCount)
 	assert.Equal(t, 4, cache.Count())
 	assert.Equal(t, totalSize, cache.Size())
 
 	// Ack at level 100 - should remove item1
-	freedSize = cache.Ack(100)
+	freedSize, removedCount = cache.Ack(100)
 	assert.Equal(t, item1.ByteSize(), freedSize)
+	assert.Equal(t, 1, removedCount)
 	assert.Equal(t, 3, cache.Count())
 	assert.Equal(t, totalSize-item1.ByteSize(), cache.Size())
 	assert.Nil(t, cache.Get(100))
@@ -140,8 +142,9 @@ func TestBoundedAckCache_Acknowledgment(t *testing.T) {
 	assert.Equal(t, item3, cache.Get(300))
 
 	// Ack at level 200 - should remove item4 and item2
-	freedSize = cache.Ack(200)
+	freedSize, removedCount = cache.Ack(200)
 	assert.Equal(t, item4.ByteSize()+item2.ByteSize(), freedSize)
+	assert.Equal(t, 2, removedCount)
 	assert.Equal(t, 1, cache.Count())
 	assert.Equal(t, item3.ByteSize(), cache.Size())
 	assert.Nil(t, cache.Get(100))
@@ -150,8 +153,9 @@ func TestBoundedAckCache_Acknowledgment(t *testing.T) {
 	assert.Equal(t, item3, cache.Get(300))
 
 	// Ack at level 500 - should remove everything
-	freedSize = cache.Ack(500)
+	freedSize, removedCount = cache.Ack(500)
 	assert.Equal(t, item3.ByteSize(), freedSize)
+	assert.Equal(t, 1, removedCount)
 	assert.Equal(t, 0, cache.Count())
 	assert.Equal(t, uint64(0), cache.Size())
 	assert.Nil(t, cache.Get(300))
@@ -172,7 +176,7 @@ func TestBoundedAckCache_AlreadyAcked(t *testing.T) {
 	require.NoError(t, cache.Put(item2, item2.ByteSize()))
 
 	// Ack at level 150
-	_ = cache.Ack(150)
+	_, _ = cache.Ack(150)
 	assert.Equal(t, 1, cache.Count())
 	assert.Nil(t, cache.Get(100))
 	assert.Equal(t, item2, cache.Get(200))
@@ -209,7 +213,7 @@ func TestBoundedAckCache_CountLimit(t *testing.T) {
 	assert.Nil(t, cache.Get(400))
 
 	// After acking, should be able to add more
-	_ = cache.Ack(200)
+	_, _ = cache.Ack(200)
 	assert.Equal(t, 1, cache.Count())
 	require.NoError(t, cache.Put(item4, item4.ByteSize()))
 	assert.Equal(t, 2, cache.Count())
@@ -239,7 +243,7 @@ func TestBoundedAckCache_SizeLimit(t *testing.T) {
 	assert.Nil(t, cache.Get(300))
 
 	// After acking, should be able to add more
-	_ = cache.Ack(150)
+	_, _ = cache.Ack(150)
 	assert.Equal(t, uint64(40), cache.Size())
 	assert.Equal(t, 1, cache.Count())
 	require.NoError(t, cache.Put(item3, item3.ByteSize()))
@@ -303,7 +307,7 @@ func TestBoundedAckCache_ConcurrentOperations(t *testing.T) {
 	go func() {
 		defer func() { done <- true }()
 		for i := 0; i < 10; i++ {
-			_ = cache.Ack(int64(i * 100))
+			_, _ = cache.Ack(int64(i * 100))
 		}
 	}()
 
@@ -313,7 +317,7 @@ func TestBoundedAckCache_ConcurrentOperations(t *testing.T) {
 	}
 
 	// Final ack to clean up
-	_ = cache.Ack(1000)
+	_, _ = cache.Ack(1000)
 	assert.Equal(t, 0, cache.Count())
 	assert.Equal(t, uint64(0), cache.Size())
 }
@@ -338,7 +342,7 @@ func BenchmarkBoundedAckCache(b *testing.B) {
 		item := newTestItem(int64(n*100+500000), "new_item")
 		cache.Put(item, item.ByteSize())
 		if n%100 == 0 {
-			_ = cache.Ack(sequenceID)
+			_, _ = cache.Ack(sequenceID)
 		}
 	}
 }
