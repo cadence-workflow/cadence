@@ -2148,6 +2148,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 	ShardDistributor: {
 		ShardDistributorGetShardOwnerScope:        {operation: "GetShardOwner"},
 		ShardDistributorHeartbeatScope:            {operation: "ExecutorHeartbeat"},
+		ShardDistributorAssignShardScope:          {operation: "ShardAssign"},
 		ShardDistributorAssignLoopScope:           {operation: "ShardAssignLoop"},
 		ShardDistributorExecutorScope:             {operation: "Executor"},
 		ShardDistributorStoreGetShardOwnerScope:   {operation: "StoreGetShardOwner"},
