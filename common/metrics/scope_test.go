@@ -23,15 +23,13 @@ func TestHistogramMode(t *testing.T) {
 		return "unknown"
 	}
 	c := NewClient(ts, History, HistogramMigration{
-		Keys: map[string]HistogramMigrationMode{
-			findName(CadenceLatency):                    "timer", // timer type
-			findName(ExponentialReplicationTaskLatency): "timer", // histogram type
+		// Default: ..., left at default value
+		Names: map[string]bool{
+			findName(CadenceLatency):                    true,  // timer type
+			findName(ExponentialReplicationTaskLatency): false, // histogram type
 
-			findName(PersistenceLatencyPerShard):       "histogram", // timer type
-			findName(ExponentialTaskProcessingLatency): "histogram", // histogram type
-
-			findName(PersistenceLatency):          "both", // timer type
-			findName(PersistenceLatencyHistogram): "both", // histogram type
+			findName(PersistenceLatencyPerShard):       false, // timer type
+			findName(ExponentialTaskProcessingLatency): true,  // histogram type
 		},
 	})
 	scope := c.Scope(HistoryDescribeQueueScope) // scope doesn't matter for this test
@@ -42,12 +40,9 @@ func TestHistogramMode(t *testing.T) {
 	scope.RecordTimer(PersistenceLatencyPerShard, 3*time.Second)
 	scope.ExponentialHistogram(ExponentialTaskProcessingLatency, 4*time.Second)
 
+	// unspecified -> default config
 	scope.RecordTimer(PersistenceLatency, 5*time.Second)
 	scope.RecordHistogramDuration(PersistenceLatencyHistogram, 6*time.Second)
-
-	// unspecified -> default config
-	scope.RecordTimer(CadenceDcRedirectionClientLatency, 7*time.Second)
-	scope.RecordHistogramValue(GlobalRatelimiterStartupUsageHistogram, 8)
 
 	s := ts.Snapshot()
 	findMetric := func(idx MetricIdx) (timer, histogram bool) {
@@ -93,12 +88,9 @@ func TestHistogramMode(t *testing.T) {
 	// only the histogram
 	assertFound(PersistenceLatencyPerShard, false, false)
 	assertFound(ExponentialTaskProcessingLatency, false, true)
-	// both
-	assertFound(PersistenceLatency, true, false)
-	assertFound(PersistenceLatencyHistogram, false, true)
 	// timers only (via default)
-	assertFound(CadenceDcRedirectionClientLatency, true, false)
-	assertFound(GlobalRatelimiterStartupUsageHistogram, false, false)
+	assertFound(PersistenceLatency, true, false)
+	assertFound(PersistenceLatencyHistogram, false, false)
 
-	// when fixing: check logs!  you should see metrics with values for: 1, 4, 5, 6, 7.
+	// when fixing: check logs!  you should see metrics with values for: 1, 4
 }

@@ -397,11 +397,10 @@ func TestHistogramMigrationConfig(t *testing.T) {
 		// intentionally avoiding the full config struct, as it has other required config
 		yaml, err := uconfig.NewYAML(uconfig.RawSource(strings.NewReader(`
 default: histogram
-keys:
-  key1: timer
-  key2: histogram
-  key3: both
-  key4:
+names:
+  key1: true
+  key2: false
+  key3:
 `)))
 		require.NoError(t, err)
 
@@ -416,24 +415,33 @@ keys:
 			assert.Equalf(t, timer, cfg.EmitTimer(key), "wrong value for EmitTimer(%q)", key)
 			assert.Equalf(t, histogram, cfg.EmitHistogram(key), "wrong value for EmitHistogram(%q)", key)
 		}
-		check("key1", true, false)
-		check("key2", false, true)
-		check("key3", true, true)
-		check("key4", true, false) // the type's default mode == timer.  not truly intended behavior, and not documented, but it's fine.
-		check("key5", false, true) // configured default == histogram
+		check("key1", true, true)
+		check("key2", false, false)
+		check("key3", false, false) // the type's default mode == false.  not truly intended behavior, but it's weird config so it's fine.
+		check("key4", false, true)  // configured default == histogram
 		if t.Failed() {
 			t.Logf("config: %#v", cfg)
 		}
 	})
-	t.Run("invalid", func(t *testing.T) {
+	t.Run("invalid default", func(t *testing.T) {
 		yaml, err := uconfig.NewYAML(uconfig.RawSource(strings.NewReader(`
-keys:
-  key1: xyz
+default: xyz
 `)))
 		require.NoError(t, err)
 
 		var cfg metrics.HistogramMigration
 		err = yaml.Get(uconfig.Root).Populate(&cfg)
 		assert.ErrorContains(t, err, `unsupported histogram migration mode "xyz", must be "timer", "histogram", or "both"`)
+	})
+	t.Run("invalid key", func(t *testing.T) {
+		yaml, err := uconfig.NewYAML(uconfig.RawSource(strings.NewReader(`
+names:
+  key1: xyz
+`)))
+		require.NoError(t, err)
+
+		var cfg metrics.HistogramMigration
+		err = yaml.Get(uconfig.Root).Populate(&cfg)
+		assert.ErrorContains(t, err, "cannot unmarshal !!str `xyz` into bool")
 	})
 }

@@ -3,21 +3,29 @@ package metrics
 import "fmt"
 
 type HistogramMigration struct {
-	Default HistogramMigrationMode            `yaml:"default"`
-	Keys    map[string]HistogramMigrationMode `yaml:"keys"`
+	Default HistogramMigrationMode `yaml:"default"`
+	// Names maps "metric name" -> "should it be emitted".
+	//
+	// If a name/key does not exist, the default mode will be checked to determine
+	// if a timer or histogram should be emitted.
+	//
+	// This is only checked for timers and histograms, and because names are
+	// required to be unique per type, you may need to specify both for full
+	// control.
+	Names map[string]bool `yaml:"names"`
 }
 
-func (h HistogramMigration) EmitTimer(key string) bool {
-	mode, ok := h.Keys[key]
+func (h HistogramMigration) EmitTimer(name string) bool {
+	emit, ok := h.Names[name]
 	if ok {
-		return mode.EmitTimer()
+		return emit
 	}
 	return h.Default.EmitTimer()
 }
-func (h HistogramMigration) EmitHistogram(key string) bool {
-	mode, ok := h.Keys[key]
+func (h HistogramMigration) EmitHistogram(name string) bool {
+	emit, ok := h.Names[name]
 	if ok {
-		return mode.EmitHistogram()
+		return emit
 	}
 	return h.Default.EmitHistogram()
 }
