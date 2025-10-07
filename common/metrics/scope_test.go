@@ -22,6 +22,21 @@ func TestHistogramMode(t *testing.T) {
 		t.Fatalf("MetricDef not found in common or history: %v", m)
 		return "unknown"
 	}
+
+	orig := MigratingTimerNames
+	t.Cleanup(func() {
+		MigratingTimerNames = orig
+	})
+
+	MigratingTimerNames = map[string]struct{}{
+		findName(CadenceLatency):                    {},
+		findName(ExponentialReplicationTaskLatency): {},
+		findName(PersistenceLatencyPerShard):        {},
+		findName(ExponentialTaskProcessingLatency):  {},
+		findName(PersistenceLatency):                {},
+		findName(PersistenceLatencyHistogram):       {},
+	}
+
 	c := NewClient(ts, History, HistogramMigration{
 		// Default: ..., left at default value
 		Names: map[string]bool{
@@ -43,6 +58,10 @@ func TestHistogramMode(t *testing.T) {
 	// unspecified -> default config
 	scope.RecordTimer(PersistenceLatency, 5*time.Second)
 	scope.RecordHistogramDuration(PersistenceLatencyHistogram, 6*time.Second)
+
+	// not migrating -> always emit
+	scope.RecordTimer(CadenceDcRedirectionClientLatency, 7*time.Second)
+	scope.RecordHistogramDuration(GlobalRatelimiterStartupUsageHistogram, 8*time.Second)
 
 	s := ts.Snapshot()
 	findMetric := func(idx MetricIdx) (timer, histogram bool) {
@@ -91,6 +110,9 @@ func TestHistogramMode(t *testing.T) {
 	// timers only (via default)
 	assertFound(PersistenceLatency, true, false)
 	assertFound(PersistenceLatencyHistogram, false, false)
+	// not migrating, the correct type should be emitted
+	assertFound(CadenceDcRedirectionClientLatency, true, false)
+	assertFound(GlobalRatelimiterStartupUsageHistogram, false, true)
 
-	// when fixing: check logs!  you should see metrics with values for: 1, 4
+	// when fixing: check logs!  you should see metrics with values for: 1, 4, 7, 8
 }

@@ -9,13 +9,49 @@ type HistogramMigration struct {
 	// If a name/key does not exist, the default mode will be checked to determine
 	// if a timer or histogram should be emitted.
 	//
-	// This is only checked for timers and histograms, and because names are
-	// required to be unique per type, you may need to specify both for full
-	// control.
+	// This is only checked for timers and histograms that are in MigratingTimerNames.
 	Names map[string]bool `yaml:"names"`
 }
 
+func (h *HistogramMigration) UnmarshalYAML(read func(any) error) error {
+	type tmpType HistogramMigration // without the custom unmarshaler
+	var tmp tmpType
+	if err := read(&tmp); err != nil {
+		return err
+	}
+	for k := range tmp.Names {
+		if _, ok := MigratingTimerNames[k]; !ok {
+			return fmt.Errorf(
+				"unknown histogram-migration metric name %q.  "+
+					"if this is a valid name, add it to common/metrics.MigratingTimerNames before starting the service",
+				k,
+			)
+		}
+	}
+	*h = HistogramMigration(tmp)
+	return nil
+}
+
+// MigratingTimerNames contains all metric names being migrated, to prevent affecting
+// non-migration-related timers and histograms, and to catch metric name config
+// mistakes early on.
+//
+// It is public to allow Cadence operators to add to the collection before
+// loading config, in case they have any custom migrations to perform.
+// This is likely best done in an `init` func, to ensure it happens early enough
+// and does not race with config reading.
+var MigratingTimerNames = map[string]struct{}{
+	"task_latency_processing":    {},
+	"task_latency_processing_ns": {},
+
+	"replication_task_latency":    {},
+	"replication_task_latency_ns": {},
+}
+
 func (h HistogramMigration) EmitTimer(name string) bool {
+	if _, ok := MigratingTimerNames[name]; !ok {
+		return true
+	}
 	emit, ok := h.Names[name]
 	if ok {
 		return emit
@@ -23,6 +59,10 @@ func (h HistogramMigration) EmitTimer(name string) bool {
 	return h.Default.EmitTimer()
 }
 func (h HistogramMigration) EmitHistogram(name string) bool {
+	if _, ok := MigratingTimerNames[name]; !ok {
+		return true
+	}
+
 	emit, ok := h.Names[name]
 	if ok {
 		return emit
