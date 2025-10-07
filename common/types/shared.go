@@ -2253,6 +2253,20 @@ type DomainReplicationConfiguration struct {
 	ActiveClusters    *ActiveClusters                    `json:"activeClusters,omitempty"`
 }
 
+func (v *DomainReplicationConfiguration) IsActiveActive() bool {
+	if v == nil || v.ActiveClusters == nil {
+		return false
+	}
+	// todo (david.porter) remove this once we have completely migrated to AttributeScopes
+	if len(v.ActiveClusters.ActiveClustersByRegion) > 0 {
+		return true
+	}
+	if len(v.ActiveClusters.AttributeScopes) > 0 {
+		return true
+	}
+	return false
+}
+
 // GetActiveClusterName is an internal getter (TBD...)
 func (v *DomainReplicationConfiguration) GetActiveClusterName() (o string) {
 	if v != nil {

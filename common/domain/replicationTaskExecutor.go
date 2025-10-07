@@ -210,7 +210,7 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainUpdateReplicationTask(ct
 
 	// plus, we need to check whether the config version is <= the config version set in the input
 	// plus, we need to check whether the failover version is <= the failover version set in the input
-	resp, err := h.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{
+	existingDomain, err := h.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{
 		Name: task.Info.GetName(),
 	})
 	if err != nil {
@@ -225,18 +225,18 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainUpdateReplicationTask(ct
 
 	recordUpdated := false
 	request := &persistence.UpdateDomainRequest{
-		Info:                        resp.Info,
-		Config:                      resp.Config,
-		ReplicationConfig:           resp.ReplicationConfig,
-		ConfigVersion:               resp.ConfigVersion,
-		FailoverVersion:             resp.FailoverVersion,
-		FailoverNotificationVersion: resp.FailoverNotificationVersion,
-		PreviousFailoverVersion:     resp.PreviousFailoverVersion,
+		Info:                        existingDomain.Info,
+		Config:                      existingDomain.Config,
+		ReplicationConfig:           existingDomain.ReplicationConfig,
+		ConfigVersion:               existingDomain.ConfigVersion,
+		FailoverVersion:             existingDomain.FailoverVersion,
+		FailoverNotificationVersion: existingDomain.FailoverNotificationVersion,
+		PreviousFailoverVersion:     existingDomain.PreviousFailoverVersion,
 		NotificationVersion:         notificationVersion,
 		LastUpdatedTime:             h.timeSource.Now().UnixNano(),
 	}
 
-	if resp.ConfigVersion < task.GetConfigVersion() {
+	if existingDomain.ConfigVersion < task.GetConfigVersion() {
 		recordUpdated = true
 		request.Info = &persistence.DomainInfo{
 			ID:          task.GetID(),
@@ -263,16 +263,28 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainUpdateReplicationTask(ct
 		request.ConfigVersion = task.GetConfigVersion()
 	}
 
-	// TODO(active-active): Domain's failover version has to be updated for the below case.
-	// However active-active domains don't need that field at all. We still increment it in domain handler whenever ActiveClusters change.
-	// Find another mechanism to indicate ActiveClusters changed and don't touch domain's top level failover version for active-active domains.
-	if resp.FailoverVersion < task.GetFailoverVersion() {
+	// todo (david.porter) reason through if this is compatible with the proposed merge strategy
+	// in active/active domains.
+	if existingDomain.FailoverVersion < task.GetFailoverVersion() {
 		recordUpdated = true
 		request.ReplicationConfig.ActiveClusterName = task.ReplicationConfig.GetActiveClusterName()
 		request.ReplicationConfig.ActiveClusters = task.ReplicationConfig.GetActiveClusters()
 		request.FailoverVersion = task.GetFailoverVersion()
 		request.FailoverNotificationVersion = notificationVersion
 		request.PreviousFailoverVersion = task.GetPreviousFailoverVersion()
+	} else {
+		h.logger.Warn("the existing failover version was more recent, indicating that the domain replication message was out of date and is consequently being dropped",
+			tag.WorkflowDomainName(existingDomain.Info.Name),
+			tag.FailoverVersion(existingDomain.FailoverVersion),
+			tag.FailoverVersion(task.GetFailoverVersion()))
+	}
+
+	if existingDomain.ReplicationConfig.IsActiveActive() || task.ReplicationConfig.IsActiveActive() {
+		mergedActiveClusters, aaChanged := mergeActiveActiveScopes(existingDomain.ReplicationConfig.ActiveClusters, task.ReplicationConfig.ActiveClusters)
+		if aaChanged {
+			recordUpdated = true
+			request.ReplicationConfig.ActiveClusters = mergedActiveClusters
+		}
 	}
 
 	if !recordUpdated {
@@ -344,4 +356,76 @@ func (h *domainReplicationTaskExecutorImpl) convertDomainStatusFromThrift(input 
 	default:
 		return 0, ErrInvalidDomainStatus
 	}
+}
+
+func mergeActiveActiveScopes(existingDomain *types.ActiveClusters, incomingTask *types.ActiveClusters) (*types.ActiveClusters, bool) {
+
+	if existingDomain == nil && incomingTask == nil {
+		return nil, false
+	}
+
+	// new active clusters are being added
+	if existingDomain == nil && incomingTask != nil {
+		return incomingTask, true
+	}
+
+	// existing data is not being mutated
+	if incomingTask == nil && existingDomain != nil {
+		return existingDomain, false
+	}
+
+	isChanged := false
+	mergedActiveClusters := &types.ActiveClusters{
+		AttributeScopes: make(map[string]types.ClusterAttributeScope),
+	}
+
+	for scope, existingScopeData := range existingDomain.AttributeScopes {
+		incomingScope, presentInIncoming := incomingTask.AttributeScopes[scope]
+		if presentInIncoming {
+			merged, isCh := mergeScope(existingScopeData, incomingScope)
+			isChanged = isChanged || isCh
+			mergedActiveClusters.AttributeScopes[scope] = merged
+		} else {
+			mergedActiveClusters.AttributeScopes[scope] = existingScopeData
+		}
+	}
+
+	for newScope, newScopeData := range incomingTask.AttributeScopes {
+		_, existsAlready := mergedActiveClusters.AttributeScopes[newScope]
+		if !existsAlready {
+			mergedActiveClusters.AttributeScopes[newScope] = newScopeData
+		}
+	}
+
+	return mergedActiveClusters, isChanged
+}
+
+func mergeScope(existing types.ClusterAttributeScope, incoming types.ClusterAttributeScope) (merged types.ClusterAttributeScope, isChanged bool) {
+
+	merged.ClusterAttributes = make(map[string]types.ActiveClusterInfo)
+
+	for existingAttr := range existing.ClusterAttributes {
+
+		incomingAtt, presentInNew := incoming.ClusterAttributes[existingAttr]
+		if presentInNew {
+			if incomingAtt.FailoverVersion > existing.ClusterAttributes[existingAttr].FailoverVersion {
+				merged.ClusterAttributes[existingAttr] = incomingAtt
+				isChanged = true
+			} else {
+				merged.ClusterAttributes[existingAttr] = existing.ClusterAttributes[existingAttr]
+			}
+		} else {
+			merged.ClusterAttributes[existingAttr] = existing.ClusterAttributes[existingAttr]
+		}
+	}
+
+	for newAttr, newAttrClusterInfo := range incoming.ClusterAttributes {
+		_, existsInOld := existing.ClusterAttributes[newAttr]
+		if !existsInOld {
+			merged.ClusterAttributes[newAttr] = newAttrClusterInfo
+			isChanged = true
+		}
+	}
+
+	return merged, isChanged
 }
