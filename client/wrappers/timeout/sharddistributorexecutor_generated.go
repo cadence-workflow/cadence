@@ -33,6 +33,12 @@ func NewShardDistributorExecutorClient(
 	}
 }
 
+func (c *sharddistributorexecutorClient) AssignShard(ctx context.Context, ep1 *types.ExecutorAssignShardRequest, p1 ...yarpc.CallOption) (ep2 *types.ExecutorAssignShardResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.AssignShard(ctx, ep1, p1...)
+}
+
 func (c *sharddistributorexecutorClient) Heartbeat(ctx context.Context, ep1 *types.ExecutorHeartbeatRequest, p1 ...yarpc.CallOption) (ep2 *types.ExecutorHeartbeatResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()

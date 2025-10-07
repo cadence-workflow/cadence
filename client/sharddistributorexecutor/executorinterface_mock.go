@@ -43,6 +43,26 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
+// AssignShard mocks base method.
+func (m *MockClient) AssignShard(arg0 context.Context, arg1 *types.ExecutorAssignShardRequest, arg2 ...yarpc.CallOption) (*types.ExecutorAssignShardResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "AssignShard", varargs...)
+	ret0, _ := ret[0].(*types.ExecutorAssignShardResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AssignShard indicates an expected call of AssignShard.
+func (mr *MockClientMockRecorder) AssignShard(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShard", reflect.TypeOf((*MockClient)(nil).AssignShard), varargs...)
+}
+
 // Heartbeat mocks base method.
 func (m *MockClient) Heartbeat(arg0 context.Context, arg1 *types.ExecutorHeartbeatRequest, arg2 ...yarpc.CallOption) (*types.ExecutorHeartbeatResponse, error) {
 	m.ctrl.T.Helper()

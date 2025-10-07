@@ -903,6 +903,9 @@ const (
 	ActiveClusterManagerWorkflowCacheScope
 
 	NumCommonScopes
+
+	// ShardDistributorExecutorClientAssignShardScope tracks AssignShard calls made by executor to shard distributor
+	ShardDistributorExecutorClientAssignShardScope
 )
 
 // -- Operation scopes for Admin service --

@@ -43,3 +43,20 @@ func (c *meteredShardDistributorExecutorClient) Heartbeat(ctx context.Context, e
 	}
 	return ep2, err
 }
+
+func (c *meteredShardDistributorExecutorClient) AssignShard(ctx context.Context, ep1 *types.ExecutorAssignShardRequest, p1 ...yarpc.CallOption) (ep2 *types.ExecutorAssignShardResponse, err error) {
+	var scope tally.Scope
+	scope = c.metricsScope.Tagged(map[string]string{
+		metrics.OperationTagName: metricsconstants.ShardDistributorExecutorAssignShardOperationTagName,
+	})
+
+	scope.Counter(metricsconstants.ShardDistributorExecutorClientRequests).Inc(1)
+	sw := scope.Timer(metricsconstants.ShardDistributorExecutorClientLatency).Start()
+	ep2, err = c.client.AssignShard(ctx, ep1, p1...)
+	sw.Stop()
+
+	if err != nil {
+		scope.Counter(metricsconstants.ShardDistributorExecutorClientFailures).Inc(1)
+	}
+	return ep2, err
+}

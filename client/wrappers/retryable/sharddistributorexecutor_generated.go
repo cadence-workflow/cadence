@@ -31,6 +31,17 @@ func NewShardDistributorExecutorClient(client sharddistributorexecutor.Client, p
 	}
 }
 
+func (c *sharddistributorexecutorClient) AssignShard(ctx context.Context, ep1 *types.ExecutorAssignShardRequest, p1 ...yarpc.CallOption) (ep2 *types.ExecutorAssignShardResponse, err error) {
+	var resp *types.ExecutorAssignShardResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.AssignShard(ctx, ep1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *sharddistributorexecutorClient) Heartbeat(ctx context.Context, ep1 *types.ExecutorHeartbeatRequest, p1 ...yarpc.CallOption) (ep2 *types.ExecutorHeartbeatResponse, err error) {
 	var resp *types.ExecutorHeartbeatResponse
 	op := func(ctx context.Context) error {

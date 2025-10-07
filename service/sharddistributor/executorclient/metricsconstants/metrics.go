@@ -8,8 +8,9 @@ import (
 
 const (
 	// Operation tag names for ShardDistributorExecutor metrics
-	ShardDistributorExecutorOperationTagName          = "ShardDistributorExecutor"
-	ShardDistributorExecutorHeartbeatOperationTagName = "ShardDistributorExecutorHeartbeat"
+	ShardDistributorExecutorOperationTagName            = "ShardDistributorExecutor"
+	ShardDistributorExecutorHeartbeatOperationTagName   = "ShardDistributorExecutorHeartbeat"
+	ShardDistributorExecutorAssignShardOperationTagName = "ShardDistributorExecutorAssignShard"
 
 	// Counter metrics
 	ShardDistributorExecutorAssignmentSkipped         = "shard_distributor_executor_assignment_skipped"

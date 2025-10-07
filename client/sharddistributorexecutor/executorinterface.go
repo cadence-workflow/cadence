@@ -39,4 +39,5 @@ import (
 
 type Client interface {
 	Heartbeat(context.Context, *types.ExecutorHeartbeatRequest, ...yarpc.CallOption) (*types.ExecutorHeartbeatResponse, error)
+	AssignShard(context.Context, *types.ExecutorAssignShardRequest, ...yarpc.CallOption) (*types.ExecutorAssignShardResponse, error)
 }

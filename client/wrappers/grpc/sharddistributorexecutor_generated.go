@@ -13,6 +13,11 @@ import (
 	"github.com/uber/cadence/common/types/mapper/proto"
 )
 
+func (g sharddistributorexecutorClient) AssignShard(ctx context.Context, ep1 *types.ExecutorAssignShardRequest, p1 ...yarpc.CallOption) (ep2 *types.ExecutorAssignShardResponse, err error) {
+	response, err := g.c.AssignShard(ctx, proto.FromShardDistributorExecutorAssignShardRequest(ep1), p1...)
+	return proto.ToShardDistributorExecutorAssignShardResponse(response), proto.ToError(err)
+}
+
 func (g sharddistributorexecutorClient) Heartbeat(ctx context.Context, ep1 *types.ExecutorHeartbeatRequest, p1 ...yarpc.CallOption) (ep2 *types.ExecutorHeartbeatResponse, err error) {
 	response, err := g.c.Heartbeat(ctx, proto.FromShardDistributorExecutorHeartbeatRequest(ep1), p1...)
 	return proto.ToShardDistributorExecutorHeartbeatResponse(response), proto.ToError(err)

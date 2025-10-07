@@ -28,6 +28,28 @@ func NewShardDistributorExecutorClient(client sharddistributorexecutor.Client, m
 	}
 }
 
+func (c *sharddistributorexecutorClient) AssignShard(ctx context.Context, ep1 *types.ExecutorAssignShardRequest, p1 ...yarpc.CallOption) (ep2 *types.ExecutorAssignShardResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.ShardDistributorExecutorClientAssignShardScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.ShardDistributorExecutorClientAssignShardScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	ep2, err = c.client.AssignShard(ctx, ep1, p1...)
+	sw.Stop()
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return ep2, err
+}
+
 func (c *sharddistributorexecutorClient) Heartbeat(ctx context.Context, ep1 *types.ExecutorHeartbeatRequest, p1 ...yarpc.CallOption) (ep2 *types.ExecutorHeartbeatResponse, err error) {
 	retryCount := getRetryCountFromContext(ctx)
 

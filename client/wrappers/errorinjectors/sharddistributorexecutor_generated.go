@@ -40,6 +40,26 @@ func NewShardDistributorExecutorClient(client sharddistributorexecutor.Client, e
 	}
 }
 
+func (c *sharddistributorexecutorClient) AssignShard(ctx context.Context, ep1 *types.ExecutorAssignShardRequest, p1 ...yarpc.CallOption) (ep2 *types.ExecutorAssignShardResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		ep2, err = c.client.AssignShard(ctx, ep1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgShardDistributorExecutorInjectedFakeErr,
+			tag.ShardDistributorExecutorClientOperationAssignShard,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *sharddistributorexecutorClient) Heartbeat(ctx context.Context, ep1 *types.ExecutorHeartbeatRequest, p1 ...yarpc.CallOption) (ep2 *types.ExecutorHeartbeatResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
