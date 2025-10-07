@@ -1478,6 +1478,7 @@ const (
 	ShardDistributorExecutorScope
 
 	NumShardDistributorScopes
+	ShardDistributorAssignShardScope
 )
 
 // ScopeDefs record the scopes for all services

@@ -20,6 +20,11 @@ func NewExecutorGRPCExecutor(h handler.Executor) ExecutorGRPCExecutor {
 	return ExecutorGRPCExecutor{h}
 }
 
+func (g ExecutorGRPCExecutor) AssignShard(ctx context.Context, request *sharddistributorv1.AssignShardRequest) (*sharddistributorv1.AssignShardResponse, error) {
+	response, err := g.h.AssignShard(ctx, proto.ToShardDistributorExecutorAssignShardRequest(request))
+	return proto.FromShardDistributorExecutorAssignShardResponse(response), proto.FromError(err)
+}
+
 func (g ExecutorGRPCExecutor) Heartbeat(ctx context.Context, request *sharddistributorv1.HeartbeatRequest) (*sharddistributorv1.HeartbeatResponse, error) {
 	response, err := g.h.Heartbeat(ctx, proto.ToShardDistributorExecutorHeartbeatRequest(request))
 	return proto.FromShardDistributorExecutorHeartbeatResponse(response), proto.FromError(err)

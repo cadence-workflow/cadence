@@ -29,6 +29,9 @@ service ShardDistributorExecutorAPI {
 
   // Heartbeat reports the current state of the executor, and fetches the next shard assignments.
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // AssignShard requests to assign a shard to an executor, and fetches the next shard assignments.
+  rpc AssignShard(AssignShardRequest) returns (AssignShardResponse);
 }
 
 message HeartbeatRequest {
@@ -77,4 +80,25 @@ message ShardAssignment {
 enum AssignmentStatus {
   ASSIGNMENT_STATUS_INVALID = 0;
   ASSIGNMENT_STATUS_READY = 1;
+}
+
+message AssignShardRequest {
+  string namespace = 1;
+  string executor_id = 2;
+  ExecutorStatus executor_status = 3;
+  string shard_id = 4;
+  ShardStatus shard_status = 5;
+}
+
+message AssignShardResponse {
+  map<string, ShardAssignment> shard_assignments = 1;
+  MigrationPhase migration_phase = 2;
+}
+
+enum MigrationPhase {
+  MIGRATION_PHASE_INVALID = 0;
+  MIGRATION_PHASE_LOCAL_PASSTHROUGH = 1;
+  MIGRATION_PHASE_LOCAL_PASSTHROUGH_SHADOW = 2;
+  MIGRATION_PHASE_DISTRIBUTED_PASSTHROUGH = 3;
+  MIGRATION_PHASE_ONBOARDED = 4;
 }

@@ -192,3 +192,76 @@ const (
 	AssignmentStatusINVALID AssignmentStatus = 0
 	AssignmentStatusREADY   AssignmentStatus = 1
 )
+
+type ExecutorAssignShardRequest struct {
+	Namespace      string
+	ExecutorID     string
+	ExecutorStatus ExecutorStatus
+	ShardID        string
+	ShardStatus    ShardStatus
+}
+
+func (v *ExecutorAssignShardRequest) GetNamespace() (o string) {
+	if v != nil {
+		return v.Namespace
+	}
+	return
+}
+
+func (v *ExecutorAssignShardRequest) GetExecutorID() (o string) {
+	if v != nil {
+		return v.ExecutorID
+	}
+	return
+}
+
+func (v *ExecutorAssignShardRequest) GetExecutorStatus() (o ExecutorStatus) {
+	if v != nil {
+		return v.ExecutorStatus
+	}
+	return
+}
+
+func (v *ExecutorAssignShardRequest) GetShardID() (o string) {
+	if v != nil {
+		return v.ShardID
+	}
+	return
+}
+
+func (v *ExecutorAssignShardRequest) GetShardStatus() (o ShardStatus) {
+	if v != nil {
+		return v.ShardStatus
+	}
+	return
+}
+
+type ExecutorAssignShardResponse struct {
+	ShardAssignments map[string]*ShardAssignment
+	MigrationPhase   MigrationPhase
+}
+
+func (v *ExecutorAssignShardResponse) GetShardAssignments() (o map[string]*ShardAssignment) {
+	if v != nil {
+		return v.ShardAssignments
+	}
+	return
+}
+func (v *ExecutorAssignShardResponse) GetMigrationPhase() (o MigrationPhase) {
+	if v != nil {
+		return v.MigrationPhase
+	}
+	return
+}
+
+// AssignmentStatus is persisted to the DB with a string value mapping.
+// Beware - if we want to change the name - it should be backward compatible and should be done in two steps.
+type MigrationPhase int32
+
+const (
+	MigrationPhaseINVALID                = 0
+	MigrationPhaseLOCALPASSTHROUGH       = 1
+	MigrationPhaseLOCALPASSTHROUGHSHADOW = 2
+	MigrationPhaseDISTRIBUTEDPASSTHROUGH = 3
+	MigrationPhasePHASEONBOARDED         = 4
+)

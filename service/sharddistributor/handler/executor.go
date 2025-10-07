@@ -61,6 +61,10 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 	return _convertResponse(assignedShards), nil
 }
 
+func (h *executor) AssignShard(ctx context.Context, request *types.ExecutorAssignShardRequest) (*types.ExecutorAssignShardResponse, error) {
+	return nil, fmt.Errorf("endpoint not implemented")
+}
+
 func _convertResponse(shards *store.AssignedState) *types.ExecutorHeartbeatResponse {
 	res := &types.ExecutorHeartbeatResponse{}
 	if shards == nil {

@@ -120,6 +120,21 @@ func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
 	return m.recorder
 }
 
+// AssignShard mocks base method.
+func (m *MockExecutor) AssignShard(ctx context.Context, request *types.ExecutorAssignShardRequest) (*types.ExecutorAssignShardResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AssignShard", ctx, request)
+	ret0, _ := ret[0].(*types.ExecutorAssignShardResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AssignShard indicates an expected call of AssignShard.
+func (mr *MockExecutorMockRecorder) AssignShard(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShard", reflect.TypeOf((*MockExecutor)(nil).AssignShard), ctx, request)
+}
+
 // Heartbeat mocks base method.
 func (m *MockExecutor) Heartbeat(arg0 context.Context, arg1 *types.ExecutorHeartbeatRequest) (*types.ExecutorHeartbeatResponse, error) {
 	m.ctrl.T.Helper()

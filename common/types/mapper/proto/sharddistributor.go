@@ -78,18 +78,7 @@ func FromShardDistributorExecutorHeartbeatRequest(t *types.ExecutorHeartbeatRequ
 
 	// Convert the ExecutorStatus enum
 	var status sharddistributorv1.ExecutorStatus
-	switch t.GetStatus() {
-	case types.ExecutorStatusINVALID:
-		status = sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_INVALID
-	case types.ExecutorStatusACTIVE:
-		status = sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_ACTIVE
-	case types.ExecutorStatusDRAINING:
-		status = sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_DRAINING
-	case types.ExecutorStatusDRAINED:
-		status = sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_DRAINED
-	default:
-		status = sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_INVALID
-	}
+	status = toExecutorStatus(t.GetStatus())
 
 	// Convert the ShardStatusReports
 	var shardStatusReports map[string]*sharddistributorv1.ShardStatusReport
@@ -99,16 +88,7 @@ func FromShardDistributorExecutorHeartbeatRequest(t *types.ExecutorHeartbeatRequ
 		for shardKey, shardStatusReport := range t.GetShardStatusReports() {
 
 			var status sharddistributorv1.ShardStatus
-			switch shardStatusReport.GetStatus() {
-			case types.ShardStatusINVALID:
-				status = sharddistributorv1.ShardStatus_SHARD_STATUS_INVALID
-			case types.ShardStatusREADY:
-				status = sharddistributorv1.ShardStatus_SHARD_STATUS_READY
-			case types.ShardStatusDONE:
-				status = sharddistributorv1.ShardStatus_SHARD_STATUS_DONE
-			default:
-				status = sharddistributorv1.ShardStatus_SHARD_STATUS_INVALID
-			}
+			status = toShardStatus(shardStatusReport.GetStatus())
 
 			shardStatusReports[shardKey] = &sharddistributorv1.ShardStatusReport{
 				Status:    status,
@@ -130,19 +110,7 @@ func ToShardDistributorExecutorHeartbeatRequest(t *sharddistributorv1.HeartbeatR
 	}
 
 	// Convert the ExecutorStatus enum
-	var status types.ExecutorStatus
-	switch t.GetStatus() {
-	case sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_INVALID:
-		status = types.ExecutorStatusINVALID
-	case sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_ACTIVE:
-		status = types.ExecutorStatusACTIVE
-	case sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_DRAINING:
-		status = types.ExecutorStatusDRAINING
-	case sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_DRAINED:
-		status = types.ExecutorStatusDRAINED
-	default:
-		status = types.ExecutorStatusINVALID
-	}
+	status := getExecutorStatusFromProto(t.GetStatus())
 
 	// Convert the ShardStatusReports
 	var shardStatusReports map[string]*types.ShardStatusReport
@@ -152,15 +120,7 @@ func ToShardDistributorExecutorHeartbeatRequest(t *sharddistributorv1.HeartbeatR
 		for shardKey, shardStatusReport := range t.GetShardStatusReports() {
 
 			var status types.ShardStatus
-			switch shardStatusReport.GetStatus() {
-			case sharddistributorv1.ShardStatus_SHARD_STATUS_INVALID:
-				status = types.ShardStatusINVALID
-			case sharddistributorv1.ShardStatus_SHARD_STATUS_READY:
-				status = types.ShardStatusREADY
-			case sharddistributorv1.ShardStatus_SHARD_STATUS_DONE:
-				status = types.ShardStatusDONE
-			}
-
+			status = getShardStatusFromProto(shardStatusReport.GetStatus())
 			shardStatusReports[shardKey] = &types.ShardStatusReport{
 				Status:    status,
 				ShardLoad: shardStatusReport.GetShardLoad(),
@@ -232,4 +192,191 @@ func ToShardDistributorExecutorHeartbeatResponse(t *sharddistributorv1.Heartbeat
 	return &types.ExecutorHeartbeatResponse{
 		ShardAssignments: shardAssignments,
 	}
+}
+
+func FromShardDistributorExecutorAssignShardRequest(t *types.ExecutorAssignShardRequest) *sharddistributorv1.AssignShardRequest {
+	if t == nil {
+		return nil
+	}
+	executorstatus := toExecutorStatus(t.GetExecutorStatus())
+	shardstatus := toShardStatus(t.GetShardStatus())
+	return &sharddistributorv1.AssignShardRequest{
+		Namespace:      t.GetNamespace(),
+		ExecutorId:     t.GetExecutorID(),
+		ExecutorStatus: executorstatus,
+		ShardId:        t.GetShardID(),
+		ShardStatus:    shardstatus,
+	}
+
+}
+
+func ToShardDistributorExecutorAssignShardRequest(t *sharddistributorv1.AssignShardRequest) *types.ExecutorAssignShardRequest {
+	if t == nil {
+		return nil
+	}
+
+	executorStatus := getExecutorStatusFromProto(t.GetExecutorStatus())
+	shardStatus := getShardStatusFromProto(t.GetShardStatus())
+
+	return &types.ExecutorAssignShardRequest{
+		Namespace:      t.GetNamespace(),
+		ExecutorID:     t.GetExecutorId(),
+		ExecutorStatus: executorStatus,
+		ShardID:        t.GetShardId(),
+		ShardStatus:    shardStatus,
+	}
+}
+
+func FromShardDistributorExecutorAssignShardResponse(t *types.ExecutorAssignShardResponse) *sharddistributorv1.AssignShardResponse {
+	if t == nil {
+		return nil
+	}
+	var shardAssignments map[string]*sharddistributorv1.ShardAssignment
+	if t.GetShardAssignments() != nil {
+		shardAssignments = make(map[string]*sharddistributorv1.ShardAssignment)
+		for shardKey, shardAssignment := range t.GetShardAssignments() {
+			var status sharddistributorv1.AssignmentStatus
+			switch shardAssignment.GetStatus() {
+			case types.AssignmentStatusINVALID:
+				status = sharddistributorv1.AssignmentStatus_ASSIGNMENT_STATUS_INVALID
+			case types.AssignmentStatusREADY:
+				status = sharddistributorv1.AssignmentStatus_ASSIGNMENT_STATUS_READY
+			}
+			shardAssignments[shardKey] = &sharddistributorv1.ShardAssignment{
+				Status: status,
+			}
+		}
+	}
+
+	return &sharddistributorv1.AssignShardResponse{
+		ShardAssignments: shardAssignments,
+		MigrationPhase:   toMigrationPhase(t.GetMigrationPhase()),
+	}
+}
+
+func ToShardDistributorExecutorAssignShardResponse(t *sharddistributorv1.AssignShardResponse) *types.ExecutorAssignShardResponse {
+	if t == nil {
+		return nil
+	}
+	var shardAssignments map[string]*types.ShardAssignment
+	if t.GetShardAssignments() != nil {
+		shardAssignments = make(map[string]*types.ShardAssignment)
+		for shardKey, shardAssignment := range t.GetShardAssignments() {
+			var status types.AssignmentStatus
+			switch shardAssignment.GetStatus() {
+			case sharddistributorv1.AssignmentStatus_ASSIGNMENT_STATUS_INVALID:
+				status = types.AssignmentStatusINVALID
+			case sharddistributorv1.AssignmentStatus_ASSIGNMENT_STATUS_READY:
+				status = types.AssignmentStatusREADY
+			}
+			shardAssignments[shardKey] = &types.ShardAssignment{
+				Status: status,
+			}
+		}
+	}
+
+	return &types.ExecutorAssignShardResponse{
+		ShardAssignments: shardAssignments,
+		MigrationPhase:   getMigrationPhaseFromProto(t.GetMigrationPhase()),
+	}
+}
+
+func getExecutorStatusFromProto(protoStatus sharddistributorv1.ExecutorStatus) types.ExecutorStatus {
+	var status types.ExecutorStatus
+	switch protoStatus {
+	case sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_INVALID:
+		status = types.ExecutorStatusINVALID
+	case sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_ACTIVE:
+		status = types.ExecutorStatusACTIVE
+	case sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_DRAINING:
+		status = types.ExecutorStatusDRAINING
+	case sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_DRAINED:
+		status = types.ExecutorStatusDRAINED
+	default:
+		status = types.ExecutorStatusINVALID
+	}
+	return status
+}
+
+func getShardStatusFromProto(protoStatus sharddistributorv1.ShardStatus) types.ShardStatus {
+	var status types.ShardStatus
+	switch protoStatus {
+	case sharddistributorv1.ShardStatus_SHARD_STATUS_INVALID:
+		status = types.ShardStatusINVALID
+	case sharddistributorv1.ShardStatus_SHARD_STATUS_READY:
+		status = types.ShardStatusREADY
+	case sharddistributorv1.ShardStatus_SHARD_STATUS_DONE:
+		status = types.ShardStatusDONE
+	default:
+		status = types.ShardStatusINVALID
+	}
+	return status
+}
+
+func getMigrationPhaseFromProto(protoMigrationPhase sharddistributorv1.MigrationPhase) types.MigrationPhase {
+	var phase types.MigrationPhase
+	switch protoMigrationPhase {
+	case sharddistributorv1.MigrationPhase_MIGRATION_PHASE_INVALID:
+		phase = types.MigrationPhaseINVALID
+	case sharddistributorv1.MigrationPhase_MIGRATION_PHASE_LOCAL_PASSTHROUGH:
+		phase = types.MigrationPhaseLOCALPASSTHROUGH
+	case sharddistributorv1.MigrationPhase_MIGRATION_PHASE_LOCAL_PASSTHROUGH_SHADOW:
+		phase = types.MigrationPhaseLOCALPASSTHROUGHSHADOW
+	case sharddistributorv1.MigrationPhase_MIGRATION_PHASE_DISTRIBUTED_PASSTHROUGH:
+		phase = types.MigrationPhaseDISTRIBUTEDPASSTHROUGH
+	case sharddistributorv1.MigrationPhase_MIGRATION_PHASE_ONBOARDED:
+		phase = types.MigrationPhasePHASEONBOARDED
+	default:
+		phase = types.MigrationPhaseINVALID
+	}
+	return phase
+}
+
+func toExecutorStatus(statusSD types.ExecutorStatus) sharddistributorv1.ExecutorStatus {
+	var status sharddistributorv1.ExecutorStatus
+	switch statusSD {
+	case types.ExecutorStatusINVALID:
+		status = sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_INVALID
+	case types.ExecutorStatusACTIVE:
+		status = sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_ACTIVE
+	case types.ExecutorStatusDRAINING:
+		status = sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_DRAINING
+	case types.ExecutorStatusDRAINED:
+		status = sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_DRAINED
+	default:
+		status = sharddistributorv1.ExecutorStatus_EXECUTOR_STATUS_INVALID
+	}
+	return status
+}
+
+func toShardStatus(statusSD types.ShardStatus) sharddistributorv1.ShardStatus {
+	var status sharddistributorv1.ShardStatus
+	switch statusSD {
+	case types.ShardStatusINVALID:
+		status = sharddistributorv1.ShardStatus_SHARD_STATUS_INVALID
+	case types.ShardStatusREADY:
+		status = sharddistributorv1.ShardStatus_SHARD_STATUS_READY
+	case types.ShardStatusDONE:
+		status = sharddistributorv1.ShardStatus_SHARD_STATUS_DONE
+	default:
+		status = sharddistributorv1.ShardStatus_SHARD_STATUS_INVALID
+	}
+	return status
+}
+
+func toMigrationPhase(phaseSD types.MigrationPhase) sharddistributorv1.MigrationPhase {
+	var phase sharddistributorv1.MigrationPhase
+	switch phaseSD {
+	case types.MigrationPhaseINVALID:
+		phase = sharddistributorv1.MigrationPhase_MIGRATION_PHASE_INVALID
+	case types.MigrationPhaseLOCALPASSTHROUGH:
+		phase = sharddistributorv1.MigrationPhase_MIGRATION_PHASE_LOCAL_PASSTHROUGH_SHADOW
+	case types.MigrationPhaseDISTRIBUTEDPASSTHROUGH:
+		phase = sharddistributorv1.MigrationPhase_MIGRATION_PHASE_DISTRIBUTED_PASSTHROUGH
+	case types.MigrationPhasePHASEONBOARDED:
+		phase = sharddistributorv1.MigrationPhase_MIGRATION_PHASE_ONBOARDED
+	default:
+		phase = sharddistributorv1.MigrationPhase_MIGRATION_PHASE_INVALID
+	}
+	return phase
 }

@@ -28,6 +28,25 @@ func NewExecutorMetricsExecutor(handler handler.Executor, logger log.Logger, met
 	}
 }
 
+func (h *executormetricsExecutor) AssignShard(ctx context.Context, request *types.ExecutorAssignShardRequest) (ep1 *types.ExecutorAssignShardResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+
+	scope := h.metricsClient.Scope(metrics.ShardDistributorAssignShardScope)
+	scope = scope.Tagged(metrics.NamespaceTag(request.GetNamespace()))
+	scope.IncCounter(metrics.ShardDistributorRequests)
+	sw := scope.StartTimer(metrics.ShardDistributorLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tag.ShardNamespace(request.GetNamespace()))
+
+	ep1, err = h.handler.AssignShard(ctx, request)
+
+	if err != nil {
+		handleErr(err, scope, logger)
+	}
+
+	return ep1, err
+}
+
 func (h *executormetricsExecutor) Heartbeat(ctx context.Context, ep1 *types.ExecutorHeartbeatRequest) (ep2 *types.ExecutorHeartbeatResponse, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 

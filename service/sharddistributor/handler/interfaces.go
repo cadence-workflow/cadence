@@ -46,4 +46,5 @@ type Handler interface {
 
 type Executor interface {
 	Heartbeat(context.Context, *types.ExecutorHeartbeatRequest) (*types.ExecutorHeartbeatResponse, error)
+	AssignShard(ctx context.Context, request *types.ExecutorAssignShardRequest) (*types.ExecutorAssignShardResponse, error)
 }
