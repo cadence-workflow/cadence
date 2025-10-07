@@ -135,8 +135,10 @@ func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag
 	duration := time.Since(before)
 	if len(tags) > 0 {
 		metricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration)
+		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerDomainHistogram, duration)
 	} else {
 		metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
+		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 	}
 
 	if p.enableLatencyHistogramMetrics {
@@ -161,6 +163,7 @@ func (p *base) callWithoutDomainTag(scope metrics.ScopeIdx, op func() error, tag
 	err := op()
 	duration := time.Since(before)
 	metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
+	metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 
 	if p.enableLatencyHistogramMetrics {
 		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyManualHistogram, duration)
