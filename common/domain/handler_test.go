@@ -1664,6 +1664,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.UpdateDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, timeSource clock.MockedTimeSource, domainReplicator *MockReplicator) {
 				domainResponse := &persistence.GetDomainResponse{
 					ReplicationConfig: &persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestCurrentClusterName,
 						Clusters: []*persistence.ClusterReplicationConfig{
 							{ClusterName: cluster.TestCurrentClusterName},
 							{ClusterName: cluster.TestAlternativeClusterName},
@@ -1716,6 +1717,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					Info:   domainResponse.Info,
 					Config: domainResponse.Config,
 					ReplicationConfig: &persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestCurrentClusterName,
 						Clusters: []*persistence.ClusterReplicationConfig{
 							{ClusterName: cluster.TestCurrentClusterName},
 							{ClusterName: cluster.TestAlternativeClusterName},
@@ -1771,6 +1773,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			response: func(timeSource clock.MockedTimeSource) *types.UpdateDomainResponse {
 				data, _ := json.Marshal([]FailoverEvent{{
 					EventTime:    timeSource.Now(),
+					FromCluster:  cluster.TestCurrentClusterName,
 					FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String(),
 					FromActiveClusters: types.ActiveClusters{
 						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
@@ -1816,6 +1819,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						AsyncWorkflowConfig:                    &types.AsyncWorkflowConfiguration{Enabled: true},
 					},
 					ReplicationConfiguration: &types.DomainReplicationConfiguration{
+						ActiveClusterName: cluster.TestCurrentClusterName,
 						Clusters: []*types.ClusterReplicationConfiguration{
 							{ClusterName: cluster.TestCurrentClusterName},
 							{ClusterName: cluster.TestAlternativeClusterName},
