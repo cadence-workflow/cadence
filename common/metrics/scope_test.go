@@ -23,12 +23,12 @@ func TestHistogramMode(t *testing.T) {
 		return "unknown"
 	}
 
-	orig := MigratingTimerNames
+	orig := HistogramMigrationMetrics
 	t.Cleanup(func() {
-		MigratingTimerNames = orig
+		HistogramMigrationMetrics = orig
 	})
 
-	MigratingTimerNames = map[string]struct{}{
+	HistogramMigrationMetrics = map[string]struct{}{
 		findName(CadenceLatency):                    {},
 		findName(ExponentialReplicationTaskLatency): {},
 		findName(PersistenceLatencyPerShard):        {},

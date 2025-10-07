@@ -9,7 +9,7 @@ type HistogramMigration struct {
 	// If a name/key does not exist, the default mode will be checked to determine
 	// if a timer or histogram should be emitted.
 	//
-	// This is only checked for timers and histograms that are in MigratingTimerNames.
+	// This is only checked for timers and histograms that are in HistogramMigrationMetrics.
 	Names map[string]bool `yaml:"names"`
 }
 
@@ -20,10 +20,10 @@ func (h *HistogramMigration) UnmarshalYAML(read func(any) error) error {
 		return err
 	}
 	for k := range tmp.Names {
-		if _, ok := MigratingTimerNames[k]; !ok {
+		if _, ok := HistogramMigrationMetrics[k]; !ok {
 			return fmt.Errorf(
 				"unknown histogram-migration metric name %q.  "+
-					"if this is a valid name, add it to common/metrics.MigratingTimerNames before starting the service",
+					"if this is a valid name, add it to common/metrics.HistogramMigrationMetrics before starting the service",
 				k,
 			)
 		}
@@ -32,7 +32,7 @@ func (h *HistogramMigration) UnmarshalYAML(read func(any) error) error {
 	return nil
 }
 
-// MigratingTimerNames contains all metric names being migrated, to prevent affecting
+// HistogramMigrationMetrics contains all metric names being migrated, to prevent affecting
 // non-migration-related timers and histograms, and to catch metric name config
 // mistakes early on.
 //
@@ -40,7 +40,7 @@ func (h *HistogramMigration) UnmarshalYAML(read func(any) error) error {
 // loading config, in case they have any custom migrations to perform.
 // This is likely best done in an `init` func, to ensure it happens early enough
 // and does not race with config reading.
-var MigratingTimerNames = map[string]struct{}{
+var HistogramMigrationMetrics = map[string]struct{}{
 	"task_latency_processing":    {},
 	"task_latency_processing_ns": {},
 
@@ -49,7 +49,7 @@ var MigratingTimerNames = map[string]struct{}{
 }
 
 func (h HistogramMigration) EmitTimer(name string) bool {
-	if _, ok := MigratingTimerNames[name]; !ok {
+	if _, ok := HistogramMigrationMetrics[name]; !ok {
 		return true
 	}
 	emit, ok := h.Names[name]
@@ -59,7 +59,7 @@ func (h HistogramMigration) EmitTimer(name string) bool {
 	return h.Default.EmitTimer()
 }
 func (h HistogramMigration) EmitHistogram(name string) bool {
-	if _, ok := MigratingTimerNames[name]; !ok {
+	if _, ok := HistogramMigrationMetrics[name]; !ok {
 		return true
 	}
 

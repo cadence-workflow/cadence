@@ -394,11 +394,11 @@ func TestInvalidShardedNoSQLConfig_TasklistShardingRefersToUnknownConnection(t *
 
 func TestHistogramMigrationConfig(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
-		orig := metrics.MigratingTimerNames
+		orig := metrics.HistogramMigrationMetrics
 		t.Cleanup(func() {
-			metrics.MigratingTimerNames = orig
+			metrics.HistogramMigrationMetrics = orig
 		})
-		metrics.MigratingTimerNames = map[string]struct{}{
+		metrics.HistogramMigrationMetrics = map[string]struct{}{
 			"key1": {},
 			"key2": {},
 			"key3": {},
@@ -446,11 +446,11 @@ default: xyz
 		assert.ErrorContains(t, err, `unsupported histogram migration mode "xyz", must be "timer", "histogram", or "both"`)
 	})
 	t.Run("invalid key", func(t *testing.T) {
-		orig := metrics.MigratingTimerNames
+		orig := metrics.HistogramMigrationMetrics
 		t.Cleanup(func() {
-			metrics.MigratingTimerNames = orig
+			metrics.HistogramMigrationMetrics = orig
 		})
-		metrics.MigratingTimerNames = map[string]struct{}{
+		metrics.HistogramMigrationMetrics = map[string]struct{}{
 			"key1": {},
 		}
 		yaml, err := uconfig.NewYAML(uconfig.RawSource(strings.NewReader(`
