@@ -114,10 +114,10 @@ func main() {
 	for domainName := range simCfg.Domains {
 		wg.Add(1)
 
-		go func() {
-			waitUntilDomainReady(logger, cadenceClient, domainName)
+		go func(name string) {
+			waitUntilDomainReady(logger, cadenceClient, name)
 			wg.Done()
-		}()
+		}(domainName)
 	}
 	wg.Wait()
 
