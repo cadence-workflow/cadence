@@ -252,6 +252,9 @@ func (s *ReplicationSimulationConfig) MustRegisterDomain(
 
 }
 
+// ClusterAttributesToAttributeScopes converts ClusterAttributes from the ReplicationSimulationConfig
+// to the AttributeScopes type used for Cadence RPCs.
+// See ReplicationSimulationConfig.ClusterAttributes for more details
 func ClusterAttributesToAttributeScopes(clusterAttributes map[string]map[string]string) map[string]types.ClusterAttributeScope {
 	attributeScopes := make(map[string]types.ClusterAttributeScope)
 	// scopeType is the key for ClusterAttributeScope

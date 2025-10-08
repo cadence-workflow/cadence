@@ -254,10 +254,6 @@ func changeActiveClusters(
 		return fmt.Errorf("failed to describe domain %s: %w", op.Domain, err)
 	}
 
-	// if NewActiveCluster is specified, add that to the request
-	// if NewActiveClustersByRegion is specified, add that to the request
-	// if NewClusterAttributes is specified, add that to the request
-
 	updateDomainRequest := &types.UpdateDomainRequest{
 		Name:                     op.Domain,
 		ActiveClusters:           &types.ActiveClusters{},
