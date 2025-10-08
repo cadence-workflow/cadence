@@ -48,6 +48,11 @@ operations:
     newActiveClustersByRegion:
       region0: cluster0
       region1: cluster1
+    newClusterAttributes:
+      region0:
+        cluster0: cluster0
+      region1:
+        cluster1: cluster1
 
   # wait a bit so domain data is replicated to cluster1,
   # and start wf2 for active-active domain and validate it runs in cluster1

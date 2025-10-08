@@ -17,9 +17,15 @@ primaryCluster: "cluster0"
 
 domains:
   test-domain-aa:
+    activeClusterName: cluster0
     activeClustersByRegion:
       region0: cluster0
       region1: cluster1
+    clusterAttributes:
+      region0:
+        cluster0: cluster0
+      region1:
+        cluster1: cluster1
 
 operations:
   # Start wf1 on cluster1 before failover.

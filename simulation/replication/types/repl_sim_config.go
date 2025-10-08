@@ -70,6 +70,17 @@ type ReplicationDomainConfig struct {
 	ActiveClusterName string `yaml:"activeClusterName"`
 
 	ActiveClustersByRegion map[string]string `yaml:"activeClustersByRegion"`
+
+	// ClusterAttributes specifies the Attributes for a domain and is passed to ActiveClusters in the RegisterDomainRequest
+	// It is a simplified expression for the AttributeScopes type
+	// The format should be expressed as follows:
+	// clusterAttributes: // This will be mapped to AttributeScopes
+	//   region: // This is the key for a ClusterAttributeScope. All children are mapped to ClusterAttributes
+	//	 	us-west1: cluster0 // us-west1 is the key within a ClusterAttributeScope
+	//      us-east1: cluster1 // cluster1 is the ActiveClusterName for the corresponding ActiveClusterInfo
+	//   cityID:
+	//      ...
+	ClusterAttributes map[string]map[string]string `yaml:"clusterAttributes"`
 }
 
 type Operation struct {
@@ -96,10 +107,14 @@ type Operation struct {
 
 	EventID int64 `yaml:"eventID"`
 
-	Domain                    string            `yaml:"domain"`
-	NewActiveCluster          string            `yaml:"newActiveCluster"`
+	Domain           string `yaml:"domain"`
+	NewActiveCluster string `yaml:"newActiveCluster"`
+	// TODO(active-active): Remove this once we have completely migrated to AttributeScopes
 	NewActiveClustersByRegion map[string]string `yaml:"newActiveClustersByRegion"`
-	FailoverTimeout           *int32            `yaml:"failoverTimeoutSec"`
+	// NewClusterAttributes specifies the AttributeScopes to change for the domain
+	// This can be a sub-set of the total AttributeScopes for the domain
+	NewClusterAttributes map[string]map[string]string `yaml:"newClusterAttributes"`
+	FailoverTimeout      *int32                       `yaml:"failoverTimeoutSec"`
 
 	// RunIDKey specifies a key to store/retrieve RunID for this operation
 	RunIDKey string `yaml:"runIDKey"`
@@ -183,7 +198,11 @@ func (s *ReplicationSimulationConfig) IsActiveActiveDomain(domainName string) bo
 	return len(s.Domains[domainName].ActiveClustersByRegion) > 0
 }
 
-func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T, domainName string, domainCfg ReplicationDomainConfig) {
+func (s *ReplicationSimulationConfig) MustRegisterDomain(
+	t *testing.T,
+	domainName string,
+	domainCfg ReplicationDomainConfig,
+) {
 	Logf(t, "Registering domain: %s", domainName)
 
 	var clusters []*types.ClusterReplicationConfiguration
@@ -203,10 +222,19 @@ func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T, domainNam
 
 	if len(domainCfg.ActiveClusterName) > 0 {
 		req.ActiveClusterName = domainCfg.ActiveClusterName
-	} else if len(domainCfg.ActiveClustersByRegion) > 0 {
-		req.ActiveClustersByRegion = domainCfg.ActiveClustersByRegion
 	} else {
-		require.Fail(t, "activeClusterName or activeClustersByRegion is required but missing for domain %s", domainName)
+		// ActiveClusterName is required for all global domains
+		require.Fail(t, "activeClusterName is required but missing for domain %s", domainName)
+	}
+
+	// TODO(active-active): Remove this once we have completely migrated to AttributeScopes
+	if len(domainCfg.ActiveClustersByRegion) > 0 {
+		req.ActiveClustersByRegion = domainCfg.ActiveClustersByRegion
+	}
+
+	if len(domainCfg.ClusterAttributes) > 0 {
+		req.ActiveClusters = &types.ActiveClusters{}
+		req.ActiveClusters.AttributeScopes = ClusterAttributesToAttributeScopes(domainCfg.ClusterAttributes)
 	}
 
 	err := s.MustGetFrontendClient(t, s.PrimaryCluster).RegisterDomain(ctx, req)
@@ -221,4 +249,27 @@ func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T, domainNam
 	}
 
 	Logf(t, "Registered domain: %s", domainName)
+
+}
+
+func ClusterAttributesToAttributeScopes(clusterAttributes map[string]map[string]string) map[string]types.ClusterAttributeScope {
+	attributeScopes := make(map[string]types.ClusterAttributeScope)
+	// scopeType is the key for ClusterAttributeScope
+	// It is the name of the scope, e.g region, datacenter, city, etc.
+	for scopeType, clusterAttributeScope := range clusterAttributes {
+		attributeScope := types.ClusterAttributeScope{
+			ClusterAttributes: make(map[string]types.ActiveClusterInfo),
+		}
+		// attributeName is the ClusterAttribute key, e.g seattle for a city scope, us-west for a region scope, etc.
+		// activeClusterName is the name of a cluster corresponding to the clusterMetadata setup
+		for attributeName, activeClusterName := range clusterAttributeScope {
+			attributeScope.ClusterAttributes[attributeName] = types.ActiveClusterInfo{
+				ActiveClusterName: activeClusterName,
+			}
+		}
+
+		attributeScopes[scopeType] = attributeScope
+	}
+
+	return attributeScopes
 }
