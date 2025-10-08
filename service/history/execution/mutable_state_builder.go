@@ -181,13 +181,14 @@ func NewMutableStateBuilder(
 	logger log.Logger,
 	domainEntry *cache.DomainCacheEntry,
 ) MutableState {
-	return newMutableStateBuilder(shard, logger, domainEntry)
+	return newMutableStateBuilder(shard, logger, domainEntry, constants.EmptyVersion)
 }
 
 func newMutableStateBuilder(
 	shard shard.Context,
 	logger log.Logger,
 	domainEntry *cache.DomainCacheEntry,
+	currentVersion int64,
 ) *mutableStateBuilder {
 	s := &mutableStateBuilder{
 		updateActivityInfos:        make(map[int64]*persistence.ActivityInfo),
@@ -217,7 +218,7 @@ func newMutableStateBuilder(
 		pendingSignalRequestedIDs: make(map[string]struct{}),
 		deleteSignalRequestedIDs:  make(map[string]struct{}),
 
-		currentVersion:        domainEntry.GetFailoverVersion(),
+		currentVersion:        currentVersion,
 		hasBufferedEventsInDB: false,
 		stateInDB:             persistence.WorkflowStateVoid,
 		nextEventIDInDB:       0,
@@ -257,13 +258,17 @@ func newMutableStateBuilder(
 }
 
 // NewMutableStateBuilderWithVersionHistories creates mutable state builder with version history initialized
+// NOTE: currentVersion should be the failover version of the workflow, which is derived from domain metadata and
+// the active cluster selection policy of the workflow. For passive workflows, the currentVersion will be overridden by the event version,
+// so the input doesn't matter for them.
 func NewMutableStateBuilderWithVersionHistories(
 	shard shard.Context,
 	logger log.Logger,
 	domainEntry *cache.DomainCacheEntry,
+	currentVersion int64,
 ) MutableState {
 
-	s := newMutableStateBuilder(shard, logger, domainEntry)
+	s := newMutableStateBuilder(shard, logger, domainEntry, currentVersion)
 	s.versionHistories = persistence.NewVersionHistories(&persistence.VersionHistory{})
 	return s
 }
@@ -291,7 +296,7 @@ func NewMutableStateBuilderWithVersionHistoriesWithEventV2(
 	domainEntry *cache.DomainCacheEntry,
 ) MutableState {
 
-	msBuilder := NewMutableStateBuilderWithVersionHistories(shard, logger, domainEntry)
+	msBuilder := NewMutableStateBuilderWithVersionHistories(shard, logger, domainEntry, domainEntry.GetFailoverVersion())
 	err := msBuilder.UpdateCurrentVersion(version, false)
 	if err != nil {
 		logger.Error("update current version error", tag.Error(err))
@@ -1269,6 +1274,7 @@ func (e *mutableStateBuilder) AddContinueAsNewEvent(
 		e.shard,
 		e.logger,
 		e.domainEntry,
+		e.domainEntry.GetFailoverVersion(),
 	).(*mutableStateBuilder)
 
 	// New mutable state initializes `currentVersion` to domain's failover version.

@@ -61,7 +61,7 @@ func TestReplicateDecisionTaskCompletedEvent(t *testing.T) {
 	mockShard.Resource.DomainCache.EXPECT().GetDomainID(constants.TestDomainName).Return(constants.TestDomainID, nil).AnyTimes()
 
 	m := &mutableStateDecisionTaskManagerImpl{
-		msb: newMutableStateBuilder(mockShard, logger, constants.TestLocalDomainEntry),
+		msb: newMutableStateBuilder(mockShard, logger, constants.TestLocalDomainEntry, constants.TestLocalDomainEntry.GetFailoverVersion()),
 	}
 	eventType := types.EventTypeActivityTaskCompleted
 	e := &types.HistoryEvent{
@@ -77,7 +77,7 @@ func TestReplicateDecisionTaskCompletedEvent(t *testing.T) {
 	assert.NoError(t, err)
 
 	// test when config is nil
-	m.msb = newMutableStateBuilder(mockShard, logger, constants.TestLocalDomainEntry)
+	m.msb = newMutableStateBuilder(mockShard, logger, constants.TestLocalDomainEntry, constants.TestLocalDomainEntry.GetFailoverVersion())
 	m.msb.config = nil
 	err = m.ReplicateDecisionTaskCompletedEvent(e)
 	assert.NoError(t, err)

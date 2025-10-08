@@ -117,7 +117,7 @@ func (s *mutableStateSuite) SetupTest() {
 
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainID(constants.TestDomainName).Return(constants.TestDomainID, nil).AnyTimes()
 
-	s.msBuilder = newMutableStateBuilder(s.mockShard, s.logger, constants.TestLocalDomainEntry)
+	s.msBuilder = newMutableStateBuilder(s.mockShard, s.logger, constants.TestLocalDomainEntry, constants.TestLocalDomainEntry.GetFailoverVersion())
 }
 
 func (s *mutableStateSuite) TearDownTest() {
@@ -1956,7 +1956,7 @@ func TestMutableStateBuilder_CopyToPersistence_roundtrip(t *testing.T) {
 		activeClusterManager := activecluster.NewMockManager(ctrl)
 		shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
 
-		msb := newMutableStateBuilder(shardContext, log.NewNoop(), constants.TestGlobalDomainEntry)
+		msb := newMutableStateBuilder(shardContext, log.NewNoop(), constants.TestGlobalDomainEntry, constants.TestGlobalDomainEntry.GetFailoverVersion())
 
 		msb.Load(context.Background(), execution)
 
@@ -3894,7 +3894,7 @@ func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.Mock
 		domainEntry = constants.TestGlobalDomainEntry
 	}
 
-	msb := newMutableStateBuilder(shardContext, log.NewNoop(), domainEntry)
+	msb := newMutableStateBuilder(shardContext, log.NewNoop(), domainEntry, domainEntry.GetFailoverVersion())
 	return msb
 }
 

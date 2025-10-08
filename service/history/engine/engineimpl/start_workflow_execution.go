@@ -657,17 +657,18 @@ UpdateWorkflowLoop:
 			return nil, err
 		}
 
-		// new mutable state
-		newMutableState, err := e.createMutableState(ctx, domainEntry, workflowExecution.GetRunID(), startRequest)
-		if err != nil {
-			return nil, err
-		}
-
+		var err error
 		if signalWithStartRequest != nil {
 			startRequest, err = getStartRequest(domainID, signalWithStartRequest.SignalWithStartRequest, signalWithStartRequest.PartitionConfig)
 			if err != nil {
 				return nil, err
 			}
+		}
+
+		// new mutable state
+		newMutableState, err := e.createMutableState(ctx, domainEntry, workflowExecution.GetRunID(), startRequest)
+		if err != nil {
+			return nil, err
 		}
 
 		err = e.addStartEventsAndTasks(
@@ -847,23 +848,25 @@ func (e *historyEngineImpl) createMutableState(
 	runID string,
 	startRequest *types.HistoryStartWorkflowExecutionRequest,
 ) (execution.MutableState, error) {
-
-	newMutableState := execution.NewMutableStateBuilderWithVersionHistories(
-		e.shard,
-		e.logger,
-		domainEntry,
-	)
-
-	if err := newMutableState.SetHistoryTree(runID); err != nil {
-		return nil, err
-	}
-
+	version := domainEntry.GetFailoverVersion()
+	// TODO(active-active): replace with cluster attributes
 	if domainEntry.GetReplicationConfig().IsActiveActive() {
 		res, err := e.shard.GetActiveClusterManager().LookupNewWorkflow(ctx, domainEntry.GetInfo().ID, startRequest.StartRequest.ActiveClusterSelectionPolicy)
 		if err != nil {
 			return nil, err
 		}
-		newMutableState.UpdateCurrentVersion(res.FailoverVersion, true)
+		version = res.FailoverVersion
+	}
+
+	newMutableState := execution.NewMutableStateBuilderWithVersionHistories(
+		e.shard,
+		e.logger,
+		domainEntry,
+		version,
+	)
+
+	if err := newMutableState.SetHistoryTree(runID); err != nil {
+		return nil, err
 	}
 
 	return newMutableState, nil
