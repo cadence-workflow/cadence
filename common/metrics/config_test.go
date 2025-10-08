@@ -1,9 +1,8 @@
 package metrics
 
 import (
+	"maps"
 	"testing"
-
-	"golang.org/x/exp/maps"
 )
 
 func TestHistogramMigrationMetricsExist(t *testing.T) {

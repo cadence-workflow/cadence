@@ -24,12 +24,11 @@ package algorithm
 
 import (
 	"encoding/binary"
+	"maps"
 	"math"
+	"slices"
 	"testing"
 	"time"
-
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -114,8 +113,8 @@ func FuzzMultiUpdate(f *testing.F) {
 				t.Error("no keys")
 			}
 
-			keys := maps.Keys(keySet)
-			idents := maps.Keys(identSet)
+			keys := slices.Collect(maps.Keys(keySet))
+			idents := slices.Collect(maps.Keys(identSet))
 			slices.Sort(keys)
 			slices.Sort(idents)
 
