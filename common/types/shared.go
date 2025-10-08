@@ -2347,7 +2347,7 @@ func (e *ClusterAttributeNotFoundError) Error() string {
 }
 
 // GetFailoverVersionForAttribute returns the failover version for a given attribute.
-// if a value is not found it returns -1
+// if a value is not found it returns -1 and an error
 func (v *ActiveClusters) GetFailoverVersionForAttribute(scopeType, attributeName string) (int64, error) {
 	if v == nil {
 		return -1, &ClusterAttributeNotFoundError{
