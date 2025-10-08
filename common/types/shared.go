@@ -2346,25 +2346,31 @@ func (e *ClusterAttributeNotFoundError) Error() string {
 	return fmt.Sprintf("cluster attribute %s not found in scope %s", e.AttributeName, e.ScopeType)
 }
 
+// UndefinedFailoverVersion is used to indicate that a failover version that is not defined.
+// Failover versions are valid for Int64 >= 0
+// and, but implication, 0 is a valid failover version. To distinguish between it and an undefined
+// failover version, we use a negative value.
+const UndefinedFailoverVersion = int64(-1)
+
 // GetFailoverVersionForAttribute returns the failover version for a given attribute.
 // if a value is not found it returns -1 and an error
 func (v *ActiveClusters) GetFailoverVersionForAttribute(scopeType, attributeName string) (int64, error) {
 	if v == nil {
-		return -1, &ClusterAttributeNotFoundError{
+		return UndefinedFailoverVersion, &ClusterAttributeNotFoundError{
 			ScopeType:     scopeType,
 			AttributeName: attributeName,
 		}
 	}
 	scope, ok := v.AttributeScopes[scopeType]
 	if !ok {
-		return -1, &ClusterAttributeNotFoundError{
+		return UndefinedFailoverVersion, &ClusterAttributeNotFoundError{
 			ScopeType:     scopeType,
 			AttributeName: attributeName,
 		}
 	}
 	info, ok := scope.ClusterAttributes[attributeName]
 	if !ok {
-		return -1, &ClusterAttributeNotFoundError{
+		return UndefinedFailoverVersion, &ClusterAttributeNotFoundError{
 			ScopeType:     scopeType,
 			AttributeName: attributeName,
 		}

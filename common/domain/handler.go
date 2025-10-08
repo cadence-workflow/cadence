@@ -1886,9 +1886,12 @@ func (d *handlerImpl) buildActiveActiveClusterScopesFromUpdateRequest(updateRequ
 	for scope, scopeData := range updateRequest.ActiveClusters.AttributeScopes {
 		for attribute, activeCluster := range scopeData.ClusterAttributes {
 
-			currentFailoverVersion := int64(0)
+			currentFailoverVersion := types.UndefinedFailoverVersion
 			if config != nil && config.ActiveClusters != nil {
-				currentFailoverVersion, _ = config.ActiveClusters.GetFailoverVersionForAttribute(scope, attribute)
+				fo, err := config.ActiveClusters.GetFailoverVersionForAttribute(scope, attribute)
+				if err == nil {
+					currentFailoverVersion = fo
+				}
 			}
 			nextFailoverVersion := d.clusterMetadata.GetNextFailoverVersion(activeCluster.ActiveClusterName, currentFailoverVersion, domainName)
 
