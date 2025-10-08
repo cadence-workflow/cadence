@@ -2543,7 +2543,7 @@ func (v *ClusterAttributeScope) ByteSize() uint64 {
 // ActiveClusterInfo defines failover information for a ClusterAttribute.
 type ActiveClusterInfo struct {
 	ActiveClusterName string `json:"activeClusterName,omitempty" yaml:"activeClusterName,omitempty"`
-	FailoverVersion   int64  `json:"failoverVersion,omitempty" yaml:"failoverVersion,omitempty"`
+	FailoverVersion   int64  `json:"failoverVersion" yaml:"failoverVersion"`
 }
 
 // ByteSize returns the approximate memory used in bytes
