@@ -87,6 +87,16 @@ func TestMetadataBehaviour(t *testing.T) {
 			currentVersion:  102,
 			expectedOut:     200,
 		},
+		"Ensuring the behaviour of getNextFailoverVersion can handle negative numbers 1": {
+			failoverCluster: clusterName1,
+			currentVersion:  -1,
+			expectedOut:     0,
+		},
+		"Ensuring the behaviour of getNextFailoverVersion can handle negative numbers 2": {
+			failoverCluster: clusterName2,
+			currentVersion:  -1,
+			expectedOut:     2,
+		},
 	}
 
 	for name, td := range tests {

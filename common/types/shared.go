@@ -2337,21 +2337,39 @@ type ActiveClusters struct {
 // DefaultAttributeScopeType is the default scope type for backward compatibility with ActiveClustersByRegion
 const DefaultAttributeScopeType = "region"
 
+type ClusterAttributeNotFoundError struct {
+	ScopeType     string
+	AttributeName string
+}
+
+func (e *ClusterAttributeNotFoundError) Error() string {
+	return fmt.Sprintf("cluster attribute %s not found in scope %s", e.AttributeName, e.ScopeType)
+}
+
 // GetFailoverVersionForAttribute returns the failover version for a given attribute.
 // if a value is not found it returns -1
-func (v *ActiveClusters) GetFailoverVersionForAttribute(scopeType, attributeName string) int64 {
+func (v *ActiveClusters) GetFailoverVersionForAttribute(scopeType, attributeName string) (int64, error) {
 	if v == nil {
-		return -1
+		return -1, &ClusterAttributeNotFoundError{
+			ScopeType:     scopeType,
+			AttributeName: attributeName,
+		}
 	}
 	scope, ok := v.AttributeScopes[scopeType]
 	if !ok {
-		return -1
+		return -1, &ClusterAttributeNotFoundError{
+			ScopeType:     scopeType,
+			AttributeName: attributeName,
+		}
 	}
 	info, ok := scope.ClusterAttributes[attributeName]
 	if !ok {
-		return -1
+		return -1, &ClusterAttributeNotFoundError{
+			ScopeType:     scopeType,
+			AttributeName: attributeName,
+		}
 	}
-	return info.FailoverVersion
+	return info.FailoverVersion, nil
 }
 
 // TODO(c-warren): Remove once refactor to ClusterAttribute is complete

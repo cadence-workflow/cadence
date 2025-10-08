@@ -1888,7 +1888,7 @@ func (d *handlerImpl) buildActiveActiveClusterScopesFromUpdateRequest(updateRequ
 
 			currentFailoverVersion := int64(0)
 			if config != nil && config.ActiveClusters != nil {
-				currentFailoverVersion = config.ActiveClusters.GetFailoverVersionForAttribute(scope, attribute)
+				currentFailoverVersion, _ = config.ActiveClusters.GetFailoverVersionForAttribute(scope, attribute)
 			}
 			nextFailoverVersion := d.clusterMetadata.GetNextFailoverVersion(activeCluster.ActiveClusterName, currentFailoverVersion, domainName)
 
