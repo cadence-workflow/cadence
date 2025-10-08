@@ -2813,7 +2813,8 @@ func TestUpdateReplicationConfig(t *testing.T) {
 			activeClusterUpdated:     false,
 		},
 		{
-			name: "active-active domain - update cluster of region1",
+			// todo (david.porter) remove this once we have completely migrated to AttributeScopes
+			name: "outdated active/active - active-active domain - update cluster of region1",
 			request: &types.UpdateDomainRequest{
 				ActiveClusters: &types.ActiveClusters{
 					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
@@ -3915,6 +3916,239 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expectedResult, result)
+			}
+		})
+	}
+}
+
+func TestValidateDomainReplicationConfigForUpdateDomain(t *testing.T) {
+	tests := []struct {
+		name                 string
+		replicationConfig    *persistence.DomainReplicationConfig
+		isGlobalDomain       bool
+		configurationChanged bool
+		activeClusterChanged bool
+		isPrimaryCluster     bool
+		expectedErr          error
+	}{
+		{
+			name: "local domain with valid config",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestCurrentClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+				},
+			},
+			isGlobalDomain:       false,
+			configurationChanged: false,
+			activeClusterChanged: false,
+			isPrimaryCluster:     true,
+			expectedErr:          nil,
+		},
+		{
+			name: "local domain with invalid active cluster",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestAlternativeClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			isGlobalDomain:       false,
+			configurationChanged: false,
+			activeClusterChanged: false,
+			isPrimaryCluster:     true,
+			expectedErr:          &types.BadRequestError{},
+		},
+		{
+			name: "local domain with invalid cluster configuration",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestCurrentClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			isGlobalDomain:       false,
+			configurationChanged: false,
+			activeClusterChanged: false,
+			isPrimaryCluster:     true,
+			expectedErr:          &types.BadRequestError{},
+		},
+		{
+			name: "global domain with valid config on primary cluster - no changes",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestCurrentClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: false,
+			activeClusterChanged: false,
+			isPrimaryCluster:     true,
+			expectedErr:          nil,
+		},
+		{
+			name: "global domain config change only on primary cluster",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestCurrentClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: true,
+			activeClusterChanged: false,
+			isPrimaryCluster:     true,
+			expectedErr:          nil,
+		},
+		{
+			name: "global domain active cluster change only on primary cluster",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestAlternativeClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: false,
+			activeClusterChanged: true,
+			isPrimaryCluster:     true,
+			expectedErr:          nil,
+		},
+		{
+			name: "global domain config change on non-primary cluster should fail",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestCurrentClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: true,
+			activeClusterChanged: false,
+			isPrimaryCluster:     false,
+			expectedErr:          errNotPrimaryCluster,
+		},
+		{
+			name: "global active-passive domain cannot change both config and active cluster",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestAlternativeClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: true,
+			activeClusterChanged: true,
+			isPrimaryCluster:     true,
+			expectedErr:          errCannotDoDomainFailoverAndUpdate,
+		},
+		{
+			name: "global active-active domain can change both config and active cluster",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestAlternativeClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+				ActiveClusters: &types.ActiveClusters{
+					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+						"region1": {ActiveClusterName: cluster.TestCurrentClusterName},
+						"region2": {ActiveClusterName: cluster.TestAlternativeClusterName},
+					},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: true,
+			activeClusterChanged: true,
+			isPrimaryCluster:     true,
+			expectedErr:          nil,
+		},
+		{
+			name: "global active-active domain with AttributeScopes can change both",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestAlternativeClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"datacenter": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"dc1": {ActiveClusterName: cluster.TestCurrentClusterName},
+								"dc2": {ActiveClusterName: cluster.TestAlternativeClusterName},
+							},
+						},
+					},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: true,
+			activeClusterChanged: true,
+			isPrimaryCluster:     true,
+			expectedErr:          nil,
+		},
+		{
+			name: "global domain with invalid cluster name",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: "invalid-cluster",
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: "invalid-cluster"},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: false,
+			activeClusterChanged: false,
+			isPrimaryCluster:     true,
+			expectedErr:          &types.BadRequestError{},
+		},
+		{
+			name: "global domain with no clusters should fail",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestCurrentClusterName,
+				Clusters:          []*persistence.ClusterReplicationConfig{},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: false,
+			activeClusterChanged: false,
+			isPrimaryCluster:     true,
+			expectedErr:          &types.BadRequestError{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clusterMetadata := cluster.GetTestClusterMetadata(tc.isPrimaryCluster)
+			handler := &handlerImpl{
+				clusterMetadata:     clusterMetadata,
+				domainAttrValidator: newAttrValidator(clusterMetadata, 1),
+				logger:              log.NewNoop(),
+			}
+
+			err := handler.validateDomainReplicationConfigForUpdateDomain(
+				tc.replicationConfig,
+				tc.isGlobalDomain,
+				tc.configurationChanged,
+				tc.activeClusterChanged,
+			)
+
+			if tc.expectedErr != nil {
+				assert.Error(t, err)
+				assert.IsType(t, tc.expectedErr, err)
+				if tc.expectedErr == errNotPrimaryCluster {
+					assert.Equal(t, errNotPrimaryCluster, err)
+				} else if tc.expectedErr == errCannotDoDomainFailoverAndUpdate {
+					assert.Equal(t, errCannotDoDomainFailoverAndUpdate, err)
+				}
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

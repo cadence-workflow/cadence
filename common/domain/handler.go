@@ -1710,7 +1710,7 @@ func (d *handlerImpl) validateDomainReplicationConfigForUpdateDomain(
 			return err
 		}
 
-		if configurationChanged && activeClusterChanged {
+		if configurationChanged && activeClusterChanged && !replicationConfig.IsActiveActive() {
 			return errCannotDoDomainFailoverAndUpdate
 		}
 
@@ -1761,11 +1761,10 @@ func (d *handlerImpl) activeClustersFromRegisterRequest(registerRequest *types.R
 					return nil, &types.BadRequestError{
 						Message: fmt.Sprintf("Cluster %v not found. Domain cannot be registered in this cluster for scope %q and attribute %q", scopeData.ClusterAttributes[attribute].ActiveClusterName, scope, attribute),
 					}
-				} else {
-					scopeData.ClusterAttributes[attribute] = types.ActiveClusterInfo{
-						ActiveClusterName: scopeData.ClusterAttributes[attribute].ActiveClusterName,
-						FailoverVersion:   clusterInfo.InitialFailoverVersion,
-					}
+				}
+				scopeData.ClusterAttributes[attribute] = types.ActiveClusterInfo{
+					ActiveClusterName: scopeData.ClusterAttributes[attribute].ActiveClusterName,
+					FailoverVersion:   clusterInfo.InitialFailoverVersion,
 				}
 			}
 		}
