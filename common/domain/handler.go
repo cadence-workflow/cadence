@@ -293,8 +293,7 @@ func (d *handlerImpl) RegisterDomain(
 	}
 
 	failoverVersion := constants.EmptyVersion
-	if registerRequest.GetIsGlobalDomain() && !replicationConfig.IsActiveActive() {
-		// assign failover version for active-passive domain
+	if registerRequest.GetIsGlobalDomain() {
 		failoverVersion = d.clusterMetadata.GetNextFailoverVersion(activeClusterName, 0, registerRequest.Name)
 	}
 
@@ -588,10 +587,12 @@ func (d *handlerImpl) UpdateDomain(
 				// we increment failover version so top level failoverVersion is updated and domain data is replicated.
 				failoverVersion = d.clusterMetadata.GetNextFailoverVersion(
 					replicationConfig.ActiveClusterName,
+					// TODO(active-active): This should be incremented in the same way as an active-passive domain
 					failoverVersion+1,
 					updateRequest.Name,
 				)
 
+				// TODO(active-active): Increment all ClusterAttributes that have changed
 				// we also use the new failover version belonging to currentActiveCluster for the corresponding ActiveClustersByRegion map entry
 				for region, clusterInfo := range replicationConfig.ActiveClusters.ActiveClustersByRegion {
 					if clusterInfo.ActiveClusterName == currentActiveCluster {
@@ -625,6 +626,7 @@ func (d *handlerImpl) UpdateDomain(
 				// to indicate there was a change in replication config
 				failoverVersion = d.clusterMetadata.GetNextFailoverVersion(
 					d.clusterMetadata.GetCurrentClusterName(),
+					// TODO(active-active): If the domain level ActiveCluster has changed this should be incremented in the same way as an active-passive domain
 					failoverVersion+1,
 					updateRequest.Name,
 				)
@@ -639,7 +641,7 @@ func (d *handlerImpl) UpdateDomain(
 					now,
 					failoverType,
 					&currentActiveCluster,
-					nil,
+					updateRequest.ActiveClusterName,
 					currentActiveClusters,
 					replicationConfig.ActiveClusters,
 				))

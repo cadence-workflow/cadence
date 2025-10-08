@@ -113,9 +113,9 @@ func NewMetadata(
 	return m
 }
 
-// GetNextFailoverVersion return the next failover version based on input
-func (m Metadata) GetNextFailoverVersion(cluster string, currentFailoverVersion int64, domainName string) int64 {
-	initialFailoverVersion := m.getInitialFailoverVersion(cluster, domainName)
+// GetNextFailoverVersion returns the next valid FailoverVersion for a domain
+func (m Metadata) GetNextFailoverVersion(targetClusterName string, currentFailoverVersion int64, domainName string) int64 {
+	initialFailoverVersion := m.getInitialFailoverVersion(targetClusterName, domainName)
 	failoverVersion := currentFailoverVersion/m.failoverVersionIncrement*m.failoverVersionIncrement + initialFailoverVersion
 	if failoverVersion < currentFailoverVersion {
 		return failoverVersion + m.failoverVersionIncrement
