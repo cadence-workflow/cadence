@@ -149,6 +149,24 @@ func (a *apiHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.D
 	return a.handler.DiagnoseWorkflowExecution(ctx, dp1)
 }
 
+func (a *apiHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest) (fp2 *types.FailoverDomainResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendFailoverDomainScope, fp1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "FailoverDomain",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(fp1),
+		DomainName:  fp1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.FailoverDomain(ctx, fp1)
+}
+
 func (a *apiHandler) GetClusterInfo(ctx context.Context) (cp1 *types.ClusterInfo, err error) {
 	return a.handler.GetClusterInfo(ctx)
 }

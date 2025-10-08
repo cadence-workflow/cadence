@@ -26,13 +26,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
 
 //go:generate mockgen -package $GOPACKAGE -destination manager_mock.go -self_package github.com/uber/cadence/common/activecluster github.com/uber/cadence/common/activecluster Manager
-//go:generate mockgen -package $GOPACKAGE -destination external_entity_provider_mock.go -self_package github.com/uber/cadence/common/activecluster github.com/uber/cadence/common/activecluster ExternalEntityProvider
 //go:generate mockgen -package $GOPACKAGE -destination execution_manager_provider_mock.go -self_package github.com/uber/cadence/common/activecluster github.com/uber/cadence/common/activecluster ExecutionManagerProvider
 
 // Manager is the interface for active cluster manager.
@@ -41,8 +39,6 @@ import (
 // It encapsulates the logic to lookup the active cluster for all kinds of domains. Most other components should use this interface instead of cluster metadata directly.
 // It is also used to notify components when there's an external entity change. History engine subscribes to these updates similar to domain change notifications.
 type Manager interface {
-	common.Daemon
-
 	// LookupNewWorkflow returns active cluster, region and failover version of given new workflow.
 	//  1. If domain is local:
 	//     	Returns info from domain entry.
@@ -66,51 +62,24 @@ type Manager interface {
 	//     2.b. If workflow has external entity, locate the entity from EntityActiveRegion table and return that region and it's failover version.
 	LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (*LookupResult, error)
 
-	// LookupCluster finds the active cluster name and failover version that's in the same region as the given cluster
-	LookupCluster(ctx context.Context, domainID, clusterName string) (*LookupResult, error)
-
-	// ClusterNameForFailoverVersion returns cluster name of given failover version.
-	// For local domains, it returns current cluster name.
-	// For active-passive global domains, it returns the cluster name based on cluster metadata that corresponds to the failover version.
-	// For active-active global domains, it returns the cluster name based on cluster & region metadata that corresponds to the failover version.
-	ClusterNameForFailoverVersion(failoverVersion int64, domainID string) (string, error)
-
-	// RegisterChangeCallback registers a callback that will be called for change events such as entity map changes.
-	RegisterChangeCallback(shardID int, callback func(ChangeType))
-
-	// UnregisterChangeCallback unregisters a callback that will be called for change events.
-	UnregisterChangeCallback(shardID int)
-
-	// SupportedExternalEntityType returns true if the external entity type is supported.
-	SupportedExternalEntityType(entityType string) bool
-
 	// CurrentRegion returns the current region.
 	CurrentRegion() string
+
+	// GetActiveClusterInfoByClusterAttribute returns the active cluster info by cluster attribute
+	// If clusterAttribute is nil, returns the domain-level active cluster info
+	// If clusterAttribute is not nil and exists in the domain metadata, returns the active cluster info of the cluster attribute
+	// If clusterAttribute is not nil and does not exist in the domain metadata, returns an error
+	GetActiveClusterInfoByClusterAttribute(ctx context.Context, domainID string, clusterAttribute *types.ClusterAttribute) (*types.ActiveClusterInfo, error)
+
+	// GetActiveClusterInfoByWorkflow returns the active cluster info by workflow
+	// It will first look up the cluster selection policy for the workflow and then get the active cluster info by cluster attribute from the policy
+	GetActiveClusterInfoByWorkflow(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterInfo, error)
 }
 
 type LookupResult struct {
 	Region          string
 	ClusterName     string
 	FailoverVersion int64
-}
-
-type ChangeType string
-
-const (
-	ChangeTypeEntityMap ChangeType = "ChangeTypeEntityMap"
-)
-
-type ExternalEntity struct {
-	Source          string
-	Key             string
-	Region          string
-	FailoverVersion int64
-}
-
-type ExternalEntityProvider interface {
-	SupportedType() string
-	ChangeEvents() <-chan ChangeType
-	GetExternalEntity(ctx context.Context, entityKey string) (*ExternalEntity, error)
 }
 
 type ExecutionManagerProvider interface {
@@ -133,32 +102,12 @@ func (e *RegionNotFoundForDomainError) Error() string {
 	return fmt.Sprintf("could not find region %s in the domain %s's active cluster config", e.Region, e.DomainID)
 }
 
-type ClusterNotFoundError struct {
-	ClusterName string
+type ClusterAttributeNotFoundError struct {
+	DomainID         string
+	ClusterAttribute *types.ClusterAttribute
+	// ActiveClusterInfo *types.ActiveClusterInfo
 }
 
-func newClusterNotFoundError(clusterName string) *ClusterNotFoundError {
-	return &ClusterNotFoundError{
-		ClusterName: clusterName,
-	}
-}
-
-func (e *ClusterNotFoundError) Error() string {
-	return fmt.Sprintf("could not find cluster %s", e.ClusterName)
-}
-
-type ClusterNotFoundForRegionError struct {
-	ClusterName string
-	Region      string
-}
-
-func newClusterNotFoundForRegionError(clusterName, region string) *ClusterNotFoundForRegionError {
-	return &ClusterNotFoundForRegionError{
-		ClusterName: clusterName,
-		Region:      region,
-	}
-}
-
-func (e *ClusterNotFoundForRegionError) Error() string {
-	return fmt.Sprintf("could not find cluster %s for region %s", e.ClusterName, e.Region)
+func (e *ClusterAttributeNotFoundError) Error() string {
+	return fmt.Sprintf("could not find cluster attribute %s in the domain %s's active cluster config", e.ClusterAttribute, e.DomainID)
 }

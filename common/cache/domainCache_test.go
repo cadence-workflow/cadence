@@ -76,7 +76,7 @@ func (s *domainCacheSuite) SetupTest() {
 	s.logger = testlogger.New(s.Suite.T())
 
 	s.metadataMgr = &mocks.MetadataManager{}
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History)
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
 	s.domainCache = NewDomainCache(s.metadataMgr, cluster.GetTestClusterMetadata(true), metricsClient, s.logger)
 
 	s.domainCache.timeSource = clock.NewMockedTimeSource()
@@ -1184,7 +1184,7 @@ func Test_WithTimeSource(t *testing.T) {
 	metadataMgr := &mocks.MetadataManager{}
 
 	timeSource := clock.NewRealTimeSource()
-	domainCache := NewDomainCache(metadataMgr, cluster.GetTestClusterMetadata(true), metrics.NewClient(tally.NoopScope, metrics.History), log.NewNoop(), WithTimeSource(timeSource))
+	domainCache := NewDomainCache(metadataMgr, cluster.GetTestClusterMetadata(true), metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}), log.NewNoop(), WithTimeSource(timeSource))
 
 	assert.Equal(t, timeSource, domainCache.timeSource)
 }
@@ -1290,6 +1290,223 @@ func Test_getActiveClusters(t *testing.T) {
 		t.Run(tt.msg, func(t *testing.T) {
 			activeClusters := getActiveClusters(tt.replicationConfig)
 			assert.Equal(t, tt.expectedActiveClusters, activeClusters)
+		})
+	}
+}
+
+func Test_GetActiveClusterInfoByClusterAttribute(t *testing.T) {
+	tests := []struct {
+		name                  string
+		entry                 *DomainCacheEntry
+		clusterAttribute      *types.ClusterAttribute
+		expectedActiveCluster *types.ActiveClusterInfo
+		expectedFound         bool
+	}{
+		{
+			name: "nil cluster attribute - returns domain-level active cluster info",
+			entry: &DomainCacheEntry{
+				replicationConfig: &persistence.DomainReplicationConfig{
+					ActiveClusterName: "domain-active-cluster",
+				},
+				failoverVersion: 100,
+			},
+			clusterAttribute: nil,
+			expectedActiveCluster: &types.ActiveClusterInfo{
+				ActiveClusterName: "domain-active-cluster",
+				FailoverVersion:   100,
+			},
+			expectedFound: true,
+		},
+		{
+			name: "nil active clusters - returns false",
+			entry: &DomainCacheEntry{
+				replicationConfig: &persistence.DomainReplicationConfig{
+					ActiveClusterName: "domain-active-cluster",
+					ActiveClusters:    nil,
+				},
+				failoverVersion: 100,
+			},
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "us-west",
+			},
+			expectedActiveCluster: nil,
+			expectedFound:         false,
+		},
+		{
+			name: "nil attribute scopes - returns false",
+			entry: &DomainCacheEntry{
+				replicationConfig: &persistence.DomainReplicationConfig{
+					ActiveClusterName: "domain-active-cluster",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: nil,
+					},
+				},
+				failoverVersion: 100,
+			},
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "us-west",
+			},
+			expectedActiveCluster: nil,
+			expectedFound:         false,
+		},
+		{
+			name: "scope not found - returns false",
+			entry: &DomainCacheEntry{
+				replicationConfig: &persistence.DomainReplicationConfig{
+					ActiveClusterName: "domain-active-cluster",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"datacenter": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"dc1": {
+										ActiveClusterName: "cluster1",
+										FailoverVersion:   200,
+									},
+								},
+							},
+						},
+					},
+				},
+				failoverVersion: 100,
+			},
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "region", // different scope
+				Name:  "us-west",
+			},
+			expectedActiveCluster: nil,
+			expectedFound:         false,
+		},
+		{
+			name: "attribute not found in scope - returns false",
+			entry: &DomainCacheEntry{
+				replicationConfig: &persistence.DomainReplicationConfig{
+					ActiveClusterName: "domain-active-cluster",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"us-east": {
+										ActiveClusterName: "cluster1",
+										FailoverVersion:   200,
+									},
+								},
+							},
+						},
+					},
+				},
+				failoverVersion: 100,
+			},
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "us-west", // different name
+			},
+			expectedActiveCluster: nil,
+			expectedFound:         false,
+		},
+		{
+			name: "successful lookup - returns cluster attribute info",
+			entry: &DomainCacheEntry{
+				replicationConfig: &persistence.DomainReplicationConfig{
+					ActiveClusterName: "domain-active-cluster",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"us-west": {
+										ActiveClusterName: "cluster-west",
+										FailoverVersion:   300,
+									},
+									"us-east": {
+										ActiveClusterName: "cluster-east",
+										FailoverVersion:   250,
+									},
+								},
+							},
+						},
+					},
+				},
+				failoverVersion: 100,
+			},
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "us-west",
+			},
+			expectedActiveCluster: &types.ActiveClusterInfo{
+				ActiveClusterName: "cluster-west",
+				FailoverVersion:   300,
+			},
+			expectedFound: true,
+		},
+		{
+			name: "multiple scopes - successful lookup in specific scope",
+			entry: &DomainCacheEntry{
+				replicationConfig: &persistence.DomainReplicationConfig{
+					ActiveClusterName: "domain-active-cluster",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"us-west": {
+										ActiveClusterName: "region-cluster-west",
+										FailoverVersion:   300,
+									},
+								},
+							},
+							"datacenter": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"us-west": {
+										ActiveClusterName: "dc-cluster-west",
+										FailoverVersion:   400,
+									},
+								},
+							},
+						},
+					},
+				},
+				failoverVersion: 100,
+			},
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "datacenter",
+				Name:  "us-west",
+			},
+			expectedActiveCluster: &types.ActiveClusterInfo{
+				ActiveClusterName: "dc-cluster-west",
+				FailoverVersion:   400,
+			},
+			expectedFound: true,
+		},
+		{
+			name: "empty cluster attributes map in scope - returns false",
+			entry: &DomainCacheEntry{
+				replicationConfig: &persistence.DomainReplicationConfig{
+					ActiveClusterName: "domain-active-cluster",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{},
+							},
+						},
+					},
+				},
+				failoverVersion: 100,
+			},
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "us-west",
+			},
+			expectedActiveCluster: nil,
+			expectedFound:         false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actualActiveCluster, actualFound := tt.entry.GetActiveClusterInfoByClusterAttribute(tt.clusterAttribute)
+
+			assert.Equal(t, tt.expectedFound, actualFound)
+			assert.Equal(t, tt.expectedActiveCluster, actualActiveCluster)
 		})
 	}
 }

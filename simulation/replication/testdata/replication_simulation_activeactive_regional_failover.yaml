@@ -1,7 +1,9 @@
 # This file is a replication simulation scenario spec.
 # It is parsed into ReplicationSimulationConfig struct.
-# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive_regional_failover
+# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario activeactive_regional_failover
 # Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_regional_failover.yml
+# Tests active-active behaviour during a failover
+
 clusters:
   cluster0:
     grpcEndpoint: "cadence-cluster0:7833"
@@ -27,6 +29,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 60s
     workflowID: wf1
@@ -45,15 +51,19 @@ operations:
       region0: cluster1 # this is changed from cluster0 to cluster1
       region1: cluster1
 
-  # Start wf2 on cluster0 at the same time as failover. It will be started by cluster0 workers and completed by cluster1 workers.
+  # Start wf2 on cluster0 right before failover. It will be started by cluster0 workers and completed by cluster1 workers.
   - op: start_workflow
-    at: 10s
+    at: 9s
     workflowID: wf2
     workflowType: timer-activity-loop-workflow
     cluster: cluster0
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 70s
     workflowID: wf2
@@ -75,6 +85,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
     delayStartSeconds: 10
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 70s
     workflowID: wf3
@@ -93,6 +107,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
     delayStartSeconds: 10
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 71s
     workflowID: wf4
@@ -111,6 +129,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
     delayStartSeconds: 10
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 72s
     workflowID: wf5
@@ -129,6 +151,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
     delayStartSeconds: 10
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 73s
     workflowID: wf6
@@ -148,6 +174,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 75s
     workflowID: wf7

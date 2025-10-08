@@ -148,6 +148,22 @@ func (h *apiHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.D
 	}
 	return dp2, err
 }
+func (h *apiHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest) (fp2 *types.FailoverDomainResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("FailoverDomain")}
+	tags = append(tags, toFailoverDomainRequestTags(fp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendFailoverDomainScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(fp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tags...)
+
+	fp2, err = h.handler.FailoverDomain(ctx, fp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return fp2, err
+}
 func (h *apiHandler) GetClusterInfo(ctx context.Context) (cp1 *types.ClusterInfo, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("GetClusterInfo")}

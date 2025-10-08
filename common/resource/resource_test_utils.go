@@ -169,9 +169,6 @@ func NewTest(
 	asyncWorkflowQueueProvider := queue.NewMockProvider(controller)
 
 	activeClusterMgr := activecluster.NewMockManager(controller)
-	activeClusterMgr.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
-		return cluster.TestActiveClusterMetadata.ClusterNameForFailoverVersion(version)
-	}).AnyTimes()
 
 	return &Test{
 		MetricsScope: scope,
@@ -187,10 +184,10 @@ func NewTest(
 		ActiveClusterMgr:        activeClusterMgr,
 		TimeSource:              clock.NewRealTimeSource(),
 		PayloadSerializer:       persistence.NewPayloadSerializer(),
-		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex),
+		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex, metrics.HistogramMigration{}),
 		ArchivalMetadata:        &archiver.MockArchivalMetadata{},
-		ArchiverProvider:        &provider.MockArchiverProvider{},
-		BlobstoreClient:         &blobstore.MockClient{},
+		ArchiverProvider:        provider.NewMockArchiverProvider(controller),
+		BlobstoreClient:         blobstore.NewMockClient(controller),
 		MockPayloadSerializer:   persistence.NewMockPayloadSerializer(controller),
 
 		// membership infos
@@ -464,7 +461,6 @@ func (s *Test) Finish(
 	t mock.TestingT,
 ) {
 	s.ArchivalMetadata.AssertExpectations(t)
-	s.ArchiverProvider.AssertExpectations(t)
 
 	s.MetadataMgr.AssertExpectations(t)
 	s.TaskMgr.AssertExpectations(t)

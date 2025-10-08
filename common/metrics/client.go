@@ -33,19 +33,21 @@ type ClientImpl struct {
 	childScopes map[ScopeIdx]tally.Scope
 	metricDefs  map[MetricIdx]metricDefinition
 	serviceIdx  ServiceIdx
+	config      HistogramMigration
 }
 
 // NewClient creates and returns a new instance of
 // Client implementation
 // reporter holds the common tags for the service
 // serviceIdx indicates the service type in (InputhostIndex, ... StorageIndex)
-func NewClient(scope tally.Scope, serviceIdx ServiceIdx) Client {
+func NewClient(scope tally.Scope, serviceIdx ServiceIdx, config HistogramMigration) Client {
 	totalScopes := len(ScopeDefs[Common]) + len(ScopeDefs[serviceIdx])
 	metricsClient := &ClientImpl{
 		parentScope: scope,
 		childScopes: make(map[ScopeIdx]tally.Scope, totalScopes),
 		metricDefs:  getMetricDefs(serviceIdx),
 		serviceIdx:  serviceIdx,
+		config:      config,
 	}
 
 	for idx, def := range ScopeDefs[Common] {
@@ -85,20 +87,27 @@ func (m *ClientImpl) AddCounter(scope ScopeIdx, counterIdx MetricIdx, delta int6
 // metric name
 func (m *ClientImpl) StartTimer(scope ScopeIdx, timerIdx MetricIdx) tally.Stopwatch {
 	name := string(m.metricDefs[timerIdx].metricName)
-	return m.childScopes[scope].Timer(name).Start()
+	if m.config.EmitTimer(name) {
+		return m.childScopes[scope].Timer(name).Start()
+	}
+	return NoopStopwatch
 }
 
 // RecordTimer record and emit a timer for the given
 // metric name
 func (m *ClientImpl) RecordTimer(scope ScopeIdx, timerIdx MetricIdx, d time.Duration) {
 	name := string(m.metricDefs[timerIdx].metricName)
-	m.childScopes[scope].Timer(name).Record(d)
+	if m.config.EmitTimer(name) {
+		m.childScopes[scope].Timer(name).Record(d)
+	}
 }
 
 // RecordHistogramDuration record and emit a duration
 func (m *ClientImpl) RecordHistogramDuration(scope ScopeIdx, timerIdx MetricIdx, d time.Duration) {
 	name := string(m.metricDefs[timerIdx].metricName)
-	m.childScopes[scope].Histogram(name, m.getBuckets(timerIdx)).RecordDuration(d)
+	if m.config.EmitHistogram(name) {
+		m.childScopes[scope].Histogram(name, m.getBuckets(timerIdx)).RecordDuration(d)
+	}
 }
 
 // UpdateGauge reports Gauge type metric
@@ -111,7 +120,7 @@ func (m *ClientImpl) UpdateGauge(scopeIdx ScopeIdx, gaugeIdx MetricIdx, value fl
 // information to the metrics emitted
 func (m *ClientImpl) Scope(scope ScopeIdx, tags ...Tag) Scope {
 	sc := m.childScopes[scope]
-	return newMetricsScope(sc, sc, m.metricDefs, false).Tagged(tags...)
+	return newMetricsScope(sc, sc, m.metricDefs, false, m.config).Tagged(tags...)
 }
 
 func (m *ClientImpl) getBuckets(id MetricIdx) tally.Buckets {

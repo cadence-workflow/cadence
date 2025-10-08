@@ -83,7 +83,7 @@ type (
 		mockArchivalClient          *warchiver.MockClient
 		mockArchivalMetadata        *archiver.MockArchivalMetadata
 		mockArchiverProvider        *provider.MockArchiverProvider
-		mockParentClosePolicyClient *parentclosepolicy.ClientMock
+		mockParentClosePolicyClient *parentclosepolicy.MockClient
 
 		logger                     log.Logger
 		domainID                   string
@@ -147,7 +147,7 @@ func (s *transferActiveTaskExecutorSuite) SetupTest() {
 	s.mockEngine.EXPECT().NotifyNewReplicationTasks(gomock.Any()).AnyTimes()
 	s.mockShard.SetEngine(s.mockEngine)
 
-	s.mockParentClosePolicyClient = &parentclosepolicy.ClientMock{}
+	s.mockParentClosePolicyClient = parentclosepolicy.NewMockClient(s.controller)
 	s.mockArchivalClient = warchiver.NewMockClient(s.controller)
 	s.mockMatchingClient = s.mockShard.Resource.MatchingClient
 	s.mockHistoryClient = s.mockShard.Resource.HistoryClient
@@ -187,7 +187,6 @@ func (s *transferActiveTaskExecutorSuite) TearDownTest() {
 	s.transferActiveTaskExecutor.Stop()
 	s.controller.Finish()
 	s.mockShard.Finish(s.T())
-	s.mockParentClosePolicyClient.AssertExpectations(s.T())
 }
 
 func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_Success() {
@@ -318,7 +317,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_Ratelimits() {
 	s.NoError(err)
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
 
-	// expected calls to matching if task processing is allowed
+	// expected calls to the matching service if task processing is allowed
 	s.mockMatchingClient.EXPECT().AddActivityTask(gomock.Any(), createAddActivityTaskRequest(transferTaskInRatelimitedDomain, ai, mutableState.GetExecutionInfo().PartitionConfig)).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
 	s.mockMatchingClient.EXPECT().AddActivityTask(gomock.Any(), createAddActivityTaskRequest(transferTask, ai, mutableState.GetExecutionInfo().PartitionConfig)).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
 
@@ -490,7 +489,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessDecisionTask_Ratelimits() {
 	s.NoError(err)
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
 
-	// expected calls to matching if task processing is allowed
+	// expected calls to the matching service if task processing is allowed
 	s.mockMatchingClient.EXPECT().AddDecisionTask(gomock.Any(), createAddDecisionTaskRequest(transferTask, mutableState)).Return(&types.AddDecisionTaskResponse{}, nil).Times(1)
 	s.mockMatchingClient.EXPECT().AddDecisionTask(gomock.Any(), createAddDecisionTaskRequest(rateLimitedTransferTask, mutableState)).Return(&types.AddDecisionTaskResponse{}, nil).Times(1)
 
@@ -1019,7 +1018,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_NoParent_Has
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
 	s.mockVisibilityMgr.On("RecordWorkflowExecutionClosed", mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewDisabledArchvialConfig())
-	s.mockParentClosePolicyClient.On("SendParentClosePolicyRequest", mock.Anything, mock.MatchedBy(
+	s.mockParentClosePolicyClient.EXPECT().SendParentClosePolicyRequest(gomock.Any(), gomock.Cond(
 		func(request parentclosepolicy.Request) bool {
 			if len(request.Executions) != s.mockShard.GetConfig().ParentClosePolicyBatchSize(constants.TestDomainName) {
 				return false
@@ -1032,7 +1031,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_NoParent_Has
 			return true
 		},
 	)).Return(nil).Times(numChildWorkflows / s.mockShard.GetConfig().ParentClosePolicyBatchSize(constants.TestDomainName))
-	s.mockParentClosePolicyClient.On("SendParentClosePolicyRequest", mock.Anything, mock.MatchedBy(
+	s.mockParentClosePolicyClient.EXPECT().SendParentClosePolicyRequest(gomock.Any(), gomock.Cond(
 		func(request parentclosepolicy.Request) bool {
 			if len(request.Executions) != numChildWorkflows%s.mockShard.GetConfig().ParentClosePolicyBatchSize(constants.TestDomainName) {
 				return false
@@ -1315,7 +1314,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessSignalExecution_Failure() {
 		},
 	} {
 		s.Run(name, func() {
-			// Need setup the suite manually, since we are in a subtest
+			// Need set up the suite manually, since we are in a subtest
 			s.SetupTest()
 			s.testProcessSignalExecutionWithErrorAndLogs(
 				constants.TestDomainID,

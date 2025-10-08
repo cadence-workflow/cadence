@@ -271,6 +271,39 @@ func (mr *_MockClientRecorder) DiagnoseWorkflowExecution(
 	return mr.mock.ctrl.RecordCall(mr.mock, "DiagnoseWorkflowExecution", args...)
 }
 
+// FailoverDomain responds to a FailoverDomain call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().FailoverDomain(gomock.Any(), ...).Return(...)
+//	... := client.FailoverDomain(...)
+func (m *MockClient) FailoverDomain(
+	ctx context.Context,
+	_FailoverRequest *shared.FailoverDomainRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.FailoverDomainResponse, err error) {
+
+	args := []interface{}{ctx, _FailoverRequest}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "FailoverDomain", args...)
+	success, _ = ret[i].(*shared.FailoverDomainResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) FailoverDomain(
+	ctx interface{},
+	_FailoverRequest interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _FailoverRequest}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "FailoverDomain", args...)
+}
+
 // GetClusterInfo responds to a GetClusterInfo call based on the mock expectations. This
 // call will fail if the mock does not expect this call. Use EXPECT to expect
 // a call to this function.

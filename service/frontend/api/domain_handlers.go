@@ -191,3 +191,30 @@ func (wh *WorkflowHandler) DeprecateDomain(ctx context.Context, deprecateRequest
 	}
 	return wh.domainHandler.DeprecateDomain(ctx, deprecateRequest)
 }
+
+// FailoverDomain is used to failover a registered domain to different cluster.
+func (wh *WorkflowHandler) FailoverDomain(ctx context.Context, failoverRequest *types.FailoverDomainRequest) (*types.FailoverDomainResponse, error) {
+	if wh.isShuttingDown() {
+		return nil, validate.ErrShuttingDown
+	}
+	if err := wh.requestValidator.ValidateFailoverDomainRequest(ctx, failoverRequest); err != nil {
+		return nil, err
+	}
+
+	domainName := failoverRequest.GetDomainName()
+	logger := wh.GetLogger().WithTags(
+		tag.WorkflowDomainName(domainName),
+		tag.OperationName("FailoverDomain"))
+
+	logger.Info(fmt.Sprintf("Failover domain is requested. Request: %#v.", failoverRequest))
+
+	failoverResp, err := wh.domainHandler.FailoverDomain(ctx, failoverRequest)
+	if err != nil {
+		logger.Error("Failover domain operation failed.",
+			tag.Error(err))
+		return nil, err
+	}
+
+	logger.Info("Failover domain operation succeeded.")
+	return failoverResp, nil
+}

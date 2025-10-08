@@ -151,5 +151,20 @@ func newDomainCommands() []*cli.Command {
 				return nil
 			},
 		},
+		{
+			Name:    "failover",
+			Aliases: []string{"fo"},
+			Usage:   "Failover workflow domain to target active cluster",
+			Flags:   failoverDomainFlags,
+			Action: func(c *cli.Context) error {
+				err := checkNoAdditionalArgsPassed(c)
+				if err != nil {
+					return err
+				}
+				return withDomainClient(c, false, func(dc *domainCLIImpl) error {
+					return dc.UpdateDomain(c)
+				})
+			},
+		},
 	}
 }

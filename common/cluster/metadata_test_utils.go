@@ -34,10 +34,6 @@ const (
 	TestAlternativeClusterInitialFailoverVersion = int64(1)
 	// TestDisabledClusterInitialFailoverVersion is initial failover version for disabled cluster
 	TestDisabledClusterInitialFailoverVersion = int64(2)
-	// TestRegion1InitialFailoverVersion is initial failover version for region1
-	TestRegion1InitialFailoverVersion = int64(3)
-	// TestRegion2InitialFailoverVersion is initial failover version for region2
-	TestRegion2InitialFailoverVersion = int64(4)
 	// TestFailoverVersionIncrement is failover version increment used for test
 	TestFailoverVersionIncrement = int64(10)
 	// TestCurrentClusterName is current cluster used for test
@@ -59,14 +55,6 @@ const (
 )
 
 var (
-	TestRegions = map[string]config.RegionInformation{
-		TestRegion1: {
-			InitialFailoverVersion: TestRegion1InitialFailoverVersion,
-		},
-		TestRegion2: {
-			InitialFailoverVersion: TestRegion2InitialFailoverVersion,
-		},
-	}
 	// TestAllClusterNames is the all cluster names used for test
 	TestAllClusterNames = []string{TestCurrentClusterName, TestAlternativeClusterName}
 	// TestAllClusterInfo is the same as above, just convenient for test mocking
@@ -147,7 +135,6 @@ func GetTestClusterMetadata(isPrimaryCluster bool) Metadata {
 			PrimaryClusterName:       primaryClusterName,
 			CurrentClusterName:       TestCurrentClusterName,
 			ClusterGroup:             TestAllClusterInfo,
-			Regions:                  TestRegions,
 		},
 		func(d string) bool { return false },
 		commonMetrics.NewNoopMetricsClient(),

@@ -1783,7 +1783,7 @@ func (e *mutableStateBuilder) eventsToReplicationTask(
 	version := firstEvent.Version
 
 	// Check all the events in the transaction belongs to the same cluster
-	sourceCluster, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(version, e.executionInfo.DomainID)
+	sourceCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(version)
 	if err != nil {
 		return nil, err
 	}
@@ -1962,13 +1962,13 @@ func (e *mutableStateBuilder) startTransactionHandleDecisionFailover(
 		)}
 	}
 
-	lastWriteSourceCluster, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(lastWriteVersion, e.executionInfo.DomainID)
+	lastWriteSourceCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(lastWriteVersion)
 	if err != nil {
 		return false, err
 	}
 
 	currentVersion := e.GetCurrentVersion()
-	currentVersionCluster, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(currentVersion, e.executionInfo.DomainID)
+	currentVersionCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(currentVersion)
 	if err != nil {
 		return false, err
 	}
@@ -1994,7 +1994,7 @@ func (e *mutableStateBuilder) startTransactionHandleDecisionFailover(
 		currentVersionCluster,
 	)
 	// handle case 5
-	incomingTaskSourceCluster, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(incomingTaskVersion, e.executionInfo.DomainID)
+	incomingTaskSourceCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(incomingTaskVersion)
 	if err != nil {
 		return false, err
 	}
@@ -2063,7 +2063,7 @@ func (e *mutableStateBuilder) closeTransactionWithPolicyCheck(
 		return nil
 	}
 
-	activeCluster, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(e.GetCurrentVersion(), e.executionInfo.DomainID)
+	activeCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(e.GetCurrentVersion())
 	if err != nil {
 		return err
 	}

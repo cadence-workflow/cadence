@@ -527,6 +527,11 @@ cadence-canary: $(BINS_DEPEND_ON)
 	$Q echo "compiling cadence-canary with OS: $(GOOS), ARCH: $(GOARCH)"
 	$Q ./scripts/build-with-ldflags.sh -o $@ cmd/canary/main.go
 
+BINS += sharddistributor-canary
+sharddistributor-canary: $(BINS_DEPEND_ON)
+	$Q echo "compiling sharddistributor-canary with OS: $(GOOS), ARCH: $(GOARCH)"
+	$Q ./scripts/build-with-ldflags.sh -o $@ cmd/sharddistributor-canary/main.go
+
 BINS += cadence-bench
 cadence-bench: $(BINS_DEPEND_ON)
 	$Q echo "compiling cadence-bench with OS: $(GOOS), ARCH: $(GOARCH)"
@@ -833,6 +838,9 @@ start-xdc-cluster2: cadence-server
 
 start-canary: cadence-canary
 	./cadence-canary start
+
+start-sharddistributor-canary: sharddistributor-canary
+	./sharddistributor-canary start
 
 start-bench: cadence-bench
 	./cadence-bench start

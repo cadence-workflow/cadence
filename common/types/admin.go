@@ -20,7 +20,10 @@
 
 package types
 
-import "sort"
+import (
+	"sort"
+	"unsafe"
+)
 
 // AddSearchAttributeRequest is an internal type (TBD...)
 type AddSearchAttributeRequest struct {
@@ -317,6 +320,14 @@ type IsolationGroupPartition struct {
 	State IsolationGroupState
 }
 
+// ByteSize returns an approximate size of the object in bytes
+func (i IsolationGroupPartition) ByteSize() uint64 {
+	var size uint64
+	size += uint64(unsafe.Sizeof(i))
+	size += uint64(len(i.Name))
+	return size
+}
+
 // IsolationGroupConfiguration is an internal representation of a set of
 // isolation-groups as a mapping and may refer to either globally or per-domain (or both) configurations.
 // and their statuses. It's redundantly indexed by IsolationGroup name to simplify lookups.
@@ -354,6 +365,19 @@ func (i IsolationGroupConfiguration) DeepCopy() IsolationGroupConfiguration {
 		out[k] = v
 	}
 	return out
+}
+
+// ByteSize returns an approximate size of the object in bytes
+func (i *IsolationGroupConfiguration) ByteSize() uint64 {
+	if i == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*i))
+	for k, v := range *i {
+		size += uint64(len(k)) + uint64(len(v.Name))
+	}
+	return size
 }
 
 // FromIsolationGroupPartitionList maps a list of isolation to the internal IsolationGroup configuration type
@@ -420,6 +444,18 @@ func (c AsyncWorkflowConfiguration) DeepCopy() AsyncWorkflowConfiguration {
 	}
 
 	return res
+}
+
+// ByteSize returns an approximate size of the object in bytes
+func (c *AsyncWorkflowConfiguration) ByteSize() uint64 {
+	if c == nil {
+		return 0
+	}
+	size := uint64(unsafe.Sizeof(*c))
+	size += uint64(len(c.PredefinedQueueName))
+	size += uint64(len(c.QueueType))
+	size += c.QueueConfig.ByteSize()
+	return size
 }
 
 type UpdateDomainAsyncWorkflowConfiguratonRequest struct {

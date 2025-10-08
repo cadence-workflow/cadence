@@ -63,7 +63,7 @@ func (s *processingQueueSuite) SetupTest() {
 	s.controller = gomock.NewController(s.T())
 
 	s.logger = testlogger.New(s.Suite.T())
-	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History)
+	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
 }
 
 func (s *processingQueueSuite) TearDownTest() {

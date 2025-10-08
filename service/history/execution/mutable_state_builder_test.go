@@ -2597,9 +2597,6 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 
 			activeClusterManager := activecluster.NewMockManager(ctrl)
-			activeClusterManager.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
-				return clusterMetadata.ClusterNameForFailoverVersion(version)
-			}).AnyTimes()
 			shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
 
 			decisionManager := NewMockmutableStateDecisionTaskManager(ctrl)
@@ -3628,10 +3625,6 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			td.mutableStateSetup(ms)
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
-			activeClusterManager.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
-				return cluster.TestActiveClusterMetadata.GetCurrentClusterName(), nil
-			}).AnyTimes()
-
 			mutation, workflowEvents, err := ms.CloseTransactionAsMutation(now, td.transactionPolicy)
 			assert.Equal(t, td.expectedMutation, mutation)
 			assert.Equal(t, td.expectedEvent, workflowEvents)
@@ -3928,6 +3921,28 @@ func TestLoad_ActiveActive(t *testing.T) {
 					"region1": {
 						ActiveClusterName: "cluster1",
 						FailoverVersion:   200,
+					},
+				},
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"cityID": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"seattle": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+							"sydney": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   200,
+							},
+						},
+					},
+					"regionID": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
 					},
 				},
 			},

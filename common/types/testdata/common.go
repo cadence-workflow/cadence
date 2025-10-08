@@ -509,5 +509,12 @@ var (
 		ExternalEntityType:             "externalEntityType1",
 		ExternalEntityKey:              "externalEntityKey1",
 	}
+	ClusterAttribute = types.ClusterAttribute{
+		Scope: "region",
+		Name:  "us-west-1",
+	}
+	ActiveClusterSelectionPolicyWithClusterAttribute = types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &ClusterAttribute,
+	}
 	CronOverlapPolicy = types.CronOverlapPolicySkipped
 )

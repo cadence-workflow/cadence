@@ -10,3 +10,9 @@ frontend.failoverCoolDown:
   - value: 5s
 history.ReplicationTaskProcessorStartWait: # default is 5s. repl task processor sleeps this much before processing received messages.
   - value: 10ms
+history.enableTimerQueueV2:
+  - value: true
+    constraints: {}
+history.enableTransferQueueV2:
+  - value: true
+    constraints: {}

@@ -27,8 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/uber/cadence/common"
@@ -41,40 +39,28 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-const (
-	// notifyChangeCallbacksInterval is the interval at which external entity change callbacks are notified to subscribers.
-	// This is to avoid sending too many notifications and overwhelming the subscribers (i.e. per-shard history engines).
-	notifyChangeCallbacksInterval = 5 * time.Second
-)
-
 type DomainIDToDomainFn func(id string) (*cache.DomainCacheEntry, error)
 
 const (
-	LookupNewWorkflowOpName       = "LookupNewWorkflow"
-	LookupWorkflowOpName          = "LookupWorkflow"
-	LookupClusterOpName           = "LookupCluster"
-	DomainIDToDomainFnErrorReason = "domain_id_to_name_fn_error"
+	LookupNewWorkflowOpName                      = "LookupNewWorkflow"
+	LookupWorkflowOpName                         = "LookupWorkflow"
+	GetActiveClusterInfoByClusterAttributeOpName = "GetActiveClusterInfoByClusterAttribute"
+	GetActiveClusterInfoByWorkflowOpName         = "GetActiveClusterInfoByWorkflow"
+	DomainIDToDomainFnErrorReason                = "domain_id_to_name_fn_error"
 
 	workflowPolicyCacheTTL      = 10 * time.Second
 	workflowPolicyCacheMaxCount = 1000
 )
 
 type managerImpl struct {
-	domainIDToDomainFn          DomainIDToDomainFn
-	clusterMetadata             cluster.Metadata
-	metricsCl                   metrics.Client
-	logger                      log.Logger
-	ctx                         context.Context
-	cancel                      context.CancelFunc
-	wg                          sync.WaitGroup
-	externalEntityProviders     map[string]ExternalEntityProvider
-	executionManagerProvider    ExecutionManagerProvider
-	timeSrc                     clock.TimeSource
-	numShards                   int
-	shouldNotifyChangeCallbacks int32
-	changeCallbacksLock         sync.Mutex
-	changeCallbacks             map[int]func(ChangeType)
-	workflowPolicyCache         cache.Cache
+	domainIDToDomainFn       DomainIDToDomainFn
+	clusterMetadata          cluster.Metadata
+	metricsCl                metrics.Client
+	logger                   log.Logger
+	executionManagerProvider ExecutionManagerProvider
+	timeSrc                  clock.TimeSource
+	numShards                int
+	workflowPolicyCache      cache.Cache
 }
 
 type ManagerOption func(*managerImpl)
@@ -92,21 +78,15 @@ func NewManager(
 	clusterMetadata cluster.Metadata,
 	metricsCl metrics.Client,
 	logger log.Logger,
-	externalEntityProviders []ExternalEntityProvider,
 	executionManagerProvider ExecutionManagerProvider,
 	numShards int,
 	opts ...ManagerOption,
 ) (Manager, error) {
-	ctx, cancel := context.WithCancel(context.Background())
 	m := &managerImpl{
 		domainIDToDomainFn:       domainIDToDomainFn,
 		clusterMetadata:          clusterMetadata,
 		metricsCl:                metricsCl,
 		logger:                   logger.WithTags(tag.ComponentActiveClusterManager),
-		ctx:                      ctx,
-		cancel:                   cancel,
-		changeCallbacks:          make(map[int]func(ChangeType)),
-		externalEntityProviders:  make(map[string]ExternalEntityProvider),
 		timeSrc:                  clock.NewRealTimeSource(),
 		executionManagerProvider: executionManagerProvider,
 		numShards:                numShards,
@@ -124,77 +104,7 @@ func NewManager(
 		opt(m)
 	}
 
-	for _, provider := range externalEntityProviders {
-		if _, ok := m.externalEntityProviders[provider.SupportedType()]; ok {
-			return nil, fmt.Errorf("external entity provider for type %s already registered", provider.SupportedType())
-		}
-		m.externalEntityProviders[provider.SupportedType()] = provider
-	}
-
 	return m, nil
-}
-
-func (m *managerImpl) Start() {
-	for _, provider := range m.externalEntityProviders {
-		m.wg.Add(1)
-		go m.listenForExternalEntityChanges(provider)
-	}
-
-	m.wg.Add(1)
-	go m.notifyChangeCallbacksPeriodically()
-	m.logger.Info("Active cluster managerImpl started")
-}
-
-func (m *managerImpl) Stop() {
-	m.logger.Info("Stopping active cluster managerImpl")
-	m.cancel()
-	m.wg.Wait()
-	m.logger.Info("Active cluster managerImpl stopped")
-}
-
-func (m *managerImpl) listenForExternalEntityChanges(provider ExternalEntityProvider) {
-	defer m.wg.Done()
-	logger := m.logger.WithTags(tag.Dynamic("entity-type", provider.SupportedType()))
-	logger.Info("Listening for external entity changes")
-
-	for {
-		select {
-		case <-m.ctx.Done():
-			logger.Info("Stopping listener for external entity changes")
-			return
-		case changeType := <-provider.ChangeEvents():
-			logger.Info("Received external entity change event", tag.Dynamic("change-type", changeType))
-			atomic.StoreInt32(&m.shouldNotifyChangeCallbacks, 1)
-		}
-	}
-}
-
-func (m *managerImpl) notifyChangeCallbacksPeriodically() {
-	defer m.wg.Done()
-
-	t := m.timeSrc.NewTicker(notifyChangeCallbacksInterval)
-	defer t.Stop()
-	for {
-		select {
-		case <-m.ctx.Done():
-			m.logger.Info("Stopping notify change callbacks periodically")
-			return
-		case <-t.Chan():
-			if atomic.CompareAndSwapInt32(&m.shouldNotifyChangeCallbacks, 1, 0) {
-				m.logger.Info("Notifying change callbacks")
-				m.changeCallbacksLock.Lock()
-				for shardID, callback := range m.changeCallbacks {
-					m.logger.Info("Notifying change callback for shard", tag.ShardID(shardID))
-					callback(ChangeTypeEntityMap)
-					m.logger.Info("Notified change callback for shard", tag.ShardID(shardID))
-				}
-				m.changeCallbacksLock.Unlock()
-				m.logger.Info("Notified change callbacks")
-			} else {
-				m.logger.Debug("Skipping notify change callbacks because there's no change since last notification")
-			}
-		}
-	}
 }
 
 func (m *managerImpl) LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (res *LookupResult, e error) {
@@ -245,25 +155,7 @@ func (m *managerImpl) LookupNewWorkflow(ctx context.Context, domainID string, po
 		}, nil
 	}
 
-	if policy.GetStrategy() != types.ActiveClusterSelectionStrategyExternalEntity {
-		return nil, fmt.Errorf("unsupported active cluster selection strategy: %s", policy.GetStrategy())
-	}
-
-	// find cluster name & failover version of the external entity
-	externalEntity, err := m.getExternalEntity(ctx, policy.ExternalEntityType, policy.ExternalEntityKey)
-	if err != nil {
-		return nil, err
-	}
-	cluster, err := m.ClusterNameForFailoverVersion(externalEntity.FailoverVersion, domainID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &LookupResult{
-		Region:          externalEntity.Region,
-		ClusterName:     cluster,
-		FailoverVersion: externalEntity.FailoverVersion,
-	}, nil
+	return nil, fmt.Errorf("unsupported active cluster selection strategy: %s", policy.GetStrategy())
 }
 
 func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (res *LookupResult, e error) {
@@ -338,38 +230,6 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 		}, nil
 	}
 
-	if plcy.GetStrategy() == types.ActiveClusterSelectionStrategyExternalEntity {
-		// Case 2.b: workflow has external entity
-		externalEntity, err := m.getExternalEntity(ctx, plcy.ExternalEntityType, plcy.ExternalEntityKey)
-		if err != nil {
-			return nil, err
-		}
-
-		cluster, err := m.ClusterNameForFailoverVersion(externalEntity.FailoverVersion, domainID)
-		if err != nil {
-			return nil, err
-		}
-
-		if m.logger.DebugOn() {
-			m.logger.Debug("LookupWorkflow: workflow has external entity. returning region, cluster name and failover version",
-				tag.WorkflowDomainID(domainID),
-				tag.WorkflowID(wfID),
-				tag.WorkflowRunID(rID),
-				tag.WorkflowExternalEntityType(plcy.ExternalEntityType),
-				tag.WorkflowExternalEntityKey(plcy.ExternalEntityKey),
-				tag.Region(externalEntity.Region),
-				tag.ActiveClusterName(cluster),
-				tag.FailoverVersion(externalEntity.FailoverVersion),
-				tag.Dynamic("stack", string(debug.Stack())),
-			)
-		}
-		return &LookupResult{
-			Region:          externalEntity.Region,
-			ClusterName:     cluster,
-			FailoverVersion: externalEntity.FailoverVersion,
-		}, nil
-	}
-
 	if plcy.GetStrategy() != types.ActiveClusterSelectionStrategyRegionSticky {
 		return nil, fmt.Errorf("unsupported active cluster selection strategy: %s", plcy.GetStrategy())
 	}
@@ -398,118 +258,8 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 	}, nil
 }
 
-func (m *managerImpl) LookupCluster(ctx context.Context, domainID, clusterName string) (res *LookupResult, e error) {
-	d, scope, err := m.getDomainAndScope(domainID, LookupClusterOpName)
-	if err != nil {
-		return nil, err
-	}
-	defer m.handleError(scope, &e, time.Now())
-
-	clusterInfo, ok := m.clusterMetadata.GetAllClusterInfo()[clusterName]
-	if !ok {
-		return nil, newClusterNotFoundError(clusterName)
-	}
-
-	if !d.GetReplicationConfig().IsActiveActive() {
-		// Not an active-active domain. return ActiveClusterName from domain entry
-		m.logger.Debug("LookupCluster: not an active-active domain. returning given clusterName",
-			tag.WorkflowDomainID(domainID),
-			tag.ClusterName(clusterName),
-		)
-
-		return &LookupResult{
-			ClusterName:     clusterName,
-			FailoverVersion: clusterInfo.InitialFailoverVersion,
-			Region:          clusterInfo.Region,
-		}, nil
-	}
-
-	region := clusterInfo.Region
-	activeCluster, ok := d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region]
-	if !ok {
-		return nil, newRegionNotFoundForDomainError(region, domainID)
-	}
-
-	return &LookupResult{
-		Region:          region,
-		ClusterName:     activeCluster.ActiveClusterName,
-		FailoverVersion: activeCluster.FailoverVersion,
-	}, nil
-}
-
-func (m *managerImpl) ClusterNameForFailoverVersion(failoverVersion int64, domainID string) (string, error) {
-	d, err := m.domainIDToDomainFn(domainID)
-	if err != nil {
-		return "", err
-	}
-
-	if !d.GetReplicationConfig().IsActiveActive() {
-		cluster, err := m.clusterMetadata.ClusterNameForFailoverVersion(failoverVersion)
-		if err != nil {
-			return "", err
-		}
-		return cluster, nil
-	}
-
-	// For active-active domains, the failover version might be mapped to a cluster or a region
-	// First check if it maps to a cluster
-	cluster, err := m.clusterMetadata.ClusterNameForFailoverVersion(failoverVersion)
-	if err == nil {
-		// failover version belongs to a cluster.
-		return cluster, nil
-	}
-
-	// Check if it maps to a region.
-	region, err := m.clusterMetadata.RegionForFailoverVersion(failoverVersion)
-	if err != nil {
-		return "", err
-	}
-
-	// Now we know the region, find the cluster in the domain's active cluster list which belongs to the region
-	cfg, ok := d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region]
-	if !ok {
-		return "", newRegionNotFoundForDomainError(region, domainID)
-	}
-
-	allClusters := m.clusterMetadata.GetAllClusterInfo()
-	_, ok = allClusters[cfg.ActiveClusterName]
-	if !ok {
-		return "", newClusterNotFoundForRegionError(cfg.ActiveClusterName, region)
-	}
-
-	return cfg.ActiveClusterName, nil
-}
-
-func (m *managerImpl) RegisterChangeCallback(shardID int, callback func(ChangeType)) {
-	m.changeCallbacksLock.Lock()
-	defer m.changeCallbacksLock.Unlock()
-
-	m.changeCallbacks[shardID] = callback
-}
-
-func (m *managerImpl) UnregisterChangeCallback(shardID int) {
-	m.changeCallbacksLock.Lock()
-	defer m.changeCallbacksLock.Unlock()
-
-	delete(m.changeCallbacks, shardID)
-}
-
-func (m *managerImpl) SupportedExternalEntityType(entityType string) bool {
-	_, ok := m.externalEntityProviders[entityType]
-	return ok
-}
-
 func (m *managerImpl) CurrentRegion() string {
 	return m.clusterMetadata.GetCurrentRegion()
-}
-
-func (m *managerImpl) getExternalEntity(ctx context.Context, entityType, entityKey string) (*ExternalEntity, error) {
-	provider, ok := m.externalEntityProviders[entityType]
-	if !ok {
-		return nil, fmt.Errorf("external entity provider for type %q not found", entityType)
-	}
-
-	return provider.GetExternalEntity(ctx, entityKey)
 }
 
 func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
@@ -571,4 +321,59 @@ func (m *managerImpl) handleError(scope metrics.Scope, err *error, start time.Ti
 		scope.IncCounter(metrics.ActiveClusterManagerLookupSuccessCount)
 	}
 	scope.RecordHistogramDuration(metrics.ActiveClusterManagerLookupLatency, time.Since(start))
+}
+
+func (m *managerImpl) GetActiveClusterInfoByClusterAttribute(ctx context.Context, domainID string, clusterAttribute *types.ClusterAttribute) (res *types.ActiveClusterInfo, e error) {
+	defer func() {
+		logFn := m.logger.Debug
+		if e != nil {
+			logFn = m.logger.Warn
+		}
+		logFn("GetActiveClusterInfoByClusterAttribute",
+			tag.WorkflowDomainID(domainID),
+			tag.Dynamic("clusterAttribute", clusterAttribute),
+			tag.Dynamic("result", res),
+			tag.Error(e),
+		)
+	}()
+
+	d, scope, err := m.getDomainAndScope(domainID, GetActiveClusterInfoByClusterAttributeOpName)
+	if err != nil {
+		return nil, err
+	}
+	defer m.handleError(scope, &e, time.Now())
+
+	res, ok := d.GetActiveClusterInfoByClusterAttribute(clusterAttribute)
+	if !ok {
+		return nil, &ClusterAttributeNotFoundError{
+			DomainID:         domainID,
+			ClusterAttribute: clusterAttribute,
+		}
+	}
+	return res, nil
+}
+
+func (m *managerImpl) GetActiveClusterInfoByWorkflow(ctx context.Context, domainID, wfID, rID string) (res *types.ActiveClusterInfo, e error) {
+	d, scope, err := m.getDomainAndScope(domainID, GetActiveClusterInfoByWorkflowOpName)
+	if err != nil {
+		return nil, err
+	}
+	defer m.handleError(scope, &e, time.Now())
+
+	policy, err := m.getClusterSelectionPolicy(ctx, domainID, wfID, rID)
+	if err != nil {
+		var notExistsErr *types.EntityNotExistsError
+		if !errors.As(err, &notExistsErr) {
+			return nil, err
+		}
+		policy = &types.ActiveClusterSelectionPolicy{}
+	}
+	res, ok := d.GetActiveClusterInfoByClusterAttribute(policy.ClusterAttribute)
+	if !ok {
+		return nil, &ClusterAttributeNotFoundError{
+			DomainID:         domainID,
+			ClusterAttribute: policy.ClusterAttribute,
+		}
+	}
+	return res, nil
 }

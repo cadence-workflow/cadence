@@ -113,10 +113,6 @@ func (s *engine3Suite) SetupTest() {
 
 	s.mockEventsCache.EXPECT().PutEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
-	s.mockShard.Resource.ActiveClusterMgr.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
-		return s.mockShard.GetClusterMetadata().ClusterNameForFailoverVersion(version)
-	}).AnyTimes()
-
 	s.logger = s.mockShard.GetLogger()
 
 	h := &historyEngineImpl{
@@ -128,11 +124,11 @@ func (s *engine3Suite) SetupTest() {
 		executionCache:       execution.NewCache(s.mockShard),
 		logger:               s.logger,
 		throttledLogger:      s.logger,
-		metricsClient:        metrics.NewClient(tally.NoopScope, metrics.History),
+		metricsClient:        metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
 		tokenSerializer:      common.NewJSONTaskTokenSerializer(),
 		config:               s.config,
 		timeSource:           s.mockShard.GetTimeSource(),
-		historyEventNotifier: events.NewNotifier(clock.NewRealTimeSource(), metrics.NewClient(tally.NoopScope, metrics.History), func(string) int { return 0 }),
+		historyEventNotifier: events.NewNotifier(clock.NewRealTimeSource(), metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}), func(string) int { return 0 }),
 		queueProcessors: map[p.HistoryTaskCategory]queue.Processor{
 			p.HistoryTaskCategoryTransfer: s.mockTxProcessor,
 			p.HistoryTaskCategoryTimer:    s.mockTimerProcessor,

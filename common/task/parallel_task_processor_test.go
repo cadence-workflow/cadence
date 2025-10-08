@@ -68,7 +68,7 @@ func (s *parallelTaskProcessorSuite) SetupTest() {
 
 	s.processor = NewParallelTaskProcessor(
 		testlogger.New(s.Suite.T()),
-		metrics.NewClient(tally.NoopScope, metrics.Common),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
 		&ParallelTaskProcessorOptions{
 			QueueSize:   0,
 			WorkerCount: dynamicproperties.GetIntPropertyFn(1),
@@ -279,7 +279,7 @@ func (s *parallelTaskProcessorSuite) TestProcessorContract() {
 
 	processor := NewParallelTaskProcessor(
 		testlogger.New(s.Suite.T()),
-		metrics.NewClient(tally.NoopScope, metrics.Common),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
 		&ParallelTaskProcessorOptions{
 			QueueSize:   100,
 			WorkerCount: dynamicproperties.GetIntPropertyFn(10),

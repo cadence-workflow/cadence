@@ -100,6 +100,17 @@ func (c *frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *typ
 	return resp, err
 }
 
+func (c *frontendClient) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest, p1 ...yarpc.CallOption) (fp2 *types.FailoverDomainResponse, err error) {
+	var resp *types.FailoverDomainResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.FailoverDomain(ctx, fp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *frontendClient) GetClusterInfo(ctx context.Context, p1 ...yarpc.CallOption) (cp1 *types.ClusterInfo, err error) {
 	var resp *types.ClusterInfo
 	op := func(ctx context.Context) error {

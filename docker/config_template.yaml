@@ -264,13 +264,6 @@ clusterGroupMetadata:
             region: "region1"
             {{- end }}
         {{- end }}
-    {{- if .Env.ENABLE_GLOBAL_ACTIVE_ACTIVE_DOMAIN }}
-    regions:
-        region0:
-            initialFailoverVersion: 1
-        region1:
-            initialFailoverVersion: 3
-    {{- end }}
 
 archival:
   history:

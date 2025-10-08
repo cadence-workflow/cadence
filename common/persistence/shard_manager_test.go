@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -41,7 +42,9 @@ func TestShardManagerGetName(t *testing.T) {
 	store := NewMockShardStore(ctrl)
 	store.EXPECT().GetName().Return("name")
 
-	manager := NewShardManager(store)
+	manager := NewShardManager(store, &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
 
 	assert.Equal(t, "name", manager.GetName())
 }
@@ -51,7 +54,9 @@ func TestShardManagerClose(t *testing.T) {
 	store := NewMockShardStore(ctrl)
 	store.EXPECT().Close().Times(1)
 
-	manager := NewShardManager(store)
+	manager := NewShardManager(store, &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
 	manager.Close()
 }
 
@@ -106,7 +111,9 @@ func TestShardManagerCreateShard(t *testing.T) {
 					}).Return(test.internalResponse)
 			}
 
-			manager := NewShardManager(store, WithSerializer(test.serializer))
+			manager := NewShardManager(store, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			}, WithSerializer(test.serializer))
 
 			result := manager.CreateShard(context.Background(), test.request)
 
@@ -186,7 +193,9 @@ func TestShardManagerGetShard(t *testing.T) {
 				store.EXPECT().GetShard(gomock.Any(), gomock.Eq(test.internalRequest)).Return(test.internalResponse, test.internalErr)
 			}
 
-			manager := NewShardManager(store, WithSerializer(test.serializer))
+			manager := NewShardManager(store, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			}, WithSerializer(test.serializer))
 
 			result, err := manager.GetShard(context.Background(), test.request)
 			assert.Equal(t, test.expected, result)
@@ -252,7 +261,9 @@ func TestShardManagerUpdateShard(t *testing.T) {
 					}).Return(test.internalResponse)
 			}
 
-			manager := NewShardManager(store, WithSerializer(test.serializer))
+			manager := NewShardManager(store, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			}, WithSerializer(test.serializer))
 
 			result := manager.UpdateShard(context.Background(), test.request)
 

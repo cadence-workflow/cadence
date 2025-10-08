@@ -187,6 +187,7 @@ type Config struct {
 	ReplicatorProcessorBatchSizeStepCount  dynamicproperties.IntPropertyFnWithShardIDFilter
 	ReplicatorUpperLatency                 dynamicproperties.DurationPropertyFn
 	ReplicatorCacheCapacity                dynamicproperties.IntPropertyFn
+	ReplicatorCacheMaxSize                 dynamicproperties.IntPropertyFn
 
 	// System Limits
 	MaximumBufferedEventsBatch dynamicproperties.IntPropertyFn
@@ -279,6 +280,7 @@ type Config struct {
 	ReplicationTaskGenerationQPS                       dynamicproperties.FloatPropertyFn
 	EnableReplicationTaskGeneration                    dynamicproperties.BoolPropertyFnWithDomainIDAndWorkflowIDFilter
 	EnableRecordWorkflowExecutionUninitialized         dynamicproperties.BoolPropertyFnWithDomainFilter
+	ReplicationTaskProcessorLatencyLogThreshold        dynamicproperties.DurationPropertyFn
 
 	// The following are used by the history workflowID cache
 	WorkflowIDExternalRPS dynamicproperties.IntPropertyFnWithDomainFilter
@@ -481,6 +483,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		ReplicatorProcessorBatchSizeStepCount:  dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicatorTaskBatchStepCount),
 		ReplicatorUpperLatency:                 dc.GetDurationProperty(dynamicproperties.ReplicatorUpperLatency),
 		ReplicatorCacheCapacity:                dc.GetIntProperty(dynamicproperties.ReplicatorCacheCapacity),
+		ReplicatorCacheMaxSize:                 dc.GetIntProperty(dynamicproperties.ReplicatorCacheMaxSize),
 
 		MaximumBufferedEventsBatch:      dc.GetIntProperty(dynamicproperties.MaximumBufferedEventsBatch),
 		MaximumSignalsPerExecution:      dc.GetIntPropertyFilteredByDomain(dynamicproperties.MaximumSignalsPerExecution),
@@ -551,6 +554,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		ReplicationTaskGenerationQPS:                       dc.GetFloat64Property(dynamicproperties.ReplicationTaskGenerationQPS),
 		EnableReplicationTaskGeneration:                    dc.GetBoolPropertyFilteredByDomainIDAndWorkflowID(dynamicproperties.EnableReplicationTaskGeneration),
 		EnableRecordWorkflowExecutionUninitialized:         dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableRecordWorkflowExecutionUninitialized),
+		ReplicationTaskProcessorLatencyLogThreshold:        dc.GetDurationProperty(dynamicproperties.ReplicationTaskProcessorLatencyLogThreshold),
 
 		WorkflowIDExternalRPS: dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowIDExternalRPS),
 		WorkflowIDInternalRPS: dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowIDInternalRPS),

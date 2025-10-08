@@ -44,7 +44,7 @@ func TestWrappers(t *testing.T) {
 		clientMock := frontend.NewMockClient(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
-		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
+		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.HistogramMigration{})
 
 		clientMock.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil, nil).Times(1)
@@ -63,7 +63,7 @@ func TestWrappers(t *testing.T) {
 		clientMock := frontend.NewMockClient(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
-		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
+		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.HistogramMigration{})
 
 		clientMock.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil, errors.New("error"))
@@ -85,7 +85,7 @@ func TestMatching(t *testing.T) {
 		clientMock := matching.NewMockClient(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
-		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
+		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.HistogramMigration{})
 
 		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&types.AddActivityTaskResponse{}, nil).Times(1)
@@ -106,7 +106,7 @@ func TestMatching(t *testing.T) {
 		clientMock := matching.NewMockClient(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
-		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
+		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.HistogramMigration{})
 
 		clientMock.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&types.MatchingPollForDecisionTaskResponse{}, nil).Times(1)
@@ -129,7 +129,7 @@ func TestMatching(t *testing.T) {
 		clientMock := matching.NewMockClient(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
-		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
+		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.HistogramMigration{})
 
 		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&types.AddActivityTaskResponse{}, nil).Times(1)
@@ -150,7 +150,7 @@ func TestMatching(t *testing.T) {
 		clientMock := matching.NewMockClient(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
-		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
+		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.HistogramMigration{})
 
 		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&types.AddActivityTaskResponse{}, nil).Times(1)

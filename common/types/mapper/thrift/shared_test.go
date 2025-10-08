@@ -2277,6 +2277,34 @@ func TestRegisterDomainRequestConversion(t *testing.T) {
 	}
 }
 
+func TestRegisterDomainRequestFuzz(t *testing.T) {
+	t.Run("round trip from internal", func(t *testing.T) {
+		testutils.EnsureFuzzCoverage(t, []string{
+			"nil", "empty", "filled",
+		}, func(t *testing.T, f *fuzz.Fuzzer) string {
+			// Configure fuzzer to generate valid enum values
+			fuzzer := f.Funcs(
+				func(e *types.ArchivalStatus, c fuzz.Continue) {
+					*e = types.ArchivalStatus(c.Intn(2)) // 0-1 are valid values (Disabled=0, Enabled=1)
+				},
+			).NilChance(0.3)
+
+			var orig *types.RegisterDomainRequest
+			fuzzer.Fuzz(&orig)
+			out := ToRegisterDomainRequest(FromRegisterDomainRequest(orig))
+			assert.Equal(t, orig, out, "RegisterDomainRequest did not survive round-tripping")
+
+			if orig == nil {
+				return "nil"
+			}
+			if orig.Name == "" && orig.ActiveClusterName == "" && orig.ActiveClusters == nil {
+				return "empty"
+			}
+			return "filled"
+		})
+	})
+}
+
 func TestRemoteSyncMatchedErrorConversion(t *testing.T) {
 	testCases := []*types.RemoteSyncMatchedError{
 		nil,
@@ -3565,8 +3593,10 @@ func TestQueueStateConversion(t *testing.T) {
 func TestActiveClusterSelectionPolicyConversion(t *testing.T) {
 	testCases := []*types.ActiveClusterSelectionPolicy{
 		nil,
+		{},
 		&testdata.ActiveClusterSelectionPolicyExternalEntity,
 		&testdata.ActiveClusterSelectionPolicyRegionSticky,
+		&testdata.ActiveClusterSelectionPolicyWithClusterAttribute,
 	}
 
 	for _, original := range testCases {
@@ -3575,4 +3605,96 @@ func TestActiveClusterSelectionPolicyConversion(t *testing.T) {
 		assert.Equal(t, original, roundTripObj)
 	}
 
+}
+
+func TestActiveClustersConversion(t *testing.T) {
+	testCases := []*types.ActiveClusters{
+		nil,
+		{},
+		{
+			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+				"us-west-1": {
+					ActiveClusterName: "cluster1",
+					FailoverVersion:   1,
+				},
+				"us-east-1": {
+					ActiveClusterName: "cluster2",
+					FailoverVersion:   2,
+				},
+			},
+		},
+		{
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   1,
+						},
+						"us-east-1": {
+							ActiveClusterName: "cluster2",
+							FailoverVersion:   2,
+						},
+					},
+				},
+				"datacenter": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"dc1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   10,
+						},
+					},
+				},
+			},
+		},
+		{
+			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+				"us-west-1": {
+					ActiveClusterName: "cluster1",
+					FailoverVersion:   1,
+				},
+			},
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   1,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromActiveClusters(original)
+		roundTripObj := ToActiveClusters(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestClusterAttributeScopeConversion(t *testing.T) {
+	testCases := []*types.ClusterAttributeScope{
+		nil,
+		{},
+		{
+			ClusterAttributes: map[string]types.ActiveClusterInfo{
+				"us-west-1": {
+					ActiveClusterName: "cluster1",
+					FailoverVersion:   1,
+				},
+				"us-east-1": {
+					ActiveClusterName: "cluster2",
+					FailoverVersion:   2,
+				},
+			},
+		},
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromClusterAttributeScope(original)
+		roundTripObj := ToClusterAttributeScope(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
 }

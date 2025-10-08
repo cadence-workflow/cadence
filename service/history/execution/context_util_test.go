@@ -157,7 +157,7 @@ func TestEmitLargeWorkflowShardIDStats(t *testing.T) {
 
 			mockShard := shard.NewMockContext(mockCtrl)
 			metricScope := tally.NewTestScope("test", make(map[string]string))
-			mockMetricsClient := metrics.NewClient(metricScope, metrics.History)
+			mockMetricsClient := metrics.NewClient(metricScope, metrics.History, metrics.HistogramMigration{})
 			mockLogger := log.NewMockLogger(gomock.NewController(t))
 			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
 			context := &contextImpl{

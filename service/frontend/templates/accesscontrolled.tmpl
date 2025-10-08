@@ -41,6 +41,7 @@ import (
 {{$permissionMap = set $permissionMap "GetTaskListsByDomain" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "RefreshWorkflowTasks" "PermissionWrite"}}
 {{$permissionMap = set $permissionMap "UpdateDomain" "PermissionAdmin"}}
+{{$permissionMap = set $permissionMap "FailoverDomain" "PermissionWrite"}}
 
 {{$adminPermissionMap := dict }}
 {{$adminPermissionMap = set $adminPermissionMap "DescribeCluster" "PermissionRead"}}

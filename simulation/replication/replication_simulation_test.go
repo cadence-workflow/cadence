@@ -63,6 +63,9 @@ func TestReplicationSimulation(t *testing.T) {
 	simCfg, err := simTypes.LoadConfig()
 	require.NoError(t, err, "failed to load config")
 
+	// initialize replication simulation
+	sim := simTypes.NewReplicationSimulation()
+
 	// initialize cadence clients
 	for clusterName := range simCfg.Clusters {
 		simCfg.MustInitClientsFor(t, clusterName)
@@ -84,24 +87,25 @@ func TestReplicationSimulation(t *testing.T) {
 	startTime := time.Now().UTC()
 	simTypes.Logf(t, "Simulation start time: %v", startTime)
 	for i, op := range simCfg.Operations {
-		op := op
 		waitForOpTime(t, op, startTime)
 		var err error
 		switch op.Type {
 		case simTypes.ReplicationSimulationOperationStartWorkflow:
-			err = startWorkflow(t, op, simCfg)
+			err = startWorkflow(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationResetWorkflow:
 			err = resetWorkflow(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationChangeActiveClusters:
 			err = changeActiveClusters(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationValidate:
-			err = validate(t, op, simCfg)
+			err = validate(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationQueryWorkflow:
-			err = queryWorkflow(t, op, simCfg)
+			err = queryWorkflow(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationSignalWithStartWorkflow:
-			err = signalWithStartWorkflow(t, op, simCfg)
+			err = signalWithStartWorkflow(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationMigrateDomainToActiveActive:
 			err = migrateDomainToActiveActive(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationValidateWorkflowReplication:
+			err = validateWorkflowReplication(t, op, simCfg)
 		default:
 			require.Failf(t, "unknown operation type", "operation type: %s", op.Type)
 		}
@@ -125,6 +129,7 @@ func startWorkflow(
 	t *testing.T,
 	op *simTypes.Operation,
 	simCfg *simTypes.ReplicationSimulationConfig,
+	sim *simTypes.ReplicationSimulation,
 ) error {
 	t.Helper()
 
@@ -150,13 +155,28 @@ func startWorkflow(
 			WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
 			DelayStartSeconds:                   common.Int32Ptr(op.DelayStartSeconds),
 			CronSchedule:                        op.CronSchedule,
+			ActiveClusterSelectionPolicy:        op.ActiveClusterSelectionPolicy,
 		})
 
 	if err != nil {
+		if op.Want.Error != "" {
+			if strings.Contains(err.Error(), op.Want.Error) {
+				simTypes.Logf(t, "Start workflow got expected error: %s on domain: %s on cluster: %s. Error: %s", op.WorkflowID, op.Domain, op.Cluster, err.Error())
+				return nil
+			}
+			return fmt.Errorf("expected error: %s, but got: %s", op.Want.Error, err.Error())
+		}
 		return err
 	}
 
-	simTypes.Logf(t, "Started workflow: %s on domain: %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, resp.GetRunID())
+	runID := resp.GetRunID()
+	simTypes.Logf(t, "Started workflow: %s on domain: %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, runID)
+
+	// Store RunID if runIDKey is specified
+	if op.RunIDKey != "" {
+		sim.StoreRunID(op.RunIDKey, runID)
+		simTypes.Logf(t, "Stored RunID %s with key: %s", runID, op.RunIDKey)
+	}
 
 	return nil
 }
@@ -310,7 +330,7 @@ func migrateDomainToActiveActive(t *testing.T, op *simTypes.Operation, simCfg *s
 	return nil
 }
 
-func queryWorkflow(t *testing.T, op *simTypes.Operation, simCfg *simTypes.ReplicationSimulationConfig) error {
+func queryWorkflow(t *testing.T, op *simTypes.Operation, simCfg *simTypes.ReplicationSimulationConfig, sim *simTypes.ReplicationSimulation) error {
 	t.Helper()
 
 	simTypes.Logf(t, "Querying workflow: %s on domain %s on cluster: %s", op.WorkflowID, op.Domain, op.Cluster)
@@ -324,11 +344,22 @@ func queryWorkflow(t *testing.T, op *simTypes.Operation, simCfg *simTypes.Replic
 		consistencyLevel = types.QueryConsistencyLevelStrong.Ptr()
 	}
 
+	// Prepare workflow execution - use specific RunID if provided via runIDKey
+	executionRequest := &types.WorkflowExecution{
+		WorkflowID: op.WorkflowID,
+	}
+	if op.RunIDKey != "" {
+		if runID, err := sim.GetRunID(op.RunIDKey); err == nil && runID != "" {
+			executionRequest.RunID = runID
+			simTypes.Logf(t, "Using stored RunID %s for query (key: %s)", runID, op.RunIDKey)
+		} else {
+			return fmt.Errorf("runIDKey %s specified but no RunID found in registry", op.RunIDKey)
+		}
+	}
+
 	queryResp, err := frontendCl.QueryWorkflow(ctx, &types.QueryWorkflowRequest{
-		Domain: op.Domain,
-		Execution: &types.WorkflowExecution{
-			WorkflowID: op.WorkflowID,
-		},
+		Domain:    op.Domain,
+		Execution: executionRequest,
 		Query: &types.WorkflowQuery{
 			QueryType: op.Query,
 		},
@@ -353,6 +384,7 @@ func signalWithStartWorkflow(
 	t *testing.T,
 	op *simTypes.Operation,
 	simCfg *simTypes.ReplicationSimulationConfig,
+	sim *simTypes.ReplicationSimulation,
 ) error {
 	t.Helper()
 	simTypes.Logf(t, "SignalWithStart workflow: %s on domain %s on cluster: %s", op.WorkflowID, op.Domain, op.Cluster)
@@ -373,12 +405,21 @@ func signalWithStartWorkflow(
 		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32((op.WorkflowExecutionStartToCloseTimeout).Seconds())),
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(5),
 		Input:                               mustJSON(t, &simTypes.WorkflowInput{Duration: op.WorkflowDuration, ActivityCount: op.ActivityCount}),
+		ActiveClusterSelectionPolicy:        op.ActiveClusterSelectionPolicy,
 	})
 	if err != nil {
 		return err
 	}
 
-	simTypes.Logf(t, "SignalWithStart workflow: %s on domain %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, signalResp.GetRunID())
+	runID := signalResp.GetRunID()
+	simTypes.Logf(t, "SignalWithStart workflow: %s on domain %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, runID)
+
+	// Store RunID if runIDKey is specified
+	if op.RunIDKey != "" {
+		sim.StoreRunID(op.RunIDKey, runID)
+		simTypes.Logf(t, "Stored RunID %s with key: %s", runID, op.RunIDKey)
+	}
+
 	return nil
 }
 
@@ -389,59 +430,80 @@ func validate(
 	t *testing.T,
 	op *simTypes.Operation,
 	simCfg *simTypes.ReplicationSimulationConfig,
+	sim *simTypes.ReplicationSimulation,
 ) error {
 	t.Helper()
 
 	simTypes.Logf(t, "Validating workflow: %s on cluster: %s", op.WorkflowID, op.Cluster)
 
+	consistencyLevel := types.QueryConsistencyLevelEventual.Ptr()
+	if op.ConsistencyLevel == "strong" {
+		consistencyLevel = types.QueryConsistencyLevelStrong.Ptr()
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
+
+	// Prepare workflow execution - use specific RunID if provided via runIDKey
+	executionRequest := &types.WorkflowExecution{
+		WorkflowID: op.WorkflowID,
+	}
+	if op.RunIDKey != "" {
+		if runID, err := sim.GetRunID(op.RunIDKey); err == nil && runID != "" {
+			executionRequest.RunID = runID
+			simTypes.Logf(t, "Using stored RunID %s for validation (key: %s)", runID, op.RunIDKey)
+		} else {
+			return fmt.Errorf("runIDKey %s specified but no RunID found in registry", op.RunIDKey)
+		}
+	}
+
 	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).DescribeWorkflowExecution(ctx,
 		&types.DescribeWorkflowExecutionRequest{
-			Domain: op.Domain,
-			Execution: &types.WorkflowExecution{
-				WorkflowID: op.WorkflowID,
-			},
+			Domain:                op.Domain,
+			Execution:             executionRequest,
+			QueryConsistencyLevel: consistencyLevel,
 		})
 	if err != nil {
 		return err
 	}
 
+	workflowStatus := resp.GetWorkflowExecutionInfo().GetCloseStatus()
+	workflowCloseTime := resp.GetWorkflowExecutionInfo().GetCloseTime()
 	switch op.Want.Status {
 	case "completed":
 		// Validate workflow completed
-		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusCompleted || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
-			return fmt.Errorf("workflow %s not completed. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		if workflowStatus != types.WorkflowExecutionCloseStatusCompleted || workflowCloseTime == 0 {
+			return fmt.Errorf("workflow %s not completed. status: %s, close time: %v", op.WorkflowID, workflowStatus, time.Unix(0, workflowCloseTime))
 		}
 	case "failed":
 		// Validate workflow failed
-		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusFailed || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
-			return fmt.Errorf("workflow %s not failed. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		if workflowStatus != types.WorkflowExecutionCloseStatusFailed || workflowCloseTime == 0 {
+			return fmt.Errorf("workflow %s not failed. status: %s, close time: %v", op.WorkflowID, workflowStatus, time.Unix(0, workflowCloseTime))
 		}
 	case "canceled":
 		// Validate workflow canceled
-		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusCanceled || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
-			return fmt.Errorf("workflow %s not canceled. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		if workflowStatus != types.WorkflowExecutionCloseStatusCanceled || workflowCloseTime == 0 {
+			return fmt.Errorf("workflow %s not canceled. status: %s, close time: %v", op.WorkflowID, workflowStatus, time.Unix(0, workflowCloseTime))
 		}
 	case "terminated":
 		// Validate workflow terminated
-		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusTerminated || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
-			return fmt.Errorf("workflow %s not terminated. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		if workflowStatus != types.WorkflowExecutionCloseStatusTerminated || workflowCloseTime == 0 {
+			return fmt.Errorf("workflow %s not terminated. status: %s, close time: %v", op.WorkflowID, workflowStatus, time.Unix(0, workflowCloseTime))
 		}
 	case "continued-as-new":
 		// Validate workflow continued as new
-		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusContinuedAsNew || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
-			return fmt.Errorf("workflow %s not continued as new. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		if workflowStatus != types.WorkflowExecutionCloseStatusContinuedAsNew || workflowCloseTime == 0 {
+			return fmt.Errorf("workflow %s not continued as new. status: %s, close time: %v", op.WorkflowID, workflowStatus, time.Unix(0, workflowCloseTime))
 		}
 	case "timed-out":
 		// Validate workflow timed out
-		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusTimedOut || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
-			return fmt.Errorf("workflow %s not timed out. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		if workflowStatus != types.WorkflowExecutionCloseStatusTimedOut || workflowCloseTime == 0 {
+			return fmt.Errorf("workflow %s not timed out. status: %s, close time: %v", op.WorkflowID, workflowStatus, time.Unix(0, workflowCloseTime))
 		}
 	default:
 		// Validate workflow is running
-		if resp.GetWorkflowExecutionInfo().GetCloseTime() != 0 {
-			return fmt.Errorf("workflow %s not running. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		if workflowCloseTime != 0 {
+			return fmt.Errorf("workflow %s not running. status: %s, close time: %v", op.WorkflowID, workflowStatus, time.Unix(0, workflowCloseTime))
 		}
 	}
 
@@ -449,7 +511,14 @@ func validate(
 
 	// Get history to validate the worker identity that started and completed the workflow
 	// Some workflows start in cluster0 and complete in cluster1. This is to validate that
-	history, err := getAllHistory(t, simCfg, op.Cluster, op.Domain, op.WorkflowID)
+	var runID string
+	if op.RunIDKey != "" {
+		runID, err = sim.GetRunID(op.RunIDKey)
+		if err != nil {
+			return err
+		}
+	}
+	history, err := getAllHistory(t, simCfg, op.Cluster, op.Domain, op.WorkflowID, runID)
 	if err != nil {
 		return err
 	}
@@ -473,6 +542,54 @@ func validate(
 
 	if op.Want.CompletedByWorkersInCluster != "" && completedWorker != simTypes.WorkerIdentityFor(op.Want.CompletedByWorkersInCluster, op.Domain) {
 		return fmt.Errorf("workflow %s completed by worker %s, expected %s", op.WorkflowID, completedWorker, simTypes.WorkerIdentityFor(op.Want.CompletedByWorkersInCluster, op.Domain))
+	}
+
+	return nil
+}
+
+func validateWorkflowReplication(
+	t *testing.T,
+	op *simTypes.Operation,
+	simCfg *simTypes.ReplicationSimulationConfig,
+) error {
+	t.Helper()
+
+	simTypes.Logf(t, "Describing workflow: %s on domain %s on cluster: %s", op.WorkflowID, op.Domain, op.Cluster)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resp, err := simCfg.MustGetFrontendClient(t, op.SourceCluster).DescribeWorkflowExecution(ctx,
+		&types.DescribeWorkflowExecutionRequest{
+			Domain: op.Domain,
+			Execution: &types.WorkflowExecution{
+				WorkflowID: op.WorkflowID,
+			},
+		})
+	if err != nil {
+		return err
+	}
+
+	sourceClusterWorkflowExecution := resp.GetWorkflowExecutionInfo().GetExecution()
+
+	simTypes.Logf(t, "Described workflow: %s on domain: %s on cluster: %s. Status: %s, CloseTime: %v", op.WorkflowID, op.Domain, op.Cluster, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+
+	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resp, err = simCfg.MustGetFrontendClient(t, op.TargetCluster).DescribeWorkflowExecution(ctx,
+		&types.DescribeWorkflowExecutionRequest{
+			Domain: op.Domain,
+			Execution: &types.WorkflowExecution{
+				WorkflowID: op.WorkflowID,
+			},
+		})
+	if err != nil {
+		return err
+	}
+
+	targetClusterWorkflowExecution := resp.GetWorkflowExecutionInfo().GetExecution()
+
+	if !reflect.DeepEqual(sourceClusterWorkflowExecution, targetClusterWorkflowExecution) {
+		return fmt.Errorf("workflow execution info mismatch between source cluster %s and target cluster %s for workflow %s. \nSource: %+v\nTarget: %+v", op.SourceCluster, op.TargetCluster, op.WorkflowID, *sourceClusterWorkflowExecution, *targetClusterWorkflowExecution)
 	}
 
 	return nil
@@ -508,17 +625,23 @@ func waitForOpTime(t *testing.T, op *simTypes.Operation, startTime time.Time) {
 	simTypes.Logf(t, "Operation time (t + %ds) reached: %v", int(op.At.Seconds()), startTime.Add(op.At))
 }
 
-func getAllHistory(t *testing.T, simCfg *simTypes.ReplicationSimulationConfig, clusterName, domainName, wfID string) ([]types.HistoryEvent, error) {
+func getAllHistory(t *testing.T, simCfg *simTypes.ReplicationSimulationConfig, clusterName, domainName, wfID, runID string) ([]types.HistoryEvent, error) {
 	frontendCl := simCfg.MustGetFrontendClient(t, clusterName)
 	var nextPageToken []byte
 	var history []types.HistoryEvent
+
+	executionRequest := &types.WorkflowExecution{
+		WorkflowID: wfID,
+	}
+	if runID != "" {
+		executionRequest.RunID = runID
+	}
+
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		response, err := frontendCl.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-			Domain: domainName,
-			Execution: &types.WorkflowExecution{
-				WorkflowID: wfID,
-			},
+			Domain:                 domainName,
+			Execution:              executionRequest,
 			MaximumPageSize:        1000,
 			NextPageToken:          nextPageToken,
 			WaitForNewEvent:        false,

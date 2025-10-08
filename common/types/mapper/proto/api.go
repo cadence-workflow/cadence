@@ -2596,6 +2596,7 @@ func FromRegisterDomainRequest(t *types.RegisterDomainRequest) *apiv1.RegisterDo
 		Clusters:                         FromClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                t.ActiveClusterName,
 		ActiveClustersByRegion:           t.ActiveClustersByRegion,
+		ActiveClusters:                   FromActiveClusters(t.ActiveClusters),
 		Data:                             t.Data,
 		SecurityToken:                    t.SecurityToken,
 		IsGlobalDomain:                   t.IsGlobalDomain,
@@ -2615,10 +2616,11 @@ func ToRegisterDomainRequest(t *apiv1.RegisterDomainRequest) *types.RegisterDoma
 		Description:                            t.Description,
 		OwnerEmail:                             t.OwnerEmail,
 		WorkflowExecutionRetentionPeriodInDays: *durationToDays(t.WorkflowExecutionRetentionPeriod),
-		EmitMetric:                             common.BoolPtr(true),
+		EmitMetric:                             common.BoolPtr(true), // this is a legacy field that doesn't exist in proto and probably can be removed
 		Clusters:                               ToClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      t.ActiveClusterName,
 		ActiveClustersByRegion:                 t.ActiveClustersByRegion,
+		ActiveClusters:                         ToActiveClusters(t.ActiveClusters),
 		Data:                                   t.Data,
 		SecurityToken:                          t.SecurityToken,
 		IsGlobalDomain:                         t.IsGlobalDomain,
@@ -4508,6 +4510,98 @@ func ToUpdateDomainResponse(t *apiv1.UpdateDomainResponse) *types.UpdateDomainRe
 	}
 }
 
+func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *apiv1.FailoverDomainRequest {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.FailoverDomainRequest{
+		DomainName:              t.DomainName,
+		DomainActiveClusterName: *t.DomainActiveClusterName,
+	}
+}
+
+func ToFailoverDomainRequest(t *apiv1.FailoverDomainRequest) *types.FailoverDomainRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.FailoverDomainRequest{
+		DomainName:              t.DomainName,
+		DomainActiveClusterName: common.StringPtr(t.DomainActiveClusterName),
+	}
+}
+
+func FromFailoverDomainResponse(t *types.FailoverDomainResponse) *apiv1.FailoverDomainResponse {
+	if t == nil {
+		return nil
+	}
+
+	domain := &apiv1.Domain{
+		FailoverVersion: t.FailoverVersion,
+		IsGlobalDomain:  t.IsGlobalDomain,
+	}
+	if info := t.DomainInfo; info != nil {
+		domain.Id = info.UUID
+		domain.Name = info.Name
+		domain.Status = FromDomainStatus(info.Status)
+		domain.Description = info.Description
+		domain.OwnerEmail = info.OwnerEmail
+		domain.Data = info.Data
+	}
+	if config := t.Configuration; config != nil {
+		domain.IsolationGroups = FromIsolationGroupConfig(config.IsolationGroups)
+		domain.WorkflowExecutionRetentionPeriod = daysToDuration(&config.WorkflowExecutionRetentionPeriodInDays)
+		domain.BadBinaries = FromBadBinaries(config.BadBinaries)
+		domain.HistoryArchivalStatus = FromArchivalStatus(config.HistoryArchivalStatus)
+		domain.HistoryArchivalUri = config.HistoryArchivalURI
+		domain.VisibilityArchivalStatus = FromArchivalStatus(config.VisibilityArchivalStatus)
+		domain.VisibilityArchivalUri = config.VisibilityArchivalURI
+		domain.AsyncWorkflowConfig = FromDomainAsyncWorkflowConfiguraton(config.AsyncWorkflowConfig)
+	}
+	if repl := t.ReplicationConfiguration; repl != nil {
+		domain.ActiveClusterName = repl.ActiveClusterName
+		domain.Clusters = FromClusterReplicationConfigurationArray(repl.Clusters)
+		domain.ActiveClusters = FromActiveClusters(repl.ActiveClusters)
+	}
+
+	return &apiv1.FailoverDomainResponse{
+		Domain: domain,
+	}
+}
+
+func ToFailoverDomainResponse(t *apiv1.FailoverDomainResponse) *types.FailoverDomainResponse {
+	if t == nil || t.Domain == nil {
+		return nil
+	}
+	return &types.FailoverDomainResponse{
+		DomainInfo: &types.DomainInfo{
+			Name:        t.Domain.Name,
+			Status:      ToDomainStatus(t.Domain.Status),
+			Description: t.Domain.Description,
+			OwnerEmail:  t.Domain.OwnerEmail,
+			Data:        t.Domain.Data,
+			UUID:        t.Domain.Id,
+		},
+		Configuration: &types.DomainConfiguration{
+			WorkflowExecutionRetentionPeriodInDays: common.Int32Default(durationToDays(t.Domain.WorkflowExecutionRetentionPeriod)),
+			EmitMetric:                             true,
+			BadBinaries:                            ToBadBinaries(t.Domain.BadBinaries),
+			HistoryArchivalStatus:                  ToArchivalStatus(t.Domain.HistoryArchivalStatus),
+			HistoryArchivalURI:                     t.Domain.HistoryArchivalUri,
+			VisibilityArchivalStatus:               ToArchivalStatus(t.Domain.VisibilityArchivalStatus),
+			VisibilityArchivalURI:                  t.Domain.VisibilityArchivalUri,
+			IsolationGroups:                        ToIsolationGroupConfig(t.Domain.IsolationGroups),
+			AsyncWorkflowConfig:                    ToDomainAsyncWorkflowConfiguraton(t.Domain.AsyncWorkflowConfig),
+		},
+		ReplicationConfiguration: &types.DomainReplicationConfiguration{
+			ActiveClusterName: t.Domain.ActiveClusterName,
+			Clusters:          ToClusterReplicationConfigurationArray(t.Domain.Clusters),
+			ActiveClusters:    ToActiveClusters(t.Domain.ActiveClusters),
+		},
+		FailoverVersion: t.Domain.FailoverVersion,
+		IsGlobalDomain:  t.Domain.IsGlobalDomain,
+	}
+}
+
 func FromUpsertWorkflowSearchAttributesDecisionAttributes(t *types.UpsertWorkflowSearchAttributesDecisionAttributes) *apiv1.UpsertWorkflowSearchAttributesDecisionAttributes {
 	if t == nil {
 		return nil
@@ -5472,16 +5566,28 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 		return nil
 	}
 
-	regionToCluster := make(map[string]*apiv1.ActiveClusterInfo)
-	for region, cluster := range t.ActiveClustersByRegion {
-		regionToCluster[region] = &apiv1.ActiveClusterInfo{
-			ActiveClusterName: cluster.ActiveClusterName,
-			FailoverVersion:   cluster.FailoverVersion,
+	var regionToCluster map[string]*apiv1.ActiveClusterInfo
+	if len(t.ActiveClustersByRegion) > 0 {
+		regionToCluster = make(map[string]*apiv1.ActiveClusterInfo)
+		for region, cluster := range t.ActiveClustersByRegion {
+			regionToCluster[region] = &apiv1.ActiveClusterInfo{
+				ActiveClusterName: cluster.ActiveClusterName,
+				FailoverVersion:   cluster.FailoverVersion,
+			}
+		}
+	}
+
+	var activeClustersByClusterAttribute map[string]*apiv1.ClusterAttributeScope
+	if t.AttributeScopes != nil {
+		activeClustersByClusterAttribute = make(map[string]*apiv1.ClusterAttributeScope)
+		for scopeType, scope := range t.AttributeScopes {
+			activeClustersByClusterAttribute[scopeType] = FromClusterAttributeScope(&scope)
 		}
 	}
 
 	return &apiv1.ActiveClusters{
-		RegionToCluster: regionToCluster,
+		RegionToCluster:                  regionToCluster,
+		ActiveClustersByClusterAttribute: activeClustersByClusterAttribute,
 	}
 }
 
@@ -5490,16 +5596,74 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 		return nil
 	}
 
-	activeClustersByRegion := make(map[string]types.ActiveClusterInfo)
-	for region, cluster := range t.RegionToCluster {
-		activeClustersByRegion[region] = types.ActiveClusterInfo{
-			ActiveClusterName: cluster.ActiveClusterName,
-			FailoverVersion:   cluster.FailoverVersion,
+	var activeClustersByRegion map[string]types.ActiveClusterInfo
+	if len(t.RegionToCluster) > 0 {
+		activeClustersByRegion = make(map[string]types.ActiveClusterInfo)
+		for region, cluster := range t.RegionToCluster {
+			activeClustersByRegion[region] = types.ActiveClusterInfo{
+				ActiveClusterName: cluster.ActiveClusterName,
+				FailoverVersion:   cluster.FailoverVersion,
+			}
+		}
+	}
+
+	var attributeScopes map[string]types.ClusterAttributeScope
+	if t.ActiveClustersByClusterAttribute != nil {
+		attributeScopes = make(map[string]types.ClusterAttributeScope)
+		for scopeType, scope := range t.ActiveClustersByClusterAttribute {
+			if converted := ToClusterAttributeScope(scope); converted != nil {
+				attributeScopes[scopeType] = *converted
+			}
 		}
 	}
 
 	return &types.ActiveClusters{
 		ActiveClustersByRegion: activeClustersByRegion,
+		AttributeScopes:        attributeScopes,
+	}
+}
+
+func FromClusterAttributeScope(t *types.ClusterAttributeScope) *apiv1.ClusterAttributeScope {
+	if t == nil {
+		return nil
+	}
+
+	var clusterAttributes map[string]*apiv1.ActiveClusterInfo
+	if len(t.ClusterAttributes) > 0 {
+		clusterAttributes = make(map[string]*apiv1.ActiveClusterInfo)
+		for name, clusterInfo := range t.ClusterAttributes {
+			clusterAttributes[name] = &apiv1.ActiveClusterInfo{
+				ActiveClusterName: clusterInfo.ActiveClusterName,
+				FailoverVersion:   clusterInfo.FailoverVersion,
+			}
+		}
+	}
+
+	return &apiv1.ClusterAttributeScope{
+		ClusterAttributes: clusterAttributes,
+	}
+}
+
+func ToClusterAttributeScope(t *apiv1.ClusterAttributeScope) *types.ClusterAttributeScope {
+	if t == nil {
+		return nil
+	}
+
+	var clusterAttributes map[string]types.ActiveClusterInfo
+	if len(t.ClusterAttributes) > 0 {
+		clusterAttributes = make(map[string]types.ActiveClusterInfo)
+		for name, clusterInfo := range t.ClusterAttributes {
+			if clusterInfo != nil {
+				clusterAttributes[name] = types.ActiveClusterInfo{
+					ActiveClusterName: clusterInfo.ActiveClusterName,
+					FailoverVersion:   clusterInfo.FailoverVersion,
+				}
+			}
+		}
+	}
+
+	return &types.ClusterAttributeScope{
+		ClusterAttributes: clusterAttributes,
 	}
 }
 
@@ -6362,10 +6526,31 @@ func ToCronOverlapPolicy(p apiv1.CronOverlapPolicy) *types.CronOverlapPolicy {
 	return nil
 }
 
+func FromClusterAttribute(c *types.ClusterAttribute) *apiv1.ClusterAttribute {
+	if c == nil {
+		return nil
+	}
+	return &apiv1.ClusterAttribute{
+		Scope: c.Scope,
+		Name:  c.Name,
+	}
+}
+
+func ToClusterAttribute(c *apiv1.ClusterAttribute) *types.ClusterAttribute {
+	if c == nil {
+		return nil
+	}
+	return &types.ClusterAttribute{
+		Scope: c.Scope,
+		Name:  c.Name,
+	}
+}
+
 func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *apiv1.ActiveClusterSelectionPolicy {
 	if p == nil {
 		return nil
 	}
+	// TODO(active-active): Remove the switch statement once the strategy is removed
 	switch p.GetStrategy() {
 	case types.ActiveClusterSelectionStrategyRegionSticky:
 		return &apiv1.ActiveClusterSelectionPolicy{
@@ -6375,6 +6560,7 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 					StickyRegion: p.StickyRegion,
 				},
 			},
+			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
 		}
 	case types.ActiveClusterSelectionStrategyExternalEntity:
 		return &apiv1.ActiveClusterSelectionPolicy{
@@ -6385,27 +6571,35 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 					ExternalEntityKey:  p.ExternalEntityKey,
 				},
 			},
+			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
 		}
 	}
-	return nil
+	return &apiv1.ActiveClusterSelectionPolicy{
+		ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
+	}
 }
 
 func ToActiveClusterSelectionPolicy(p *apiv1.ActiveClusterSelectionPolicy) *types.ActiveClusterSelectionPolicy {
 	if p == nil {
 		return nil
 	}
+	// TODO(active-active): Remove the switch statement once the strategy is removed
 	switch p.Strategy {
 	case apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY:
 		return &types.ActiveClusterSelectionPolicy{
 			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
 			StickyRegion:                   p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterStickyRegionConfig).ActiveClusterStickyRegionConfig.StickyRegion,
+			ClusterAttribute:               ToClusterAttribute(p.ClusterAttribute),
 		}
 	case apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_EXTERNAL_ENTITY:
 		return &types.ActiveClusterSelectionPolicy{
 			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
 			ExternalEntityType:             p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig).ActiveClusterExternalEntityConfig.ExternalEntityType,
 			ExternalEntityKey:              p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig).ActiveClusterExternalEntityConfig.ExternalEntityKey,
+			ClusterAttribute:               ToClusterAttribute(p.ClusterAttribute),
 		}
 	}
-	return nil
+	return &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: ToClusterAttribute(p.ClusterAttribute),
+	}
 }

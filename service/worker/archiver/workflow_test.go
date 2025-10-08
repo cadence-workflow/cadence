@@ -142,7 +142,7 @@ func (s *workflowSuite) TestArchivalWorkflow_Success() {
 func (s *workflowSuite) TestReplayArchiveHistoryWorkflow() {
 	logger := testlogger.NewZap(s.T())
 	globalLogger = workflowTestLogger
-	globalMetricsClient = metrics.NewClient(tally.NewTestScope("replay", nil), metrics.Worker)
+	globalMetricsClient = metrics.NewClient(tally.NewTestScope("replay", nil), metrics.Worker, metrics.HistogramMigration{})
 	globalConfig = &Config{
 		ArchiverConcurrency:           dynamicproperties.GetIntPropertyFn(50),
 		ArchivalsPerIteration:         dynamicproperties.GetIntPropertyFn(1000),

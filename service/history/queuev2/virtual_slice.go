@@ -35,6 +35,7 @@ import (
 type (
 	VirtualSlice interface {
 		GetState() VirtualSliceState
+		IsEmpty() bool
 		GetTasks(context.Context, int) ([]task.Task, error)
 		HasMoreTasks() bool
 		UpdateAndGetState() VirtualSliceState
@@ -98,6 +99,10 @@ func (s *virtualSliceImpl) GetPendingTaskCount() int {
 	return s.pendingTaskTracker.GetPendingTaskCount()
 }
 
+func (s *virtualSliceImpl) IsEmpty() bool {
+	return s.state.IsEmpty() && !s.HasMoreTasks()
+}
+
 func (s *virtualSliceImpl) Clear() {
 	s.UpdateAndGetState()
 	s.pendingTaskTracker.Clear()
@@ -123,6 +128,14 @@ func (s *virtualSliceImpl) GetTasks(ctx context.Context, pageSize int) ([]task.T
 			PageSize:  pageSize - len(tasks),
 		})
 		if err != nil {
+			// NOTE: we must return the tasks here to let them either be submitted to scheduler or rescheduler
+			// because they are already added to pending task tracker. Otherwise, they will become zombie tasks,
+			// and won't be processed until shard restart.
+			// The number of tasks returned here doesn't need to be the same as the page size even if there is still more tasks to read.
+			// HasMoreTasks() method will still return true in this case.
+			if len(tasks) > 0 {
+				return tasks, nil
+			}
 			return nil, err
 		}
 
@@ -132,7 +145,9 @@ func (s *virtualSliceImpl) GetTasks(ctx context.Context, pageSize int) ([]task.T
 			s.pendingTaskTracker.AddTask(task)
 		}
 
-		if len(resp.Progress.NextPageToken) != 0 {
+		// The persistence layer may return non-empty next page token even if there are no more tasks to read
+		// We compare the next task key with the exclusive max task key to determine if there are more tasks to read instead
+		if resp.Progress.NextTaskKey.Compare(s.progress[0].ExclusiveMaxTaskKey) < 0 {
 			s.progress[0] = resp.Progress
 		} else {
 			s.progress = s.progress[1:]

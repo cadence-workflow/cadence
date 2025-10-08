@@ -51,7 +51,7 @@ var ErrUnknownCluster = errors.New("unknown cluster")
 // A cache stores only a pointer to the message. It is hydrates once and shared across caches. Cluster acknowledging the message will remove it from that corresponding cache.
 // Once all clusters acknowledge it, no more references will be held, and GC will eventually pick it up.
 type TaskStore struct {
-	clusters      map[string]*Cache
+	clusters      map[string]cache.AckCache[*types.ReplicationTask]
 	domains       domainCache
 	hydrator      taskHydrator
 	rateLimiter   quotas.Limiter
@@ -82,9 +82,9 @@ func NewTaskStore(
 	hydrator taskHydrator,
 ) *TaskStore {
 
-	clusters := map[string]*Cache{}
+	clusters := map[string]cache.AckCache[*types.ReplicationTask]{}
 	for clusterName := range clusterMetadata.GetRemoteClusterInfo() {
-		clusters[clusterName] = NewCache(config.ReplicatorCacheCapacity)
+		clusters[clusterName] = cache.NewBoundedAckCache[*types.ReplicationTask](config.ReplicatorCacheCapacity, config.ReplicatorCacheMaxSize, logger)
 	}
 
 	retryPolicy := backoff.NewExponentialRetryPolicy(100 * time.Millisecond)
@@ -111,7 +111,7 @@ func NewTaskStore(
 // Returned task may be nil. This may be due domain not existing in a given cluster or replication message is not longer relevant.
 // Either case is valid and such replication message should be ignored and not returned in the response.
 func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Task) (*types.ReplicationTask, error) {
-	cache, ok := m.clusters[cluster]
+	cacheForTargetCluster, ok := m.clusters[cluster]
 	if !ok {
 		return nil, ErrUnknownCluster
 	}
@@ -132,7 +132,8 @@ func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Ta
 	sw := scope.StartTimer(metrics.CacheLatency)
 	defer sw.Stop()
 
-	task := cache.Get(info.GetTaskID())
+	task := cacheForTargetCluster.Get(info.GetTaskID())
+
 	if task != nil {
 		scope.IncCounter(metrics.CacheHitCounter)
 		return task, nil
@@ -163,8 +164,8 @@ func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Ta
 
 // Put will try to store hydrated replication to all cluster caches.
 // Tasks may not be relevant, as domain is not enabled in some clusters. Ignore task for that cluster.
-// Some clusters may be already have full cache. Ignore task, it will be fetched and hydrated again later.
-// Some clusters may already acknowledged such task. Ignore task, it is no longer relevant for such cluster.
+// Some clusters may already have full cache. Ignore the task, it will be fetched and hydrated again later.
+// Some clusters may have already acknowledged such task. Ignore task, it is no longer relevant for such cluster.
 func (m *TaskStore) Put(task *types.ReplicationTask) {
 	// Do not store nil tasks
 	if task == nil {
@@ -177,16 +178,16 @@ func (m *TaskStore) Put(task *types.ReplicationTask) {
 		return
 	}
 
-	for cluster, cache := range m.clusters {
-		if domain != nil && !domain.HasReplicationCluster(cluster) {
+	for targetCluster, cacheByCluster := range m.clusters {
+		if domain != nil && !domain.HasReplicationCluster(targetCluster) {
 			continue
 		}
 
-		scope := m.scope.Tagged(metrics.SourceClusterTag(cluster))
+		scope := m.scope.Tagged(metrics.SourceClusterTag(targetCluster))
 
-		err := cache.Put(task)
-		switch err {
-		case errCacheFull:
+		err = cacheByCluster.Put(task, task.ByteSize())
+		switch {
+		case errors.Is(err, cache.ErrAckCacheFull):
 			scope.IncCounter(metrics.CacheFullCounter)
 
 			// This will help debug which shard is full. Logger already has ShardID tag attached.
@@ -195,12 +196,12 @@ func (m *TaskStore) Put(task *types.ReplicationTask) {
 				m.logger.Warn("Replication cache is full")
 				m.lastLogTime = time.Now()
 			}
-		case errAlreadyAcked:
+		case errors.Is(err, cache.ErrAlreadyAcked):
 			// No action, this is expected.
 			// Some cluster(s) may be already past this, due to different fetch rates.
 		}
 
-		scope.RecordTimer(metrics.CacheSize, time.Duration(cache.Size()))
+		scope.RecordTimer(metrics.CacheSize, time.Duration(cacheByCluster.Count()))
 	}
 }
 
@@ -212,10 +213,10 @@ func (m *TaskStore) Ack(cluster string, lastTaskID int64) error {
 		return ErrUnknownCluster
 	}
 
-	cache.Ack(lastTaskID)
+	_, _ = cache.Ack(lastTaskID)
 
 	scope := m.scope.Tagged(metrics.SourceClusterTag(cluster))
-	scope.RecordTimer(metrics.CacheSize, time.Duration(cache.Size()))
+	scope.RecordTimer(metrics.CacheSize, time.Duration(cache.Count()))
 
 	return nil
 }

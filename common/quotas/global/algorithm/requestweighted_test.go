@@ -145,7 +145,7 @@ func TestEmitsMetrics(t *testing.T) {
 
 	agg, _ := newValid(t, defaultConfig(time.Second))
 	ts := tally.NewTestScope("test", nil)
-	agg.scope = metrics.NewClient(ts, metrics.History).Scope(metrics.GlobalRatelimiterAggregator)
+	agg.scope = metrics.NewClient(ts, metrics.History, metrics.HistogramMigration{}).Scope(metrics.GlobalRatelimiterAggregator)
 
 	h1, h2 := Identity("host 1"), Identity("host 2")
 	key := Limit("key")

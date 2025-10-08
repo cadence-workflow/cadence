@@ -1,7 +1,9 @@
 # This file is a replication simulation scenario spec.
 # It is parsed into ReplicationSimulationConfig struct.
-# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive
+# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario activeactive
 # Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive.yml
+# Tests that active-active allows workflows to be created in multiple clusters
+
 clusters:
   cluster0:
     grpcEndpoint: "cadence-cluster0:7833"
@@ -27,6 +29,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 65s
     workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
 
   # start workflow in cluster1
   - op: start_workflow
@@ -37,6 +43,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 65s
     workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
 
   # validate that wf1 is started in cluster0 and completed in cluster1
   - op: validate

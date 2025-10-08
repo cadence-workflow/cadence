@@ -89,6 +89,14 @@ func (h *versionCheckHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1
 	return h.frontendHandler.DiagnoseWorkflowExecution(ctx, dp1)
 }
 
+func (h *versionCheckHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest) (fp2 *types.FailoverDomainResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.FailoverDomain(ctx, fp1)
+}
+
 func (h *versionCheckHandler) GetClusterInfo(ctx context.Context) (cp1 *types.ClusterInfo, err error) {
 	return h.frontendHandler.GetClusterInfo(ctx)
 }

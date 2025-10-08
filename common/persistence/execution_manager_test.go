@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 )
@@ -144,7 +145,9 @@ func TestExecutionManager_ProxyStoreMethods(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockedStore := NewMockExecutionStore(ctrl)
 			tc.prepareMocks(mockedStore)
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil)
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 			v := reflect.ValueOf(manager)
 			method := v.MethodByName(tc.method)
 			methodType := method.Type()
@@ -178,7 +181,9 @@ func TestExecutionManager_GetWorkflowExecution(t *testing.T) {
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer)
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
 
 	request := &GetWorkflowExecutionRequest{
 		DomainID: testDomainID,
@@ -268,7 +273,9 @@ func TestExecutionManager_GetWorkflowExecution_NoWorkflow(t *testing.T) {
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer)
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
 
 	request := &GetWorkflowExecutionRequest{
 		DomainID: "testDomain",
@@ -291,7 +298,9 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer)
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
 
 	expectedInfo := sampleInternalWorkflowMutation()
 
@@ -494,7 +503,9 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 
 			mockedSerializer := NewMockPayloadSerializer(ctrl)
 			tc.prepareMocks(mockedSerializer)
-			manager := NewExecutionManagerImpl(nil, testlogger.New(t), mockedSerializer).(*executionManagerImpl)
+			manager := NewExecutionManagerImpl(nil, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			}).(*executionManagerImpl)
 			res, err := manager.SerializeWorkflowSnapshot(tc.input, constants.EncodingTypeThriftRW)
 			tc.checkRes(t, res, err)
 		})
@@ -538,7 +549,9 @@ func TestDeserializeBufferedEvents(t *testing.T) {
 
 			tc.prepareMocks(mockedSerializer)
 
-			manager := NewExecutionManagerImpl(nil, testlogger.New(t), mockedSerializer).(*executionManagerImpl)
+			manager := NewExecutionManagerImpl(nil, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			}).(*executionManagerImpl)
 
 			events := []*DataBlob{
 				sampleEventData(),
@@ -554,7 +567,9 @@ func TestDeserializeBufferedEvents(t *testing.T) {
 func TestPutReplicationTaskToDLQ(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil)
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
 
 	now := time.Now().UTC()
 
@@ -585,7 +600,9 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 func TestGetReplicationTasksFromDLQ(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil)
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
 
 	request := &GetReplicationTasksFromDLQRequest{
 		SourceClusterName: "test-cluster",
@@ -878,7 +895,9 @@ func TestListConcreteExecutions(t *testing.T) {
 
 			tc.prepareMocks(mockedStore, mockedSerializer)
 
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer)
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			res, err := manager.ListConcreteExecutions(context.Background(), request)
 
@@ -993,7 +1012,9 @@ func TestCreateWorkflowExecution(t *testing.T) {
 				WorkflowRequestMode:      CreateWorkflowRequestModeReplicated,
 			}
 
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer)
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			res, err := manager.CreateWorkflowExecution(context.Background(), request)
 
@@ -1159,7 +1180,9 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 
 			tc.prepareMocks(mockedStore, mockedSerializer)
 
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer)
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			res, err := manager.ConflictResolveWorkflowExecution(context.Background(), tc.request)
 
@@ -1171,7 +1194,9 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 func TestCreateFailoverMarkerTasks(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil)
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
 
 	req := &CreateFailoverMarkersRequest{
 		Markers: []*FailoverMarkerTask{{
@@ -1256,7 +1281,9 @@ func TestGetActiveClusterSelectionPolicy(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockedStore := NewMockExecutionStore(ctrl)
 			mockedSerializer := NewMockPayloadSerializer(ctrl)
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer)
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.prepareMocks(mockedStore, mockedSerializer)
 
@@ -1301,7 +1328,9 @@ func TestDeleteActiveClusterSelectionPolicy(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockedStore := NewMockExecutionStore(ctrl)
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil)
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
 
 			test.prepareMocks(mockedStore)
 

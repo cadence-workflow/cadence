@@ -24,6 +24,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/golang/snappy"
+
 	"github.com/uber/cadence/.gen/go/config"
 	"github.com/uber/cadence/.gen/go/history"
 	"github.com/uber/cadence/.gen/go/replicator"
@@ -385,6 +387,8 @@ func (t *serializerImpl) serialize(input interface{}, encodingType constants.Enc
 	switch encodingType {
 	case constants.EncodingTypeThriftRW:
 		data, err = t.thriftrwEncode(input)
+	case constants.EncodingTypeThriftRWSnappy:
+		data, err = t.thriftrwsnappyEncode(input)
 	case constants.EncodingTypeJSON, constants.EncodingTypeUnknown, constants.EncodingTypeEmpty: // For backward-compatibility
 		encodingType = constants.EncodingTypeJSON
 		data, err = json.Marshal(input)
@@ -444,6 +448,8 @@ func (t *serializerImpl) deserialize(data *DataBlob, target interface{}) error {
 	switch data.GetEncoding() {
 	case constants.EncodingTypeThriftRW:
 		err = t.thriftrwDecode(data.Data, target)
+	case constants.EncodingTypeThriftRWSnappy:
+		err = t.thriftrwsnappyDecode(data.Data, target)
 	case constants.EncodingTypeJSON, constants.EncodingTypeUnknown, constants.EncodingTypeEmpty: // For backward-compatibility
 		err = json.Unmarshal(data.Data, target)
 	default:
@@ -552,6 +558,27 @@ func (t *serializerImpl) thriftrwDecode(data []byte, target interface{}) error {
 	default:
 		return nil
 	}
+}
+
+func (t *serializerImpl) thriftrwsnappyEncode(input interface{}) ([]byte, error) {
+	data, err := t.thriftrwEncode(input)
+	if err != nil {
+		return nil, err
+	}
+	if data == nil {
+		return nil, nil
+	}
+
+	return snappy.Encode(nil, data), nil
+}
+
+func (t *serializerImpl) thriftrwsnappyDecode(data []byte, target interface{}) error {
+	decompressed, err := snappy.Decode(nil, data)
+	if err != nil {
+		return err
+	}
+
+	return t.thriftrwDecode(decompressed, target)
 }
 
 // NewUnknownEncodingTypeError returns a new instance of encoding type error

@@ -25,8 +25,8 @@ package execution
 import (
 	"context"
 	"fmt"
+	"time"
 
-	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -48,7 +48,7 @@ type (
 		GetContext() Context
 		GetMutableState() MutableState
 		GetReleaseFn() ReleaseFunc
-		GetVectorClock() (int64, int64, error)
+		GetVectorClock() (WorkflowVectorClock, error)
 		HappensAfter(that Workflow) (bool, error)
 		Revive() error
 		SuppressBy(incomingWorkflow Workflow) (TransactionPolicy, error)
@@ -56,14 +56,21 @@ type (
 	}
 
 	workflowImpl struct {
-		logger               log.Logger
-		clusterMetadata      cluster.Metadata
-		activeClusterManager activecluster.Manager
+		logger          log.Logger
+		clusterMetadata cluster.Metadata
 
 		ctx          context.Context
 		context      Context
 		mutableState MutableState
 		releaseFn    ReleaseFunc
+	}
+
+	WorkflowVectorClock struct {
+		ActiveClusterSelectionPolicy *types.ActiveClusterSelectionPolicy
+		LastWriteVersion             int64
+		LastEventTaskID              int64
+		StartTimestamp               time.Time
+		RunID                        string
 	}
 )
 
@@ -71,7 +78,6 @@ type (
 func NewWorkflow(
 	ctx context.Context,
 	clusterMetadata cluster.Metadata,
-	activeClusterManager activecluster.Manager,
 	context Context,
 	mutableState MutableState,
 	releaseFn ReleaseFunc,
@@ -79,13 +85,12 @@ func NewWorkflow(
 ) Workflow {
 
 	return &workflowImpl{
-		ctx:                  ctx,
-		clusterMetadata:      clusterMetadata,
-		activeClusterManager: activeClusterManager,
-		logger:               logger,
-		context:              context,
-		mutableState:         mutableState,
-		releaseFn:            releaseFn,
+		ctx:             ctx,
+		clusterMetadata: clusterMetadata,
+		logger:          logger,
+		context:         context,
+		mutableState:    mutableState,
+		releaseFn:       releaseFn,
 	}
 }
 
@@ -101,35 +106,39 @@ func (r *workflowImpl) GetReleaseFn() ReleaseFunc {
 	return r.releaseFn
 }
 
-func (r *workflowImpl) GetVectorClock() (int64, int64, error) {
+func (r *workflowImpl) GetVectorClock() (WorkflowVectorClock, error) {
 
 	lastWriteVersion, err := r.mutableState.GetLastWriteVersion()
 	if err != nil {
-		return 0, 0, err
+		return WorkflowVectorClock{}, err
 	}
 
-	lastEventTaskID := r.mutableState.GetExecutionInfo().LastEventTaskID
-	return lastWriteVersion, lastEventTaskID, nil
+	executionInfo := r.mutableState.GetExecutionInfo()
+	return WorkflowVectorClock{
+		ActiveClusterSelectionPolicy: executionInfo.ActiveClusterSelectionPolicy,
+		LastWriteVersion:             lastWriteVersion,
+		LastEventTaskID:              executionInfo.LastEventTaskID,
+		StartTimestamp:               executionInfo.StartTimestamp,
+		RunID:                        executionInfo.RunID,
+	}, nil
 }
 
 func (r *workflowImpl) HappensAfter(
 	that Workflow,
 ) (bool, error) {
 
-	thisLastWriteVersion, thisLastEventTaskID, err := r.GetVectorClock()
+	thisVectorClock, err := r.GetVectorClock()
 	if err != nil {
 		return false, err
 	}
-	thatLastWriteVersion, thatLastEventTaskID, err := that.GetVectorClock()
+	thatVectorClock, err := that.GetVectorClock()
 	if err != nil {
 		return false, err
 	}
 
 	return workflowHappensAfter(
-		thisLastWriteVersion,
-		thisLastEventTaskID,
-		thatLastWriteVersion,
-		thatLastEventTaskID,
+		thisVectorClock,
+		thatVectorClock,
 	), nil
 }
 
@@ -165,20 +174,19 @@ func (r *workflowImpl) SuppressBy(
 	// if the workflow to be suppressed has last write version being remote active
 	//  then turn this workflow into a zombie
 
-	lastWriteVersion, lastEventTaskID, err := r.GetVectorClock()
+	currentVectorClock, err := r.GetVectorClock()
 	if err != nil {
 		return TransactionPolicyActive, err
 	}
-	incomingLastWriteVersion, incomingLastEventTaskID, err := incomingWorkflow.GetVectorClock()
+	incomingVectorClock, err := incomingWorkflow.GetVectorClock()
 	if err != nil {
 		return TransactionPolicyActive, err
 	}
 
 	if workflowHappensAfter(
-		lastWriteVersion,
-		lastEventTaskID,
-		incomingLastWriteVersion,
-		incomingLastEventTaskID) {
+		currentVectorClock,
+		incomingVectorClock,
+	) {
 		return TransactionPolicyActive, &types.InternalServiceError{
 			Message: "nDCWorkflow cannot suppress workflow by older workflow",
 		}
@@ -189,14 +197,14 @@ func (r *workflowImpl) SuppressBy(
 		return TransactionPolicyPassive, nil
 	}
 
-	lastWriteCluster, err := r.activeClusterManager.ClusterNameForFailoverVersion(lastWriteVersion, r.mutableState.GetExecutionInfo().DomainID)
+	lastWriteCluster, err := r.clusterMetadata.ClusterNameForFailoverVersion(currentVectorClock.LastWriteVersion)
 	if err != nil {
 		return TransactionPolicyActive, err
 	}
 	currentCluster := r.clusterMetadata.GetCurrentClusterName()
 
 	if currentCluster == lastWriteCluster {
-		return TransactionPolicyActive, r.terminateWorkflow(lastWriteVersion, incomingLastWriteVersion, WorkflowTerminationReason)
+		return TransactionPolicyActive, r.terminateWorkflow(currentVectorClock.LastWriteVersion, incomingVectorClock.LastWriteVersion, WorkflowTerminationReason)
 	}
 	return TransactionPolicyPassive, r.zombiefyWorkflow()
 }
@@ -211,12 +219,12 @@ func (r *workflowImpl) FlushBufferedEvents() error {
 		return nil
 	}
 
-	lastWriteVersion, _, err := r.GetVectorClock()
+	currentVectorClock, err := r.GetVectorClock()
 	if err != nil {
 		return err
 	}
 
-	lastWriteCluster, err := r.activeClusterManager.ClusterNameForFailoverVersion(lastWriteVersion, r.mutableState.GetExecutionInfo().DomainID)
+	lastWriteCluster, err := r.clusterMetadata.ClusterNameForFailoverVersion(currentVectorClock.LastWriteVersion)
 	if err != nil {
 		// TODO: add a test for this
 		return err
@@ -230,7 +238,7 @@ func (r *workflowImpl) FlushBufferedEvents() error {
 		}
 	}
 
-	return r.failDecision(lastWriteVersion, true)
+	return r.failDecision(currentVectorClock.LastWriteVersion, true)
 }
 
 func (r *workflowImpl) failDecision(
@@ -295,17 +303,42 @@ func (r *workflowImpl) zombiefyWorkflow() error {
 	)
 }
 
+// Conflict resolution for workflow replication requires determining which workflow event is "newer."
+// This decision must be made deterministically across all clusters without coordination,
+// ensuring that each cluster independently resolves conflicts to the same final state.
+//
+// Active-Passive Domains:
+//   - These domains do not use active cluster selection policies.
+//   - The event with the larger failover version is considered newer, since the failover version is
+//     a monotonically increasing logical clock for the domain.
+//   - After a failover, any event with a higher failover version wins conflict resolution.
+//   - Conflicts between events with the same failover version should not occur, as they originate
+//     from the same active cluster. In case of a tie, the replication task event ID is used as a tiebreaker.
+//
+// Active-Active Domains (Same Selection Policy):
+//   - Treated the same as active-passive domains.
+//   - The event generated after failover (larger failover version) wins.
+//
+// Active-Active Domains (Different Selection Policies):
+//   - These represent workflows started concurrently in different active clusters.
+//   - The event with the larger start timestamp is considered newer.
+//   - Clock skew between clusters is expected to be small, making this a reasonable rule.
+//   - In case of a tie on start time, the RunID is used as a final tiebreaker.
 func workflowHappensAfter(
-	thisLastWriteVersion int64,
-	thisLastEventTaskID int64,
-	thatLastWriteVersion int64,
-	thatLastEventTaskID int64,
+	thisVectorClock WorkflowVectorClock,
+	thatVectorClock WorkflowVectorClock,
 ) bool {
-
-	if thisLastWriteVersion != thatLastWriteVersion {
-		return thisLastWriteVersion > thatLastWriteVersion
+	if !thisVectorClock.ActiveClusterSelectionPolicy.Equals(thatVectorClock.ActiveClusterSelectionPolicy) {
+		if !thisVectorClock.StartTimestamp.Equal(thatVectorClock.StartTimestamp) {
+			return thatVectorClock.StartTimestamp.Before(thisVectorClock.StartTimestamp)
+		}
+		return thisVectorClock.RunID > thatVectorClock.RunID
 	}
 
-	// thisLastWriteVersion == thatLastWriteVersion
-	return thisLastEventTaskID > thatLastEventTaskID
+	if thisVectorClock.LastWriteVersion != thatVectorClock.LastWriteVersion {
+		return thisVectorClock.LastWriteVersion > thatVectorClock.LastWriteVersion
+	}
+
+	// thisVectorClock.LastWriteVersion == thatVectorClock.LastWriteVersion
+	return thisVectorClock.LastEventTaskID > thatVectorClock.LastEventTaskID
 }

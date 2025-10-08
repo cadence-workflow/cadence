@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/cadence/.gen/go/shared"
 	"go.uber.org/cadence/activity"
@@ -223,8 +222,10 @@ func (s *activitiesSuite) TestFixShardActivity() {
 	for _, tc := range testCases {
 		s.Run(tc.name, func() {
 			s.mockResource.BlobstoreClient.
-				Mock.On("Put", mock.Anything, mock.Anything).
-				Return(&blobstore.PutResponse{}, nil)
+				EXPECT().
+				Put(gomock.Any(), gomock.Any()).
+				Return(&blobstore.PutResponse{}, nil).
+				Times(2)
 			domainCache := cache.NewMockDomainCache(s.controller)
 			domainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil).AnyTimes()
 			s.mockResource.DomainCache = domainCache

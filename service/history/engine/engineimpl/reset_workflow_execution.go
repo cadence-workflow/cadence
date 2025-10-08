@@ -174,7 +174,6 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 		execution.NewWorkflow(
 			ctx,
 			e.shard.GetClusterMetadata(),
-			e.shard.GetActiveClusterManager(),
 			currentContext,
 			currentMutableState,
 			currentReleaseFn,

@@ -14,8 +14,13 @@ jobs:
       matrix:
         scenario:
           - activeactive
+          - activeactive_same_wfid
+          - activeactive_same_wfid_signalwithstart
+          - activeactive_same_wfid_signalwithstart_delayed
           - activeactive_cron
           - activeactive_regional_failover
+          - activeactive_regional_failover_start_same_wfid
+          - activeactive_regional_failover_start_same_wfid_2
           - activepassive_to_activeactive
           - clusterredirection
           - default
@@ -37,7 +42,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 20
           command: |
-            ./simulation/replication/run.sh ${{ matrix.scenario }}
+            ./simulation/replication/run.sh --scenario ${{ matrix.scenario }}
 
       - name: Upload test logs
         uses: actions/upload-artifact@v4

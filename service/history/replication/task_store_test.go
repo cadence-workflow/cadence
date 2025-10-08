@@ -105,7 +105,7 @@ func TestTaskStore(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{testDomainID: testDomain}, nil)
 		ts.Put(&testHydratedTask11)
 		for _, cluster := range testDomain.GetReplicationConfig().Clusters {
-			assert.Equal(t, 1, ts.clusters[cluster.ClusterName].Size())
+			assert.Equal(t, 1, ts.clusters[cluster.ClusterName].Count())
 		}
 	})
 
@@ -113,7 +113,7 @@ func TestTaskStore(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{testDomainID: testDomain}, nil)
 		ts.Put(&types.ReplicationTask{SourceTaskID: 123})
 		for _, cluster := range testDomain.GetReplicationConfig().Clusters {
-			assert.Equal(t, 1, ts.clusters[cluster.ClusterName].Size())
+			assert.Equal(t, 1, ts.clusters[cluster.ClusterName].Count())
 		}
 	})
 
@@ -123,7 +123,7 @@ func TestTaskStore(t *testing.T) {
 		ts.Put(&testHydratedTask12)
 		ts.Put(&testHydratedTask14)
 		for _, cluster := range testDomain.GetReplicationConfig().Clusters {
-			assert.Equal(t, 2, ts.clusters[cluster.ClusterName].Size())
+			assert.Equal(t, 2, ts.clusters[cluster.ClusterName].Count())
 		}
 	})
 
@@ -132,7 +132,7 @@ func TestTaskStore(t *testing.T) {
 		for _, cluster := range testDomain.GetReplicationConfig().Clusters {
 			ts.Ack(cluster.ClusterName, testHydratedTask11.SourceTaskID)
 			ts.Put(&testHydratedTask11)
-			assert.Equal(t, 0, ts.clusters[cluster.ClusterName].Size())
+			assert.Equal(t, 0, ts.clusters[cluster.ClusterName].Count())
 		}
 	})
 
@@ -148,6 +148,7 @@ func createTestTaskStore(t *testing.T, domains domainCache, hydrator taskHydrato
 		ReplicatorCacheCapacity:         dynamicproperties.GetIntPropertyFn(2),
 		ReplicationTaskGenerationQPS:    dynamicproperties.GetFloatPropertyFn(0),
 		ReplicatorReadTaskMaxRetryCount: dynamicproperties.GetIntPropertyFn(1),
+		ReplicatorCacheMaxSize:          dynamicproperties.GetIntPropertyFn(2000),
 	}
 
 	clusterMetadata := cluster.NewMetadata(

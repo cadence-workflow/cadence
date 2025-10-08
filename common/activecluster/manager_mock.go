@@ -42,21 +42,6 @@ func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 	return m.recorder
 }
 
-// ClusterNameForFailoverVersion mocks base method.
-func (m *MockManager) ClusterNameForFailoverVersion(failoverVersion int64, domainID string) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ClusterNameForFailoverVersion", failoverVersion, domainID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ClusterNameForFailoverVersion indicates an expected call of ClusterNameForFailoverVersion.
-func (mr *MockManagerMockRecorder) ClusterNameForFailoverVersion(failoverVersion, domainID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClusterNameForFailoverVersion", reflect.TypeOf((*MockManager)(nil).ClusterNameForFailoverVersion), failoverVersion, domainID)
-}
-
 // CurrentRegion mocks base method.
 func (m *MockManager) CurrentRegion() string {
 	m.ctrl.T.Helper()
@@ -71,19 +56,34 @@ func (mr *MockManagerMockRecorder) CurrentRegion() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentRegion", reflect.TypeOf((*MockManager)(nil).CurrentRegion))
 }
 
-// LookupCluster mocks base method.
-func (m *MockManager) LookupCluster(ctx context.Context, domainID, clusterName string) (*LookupResult, error) {
+// GetActiveClusterInfoByClusterAttribute mocks base method.
+func (m *MockManager) GetActiveClusterInfoByClusterAttribute(ctx context.Context, domainID string, clusterAttribute *types.ClusterAttribute) (*types.ActiveClusterInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupCluster", ctx, domainID, clusterName)
-	ret0, _ := ret[0].(*LookupResult)
+	ret := m.ctrl.Call(m, "GetActiveClusterInfoByClusterAttribute", ctx, domainID, clusterAttribute)
+	ret0, _ := ret[0].(*types.ActiveClusterInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// LookupCluster indicates an expected call of LookupCluster.
-func (mr *MockManagerMockRecorder) LookupCluster(ctx, domainID, clusterName any) *gomock.Call {
+// GetActiveClusterInfoByClusterAttribute indicates an expected call of GetActiveClusterInfoByClusterAttribute.
+func (mr *MockManagerMockRecorder) GetActiveClusterInfoByClusterAttribute(ctx, domainID, clusterAttribute any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupCluster", reflect.TypeOf((*MockManager)(nil).LookupCluster), ctx, domainID, clusterName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterInfoByClusterAttribute", reflect.TypeOf((*MockManager)(nil).GetActiveClusterInfoByClusterAttribute), ctx, domainID, clusterAttribute)
+}
+
+// GetActiveClusterInfoByWorkflow mocks base method.
+func (m *MockManager) GetActiveClusterInfoByWorkflow(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveClusterInfoByWorkflow", ctx, domainID, wfID, rID)
+	ret0, _ := ret[0].(*types.ActiveClusterInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveClusterInfoByWorkflow indicates an expected call of GetActiveClusterInfoByWorkflow.
+func (mr *MockManagerMockRecorder) GetActiveClusterInfoByWorkflow(ctx, domainID, wfID, rID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterInfoByWorkflow", reflect.TypeOf((*MockManager)(nil).GetActiveClusterInfoByWorkflow), ctx, domainID, wfID, rID)
 }
 
 // LookupNewWorkflow mocks base method.
@@ -114,66 +114,4 @@ func (m *MockManager) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 func (mr *MockManagerMockRecorder) LookupWorkflow(ctx, domainID, wfID, rID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupWorkflow", reflect.TypeOf((*MockManager)(nil).LookupWorkflow), ctx, domainID, wfID, rID)
-}
-
-// RegisterChangeCallback mocks base method.
-func (m *MockManager) RegisterChangeCallback(shardID int, callback func(ChangeType)) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RegisterChangeCallback", shardID, callback)
-}
-
-// RegisterChangeCallback indicates an expected call of RegisterChangeCallback.
-func (mr *MockManagerMockRecorder) RegisterChangeCallback(shardID, callback any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterChangeCallback", reflect.TypeOf((*MockManager)(nil).RegisterChangeCallback), shardID, callback)
-}
-
-// Start mocks base method.
-func (m *MockManager) Start() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
-}
-
-// Start indicates an expected call of Start.
-func (mr *MockManagerMockRecorder) Start() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockManager)(nil).Start))
-}
-
-// Stop mocks base method.
-func (m *MockManager) Stop() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop")
-}
-
-// Stop indicates an expected call of Stop.
-func (mr *MockManagerMockRecorder) Stop() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockManager)(nil).Stop))
-}
-
-// SupportedExternalEntityType mocks base method.
-func (m *MockManager) SupportedExternalEntityType(entityType string) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SupportedExternalEntityType", entityType)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// SupportedExternalEntityType indicates an expected call of SupportedExternalEntityType.
-func (mr *MockManagerMockRecorder) SupportedExternalEntityType(entityType any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SupportedExternalEntityType", reflect.TypeOf((*MockManager)(nil).SupportedExternalEntityType), entityType)
-}
-
-// UnregisterChangeCallback mocks base method.
-func (m *MockManager) UnregisterChangeCallback(shardID int) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UnregisterChangeCallback", shardID)
-}
-
-// UnregisterChangeCallback indicates an expected call of UnregisterChangeCallback.
-func (mr *MockManagerMockRecorder) UnregisterChangeCallback(shardID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnregisterChangeCallback", reflect.TypeOf((*MockManager)(nil).UnregisterChangeCallback), shardID)
 }

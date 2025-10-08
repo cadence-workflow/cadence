@@ -171,7 +171,6 @@ func (r *branchManagerImpl) flushBufferedEvents(
 	targetWorkflow := execution.NewWorkflow(
 		ctx,
 		r.clusterMetadata,
-		r.shard.GetActiveClusterManager(),
 		r.context,
 		r.mutableState,
 		execution.NoopReleaseFn,

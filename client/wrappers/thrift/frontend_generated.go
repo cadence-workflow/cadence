@@ -48,6 +48,11 @@ func (g frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *type
 	return thrift.ToDiagnoseWorkflowExecutionResponse(response), thrift.ToError(err)
 }
 
+func (g frontendClient) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest, p1 ...yarpc.CallOption) (fp2 *types.FailoverDomainResponse, err error) {
+	response, err := g.c.FailoverDomain(ctx, thrift.FromFailoverDomainRequest(fp1), p1...)
+	return thrift.ToFailoverDomainResponse(response), thrift.ToError(err)
+}
+
 func (g frontendClient) GetClusterInfo(ctx context.Context, p1 ...yarpc.CallOption) (cp1 *types.ClusterInfo, err error) {
 	response, err := g.c.GetClusterInfo(ctx, p1...)
 	return thrift.ToGetClusterInfoResponse(response), thrift.ToError(err)

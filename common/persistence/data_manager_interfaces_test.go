@@ -609,3 +609,125 @@ func TestVersionHistoryCopy(t *testing.T) {
 	}
 	assert.Equal(t, &a, a.Duplicate())
 }
+
+func TestDomainReplicationConfig_IsActiveActive(t *testing.T) {
+	tests := []struct {
+		name   string
+		config *DomainReplicationConfig
+		want   bool
+	}{
+		{
+			name:   "nil DomainReplicationConfig should return false",
+			config: nil,
+			want:   false,
+		},
+		{
+			name:   "nil ActiveClusters should return false",
+			config: &DomainReplicationConfig{ActiveClusters: nil},
+			want:   false,
+		},
+		{
+			name: "empty ActiveClusters should return false",
+			config: &DomainReplicationConfig{
+				ActiveClusters: &types.ActiveClusters{},
+			},
+			want: false,
+		},
+		{
+			name: "only ActiveClustersByRegion populated should return true",
+			config: &DomainReplicationConfig{
+				ActiveClusters: &types.ActiveClusters{
+					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+						"us-east-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   100,
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "only AttributeScopes populated should return true",
+			config: &DomainReplicationConfig{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west-1": {
+									ActiveClusterName: "cluster2",
+									FailoverVersion:   200,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "both formats populated should return true",
+			config: &DomainReplicationConfig{
+				ActiveClusters: &types.ActiveClusters{
+					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+						"us-east-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   100,
+						},
+					},
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west-1": {
+									ActiveClusterName: "cluster2",
+									FailoverVersion:   200,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "empty ActiveClustersByRegion map should return false",
+			config: &DomainReplicationConfig{
+				ActiveClusters: &types.ActiveClusters{
+					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "empty AttributeScopes map should return false",
+			config: &DomainReplicationConfig{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "AttributeScopes with empty scope should return false",
+			config: &DomainReplicationConfig{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{},
+						},
+					},
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.config.IsActiveActive()
+			if got != tt.want {
+				t.Errorf("IsActiveActive() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

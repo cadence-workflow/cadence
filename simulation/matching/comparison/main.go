@@ -233,7 +233,7 @@ func mustRunScenario(root, scenario, ts string) {
 
 	fmt.Printf("Running scenario: %s\n", scenario)
 	start := time.Now()
-	cmd := exec.Command("bash", path.Join(root, "simulation/matching/run.sh"), scenario, ts)
+	cmd := exec.Command("bash", path.Join(root, "simulation/matching/run.sh"), "--scenario", scenario, "--timestamp", ts)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
