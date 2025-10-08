@@ -23,10 +23,9 @@ domains:
       region0: cluster0
       region1: cluster1
     clusterAttributes:
-      region0:
-        cluster0: cluster0
-      region1:
-        cluster1: cluster1
+      region:
+        region0: cluster0
+        region1: cluster1
 
 operations:
   # Start wf1 on cluster1 before failover.
@@ -50,6 +49,9 @@ operations:
     domain: test-domain-aa
     newActiveClustersByRegion:
       region1: cluster0
+    newClusterAttributes:
+      region:
+        region1: cluster0
 
   # Attempt to start wf1 on cluster1 again. It will be forwarded to cluster0 and cluster0 should reject with error "Workflow execution is already running".
   - op: start_workflow

@@ -20,10 +20,9 @@ domains:
       region0: cluster0
       region1: cluster1
     clusterAttributes:
-      region0:
-        cluster0: cluster0
-      region1:
-        cluster1: cluster1
+      region:
+        region0: cluster0
+        region1: cluster1
 
 operations:
   # Start wf1 on cluster0 before failover. It should start in cluster0 and complete in cluster1.
@@ -57,10 +56,9 @@ operations:
       region0: cluster1 # this is changed from cluster0 to cluster1
       region1: cluster1
     newClusterAttributes:
-      region0:
-        cluster0: cluster1
-      region1:
-        cluster1: cluster1
+      region:
+        region0: cluster1 # this is changed from cluster0 to cluster1
+        region1: cluster1
 
   # Start wf2 on cluster0 right before failover. It will be started by cluster0 workers and completed by cluster1 workers.
   - op: start_workflow

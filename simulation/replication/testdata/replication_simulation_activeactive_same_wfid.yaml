@@ -20,10 +20,9 @@ domains:
       region0: cluster0
       region1: cluster1
     clusterAttributes:
-      region0:
-        cluster0: cluster0
-      region1:
-        cluster1: cluster1
+      region:
+        region0: cluster0
+        region1: cluster1
 
 operations:
   # start workflow in cluster0
