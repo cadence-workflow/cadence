@@ -3585,3 +3585,337 @@ func TestBuildActiveActiveClustersFromUpdateRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestActiveClustersFromRegisterRequest(t *testing.T) {
+	tests := []struct {
+		name            string
+		request         *types.RegisterDomainRequest
+		expectedResult  *types.ActiveClusters
+		expectedErr     error
+		clusterMetadata func() cluster.Metadata
+	}{
+		{
+			name: "local domain returns nil",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: false,
+			},
+			expectedResult: nil,
+			expectedErr:    nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "global domain with no active cluster data returns nil",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+			},
+			expectedResult: nil,
+			expectedErr:    nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "legacy ActiveClustersByRegion with valid clusters",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+				ActiveClustersByRegion: map[string]string{
+					"region1": cluster.TestCurrentClusterName,
+					"region2": cluster.TestAlternativeClusterName,
+				},
+			},
+			expectedResult: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"region1": {
+						ActiveClusterName: cluster.TestCurrentClusterName,
+						FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+					},
+					"region2": {
+						ActiveClusterName: cluster.TestAlternativeClusterName,
+						FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+					},
+				},
+				AttributeScopes: map[string]types.ClusterAttributeScope{},
+			},
+			expectedErr: nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "legacy ActiveClustersByRegion with invalid cluster",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+				ActiveClustersByRegion: map[string]string{
+					"region1": "unknown-cluster",
+				},
+			},
+			expectedResult: nil,
+			expectedErr:    &types.BadRequestError{},
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "new AttributeScopes with valid clusters",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"datacenter": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"dc1": {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+								},
+								"dc2": {
+									ActiveClusterName: cluster.TestAlternativeClusterName,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"datacenter": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"dc1": {
+								ActiveClusterName: cluster.TestCurrentClusterName,
+								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+							},
+							"dc2": {
+								ActiveClusterName: cluster.TestAlternativeClusterName,
+								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							},
+						},
+					},
+				},
+			},
+			expectedErr: nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "new AttributeScopes with invalid cluster",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {
+									ActiveClusterName: "invalid-cluster",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: nil,
+			expectedErr:    &types.BadRequestError{},
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "both legacy and new formats together",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+				ActiveClustersByRegion: map[string]string{
+					"region1": cluster.TestCurrentClusterName,
+				},
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"datacenter": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"dc1": {
+									ActiveClusterName: cluster.TestAlternativeClusterName,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"region1": {
+						ActiveClusterName: cluster.TestCurrentClusterName,
+						FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+					},
+				},
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"datacenter": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"dc1": {
+								ActiveClusterName: cluster.TestAlternativeClusterName,
+								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							},
+						},
+					},
+				},
+			},
+			expectedErr: nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "multiple scopes with multiple attributes",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+								},
+								"us-east": {
+									ActiveClusterName: cluster.TestAlternativeClusterName,
+								},
+							},
+						},
+						"datacenter": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"dc1": {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: cluster.TestCurrentClusterName,
+								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+							},
+							"us-east": {
+								ActiveClusterName: cluster.TestAlternativeClusterName,
+								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							},
+						},
+					},
+					"datacenter": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"dc1": {
+								ActiveClusterName: cluster.TestCurrentClusterName,
+								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+							},
+						},
+					},
+				},
+			},
+			expectedErr: nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "empty ActiveClusters with non-nil AttributeScopes",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{},
+				},
+			},
+			expectedResult: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
+				AttributeScopes:        map[string]types.ClusterAttributeScope{},
+			},
+			expectedErr: nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "custom cluster metadata with different failover versions",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+				ActiveClustersByRegion: map[string]string{
+					"region1": "clusterA",
+					"region2": "clusterB",
+				},
+			},
+			expectedResult: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"region1": {
+						ActiveClusterName: "clusterA",
+						FailoverVersion:   10,
+					},
+					"region2": {
+						ActiveClusterName: "clusterB",
+						FailoverVersion:   20,
+					},
+				},
+				AttributeScopes: map[string]types.ClusterAttributeScope{},
+			},
+			expectedErr: nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.NewMetadata(
+					config.ClusterGroupMetadata{
+						FailoverVersionIncrement: 100,
+						PrimaryClusterName:       "clusterA",
+						CurrentClusterName:       "clusterA",
+						ClusterGroup: map[string]config.ClusterInformation{
+							"clusterA": {
+								Enabled:                true,
+								InitialFailoverVersion: 10,
+							},
+							"clusterB": {
+								Enabled:                true,
+								InitialFailoverVersion: 20,
+							},
+						},
+					},
+					func(d string) bool { return false },
+					metrics.NewNoopMetricsClient(),
+					log.NewNoop(),
+				)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := &handlerImpl{
+				clusterMetadata: tc.clusterMetadata(),
+				logger:          log.NewNoop(),
+			}
+
+			result, err := handler.activeClustersFromRegisterRequest(tc.request)
+
+			if tc.expectedErr != nil {
+				assert.Error(t, err)
+				assert.IsType(t, tc.expectedErr, err)
+				if badReqErr, ok := tc.expectedErr.(*types.BadRequestError); ok {
+					resultErr, ok := err.(*types.BadRequestError)
+					assert.True(t, ok)
+					if badReqErr.Message != "" {
+						assert.Equal(t, badReqErr.Message, resultErr.Message)
+					}
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedResult, result)
+			}
+		})
+	}
+}

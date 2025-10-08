@@ -1755,11 +1755,16 @@ func (d *handlerImpl) activeClustersFromRegisterRequest(registerRequest *types.R
 	activeClustersScopes := make(map[string]types.ClusterAttributeScope)
 	if registerRequest.ActiveClusters != nil && registerRequest.ActiveClusters.AttributeScopes != nil {
 		for scope, scopeData := range registerRequest.ActiveClusters.AttributeScopes {
-			for attribute, activeCluster := range scopeData.ClusterAttributes {
-				_, ok := clusters[activeCluster.ActiveClusterName]
+			for attribute := range scopeData.ClusterAttributes {
+				clusterInfo, ok := clusters[scopeData.ClusterAttributes[attribute].ActiveClusterName]
 				if !ok {
 					return nil, &types.BadRequestError{
-						Message: fmt.Sprintf("Cluster %v not found. Domain cannot be registered in this cluster for scope %q and attribute %q", activeCluster, scope, attribute),
+						Message: fmt.Sprintf("Cluster %v not found. Domain cannot be registered in this cluster for scope %q and attribute %q", scopeData.ClusterAttributes[attribute].ActiveClusterName, scope, attribute),
+					}
+				} else {
+					scopeData.ClusterAttributes[attribute] = types.ActiveClusterInfo{
+						ActiveClusterName: scopeData.ClusterAttributes[attribute].ActiveClusterName,
+						FailoverVersion:   clusterInfo.InitialFailoverVersion,
 					}
 				}
 			}
