@@ -41,6 +41,7 @@ type Executor[SP ShardProcessor] interface {
 	Stop()
 
 	GetShardProcess(shardID string) (SP, error)
+	AssignShards(ctx context.Context, shardAssignment map[string]*types.ShardAssignment)
 }
 
 type Params[SP ShardProcessor] struct {

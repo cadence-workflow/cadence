@@ -88,6 +88,14 @@ func (e *executorImpl[SP]) GetShardProcess(shardID string) (SP, error) {
 	return shardProcess.processor, nil
 }
 
+func (e *executorImpl[SP]) AssignShards(ctx context.Context, shardAssignment map[string]*types.ShardAssignment) {
+	e.assignmentMutex.Lock()
+	defer e.assignmentMutex.Unlock()
+
+	e.logger.Info("Executing external shard assignment")
+	e.updateShardAssignment(ctx, shardAssignment)
+}
+
 func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
 	heartBeatTicker := e.timeSource.NewTicker(e.heartBeatInterval)
 	defer heartBeatTicker.Stop()
