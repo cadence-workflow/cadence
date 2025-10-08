@@ -1652,11 +1652,6 @@ func (d *handlerImpl) updateReplicationConfig(
 				}
 			}
 
-			// ensure the active cluster name is set
-			if updateRequest.ActiveClusterName == nil {
-				updateRequest.ActiveClusterName = &config.ActiveClusterName
-			}
-
 			config.ActiveClusters.AttributeScopes = result.AttributeScopes
 			activeClusterUpdated = true
 			clusterUpdated = true
