@@ -22,7 +22,7 @@ func TestModule(t *testing.T) {
 			func() config.Service {
 				return config.Service{}
 			}),
-		fx.Provide(func() config.Config { return config.Config{} }),
+		fx.Provide(func() metrics.HistogramMigration { return metrics.HistogramMigration{} }),
 		Module,
 		fx.Invoke(func(mc metrics.Client) {}))
 	fxApp.RequireStart().RequireStop()
@@ -35,7 +35,7 @@ func TestModuleWithExternalScope(t *testing.T) {
 			fx.Annotated{
 				Target: func() string { return service.Frontend },
 				Name:   "service-full-name"}),
-		fx.Provide(func() config.Config { return config.Config{} }),
+		fx.Provide(func() metrics.HistogramMigration { return metrics.HistogramMigration{} }),
 		ModuleForExternalScope,
 		fx.Invoke(func(mc metrics.Client) {}))
 	fxApp.RequireStart().RequireStop()
