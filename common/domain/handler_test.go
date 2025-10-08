@@ -3457,6 +3457,64 @@ func TestBuildActiveActiveClustersFromUpdateRequest(t *testing.T) {
 		expectedActiveClusters *types.ActiveClusters
 		expectedIsChanged      bool
 	}{
+		"Success case - ActiveClusters - failover event - where there's existing cluster attributes and we expect them to be incremented": {
+			updateRequest: &types.UpdateDomainRequest{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"location": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"nyc": {
+									ActiveClusterName: "clusterC", // this is expected to be a failvoer to cluster C from the existing A
+								},
+							},
+						},
+					},
+				},
+			},
+			config: &persistence.DomainReplicationConfig{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"location": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"nyc": {
+									ActiveClusterName: "clusterA",
+									FailoverVersion:   100,
+								},
+								"morocco": {
+									ActiveClusterName: "clusterB",
+									FailoverVersion:   1,
+								},
+								"tokyo": {
+									ActiveClusterName: "clusterC",
+									FailoverVersion:   2,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedActiveClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"location": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"nyc": {
+								ActiveClusterName: "clusterC",
+								FailoverVersion:   102,
+							},
+							"morocco": {
+								ActiveClusterName: "clusterB",
+								FailoverVersion:   1,
+							},
+							"tokyo": {
+								ActiveClusterName: "clusterC",
+								FailoverVersion:   2,
+							},
+						},
+					},
+				},
+			},
+			expectedIsChanged: true,
+		},
 		"Success case - ActiveClusters - where there is the introduction of cluster attributes for the first time - we should see that these results are reflected": {
 			updateRequest: &types.UpdateDomainRequest{
 				ActiveClusters: &types.ActiveClusters{

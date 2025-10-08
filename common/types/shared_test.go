@@ -656,3 +656,100 @@ func TestActiveClusters_SetClusterForRegion(t *testing.T) {
 		})
 	}
 }
+
+func TestActiveClusters_GetFailoverVersionForAttribute(t *testing.T) {
+	tests := []struct {
+		name           string
+		activeClusters *ActiveClusters
+		scopeType      string
+		attributeName  string
+		want           int64
+	}{
+		{
+			name: "normal value / success case",
+			activeClusters: &ActiveClusters{
+				AttributeScopes: map[string]ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]ActiveClusterInfo{
+							"us-east-1": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			scopeType:     "region",
+			attributeName: "us-east-1",
+			want:          100,
+		},
+		{
+			name: "normal value / success case for zero values",
+			activeClusters: &ActiveClusters{
+				AttributeScopes: map[string]ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]ActiveClusterInfo{
+							"us-east-1": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   0,
+							},
+						},
+					},
+				},
+			},
+			scopeType:     "region",
+			attributeName: "us-east-1",
+			want:          0,
+		},
+		{
+			name:           "nil receiver should return 0",
+			activeClusters: nil,
+			scopeType:      "region",
+			attributeName:  "us-east-1",
+			want:           -1,
+		},
+		{
+			name:           "empty ActiveClusters should return 0",
+			activeClusters: &ActiveClusters{},
+			scopeType:      "region",
+			attributeName:  "us-east-1",
+			want:           -1,
+		},
+		{
+			name: "nil AttributeScopes should return 0",
+			activeClusters: &ActiveClusters{
+				AttributeScopes: nil,
+			},
+			scopeType:     "region",
+			attributeName: "us-east-1",
+			want:          -1,
+		},
+		{
+			name: "scopeType not found should return 0",
+			activeClusters: &ActiveClusters{
+				AttributeScopes: map[string]ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]ActiveClusterInfo{
+							"us-east-1": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			scopeType:     "datacenter",
+			attributeName: "dc1",
+			want:          -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.activeClusters.GetFailoverVersionForAttribute(tt.scopeType, tt.attributeName)
+			if got != tt.want {
+				t.Errorf("GetFailoverVersionForAttribute() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

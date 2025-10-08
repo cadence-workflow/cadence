@@ -272,7 +272,7 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainUpdateReplicationTask(ct
 		request.FailoverVersion = task.GetFailoverVersion()
 		request.FailoverNotificationVersion = notificationVersion
 		request.PreviousFailoverVersion = task.GetPreviousFailoverVersion()
-	} else {
+	} else if !existingDomain.ReplicationConfig.IsActiveActive() {
 		h.logger.Warn("the existing failover version was more recent, indicating that the domain replication message was out of date and is consequently being dropped",
 			tag.WorkflowDomainName(existingDomain.Info.Name),
 			tag.FailoverVersion(existingDomain.FailoverVersion),

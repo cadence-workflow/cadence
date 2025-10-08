@@ -1652,6 +1652,11 @@ func (d *handlerImpl) updateReplicationConfig(
 				}
 			}
 
+			// ensure the active cluster name is set
+			if updateRequest.ActiveClusterName == nil {
+				updateRequest.ActiveClusterName = &config.ActiveClusterName
+			}
+
 			config.ActiveClusters.AttributeScopes = result.AttributeScopes
 			activeClusterUpdated = true
 			clusterUpdated = true
@@ -1883,9 +1888,16 @@ func (d *handlerImpl) buildActiveActiveClusterScopesFromUpdateRequest(updateRequ
 	}
 
 	// ensure a failover version is set for the incoming request
-	for _, scopeData := range updateRequest.ActiveClusters.AttributeScopes {
+	for scope, scopeData := range updateRequest.ActiveClusters.AttributeScopes {
 		for attribute, activeCluster := range scopeData.ClusterAttributes {
-			activeCluster.FailoverVersion = d.clusterMetadata.GetNextFailoverVersion(activeCluster.ActiveClusterName, activeCluster.FailoverVersion, domainName)
+
+			currentFailoverVersion := int64(0)
+			if config != nil && config.ActiveClusters != nil {
+				currentFailoverVersion = config.ActiveClusters.GetFailoverVersionForAttribute(scope, attribute)
+			}
+			nextFailoverVersion := d.clusterMetadata.GetNextFailoverVersion(activeCluster.ActiveClusterName, currentFailoverVersion, domainName)
+
+			activeCluster.FailoverVersion = nextFailoverVersion
 			scopeData.ClusterAttributes[attribute] = activeCluster
 		}
 	}

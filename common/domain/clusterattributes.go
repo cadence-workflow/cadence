@@ -1,6 +1,8 @@
 package domain
 
-import "github.com/uber/cadence/common/types"
+import (
+	"github.com/uber/cadence/common/types"
+)
 
 func mergeActiveActiveScopes(existingDomain *types.ActiveClusters, incomingTask *types.ActiveClusters) (*types.ActiveClusters, bool) {
 
@@ -49,7 +51,6 @@ func mergeScope(existing types.ClusterAttributeScope, incoming types.ClusterAttr
 	merged.ClusterAttributes = make(map[string]types.ActiveClusterInfo)
 
 	for existingAttr := range existing.ClusterAttributes {
-
 		incomingAtt, presentInNew := incoming.ClusterAttributes[existingAttr]
 		if presentInNew {
 			if incomingAtt.FailoverVersion > existing.ClusterAttributes[existingAttr].FailoverVersion {

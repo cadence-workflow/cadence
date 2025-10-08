@@ -2337,6 +2337,23 @@ type ActiveClusters struct {
 // DefaultAttributeScopeType is the default scope type for backward compatibility with ActiveClustersByRegion
 const DefaultAttributeScopeType = "region"
 
+// GetFailoverVersionForAttribute returns the failover version for a given attribute.
+// if a value is not found it returns -1
+func (v *ActiveClusters) GetFailoverVersionForAttribute(scopeType, attributeName string) int64 {
+	if v == nil {
+		return -1
+	}
+	scope, ok := v.AttributeScopes[scopeType]
+	if !ok {
+		return -1
+	}
+	info, ok := scope.ClusterAttributes[attributeName]
+	if !ok {
+		return -1
+	}
+	return info.FailoverVersion
+}
+
 // TODO(c-warren): Remove once refactor to ClusterAttribute is complete
 func (v *ActiveClusters) GetActiveClustersByRegion() map[string]ActiveClusterInfo {
 	if v != nil && v.ActiveClustersByRegion != nil {
