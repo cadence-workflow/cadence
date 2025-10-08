@@ -120,6 +120,77 @@ func TestActiveClustersConfigDeepCopy(t *testing.T) {
 	}
 }
 
+func TestIsActiveActiveDomain(t *testing.T) {
+	tests := []struct {
+		name           string
+		activeClusters *DomainReplicationConfiguration
+		want           bool
+	}{
+		{
+			name:           "empty DomainReplicationConfiguration should return false",
+			activeClusters: &DomainReplicationConfiguration{},
+			want:           false,
+		},
+		{
+			name:           "nil receiver should return false",
+			activeClusters: nil,
+			want:           false,
+		},
+		{
+			name:           "empty ActiveClusters should return false",
+			activeClusters: &DomainReplicationConfiguration{ActiveClusters: &ActiveClusters{}},
+			want:           false,
+		},
+		{
+			name: "ActiveClusters with only old format populated should return true",
+			activeClusters: &DomainReplicationConfiguration{
+				ActiveClusters: &ActiveClusters{
+					ActiveClustersByRegion: map[string]ActiveClusterInfo{
+						"us-east-1": {ActiveClusterName: "cluster1"},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "ActiveClusters with only new format populated should return true",
+			activeClusters: &DomainReplicationConfiguration{
+				ActiveClusters: &ActiveClusters{
+					AttributeScopes: map[string]ClusterAttributeScope{
+						"region": {ClusterAttributes: map[string]ActiveClusterInfo{
+							"us-east-1": {ActiveClusterName: "cluster1"},
+						}},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "ActiveClusters with both formats populated should return true",
+			activeClusters: &DomainReplicationConfiguration{
+				ActiveClusters: &ActiveClusters{
+					ActiveClustersByRegion: map[string]ActiveClusterInfo{
+						"us-east-1": {ActiveClusterName: "cluster1"},
+					},
+					AttributeScopes: map[string]ClusterAttributeScope{
+						"region": {ClusterAttributes: map[string]ActiveClusterInfo{
+							"us-east-1": {ActiveClusterName: "cluster1"},
+						}},
+					},
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.activeClusters.IsActiveActiveDomain()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // identicalByteArray returns true if a and b are the same slice, false otherwise.
 func identicalByteArray(a, b []byte) bool {
 	return len(a) == len(b) && unsafe.SliceData(a) == unsafe.SliceData(b)

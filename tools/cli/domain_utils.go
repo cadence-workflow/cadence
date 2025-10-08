@@ -73,9 +73,9 @@ var (
 			Usage:   "Active cluster name",
 		},
 		&cli.StringSliceFlag{
-			Name:    FlagActiveClustersByRegion,
-			Aliases: []string{"acbr"},
-			Usage:   "Active clusters by region in the format 'region1:cluster1,region2:cluster2'",
+			Name:    FlagActiveClusters,
+			Aliases: []string{"acs"},
+			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
 		},
 		&cli.StringSliceFlag{
 			Name:    FlagClusters,
@@ -87,12 +87,6 @@ var (
 			Aliases: []string{"gd"},
 			Usage:   "Flag to indicate whether domain is a global domain (active-passive domain). Default to true. Local domain is now legacy.",
 			Value:   "true",
-		},
-		&cli.StringFlag{
-			Name:    FlagIsActiveActiveDomain,
-			Aliases: []string{"aad"},
-			Usage:   "Flag to indicate whether domain is an active-active domain. Default to false.",
-			Value:   "false",
 		},
 		&cli.GenericFlag{
 			Name:    FlagDomainData,
@@ -149,9 +143,9 @@ var (
 			Usage:   "Active cluster name",
 		},
 		&cli.StringSliceFlag{
-			Name:    FlagActiveClustersByRegion,
-			Aliases: []string{"acbr"},
-			Usage:   "Active clusters by region in the format 'region1:cluster1,region2:cluster2'",
+			Name:    FlagActiveClusters,
+			Aliases: []string{"acs"},
+			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
 		},
 		&cli.StringSliceFlag{
 			Name:    FlagClusters,
@@ -492,7 +486,7 @@ func initializeDynamicConfig(
 }
 
 func initializeMetricsClient() metrics.Client {
-	return metrics.NewClient(tally.NoopScope, metrics.Common)
+	return metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{})
 }
 
 func getEnvironment(c *cli.Context) string {

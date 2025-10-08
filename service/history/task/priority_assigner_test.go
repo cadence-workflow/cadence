@@ -78,7 +78,7 @@ func (s *taskPriorityAssignerSuite) SetupTest() {
 		cluster.TestCurrentClusterName,
 		s.mockDomainCache,
 		log.NewNoop(),
-		metrics.NewClient(tally.NoopScope, metrics.History),
+		metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
 		s.config,
 	).(*priorityAssignerImpl)
 }

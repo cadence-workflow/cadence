@@ -71,7 +71,7 @@ func (s *redispatcherSuite) SetupTest() {
 		TaskRedispatchInterval: dynamicproperties.GetDurationPropertyFn(time.Millisecond * 50),
 	}
 
-	s.metricsScope = metrics.NewClient(tally.NoopScope, metrics.History).Scope(0)
+	s.metricsScope = metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}).Scope(0)
 	s.logger = testlogger.New(s.T())
 
 	s.redispatcher = NewRedispatcher(

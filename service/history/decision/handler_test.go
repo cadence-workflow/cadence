@@ -86,7 +86,7 @@ func (s *DecisionHandlerSuite) SetupTest() {
 	s.controller = gomock.NewController(s.T())
 	s.decisionHandler = &handlerImpl{
 		versionChecker: client.NewVersionChecker(),
-		metricsClient:  metrics.NewClient(tally.NoopScope, metrics.History),
+		metricsClient:  metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
 		config:         config.NewForTest(),
 		logger:         testlogger.New(s.T()),
 		timeSource:     clock.NewRealTimeSource(),
@@ -243,7 +243,7 @@ func TestHandleDecisionTaskScheduled(t *testing.T) {
 				config:          config.NewForTest(),
 				shard:           shard.NewMockContext(ctrl),
 				timeSource:      clock.NewRealTimeSource(),
-				metricsClient:   metrics.NewClient(tally.NoopScope, metrics.History),
+				metricsClient:   metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
 				logger:          testlogger.New(t),
 				versionChecker:  client.NewVersionChecker(),
 				tokenSerializer: common.NewMockTaskTokenSerializer(ctrl),
@@ -378,7 +378,7 @@ func TestHandleDecisionTaskFailed(t *testing.T) {
 				config:          config.NewForTest(),
 				shard:           shardContext,
 				timeSource:      clock.NewRealTimeSource(),
-				metricsClient:   metrics.NewClient(tally.NoopScope, metrics.History),
+				metricsClient:   metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
 				logger:          testlogger.New(t),
 				versionChecker:  client.NewVersionChecker(),
 				tokenSerializer: common.NewMockTaskTokenSerializer(ctrl),
@@ -437,7 +437,7 @@ func TestHandleDecisionTaskStarted(t *testing.T) {
 			expectErr: workflow.ErrNotExists,
 			mutablestate: &persistence.WorkflowMutableState{
 				ExecutionInfo: &persistence.WorkflowExecutionInfo{
-					State: 2, //2 == WorkflowStateCompleted
+					State: 2, // 2 == WorkflowStateCompleted
 				},
 			},
 		},
@@ -545,7 +545,7 @@ func TestHandleDecisionTaskStarted(t *testing.T) {
 				config:         config.NewForTest(),
 				shard:          shardContext,
 				timeSource:     clock.NewRealTimeSource(),
-				metricsClient:  metrics.NewClient(tally.NoopScope, metrics.History),
+				metricsClient:  metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
 				logger:         testlogger.New(t),
 				versionChecker: client.NewVersionChecker(),
 				domainCache:    cache.NewMockDomainCache(ctrl),
@@ -869,7 +869,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 			},
 			mutableState: &persistence.WorkflowMutableState{
 				ExecutionInfo: &persistence.WorkflowExecutionInfo{
-					CronSchedule: "0 1 * * 1", //some random cron schedule
+					CronSchedule: "0 1 * * 1", // some random cron schedule
 				},
 			},
 		},
@@ -914,7 +914,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 								DomainID:     constants.TestDomainID,
 								WorkflowID:   constants.TestWorkflowID,
 								RunID:        constants.TestRunID,
-								CronSchedule: "0 1 * * 1", //some random cron schedule
+								CronSchedule: "0 1 * * 1", // some random cron schedule
 							},
 							ExecutionStats: &persistence.ExecutionStats{},
 						},
@@ -968,7 +968,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 									DomainID:     constants.TestDomainID,
 									WorkflowID:   constants.TestWorkflowID,
 									RunID:        constants.TestRunID,
-									CronSchedule: "0 1 * * 1", //some random cron schedule
+									CronSchedule: "0 1 * * 1", // some random cron schedule
 								},
 								ExecutionStats: &persistence.ExecutionStats{},
 							},
@@ -1189,11 +1189,11 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				shard:           shard,
 				timeSource:      clock.NewMockedTimeSource(),
 				domainCache:     domainCache,
-				metricsClient:   metrics.NewClient(tally.NoopScope, metrics.History),
+				metricsClient:   metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
 				logger:          testlogger.New(t),
 				versionChecker:  client.NewVersionChecker(),
 				tokenSerializer: common.NewMockTaskTokenSerializer(ctrl),
-				attrValidator:   newAttrValidator(domainCache, metrics.NewClient(tally.NoopScope, metrics.History), config.NewForTest(), testlogger.New(t)),
+				attrValidator:   newAttrValidator(domainCache, metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}), config.NewForTest(), testlogger.New(t)),
 			}
 			expectCommonCalls(decisionHandler, test.domainID)
 			if test.expectGetWorkflowExecution {

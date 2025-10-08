@@ -42,10 +42,11 @@ import (
 type DomainIDToDomainFn func(id string) (*cache.DomainCacheEntry, error)
 
 const (
-	LookupNewWorkflowOpName       = "LookupNewWorkflow"
-	LookupWorkflowOpName          = "LookupWorkflow"
-	LookupClusterOpName           = "LookupCluster"
-	DomainIDToDomainFnErrorReason = "domain_id_to_name_fn_error"
+	LookupNewWorkflowOpName                      = "LookupNewWorkflow"
+	LookupWorkflowOpName                         = "LookupWorkflow"
+	GetActiveClusterInfoByClusterAttributeOpName = "GetActiveClusterInfoByClusterAttribute"
+	GetActiveClusterInfoByWorkflowOpName         = "GetActiveClusterInfoByWorkflow"
+	DomainIDToDomainFnErrorReason                = "domain_id_to_name_fn_error"
 
 	workflowPolicyCacheTTL      = 10 * time.Second
 	workflowPolicyCacheMaxCount = 1000
@@ -320,4 +321,59 @@ func (m *managerImpl) handleError(scope metrics.Scope, err *error, start time.Ti
 		scope.IncCounter(metrics.ActiveClusterManagerLookupSuccessCount)
 	}
 	scope.RecordHistogramDuration(metrics.ActiveClusterManagerLookupLatency, time.Since(start))
+}
+
+func (m *managerImpl) GetActiveClusterInfoByClusterAttribute(ctx context.Context, domainID string, clusterAttribute *types.ClusterAttribute) (res *types.ActiveClusterInfo, e error) {
+	defer func() {
+		logFn := m.logger.Debug
+		if e != nil {
+			logFn = m.logger.Warn
+		}
+		logFn("GetActiveClusterInfoByClusterAttribute",
+			tag.WorkflowDomainID(domainID),
+			tag.Dynamic("clusterAttribute", clusterAttribute),
+			tag.Dynamic("result", res),
+			tag.Error(e),
+		)
+	}()
+
+	d, scope, err := m.getDomainAndScope(domainID, GetActiveClusterInfoByClusterAttributeOpName)
+	if err != nil {
+		return nil, err
+	}
+	defer m.handleError(scope, &e, time.Now())
+
+	res, ok := d.GetActiveClusterInfoByClusterAttribute(clusterAttribute)
+	if !ok {
+		return nil, &ClusterAttributeNotFoundError{
+			DomainID:         domainID,
+			ClusterAttribute: clusterAttribute,
+		}
+	}
+	return res, nil
+}
+
+func (m *managerImpl) GetActiveClusterInfoByWorkflow(ctx context.Context, domainID, wfID, rID string) (res *types.ActiveClusterInfo, e error) {
+	d, scope, err := m.getDomainAndScope(domainID, GetActiveClusterInfoByWorkflowOpName)
+	if err != nil {
+		return nil, err
+	}
+	defer m.handleError(scope, &e, time.Now())
+
+	policy, err := m.getClusterSelectionPolicy(ctx, domainID, wfID, rID)
+	if err != nil {
+		var notExistsErr *types.EntityNotExistsError
+		if !errors.As(err, &notExistsErr) {
+			return nil, err
+		}
+		policy = &types.ActiveClusterSelectionPolicy{}
+	}
+	res, ok := d.GetActiveClusterInfoByClusterAttribute(policy.ClusterAttribute)
+	if !ok {
+		return nil, &ClusterAttributeNotFoundError{
+			DomainID:         domainID,
+			ClusterAttribute: policy.ClusterAttribute,
+		}
+	}
+	return res, nil
 }

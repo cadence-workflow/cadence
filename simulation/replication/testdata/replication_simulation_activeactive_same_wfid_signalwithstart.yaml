@@ -4,7 +4,7 @@
 # Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_same_wfid_signalwithstart.yml
 # When a domain is configured as active-active
 # And the same workflow ID is used to SignalWithStart in multiple clusters
-# Then the 'earlier' workflow should be terminated 
+# Then the 'earlier' workflow should be terminated
 # And the 'later' workflow should complete
 
 clusters:
@@ -34,6 +34,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 65s
     workflowDuration: 35s
     runIDKey: cluster0-run
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
 
   - op: signal_with_start_workflow
     at: 0s
@@ -46,6 +50,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 65s
     workflowDuration: 35s
     runIDKey: cluster1-run
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
 
   # Query the cluster0 run to validate it was started with the correct signal
   # Note that if this query is delayed it will eventually see the signal from the 'later' workflow, as conflict resolution will have occurred
@@ -69,7 +77,7 @@ operations:
     runIDKey: cluster1-run
     want:
       queryResult: ["cluster1-signal-data"]
-  
+
   - op: validate
     at: 30s
     workflowID: conflict-wf

@@ -79,13 +79,14 @@ type Operation struct {
 	SourceCluster string                         `yaml:"sourceCluster"`
 	TargetCluster string                         `yaml:"targetCluster"`
 
-	WorkflowType                         string        `yaml:"workflowType"`
-	WorkflowID                           string        `yaml:"workflowID"`
-	WorkflowExecutionStartToCloseTimeout time.Duration `yaml:"workflowExecutionStartToCloseTimeout"`
-	WorkflowDuration                     time.Duration `yaml:"workflowDuration"`
-	ActivityCount                        int           `yaml:"activityCount"`
-	DelayStartSeconds                    int32         `yaml:"delayStartSeconds"`
-	CronSchedule                         string        `yaml:"cronSchedule"`
+	WorkflowType                         string                              `yaml:"workflowType"`
+	WorkflowID                           string                              `yaml:"workflowID"`
+	WorkflowExecutionStartToCloseTimeout time.Duration                       `yaml:"workflowExecutionStartToCloseTimeout"`
+	WorkflowDuration                     time.Duration                       `yaml:"workflowDuration"`
+	ActivityCount                        int                                 `yaml:"activityCount"`
+	DelayStartSeconds                    int32                               `yaml:"delayStartSeconds"`
+	CronSchedule                         string                              `yaml:"cronSchedule"`
+	ActiveClusterSelectionPolicy         *types.ActiveClusterSelectionPolicy `yaml:"activeClusterSelectionPolicy"`
 
 	Query            string `yaml:"query"`
 	ConsistencyLevel string `yaml:"consistencyLevel"`

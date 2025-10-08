@@ -63,7 +63,7 @@ func (s *notifierSuite) SetupTest() {
 
 	s.historyEventNotifier = NewNotifier(
 		clock.NewRealTimeSource(),
-		metrics.NewClient(tally.NoopScope, metrics.History),
+		metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
 		func(workflowID string) int {
 			return len(workflowID)
 		},

@@ -34,7 +34,7 @@ import (
 )
 
 func TestNewKafkaClient(t *testing.T) {
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History)
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
 	logger := testlogger.New(t)
 	testCases := []struct {
 		name        string

@@ -49,7 +49,7 @@ func (s *visibilityArchiverSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 	s.container = &archiver.VisibilityBootstrapContainer{
 		Logger:        testlogger.New(s.T()),
-		MetricsClient: metrics.NewClient(tally.NoopScope, metrics.History),
+		MetricsClient: metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
 	}
 	s.expectedVisibilityRecords = []*visibilityRecord{
 		{

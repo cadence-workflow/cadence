@@ -64,6 +64,16 @@ type Manager interface {
 
 	// CurrentRegion returns the current region.
 	CurrentRegion() string
+
+	// GetActiveClusterInfoByClusterAttribute returns the active cluster info by cluster attribute
+	// If clusterAttribute is nil, returns the domain-level active cluster info
+	// If clusterAttribute is not nil and exists in the domain metadata, returns the active cluster info of the cluster attribute
+	// If clusterAttribute is not nil and does not exist in the domain metadata, returns an error
+	GetActiveClusterInfoByClusterAttribute(ctx context.Context, domainID string, clusterAttribute *types.ClusterAttribute) (*types.ActiveClusterInfo, error)
+
+	// GetActiveClusterInfoByWorkflow returns the active cluster info by workflow
+	// It will first look up the cluster selection policy for the workflow and then get the active cluster info by cluster attribute from the policy
+	GetActiveClusterInfoByWorkflow(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterInfo, error)
 }
 
 type LookupResult struct {
@@ -90,4 +100,14 @@ func newRegionNotFoundForDomainError(region, domainID string) *RegionNotFoundFor
 
 func (e *RegionNotFoundForDomainError) Error() string {
 	return fmt.Sprintf("could not find region %s in the domain %s's active cluster config", e.Region, e.DomainID)
+}
+
+type ClusterAttributeNotFoundError struct {
+	DomainID         string
+	ClusterAttribute *types.ClusterAttribute
+	// ActiveClusterInfo *types.ActiveClusterInfo
+}
+
+func (e *ClusterAttributeNotFoundError) Error() string {
+	return fmt.Sprintf("could not find cluster attribute %s in the domain %s's active cluster config", e.ClusterAttribute, e.DomainID)
 }

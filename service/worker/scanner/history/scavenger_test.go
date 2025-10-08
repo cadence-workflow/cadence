@@ -58,7 +58,7 @@ func TestScavengerTestSuite(t *testing.T) {
 
 func (s *ScavengerTestSuite) SetupTest() {
 	s.logger = testlogger.New(s.T())
-	s.metric = metrics.NewClient(tally.NoopScope, metrics.Worker)
+	s.metric = metrics.NewClient(tally.NoopScope, metrics.Worker, metrics.HistogramMigration{})
 	controller := gomock.NewController(s.T())
 	s.mockCache = cache.NewMockDomainCache(controller)
 }

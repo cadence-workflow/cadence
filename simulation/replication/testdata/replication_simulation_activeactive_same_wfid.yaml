@@ -30,6 +30,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 65s
     workflowDuration: 35s
     runIDKey: cluster0
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
 
   # start workflow in cluster1
   - op: start_workflow
@@ -41,6 +45,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 65s
     workflowDuration: 35s
     runIDKey: cluster1
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
 
   # validate that wf1 is started in cluster0 and terminated
   - op: validate

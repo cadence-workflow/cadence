@@ -56,6 +56,36 @@ func (mr *MockManagerMockRecorder) CurrentRegion() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentRegion", reflect.TypeOf((*MockManager)(nil).CurrentRegion))
 }
 
+// GetActiveClusterInfoByClusterAttribute mocks base method.
+func (m *MockManager) GetActiveClusterInfoByClusterAttribute(ctx context.Context, domainID string, clusterAttribute *types.ClusterAttribute) (*types.ActiveClusterInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveClusterInfoByClusterAttribute", ctx, domainID, clusterAttribute)
+	ret0, _ := ret[0].(*types.ActiveClusterInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveClusterInfoByClusterAttribute indicates an expected call of GetActiveClusterInfoByClusterAttribute.
+func (mr *MockManagerMockRecorder) GetActiveClusterInfoByClusterAttribute(ctx, domainID, clusterAttribute any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterInfoByClusterAttribute", reflect.TypeOf((*MockManager)(nil).GetActiveClusterInfoByClusterAttribute), ctx, domainID, clusterAttribute)
+}
+
+// GetActiveClusterInfoByWorkflow mocks base method.
+func (m *MockManager) GetActiveClusterInfoByWorkflow(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveClusterInfoByWorkflow", ctx, domainID, wfID, rID)
+	ret0, _ := ret[0].(*types.ActiveClusterInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveClusterInfoByWorkflow indicates an expected call of GetActiveClusterInfoByWorkflow.
+func (mr *MockManagerMockRecorder) GetActiveClusterInfoByWorkflow(ctx, domainID, wfID, rID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterInfoByWorkflow", reflect.TypeOf((*MockManager)(nil).GetActiveClusterInfoByWorkflow), ctx, domainID, wfID, rID)
+}
+
 // LookupNewWorkflow mocks base method.
 func (m *MockManager) LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (*LookupResult, error) {
 	m.ctrl.T.Helper()

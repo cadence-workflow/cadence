@@ -33,7 +33,7 @@ import (
 )
 
 func TestAddMessage(t *testing.T) {
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History)
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
 	logger := testlogger.New(t) // Mocked
 	pam := newPartitionAckManager(metricsClient, logger)
 	partitionID := int32(1)
@@ -51,7 +51,7 @@ func TestAddMessage(t *testing.T) {
 
 func TestCompleteMessage(t *testing.T) {
 	// Setup
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History)
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
 	logger := testlogger.New(t)
 	pam := newPartitionAckManager(metricsClient, logger)
 

@@ -30,6 +30,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 55s
     workflowDuration: 35s
     cronSchedule: "*/1 * * * *"
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
 
   # start a cron workflow that runs every minute in cluster1
   - op: start_workflow
@@ -41,6 +45,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 55s
     workflowDuration: 35s
     cronSchedule: "*/1 * * * *"
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
 
 
   # Failover from cluster0 to cluster1
