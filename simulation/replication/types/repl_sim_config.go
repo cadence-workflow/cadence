@@ -258,8 +258,6 @@ type ClusterAttributesMap struct {
 }
 
 // UnmarshalYAML implements custom YAML unmarshalling for ClusterAttributesMap.
-// It converts the simplified map[string]map[string]string YAML structure into
-// the AttributeScopes format required by Cadence RPCs.
 func (c *ClusterAttributesMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// Unmarshal into the simplified map structure
 	var clusterAttributes map[string]map[string]string
@@ -290,8 +288,7 @@ func (c *ClusterAttributesMap) UnmarshalYAML(unmarshal func(interface{}) error) 
 	return nil
 }
 
-// ToAttributeScopes returns the converted AttributeScopes map.
-// This is used when passing ClusterAttributes to Cadence RPCs.
+// ToAttributeScopes is a convenience method to return the parsed AttributeScopes map.
 func (c *ClusterAttributesMap) ToAttributeScopes() map[string]types.ClusterAttributeScope {
 	if c == nil {
 		return nil
@@ -299,7 +296,6 @@ func (c *ClusterAttributesMap) ToAttributeScopes() map[string]types.ClusterAttri
 	return c.attributeScopes
 }
 
-// IsEmpty returns true if the ClusterAttributesMap has no attributes defined.
 func (c *ClusterAttributesMap) IsEmpty() bool {
 	return c == nil || len(c.attributeScopes) == 0
 }
