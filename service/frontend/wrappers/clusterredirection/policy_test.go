@@ -598,13 +598,17 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiv
 	domainEntry := s.setupActiveActiveDomainWithTwoReplicationCluster(true)
 
 	usEastStickyPlcy := &types.ActiveClusterSelectionPolicy{
-		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-		StickyRegion:                   "us-east",
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-east",
+		},
 	}
 
 	usWestStickyPlcy := &types.ActiveClusterSelectionPolicy{
-		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-		StickyRegion:                   "us-west",
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-west",
+		},
 	}
 
 	tests := []struct {
@@ -620,10 +624,9 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiv
 			domainEntry:            domainEntry,
 			actClSelPolicyForNewWF: usWestStickyPlcy,
 			mockFn: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupNewWorkflow(gomock.Any(), domainEntry.GetInfo().ID, usWestStickyPlcy).Return(&activecluster.LookupResult{
-					Region:          "us-west",
-					ClusterName:     s.alternativeClusterName,
-					FailoverVersion: 2,
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usWestStickyPlcy.GetClusterAttribute()).Return(&types.ActiveClusterInfo{
+					ActiveClusterName: s.alternativeClusterName,
+					FailoverVersion:   2,
 				}, nil)
 			},
 			want: s.alternativeClusterName,
@@ -633,7 +636,7 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiv
 			domainEntry:            domainEntry,
 			actClSelPolicyForNewWF: usEastStickyPlcy,
 			mockFn: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupNewWorkflow(gomock.Any(), domainEntry.GetInfo().ID, usEastStickyPlcy).Return(nil, errors.New("lookup failed"))
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usEastStickyPlcy.GetClusterAttribute()).Return(nil, errors.New("lookup failed"))
 			},
 			want: s.currentClusterName,
 		},
@@ -672,7 +675,7 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiv
 				RunID:      "run1",
 			},
 			mockFn: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1", "run1").Return(nil, errors.New("lookup failed"))
+				activeClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1", "run1").Return(nil, errors.New("lookup failed"))
 			},
 			want: s.currentClusterName,
 		},
@@ -684,10 +687,9 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiv
 				RunID:      "run1",
 			},
 			mockFn: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1", "run1").Return(&activecluster.LookupResult{
-					Region:          "us-west",
-					ClusterName:     s.alternativeClusterName,
-					FailoverVersion: 2,
+				activeClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1", "run1").Return(&types.ActiveClusterInfo{
+					ActiveClusterName: s.alternativeClusterName,
+					FailoverVersion:   2,
 				}, nil)
 			},
 			want: s.alternativeClusterName,
