@@ -280,8 +280,8 @@ func changeActiveClusters(
 		simTypes.Logf(t, "Changing active clusters by region for domain %s from %+v to %+v", op.Domain, descResp.ReplicationConfiguration.ActiveClusters, activeClustersByRegion)
 	}
 
-	if op.NewClusterAttributes != nil {
-		updateDomainRequest.ActiveClusters.AttributeScopes = simTypes.ClusterAttributesToAttributeScopes(op.NewClusterAttributes)
+	if !op.NewClusterAttributes.IsEmpty() {
+		updateDomainRequest.ActiveClusters.AttributeScopes = op.NewClusterAttributes.ToAttributeScopes()
 		simTypes.Logf(t, "Changing cluster attributes for domain %s from %+v to %+v", op.Domain, descResp.ReplicationConfiguration.ActiveClusters, updateDomainRequest.ActiveClusters)
 	}
 

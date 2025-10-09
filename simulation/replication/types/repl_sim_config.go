@@ -80,7 +80,7 @@ type ReplicationDomainConfig struct {
 	//      us-east1: cluster1 // cluster1 is the ActiveClusterName for the corresponding ActiveClusterInfo
 	//   cityID:
 	//      ...
-	ClusterAttributes map[string]map[string]string `yaml:"clusterAttributes"`
+	ClusterAttributes ClusterAttributesMap `yaml:"clusterAttributes"`
 }
 
 type Operation struct {
@@ -113,8 +113,8 @@ type Operation struct {
 	NewActiveClustersByRegion map[string]string `yaml:"newActiveClustersByRegion"`
 	// NewClusterAttributes specifies the AttributeScopes to change for the domain
 	// This can be a sub-set of the total AttributeScopes for the domain
-	NewClusterAttributes map[string]map[string]string `yaml:"newClusterAttributes"`
-	FailoverTimeout      *int32                       `yaml:"failoverTimeoutSec"`
+	NewClusterAttributes ClusterAttributesMap `yaml:"newClusterAttributes"`
+	FailoverTimeout      *int32               `yaml:"failoverTimeoutSec"`
 
 	// RunIDKey specifies a key to store/retrieve RunID for this operation
 	RunIDKey string `yaml:"runIDKey"`
@@ -232,9 +232,9 @@ func (s *ReplicationSimulationConfig) MustRegisterDomain(
 		req.ActiveClustersByRegion = domainCfg.ActiveClustersByRegion
 	}
 
-	if len(domainCfg.ClusterAttributes) > 0 {
+	if !domainCfg.ClusterAttributes.IsEmpty() {
 		req.ActiveClusters = &types.ActiveClusters{}
-		req.ActiveClusters.AttributeScopes = ClusterAttributesToAttributeScopes(domainCfg.ClusterAttributes)
+		req.ActiveClusters.AttributeScopes = domainCfg.ClusterAttributes.ToAttributeScopes()
 	}
 
 	err := s.MustGetFrontendClient(t, s.PrimaryCluster).RegisterDomain(ctx, req)
@@ -252,9 +252,62 @@ func (s *ReplicationSimulationConfig) MustRegisterDomain(
 
 }
 
+// ClusterAttributesMap is a custom type for YAML unmarshalling of cluster attributes.
+type ClusterAttributesMap struct {
+	attributeScopes map[string]types.ClusterAttributeScope
+}
+
+// UnmarshalYAML implements custom YAML unmarshalling for ClusterAttributesMap.
+// It converts the simplified map[string]map[string]string YAML structure into
+// the AttributeScopes format required by Cadence RPCs.
+func (c *ClusterAttributesMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// Unmarshal into the simplified map structure
+	var clusterAttributes map[string]map[string]string
+	if err := unmarshal(&clusterAttributes); err != nil {
+		return err
+	}
+
+	// Convert to AttributeScopes
+	c.attributeScopes = make(map[string]types.ClusterAttributeScope)
+
+	// scopeType is the key for ClusterAttributeScope
+	// It is the name of the scope, e.g region, datacenter, city, etc.
+	for scopeType, clusterAttributeScope := range clusterAttributes {
+		attributeScope := types.ClusterAttributeScope{
+			ClusterAttributes: make(map[string]types.ActiveClusterInfo),
+		}
+		// attributeName is the ClusterAttribute key, e.g seattle for a city scope, us-west for a region scope, etc.
+		// activeClusterName is the name of a cluster corresponding to the clusterMetadata setup
+		for attributeName, activeClusterName := range clusterAttributeScope {
+			attributeScope.ClusterAttributes[attributeName] = types.ActiveClusterInfo{
+				ActiveClusterName: activeClusterName,
+			}
+		}
+
+		c.attributeScopes[scopeType] = attributeScope
+	}
+
+	return nil
+}
+
+// ToAttributeScopes returns the converted AttributeScopes map.
+// This is used when passing ClusterAttributes to Cadence RPCs.
+func (c *ClusterAttributesMap) ToAttributeScopes() map[string]types.ClusterAttributeScope {
+	if c == nil {
+		return nil
+	}
+	return c.attributeScopes
+}
+
+// IsEmpty returns true if the ClusterAttributesMap has no attributes defined.
+func (c *ClusterAttributesMap) IsEmpty() bool {
+	return c == nil || len(c.attributeScopes) == 0
+}
+
 // ClusterAttributesToAttributeScopes converts ClusterAttributes from the ReplicationSimulationConfig
 // to the AttributeScopes type used for Cadence RPCs.
 // See ReplicationSimulationConfig.ClusterAttributes for more details
+// Deprecated: Use ClusterAttributesMap.ToAttributeScopes() instead
 func ClusterAttributesToAttributeScopes(clusterAttributes map[string]map[string]string) map[string]types.ClusterAttributeScope {
 	attributeScopes := make(map[string]types.ClusterAttributeScope)
 	// scopeType is the key for ClusterAttributeScope
