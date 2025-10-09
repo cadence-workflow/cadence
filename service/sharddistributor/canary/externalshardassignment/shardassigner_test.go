@@ -24,9 +24,9 @@ func TestSShardAssigner_Lifecycle(t *testing.T) {
 
 	namespace := "test-namespace"
 
-	executorclientmock.EXPECT().AssignShards(gomock.Any(), gomock.Any())
+	executorclientmock.EXPECT().AssignShardsFromLocalLogic(gomock.Any(), gomock.Any())
 	executorclientmock.EXPECT().GetShardProcess(gomock.Any()).Return(nil, assert.AnError)
-	executorclientmock.EXPECT().AssignShards(gomock.Any(), gomock.Any())
+	executorclientmock.EXPECT().AssignShardsFromLocalLogic(gomock.Any(), gomock.Any())
 	executorclientmock.EXPECT().GetShardProcess(gomock.Any()).Return(nil, assert.AnError)
 
 	params := ShardAssignerParams{

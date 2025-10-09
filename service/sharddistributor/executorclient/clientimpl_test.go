@@ -226,7 +226,7 @@ func TestAssignShards(t *testing.T) {
 	shardProcessorMock3.EXPECT().Start(gomock.Any())
 
 	// Update the shard assignment
-	executor.AssignShards(context.Background(), newAssignment)
+	executor.AssignShardsFromLocalLogic(context.Background(), newAssignment)
 	time.Sleep(10 * time.Millisecond) // Force the updateShardAssignment goroutines to run
 
 	// Assert that we now have the 2 shards in the assignment

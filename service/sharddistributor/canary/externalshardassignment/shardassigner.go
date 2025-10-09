@@ -99,7 +99,7 @@ func (s *ShardAssigner) process(ctx context.Context) {
 					Status: types.AssignmentStatusREADY,
 				},
 			}
-			s.executorclient.AssignShards(context.Background(), shardAssignment)
+			s.executorclient.AssignShardsFromLocalLogic(context.Background(), shardAssignment)
 			sp, err := s.executorclient.GetShardProcess(newAssignedShard)
 			if err != nil {
 				s.logger.Error("failed to get shard assigned", zap.String("shardKey", newAssignedShard), zap.Error(err))

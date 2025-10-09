@@ -4,7 +4,6 @@ import (
 	"go.uber.org/fx"
 
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
-	exetrnalshardassignment "github.com/uber/cadence/service/sharddistributor/canary/externalshardassignment"
 	"github.com/uber/cadence/service/sharddistributor/canary/factory"
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
 	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
@@ -37,6 +36,7 @@ func opts(fixedNamespace, ephemeralNamespace, sharddistributorServiceName string
 		executorclient.ModuleWithNamespace[*processorephemeral.ShardProcessor](ephemeralNamespace),
 
 		processorephemeral.ShardCreatorModule(ephemeralNamespace),
-		exetrnalshardassignment.ShardAssignerModule(ephemeralNamespace),
+		// Enabling this back when we have dynamic config to enable it per namespace
+		// exetrnalshardassignment.ShardAssignerModule(ephemeralNamespace),
 	)
 }
