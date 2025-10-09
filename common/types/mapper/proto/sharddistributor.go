@@ -212,6 +212,7 @@ func ToShardDistributorExecutorHeartbeatResponse(t *sharddistributorv1.Heartbeat
 
 	// Convert the ShardAssignments
 	var shardAssignments map[string]*types.ShardAssignment
+	var migrationMode types.MigrationMode
 	if t.GetShardAssignments() != nil {
 		shardAssignments = make(map[string]*types.ShardAssignment)
 
@@ -227,9 +228,49 @@ func ToShardDistributorExecutorHeartbeatResponse(t *sharddistributorv1.Heartbeat
 				Status: status,
 			}
 		}
+		migrationMode = getMigrationPhaseFromProto(t.GetMigrationMode())
 	}
 
 	return &types.ExecutorHeartbeatResponse{
 		ShardAssignments: shardAssignments,
+		MigrationPhase:   migrationMode,
 	}
+}
+
+func getMigrationPhaseFromProto(protoMigrationMode sharddistributorv1.MigrationMode) types.MigrationMode {
+	var phase types.MigrationMode
+	switch protoMigrationMode {
+	case sharddistributorv1.MigrationMode_MIGRATION_MODE_INVALID:
+		phase = types.MigrationModeINVALID
+	case sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH:
+		phase = types.MigrationModeLOCALPASSTHROUGH
+	case sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH_SHADOW:
+		phase = types.MigrationModeLOCALPASSTHROUGHSHADOW
+	case sharddistributorv1.MigrationMode_MIGRATION_MODE_DISTRIBUTED_PASSTHROUGH:
+		phase = types.MigrationModeDISTRIBUTEDPASSTHROUGH
+	case sharddistributorv1.MigrationMode_MIGRATION_MODE_ONBOARDED:
+		phase = types.MigrationModePHASEONBOARDED
+	default:
+		phase = types.MigrationModeINVALID
+	}
+	return phase
+}
+
+func toMigrationPhase(phaseSD types.MigrationMode) sharddistributorv1.MigrationMode {
+	var phase sharddistributorv1.MigrationMode
+	switch phaseSD {
+	case types.MigrationModeINVALID:
+		phase = sharddistributorv1.MigrationMode_MIGRATION_MODE_INVALID
+	case types.MigrationModeLOCALPASSTHROUGH:
+		phase = sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH
+	case types.MigrationModeLOCALPASSTHROUGHSHADOW:
+		phase = sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH_SHADOW
+	case types.MigrationModeDISTRIBUTEDPASSTHROUGH:
+		phase = sharddistributorv1.MigrationMode_MIGRATION_MODE_DISTRIBUTED_PASSTHROUGH
+	case types.MigrationModePHASEONBOARDED:
+		phase = sharddistributorv1.MigrationMode_MIGRATION_MODE_ONBOARDED
+	default:
+		phase = sharddistributorv1.MigrationMode_MIGRATION_MODE_INVALID
+	}
+	return phase
 }
