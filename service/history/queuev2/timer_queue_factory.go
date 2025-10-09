@@ -125,7 +125,6 @@ func (f *timerQueueFactory) createQueuev2(
 	)
 	executorWrapper := task.NewExecutorWrapper(
 		shard.GetClusterMetadata().GetCurrentClusterName(),
-		shard.GetDomainCache(),
 		shard.GetActiveClusterManager(),
 		activeTaskExecutor,
 		standbyTaskExecutor,

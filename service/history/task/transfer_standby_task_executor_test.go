@@ -147,6 +147,12 @@ func (s *transferStandbyTaskExecutorSuite) SetupTest() {
 	s.mockDomainCache.EXPECT().GetDomain(constants.TestRateLimitedDomainName).Return(constants.TestRateLimitedDomainEntry, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomainID(constants.TestRateLimitedDomainName).Return(constants.TestRateLimitedDomainID, nil).AnyTimes()
 
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestGlobalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestGlobalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	s.logger = s.mockShard.GetLogger()
 	s.clusterName = cluster.TestAlternativeClusterName
 	s.transferStandbyTaskExecutor = NewTransferStandbyTaskExecutor(

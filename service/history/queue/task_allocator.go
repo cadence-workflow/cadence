@@ -157,7 +157,7 @@ func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID,
 
 	// handle active-active domain
 	if domainEntry.GetReplicationConfig().IsActiveActive() {
-		resp, err := t.activeClusterMgr.LookupWorkflow(context.Background(), domainID, wfID, rID)
+		resp, err := t.activeClusterMgr.GetActiveClusterInfoByWorkflow(context.Background(), domainID, wfID, rID)
 		if err != nil {
 			t.logger.Warn("Failed to lookup active cluster",
 				tag.WorkflowDomainID(domainID),
@@ -167,7 +167,7 @@ func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID,
 			)
 			return false, err
 		}
-		if resp.ClusterName != cluster {
+		if resp.ActiveClusterName != cluster {
 			t.logger.Debug("Skip task because workflow is not active on the given cluster",
 				tag.WorkflowID(wfID),
 				tag.WorkflowDomainID(domainID),
@@ -180,7 +180,7 @@ func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID,
 			tag.WorkflowDomainID(domainID),
 			tag.WorkflowID(wfID),
 			tag.WorkflowRunID(rID),
-			tag.ClusterName(resp.ClusterName),
+			tag.ClusterName(resp.ActiveClusterName),
 		)
 		return true, nil
 	}

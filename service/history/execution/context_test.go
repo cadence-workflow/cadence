@@ -2881,7 +2881,7 @@ func TestReapplyEvents(t *testing.T) {
 					}, 0),
 					nil)
 				mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager)
-				mockActiveClusterManager.EXPECT().LookupWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
+				mockActiveClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
 					nil, errors.New("some error"))
 			},
 			wantErr: true,
@@ -2916,9 +2916,9 @@ func TestReapplyEvents(t *testing.T) {
 					}, 0),
 					nil)
 				mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager)
-				mockActiveClusterManager.EXPECT().LookupWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
-					&activecluster.LookupResult{
-						ClusterName: cluster.TestCurrentClusterName,
+				mockActiveClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
+					&types.ActiveClusterInfo{
+						ActiveClusterName: cluster.TestCurrentClusterName,
 					}, nil)
 				mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata)
 				mockShard.EXPECT().GetEngine().Return(mockEngine)
@@ -2958,9 +2958,9 @@ func TestReapplyEvents(t *testing.T) {
 						},
 					}, 0), nil)
 				mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager)
-				mockActiveClusterManager.EXPECT().LookupWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
-					&activecluster.LookupResult{
-						ClusterName: cluster.TestAlternativeClusterName,
+				mockActiveClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
+					&types.ActiveClusterInfo{
+						ActiveClusterName: cluster.TestAlternativeClusterName,
 					}, nil)
 				mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata)
 				mockShard.EXPECT().GetService().Return(mockResource).Times(2)
@@ -2985,6 +2985,11 @@ func TestReapplyEvents(t *testing.T) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(cache.NewGlobalDomainCacheEntryForTest(nil, nil, &persistence.DomainReplicationConfig{ActiveClusterName: cluster.TestCurrentClusterName}, 0), nil)
 				mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata)
+				mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager)
+				mockActiveClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
+					&types.ActiveClusterInfo{
+						ActiveClusterName: cluster.TestCurrentClusterName,
+					}, nil)
 				mockShard.EXPECT().GetEngine().Return(mockEngine)
 				mockEngine.EXPECT().ReapplyEvents(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id", []*types.HistoryEvent{
 					{
@@ -3013,6 +3018,11 @@ func TestReapplyEvents(t *testing.T) {
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(cache.NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{Name: "test-domain"}, nil, &persistence.DomainReplicationConfig{ActiveClusterName: cluster.TestAlternativeClusterName}, 0), nil)
 				mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata)
 				mockShard.EXPECT().GetService().Return(mockResource).Times(2)
+				mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager)
+				mockActiveClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
+					&types.ActiveClusterInfo{
+						ActiveClusterName: cluster.TestAlternativeClusterName,
+					}, nil)
 				mockResource.RemoteAdminClient.EXPECT().ReapplyEvents(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantErr: false,

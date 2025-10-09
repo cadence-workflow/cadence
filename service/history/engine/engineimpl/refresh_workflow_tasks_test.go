@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -117,6 +118,10 @@ func TestRefreshWorkflowTasks(t *testing.T) {
 				On("GetWorkflowExecution", mock.Anything, getExecReq).
 				Return(getExecResp, tc.getWFExecErr).
 				Once()
+
+			eft.ShardCtx.Resource.ActiveClusterMgr.
+				EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, tc.execution.WorkflowID, tc.execution.RunID).
+				Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).MaxTimes(1)
 
 			// ReadHistoryBranch prep
 			historyBranchResp := &persistence.ReadHistoryBranchResponse{

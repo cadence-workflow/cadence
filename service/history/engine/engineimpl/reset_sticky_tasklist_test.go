@@ -28,6 +28,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/persistence"
@@ -78,6 +79,8 @@ func TestResetStickyTaskList(t *testing.T) {
 						Checksum:       checksum.Checksum{},
 					},
 				}, nil)
+				engine.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, execution.WorkflowID, execution.RunID).
+					Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).Times(1)
 			},
 			expectedErr: workflow.ErrAlreadyCompleted,
 		},
@@ -102,6 +105,8 @@ func TestResetStickyTaskList(t *testing.T) {
 						Checksum:       checksum.Checksum{},
 					},
 				}, nil)
+				engine.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, execution.WorkflowID, execution.RunID).
+					Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).Times(1)
 				engine.ShardCtx.Resource.ExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.MatchedBy(func(req *persistence.UpdateWorkflowExecutionRequest) bool {
 					return req.UpdateWorkflowMutation.ExecutionInfo.WorkflowID == execution.WorkflowID &&
 						req.UpdateWorkflowMutation.ExecutionInfo.RunID == execution.RunID &&

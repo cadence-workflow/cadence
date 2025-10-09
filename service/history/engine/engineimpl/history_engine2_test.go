@@ -129,6 +129,13 @@ func (s *engine2Suite) SetupTest() {
 	s.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return(constants.TestDomainID, nil).AnyTimes()
 	s.mockEventsCache.EXPECT().PutEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: testDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   testDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	s.logger = s.mockShard.GetLogger()
 
 	executionCache := execution.NewCache(s.mockShard)

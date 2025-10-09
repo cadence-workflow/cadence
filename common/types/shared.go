@@ -2639,6 +2639,13 @@ type ActiveClusterSelectionPolicy struct {
 	ClusterAttribute *ClusterAttribute `json:"clusterAttribute,omitempty" yaml:"clusterAttribute,omitempty"`
 }
 
+func (p *ActiveClusterSelectionPolicy) GetClusterAttribute() *ClusterAttribute {
+	if p == nil {
+		return nil
+	}
+	return p.ClusterAttribute
+}
+
 func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolicy) bool {
 	if p == nil && other == nil {
 		return true

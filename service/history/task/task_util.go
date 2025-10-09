@@ -345,11 +345,11 @@ func shouldPushToMatching(
 	// For active-active domains, only push to matching if the workflow is active in current cluster
 	// We may revisit this logic in the future. Current idea is to not pollute tasklists with passive workflows of active-active domains
 	// because they would cause head-of-line blocking in the tasklist. Passive task completion logic doesn't apply to active-active domains.
-	lookupRes, err := shard.GetActiveClusterManager().LookupWorkflow(ctx, taskInfo.GetDomainID(), taskInfo.GetWorkflowID(), taskInfo.GetRunID())
+	activeClusterInfo, err := shard.GetActiveClusterManager().GetActiveClusterInfoByWorkflow(ctx, taskInfo.GetDomainID(), taskInfo.GetWorkflowID(), taskInfo.GetRunID())
 	if err != nil {
 		return false, err
 	}
-	if lookupRes.ClusterName != shard.GetClusterMetadata().GetCurrentClusterName() {
+	if activeClusterInfo.ActiveClusterName != shard.GetClusterMetadata().GetCurrentClusterName() {
 		return false, nil
 	}
 

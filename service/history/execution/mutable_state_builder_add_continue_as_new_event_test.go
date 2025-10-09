@@ -283,7 +283,11 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			domainEntry:     domainEntry,
 			startingState:   createStartingExecutionInfo(),
 			startingHistory: createValidStartingHistory(domainFailoverVersion),
-
+			actClMgrAffordance: func(actClMgr *activecluster.MockManager) {
+				actClMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), gomock.Any(), gomock.Any()).Return(&types.ActiveClusterInfo{
+					FailoverVersion: domainFailoverVersion,
+				}, nil)
+			},
 			// when it goes to fetch the starting event
 			historyManagerAffordance: func(historyManager *persistence.MockHistoryManager) {
 				historyManager.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).Return(&persistence.ReadHistoryBranchResponse{
@@ -303,7 +307,7 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			startingState:   createStartingExecutionInfo(),
 			startingHistory: createValidStartingHistory(1),
 			actClMgrAffordance: func(actClMgr *activecluster.MockManager) {
-				actClMgr.EXPECT().LookupNewWorkflow(gomock.Any(), gomock.Any(), gomock.Any()).Return(&activecluster.LookupResult{
+				actClMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), gomock.Any(), gomock.Any()).Return(&types.ActiveClusterInfo{
 					FailoverVersion: 2, // this version will be used by new mutable state builder for new tasks
 				}, nil)
 			},
@@ -333,6 +337,11 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			domainEntry:     domainEntry,
 			startingState:   createStartingExecutionInfo(),
 			startingHistory: createValidStartingHistory(domainFailoverVersion),
+			actClMgrAffordance: func(actClMgr *activecluster.MockManager) {
+				actClMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), gomock.Any(), gomock.Any()).Return(&types.ActiveClusterInfo{
+					FailoverVersion: domainFailoverVersion,
+				}, nil)
+			},
 			historyManagerAffordance: func(historyManager *persistence.MockHistoryManager) {
 				historyManager.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).Return(&persistence.ReadHistoryBranchResponse{
 					HistoryEvents: []*types.HistoryEvent{
