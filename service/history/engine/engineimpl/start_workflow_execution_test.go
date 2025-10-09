@@ -85,6 +85,7 @@ func TestStartWorkflowExecution(t *testing.T) {
 			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
 				domainEntry := &cache.DomainCacheEntry{}
 				eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(domainEntry, nil).AnyTimes()
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, nil).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.CreateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
 				historyBranchResp := &persistence.ReadHistoryBranchResponse{
 					HistoryEvents: []*types.HistoryEvent{
@@ -152,6 +153,7 @@ func TestStartWorkflowExecution(t *testing.T) {
 			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
 				domainEntry := &cache.DomainCacheEntry{}
 				eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(domainEntry, nil).AnyTimes()
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, nil).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 
 				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.Anything).Return(nil, errors.New("version conflict")).Once()
 				eft.ShardCtx.Resource.ExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.Anything).Return(nil, errors.New("internal error")).Once()
@@ -187,6 +189,7 @@ func TestStartWorkflowExecution(t *testing.T) {
 			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
 				domainEntry := &cache.DomainCacheEntry{}
 				eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(domainEntry, nil).AnyTimes()
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, nil).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 				// Simulate the termination and recreation process
 				eft.ShardCtx.Resource.ExecutionMgr.On("TerminateWorkflowExecution", mock.Anything, mock.Anything).Return(nil).Once()
 				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.CreateWorkflowExecutionResponse{}, nil).Once()
@@ -218,6 +221,7 @@ func TestStartWorkflowExecution(t *testing.T) {
 			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
 				domainEntry := &cache.DomainCacheEntry{}
 				eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(domainEntry, nil).AnyTimes()
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, nil).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 
 				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.Anything).Return(nil, &persistence.WorkflowExecutionAlreadyStartedError{
 					StartRequestID: "existing-request-id",
@@ -229,35 +233,6 @@ func TestStartWorkflowExecution(t *testing.T) {
 				historyV2Mgr := eft.ShardCtx.Resource.HistoryMgr
 				historyV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.AnythingOfType("*persistence.AppendHistoryNodesRequest")).
 					Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
-			},
-			wantErr: true,
-		},
-		{
-			name: "active-active domain - active cluster selection policy is required",
-			request: &types.HistoryStartWorkflowExecutionRequest{
-				DomainUUID: "36047120-fe32-40d6-a242-f14864fc302c",
-				StartRequest: &types.StartWorkflowExecutionRequest{
-					Domain:                              constants.TestDomainName,
-					WorkflowID:                          "workflow-id",
-					WorkflowType:                        &types.WorkflowType{Name: "workflow-type"},
-					TaskList:                            &types.TaskList{Name: "default-task-list"},
-					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600), // 1 hour
-					TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(10),   // 10 seconds
-					Identity:                            "workflow-starter",
-					RequestID:                           "request-id-for-start",
-					WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyRejectDuplicate.Ptr(),
-				},
-			},
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				domainEntry := getDomainCacheEntry(-1, &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"region0": {
-							ActiveClusterName: "active",
-							FailoverVersion:   35,
-						},
-					},
-				})
-				eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID("36047120-fe32-40d6-a242-f14864fc302c").Return(domainEntry, nil).AnyTimes()
 			},
 			wantErr: true,
 		},
@@ -308,6 +283,7 @@ func TestSignalWithStartWorkflowExecution(t *testing.T) {
 			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
 				domainEntry := &cache.DomainCacheEntry{}
 				eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(domainEntry, nil).AnyTimes()
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, nil).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 				// Mock GetCurrentExecution to simulate a non-existent current execution
 				getCurrentExecReq := &persistence.GetCurrentExecutionRequest{
 					DomainID:   constants.TestDomainID,
@@ -353,6 +329,7 @@ func TestSignalWithStartWorkflowExecution(t *testing.T) {
 			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
 				domainEntry := &cache.DomainCacheEntry{}
 				eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(domainEntry, nil).AnyTimes()
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, nil).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 
 				// Simulate current workflow execution is running
 				getCurrentExecReq := &persistence.GetCurrentExecutionRequest{
@@ -388,6 +365,7 @@ func TestSignalWithStartWorkflowExecution(t *testing.T) {
 					On("GetWorkflowExecution", mock.Anything, getExecReq).
 					Return(getExecResp, nil).
 					Once()
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 				var _ *persistence.UpdateWorkflowExecutionRequest
 				updateExecResp := &persistence.UpdateWorkflowExecutionResponse{
 					MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{},
@@ -415,35 +393,6 @@ func TestSignalWithStartWorkflowExecution(t *testing.T) {
 				historyV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.AnythingOfType("*persistence.AppendHistoryNodesRequest")).Return(&persistence.AppendHistoryNodesResponse{}, nil)
 			},
 			wantErr: false,
-		},
-		{
-			name: "active-active domain - active cluster selection policy is required",
-			request: &types.HistorySignalWithStartWorkflowExecutionRequest{
-				DomainUUID: "36047120-fe32-40d6-a242-f14864fc302c",
-				SignalWithStartRequest: &types.SignalWithStartWorkflowExecutionRequest{
-					Domain:                              constants.TestDomainName,
-					WorkflowID:                          "workflow-id",
-					WorkflowType:                        &types.WorkflowType{Name: "workflow-type"},
-					TaskList:                            &types.TaskList{Name: "default-task-list"},
-					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600), // 1 hour
-					TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(10),   // 10 seconds
-					Identity:                            "workflow-starter",
-					RequestID:                           "request-id-for-start",
-					WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyRejectDuplicate.Ptr(),
-				},
-			},
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				domainEntry := getDomainCacheEntry(-1, &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"region0": {
-							ActiveClusterName: "active",
-							FailoverVersion:   35,
-						},
-					},
-				})
-				eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID("36047120-fe32-40d6-a242-f14864fc302c").Return(domainEntry, nil).AnyTimes()
-			},
-			wantErr: true,
 		},
 	}
 
@@ -475,14 +424,9 @@ func TestCreateMutableState(t *testing.T) {
 		wantVersion int64
 	}{
 		{
-			name:        "create mutable state successfully, active-passive domain's failover version is used as version",
-			domainEntry: getDomainCacheEntry(35, nil),
-			wantVersion: 35,
-		},
-		{
-			name: "create mutable state successfully, active-active domain. failover version is looked up from active cluster manager",
+			name: "create mutable state successfully, failover version is looked up from active cluster manager",
 			domainEntry: getDomainCacheEntry(
-				-1, /* doesn't matter for active-active domain */
+				0,
 				&types.ActiveClusters{
 					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 						"us-west": {
@@ -496,17 +440,17 @@ func TestCreateMutableState(t *testing.T) {
 					},
 				}),
 			mockFn: func(ac *activecluster.MockManager) {
-				ac.EXPECT().LookupNewWorkflow(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&activecluster.LookupResult{
+				ac.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&types.ActiveClusterInfo{
 						FailoverVersion: 125,
 					}, nil)
 			},
 			wantVersion: 125,
 		},
 		{
-			name: "failed to create mutable state for active-active domain. LookupNewWorkflow failed",
+			name: "failed to create mutable state. GetActiveClusterInfoByClusterAttribute failed",
 			domainEntry: getDomainCacheEntry(
-				-1, /* doesn't matter for active-active domain */
+				0,
 				&types.ActiveClusters{
 					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 						"us-west": {
@@ -520,7 +464,7 @@ func TestCreateMutableState(t *testing.T) {
 					},
 				}),
 			mockFn: func(ac *activecluster.MockManager) {
-				ac.EXPECT().LookupNewWorkflow(gomock.Any(), gomock.Any(), gomock.Any()).
+				ac.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("some error"))
 			},
 			wantErr: true,
