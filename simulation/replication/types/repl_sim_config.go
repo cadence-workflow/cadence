@@ -303,29 +303,3 @@ func (c *ClusterAttributesMap) ToAttributeScopes() map[string]types.ClusterAttri
 func (c *ClusterAttributesMap) IsEmpty() bool {
 	return c == nil || len(c.attributeScopes) == 0
 }
-
-// ClusterAttributesToAttributeScopes converts ClusterAttributes from the ReplicationSimulationConfig
-// to the AttributeScopes type used for Cadence RPCs.
-// See ReplicationSimulationConfig.ClusterAttributes for more details
-// Deprecated: Use ClusterAttributesMap.ToAttributeScopes() instead
-func ClusterAttributesToAttributeScopes(clusterAttributes map[string]map[string]string) map[string]types.ClusterAttributeScope {
-	attributeScopes := make(map[string]types.ClusterAttributeScope)
-	// scopeType is the key for ClusterAttributeScope
-	// It is the name of the scope, e.g region, datacenter, city, etc.
-	for scopeType, clusterAttributeScope := range clusterAttributes {
-		attributeScope := types.ClusterAttributeScope{
-			ClusterAttributes: make(map[string]types.ActiveClusterInfo),
-		}
-		// attributeName is the ClusterAttribute key, e.g seattle for a city scope, us-west for a region scope, etc.
-		// activeClusterName is the name of a cluster corresponding to the clusterMetadata setup
-		for attributeName, activeClusterName := range clusterAttributeScope {
-			attributeScope.ClusterAttributes[attributeName] = types.ActiveClusterInfo{
-				ActiveClusterName: activeClusterName,
-			}
-		}
-
-		attributeScopes[scopeType] = attributeScope
-	}
-
-	return attributeScopes
-}
