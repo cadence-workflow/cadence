@@ -182,3 +182,40 @@ func (d *AttrValidatorImpl) validateClusterName(
 	}
 	return nil
 }
+
+func (d *AttrValidatorImpl) validateActiveActiveDomainReplicationConfig(
+	activeClusters *types.ActiveClusters,
+) error {
+
+	clusters := d.clusterMetadata.GetEnabledClusterInfo()
+
+	for _, scopeData := range activeClusters.AttributeScopes {
+		for _, activeCluster := range scopeData.ClusterAttributes {
+			_, ok := clusters[activeCluster.ActiveClusterName]
+			if !ok {
+				return &types.BadRequestError{Message: fmt.Sprintf(
+					"Invalid active cluster name: %v",
+					activeCluster.ActiveClusterName,
+				)}
+			}
+			if activeCluster.FailoverVersion < 0 {
+				return &types.BadRequestError{Message: fmt.Sprintf(
+					"invalid failover version: %d",
+					activeCluster.FailoverVersion,
+				)}
+			}
+		}
+	}
+
+	// todo (david.porter) remove this once we have completely migrated to AttributeScopes
+	for _, activeCluster := range activeClusters.ActiveClustersByRegion {
+		if _, ok := clusters[activeCluster.ActiveClusterName]; !ok {
+			return &types.BadRequestError{Message: fmt.Sprintf(
+				"Invalid active cluster name: %v",
+				activeCluster.ActiveClusterName,
+			)}
+		}
+	}
+
+	return nil
+}
