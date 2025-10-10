@@ -56,6 +56,7 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 		return nil, fmt.Errorf("migration mode is invalid")
 	case types.MigrationModeLOCALPASSTHROUGH:
 		h.logger.Warn("Migration mode is local passthrough, no calls to heartbeat allowed", tag.ShardNamespace(request.Namespace), tag.ShardExecutor(request.ExecutorID))
+		return nil, fmt.Errorf("migration mode is local passthrough")
 	// From SD perspective the behaviour is the same
 	case types.MigrationModeLOCALPASSTHROUGHSHADOW, types.MigrationModeDISTRIBUTEDPASSTHROUGH:
 		assignedShards, err = h.assignShardsInCurrentHeartbeat(ctx, request, previousHeartbeat, assignedShards)
