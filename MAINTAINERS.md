@@ -8,6 +8,7 @@
 - Adhitya Mamallan (https://github.com/adhityamamallan)
 - Assem Hafez (https://github.com/Assem-Uber)
 - Bowen Xiao (https://github.com/bowenxia)
+- Chris Warren (https://github.com/c-warren)
 - David Porter (https://github.com/davidporter-id-au)
 - Emrah Seker (https://github.com/emrahs)
 - Felipe Imanishi (https://github.com/fimanishi)
