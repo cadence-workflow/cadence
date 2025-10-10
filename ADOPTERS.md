@@ -6,7 +6,7 @@ Your support helps us understand our user community and prioritize improvements.
 
 ## Production Users
 
-![using.png](./logos/Uber_Logo_White.png)
+![using.png](./logos/Uber.jpg)
 
 ### Uber Technologies
 
@@ -30,7 +30,7 @@ There are 20+ environments running Cadence where some of them hosts 400+ domains
 ### Adding Your Logo
 
 - If you would like your organization’s logo to appear on the Cadence website, repositories and documentation:
-- Add your logo file (preferably in PNG format, with transparent background) to the /logos directory in the repository.
+- Add your logo file (preferably in JPG/JPEG format) to the /logos directory in the repository.
 - Name the file using lowercase letters and hyphens (for example: acme-corp.svg).
 - Keep your image dimensions less than 300 pixels in width and 200 pixels in height.
 - Update ADOPTERS.md to include your logo and link to your organization’s website.
