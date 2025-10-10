@@ -7,7 +7,10 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -16,16 +19,23 @@ const (
 )
 
 type executor struct {
-	timeSource clock.TimeSource
-	storage    store.Store
+	logger               log.Logger
+	timeSource           clock.TimeSource
+	storage              store.Store
+	shardDistributionCfg config.ShardDistribution
 }
 
-func NewExecutorHandler(storage store.Store,
+func NewExecutorHandler(
+	logger log.Logger,
+	storage store.Store,
 	timeSource clock.TimeSource,
+	shardDistributionCfg config.ShardDistribution,
 ) Executor {
 	return &executor{
-		timeSource: timeSource,
-		storage:    storage,
+		logger:               logger,
+		timeSource:           timeSource,
+		storage:              storage,
+		shardDistributionCfg: shardDistributionCfg,
 	}
 }
 
@@ -38,12 +48,28 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 
 	now := h.timeSource.Now().UTC()
 
+	mode := h.shardDistributionCfg.GetMigrationMode(request.Namespace)
+
+	switch mode {
+	case types.MigrationModeINVALID:
+		h.logger.Warn("Migration mode is invalid", tag.ShardNamespace(request.Namespace), tag.ShardExecutor(request.ExecutorID))
+		return nil, fmt.Errorf("migration mode is invalid")
+	case types.MigrationModeLOCALPASSTHROUGH:
+		h.logger.Warn("Migration mode is local passthrough, no calls to heartbeat allowed", tag.ShardNamespace(request.Namespace), tag.ShardExecutor(request.ExecutorID))
+	// From SD perspective the behaviour is the same
+	case types.MigrationModeLOCALPASSTHROUGHSHADOW, types.MigrationModeDISTRIBUTEDPASSTHROUGH:
+		assignedShards, err = h.assignShardsInCurrentHeartbeat(ctx, request, previousHeartbeat, assignedShards)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// If the state has changed we need to update heartbeat data.
 	// Otherwise, we want to do it with controlled frequency - at most every _heartbeatRefreshRate.
-	if previousHeartbeat != nil && request.Status == previousHeartbeat.Status {
+	if previousHeartbeat != nil && request.Status == previousHeartbeat.Status && mode == types.MigrationModeONBOARDED {
 		lastHeartbeatTime := time.Unix(previousHeartbeat.LastHeartbeat, 0)
 		if now.Sub(lastHeartbeatTime) < _heartbeatRefreshRate {
-			return _convertResponse(assignedShards), nil
+			return _convertResponse(assignedShards, mode), nil
 		}
 	}
 
@@ -58,14 +84,56 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 		return nil, fmt.Errorf("record heartbeat: %w", err)
 	}
 
-	return _convertResponse(assignedShards), nil
+	return _convertResponse(assignedShards, mode), nil
 }
 
-func _convertResponse(shards *store.AssignedState) *types.ExecutorHeartbeatResponse {
+// assignShardsInCurrentHeartbeat is used during the migration phase to assign the shards to the executors according to what is reported during the heartbeat
+func (h *executor) assignShardsInCurrentHeartbeat(ctx context.Context, request *types.ExecutorHeartbeatRequest, previousHeartbeat *store.HeartbeatState, previousAssignedShards *store.AssignedState) (*store.AssignedState, error) {
+	changeInShardAssignment := false
+	assignedShards := previousAssignedShards
+	// Check if the shards of the new assignment exists and have the same status in the old assignment
+	for shardAssigned, status := range request.GetShardStatusReports() {
+		shardStatusPreviousHeartbeat, ok := previousHeartbeat.ReportedShards[shardAssigned]
+		if !ok {
+			changeInShardAssignment = true
+			break
+		}
+		if status.GetStatus() != shardStatusPreviousHeartbeat.GetStatus() {
+			changeInShardAssignment = true
+		}
+	}
+	// Check if some shards from previous assignment should be deleted
+	if len(request.GetShardStatusReports()) != len(previousHeartbeat.ReportedShards) {
+		changeInShardAssignment = true
+	}
+	if changeInShardAssignment {
+		assignedShards = &store.AssignedState{
+			AssignedShards: make(map[string]*types.ShardAssignment),
+			LastUpdated:    h.timeSource.Now().Unix(),
+			ModRevision:    previousAssignedShards.ModRevision,
+		}
+		err := h.storage.DeleteExecutors(ctx, request.GetNamespace(), []string{request.GetExecutorID()}, nil)
+		if err != nil {
+			return nil, fmt.Errorf("delete executors: %w", err)
+		}
+		for shard := range request.GetShardStatusReports() {
+			err = h.storage.AssignShard(ctx, request.GetNamespace(), request.GetExecutorID(), shard)
+			assignedShards.AssignedShards[shard] = &types.ShardAssignment{
+				Status: types.AssignmentStatusREADY,
+			}
+			return nil, fmt.Errorf("assign shard: %w", err)
+		}
+	}
+
+	return assignedShards, nil
+}
+
+func _convertResponse(shards *store.AssignedState, mode types.MigrationMode) *types.ExecutorHeartbeatResponse {
 	res := &types.ExecutorHeartbeatResponse{}
 	if shards == nil {
 		return res
 	}
 	res.ShardAssignments = shards.AssignedShards
+	res.MigrationMode = mode
 	return res
 }
