@@ -2604,13 +2604,8 @@ func (v *ActiveClusters) DeepCopy() *ActiveClusters {
 	for region, activeClusterInfo := range v.ActiveClustersByRegion {
 		activeClustersByRegion[region] = activeClusterInfo
 	}
-	attributeScopes := make(map[string]ClusterAttributeScope)
-	for scopeType, scope := range v.AttributeScopes {
-		attributeScopes[scopeType] = scope
-	}
 	return &ActiveClusters{
 		ActiveClustersByRegion: activeClustersByRegion,
-		AttributeScopes:        attributeScopes,
 	}
 }
 

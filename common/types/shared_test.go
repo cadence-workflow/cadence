@@ -84,13 +84,6 @@ func TestActiveClustersConfigDeepCopy(t *testing.T) {
 				FailoverVersion:   2,
 			},
 		},
-		AttributeScopes: map[string]ClusterAttributeScope{
-			"region": {
-				ClusterAttributes: map[string]ActiveClusterInfo{
-					"us-east-1": {ActiveClusterName: "us-east-1-cluster", FailoverVersion: 1},
-				},
-			},
-		},
 	}
 
 	tests := []struct {
@@ -108,7 +101,6 @@ func TestActiveClustersConfigDeepCopy(t *testing.T) {
 			input: &ActiveClusters{},
 			expect: &ActiveClusters{
 				ActiveClustersByRegion: map[string]ActiveClusterInfo{},
-				AttributeScopes:        map[string]ClusterAttributeScope{},
 			},
 		},
 		{

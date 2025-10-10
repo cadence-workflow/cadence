@@ -904,8 +904,8 @@ func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) bool {
 	}
 
 	if entry.GetReplicationConfig().IsActiveActive() {
-		for _, cl := range entry.activeClusters {
-			if cl == currentCluster {
+		for _, cl := range entry.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion {
+			if cl.ActiveClusterName == currentCluster {
 				return true
 			}
 		}
@@ -1064,11 +1064,9 @@ func getActiveClusters(replicationConfig *persistence.DomainReplicationConfig) [
 	if !replicationConfig.IsActiveActive() {
 		return nil
 	}
-	activeClusters := make([]string, 0, len(replicationConfig.ActiveClusters.AttributeScopes))
-	for _, scope := range replicationConfig.ActiveClusters.AttributeScopes {
-		for _, cl := range scope.ClusterAttributes {
-			activeClusters = append(activeClusters, cl.ActiveClusterName)
-		}
+	activeClusters := make([]string, 0, len(replicationConfig.ActiveClusters.ActiveClustersByRegion))
+	for _, cl := range replicationConfig.ActiveClusters.ActiveClustersByRegion {
+		activeClusters = append(activeClusters, cl.ActiveClusterName)
 	}
 	sort.Strings(activeClusters)
 	return activeClusters
