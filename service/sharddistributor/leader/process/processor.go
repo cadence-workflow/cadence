@@ -172,9 +172,11 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 	defer ticker.Stop()
 
 	// Perform an initial rebalance on startup.
-	err := p.rebalanceShards(ctx)
-	if err != nil {
-		p.logger.Error("initial rebalance failed", tag.Error(err))
+	if p.namespaceCfg.Mode == config.MigrationModeONBOARDED {
+		err := p.rebalanceShards(ctx)
+		if err != nil {
+			p.logger.Error("initial rebalance failed", tag.Error(err))
+		}
 	}
 
 	updateChan, err := p.shardStore.Subscribe(ctx, p.namespaceCfg.Name)
@@ -195,6 +197,10 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 			}
 			if latestRevision <= p.lastAppliedRevision {
 				continue
+			}
+			if p.namespaceCfg.Mode != config.MigrationModeONBOARDED {
+				p.logger.Info("Namespace not onboarded, rebalance not triggered", tag.ShardNamespace(p.namespaceCfg.Name))
+				break
 			}
 			p.logger.Info("State change detected, triggering rebalance.")
 			err = p.rebalanceShards(ctx)

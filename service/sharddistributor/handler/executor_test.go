@@ -10,7 +10,9 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -25,7 +27,8 @@ func TestHeartbeat(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
-		handler := NewExecutorHandler(mockStore, mockTimeSource)
+		shardDistributionCfg := config.ShardDistribution{}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -48,7 +51,8 @@ func TestHeartbeat(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
-		handler := NewExecutorHandler(mockStore, mockTimeSource)
+		shardDistributionCfg := config.ShardDistribution{}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -72,7 +76,8 @@ func TestHeartbeat(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
-		handler := NewExecutorHandler(mockStore, mockTimeSource)
+		shardDistributionCfg := config.ShardDistribution{}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -103,7 +108,8 @@ func TestHeartbeat(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
-		handler := NewExecutorHandler(mockStore, mockTimeSource)
+		shardDistributionCfg := config.ShardDistribution{}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -131,7 +137,8 @@ func TestHeartbeat(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
 		mockTimeSource := clock.NewMockedTimeSource()
-		handler := NewExecutorHandler(mockStore, mockTimeSource)
+		shardDistributionCfg := config.ShardDistribution{}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -194,7 +201,7 @@ func TestConvertResponse(t *testing.T) {
 			if tc.expectedResp.ShardAssignments == nil {
 				tc.expectedResp.ShardAssignments = make(map[string]*types.ShardAssignment)
 			}
-			res := _convertResponse(tc.input)
+			res := _convertResponse(tc.input, types.MigrationModeONBOARDED)
 
 			// Ensure ShardAssignments is not nil for comparison purposes
 			if res.ShardAssignments == nil {
