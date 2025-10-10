@@ -2264,14 +2264,18 @@ func (v *DomainReplicationConfiguration) IsActiveActive() bool {
 	if v == nil || v.ActiveClusters == nil {
 		return false
 	}
-	// todo (david.porter) remove this once we have completely migrated to AttributeScopes
-	if len(v.ActiveClusters.ActiveClustersByRegion) > 0 {
-		return true
-	}
+
+	// Check to see if a ClusterAttribute has been configured for this domain.
 	if len(v.ActiveClusters.AttributeScopes) > 0 {
-		return true
+		for _, scope := range v.ActiveClusters.AttributeScopes {
+			if len(scope.ClusterAttributes) > 0 {
+				return true
+			}
+		}
 	}
-	return false
+
+	// TODO(active-active): Remove this once we have completely migrated to ClusterAttributes
+	return len(v.ActiveClusters.ActiveClustersByRegion) > 0
 }
 
 // GetActiveClusterName is an internal getter (TBD...)
