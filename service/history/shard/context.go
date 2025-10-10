@@ -1312,17 +1312,17 @@ func (s *contextImpl) allocateTimerIDsLocked(
 
 			if domainEntry.GetReplicationConfig().IsActiveActive() {
 				// Note: This doesn't work for initial backoff timer task because the workflow's active-cluster-selection-policy row is not stored yet.
-				// Therefore LookupWorkflow returns current cluster (fallback logic in activecluster manager)
+				// Therefore GetActiveClusterInfoByWorkflow returns current cluster (fallback logic in activecluster manager)
 				// Queue v2 doesn't use this logic and it must be enabled to properly handle initial backoff timer task for active-active domains.
 				// Leaving this code block instead of rejecting the whole id allocation request.
 				// Active-active domains should not be used in Cadence clusters that don't have queue v2 enabled.
 				ctx, cancel := context.WithTimeout(context.Background(), activeClusterLookupTimeout)
-				lookupRes, err := s.GetActiveClusterManager().LookupWorkflow(ctx, task.GetDomainID(), task.GetWorkflowID(), task.GetRunID())
+				lookupRes, err := s.GetActiveClusterManager().GetActiveClusterInfoByWorkflow(ctx, task.GetDomainID(), task.GetWorkflowID(), task.GetRunID())
 				cancel()
 				if err != nil {
 					return err
 				}
-				cluster = lookupRes.ClusterName
+				cluster = lookupRes.ActiveClusterName
 			}
 		}
 

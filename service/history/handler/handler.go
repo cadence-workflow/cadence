@@ -129,6 +129,7 @@ func (h *handlerImpl) Start() {
 	taskPriorityAssigner := task.NewPriorityAssigner(
 		h.GetClusterMetadata().GetCurrentClusterName(),
 		h.GetDomainCache(),
+		h.GetActiveClusterManager(),
 		h.GetLogger(),
 		h.GetMetricsClient(),
 		h.config,

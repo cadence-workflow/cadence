@@ -325,6 +325,7 @@ func TestExecuteDeleteHistoryEventTask(t *testing.T) {
 					0,
 					0,
 				), nil).AnyTimes()
+				mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), "domain", "wf", "run").Return(&types.ActiveClusterInfo{}, nil).AnyTimes()
 
 				timerTask := &persistence.DeleteHistoryEventTask{
 					TaskData: persistence.TaskData{
@@ -361,6 +362,9 @@ func TestExecuteDeleteHistoryEventTask(t *testing.T) {
 					State: &persistence.WorkflowMutableState{
 						ExecutionStats: &persistence.ExecutionStats{},
 						ExecutionInfo: &persistence.WorkflowExecutionInfo{
+							DomainID:    "domain",
+							WorkflowID:  "wf",
+							RunID:       "run",
 							CloseStatus: 0,
 							State:       persistence.WorkflowStateRunning,
 						},

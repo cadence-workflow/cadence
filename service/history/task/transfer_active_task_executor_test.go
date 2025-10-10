@@ -170,6 +170,12 @@ func (s *transferActiveTaskExecutorSuite) SetupTest() {
 	s.mockDomainCache.EXPECT().GetDomainName(constants.TestRateLimitedDomainID).Return(constants.TestRateLimitedDomainName, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomain(constants.TestRateLimitedDomainName).Return(constants.TestRateLimitedDomainEntry, nil).AnyTimes()
 
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestGlobalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestGlobalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	s.logger = s.mockShard.GetLogger()
 	s.transferActiveTaskExecutor = NewTransferActiveTaskExecutor(
 		s.mockShard,

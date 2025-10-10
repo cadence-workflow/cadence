@@ -28,7 +28,6 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
-	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -210,31 +209,15 @@ func getStandbyPostActionFn(
 func getRemoteClusterName(
 	ctx context.Context,
 	currentCluster string,
-	domainCache cache.DomainCache,
 	activeClusterMgr activecluster.Manager,
 	taskInfo persistence.Task,
 ) (string, error) {
-	domainEntry, err := domainCache.GetDomainByID(taskInfo.GetDomainID())
+	activeClusterInfo, err := activeClusterMgr.GetActiveClusterInfoByWorkflow(ctx, taskInfo.GetDomainID(), taskInfo.GetWorkflowID(), taskInfo.GetRunID())
 	if err != nil {
 		return "", err
 	}
-
-	if domainEntry.GetReplicationConfig().IsActiveActive() {
-		resp, err := activeClusterMgr.LookupWorkflow(ctx, taskInfo.GetDomainID(), taskInfo.GetWorkflowID(), taskInfo.GetRunID())
-		if err != nil {
-			return "", err
-		}
-		if resp.ClusterName == currentCluster {
-			// domain has turned active, retry the task
-			return "", errDomainBecomesActive
-		}
-		return resp.ClusterName, nil
-	}
-
-	remoteClusterName := domainEntry.GetReplicationConfig().ActiveClusterName
-	if remoteClusterName == currentCluster {
-		// domain has turned active, retry the task
+	if activeClusterInfo.ActiveClusterName == currentCluster {
 		return "", errDomainBecomesActive
 	}
-	return remoteClusterName, nil
+	return activeClusterInfo.ActiveClusterName, nil
 }

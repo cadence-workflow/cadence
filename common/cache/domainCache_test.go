@@ -330,9 +330,13 @@ func Test_IsActiveIn(t *testing.T) {
 			isGlobalDomain: true,
 			currentCluster: "A",
 			activeClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region0": {ActiveClusterName: "A"},
-					"region1": {ActiveClusterName: "B"},
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region0": {ActiveClusterName: "A"},
+							"region1": {ActiveClusterName: "B"},
+						},
+					},
 				},
 			},
 			expectIsActive: true,
@@ -342,9 +346,13 @@ func Test_IsActiveIn(t *testing.T) {
 			isGlobalDomain: true,
 			currentCluster: "C",
 			activeClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region0": {ActiveClusterName: "A"},
-					"region1": {ActiveClusterName: "B"},
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region0": {ActiveClusterName: "A"},
+							"region1": {ActiveClusterName: "B"},
+						},
+					},
 				},
 			},
 			expectIsActive: false,
@@ -1223,14 +1231,16 @@ func Test_NewDomainNotActiveError(t *testing.T) {
 				nil,
 				true,
 				&persistence.DomainReplicationConfig{
-					ActiveClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"region1": {
-							ActiveClusterName: "cluster1",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"region1": {ActiveClusterName: "cluster1"},
+									"region2": {ActiveClusterName: "cluster2"},
+								},
+							},
 						},
-						"region2": {
-							ActiveClusterName: "cluster2",
-						},
-					}},
+					},
 				},
 				0,
 				nil,
@@ -1273,14 +1283,16 @@ func Test_getActiveClusters(t *testing.T) {
 			msg: "active-active domain",
 			replicationConfig: &persistence.DomainReplicationConfig{
 				ActiveClusterName: "active",
-				ActiveClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region1": {
-						ActiveClusterName: "cluster1",
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region1": {ActiveClusterName: "cluster1"},
+								"region2": {ActiveClusterName: "cluster2"},
+							},
+						},
 					},
-					"region2": {
-						ActiveClusterName: "cluster2",
-					},
-				}},
+				},
 			},
 			expectedActiveClusters: []string{"cluster1", "cluster2"},
 		},

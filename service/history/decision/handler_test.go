@@ -240,14 +240,15 @@ func TestHandleDecisionTaskScheduled(t *testing.T) {
 				IsFirstDecision: test.isfirstDecision,
 			}
 			decisionHandler := &handlerImpl{
-				config:          config.NewForTest(),
-				shard:           shard.NewMockContext(ctrl),
-				timeSource:      clock.NewRealTimeSource(),
-				metricsClient:   metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
-				logger:          testlogger.New(t),
-				versionChecker:  client.NewVersionChecker(),
-				tokenSerializer: common.NewMockTaskTokenSerializer(ctrl),
-				domainCache:     cache.NewMockDomainCache(ctrl),
+				config:               config.NewForTest(),
+				shard:                shard.NewMockContext(ctrl),
+				timeSource:           clock.NewRealTimeSource(),
+				metricsClient:        metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
+				logger:               testlogger.New(t),
+				versionChecker:       client.NewVersionChecker(),
+				tokenSerializer:      common.NewMockTaskTokenSerializer(ctrl),
+				domainCache:          cache.NewMockDomainCache(ctrl),
+				activeClusterManager: activecluster.NewMockManager(ctrl),
 			}
 			expectCommonCalls(decisionHandler, test.domainID)
 			expectGetWorkflowExecution(decisionHandler, test.domainID, test.mutablestate)
@@ -375,14 +376,15 @@ func TestHandleDecisionTaskFailed(t *testing.T) {
 			}
 			shardContext := shard.NewMockContext(ctrl)
 			decisionHandler := &handlerImpl{
-				config:          config.NewForTest(),
-				shard:           shardContext,
-				timeSource:      clock.NewRealTimeSource(),
-				metricsClient:   metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
-				logger:          testlogger.New(t),
-				versionChecker:  client.NewVersionChecker(),
-				tokenSerializer: common.NewMockTaskTokenSerializer(ctrl),
-				domainCache:     cache.NewMockDomainCache(ctrl),
+				config:               config.NewForTest(),
+				shard:                shardContext,
+				timeSource:           clock.NewRealTimeSource(),
+				metricsClient:        metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
+				logger:               testlogger.New(t),
+				versionChecker:       client.NewVersionChecker(),
+				tokenSerializer:      common.NewMockTaskTokenSerializer(ctrl),
+				domainCache:          cache.NewMockDomainCache(ctrl),
+				activeClusterManager: activecluster.NewMockManager(ctrl),
 			}
 			expectCommonCalls(decisionHandler, test.domainID)
 			expectGetWorkflowExecution(decisionHandler, test.domainID, test.mutablestate)
@@ -542,13 +544,14 @@ func TestHandleDecisionTaskStarted(t *testing.T) {
 			}
 			shardContext := shard.NewMockContext(ctrl)
 			decisionHandler := &handlerImpl{
-				config:         config.NewForTest(),
-				shard:          shardContext,
-				timeSource:     clock.NewRealTimeSource(),
-				metricsClient:  metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
-				logger:         testlogger.New(t),
-				versionChecker: client.NewVersionChecker(),
-				domainCache:    cache.NewMockDomainCache(ctrl),
+				config:               config.NewForTest(),
+				shard:                shardContext,
+				timeSource:           clock.NewRealTimeSource(),
+				metricsClient:        metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
+				logger:               testlogger.New(t),
+				versionChecker:       client.NewVersionChecker(),
+				domainCache:          cache.NewMockDomainCache(ctrl),
+				activeClusterManager: activecluster.NewMockManager(ctrl),
 			}
 			expectCommonCalls(decisionHandler, test.domainID)
 			expectGetWorkflowExecution(decisionHandler, test.domainID, test.mutablestate)
@@ -825,6 +828,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(2).Times(1).Return([]int64{0, 1}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, gomock.Any()).Return(nil, &persistence.TransactionSizeLimitError{Msg: fmt.Sprintf("transaction size exceeds limit")})
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetExecutionManager().Times(1)
+				decisionHandler.activeClusterManager.(*activecluster.MockManager).EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), gomock.Any(), gomock.Any()).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil)
 			},
 			mutableState: &persistence.WorkflowMutableState{
 				ExecutionInfo: &persistence.WorkflowExecutionInfo{
@@ -866,6 +870,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(2).Times(1).Return([]int64{0, 1}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, gomock.Any()).Return(nil, execution.NewConflictError(new(testing.T), errors.New("some random conflict error")))
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetExecutionManager().Times(1)
+				decisionHandler.activeClusterManager.(*activecluster.MockManager).EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), gomock.Any(), gomock.Any()).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil)
 			},
 			mutableState: &persistence.WorkflowMutableState{
 				ExecutionInfo: &persistence.WorkflowExecutionInfo{
@@ -907,6 +912,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(2).Times(1).Return([]int64{0, 1}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, gomock.Any()).Return(nil, &persistence.TransactionSizeLimitError{Msg: fmt.Sprintf("transaction size exceeds limit")})
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetExecutionManager().Times(1)
+				decisionHandler.activeClusterManager.(*activecluster.MockManager).EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), gomock.Any(), gomock.Any()).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil)
 				firstGetWfExecutionCall := decisionHandler.shard.(*shard.MockContext).EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).
 					Return(&persistence.GetWorkflowExecutionResponse{
 						State: &persistence.WorkflowMutableState{
@@ -920,6 +926,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 						},
 						MutableStateStats: &persistence.MutableStateStats{},
 					}, nil)
+				decisionHandler.activeClusterManager.(*activecluster.MockManager).EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 				lastGetWfExecutionCall := decisionHandler.shard.(*shard.MockContext).EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, errors.New("some error occurred when loading workflow execution"))
 				gomock.InOrder(firstGetWfExecutionCall, lastGetWfExecutionCall)
 			},
@@ -960,6 +967,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, gomock.Any()).Return(nil, &persistence.TransactionSizeLimitError{Msg: fmt.Sprintf("transaction size exceeds limit")})
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, gomock.Any()).Return(&persistence.AppendHistoryNodesResponse{}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetExecutionManager().Times(1)
+				decisionHandler.activeClusterManager.(*activecluster.MockManager).EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), gomock.Any(), gomock.Any()).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx interface{}, request interface{}) (*persistence.GetWorkflowExecutionResponse, error) {
 						return &persistence.GetWorkflowExecutionResponse{
@@ -975,6 +983,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 							MutableStateStats: &persistence.MutableStateStats{},
 						}, nil
 					}).Times(2)
+				decisionHandler.activeClusterManager.(*activecluster.MockManager).EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 				decisionHandler.shard.(*shard.MockContext).EXPECT().UpdateWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, errors.New("some error updating workflow execution"))
 				engine := engine.NewMockEngine(ctrl)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEngine().Return(engine).Times(2)
@@ -1034,6 +1043,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 						},
 						MutableStateStats: &persistence.MutableStateStats{},
 					}, nil).Times(1)
+				decisionHandler.activeClusterManager.(*activecluster.MockManager).EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 			},
 			request: &types.HistoryRespondDecisionTaskCompletedRequest{
 				DomainUUID: constants.TestDomainID,
@@ -1185,15 +1195,16 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 			handlerConfig.EnableActivityLocalDispatchByDomain = func(domain string) bool { return true }
 			handlerConfig.DecisionRetryMaxAttempts = func(domain string) int { return 1 }
 			decisionHandler := &handlerImpl{
-				config:          handlerConfig,
-				shard:           shard,
-				timeSource:      clock.NewMockedTimeSource(),
-				domainCache:     domainCache,
-				metricsClient:   metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
-				logger:          testlogger.New(t),
-				versionChecker:  client.NewVersionChecker(),
-				tokenSerializer: common.NewMockTaskTokenSerializer(ctrl),
-				attrValidator:   newAttrValidator(domainCache, metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}), config.NewForTest(), testlogger.New(t)),
+				config:               handlerConfig,
+				shard:                shard,
+				timeSource:           clock.NewMockedTimeSource(),
+				domainCache:          domainCache,
+				metricsClient:        metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
+				logger:               testlogger.New(t),
+				versionChecker:       client.NewVersionChecker(),
+				tokenSerializer:      common.NewMockTaskTokenSerializer(ctrl),
+				attrValidator:        newAttrValidator(domainCache, metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}), config.NewForTest(), testlogger.New(t)),
+				activeClusterManager: activecluster.NewMockManager(ctrl),
 			}
 			expectCommonCalls(decisionHandler, test.domainID)
 			if test.expectGetWorkflowExecution {
@@ -1462,6 +1473,7 @@ func expectCommonCalls(handler *handlerImpl, domainID string) {
 	handler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomainName(domainID).AnyTimes().Return(constants.TestDomainName, nil)
 	handler.shard.(*shard.MockContext).EXPECT().GetExecutionManager().Times(1)
 	handler.shard.(*shard.MockContext).EXPECT().GetShardID().Return(testShardID).Times(1)
+	handler.shard.(*shard.MockContext).EXPECT().GetActiveClusterManager().Return(handler.activeClusterManager).AnyTimes()
 }
 
 func expectGetWorkflowExecution(handler *handlerImpl, domainID string, state *persistence.WorkflowMutableState) {
@@ -1485,6 +1497,8 @@ func expectGetWorkflowExecution(handler *handlerImpl, domainID string, state *pe
 			RunID:      constants.TestRunID,
 		},
 	}).AnyTimes().Return(workflowExecutionResponse, nil)
+
+	handler.activeClusterManager.(*activecluster.MockManager).EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 }
 
 func expectDefaultDomainCache(handler *handlerImpl, domainID string) {

@@ -771,7 +771,6 @@ func (entry *DomainCacheEntry) duplicate() *DomainCacheEntry {
 	result.failoverEndTime = entry.failoverEndTime
 	result.notificationVersion = entry.notificationVersion
 	result.initialized = entry.initialized
-	result.activeClusters = entry.activeClusters
 	return result
 }
 
@@ -904,9 +903,11 @@ func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) bool {
 	}
 
 	if entry.GetReplicationConfig().IsActiveActive() {
-		for _, cl := range entry.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion {
-			if cl.ActiveClusterName == currentCluster {
-				return true
+		for _, scope := range entry.GetReplicationConfig().ActiveClusters.AttributeScopes {
+			for _, cl := range scope.ClusterAttributes {
+				if cl.ActiveClusterName == currentCluster {
+					return true
+				}
 			}
 		}
 
@@ -1064,9 +1065,11 @@ func getActiveClusters(replicationConfig *persistence.DomainReplicationConfig) [
 	if !replicationConfig.IsActiveActive() {
 		return nil
 	}
-	activeClusters := make([]string, 0, len(replicationConfig.ActiveClusters.ActiveClustersByRegion))
-	for _, cl := range replicationConfig.ActiveClusters.ActiveClustersByRegion {
-		activeClusters = append(activeClusters, cl.ActiveClusterName)
+	activeClusters := make([]string, 0, len(replicationConfig.ActiveClusters.AttributeScopes))
+	for _, scope := range replicationConfig.ActiveClusters.AttributeScopes {
+		for _, cl := range scope.ClusterAttributes {
+			activeClusters = append(activeClusters, cl.ActiveClusterName)
+		}
 	}
 	sort.Strings(activeClusters)
 	return activeClusters

@@ -21,8 +21,10 @@
 package task
 
 import (
+	"context"
 	"sync"
 
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
 	dynamicquotas "github.com/uber/cadence/common/dynamicconfig/quotas"
@@ -49,12 +51,14 @@ type priorityAssignerImpl struct {
 	logger             log.Logger
 	scope              metrics.Scope
 	rateLimiters       *quotas.Collection
+	activeClusterMgr   activecluster.Manager
 }
 
 // NewPriorityAssigner creates a new task priority assigner
 func NewPriorityAssigner(
 	currentClusterName string,
 	domainCache cache.DomainCache,
+	activeClusterMgr activecluster.Manager,
 	logger log.Logger,
 	metricClient metrics.Client,
 	config *config.Config,
@@ -62,6 +66,7 @@ func NewPriorityAssigner(
 	return &priorityAssignerImpl{
 		currentClusterName: currentClusterName,
 		domainCache:        domainCache,
+		activeClusterMgr:   activeClusterMgr,
 		config:             config,
 		logger:             logger,
 		scope:              metricClient.Scope(metrics.TaskPriorityAssignerScope),
@@ -89,7 +94,7 @@ func (a *priorityAssignerImpl) Assign(queueTask Task) error {
 
 	// timer, transfer or cross cluster task, first check if task is active or not and if domain is active or not
 	isActiveTask := queueType == QueueTypeActiveTimer || queueType == QueueTypeActiveTransfer
-	domainName, isActiveDomain, err := a.getDomainInfo(queueTask.GetDomainID())
+	domainName, isActiveDomain, err := a.getDomainInfo(queueTask.GetDomainID(), queueTask.GetWorkflowID(), queueTask.GetRunID())
 	if err != nil {
 		return err
 	}
@@ -130,7 +135,7 @@ func (a *priorityAssignerImpl) Assign(queueTask Task) error {
 //  1. domain name
 //  2. if domain is active
 //  3. error, if any
-func (a *priorityAssignerImpl) getDomainInfo(domainID string) (string, bool, error) {
+func (a *priorityAssignerImpl) getDomainInfo(domainID, wfID, rID string) (string, bool, error) {
 	domainEntry, err := a.domainCache.GetDomainByID(domainID)
 	if err != nil {
 		if _, ok := err.(*types.EntityNotExistsError); !ok {
@@ -143,16 +148,13 @@ func (a *priorityAssignerImpl) getDomainInfo(domainID string) (string, bool, err
 		return "", true, nil
 	}
 
-	if domainEntry.GetReplicationConfig().IsActiveActive() {
-		active := domainEntry.IsActiveIn(a.currentClusterName)
-		return domainEntry.GetInfo().Name, active, nil
+	activeClusterInfo, err := a.activeClusterMgr.GetActiveClusterInfoByWorkflow(context.Background(), domainID, wfID, rID)
+	if err != nil {
+		a.logger.Warn("Failed to get active cluster info", tag.WorkflowDomainID(domainID), tag.Error(err))
+		return "", true, nil
 	}
 
-	// TODO(active-active): The logic below ignores pending active case for active-passive domains.
-	// However IsActiveIn() that is used above for active-active domains returns false for pending active domains.
-	// What should be the behavior for pending active domains?
-
-	if domainEntry.IsGlobalDomain() && a.currentClusterName != domainEntry.GetReplicationConfig().ActiveClusterName {
+	if activeClusterInfo.ActiveClusterName != a.currentClusterName {
 		return domainEntry.GetInfo().Name, false, nil
 	}
 	return domainEntry.GetInfo().Name, true, nil

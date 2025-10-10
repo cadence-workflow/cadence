@@ -37,7 +37,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
@@ -1401,10 +1400,10 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenDomainIsActiveActiveUs
 	}
 
 	// Setup active cluster manager mock
-	s.mockResource.ActiveClusterMgr.EXPECT().LookupWorkflow(
+	s.mockResource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(
 		gomock.Any(), testDomainID, testWorkflowID, gomock.Any(),
-	).Return(&activecluster.LookupResult{
-		ClusterName: "looked-up-cluster",
+	).Return(&types.ActiveClusterInfo{
+		ActiveClusterName: "looked-up-cluster",
 	}, nil).Times(1)
 
 	// Create task with non-empty version to trigger the lookup logic
@@ -1522,7 +1521,7 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenClusterManagerLookupFa
 	}
 
 	// Setup active cluster manager mock to return error
-	s.mockResource.ActiveClusterMgr.EXPECT().LookupWorkflow(
+	s.mockResource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(
 		gomock.Any(), testDomainID, testWorkflowID, gomock.Any(),
 	).Return(nil, assert.AnError).Times(1)
 

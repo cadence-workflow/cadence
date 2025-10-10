@@ -4000,11 +4000,10 @@ func TestLoad_ActiveActive(t *testing.T) {
 		expectedCurrentVersion         int64
 		expectedErr                    error
 	}{
-		"Non-active-active domain - LookupWorkflow should not be called": {
+		"Non-active-active domain": {
 			domainEntry:  nonActiveActiveDomainEntry,
 			mutableState: baseMutableState,
 			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
-				// No expectations - LookupWorkflow should not be called
 			},
 			expectedCurrentVersion: commonconstants.EmptyVersion,
 			expectedErr:            nil,
@@ -4013,96 +4012,8 @@ func TestLoad_ActiveActive(t *testing.T) {
 			domainEntry:  activeActiveDomainEntry,
 			mutableState: baseMutableStateNoVersionHistory,
 			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupWorkflow(
-					gomock.Any(),
-					domainID,
-					workflowID,
-					runID,
-				).Return(&activecluster.LookupResult{
-					FailoverVersion: int64(100),
-				}, nil).Times(1)
 			},
 			expectedCurrentVersion: commonconstants.EmptyVersion, // GetCurrentVersion returns EmptyVersion when versionHistories is nil
-			expectedErr:            nil,
-		},
-		"Active-active domain - LookupWorkflow succeeds with different version": {
-			domainEntry:  activeActiveDomainEntry,
-			mutableState: baseMutableState,
-			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupWorkflow(
-					gomock.Any(),
-					domainID,
-					workflowID,
-					runID,
-				).Return(&activecluster.LookupResult{
-					FailoverVersion: int64(100),
-				}, nil).Times(1)
-			},
-			expectedCurrentVersion: int64(100),
-			expectedErr:            nil,
-		},
-		"Active-active domain - LookupWorkflow succeeds with same version as domain failover": {
-			domainEntry:  activeActiveDomainEntry,
-			mutableState: baseMutableState,
-			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupWorkflow(
-					gomock.Any(),
-					domainID,
-					workflowID,
-					runID,
-				).Return(&activecluster.LookupResult{
-					FailoverVersion: activeActiveDomainEntry.GetFailoverVersion(),
-				}, nil).Times(1)
-			},
-			expectedCurrentVersion: activeActiveDomainEntry.GetFailoverVersion(),
-			expectedErr:            nil,
-		},
-		"Active-active domain - LookupWorkflow fails with error": {
-			domainEntry:  activeActiveDomainEntry,
-			mutableState: baseMutableState,
-			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupWorkflow(
-					gomock.Any(),
-					domainID,
-					workflowID,
-					runID,
-				).Return(nil, &types.InternalServiceError{
-					Message: "failed to lookup workflow",
-				}).Times(1)
-			},
-			expectedCurrentVersion: commonconstants.EmptyVersion,
-			expectedErr: &types.InternalServiceError{
-				Message: "failed to lookup workflow",
-			},
-		},
-		"Active-active domain - LookupWorkflow fails with generic error": {
-			domainEntry:  activeActiveDomainEntry,
-			mutableState: baseMutableState,
-			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupWorkflow(
-					gomock.Any(),
-					domainID,
-					workflowID,
-					runID,
-				).Return(nil, errors.New("connection failed")).Times(1)
-			},
-			expectedCurrentVersion: commonconstants.EmptyVersion,
-			expectedErr:            errors.New("connection failed"),
-		},
-		"Active-active domain - LookupWorkflow with zero failover version": {
-			domainEntry:  activeActiveDomainEntry,
-			mutableState: baseMutableState,
-			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupWorkflow(
-					gomock.Any(),
-					domainID,
-					workflowID,
-					runID,
-				).Return(&activecluster.LookupResult{
-					FailoverVersion: int64(0),
-				}, nil).Times(1)
-			},
-			expectedCurrentVersion: int64(0),
 			expectedErr:            nil,
 		},
 	}
@@ -4137,7 +4048,7 @@ func TestLoad_ActiveActive(t *testing.T) {
 
 			// Verify results
 			if td.expectedErr != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Equal(t, td.expectedErr.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
@@ -4212,36 +4123,45 @@ func TestStartTransaction(t *testing.T) {
 		expectedErrorContains     string
 	}{
 		"it should successfully update the failover version": {
-			domainEntry:               regularDomainEntry,
-			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {},
-			setupMutableStateBuilder:  func(msBuilder *mutableStateBuilder) {},
-			incomingTaskVersion:       int64(100),
-			expectedFlushDecision:     false,
-			expectedVersion:           123, // domain failover version
-			expectedError:             false,
-		},
-		"when the domain is active-active domain it should update the failover version": {
-			domainEntry: activeActiveDomainEntry,
+			domainEntry: regularDomainEntry,
 			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupWorkflow(
+				activeClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(
 					gomock.Any(),
 					domainID,
 					workflowID,
 					runID,
-				).Return(&activecluster.LookupResult{
+				).Return(&types.ActiveClusterInfo{
+					FailoverVersion: int64(123),
+				}, nil).Times(1)
+			},
+			setupMutableStateBuilder: func(msBuilder *mutableStateBuilder) {},
+			incomingTaskVersion:      int64(100),
+			expectedFlushDecision:    false,
+			expectedVersion:          123,
+			expectedError:            false,
+		},
+		"when the domain is active-active domain it should update the failover version": {
+			domainEntry: activeActiveDomainEntry,
+			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(
+					gomock.Any(),
+					domainID,
+					workflowID,
+					runID,
+				).Return(&types.ActiveClusterInfo{
 					FailoverVersion: int64(999),
 				}, nil).Times(1)
 			},
 			setupMutableStateBuilder: func(msBuilder *mutableStateBuilder) {},
 			incomingTaskVersion:      int64(200),
 			expectedFlushDecision:    false,
-			expectedVersion:          999, // from LookupWorkflow result
+			expectedVersion:          999,
 			expectedError:            false,
 		},
 		"when the domain is active-active and workflow lookup fails it should return an error": {
 			domainEntry: activeActiveDomainEntry,
 			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupWorkflow(
+				activeClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(
 					gomock.Any(),
 					domainID,
 					workflowID,
@@ -4256,8 +4176,17 @@ func TestStartTransaction(t *testing.T) {
 			expectedErrorContains:    "cluster lookup failed",
 		},
 		"when unable to update current version it should return an error": {
-			domainEntry:               regularDomainEntry,
-			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {},
+			domainEntry: regularDomainEntry,
+			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(
+					gomock.Any(),
+					domainID,
+					workflowID,
+					runID,
+				).Return(&types.ActiveClusterInfo{
+					FailoverVersion: int64(123),
+				}, nil).Times(1)
+			},
 			setupMutableStateBuilder: func(msBuilder *mutableStateBuilder) {
 				// Create empty version histories to trigger GetCurrentVersionHistory error
 				msBuilder.versionHistories = &persistence.VersionHistories{
