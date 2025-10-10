@@ -1614,6 +1614,10 @@ func (d *handlerImpl) updateReplicationConfigForActiveActive(
 	err error,
 ) {
 
+	if err := d.domainAttrValidator.validateActiveActiveDomainReplicationConfig(updateRequest.ActiveClusters); err != nil {
+		return nil, false, false, err
+	}
+
 	if updateRequest.ActiveClusters.ActiveClustersByRegion != nil {
 		existingActiveClusters := config.ActiveClusters
 		if existingActiveClusters == nil { // migration from active-passive to active-active
