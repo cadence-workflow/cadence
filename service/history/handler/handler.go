@@ -1871,7 +1871,6 @@ func (h *handlerImpl) CountDLQMessages(
 	var mu sync.Mutex
 	entries := map[types.HistoryDLQCountKey]int64{}
 	for _, shardID := range h.controller.ShardIDs() {
-		shardID := shardID
 		g.Go(func() (e error) {
 			defer func() { log.CapturePanic(recover(), h.GetLogger(), &e) }()
 
