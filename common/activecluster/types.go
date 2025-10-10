@@ -74,6 +74,9 @@ type Manager interface {
 	// GetActiveClusterInfoByWorkflow returns the active cluster info by workflow
 	// It will first look up the cluster selection policy for the workflow and then get the active cluster info by cluster attribute from the policy
 	GetActiveClusterInfoByWorkflow(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterInfo, error)
+
+	// GetActiveClusterSelectionPolicyForWorkflow returns the active cluster selection policy for a workflow
+	GetActiveClusterSelectionPolicyForWorkflow(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
 }
 
 type LookupResult struct {

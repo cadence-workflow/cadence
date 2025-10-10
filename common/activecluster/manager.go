@@ -42,11 +42,12 @@ import (
 type DomainIDToDomainFn func(id string) (*cache.DomainCacheEntry, error)
 
 const (
-	LookupNewWorkflowOpName                      = "LookupNewWorkflow"
-	LookupWorkflowOpName                         = "LookupWorkflow"
-	GetActiveClusterInfoByClusterAttributeOpName = "GetActiveClusterInfoByClusterAttribute"
-	GetActiveClusterInfoByWorkflowOpName         = "GetActiveClusterInfoByWorkflow"
-	DomainIDToDomainFnErrorReason                = "domain_id_to_name_fn_error"
+	LookupNewWorkflowOpName                          = "LookupNewWorkflow"
+	LookupWorkflowOpName                             = "LookupWorkflow"
+	GetActiveClusterInfoByClusterAttributeOpName     = "GetActiveClusterInfoByClusterAttribute"
+	GetActiveClusterInfoByWorkflowOpName             = "GetActiveClusterInfoByWorkflow"
+	GetActiveClusterSelectionPolicyForWorkflowOpName = "GetActiveClusterSelectionPolicyForWorkflow"
+	DomainIDToDomainFnErrorReason                    = "domain_id_to_name_fn_error"
 
 	workflowPolicyCacheTTL      = 10 * time.Second
 	workflowPolicyCacheMaxCount = 1000
@@ -360,6 +361,21 @@ func (m *managerImpl) GetActiveClusterInfoByWorkflow(ctx context.Context, domain
 	}
 	defer m.handleError(scope, &e, time.Now())
 
+	if !d.GetReplicationConfig().IsActiveActive() {
+		// Not an active-active domain. return ActiveClusterName from domain entry
+		m.logger.Debug("GetActiveClusterInfoByWorkflow: not an active-active domain. returning ActiveClusterName from domain entry",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(wfID),
+			tag.WorkflowRunID(rID),
+			tag.ActiveClusterName(d.GetReplicationConfig().ActiveClusterName),
+			tag.FailoverVersion(d.GetFailoverVersion()),
+		)
+		return &types.ActiveClusterInfo{
+			ActiveClusterName: d.GetReplicationConfig().ActiveClusterName,
+			FailoverVersion:   d.GetFailoverVersion(),
+		}, nil
+	}
+
 	policy, err := m.getClusterSelectionPolicy(ctx, domainID, wfID, rID)
 	if err != nil {
 		var notExistsErr *types.EntityNotExistsError
@@ -376,4 +392,34 @@ func (m *managerImpl) GetActiveClusterInfoByWorkflow(ctx context.Context, domain
 		}
 	}
 	return res, nil
+}
+
+func (m *managerImpl) GetActiveClusterSelectionPolicyForWorkflow(ctx context.Context, domainID, wfID, rID string) (res *types.ActiveClusterSelectionPolicy, e error) {
+	d, scope, err := m.getDomainAndScope(domainID, GetActiveClusterSelectionPolicyForWorkflowOpName)
+	if err != nil {
+		return nil, err
+	}
+	defer m.handleError(scope, &e, time.Now())
+
+	if !d.GetReplicationConfig().IsActiveActive() {
+		// Not an active-active domain. return ActiveClusterName from domain entry
+		m.logger.Debug("GetActiveClusterSelectionPolicyForWorkflow: not an active-active domain. returning ActiveClusterName from domain entry",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(wfID),
+			tag.WorkflowRunID(rID),
+			tag.ActiveClusterName(d.GetReplicationConfig().ActiveClusterName),
+			tag.FailoverVersion(d.GetFailoverVersion()),
+		)
+		return nil, nil
+	}
+
+	plcy, err := m.getClusterSelectionPolicy(ctx, domainID, wfID, rID)
+	if err != nil {
+		var notExistsErr *types.EntityNotExistsError
+		if !errors.As(err, &notExistsErr) {
+			return nil, err
+		}
+		return nil, nil
+	}
+	return plcy, nil
 }
