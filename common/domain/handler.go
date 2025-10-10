@@ -1566,12 +1566,15 @@ func (d *handlerImpl) updateReplicationConfig(
 	domainName string,
 	config *persistence.DomainReplicationConfig,
 	updateRequest *types.UpdateDomainRequest,
-) (*persistence.DomainReplicationConfig, bool, bool, error) {
+) (
+	mutatedCfg *persistence.DomainReplicationConfig,
+	replicationConfigChanged bool, // this being turned on will trigger an increment in the configVersion
+	activeClusterChanged bool, // this indicates a failover is happening and a failover version is to be incremented
+	err error,
+) {
 
-	clusterUpdated := false
-	activeClusterUpdated := false
 	if len(updateRequest.Clusters) != 0 {
-		clusterUpdated = true
+		replicationConfigChanged = true
 		clustersNew := []*persistence.ClusterReplicationConfig{}
 		for _, clusterConfig := range updateRequest.Clusters {
 			clustersNew = append(clustersNew, &persistence.ClusterReplicationConfig{
@@ -1589,7 +1592,7 @@ func (d *handlerImpl) updateReplicationConfig(
 	}
 
 	if updateRequest.ActiveClusterName != nil {
-		activeClusterUpdated = true
+		activeClusterChanged = true
 		config.ActiveClusterName = *updateRequest.ActiveClusterName
 	}
 
@@ -1639,7 +1642,7 @@ func (d *handlerImpl) updateReplicationConfig(
 			ActiveClustersByRegion: finalActiveClusters,
 		}
 		d.logger.Debugf("Setting active clusters to %v, updateRequest.ActiveClusters.ActiveClustersByRegion: %v", finalActiveClusters, updateRequest.ActiveClusters.ActiveClustersByRegion)
-		activeClusterUpdated = true
+		activeClusterChanged = true
 	}
 
 	if updateRequest != nil && updateRequest.ActiveClusters != nil && updateRequest.ActiveClusters.AttributeScopes != nil {
@@ -1653,12 +1656,12 @@ func (d *handlerImpl) updateReplicationConfig(
 			}
 
 			config.ActiveClusters.AttributeScopes = result.AttributeScopes
-			activeClusterUpdated = true
-			clusterUpdated = true
+			activeClusterChanged = true
+			replicationConfigChanged = true
 		}
 	}
 
-	return config, clusterUpdated, activeClusterUpdated, nil
+	return config, replicationConfigChanged, activeClusterChanged, nil
 }
 
 func (d *handlerImpl) handleGracefulFailover(
