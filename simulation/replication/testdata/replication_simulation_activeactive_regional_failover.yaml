@@ -59,10 +59,6 @@ operations:
       region:
         region0: cluster1 # this is changed from cluster0 to cluster1
         region1: cluster1
-    clusterAttributes:
-      region:
-        region0: cluster1
-        region1: cluster1
 
   # Start wf2 on cluster0 right before failover. It will be started by cluster0 workers and completed by cluster1 workers.
   - op: start_workflow
