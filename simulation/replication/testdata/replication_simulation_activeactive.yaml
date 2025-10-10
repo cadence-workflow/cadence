@@ -37,7 +37,7 @@ operations:
     activeClusterSelectionPolicy:
       clusterAttribute:
         scope: region
-        name: cluster0
+        name: region0
 
   # start workflow in cluster1
   - op: start_workflow
@@ -51,7 +51,7 @@ operations:
     activeClusterSelectionPolicy:
       clusterAttribute:
         scope: region
-        name: cluster1
+        name: region1
 
   # validate that wf1 is started in cluster0 and completed in cluster1
   - op: validate
