@@ -3712,18 +3712,13 @@ func TestBuildActiveActiveClustersFromUpdateRequestMissiongUpdateRepro(t *testin
 					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 						"region0": {
 							ActiveClusterName: "cluster1",
-							// todo (david.porter) have more of a look at the integration test
-							// This seems incorrect, it doesn't correspond to cluster 0.
-							// There's something weird going on with the clustersByRegion logic
-							FailoverVersion: 2,
+							FailoverVersion:   2,
 						},
 						"region1": {
 							ActiveClusterName: "cluster1",
 							FailoverVersion:   2,
 						},
 					},
-					// it also seems like the test isn't setting up the config
-					// on start, which also seems off
 					AttributeScopes: map[string]types.ClusterAttributeScope{},
 				},
 			},
@@ -3744,14 +3739,15 @@ func TestBuildActiveActiveClustersFromUpdateRequestMissiongUpdateRepro(t *testin
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {
 						ClusterAttributes: map[string]types.ActiveClusterInfo{
-							// "region0": {
+							"region0": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   2,
+							},
+							// not defined in the test
+							// "region1": {
 							// 	ActiveClusterName: "cluster1",
 							// 	FailoverVersion:   0,
 							// },
-							"region0": {
-								ActiveClusterName: "cluster1",
-								FailoverVersion:   0,
-							},
 						},
 					},
 				},
@@ -3773,12 +3769,9 @@ func TestBuildActiveActiveClustersFromUpdateRequestMissiongUpdateRepro(t *testin
 					FailoverVersionIncrement: 100,
 					ClusterGroup: map[string]config.ClusterInformation{
 						"cluster0": {
-							InitialFailoverVersion: 1,
-						},
-						"cluster1": {
 							InitialFailoverVersion: 0,
 						},
-						"cluster2": {
+						"cluster1": {
 							InitialFailoverVersion: 2,
 						},
 					},
