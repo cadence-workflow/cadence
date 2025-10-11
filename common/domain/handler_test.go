@@ -3673,6 +3673,137 @@ func TestBuildActiveActiveClustersFromUpdateRequest(t *testing.T) {
 	}
 }
 
+func TestBuildActiveActiveClustersFromUpdateRequestMissiongUpdateRepro(t *testing.T) {
+
+	testsCases := map[string]struct {
+		updateRequest          *types.UpdateDomainRequest
+		config                 *persistence.DomainReplicationConfig
+		domainName             string
+		handler                *handlerImpl
+		expectedActiveClusters *types.ActiveClusters
+		expectedIsChanged      bool
+	}{
+		"When both the ActiveClustersByRegion and AttributeScopes are being updated, but the updateScopes don't exist, the function should correctly return that there is a change being made": {
+			updateRequest: &types.UpdateDomainRequest{
+				ActiveClusters: &types.ActiveClusters{
+					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+						"region0": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   0,
+						},
+						"region1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   0,
+						},
+					},
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region0": {
+									ActiveClusterName: "cluster1",
+								},
+							},
+						},
+					},
+				},
+			},
+			config: &persistence.DomainReplicationConfig{
+				ActiveClusters: &types.ActiveClusters{
+					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+						"region0": {
+							ActiveClusterName: "cluster1",
+							// todo (david.porter) have more of a look at the integration test
+							// This seems incorrect, it doesn't correspond to cluster 0.
+							// There's something weird going on with the clustersByRegion logic
+							FailoverVersion: 2,
+						},
+						"region1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   2,
+						},
+					},
+					// it also seems like the test isn't setting up the config
+					// on start, which also seems off
+					AttributeScopes: map[string]types.ClusterAttributeScope{},
+				},
+			},
+			expectedActiveClusters: &types.ActiveClusters{
+				// these are ignored in this function because they're updated on
+				// handler.updateReplicationConfig
+				//
+				// ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+				// 	"region0": {
+				// 		ActiveClusterName: "cluster1",
+				// 		FailoverVersion:   0,
+				// 	},
+				// 	"region1": {
+				// 		ActiveClusterName: "cluster1",
+				// 		FailoverVersion:   0,
+				// 	},
+				// },
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							// "region0": {
+							// 	ActiveClusterName: "cluster1",
+							// 	FailoverVersion:   0,
+							// },
+							"region0": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   0,
+							},
+						},
+					},
+				},
+			},
+			expectedIsChanged: true,
+		},
+	}
+
+	for name, tc := range testsCases {
+		t.Run(name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockDomainManager := persistence.NewMockDomainManager(ctrl)
+
+			metadata := cluster.NewMetadata(
+				config.ClusterGroupMetadata{
+					FailoverVersionIncrement: 100,
+					ClusterGroup: map[string]config.ClusterInformation{
+						"cluster0": {
+							InitialFailoverVersion: 1,
+						},
+						"cluster1": {
+							InitialFailoverVersion: 0,
+						},
+						"cluster2": {
+							InitialFailoverVersion: 2,
+						},
+					},
+				},
+				func(d string) bool { return false },
+				metrics.NewNoopMetricsClient(),
+				log.NewNoop(),
+			)
+
+			mockTimeSource := clock.NewMockedTimeSource()
+			handler := handlerImpl{
+				domainManager:    mockDomainManager,
+				clusterMetadata:  metadata,
+				archiverProvider: provider.NewArchiverProvider(nil, nil),
+				timeSource:       mockTimeSource,
+				logger:           log.NewNoop(),
+			}
+
+			activeClusters, isChanged := handler.buildActiveActiveClusterScopesFromUpdateRequest(tc.updateRequest, tc.config, tc.domainName)
+			assert.Equal(t, tc.expectedActiveClusters, activeClusters, "expected active clusters: %+v, actual active clusters: %+v", tc.expectedActiveClusters, activeClusters)
+			assert.Equal(t, tc.expectedIsChanged, isChanged, "expected is changed: %+v, actual is changed: %+v", tc.expectedIsChanged, isChanged)
+		})
+	}
+}
+
 func TestActiveClustersFromRegisterRequest(t *testing.T) {
 	tests := []struct {
 		name            string

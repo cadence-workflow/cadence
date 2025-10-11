@@ -1872,7 +1872,6 @@ func NewFailoverEvent(
 }
 
 func (d *handlerImpl) buildActiveActiveClusterScopesFromUpdateRequest(updateRequest *types.UpdateDomainRequest, config *persistence.DomainReplicationConfig, domainName string) (out *types.ActiveClusters, isChanged bool) {
-
 	var existing *types.ActiveClusters
 	if config != nil && config.ActiveClusters != nil {
 		existing = config.ActiveClusters

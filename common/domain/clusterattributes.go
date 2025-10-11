@@ -4,7 +4,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-func mergeActiveActiveScopes(existingDomain *types.ActiveClusters, incomingTask *types.ActiveClusters) (*types.ActiveClusters, bool) {
+func mergeActiveActiveScopes(existingDomain *types.ActiveClusters, incomingTask *types.ActiveClusters) (result *types.ActiveClusters, isChanged bool) {
 
 	if existingDomain == nil && incomingTask == nil {
 		return nil, false
@@ -20,7 +20,6 @@ func mergeActiveActiveScopes(existingDomain *types.ActiveClusters, incomingTask 
 		return existingDomain, false
 	}
 
-	isChanged := false
 	mergedActiveClusters := &types.ActiveClusters{
 		AttributeScopes: make(map[string]types.ClusterAttributeScope),
 	}
@@ -40,6 +39,7 @@ func mergeActiveActiveScopes(existingDomain *types.ActiveClusters, incomingTask 
 		_, existsAlready := mergedActiveClusters.AttributeScopes[newScope]
 		if !existsAlready {
 			mergedActiveClusters.AttributeScopes[newScope] = newScopeData
+			isChanged = true
 		}
 	}
 
