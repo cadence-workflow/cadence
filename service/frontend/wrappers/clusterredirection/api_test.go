@@ -910,12 +910,13 @@ func (s *clusterRedirectionHandlerSuite) TestSignalWithStartWorkflowExecution() 
 	req := &types.SignalWithStartWorkflowExecutionRequest{
 		Domain: s.domainName,
 		ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-			StickyRegion:                   "region-a",
+			ClusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "region-a",
+			},
 		},
 	}
 
-	s.mockResource.ActiveClusterMgr.EXPECT().CurrentRegion().Return("region-a").Times(1)
 	s.mockClusterRedirectionPolicy.EXPECT().Redirect(ctx, s.domainCacheEntry, nil, req.ActiveClusterSelectionPolicy, apiName, types.QueryConsistencyLevelEventual, gomock.Any()).
 		DoAndReturn(func(ctx context.Context, domainCacheEntry *cache.DomainCacheEntry, wfExec *types.WorkflowExecution, selPlcy *types.ActiveClusterSelectionPolicy, apiName string, consistencyLevel types.QueryConsistencyLevel, callFn func(targetDC string) error) error {
 			// validate callFn logic
@@ -970,12 +971,13 @@ func (s *clusterRedirectionHandlerSuite) TestStartWorkflowExecution() {
 	req := &types.StartWorkflowExecutionRequest{
 		Domain: s.domainName,
 		ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-			StickyRegion:                   "region-b",
+			ClusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "region-b",
+			},
 		},
 	}
 
-	s.mockResource.ActiveClusterMgr.EXPECT().CurrentRegion().Return("region-a").Times(1)
 	s.mockClusterRedirectionPolicy.EXPECT().Redirect(ctx, s.domainCacheEntry, nil, req.ActiveClusterSelectionPolicy, apiName, types.QueryConsistencyLevelEventual, gomock.Any()).
 		DoAndReturn(func(ctx context.Context, domainCacheEntry *cache.DomainCacheEntry, wfExec *types.WorkflowExecution, selPlcy *types.ActiveClusterSelectionPolicy, apiName string, consistencyLevel types.QueryConsistencyLevel, callFn func(targetDC string) error) error {
 			// validate callFn logic

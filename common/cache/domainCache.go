@@ -762,7 +762,6 @@ func (entry *DomainCacheEntry) duplicate() *DomainCacheEntry {
 		result.replicationConfig.Clusters = append(result.replicationConfig.Clusters, &c)
 	}
 	result.replicationConfig.ActiveClusters = entry.replicationConfig.ActiveClusters.DeepCopy()
-	result.activeClusters = entry.activeClusters
 	result.configVersion = entry.configVersion
 	result.failoverVersion = entry.failoverVersion
 	result.isGlobalDomain = entry.isGlobalDomain
@@ -771,6 +770,7 @@ func (entry *DomainCacheEntry) duplicate() *DomainCacheEntry {
 	result.failoverEndTime = entry.failoverEndTime
 	result.notificationVersion = entry.notificationVersion
 	result.initialized = entry.initialized
+	result.activeClusters = entry.activeClusters
 	return result
 }
 
