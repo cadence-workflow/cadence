@@ -279,9 +279,6 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 		tag.WorkflowDomainName(domainName),
 	)
 	err := call(targetDC)
-	if err == nil {
-		return nil
-	}
 	scope := policy.metricsClient.Scope(metrics.DCRedirectionForwardingPolicyScope).Tagged(
 		append(
 			metrics.GetContextTags(ctx),
@@ -292,6 +289,10 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 			metrics.QueryConsistencyLevelTag(requestedConsistencyLevel.String()),
 		)...,
 	)
+	if err == nil {
+		scope.IncCounter(metrics.ClusterForwardingPolicyRequests)
+		return nil
+	}
 
 	var domainNotActiveErr *types.DomainNotActiveError
 	ok := errors.As(err, &domainNotActiveErr)
