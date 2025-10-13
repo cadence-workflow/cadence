@@ -279,6 +279,9 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 		tag.WorkflowDomainName(domainName),
 	)
 	err := call(targetDC)
+	if err == nil {
+		return nil
+	}
 	scope := policy.metricsClient.Scope(metrics.DCRedirectionForwardingPolicyScope).Tagged(
 		append(
 			metrics.GetContextTags(ctx),
