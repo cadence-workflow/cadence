@@ -54,7 +54,7 @@ operations:
         region1: cluster1
 
   # wait a bit so domain data is replicated to cluster1,
-  # and start wf2 for active-active domain and validate it runs in cluster0
+  # and start wf2 for active-active domain and validate it runs in cluster1
   - op: start_workflow
     at: 75s
     workflowType: timer-activity-loop-workflow
@@ -70,10 +70,10 @@ operations:
     domain: test-domain
     want:
       status: completed
-      startedByWorkersInCluster: cluster0
-      completedByWorkersInCluster: cluster0
+      startedByWorkersInCluster: cluster1
+      completedByWorkersInCluster: cluster1
 
-  # and start wf2 for active-active domain and validate it runs in cluster1
+  # and start wf3 for active-active domain and validate it runs in cluster1
   - op: start_workflow
     at: 75s
     workflowType: timer-activity-loop-workflow
