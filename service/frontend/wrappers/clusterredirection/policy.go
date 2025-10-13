@@ -276,7 +276,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 		tag.OperationName(apiName),
 		tag.ClusterName(policy.currentClusterName),
 		tag.ActiveClusterName(targetDC),
-		tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+		tag.WorkflowDomainName(domainName),
 	)
 	err := call(targetDC)
 	scope := policy.metricsClient.Scope(metrics.DCRedirectionForwardingPolicyScope).Tagged(
@@ -293,7 +293,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	var domainNotActiveErr *types.DomainNotActiveError
 	ok := errors.As(err, &domainNotActiveErr)
 	if !ok || !enableDomainNotActiveForwarding {
-		policy.logger.Debugf("Redirection not enabled for request domain:%q, api: %q", domainName, apiName)
+		policy.logger.Debug("Redirection not enabled for request", tag.WorkflowDomainName(domainName), tag.OperationName(apiName), tag.Error(err))
 		scope.IncCounter(metrics.ClusterForwardingPolicyRequests)
 		return err
 	}
@@ -305,7 +305,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 		policy.logger.Debug(
 			"No active cluster specified in the error returned from cluster, skipping redirect",
 			tag.ClusterName(targetDC),
-			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.WorkflowDomainName(domainName),
 			tag.OperationName(apiName),
 		)
 		return err
@@ -315,7 +315,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 		policy.logger.Debug(
 			"No need to redirect to new target cluster",
 			tag.ClusterName(targetDC),
-			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.WorkflowDomainName(domainName),
 			tag.OperationName(apiName),
 		)
 		return err
@@ -324,8 +324,8 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	policy.logger.Debug(
 		"Calling API on new target cluster for domain as indicated by response from cluster",
 		tag.OperationName(apiName),
-		tag.ClusterName(domainNotActiveErr.ActiveCluster),
-		tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+		tag.ActiveClusterName(domainNotActiveErr.ActiveCluster),
+		tag.WorkflowDomainName(domainName),
 		tag.ClusterName(targetDC),
 	)
 	return call(domainNotActiveErr.ActiveCluster)
