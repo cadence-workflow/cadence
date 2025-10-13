@@ -2756,6 +2756,7 @@ func TestUpdateDeleteBadBinary(t *testing.T) {
 	}
 }
 
+// TODO(active-active): Update the test to use cluster attributes once region is removed
 func TestUpdateReplicationConfig(t *testing.T) {
 	cfg := func() *persistence.DomainReplicationConfig {
 		return &persistence.DomainReplicationConfig{

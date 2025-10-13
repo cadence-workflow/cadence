@@ -437,7 +437,7 @@ func (d *handlerImpl) UpdateDomain(
 	isGlobalDomain := getResponse.IsGlobalDomain
 	gracefulFailoverEndTime := getResponse.FailoverEndTime
 	currentActiveCluster := replicationConfig.ActiveClusterName
-	currentActiveClusters := replicationConfig.ActiveClusters
+	currentActiveClusters := replicationConfig.ActiveClusters.DeepCopy()
 	previousFailoverVersion := getResponse.PreviousFailoverVersion
 	lastUpdatedTime := time.Unix(0, getResponse.LastUpdatedTime)
 
@@ -733,7 +733,7 @@ func (d *handlerImpl) FailoverDomain(
 	isGlobalDomain := getResponse.IsGlobalDomain
 	gracefulFailoverEndTime := getResponse.FailoverEndTime
 	currentActiveCluster := replicationConfig.ActiveClusterName
-	currentActiveClusters := replicationConfig.ActiveClusters
+	currentActiveClusters := replicationConfig.ActiveClusters.DeepCopy()
 	previousFailoverVersion := getResponse.PreviousFailoverVersion
 	lastUpdatedTime := time.Unix(0, getResponse.LastUpdatedTime)
 
@@ -1635,8 +1635,12 @@ func (d *handlerImpl) updateReplicationConfig(
 				d.logger.Debugf("Setting activeCluster for region %v to %v. no update case, just copy the existing active cluster", region, activeCluster)
 			}
 		}
-		config.ActiveClusters = &types.ActiveClusters{
-			ActiveClustersByRegion: finalActiveClusters,
+		if config.ActiveClusters == nil {
+			config.ActiveClusters = &types.ActiveClusters{
+				ActiveClustersByRegion: finalActiveClusters,
+			}
+		} else {
+			config.ActiveClusters.ActiveClustersByRegion = finalActiveClusters
 		}
 		d.logger.Debugf("Setting active clusters to %v, updateRequest.ActiveClusters.ActiveClustersByRegion: %v", finalActiveClusters, updateRequest.ActiveClusters.ActiveClustersByRegion)
 		activeClusterUpdated = true
