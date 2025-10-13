@@ -50,7 +50,6 @@ const (
 	ReplicationSimulationOperationValidate                    ReplicationSimulationOperation = "validate"
 	ReplicationSimulationOperationQueryWorkflow               ReplicationSimulationOperation = "query_workflow"
 	ReplicationSimulationOperationSignalWithStartWorkflow     ReplicationSimulationOperation = "signal_with_start_workflow"
-	ReplicationSimulationOperationMigrateDomainToActiveActive ReplicationSimulationOperation = "migrate_domain_to_active_active"
 	ReplicationSimulationOperationValidateWorkflowReplication ReplicationSimulationOperation = "validate_workflow_replication"
 )
 
