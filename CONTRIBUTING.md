@@ -2,16 +2,14 @@
 
 This doc is intended for contributors to Cadence backend. Thanks for considering to contribute ❤️
 
-Once you go through rest of this doc and get familiar with local development setup, take a look at the list of issues labeled with
+> 📚 **New to contributing to Cadence?** Check out our [Contributing Guide](https://cadenceworkflow.io/community/how-to-contribute/getting-started) for an overview of the contribution process across all Cadence repositories. This document contains cadence backend specific setup and development instructions.
+
+Once you go through the rest of this doc and get familiar with local development setup, take a look at the list of issues labeled with
 [good first issue](https://github.com/cadence-workflow/cadence/labels/good%20first%20issue).
 These issues are a great way to start contributing to Cadence. Later when you are more familiar with Cadence, look at issues with
 [up-for-grabs](https://github.com/cadence-workflow/cadence/labels/up-for-grabs).
 
-Feel free to join our [slack workspace](http://t.uber.com/cadence-slack) to reach out and discuss issues with the team.
-
-
-:warning: Note:
->All contributors need to fill out the [Uber Contributor License Agreement](http://t.uber.com/cla) before we can merge in any of your changes
+Join our community on the CNCF Slack workspace at [cloud-native.slack.com](https://communityinviter.com/apps/cloud-native/cncf) in the **#cadence-users** channel to reach out and discuss issues with the team.
 
 ## Development Environment
 Below are the instructions of how to set up a development Environment.
