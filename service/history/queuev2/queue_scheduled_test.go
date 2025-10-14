@@ -37,6 +37,7 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 	mockExecutionManager := persistence.NewMockExecutionManager(ctrl)
 
 	// Setup mock expectations
+	mockShard.EXPECT().GetShardID().Return(1).AnyTimes()
 	mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata).AnyTimes()
 	mockShard.EXPECT().GetTimeSource().Return(mockTimeSource).AnyTimes()
 	mockShard.EXPECT().GetQueueState(persistence.HistoryTaskCategoryTimer).Return(&types.QueueState{

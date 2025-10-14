@@ -274,6 +274,14 @@ func (q *queueBase) processNewTasks() bool {
 	return true
 }
 
+func (q *queueBase) insertSingleTask(task task.Task) bool {
+	return q.virtualQueueManager.InsertSingleTaskToRootQueue(task)
+}
+
+func (q *queueBase) removeScheduledTasksAfter(t time.Time) {
+	q.virtualQueueManager.RemoveScheduledTasksAfter(t)
+}
+
 func (q *queueBase) updateQueueState(ctx context.Context) {
 	q.metricsScope.IncCounter(metrics.AckLevelUpdateCounter)
 	queueState := &QueueState{
