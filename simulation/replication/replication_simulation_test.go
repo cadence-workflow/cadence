@@ -102,8 +102,6 @@ func TestReplicationSimulation(t *testing.T) {
 			err = queryWorkflow(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationSignalWithStartWorkflow:
 			err = signalWithStartWorkflow(t, op, simCfg, sim)
-		case simTypes.ReplicationSimulationOperationMigrateDomainToActiveActive:
-			err = migrateDomainToActiveActive(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationValidateWorkflowReplication:
 			err = validateWorkflowReplication(t, op, simCfg)
 		default:
@@ -293,36 +291,6 @@ func changeActiveClusters(
 	}
 
 	simTypes.Logf(t, "Completed change to ActiveClusters")
-	return nil
-}
-
-func migrateDomainToActiveActive(t *testing.T, op *simTypes.Operation, simCfg *simTypes.ReplicationSimulationConfig) error {
-	t.Helper()
-
-	simTypes.Logf(t, "Migrating domain %s to active-active", op.Domain)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	frontendCl := simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster)
-	ac := &types.ActiveClusters{
-		ActiveClustersByRegion: make(map[string]types.ActiveClusterInfo),
-	}
-	for region, cluster := range op.NewActiveClustersByRegion {
-		ac.ActiveClustersByRegion[region] = types.ActiveClusterInfo{
-			ActiveClusterName: cluster,
-			FailoverVersion:   -1, // doesn't matter. API handler will override it
-		}
-	}
-	_, err := frontendCl.UpdateDomain(ctx, &types.UpdateDomainRequest{
-		Name:           op.Domain,
-		ActiveClusters: ac,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update domain %s to active-active: %w", op.Domain, err)
-	}
-
-	simTypes.Logf(t, "Migrated domain %s to active-active", op.Domain)
 	return nil
 }
 

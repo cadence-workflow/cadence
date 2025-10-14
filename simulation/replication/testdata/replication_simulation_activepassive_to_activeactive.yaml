@@ -42,17 +42,16 @@ operations:
       completedByWorkersInCluster: cluster0
 
   # migrate domain to active-active
-  - op: migrate_domain_to_active_active
+  - op: change_active_clusters
     at: 40s
     domain: test-domain
     newActiveClustersByRegion:
       region0: cluster0
       region1: cluster1
     newClusterAttributes:
-      region0:
-        cluster0: cluster0
-      region1:
-        cluster1: cluster1
+      region:
+        region0: cluster0
+        region1: cluster1
 
   # wait a bit so domain data is replicated to cluster1,
   # and start wf2 for active-active domain and validate it runs in cluster1
@@ -64,10 +63,32 @@ operations:
     domain: test-domain
     workflowExecutionStartToCloseTimeout: 60s
     workflowDuration: 30s
-
   - op: validate
     at: 110s
     workflowID: wf2
+    cluster: cluster1
+    domain: test-domain
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster1
+      completedByWorkersInCluster: cluster1
+
+  # and start wf3 for active-active domain and validate it runs in cluster1
+  - op: start_workflow
+    at: 75s
+    workflowType: timer-activity-loop-workflow
+    workflowID: wf3
+    cluster: cluster1
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 60s
+    workflowDuration: 30s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
+  - op: validate
+    at: 110s
+    workflowID: wf3
     cluster: cluster1
     domain: test-domain
     want:
