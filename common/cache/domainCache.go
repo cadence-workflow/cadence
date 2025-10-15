@@ -902,6 +902,7 @@ func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) bool {
 		return false
 	}
 
+	// TODO(active-active): review this logic because cluster attribute might be an input
 	if entry.GetReplicationConfig().IsActiveActive() {
 		for _, scope := range entry.GetReplicationConfig().ActiveClusters.AttributeScopes {
 			for _, cl := range scope.ClusterAttributes {
@@ -1065,6 +1066,7 @@ func getActiveClusters(replicationConfig *persistence.DomainReplicationConfig) [
 	if !replicationConfig.IsActiveActive() {
 		return nil
 	}
+	// TODO(active-active): Replace with `GetAllClusters` once we remove regions
 	activeClusters := make([]string, 0, len(replicationConfig.ActiveClusters.AttributeScopes))
 	for _, scope := range replicationConfig.ActiveClusters.AttributeScopes {
 		for _, cl := range scope.ClusterAttributes {

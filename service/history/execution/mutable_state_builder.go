@@ -1276,6 +1276,7 @@ func (e *mutableStateBuilder) AddContinueAsNewEvent(
 			tag.Dynamic("activecluster-info", activeClusterInfo),
 		)
 	}
+	// TODO: improve type casting
 	newStateBuilder := NewMutableStateBuilderWithVersionHistories(
 		e.shard,
 		e.logger,
