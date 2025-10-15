@@ -1406,17 +1406,12 @@ func (c *contextImpl) ReapplyEvents(
 	ctx, cancel := context.WithTimeout(context.Background(), defaultRemoteCallTimeout)
 	defer cancel()
 
-	activeCluster := domainEntry.GetReplicationConfig().ActiveClusterName
-
-	if domainEntry.GetReplicationConfig().IsActiveActive() {
-		lookupRes, err := c.shard.GetActiveClusterManager().LookupWorkflow(ctx, domainID, workflowID, runID)
-		if err != nil {
-			return err
-		}
-		activeCluster = lookupRes.ClusterName
+	activeClusterInfo, err := c.shard.GetActiveClusterManager().GetActiveClusterInfoByWorkflow(ctx, domainID, workflowID, runID)
+	if err != nil {
+		return err
 	}
 
-	if activeCluster == c.shard.GetClusterMetadata().GetCurrentClusterName() {
+	if activeClusterInfo.ActiveClusterName == c.shard.GetClusterMetadata().GetCurrentClusterName() {
 		return c.shard.GetEngine().ReapplyEvents(
 			ctx,
 			domainID,
@@ -1446,7 +1441,7 @@ func (c *contextImpl) ReapplyEvents(
 	// The active cluster of the domain is differ from the current cluster
 	// Use frontend client to route this request to the active cluster
 	// Reapplication only happens in active cluster
-	sourceCluster, err := clientBean.GetRemoteAdminClient(activeCluster)
+	sourceCluster, err := clientBean.GetRemoteAdminClient(activeClusterInfo.ActiveClusterName)
 	if err != nil {
 		return &types.InternalServiceError{
 			Message: err.Error(),

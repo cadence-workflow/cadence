@@ -23,12 +23,14 @@ package engineimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/pborman/uuid"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -53,9 +55,6 @@ func (e *historyEngineImpl) StartWorkflowExecution(
 	domainEntry, err := e.getActiveDomainByID(startRequest.DomainUUID)
 	if err != nil {
 		return nil, err
-	}
-	if domainEntry.GetReplicationConfig().IsActiveActive() && startRequest.StartRequest.ActiveClusterSelectionPolicy == nil {
-		return nil, &types.BadRequestError{Message: "ActiveClusterSelectionPolicy is required for active-active domains"}
 	}
 
 	return e.startWorkflowHelper(
@@ -130,10 +129,16 @@ func (e *historyEngineImpl) startWorkflowHelper(
 			return nil, err
 		}
 		if prevLastWriteVersion > curMutableState.GetCurrentVersion() {
-			return nil, e.newDomainNotActiveError(
-				domainEntry,
-				prevLastWriteVersion,
-			)
+			policy, err := e.shard.GetActiveClusterManager().GetActiveClusterSelectionPolicyForWorkflow(ctx, domainID, workflowID, prevMutableState.GetExecutionInfo().RunID)
+			if err != nil {
+				return nil, err
+			}
+			if policy.Equals(request.ActiveClusterSelectionPolicy) {
+				return nil, e.newDomainNotActiveError(
+					domainEntry,
+					prevLastWriteVersion,
+				)
+			}
 		}
 		err = e.applyWorkflowIDReusePolicyForSigWithStart(
 			prevMutableState.GetExecutionInfo(),
@@ -248,24 +253,15 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		}
 
 		if curMutableState.GetCurrentVersion() < t.LastWriteVersion {
-			if !domainEntry.GetReplicationConfig().IsActiveActive() {
+			policy, err := e.shard.GetActiveClusterManager().GetActiveClusterSelectionPolicyForWorkflow(ctx, domainID, workflowID, t.RunID)
+			if err != nil {
+				return nil, err
+			}
+			if policy.Equals(request.ActiveClusterSelectionPolicy) {
 				return nil, e.newDomainNotActiveError(
 					domainEntry,
 					t.LastWriteVersion,
 				)
-			}
-			// TODO(active-active): we should update this logic to support external entity policy
-			if request.ActiveClusterSelectionPolicy != nil && request.ActiveClusterSelectionPolicy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
-				res, err := e.shard.GetActiveClusterManager().LookupWorkflow(ctx, domainID, workflowID, t.RunID)
-				if err != nil {
-					return nil, err
-				}
-				if res.Region == request.ActiveClusterSelectionPolicy.StickyRegion {
-					return nil, e.newDomainNotActiveError(
-						domainEntry,
-						t.LastWriteVersion,
-					)
-				}
 			}
 		}
 
@@ -347,9 +343,6 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 	}
 	if domainEntry.GetInfo().Status != persistence.DomainStatusRegistered {
 		return nil, errDomainDeprecated
-	}
-	if domainEntry.GetReplicationConfig().IsActiveActive() && signalWithStartRequest.SignalWithStartRequest.ActiveClusterSelectionPolicy == nil {
-		return nil, &types.BadRequestError{Message: "ActiveClusterSelectionPolicy is required for active-active domains"}
 	}
 	domainID := domainEntry.GetInfo().ID
 
@@ -848,21 +841,28 @@ func (e *historyEngineImpl) createMutableState(
 	runID string,
 	startRequest *types.HistoryStartWorkflowExecutionRequest,
 ) (execution.MutableState, error) {
-	version := domainEntry.GetFailoverVersion()
-	// TODO(active-active): replace with cluster attributes
-	if domainEntry.GetReplicationConfig().IsActiveActive() {
-		res, err := e.shard.GetActiveClusterManager().LookupNewWorkflow(ctx, domainEntry.GetInfo().ID, startRequest.StartRequest.ActiveClusterSelectionPolicy)
-		if err != nil {
+	activeClusterInfo, err := e.shard.GetActiveClusterManager().GetActiveClusterInfoByClusterAttribute(ctx, domainEntry.GetInfo().ID, startRequest.StartRequest.ActiveClusterSelectionPolicy.GetClusterAttribute())
+	if err != nil {
+		var errNotFound *activecluster.ClusterAttributeNotFoundError
+		if !errors.As(err, &errNotFound) {
+			// unexpected error
 			return nil, err
 		}
-		version = res.FailoverVersion
+		e.logger.Warn("Failed to get active cluster info by cluster attribute, falling back to domain-level active cluster info", tag.Error(err))
+		// fallback to domain-level active cluster info
+		startRequest.StartRequest.ActiveClusterSelectionPolicy = nil
+		activeClusterInfo, err = e.shard.GetActiveClusterManager().GetActiveClusterInfoByClusterAttribute(ctx, domainEntry.GetInfo().ID, nil)
+		if err != nil {
+			// unexpected error
+			return nil, err
+		}
 	}
 
 	newMutableState := execution.NewMutableStateBuilderWithVersionHistories(
 		e.shard,
 		e.logger,
 		domainEntry,
-		version,
+		activeClusterInfo.FailoverVersion,
 	)
 
 	if err := newMutableState.SetHistoryTree(runID); err != nil {

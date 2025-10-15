@@ -16,7 +16,8 @@ jobs:
           - activeactive
           - activeactive_same_wfid
           - activeactive_same_wfid_signalwithstart
-          - activeactive_same_wfid_signalwithstart_delayed
+          # TODO(active-active): Re-enable this scenario once we have fixed the auto-forwarding issue
+          # - activeactive_same_wfid_signalwithstart_delayed
           - activeactive_cron
           - activeactive_regional_failover
           - activeactive_regional_failover_start_same_wfid

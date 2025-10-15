@@ -70,8 +70,8 @@ operations:
     domain: test-domain
     want:
       status: completed
-      startedByWorkersInCluster: cluster1
-      completedByWorkersInCluster: cluster1
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0
 
   # and start wf3 for active-active domain and validate it runs in cluster1
   - op: start_workflow

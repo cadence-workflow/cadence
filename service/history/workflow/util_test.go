@@ -33,6 +33,7 @@ import (
 	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/execution"
@@ -139,6 +140,7 @@ func TestWorkflowLoad(t *testing.T) {
 					},
 					nil,
 				).Times(1)
+				mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 			},
 		},
 		{
@@ -152,6 +154,7 @@ func TestWorkflowLoad(t *testing.T) {
 					},
 					nil,
 				).Times(1)
+				mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 				mockShard.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).Return(
 					&persistence.GetCurrentExecutionResponse{
 						RunID: constants.TestRunID,

@@ -440,12 +440,12 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActi
 	policy.logger.Debug("Determining active cluster for active-active domain request", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.Dynamic("execution", workflowExecution), tag.OperationName(apiName))
 	if actClSelPolicyForNewWF != nil {
 		policy.logger.Debug("Active cluster selection policy for new workflow", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName), tag.Dynamic("policy", actClSelPolicyForNewWF))
-		lookupRes, err := policy.activeClusterManager.LookupNewWorkflow(ctx, domainEntry.GetInfo().ID, actClSelPolicyForNewWF)
+		activeClusterInfo, err := policy.activeClusterManager.GetActiveClusterInfoByClusterAttribute(ctx, domainEntry.GetInfo().ID, actClSelPolicyForNewWF.GetClusterAttribute())
 		if err != nil {
 			policy.logger.Error("Failed to lookup active cluster of new workflow, using current cluster", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName), tag.Error(err))
 			return policy.currentClusterName
 		}
-		return lookupRes.ClusterName
+		return activeClusterInfo.ActiveClusterName
 	}
 
 	if workflowExecution == nil || workflowExecution.WorkflowID == "" || workflowExecution.RunID == "" {
@@ -453,12 +453,12 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActi
 		return policy.currentClusterName
 	}
 
-	lookupRes, err := policy.activeClusterManager.LookupWorkflow(ctx, domainEntry.GetInfo().ID, workflowExecution.WorkflowID, workflowExecution.RunID)
+	activeClusterInfo, err := policy.activeClusterManager.GetActiveClusterInfoByWorkflow(ctx, domainEntry.GetInfo().ID, workflowExecution.WorkflowID, workflowExecution.RunID)
 	if err != nil {
 		policy.logger.Error("Failed to lookup active cluster of workflow, using current cluster", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.WorkflowID(workflowExecution.WorkflowID), tag.WorkflowRunID(workflowExecution.RunID), tag.OperationName(apiName), tag.Error(err))
 		return policy.currentClusterName
 	}
 
-	policy.logger.Debug("Lookup workflow result for active-active domain request", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.WorkflowID(workflowExecution.WorkflowID), tag.WorkflowRunID(workflowExecution.RunID), tag.OperationName(apiName), tag.ActiveClusterName(lookupRes.ClusterName))
-	return lookupRes.ClusterName
+	policy.logger.Debug("Lookup workflow result for active-active domain request", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.WorkflowID(workflowExecution.WorkflowID), tag.WorkflowRunID(workflowExecution.RunID), tag.OperationName(apiName), tag.ActiveClusterName(activeClusterInfo.ActiveClusterName))
+	return activeClusterInfo.ActiveClusterName
 }

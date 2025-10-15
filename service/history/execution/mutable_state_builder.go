@@ -385,15 +385,6 @@ func (e *mutableStateBuilder) Load(
 			}
 		}
 	}
-
-	if e.domainEntry.GetReplicationConfig().IsActiveActive() {
-		res, err := e.shard.GetActiveClusterManager().LookupWorkflow(ctx, e.executionInfo.DomainID, e.executionInfo.WorkflowID, e.executionInfo.RunID)
-		if err != nil {
-			return err
-		}
-		e.currentVersion = res.FailoverVersion
-	}
-
 	return nil
 }
 
@@ -1270,34 +1261,28 @@ func (e *mutableStateBuilder) AddContinueAsNewEvent(
 	}
 	firstScheduleTime := currentStartEvent.GetWorkflowExecutionStartedEventAttributes().GetFirstScheduledTime()
 	domainID := e.domainEntry.GetInfo().ID
-	newStateBuilder := NewMutableStateBuilderWithVersionHistories(
-		e.shard,
-		e.logger,
-		e.domainEntry,
-		e.domainEntry.GetFailoverVersion(),
-	).(*mutableStateBuilder)
-
-	// New mutable state initializes `currentVersion` to domain's failover version.
-	// This doesn't work for active-active domains.
-	// Set `currentVersion` of the new mutable state builder based on active cluster selection policy
-	// specified on continue-as-new attributes.
-	if e.domainEntry.GetReplicationConfig().IsActiveActive() {
-		res, err := e.shard.GetActiveClusterManager().LookupNewWorkflow(ctx, e.domainEntry.GetInfo().ID, attributes.ActiveClusterSelectionPolicy)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		newStateBuilder.logger.Debug("mutableStateBuilder.AddContinueAsNewEvent created newStateBuilder",
-			tag.WorkflowDomainID(e.domainEntry.GetInfo().ID),
+	activeClusterInfo, err := e.shard.GetActiveClusterManager().GetActiveClusterInfoByClusterAttribute(ctx, domainID, attributes.ActiveClusterSelectionPolicy.GetClusterAttribute())
+	if err != nil {
+		return nil, nil, err
+	}
+	if e.logger.DebugOn() {
+		e.logger.Debug("mutableStateBuilder.AddContinueAsNewEvent created newStateBuilder",
+			tag.WorkflowDomainID(domainID),
 			tag.WorkflowID(e.executionInfo.WorkflowID),
 			tag.WorkflowRunID(e.executionInfo.RunID),
 			tag.WorkflowRunID(newRunID),
 			tag.CurrentVersion(e.currentVersion),
 			tag.Dynamic("activecluster-sel-policy", attributes.ActiveClusterSelectionPolicy),
-			tag.Dynamic("activecluster-lookup-res", res),
+			tag.Dynamic("activecluster-info", activeClusterInfo),
 		)
-		newStateBuilder.UpdateCurrentVersion(res.FailoverVersion, true)
 	}
+	// TODO: improve type casting
+	newStateBuilder := NewMutableStateBuilderWithVersionHistories(
+		e.shard,
+		e.logger,
+		e.domainEntry,
+		activeClusterInfo.FailoverVersion,
+	).(*mutableStateBuilder)
 
 	if _, err = newStateBuilder.addWorkflowExecutionStartedEventForContinueAsNew(
 		parentInfo,
@@ -1428,21 +1413,15 @@ func (e *mutableStateBuilder) StartTransaction(
 	domainEntry *cache.DomainCacheEntry,
 	incomingTaskVersion int64,
 ) (bool, error) {
-	e.domainEntry = domainEntry
-	version := domainEntry.GetFailoverVersion()
-	if e.domainEntry.GetReplicationConfig().IsActiveActive() {
-		res, err := e.shard.GetActiveClusterManager().LookupWorkflow(ctx, e.executionInfo.DomainID, e.executionInfo.WorkflowID, e.executionInfo.RunID)
-		if err != nil {
-			return false, err
-		}
-		version = res.FailoverVersion
+	activeClusterInfo, err := e.shard.GetActiveClusterManager().GetActiveClusterInfoByWorkflow(ctx, e.executionInfo.DomainID, e.executionInfo.WorkflowID, e.executionInfo.RunID)
+	if err != nil {
+		return false, err
 	}
-
 	if e.logger.DebugOn() {
 		e.logger.Debugf("StartTransaction calling UpdateCurrentVersion for domain %s, wfID %v, incomingTaskVersion %v, version %v, stacktrace %v",
-			domainEntry.GetInfo().Name, e.executionInfo.WorkflowID, incomingTaskVersion, version, string(debug.Stack()))
+			domainEntry.GetInfo().Name, e.executionInfo.WorkflowID, incomingTaskVersion, activeClusterInfo.FailoverVersion, string(debug.Stack()))
 	}
-	if err := e.UpdateCurrentVersion(version, false); err != nil {
+	if err := e.UpdateCurrentVersion(activeClusterInfo.FailoverVersion, false); err != nil {
 		return false, err
 	}
 

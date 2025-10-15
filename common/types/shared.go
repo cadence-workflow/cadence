@@ -2604,8 +2604,13 @@ func (v *ActiveClusters) DeepCopy() *ActiveClusters {
 	for region, activeClusterInfo := range v.ActiveClustersByRegion {
 		activeClustersByRegion[region] = activeClusterInfo
 	}
+	attributeScopes := make(map[string]ClusterAttributeScope)
+	for scopeType, scope := range v.AttributeScopes {
+		attributeScopes[scopeType] = scope
+	}
 	return &ActiveClusters{
 		ActiveClustersByRegion: activeClustersByRegion,
+		AttributeScopes:        attributeScopes,
 	}
 }
 
@@ -2641,6 +2646,13 @@ type ActiveClusterSelectionPolicy struct {
 
 	// TODO(active-active): Remove the fields above
 	ClusterAttribute *ClusterAttribute `json:"clusterAttribute,omitempty" yaml:"clusterAttribute,omitempty"`
+}
+
+func (p *ActiveClusterSelectionPolicy) GetClusterAttribute() *ClusterAttribute {
+	if p == nil {
+		return nil
+	}
+	return p.ClusterAttribute
 }
 
 func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolicy) bool {
