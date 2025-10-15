@@ -144,7 +144,9 @@ func (s *engineSuite) SetupTest() {
 	s.mockShardManager = s.mockShard.Resource.ShardMgr
 	s.mockDomainCache = s.mockShard.Resource.DomainCache
 	s.mockDomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestLocalDomainEntry, nil).AnyTimes()
+	s.mockDomainCache.EXPECT().GetDomainByID(constants.TestActiveActiveDomainID).Return(constants.TestActiveActiveDomainEntry, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomainName(constants.TestDomainID).Return(constants.TestDomainName, nil).AnyTimes()
+	s.mockDomainCache.EXPECT().GetDomainName(constants.TestActiveActiveDomainID).Return(constants.TestDomainName, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomain(constants.TestDomainName).Return(constants.TestLocalDomainEntry, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomainID(constants.TestDomainName).Return(constants.TestDomainID, nil).AnyTimes()
 
@@ -228,7 +230,7 @@ func (s *engineSuite) TestGetMutableStateSync() {
 			},
 		},
 	})
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
@@ -343,7 +345,7 @@ func (s *engineSuite) TestGetMutableStateLongPoll() {
 			},
 		},
 	})
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
@@ -439,7 +441,7 @@ func (s *engineSuite) TestGetMutableStateLongPoll_CurrentBranchChanged() {
 			},
 		},
 	})
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
@@ -519,7 +521,7 @@ func (s *engineSuite) TestGetMutableStateLongPollTimeout() {
 			},
 		},
 	})
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
@@ -570,7 +572,7 @@ func (s *engineSuite) TestQueryWorkflow_RejectBasedOnCompleted() {
 		workflowExecution.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	event := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
 	di.StartedID = event.ID
@@ -609,7 +611,7 @@ func (s *engineSuite) TestQueryWorkflow_RejectBasedOnFailed() {
 		workflowExecution.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	event := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
 	di.StartedID = event.ID
@@ -662,7 +664,7 @@ func (s *engineSuite) TestQueryWorkflow_FirstDecisionNotCompleted() {
 		workflowExecution.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
@@ -695,7 +697,7 @@ func (s *engineSuite) TestQueryWorkflow_DirectlyThroughMatching() {
 		workflowExecution.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	startedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
 	test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID, startedEvent.ID, nil, identity)
@@ -737,7 +739,7 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Timeout() {
 		workflowExecution.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	startedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
 	test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID, startedEvent.ID, nil, identity)
@@ -797,7 +799,7 @@ func (s *engineSuite) TestQueryWorkflow_ConsistentQueryBufferFull() {
 		workflowExecution.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	startedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
 	test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID, startedEvent.ID, nil, identity)
@@ -844,7 +846,7 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Complete() {
 		workflowExecution.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	startedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
 	test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID, startedEvent.ID, nil, identity)
@@ -903,6 +905,78 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Complete() {
 	waitGroup.Wait()
 }
 
+func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Complete_ActiveActive() {
+	workflowExecution := types.WorkflowExecution{
+		WorkflowID: "TestQueryWorkflow_DecisionTaskDispatch_Complete_ActiveActive",
+		RunID:      constants.TestRunID,
+	}
+	tasklist := "testTaskList"
+	identity := "testIdentity"
+	msBuilder := execution.NewMutableStateBuilderWithEventV2(
+		s.mockHistoryEngine.shard,
+		testlogger.New(s.Suite.T()),
+		workflowExecution.GetRunID(),
+		constants.TestActiveActiveDomainEntry,
+	)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, &constants.TestActiveClusterSelectionPolicy)
+	di := test.AddDecisionTaskScheduledEvent(msBuilder)
+	startedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
+	test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID, startedEvent.ID, nil, identity)
+	di = test.AddDecisionTaskScheduledEvent(msBuilder)
+	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
+
+	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
+	gweResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(gweResponse, nil).Once()
+
+	waitGroup := &sync.WaitGroup{}
+	waitGroup.Add(1)
+	asyncQueryUpdate := func(delay time.Duration, answer []byte) {
+		defer waitGroup.Done()
+		<-time.After(delay)
+		builder := s.getBuilder(constants.TestActiveActiveDomainID, workflowExecution)
+		s.NotNil(builder)
+		qr := builder.GetQueryRegistry()
+		buffered := qr.GetBufferedIDs()
+		for _, id := range buffered {
+			resultType := types.QueryResultTypeAnswered
+			completedTerminationState := &query.TerminationState{
+				TerminationType: query.TerminationTypeCompleted,
+				QueryResult: &types.WorkflowQueryResult{
+					ResultType: &resultType,
+					Answer:     answer,
+				},
+			}
+			err := qr.SetTerminationState(id, completedTerminationState)
+			s.NoError(err)
+			state, err := qr.GetTerminationState(id)
+			s.NoError(err)
+			s.Equal(query.TerminationTypeCompleted, state.TerminationType)
+		}
+	}
+
+	request := &types.HistoryQueryWorkflowRequest{
+		DomainUUID: constants.TestActiveActiveDomainID,
+		Request: &types.QueryWorkflowRequest{
+			Execution:             &workflowExecution,
+			Query:                 &types.WorkflowQuery{},
+			QueryConsistencyLevel: types.QueryConsistencyLevelStrong.Ptr(),
+		},
+	}
+	go asyncQueryUpdate(time.Second*2, []byte{1, 2, 3})
+	start := time.Now()
+	resp, err := s.mockHistoryEngine.QueryWorkflow(context.Background(), request)
+	s.True(time.Now().After(start.Add(time.Second)))
+	s.NoError(err)
+	s.Equal([]byte{1, 2, 3}, resp.GetResponse().GetQueryResult())
+	builder := s.getBuilder(constants.TestActiveActiveDomainID, workflowExecution)
+	s.NotNil(builder)
+	qr := builder.GetQueryRegistry()
+	s.False(qr.HasBufferedQuery())
+	s.False(qr.HasCompletedQuery())
+	waitGroup.Wait()
+}
+
 func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Unblocked() {
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "TestQueryWorkflow_DecisionTaskDispatch_Unblocked",
@@ -916,7 +990,7 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Unblocked() {
 		workflowExecution.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	startedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
 	test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID, startedEvent.ID, nil, identity)
@@ -1051,7 +1125,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedUpdateExecutionFailed() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -1094,7 +1168,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedIfTaskCompleted() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	startedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID, startedEvent.ID, nil, identity)
@@ -1135,7 +1209,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedIfTaskNotStarted() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	test.AddDecisionTaskScheduledEvent(msBuilder)
 
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
@@ -1180,7 +1254,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedConflictOnUpdate() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di1 := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent1 := test.AddDecisionTaskStartedEvent(msBuilder, di1.ScheduleID, tl, identity)
 	decisionCompletedEvent1 := test.AddDecisionTaskCompletedEvent(msBuilder, di1.ScheduleID,
@@ -1304,7 +1378,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedMaxAttemptsExceeded() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -1370,7 +1444,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedCompleteWorkflowFailed() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 25, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 25, 200, identity, nil)
 	di1 := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent1 := test.AddDecisionTaskStartedEvent(msBuilder, di1.ScheduleID, tl, identity)
 	decisionCompletedEvent1 := test.AddDecisionTaskCompletedEvent(msBuilder, di1.ScheduleID,
@@ -1458,7 +1532,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedFailWorkflowFailed() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 25, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 25, 200, identity, nil)
 	di1 := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent1 := test.AddDecisionTaskStartedEvent(msBuilder, di1.ScheduleID, tl, identity)
 	decisionCompletedEvent1 := test.AddDecisionTaskCompletedEvent(msBuilder, di1.ScheduleID,
@@ -1541,7 +1615,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedBadDecisionAttributes() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 25, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 25, 200, identity, nil)
 	di1 := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent1 := test.AddDecisionTaskStartedEvent(msBuilder, di1.ScheduleID, tl, identity)
 	decisionCompletedEvent1 := test.AddDecisionTaskCompletedEvent(msBuilder, di1.ScheduleID,
@@ -1665,7 +1739,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedSingleActivityScheduledAtt
 			we.GetRunID(),
 			constants.TestLocalDomainEntry,
 		)
-		test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), workflowTimeout, 200, identity)
+		test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), workflowTimeout, 200, identity, nil)
 		di := test.AddDecisionTaskScheduledEvent(msBuilder)
 		test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -1759,7 +1833,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedBadBinary() {
 		we.GetRunID(),
 		domainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -1816,7 +1890,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedSingleActivityScheduledDec
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -1891,7 +1965,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompleted_DecisionHeartbeatTimeout(
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	msBuilder.GetExecutionInfo().DecisionOriginalScheduledTimestamp = time.Now().Add(-time.Hour).UnixNano()
@@ -1939,7 +2013,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompleted_DecisionHeartbeatNotTimeo
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	msBuilder.GetExecutionInfo().DecisionOriginalScheduledTimestamp = time.Now().Add(-time.Minute).UnixNano()
@@ -1987,7 +2061,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompleted_DecisionHeartbeatNotTimeo
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	msBuilder.GetExecutionInfo().DecisionOriginalScheduledTimestamp = 0
@@ -2036,7 +2110,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedCompleteWorkflowSuccess() 
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -2095,7 +2169,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedFailWorkflowSuccess() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -2153,7 +2227,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedSignalExternalWorkflowSucc
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -2214,7 +2288,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedStartChildWorkflowWithAban
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -2283,7 +2357,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedStartChildWorkflowWithTerm
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -2352,7 +2426,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedSignalExternalWorkflowFail
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -2404,7 +2478,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedSignalExternalWorkflowFail
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -2543,7 +2617,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedIfNoAIdProvided() {
 		constants.TestRunID,
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	test.AddDecisionTaskScheduledEvent(msBuilder)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	gwmsResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
@@ -2582,7 +2656,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedIfNotFound() {
 		constants.TestRunID,
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	test.AddDecisionTaskScheduledEvent(msBuilder)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	gwmsResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
@@ -2625,7 +2699,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedUpdateExecutionFailed() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -2677,7 +2751,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedIfTaskCompleted() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -2730,7 +2804,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedIfTaskNotStarted() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -2782,7 +2856,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedConflictOnUpdate() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent1 := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent1 := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -2854,7 +2928,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedMaxAttemptsExceeded() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -2907,7 +2981,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedSuccess() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -2970,7 +3044,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedByIdSuccess() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	decisionScheduledEvent := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, decisionScheduledEvent.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, decisionScheduledEvent.ScheduleID,
@@ -3113,7 +3187,7 @@ func (s *engineSuite) TestRespondActivityTaskFailededIfNoAIdProvided() {
 		constants.TestRunID,
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	test.AddDecisionTaskScheduledEvent(msBuilder)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	gwmsResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
@@ -3152,7 +3226,7 @@ func (s *engineSuite) TestRespondActivityTaskFailededIfNotFound() {
 		constants.TestRunID,
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	test.AddDecisionTaskScheduledEvent(msBuilder)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	gwmsResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
@@ -3194,7 +3268,7 @@ func (s *engineSuite) TestRespondActivityTaskFailedUpdateExecutionFailed() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -3246,7 +3320,7 @@ func (s *engineSuite) TestRespondActivityTaskFailedIfTaskCompleted() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -3299,7 +3373,7 @@ func (s *engineSuite) TestRespondActivityTaskFailedIfTaskNotStarted() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -3352,7 +3426,7 @@ func (s *engineSuite) TestRespondActivityTaskFailedConflictOnUpdate() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 25, 25, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 25, 25, identity, nil)
 	di1 := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent1 := test.AddDecisionTaskStartedEvent(msBuilder, di1.ScheduleID, tl, identity)
 	decisionCompletedEvent1 := test.AddDecisionTaskCompletedEvent(msBuilder, di1.ScheduleID,
@@ -3428,7 +3502,7 @@ func (s *engineSuite) TestRespondActivityTaskFailedMaxAttemptsExceeded() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -3481,7 +3555,7 @@ func (s *engineSuite) TestRespondActivityTaskFailedSuccess() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -3546,7 +3620,7 @@ func (s *engineSuite) TestRespondActivityTaskFailedByIDSuccess() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	decisionScheduledEvent := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, decisionScheduledEvent.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, decisionScheduledEvent.ScheduleID,
@@ -3610,7 +3684,7 @@ func (s *engineSuite) TestRecordActivityTaskHeartBeatSuccess_NoTimer() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -3661,7 +3735,7 @@ func (s *engineSuite) TestRecordActivityTaskHeartBeatSuccess_TimerRunning() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -3719,7 +3793,7 @@ func (s *engineSuite) TestRecordActivityTaskHeartBeatByIDSuccess() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -3770,7 +3844,7 @@ func (s *engineSuite) TestRespondActivityTaskCanceled_Scheduled() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -3818,7 +3892,7 @@ func (s *engineSuite) TestRespondActivityTaskCanceled_Started() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -3881,7 +3955,7 @@ func (s *engineSuite) TestRespondActivityTaskCanceledByID_Started() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	decisionScheduledEvent := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, decisionScheduledEvent.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, decisionScheduledEvent.ScheduleID,
@@ -4028,7 +4102,7 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_NotSchedule
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -4086,7 +4160,7 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_Scheduled()
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -4155,7 +4229,7 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_Started() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -4222,7 +4296,7 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_Completed()
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -4294,7 +4368,7 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_NoHeartBeat
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -4401,7 +4475,7 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_Success() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -4507,7 +4581,7 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_SuccessWith
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -4654,7 +4728,7 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_SuccessWith
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -4745,7 +4819,7 @@ func (s *engineSuite) TestStarTimer_DuplicateTimerID() {
 		constants.TestLocalDomainEntry,
 	)
 
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -4845,7 +4919,7 @@ func (s *engineSuite) TestUserTimer_RespondDecisionTaskCompleted() {
 		constants.TestLocalDomainEntry,
 	)
 	// Verify cancel timer with a start event.
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -4908,7 +4982,7 @@ func (s *engineSuite) TestCancelTimer_RespondDecisionTaskCompleted_NoStartTimer(
 		constants.TestLocalDomainEntry,
 	)
 	// Verify cancel timer with a start event.
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
@@ -4966,7 +5040,7 @@ func (s *engineSuite) TestCancelTimer_RespondDecisionTaskCompleted_TimerFired() 
 		constants.TestLocalDomainEntry,
 	)
 	// Verify cancel timer with a start event.
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 100, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	decisionStartedEvent := test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 	decisionCompletedEvent := test.AddDecisionTaskCompletedEvent(msBuilder, di.ScheduleID,
@@ -5048,7 +5122,7 @@ func (s *engineSuite) TestSignalWorkflowExecution() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	test.AddDecisionTaskScheduledEvent(msBuilder)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	ms.ExecutionInfo.DomainID = constants.TestDomainID
@@ -5091,7 +5165,7 @@ func (s *engineSuite) TestSignalWorkflowExecution_DuplicateRequest_WorkflowOpen(
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	test.AddDecisionTaskScheduledEvent(msBuilder)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	// assume duplicate request id
@@ -5134,7 +5208,7 @@ func (s *engineSuite) TestSignalWorkflowExecution_DuplicateRequest_WorkflowCompl
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	test.AddDecisionTaskScheduledEvent(msBuilder)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	// assume duplicate request id
@@ -5176,7 +5250,7 @@ func (s *engineSuite) TestSignalWorkflowExecution_WorkflowCompleted() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, *we, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, *we, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	test.AddDecisionTaskScheduledEvent(msBuilder)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	ms.ExecutionInfo.State = persistence.WorkflowStateCompleted
@@ -5212,7 +5286,7 @@ func (s *engineSuite) TestRemoveSignalMutableState() {
 		constants.TestRunID,
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
 	test.AddDecisionTaskScheduledEvent(msBuilder)
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	ms.ExecutionInfo.DomainID = constants.TestDomainID

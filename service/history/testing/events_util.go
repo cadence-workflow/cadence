@@ -40,6 +40,7 @@ func AddWorkflowExecutionStartedEventWithParent(
 	taskStartToCloseTimeout int32,
 	parentInfo *types.ParentExecutionInfo,
 	identity string,
+	activeClusterSelectionPolicy *types.ActiveClusterSelectionPolicy,
 ) *types.HistoryEvent {
 
 	startRequest := &types.StartWorkflowExecutionRequest{
@@ -50,6 +51,7 @@ func AddWorkflowExecutionStartedEventWithParent(
 		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(executionStartToCloseTimeout),
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(taskStartToCloseTimeout),
 		Identity:                            identity,
+		ActiveClusterSelectionPolicy:        activeClusterSelectionPolicy,
 	}
 
 	event, _ := builder.AddWorkflowExecutionStartedEvent(
@@ -74,9 +76,10 @@ func AddWorkflowExecutionStartedEvent(
 	executionStartToCloseTimeout int32,
 	taskStartToCloseTimeout int32,
 	identity string,
+	activeClusterSelectionPolicy *types.ActiveClusterSelectionPolicy,
 ) *types.HistoryEvent {
 	return AddWorkflowExecutionStartedEventWithParent(builder, workflowExecution, workflowType, taskList, input,
-		executionStartToCloseTimeout, taskStartToCloseTimeout, nil, identity)
+		executionStartToCloseTimeout, taskStartToCloseTimeout, nil, identity, activeClusterSelectionPolicy)
 }
 
 // AddDecisionTaskScheduledEvent adds DecisionTaskScheduled event
