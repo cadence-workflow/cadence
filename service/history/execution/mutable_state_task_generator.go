@@ -28,7 +28,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/log"
@@ -680,88 +679,6 @@ func (r *mutableStateTaskGeneratorImpl) validateChildWorkflowParameters(msbDomai
 		}
 	}
 	return nil
-}
-
-func getTargetCluster(
-	domainID string,
-	domainCache cache.DomainCache,
-	clusterMetadata cluster.Metadata,
-) (string, bool, error) {
-	domainEntry, err := domainCache.GetDomainByID(domainID)
-	if err != nil {
-		return "", false, err
-	}
-
-	isActive := domainEntry.IsActiveIn(clusterMetadata.GetCurrentClusterName())
-	if !isActive {
-		// treat pending active as active
-		isActive = domainEntry.IsDomainPendingActive()
-	}
-
-	activeCluster := domainEntry.GetReplicationConfig().ActiveClusterName
-	return activeCluster, isActive, nil
-}
-
-func getParentCluster(
-	mutableState MutableState,
-	domainCache cache.DomainCache,
-	clusterMetadata cluster.Metadata,
-) (string, bool, error) {
-	executionInfo := mutableState.GetExecutionInfo()
-	if !mutableState.HasParentExecution() ||
-		executionInfo.CloseStatus == persistence.WorkflowCloseStatusContinuedAsNew {
-		// we don't need to reply to parent
-		return "", false, nil
-	}
-
-	return getTargetCluster(executionInfo.ParentDomainID, domainCache, clusterMetadata)
-}
-
-func getChildrenClusters(
-	childDomainIDs map[string]struct{},
-	mutableState MutableState,
-	domainCache cache.DomainCache,
-	clusterMetadata cluster.Metadata,
-) (map[string]struct{}, map[string]map[string]struct{}, error) {
-
-	if len(childDomainIDs) == 0 {
-		childDomainIDs = make(map[string]struct{})
-		children := mutableState.GetPendingChildExecutionInfos()
-		for _, childInfo := range children {
-			if childInfo.ParentClosePolicy == types.ParentClosePolicyAbandon {
-				continue
-			}
-
-			childDomainID, err := GetChildExecutionDomainID(childInfo, domainCache, mutableState.GetDomainEntry())
-			if err != nil {
-				if common.IsEntityNotExistsError(err) {
-					continue // ignore deleted domain
-				}
-				return nil, nil, err
-			}
-			childDomainIDs[childDomainID] = struct{}{}
-		}
-	}
-
-	sameClusterDomainIDs := make(map[string]struct{})
-	remoteClusterDomainIDs := make(map[string]map[string]struct{})
-	for childDomainID := range childDomainIDs {
-		childCluster, isActive, err := getTargetCluster(childDomainID, domainCache, clusterMetadata)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if isActive {
-			sameClusterDomainIDs[childDomainID] = struct{}{}
-		} else {
-			if _, ok := remoteClusterDomainIDs[childCluster]; !ok {
-				remoteClusterDomainIDs[childCluster] = make(map[string]struct{})
-			}
-			remoteClusterDomainIDs[childCluster][childDomainID] = struct{}{}
-		}
-	}
-
-	return sameClusterDomainIDs, remoteClusterDomainIDs, nil
 }
 
 func getNextDecisionTimeout(attempt int64, defaultStartToCloseTimeout time.Duration) time.Duration {
