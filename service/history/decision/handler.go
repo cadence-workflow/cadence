@@ -108,7 +108,7 @@ func (handler *handlerImpl) HandleDecisionTaskScheduled(
 	req *types.ScheduleDecisionTaskRequest,
 ) error {
 
-	domainEntry, err := handler.getActiveDomainByID(req.DomainUUID)
+	domainEntry, err := handler.getActiveDomainByWorkflow(ctx, req.DomainUUID, req.WorkflowExecution.WorkflowID, req.WorkflowExecution.RunID)
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (handler *handlerImpl) HandleDecisionTaskStarted(
 	req *types.RecordDecisionTaskStartedRequest,
 ) (*types.RecordDecisionTaskStartedResponse, error) {
 
-	domainEntry, err := handler.getActiveDomainByID(req.DomainUUID)
+	domainEntry, err := handler.getActiveDomainByWorkflow(ctx, req.DomainUUID, req.WorkflowExecution.WorkflowID, req.WorkflowExecution.RunID)
 	if err != nil {
 		return nil, err
 	}
@@ -253,17 +253,17 @@ func (handler *handlerImpl) HandleDecisionTaskFailed(
 	req *types.HistoryRespondDecisionTaskFailedRequest,
 ) (retError error) {
 
-	domainEntry, err := handler.getActiveDomainByID(req.DomainUUID)
-	if err != nil {
-		return err
-	}
-	domainID := domainEntry.GetInfo().ID
-
 	request := req.FailedRequest
 	token, err := handler.tokenSerializer.Deserialize(request.TaskToken)
 	if err != nil {
 		return workflow.ErrDeserializingToken
 	}
+
+	domainEntry, err := handler.getActiveDomainByWorkflow(ctx, req.DomainUUID, token.WorkflowID, token.RunID)
+	if err != nil {
+		return err
+	}
+	domainID := domainEntry.GetInfo().ID
 
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: token.WorkflowID,
@@ -292,17 +292,17 @@ func (handler *handlerImpl) HandleDecisionTaskCompleted(
 	ctx context.Context,
 	req *types.HistoryRespondDecisionTaskCompletedRequest,
 ) (resp *types.HistoryRespondDecisionTaskCompletedResponse, retError error) {
-	domainEntry, err := handler.getActiveDomainByID(req.DomainUUID)
-	if err != nil {
-		return nil, err
-	}
-	domainID := domainEntry.GetInfo().ID
-
 	request := req.CompleteRequest
 	token, err0 := handler.tokenSerializer.Deserialize(request.TaskToken)
 	if err0 != nil {
 		return nil, workflow.ErrDeserializingToken
 	}
+
+	domainEntry, err := handler.getActiveDomainByWorkflow(ctx, req.DomainUUID, token.WorkflowID, token.RunID)
+	if err != nil {
+		return nil, err
+	}
+	domainID := domainEntry.GetInfo().ID
 
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: token.WorkflowID,
@@ -915,8 +915,19 @@ func (handler *handlerImpl) failDecisionHelper(
 	return mutableState, nil
 }
 
-func (handler *handlerImpl) getActiveDomainByID(id string) (*cache.DomainCacheEntry, error) {
-	return cache.GetActiveDomainByID(handler.shard.GetDomainCache(), handler.shard.GetClusterMetadata().GetCurrentClusterName(), id)
+func (handler *handlerImpl) getActiveDomainByWorkflow(ctx context.Context, domainID, workflowID, runID string) (*cache.DomainCacheEntry, error) {
+	activeClusterInfo, err := handler.activeClusterManager.GetActiveClusterInfoByWorkflow(ctx, domainID, workflowID, runID)
+	if err != nil {
+		return nil, err
+	}
+	domain, err := handler.domainCache.GetDomainByID(domainID)
+	if err != nil {
+		return nil, err
+	}
+	if activeClusterInfo.ActiveClusterName == handler.shard.GetClusterMetadata().GetCurrentClusterName() {
+		return domain, nil
+	}
+	return nil, domain.NewDomainNotActiveError(handler.shard.GetClusterMetadata().GetCurrentClusterName(), activeClusterInfo.ActiveClusterName)
 }
 
 func getDecisionInfoAttempt(di *execution.DecisionInfo) int64 {

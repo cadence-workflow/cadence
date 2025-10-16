@@ -153,10 +153,10 @@ func (s *engine3Suite) TestRecordDecisionTaskStartedSuccessStickyEnabled() {
 	s.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return(constants.TestDomainName, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(testDomainEntry, nil).AnyTimes()
 	testActiveClusterInfo := &types.ActiveClusterInfo{
-		ActiveClusterName: testDomainEntry.GetReplicationConfig().ActiveClusterName,
+		ActiveClusterName: s.historyEngine.clusterMetadata.GetCurrentClusterName(),
 		FailoverVersion:   testDomainEntry.GetFailoverVersion(),
 	}
-	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).Times(2)
 
 	domainID := constants.TestDomainID
 	we := types.WorkflowExecution{
