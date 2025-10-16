@@ -32,6 +32,8 @@ var (
 	TestVersion = cluster.TestCurrentClusterInitialFailoverVersion + (cluster.TestFailoverVersionIncrement * 5)
 	// TestDomainID is the domainID for test
 	TestDomainID = "deadbeef-0123-4567-890a-bcdef0123456"
+	// TestActiveActiveDomainID is the active active domainID for test
+	TestActiveActiveDomainID = "965c78b7-1f6f-4122-9ba7-af6b7a55b27f"
 	// TestDomainName is the domainName for test
 	TestDomainName = "some random domain name"
 	// TestRateLimitedDomainName is the domain name for testing task processing rate limits
@@ -51,6 +53,14 @@ var (
 
 	// TestClusterMetadata is the cluster metadata for test
 	TestClusterMetadata = cluster.GetTestClusterMetadata(true)
+
+	// TestActiveClusterSelectionPolicy is the active cluster selection policy for test
+	TestActiveClusterSelectionPolicy = types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-east",
+		},
+	}
 
 	// TestLocalDomainEntry is the local domain cache entry for test
 	TestLocalDomainEntry = cache.NewLocalDomainCacheEntryForTest(
@@ -78,24 +88,29 @@ var (
 	)
 
 	TestActiveActiveDomainEntry = cache.NewGlobalDomainCacheEntryForTest(
-		&persistence.DomainInfo{ID: TestDomainID, Name: TestDomainName},
+		&persistence.DomainInfo{ID: TestActiveActiveDomainID, Name: TestDomainName},
 		&persistence.DomainConfig{
 			Retention:                1,
 			VisibilityArchivalStatus: types.ArchivalStatusEnabled,
 			VisibilityArchivalURI:    "test:///visibility/archival",
 		},
 		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestAlternativeClusterName,
 			Clusters: []*persistence.ClusterReplicationConfig{
 				{ClusterName: cluster.TestCurrentClusterName},
 				{ClusterName: cluster.TestAlternativeClusterName},
 			},
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region1": {
-						ActiveClusterName: cluster.TestCurrentClusterName,
-					},
-					"region2": {
-						ActiveClusterName: cluster.TestAlternativeClusterName,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-east": {
+								ActiveClusterName: cluster.TestCurrentClusterName,
+							},
+							"us-west": {
+								ActiveClusterName: cluster.TestAlternativeClusterName,
+							},
+						},
 					},
 				},
 			},

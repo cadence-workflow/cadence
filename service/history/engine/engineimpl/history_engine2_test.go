@@ -188,7 +188,7 @@ func (s *engine2Suite) TestRecordDecisionTaskStartedSuccessStickyExpired() {
 	executionInfo := msBuilder.GetExecutionInfo()
 	executionInfo.StickyTaskList = stickyTl
 
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
@@ -262,7 +262,7 @@ func (s *engine2Suite) TestRecordDecisionTaskStartedSuccessStickyEnabled() {
 	executionInfo.LastUpdatedTimestamp = time.Now()
 	executionInfo.StickyTaskList = stickyTl
 
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
@@ -1168,7 +1168,7 @@ func (s *engine2Suite) createExecutionStartedState(
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	if startDecision {
 		test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
@@ -1206,7 +1206,7 @@ func (s *engine2Suite) TestRespondDecisionTaskCompletedRecordMarkerDecision() {
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity)
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tl, []byte("input"), 100, 200, identity, nil)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tl, identity)
 
