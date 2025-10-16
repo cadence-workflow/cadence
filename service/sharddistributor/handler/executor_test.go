@@ -496,6 +496,7 @@ func TestConvertResponse(t *testing.T) {
 			},
 			expectedResp: &types.ExecutorHeartbeatResponse{
 				ShardAssignments: make(map[string]*types.ShardAssignment),
+				MigrationMode:    types.MigrationModeONBOARDED,
 			},
 		},
 		{
@@ -511,6 +512,7 @@ func TestConvertResponse(t *testing.T) {
 					"shard-1": {Status: types.AssignmentStatusREADY},
 					"shard-2": {Status: types.AssignmentStatusREADY},
 				},
+				MigrationMode: types.MigrationModeONBOARDED,
 			},
 		},
 	}

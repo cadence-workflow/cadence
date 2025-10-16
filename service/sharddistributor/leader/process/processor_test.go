@@ -49,7 +49,7 @@ func setupProcessorTest(t *testing.T, namespaceType string) *testDependencies {
 				},
 			},
 		),
-		cfg: config.Namespace{Name: "test-ns", ShardNum: 2, Type: namespaceType},
+		cfg: config.Namespace{Name: "test-ns", ShardNum: 2, Type: namespaceType, Mode: config.MigrationModeONBOARDED},
 	}
 }
 
