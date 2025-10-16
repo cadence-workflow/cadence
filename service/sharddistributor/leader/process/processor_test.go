@@ -267,6 +267,31 @@ func TestRunLoop_ContextCancellation(t *testing.T) {
 	processor.wg.Wait()
 }
 
+func TestRunLoop_MigrationNotOnboarded(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+	mocks.cfg.Mode = config.MigrationModeDISTRIBUTEDPASSTHROUGH
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	mocks.store.EXPECT().Subscribe(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil)
+	// We explicitly verify that the state is not queried
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{GlobalRevision: 0}, nil).Times(0)
+
+	processor.wg.Add(1)
+	// Run the process in a separate goroutine to avoid blocking the test
+	go processor.runProcess(ctx)
+
+	// Wait for the two loops (rebalance and cleanup) to create their tickers
+	mocks.timeSource.BlockUntil(2)
+
+	// Now, cancel the context to signal the loops to stop
+	cancel()
+
+	// Wait for the main process loop to exit gracefully
+	processor.wg.Wait()
+}
+
 func TestRebalanceShards_NoShardsToReassign(t *testing.T) {
 	mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
 	defer mocks.ctrl.Finish()

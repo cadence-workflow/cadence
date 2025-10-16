@@ -106,7 +106,7 @@ var configMode = map[string]types.MigrationMode{
 func (s *ShardDistribution) GetMigrationMode(namespace string) types.MigrationMode {
 	for _, ns := range s.Namespaces {
 		if ns.Name == namespace {
-			return configMode[ns.Type]
+			return configMode[ns.Mode]
 		}
 	}
 	// TODO in the dynamic configuration I will setup a default value
