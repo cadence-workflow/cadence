@@ -10,7 +10,9 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -25,7 +27,8 @@ func TestHeartbeat(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
-		handler := NewExecutorHandler(mockStore, mockTimeSource)
+		shardDistributionCfg := config.ShardDistribution{}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -48,7 +51,8 @@ func TestHeartbeat(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
-		handler := NewExecutorHandler(mockStore, mockTimeSource)
+		shardDistributionCfg := config.ShardDistribution{}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -72,7 +76,8 @@ func TestHeartbeat(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
-		handler := NewExecutorHandler(mockStore, mockTimeSource)
+		shardDistributionCfg := config.ShardDistribution{}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -103,7 +108,8 @@ func TestHeartbeat(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
-		handler := NewExecutorHandler(mockStore, mockTimeSource)
+		shardDistributionCfg := config.ShardDistribution{}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -131,7 +137,8 @@ func TestHeartbeat(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
 		mockTimeSource := clock.NewMockedTimeSource()
-		handler := NewExecutorHandler(mockStore, mockTimeSource)
+		shardDistributionCfg := config.ShardDistribution{}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -146,6 +153,327 @@ func TestHeartbeat(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), expectedErr.Error())
 	})
+
+	// Test Case 6: Heartbeat with executor associated invalid migration mode
+	t.Run("MigrationModeInvald", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockStore := store.NewMockStore(ctrl)
+		mockTimeSource := clock.NewMockedTimeSource()
+		shardDistributionCfg := config.ShardDistribution{
+			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeINVALID}},
+		}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
+
+		req := &types.ExecutorHeartbeatRequest{
+			Namespace:  namespace,
+			ExecutorID: executorID,
+			Status:     types.ExecutorStatusACTIVE,
+		}
+		previousHeartbeat := store.HeartbeatState{
+			LastHeartbeat: now.Unix(),
+			Status:        types.ExecutorStatusACTIVE,
+		}
+
+		expectedErr := errors.New("migration mode is invalid")
+		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
+
+		_, err := handler.Heartbeat(ctx, req)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), expectedErr.Error())
+	})
+
+	// Test Case 7: Heartbeat with executor associated with local passthrough mode
+	t.Run("MigrationModeLocalPassthrough", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockStore := store.NewMockStore(ctrl)
+		mockTimeSource := clock.NewMockedTimeSource()
+		shardDistributionCfg := config.ShardDistribution{
+			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGH}},
+		}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
+
+		req := &types.ExecutorHeartbeatRequest{
+			Namespace:  namespace,
+			ExecutorID: executorID,
+			Status:     types.ExecutorStatusACTIVE,
+		}
+		previousHeartbeat := store.HeartbeatState{
+			LastHeartbeat: now.Unix(),
+			Status:        types.ExecutorStatusACTIVE,
+		}
+
+		expectedErr := errors.New("migration mode is local passthrough")
+		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
+
+		_, err := handler.Heartbeat(ctx, req)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), expectedErr.Error())
+	})
+
+	// Test Case 8: Heartbeat with executor associated with local passthrough shadow
+	t.Run("MigrationModeLocalPassthroughWithAssignmentChanges", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockStore := store.NewMockStore(ctrl)
+		mockTimeSource := clock.NewMockedTimeSource()
+		shardDistributionCfg := config.ShardDistribution{
+			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGHSHADOW}},
+		}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
+
+		req := &types.ExecutorHeartbeatRequest{
+			Namespace:  namespace,
+			ExecutorID: executorID,
+			Status:     types.ExecutorStatusACTIVE,
+			ShardStatusReports: map[string]*types.ShardStatusReport{
+				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+			},
+		}
+
+		previousHeartbeat := store.HeartbeatState{
+			LastHeartbeat: now.Unix(),
+			Status:        types.ExecutorStatusACTIVE,
+			ReportedShards: map[string]*types.ShardStatusReport{
+				"shard1": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+			},
+		}
+
+		assignedState := store.AssignedState{
+			AssignedShards: map[string]*types.ShardAssignment{
+				"shard1": {Status: types.AssignmentStatusREADY},
+			},
+		}
+
+		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, &assignedState, nil)
+		mockStore.EXPECT().DeleteExecutors(gomock.Any(), namespace, []string{executorID}, nil).Return(nil)
+		mockStore.EXPECT().AssignShards(gomock.Any(), namespace, gomock.Any(), nil).DoAndReturn(
+			func(ctx context.Context, namespace string, request store.AssignShardsRequest, guard store.GuardFunc) error {
+				// Expect to Assign the shard in the request
+				expectedRequest := store.AssignShardsRequest{
+					NewState: &store.NamespaceState{
+						ShardAssignments: map[string]store.AssignedState{
+							executorID: {AssignedShards: map[string]*types.ShardAssignment{"shard0": {Status: types.AssignmentStatusREADY}}},
+						},
+					},
+				}
+				require.Equal(t, expectedRequest.NewState.ShardAssignments[executorID].AssignedShards, request.NewState.ShardAssignments[executorID].AssignedShards)
+				return nil
+			},
+		)
+		mockStore.EXPECT().RecordHeartbeat(gomock.Any(), namespace, executorID, store.HeartbeatState{
+			LastHeartbeat: now.Unix(),
+			Status:        types.ExecutorStatusACTIVE,
+			ReportedShards: map[string]*types.ShardStatusReport{
+				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+			},
+		})
+
+		_, err := handler.Heartbeat(ctx, req)
+		require.NoError(t, err)
+	},
+	)
+
+	// Test Case 9: Heartbeat with executor associated with distributed passthrough
+	t.Run("MigrationModeDISTRIBUTEDPASSTHROUGHWithNoAssignmentChanges", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockStore := store.NewMockStore(ctrl)
+		mockTimeSource := clock.NewMockedTimeSource()
+		shardDistributionCfg := config.ShardDistribution{
+			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGHSHADOW}},
+		}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
+
+		req := &types.ExecutorHeartbeatRequest{
+			Namespace:  namespace,
+			ExecutorID: executorID,
+			Status:     types.ExecutorStatusACTIVE,
+			ShardStatusReports: map[string]*types.ShardStatusReport{
+				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+			},
+		}
+
+		previousHeartbeat := store.HeartbeatState{
+			LastHeartbeat: now.Unix(),
+			Status:        types.ExecutorStatusACTIVE,
+			ReportedShards: map[string]*types.ShardStatusReport{
+				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+			},
+		}
+
+		assignedState := store.AssignedState{
+			AssignedShards: map[string]*types.ShardAssignment{
+				"shard0": {Status: types.AssignmentStatusREADY},
+			},
+		}
+
+		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, &assignedState, nil)
+		mockStore.EXPECT().RecordHeartbeat(gomock.Any(), namespace, executorID, store.HeartbeatState{
+			LastHeartbeat: now.Unix(),
+			Status:        types.ExecutorStatusACTIVE,
+			ReportedShards: map[string]*types.ShardStatusReport{
+				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+			},
+		})
+
+		_, err := handler.Heartbeat(ctx, req)
+		require.NoError(t, err)
+	})
+
+	// Test Case 11: Heartbeat with executor associated with distributed passthrough
+	t.Run("MigrationModeDISTRIBUTEDPASSTHROUGHDeletionFailure", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockStore := store.NewMockStore(ctrl)
+		mockTimeSource := clock.NewMockedTimeSource()
+		shardDistributionCfg := config.ShardDistribution{
+			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGHSHADOW}},
+		}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
+
+		req := &types.ExecutorHeartbeatRequest{
+			Namespace:  namespace,
+			ExecutorID: executorID,
+			Status:     types.ExecutorStatusACTIVE,
+			ShardStatusReports: map[string]*types.ShardStatusReport{
+				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+			},
+		}
+
+		previousHeartbeat := store.HeartbeatState{
+			LastHeartbeat: now.Unix(),
+			Status:        types.ExecutorStatusACTIVE,
+			ReportedShards: map[string]*types.ShardStatusReport{
+				"shard1": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+			},
+		}
+
+		assignedState := store.AssignedState{
+			AssignedShards: map[string]*types.ShardAssignment{
+				"shard1": {Status: types.AssignmentStatusREADY},
+			},
+		}
+
+		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, &assignedState, nil)
+		expectedErr := errors.New("deletion failed")
+		mockStore.EXPECT().DeleteExecutors(gomock.Any(), namespace, []string{executorID}, nil).Return(expectedErr)
+
+		_, err := handler.Heartbeat(ctx, req)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), expectedErr.Error())
+	})
+
+	// Test Case 12: Heartbeat with executor associated with distributed passthrough
+	t.Run("MigrationModeDISTRIBUTEDPASSTHROUGHAssignmentFailure", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockStore := store.NewMockStore(ctrl)
+		mockTimeSource := clock.NewMockedTimeSource()
+		shardDistributionCfg := config.ShardDistribution{
+			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGHSHADOW}},
+		}
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
+
+		req := &types.ExecutorHeartbeatRequest{
+			Namespace:  namespace,
+			ExecutorID: executorID,
+			Status:     types.ExecutorStatusACTIVE,
+			ShardStatusReports: map[string]*types.ShardStatusReport{
+				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+			},
+		}
+
+		previousHeartbeat := store.HeartbeatState{
+			LastHeartbeat: now.Unix(),
+			Status:        types.ExecutorStatusACTIVE,
+			ReportedShards: map[string]*types.ShardStatusReport{
+				"shard1": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+			},
+		}
+
+		assignedState := store.AssignedState{
+			AssignedShards: map[string]*types.ShardAssignment{
+				"shard1": {Status: types.AssignmentStatusREADY},
+			},
+		}
+
+		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, &assignedState, nil)
+		mockStore.EXPECT().DeleteExecutors(gomock.Any(), namespace, []string{executorID}, nil).Return(nil)
+		expectedErr := errors.New("assignemnt failed")
+		mockStore.EXPECT().AssignShards(gomock.Any(), namespace, gomock.Any(), nil).Return(expectedErr)
+
+		_, err := handler.Heartbeat(ctx, req)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), expectedErr.Error())
+	})
+}
+
+func TestIsShardAssignmentChanged(t *testing.T) {
+	testCases := []struct {
+		name                     string
+		previousHeartbeat        *store.HeartbeatState
+		newShardAssignmentStatus map[string]*types.ShardStatusReport
+		expectedResp             bool
+	}{
+		{
+			name:                     "Empty new assignment",
+			previousHeartbeat:        &store.HeartbeatState{},
+			newShardAssignmentStatus: map[string]*types.ShardStatusReport{},
+			expectedResp:             false,
+		},
+		{
+			name: "No changes in the new assignment",
+			previousHeartbeat: &store.HeartbeatState{
+				ReportedShards: map[string]*types.ShardStatusReport{
+					"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+					"shard1": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+				},
+			},
+			newShardAssignmentStatus: map[string]*types.ShardStatusReport{
+				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+				"shard1": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+			},
+			expectedResp: false,
+		},
+		{
+			name: "One more shard compared to previous assignment",
+			previousHeartbeat: &store.HeartbeatState{
+				ReportedShards: map[string]*types.ShardStatusReport{
+					"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+				},
+			},
+			newShardAssignmentStatus: map[string]*types.ShardStatusReport{
+				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+				"shard1": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+			},
+			expectedResp: true,
+		},
+		{
+			name: "One shard from previous assignment is deleted",
+			previousHeartbeat: &store.HeartbeatState{
+				ReportedShards: map[string]*types.ShardStatusReport{
+					"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+				},
+			},
+			newShardAssignmentStatus: map[string]*types.ShardStatusReport{},
+			expectedResp:             true,
+		},
+		{
+			name: "Change of status from previous assignment",
+			previousHeartbeat: &store.HeartbeatState{
+				ReportedShards: map[string]*types.ShardStatusReport{
+					"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+				},
+			},
+			newShardAssignmentStatus: map[string]*types.ShardStatusReport{
+				"shard0": {Status: types.ShardStatusDONE, ShardLoad: 1.0},
+			},
+			expectedResp: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			res := isShardAssignmentChanged(tc.previousHeartbeat, tc.newShardAssignmentStatus)
+			require.Equal(t, tc.expectedResp, res)
+		})
+	}
 }
 
 func TestConvertResponse(t *testing.T) {
@@ -168,6 +496,7 @@ func TestConvertResponse(t *testing.T) {
 			},
 			expectedResp: &types.ExecutorHeartbeatResponse{
 				ShardAssignments: make(map[string]*types.ShardAssignment),
+				MigrationMode:    types.MigrationModeONBOARDED,
 			},
 		},
 		{
@@ -183,6 +512,7 @@ func TestConvertResponse(t *testing.T) {
 					"shard-1": {Status: types.AssignmentStatusREADY},
 					"shard-2": {Status: types.AssignmentStatusREADY},
 				},
+				MigrationMode: types.MigrationModeONBOARDED,
 			},
 		},
 	}
@@ -194,7 +524,7 @@ func TestConvertResponse(t *testing.T) {
 			if tc.expectedResp.ShardAssignments == nil {
 				tc.expectedResp.ShardAssignments = make(map[string]*types.ShardAssignment)
 			}
-			res := _convertResponse(tc.input)
+			res := _convertResponse(tc.input, types.MigrationModeONBOARDED)
 
 			// Ensure ShardAssignments is not nil for comparison purposes
 			if res.ShardAssignments == nil {

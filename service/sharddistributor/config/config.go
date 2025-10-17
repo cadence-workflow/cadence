@@ -28,6 +28,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/types"
 )
 
 type (
@@ -85,6 +86,32 @@ const (
 	NamespaceTypeFixed     = "fixed"
 	NamespaceTypeEphemeral = "ephemeral"
 )
+
+const (
+	MigrationModeINVALID                = "invalid"
+	MigrationModeLOCALPASSTHROUGH       = "local_pass"
+	MigrationModeLOCALPASSTHROUGHSHADOW = "local_pass_shadow"
+	MigrationModeDISTRIBUTEDPASSTHROUGH = "distributed_pass"
+	MigrationModeONBOARDED              = "onboarded"
+)
+
+var configMode = map[string]types.MigrationMode{
+	MigrationModeINVALID:                types.MigrationModeINVALID,
+	MigrationModeLOCALPASSTHROUGH:       types.MigrationModeLOCALPASSTHROUGH,
+	MigrationModeLOCALPASSTHROUGHSHADOW: types.MigrationModeLOCALPASSTHROUGHSHADOW,
+	MigrationModeDISTRIBUTEDPASSTHROUGH: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
+	MigrationModeONBOARDED:              types.MigrationModeONBOARDED,
+}
+
+func (s *ShardDistribution) GetMigrationMode(namespace string) types.MigrationMode {
+	for _, ns := range s.Namespaces {
+		if ns.Name == namespace {
+			return configMode[ns.Mode]
+		}
+	}
+	// TODO in the dynamic configuration I will setup a default value
+	return configMode[MigrationModeONBOARDED]
+}
 
 // NewConfig returns new service config with default values
 func NewConfig(dc *dynamicconfig.Collection, hostName string) *Config {
