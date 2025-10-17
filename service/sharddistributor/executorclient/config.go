@@ -2,13 +2,28 @@ package executorclient
 
 import (
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/uber/cadence/common/types"
+	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 )
 
 // NamespaceConfig represents configuration for a single namespace
 type NamespaceConfig struct {
 	Namespace         string        `yaml:"namespace"`
 	HeartBeatInterval time.Duration `yaml:"heartbeat_interval"`
+	MigrationMode     string        `yaml:"migration_mode"`
+}
+
+// GetMigrationMode converts the string migration mode to types.MigrationMode using the shared configMode map
+func (nc *NamespaceConfig) GetMigrationMode() types.MigrationMode {
+	mode := strings.ToLower(strings.TrimSpace(nc.MigrationMode))
+	if migrationMode, ok := sdconfig.ConfigMode[mode]; ok {
+		return migrationMode
+	}
+	// Default to INVALID if not specified or unrecognized
+	return types.MigrationModeINVALID
 }
 
 // Config represents configuration for multiple namespaces
