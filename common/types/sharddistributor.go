@@ -24,7 +24,7 @@ package types
 
 import "fmt"
 
-//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus -json -output sharddistributor_statuses_enumer_generated.go
+//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus,MigrationMode -json -output sharddistributor_statuses_enumer_generated.go
 
 type GetShardOwnerRequest struct {
 	ShardKey  string
@@ -204,9 +204,9 @@ const (
 type MigrationMode int32
 
 const (
-	MigrationModeINVALID                = 0
-	MigrationModeLOCALPASSTHROUGH       = 1
-	MigrationModeLOCALPASSTHROUGHSHADOW = 2
-	MigrationModeDISTRIBUTEDPASSTHROUGH = 3
-	MigrationModeONBOARDED              = 4
+	MigrationModeINVALID                MigrationMode = 0
+	MigrationModeLOCALPASSTHROUGH       MigrationMode = 1
+	MigrationModeLOCALPASSTHROUGHSHADOW MigrationMode = 2
+	MigrationModeDISTRIBUTEDPASSTHROUGH MigrationMode = 3
+	MigrationModeONBOARDED              MigrationMode = 4
 )

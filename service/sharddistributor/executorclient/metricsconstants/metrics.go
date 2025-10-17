@@ -18,6 +18,8 @@ const (
 	ShardDistributorExecutorProcessorCreationFailures = "shard_distributor_executor_processor_creation_failures"
 	ShardDistributorExecutorClientRequests            = "shard_distributor_executor_client_requests"
 	ShardDistributorExecutorClientFailures            = "shard_distributor_executor_client_failures"
+	ShardDistributorExecutorAssignmentDivergence      = "shard_distributor_executor_assignment_divergence"
+	ShardDistributorExecutorAssignmentConvergence     = "shard_distributor_executor_assignment_convergence"
 
 	// Gauge metrics
 	ShardDistributorExecutorOwnedShards = "shard_distributor_executor_owned_shards"
