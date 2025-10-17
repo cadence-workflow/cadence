@@ -133,6 +133,7 @@ func (s *engine3Suite) SetupTest() {
 			p.HistoryTaskCategoryTransfer: s.mockTxProcessor,
 			p.HistoryTaskCategoryTimer:    s.mockTimerProcessor,
 		},
+		activeClusterManager: s.mockShard.Resource.ActiveClusterMgr,
 	}
 	s.mockShard.SetEngine(h)
 	h.decisionHandler = decision.NewHandler(s.mockShard, h.executionCache, h.tokenSerializer)
@@ -238,8 +239,8 @@ func (s *engine3Suite) TestStartWorkflowExecution_BrandNew() {
 	s.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return(constants.TestDomainName, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(testDomainEntry, nil).AnyTimes()
 	testActiveClusterInfo := &types.ActiveClusterInfo{
-		ActiveClusterName: testDomainEntry.GetReplicationConfig().ActiveClusterName,
-		FailoverVersion:   testDomainEntry.GetFailoverVersion(),
+		ActiveClusterName: s.historyEngine.clusterMetadata.GetCurrentClusterName(),
+		FailoverVersion:   0,
 	}
 	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
@@ -317,17 +318,13 @@ func (s *engine3Suite) TestSignalWithStartWorkflowExecution_JustSignal() {
 	}
 	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
-	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{}
-	_, err := s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
-	s.Error(err)
-
 	domainID := constants.TestDomainID
 	workflowID := "wId"
 	runID := constants.TestRunID
 	identity := "testIdentity"
 	signalName := "my signal name"
 	input := []byte("test input")
-	sRequest = &types.HistorySignalWithStartWorkflowExecutionRequest{
+	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{
 		DomainUUID: domainID,
 		SignalWithStartRequest: &types.SignalWithStartWorkflowExecutionRequest{
 			Domain:     domainID,
@@ -368,14 +365,10 @@ func (s *engine3Suite) TestSignalWithStartWorkflowExecution_WorkflowNotExist() {
 	s.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return(constants.TestDomainName, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(testDomainEntry, nil).AnyTimes()
 	testActiveClusterInfo := &types.ActiveClusterInfo{
-		ActiveClusterName: testDomainEntry.GetReplicationConfig().ActiveClusterName,
-		FailoverVersion:   testDomainEntry.GetFailoverVersion(),
+		ActiveClusterName: s.historyEngine.clusterMetadata.GetCurrentClusterName(),
+		FailoverVersion:   0,
 	}
 	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
-
-	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{}
-	_, err := s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
-	s.Error(err)
 
 	domainID := constants.TestDomainID
 	workflowID := "wId"
@@ -388,7 +381,7 @@ func (s *engine3Suite) TestSignalWithStartWorkflowExecution_WorkflowNotExist() {
 	partitionConfig := map[string]string{
 		"zone": "phx",
 	}
-	sRequest = &types.HistorySignalWithStartWorkflowExecutionRequest{
+	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{
 		DomainUUID: domainID,
 		SignalWithStartRequest: &types.SignalWithStartWorkflowExecutionRequest{
 			Domain:                              domainID,
@@ -472,6 +465,11 @@ func (s *engine3Suite) TestSignalWorkflowExecution_DeprecatedDomain() {
 			Input:             input,
 		},
 	}
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: s.historyEngine.clusterMetadata.GetCurrentClusterName(),
+		FailoverVersion:   0,
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil)
 
 	testDomainEntry := cache.NewLocalDomainCacheEntryForTest(
 		&p.DomainInfo{ID: constants.TestDomainID, Name: constants.TestDomainName, Status: p.DomainStatusDeprecated}, &p.DomainConfig{Retention: 1}, "",

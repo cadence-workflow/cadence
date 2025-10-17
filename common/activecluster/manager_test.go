@@ -304,6 +304,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 
 	tests := []struct {
 		name                           string
+		runID                          string
 		activeClusterCfg               *types.ActiveClusters
 		domainIDToNameErr              error
 		mockExecutionManagerFn         func(em *persistence.MockExecutionManager)
@@ -313,7 +314,8 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 		expectedError                  string
 	}{
 		{
-			name: "domain ID to name function returns error",
+			name:  "domain ID to name function returns error",
+			runID: "test-run-id",
 			activeClusterCfg: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {
@@ -330,7 +332,8 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			expectedError:     "failed to find domain by id",
 		},
 		{
-			name: "execution manager provider returns error",
+			name:  "execution manager provider returns error",
+			runID: "test-run-id",
 			activeClusterCfg: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {
@@ -349,7 +352,8 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			expectedError: "failed to get execution manager",
 		},
 		{
-			name: "execution manager GetActiveClusterSelectionPolicy returns error",
+			name:  "execution manager GetActiveClusterSelectionPolicy returns error",
+			runID: "test-run-id",
 			activeClusterCfg: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {
@@ -369,7 +373,8 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			expectedError: "database error",
 		},
 		{
-			name: "policy not found (EntityNotExistsError) - uses empty policy with nil cluster attribute",
+			name:  "policy not found (EntityNotExistsError) - uses empty policy with nil cluster attribute",
+			runID: "test-run-id",
 			activeClusterCfg: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {
@@ -392,7 +397,8 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			},
 		},
 		{
-			name: "policy not found (EntityNotExistsError) - empty policy with cluster attribute not found",
+			name:  "policy not found (EntityNotExistsError) - empty policy with cluster attribute not found",
+			runID: "test-run-id",
 			activeClusterCfg: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {
@@ -415,7 +421,8 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			},
 		},
 		{
-			name: "policy found but cluster attribute not found in domain config",
+			name:  "policy found but cluster attribute not found in domain config",
+			runID: "test-run-id",
 			activeClusterCfg: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {
@@ -440,7 +447,8 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			expectedError: "could not find cluster attribute &{datacenter dc1} in the domain test-domain-id's active cluster config",
 		},
 		{
-			name: "successful lookup - policy found and cluster attribute exists",
+			name:  "successful lookup - policy found and cluster attribute exists",
+			runID: "test-run-id",
 			activeClusterCfg: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {
@@ -472,7 +480,8 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			},
 		},
 		{
-			name: "successful lookup - policy from cache",
+			name:  "successful lookup - policy from cache",
+			runID: "test-run-id",
 			activeClusterCfg: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"datacenter": {
@@ -495,14 +504,17 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 					Name:  "dc2",
 				},
 			},
-			// No mock needed since policy comes from cache
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				// No expectations needed since policy comes from cache, but we need the provider to be non-nil
+			},
 			expectedResult: &types.ActiveClusterInfo{
 				ActiveClusterName: "cluster1",
 				FailoverVersion:   250,
 			},
 		},
 		{
-			name: "successful lookup - nil cluster attribute in policy uses domain-level info",
+			name:  "successful lookup - nil cluster attribute in policy uses domain-level info",
+			runID: "test-run-id",
 			activeClusterCfg: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {
@@ -527,7 +539,8 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			},
 		},
 		{
-			name: "successful lookup - multiple scopes with different attributes",
+			name:  "successful lookup - multiple scopes with different attributes",
+			runID: "test-run-id",
 			activeClusterCfg: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {
@@ -565,6 +578,71 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 				ActiveClusterName: "cluster1",
 				FailoverVersion:   300,
 			},
+		},
+		{
+			name:  "successful lookup - empty runID triggers GetCurrentExecution",
+			runID: "",
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+							"us-east": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   200,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				// Expect GetCurrentExecution to be called first to get the runID
+				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+				}).Return(&persistence.GetCurrentExecutionResponse{
+					RunID: "current-run-id",
+				}, nil)
+				// Then expect GetActiveClusterSelectionPolicy with the returned runID
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "current-run-id").
+					Return(&types.ActiveClusterSelectionPolicy{
+						ClusterAttribute: &types.ClusterAttribute{
+							Scope: "region",
+							Name:  "us-east",
+						},
+					}, nil)
+			},
+			expectedResult: &types.ActiveClusterInfo{
+				ActiveClusterName: "cluster1",
+				FailoverVersion:   200,
+			},
+		},
+		{
+			name:  "empty runID - GetCurrentExecution returns error",
+			runID: "",
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				// GetCurrentExecution returns an error
+				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+				}).Return(nil, errors.New("workflow not found"))
+			},
+			expectedError: "workflow not found",
 		},
 	}
 
@@ -605,11 +683,11 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			assert.NoError(t, err)
 
 			if tc.cachedPolicy != nil {
-				key := fmt.Sprintf("%s:%s:%s", "test-domain-id", wfID, "test-run-id")
+				key := fmt.Sprintf("%s:%s:%s", "test-domain-id", wfID, tc.runID)
 				mgr.(*managerImpl).workflowPolicyCache.Put(key, tc.cachedPolicy)
 			}
 
-			result, err := mgr.GetActiveClusterInfoByWorkflow(context.Background(), "test-domain-id", wfID, "test-run-id")
+			result, err := mgr.GetActiveClusterInfoByWorkflow(context.Background(), "test-domain-id", wfID, tc.runID)
 			if tc.expectedError != "" {
 				assert.EqualError(t, err, tc.expectedError)
 				assert.Nil(t, result)

@@ -35,8 +35,12 @@ func (e *historyEngineImpl) SignalWorkflowExecution(
 	ctx context.Context,
 	signalRequest *types.HistorySignalWorkflowExecutionRequest,
 ) error {
-
-	domainEntry, err := e.getActiveDomainByID(signalRequest.DomainUUID)
+	request := signalRequest.SignalRequest
+	workflowExecution := types.WorkflowExecution{
+		WorkflowID: request.WorkflowExecution.WorkflowID,
+		RunID:      request.WorkflowExecution.RunID,
+	}
+	domainEntry, err := e.getActiveDomainByWorkflow(ctx, signalRequest.DomainUUID, workflowExecution.WorkflowID, workflowExecution.RunID)
 	if err != nil {
 		return err
 	}
@@ -44,13 +48,8 @@ func (e *historyEngineImpl) SignalWorkflowExecution(
 		return errDomainDeprecated
 	}
 	domainID := domainEntry.GetInfo().ID
-	request := signalRequest.SignalRequest
 	parentExecution := signalRequest.ExternalWorkflowExecution
 	childWorkflowOnly := signalRequest.GetChildWorkflowOnly()
-	workflowExecution := types.WorkflowExecution{
-		WorkflowID: request.WorkflowExecution.WorkflowID,
-		RunID:      request.WorkflowExecution.RunID,
-	}
 
 	return workflow.UpdateCurrentWithActionFunc(
 		ctx,

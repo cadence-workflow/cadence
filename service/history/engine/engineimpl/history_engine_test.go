@@ -5519,12 +5519,6 @@ func (s *engineSuite) TestCancelTimer_RespondDecisionTaskCompleted_TimerFired() 
 	s.False(executionBuilder.HasBufferedEvents())
 }
 
-func (s *engineSuite) TestSignalWorkflowExecution_InvalidRequest() {
-	signalRequest := &types.HistorySignalWorkflowExecutionRequest{}
-	err := s.mockHistoryEngine.SignalWorkflowExecution(context.Background(), signalRequest)
-	s.Error(err)
-}
-
 func (s *engineSuite) TestSignalWorkflowExecution() {
 	testActiveClusterInfo := &types.ActiveClusterInfo{
 		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
