@@ -37,6 +37,7 @@ type (
 		GetState() VirtualSliceState
 		IsEmpty() bool
 		GetTasks(context.Context, int) ([]task.Task, error)
+		InsertTask(task.Task)
 		HasMoreTasks() bool
 		UpdateAndGetState() VirtualSliceState
 		GetPendingTaskCount() int
@@ -113,6 +114,10 @@ func (s *virtualSliceImpl) Clear() {
 			NextTaskKey:   s.state.Range.InclusiveMinTaskKey,
 		},
 	}
+}
+
+func (s *virtualSliceImpl) InsertTask(task task.Task) {
+	s.pendingTaskTracker.AddTask(task)
 }
 
 func (s *virtualSliceImpl) GetTasks(ctx context.Context, pageSize int) ([]task.Task, error) {
