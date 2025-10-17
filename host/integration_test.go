@@ -4470,3 +4470,13 @@ func (s *IntegrationSuite) sendSignal(domainName string, execution *types.Workfl
 		Identity:          identity,
 	})
 }
+
+// TestDescribeCluster tests that DescribeCluster API returns a valid response without error
+func (s *IntegrationSuite) TestDescribeCluster() {
+	ctx, cancel := createContext()
+	defer cancel()
+
+	response, err := s.AdminClient.DescribeCluster(ctx)
+	s.Require().NoError(err)
+	s.Require().NotNil(response)
+}
