@@ -26,13 +26,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime/debug"
 	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -55,28 +52,17 @@ const (
 
 type managerImpl struct {
 	domainIDToDomainFn       DomainIDToDomainFn
-	clusterMetadata          cluster.Metadata
 	metricsCl                metrics.Client
 	logger                   log.Logger
 	executionManagerProvider ExecutionManagerProvider
-	timeSrc                  clock.TimeSource
 	numShards                int
 	workflowPolicyCache      cache.Cache
 }
 
 type ManagerOption func(*managerImpl)
 
-func WithTimeSource(timeSource clock.TimeSource) ManagerOption {
-	return func(m *managerImpl) {
-		if timeSource != nil {
-			m.timeSrc = timeSource
-		}
-	}
-}
-
 func NewManager(
 	domainIDToDomainFn DomainIDToDomainFn,
-	clusterMetadata cluster.Metadata,
 	metricsCl metrics.Client,
 	logger log.Logger,
 	executionManagerProvider ExecutionManagerProvider,
@@ -85,10 +71,8 @@ func NewManager(
 ) (Manager, error) {
 	m := &managerImpl{
 		domainIDToDomainFn:       domainIDToDomainFn,
-		clusterMetadata:          clusterMetadata,
 		metricsCl:                metricsCl,
 		logger:                   logger.WithTags(tag.ComponentActiveClusterManager),
-		timeSrc:                  clock.NewRealTimeSource(),
 		executionManagerProvider: executionManagerProvider,
 		numShards:                numShards,
 		workflowPolicyCache: cache.New(&cache.Options{
@@ -100,167 +84,10 @@ func NewManager(
 			Logger:        logger,
 		}),
 	}
-
 	for _, opt := range opts {
 		opt(m)
 	}
-
 	return m, nil
-}
-
-func (m *managerImpl) LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (res *LookupResult, e error) {
-	defer func() {
-		logFn := m.logger.Debug
-		if e != nil {
-			logFn = m.logger.Warn
-		}
-		logFn("LookupNewWorkflow",
-			tag.WorkflowDomainID(domainID),
-			tag.Dynamic("policy", policy),
-			tag.Dynamic("result", res),
-			tag.Error(e),
-		)
-	}()
-
-	d, scope, err := m.getDomainAndScope(domainID, LookupNewWorkflowOpName)
-	if err != nil {
-		return nil, err
-	}
-	scope = scope.Tagged(metrics.ActiveClusterSelectionStrategyTag(policy.GetStrategy().String()))
-	defer m.handleError(scope, &e, time.Now())
-
-	if !d.GetReplicationConfig().IsActiveActive() {
-		// Not an active-active domain. return failover version of the domain entry
-		return &LookupResult{
-			ClusterName:     d.GetReplicationConfig().ActiveClusterName,
-			FailoverVersion: d.GetFailoverVersion(),
-		}, nil
-	}
-
-	// region sticky policy
-	if policy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
-		// use current region for nil policy, otherwise use sticky region from policy
-		region := m.clusterMetadata.GetCurrentRegion()
-		if policy != nil {
-			region = policy.StickyRegion
-		}
-
-		cluster, ok := d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region]
-		if !ok {
-			return nil, newRegionNotFoundForDomainError(region, domainID)
-		}
-
-		return &LookupResult{
-			ClusterName:     cluster.ActiveClusterName,
-			FailoverVersion: cluster.FailoverVersion,
-		}, nil
-	}
-
-	return nil, fmt.Errorf("unsupported active cluster selection strategy: %s", policy.GetStrategy())
-}
-
-func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (res *LookupResult, e error) {
-	d, scope, err := m.getDomainAndScope(domainID, LookupWorkflowOpName)
-	if err != nil {
-		return nil, err
-	}
-	defer m.handleError(scope, &e, time.Now())
-
-	if !d.GetReplicationConfig().IsActiveActive() {
-		// Not an active-active domain. return ActiveClusterName from domain entry
-		m.logger.Debug("LookupWorkflow: not an active-active domain. returning ActiveClusterName from domain entry",
-			tag.WorkflowDomainID(domainID),
-			tag.WorkflowID(wfID),
-			tag.WorkflowRunID(rID),
-			tag.ActiveClusterName(d.GetReplicationConfig().ActiveClusterName),
-			tag.FailoverVersion(d.GetFailoverVersion()),
-		)
-		return &LookupResult{
-			ClusterName:     d.GetReplicationConfig().ActiveClusterName,
-			FailoverVersion: d.GetFailoverVersion(),
-		}, nil
-	}
-
-	plcy, err := m.getClusterSelectionPolicy(ctx, domainID, wfID, rID)
-	if err != nil {
-		var notExistsErr *types.EntityNotExistsError
-		if !errors.As(err, &notExistsErr) {
-			return nil, err
-		}
-
-		// Case 1.b: domain migrated from active-passive to active-active case
-		if d.GetReplicationConfig().ActiveClusterName != "" {
-			if m.logger.DebugOn() {
-				m.logger.Debug("LookupWorkflow: domain migrated from active-passive to active-active case. returning ActiveClusterName from domain entry",
-					tag.WorkflowDomainID(domainID),
-					tag.WorkflowID(wfID),
-					tag.WorkflowRunID(rID),
-					tag.ActiveClusterName(d.GetReplicationConfig().ActiveClusterName),
-					tag.FailoverVersion(d.GetFailoverVersion()),
-					tag.Dynamic("stack", string(debug.Stack())),
-				)
-			}
-			return &LookupResult{
-				ClusterName:     d.GetReplicationConfig().ActiveClusterName,
-				FailoverVersion: d.GetFailoverVersion(),
-			}, nil
-		}
-
-		// Case 1.c: workflow is retired. return current cluster and its failover version
-		region := m.clusterMetadata.GetCurrentRegion()
-		cluster, ok := d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region]
-		if !ok {
-			return nil, newRegionNotFoundForDomainError(region, domainID)
-		}
-
-		if m.logger.DebugOn() {
-			m.logger.Debug("LookupWorkflow: workflow is retired. returning region, cluster name and failover version",
-				tag.WorkflowDomainID(domainID),
-				tag.WorkflowID(wfID),
-				tag.WorkflowRunID(rID),
-				tag.Region(region),
-				tag.ActiveClusterName(cluster.ActiveClusterName),
-				tag.FailoverVersion(cluster.FailoverVersion),
-				tag.Dynamic("stack", string(debug.Stack())),
-			)
-		}
-		return &LookupResult{
-			Region:          region,
-			ClusterName:     cluster.ActiveClusterName,
-			FailoverVersion: cluster.FailoverVersion,
-		}, nil
-	}
-
-	if plcy.GetStrategy() != types.ActiveClusterSelectionStrategyRegionSticky {
-		return nil, fmt.Errorf("unsupported active cluster selection strategy: %s", plcy.GetStrategy())
-	}
-
-	region := plcy.StickyRegion
-	cluster, ok := d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region]
-	if !ok {
-		return nil, newRegionNotFoundForDomainError(region, domainID)
-	}
-
-	if m.logger.DebugOn() {
-		m.logger.Debug("LookupWorkflow: workflow is region sticky. returning region, cluster name and failover version",
-			tag.WorkflowDomainID(domainID),
-			tag.WorkflowID(wfID),
-			tag.WorkflowRunID(rID),
-			tag.Region(region),
-			tag.ActiveClusterName(cluster.ActiveClusterName),
-			tag.FailoverVersion(cluster.FailoverVersion),
-			tag.Dynamic("stack", string(debug.Stack())),
-		)
-	}
-	return &LookupResult{
-		Region:          region,
-		ClusterName:     cluster.ActiveClusterName,
-		FailoverVersion: cluster.FailoverVersion,
-	}, nil
-}
-
-func (m *managerImpl) CurrentRegion() string {
-	return m.clusterMetadata.GetCurrentRegion()
 }
 
 func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {

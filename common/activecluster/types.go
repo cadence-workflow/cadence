@@ -34,37 +34,8 @@ import (
 //go:generate mockgen -package $GOPACKAGE -destination execution_manager_provider_mock.go -self_package github.com/uber/cadence/common/activecluster github.com/uber/cadence/common/activecluster ExecutionManagerProvider
 
 // Manager is the interface for active cluster manager.
-// It is used to lookup region, active cluster, cluster name and failover version etc.
-// This was introduced to support active-active domains.
-// It encapsulates the logic to lookup the active cluster for all kinds of domains. Most other components should use this interface instead of cluster metadata directly.
-// It is also used to notify components when there's an external entity change. History engine subscribes to these updates similar to domain change notifications.
+// It is used to get active cluster info by cluster attribute or workflow.
 type Manager interface {
-	// LookupNewWorkflow returns active cluster, region and failover version of given new workflow.
-	//  1. If domain is local:
-	//     	Returns info from domain entry.
-	//  2. If domain is active-passive global:
-	//     	Returns info from domain entry.
-	//  3. If domain is active-active global:
-	//     	3.1. if workflow is region sticky, returns current cluster and its 	failover version.
-	//     	3.2. if workflow has external entity, returns region, cluster name and failover version of corresponding row in EntityActiveRegion lookup table.
-	LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (*LookupResult, error)
-
-	// LookupWorkflow returns active cluster, region and failover version of given existing workflow.
-	// Returns the info from domain entry for local and active-passive domains
-	//
-	// Active-active domain logic:
-	//  1. Get ActivenessMetadata record of the workflow
-	//     1.a. If it's found, continue with step 2
-	//     1.b. If it's not found and the domain is migrated from active-passive to active-active return domain's ActiveClusterName and FailoverVersion.
-	//     1.c. If it's not found and the domain is not migrated from active-passive to active-active, the workflow must have been retired. Return cluster name and failover version of current region.
-	//  2. Given ActivenessMetadata, return region and failover version
-	//     2.a. If workflow is region sticky (origin=regionA), find active cluster in that region in domain's active cluster config and return its name and failover version.
-	//     2.b. If workflow has external entity, locate the entity from EntityActiveRegion table and return that region and it's failover version.
-	LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (*LookupResult, error)
-
-	// CurrentRegion returns the current region.
-	CurrentRegion() string
-
 	// GetActiveClusterInfoByClusterAttribute returns the active cluster info by cluster attribute
 	// If clusterAttribute is nil, returns the domain-level active cluster info
 	// If clusterAttribute is not nil and exists in the domain metadata, returns the active cluster info of the cluster attribute
@@ -79,30 +50,8 @@ type Manager interface {
 	GetActiveClusterSelectionPolicyForWorkflow(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
 }
 
-type LookupResult struct {
-	Region          string
-	ClusterName     string
-	FailoverVersion int64
-}
-
 type ExecutionManagerProvider interface {
 	GetExecutionManager(shardID int) (persistence.ExecutionManager, error)
-}
-
-type RegionNotFoundForDomainError struct {
-	Region   string
-	DomainID string
-}
-
-func newRegionNotFoundForDomainError(region, domainID string) *RegionNotFoundForDomainError {
-	return &RegionNotFoundForDomainError{
-		Region:   region,
-		DomainID: domainID,
-	}
-}
-
-func (e *RegionNotFoundForDomainError) Error() string {
-	return fmt.Sprintf("could not find region %s in the domain %s's active cluster config", e.Region, e.DomainID)
 }
 
 type ClusterAttributeNotFoundError struct {
