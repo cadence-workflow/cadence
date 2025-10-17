@@ -1033,27 +1033,6 @@ func (entry *DomainCacheEntry) IsSampledForLongerRetention(
 	return false
 }
 
-// TODO(active-active): This function should accept active cluster selection policy as a parameter
-func GetActiveDomainByID(cache DomainCache, currentCluster string, domainID string) (*DomainCacheEntry, error) {
-	if err := common.ValidateDomainUUID(domainID); err != nil {
-		return nil, err
-	}
-
-	domain, err := cache.GetDomainByID(domainID)
-	if err != nil {
-		return nil, err
-	}
-
-	if !domain.IsActiveIn(currentCluster) {
-		// return the domain record as well as the not-active-error because some callers check
-		// whether the domain is pending active or not
-		// it's not a good design, but we need to keep it for backward compatibility
-		return domain, domain.NewDomainNotActiveError(currentCluster, domain.GetReplicationConfig().ActiveClusterName)
-	}
-
-	return domain, nil
-}
-
 // IsDeprecatedOrDeleted This function checks the domain status to see if the domain has been deprecated or deleted.
 func (entry *DomainCacheEntry) IsDeprecatedOrDeleted() bool {
 	if entry.info.Status == persistence.DomainStatusDeprecated || entry.info.Status == persistence.DomainStatusDeleted {

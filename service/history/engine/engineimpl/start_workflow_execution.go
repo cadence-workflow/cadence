@@ -51,8 +51,7 @@ func (e *historyEngineImpl) StartWorkflowExecution(
 	ctx context.Context,
 	startRequest *types.HistoryStartWorkflowExecutionRequest,
 ) (resp *types.StartWorkflowExecutionResponse, retError error) {
-
-	domainEntry, err := e.getActiveDomainByID(startRequest.DomainUUID)
+	domainEntry, err := e.shard.GetDomainCache().GetDomainByID(startRequest.DomainUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -72,12 +71,11 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	metricsScope metrics.ScopeIdx,
 	signalWithStartArg *signalWithStartArg,
 ) (resp *types.StartWorkflowExecutionResponse, retError error) {
-
 	if domainEntry.GetInfo().Status != persistence.DomainStatusRegistered {
 		return nil, errDomainDeprecated
 	}
-
 	request := startRequest.StartRequest
+
 	err := e.validateStartWorkflowExecutionRequest(request, metricsScope)
 	if err != nil {
 		return nil, err
@@ -336,8 +334,7 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 	ctx context.Context,
 	signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest,
 ) (retResp *types.StartWorkflowExecutionResponse, retError error) {
-
-	domainEntry, err := e.getActiveDomainByID(signalWithStartRequest.DomainUUID)
+	domainEntry, err := e.shard.GetDomainCache().GetDomainByID(signalWithStartRequest.DomainUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -856,6 +853,9 @@ func (e *historyEngineImpl) createMutableState(
 			// unexpected error
 			return nil, err
 		}
+	}
+	if activeClusterInfo.ActiveClusterName != e.currentClusterName {
+		return nil, e.newDomainNotActiveError(domainEntry, activeClusterInfo.FailoverVersion)
 	}
 
 	newMutableState := execution.NewMutableStateBuilderWithVersionHistories(

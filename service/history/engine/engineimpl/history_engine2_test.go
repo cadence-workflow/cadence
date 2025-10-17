@@ -1099,7 +1099,7 @@ func (s *engine2Suite) TestRequestCancelWorkflowExecutionSuccess() {
 		ActiveClusterName: s.mockShard.GetClusterMetadata().GetCurrentClusterName(),
 		FailoverVersion:   0,
 	}
-	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil)
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).Times(2)
 
 	msBuilder := s.createExecutionStartedState(workflowExecution, tl, identity, false)
 	ms1 := execution.CreatePersistenceMutableState(s.T(), msBuilder)
@@ -1141,7 +1141,7 @@ func (s *engine2Suite) TestRequestCancelWorkflowExecutionDuplicateRequestError()
 		ActiveClusterName: s.mockShard.GetClusterMetadata().GetCurrentClusterName(),
 		FailoverVersion:   0,
 	}
-	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil)
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).Times(2)
 
 	msBuilder := s.createExecutionStartedState(workflowExecution, tl, identity, false)
 	ms1 := execution.CreatePersistenceMutableState(s.T(), msBuilder)
@@ -1179,7 +1179,7 @@ func (s *engine2Suite) TestRequestCancelWorkflowExecutionAlreadyCancelled_Succes
 		ActiveClusterName: s.mockShard.GetClusterMetadata().GetCurrentClusterName(),
 		FailoverVersion:   0,
 	}
-	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil)
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).Times(2)
 
 	msBuilder := s.createExecutionStartedState(workflowExecution, tl, identity, false)
 	msBuilder.GetExecutionInfo().State = p.WorkflowStateCompleted
@@ -1220,7 +1220,7 @@ func (s *engine2Suite) TestRequestCancelWorkflowExecutionAlreadyCancelled_Fail()
 		ActiveClusterName: s.mockShard.GetClusterMetadata().GetCurrentClusterName(),
 		FailoverVersion:   0,
 	}
-	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil)
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).Times(2)
 
 	msBuilder := s.createExecutionStartedState(workflowExecution, tl, identity, false)
 	msBuilder.GetExecutionInfo().State = p.WorkflowStateCompleted
@@ -1260,7 +1260,7 @@ func (s *engine2Suite) TestRequestCancelWorkflowExecutionFail() {
 		ActiveClusterName: s.mockShard.GetClusterMetadata().GetCurrentClusterName(),
 		FailoverVersion:   0,
 	}
-	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil)
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).Times(2)
 
 	msBuilder := s.createExecutionStartedState(workflowExecution, tl, identity, false)
 	msBuilder.GetExecutionInfo().State = p.WorkflowStateCompleted
@@ -1904,10 +1904,6 @@ func (s *engine2Suite) TestStartWorkflowExecution_NotRunning_PrevFail() {
 }
 
 func (s *engine2Suite) TestSignalWithStartWorkflowExecution_JustSignal() {
-	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{}
-	_, err := s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
-	s.Error(err)
-
 	domainID := constants.TestDomainID
 	workflowID := "wId"
 	runID := constants.TestRunID
@@ -1920,7 +1916,7 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_JustSignal() {
 		FailoverVersion:   0,
 	}
 	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).Times(1)
-	sRequest = &types.HistorySignalWithStartWorkflowExecutionRequest{
+	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{
 		DomainUUID: domainID,
 		SignalWithStartRequest: &types.SignalWithStartWorkflowExecutionRequest{
 			Domain:     domainID,
@@ -1954,10 +1950,6 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_JustSignal() {
 }
 
 func (s *engine2Suite) TestSignalWithStartWorkflowExecution_JustSignal_DuplicateRequestError() {
-	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{}
-	_, err := s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
-	s.Error(err)
-
 	domainID := constants.TestDomainID
 	workflowID := "wId"
 	runID := constants.TestRunID
@@ -1970,7 +1962,7 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_JustSignal_Duplicate
 		FailoverVersion:   0,
 	}
 	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).Times(1)
-	sRequest = &types.HistorySignalWithStartWorkflowExecutionRequest{
+	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{
 		DomainUUID: domainID,
 		SignalWithStartRequest: &types.SignalWithStartWorkflowExecutionRequest{
 			Domain:     domainID,
@@ -2002,10 +1994,6 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_JustSignal_Duplicate
 }
 
 func (s *engine2Suite) TestSignalWithStartWorkflowExecution_JustSignal_DuplicateRequestError_TypeMismatch() {
-	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{}
-	_, err := s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
-	s.Error(err)
-
 	domainID := constants.TestDomainID
 	workflowID := "wId"
 	runID := constants.TestRunID
@@ -2018,7 +2006,7 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_JustSignal_Duplicate
 		FailoverVersion:   0,
 	}
 	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).Times(1)
-	sRequest = &types.HistorySignalWithStartWorkflowExecutionRequest{
+	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{
 		DomainUUID: domainID,
 		SignalWithStartRequest: &types.SignalWithStartWorkflowExecutionRequest{
 			Domain:     domainID,
@@ -2044,16 +2032,12 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_JustSignal_Duplicate
 	s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.Anything).Return(&p.AppendHistoryNodesResponse{}, nil).Once()
 	s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.Anything).Return(nil, &p.DuplicateRequestError{RequestType: p.WorkflowRequestTypeStart, RunID: "test-run-id"}).Once()
 
-	_, err = s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
+	_, err := s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
 	s.Error(err)
 	s.IsType(&p.DuplicateRequestError{}, err)
 }
 
 func (s *engine2Suite) TestSignalWithStartWorkflowExecution_WorkflowNotExist() {
-	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{}
-	_, err := s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
-	s.Error(err)
-
 	domainID := constants.TestDomainID
 	workflowID := "wId"
 	workflowType := "workflowType"
@@ -2072,7 +2056,7 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_WorkflowNotExist() {
 	}
 	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, gomock.Any()).Return(testActiveClusterInfo, nil).Times(1)
 
-	sRequest = &types.HistorySignalWithStartWorkflowExecutionRequest{
+	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{
 		DomainUUID: domainID,
 		SignalWithStartRequest: &types.SignalWithStartWorkflowExecutionRequest{
 			Domain:                              domainID,
@@ -2103,10 +2087,6 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_WorkflowNotExist() {
 }
 
 func (s *engine2Suite) TestSignalWithStartWorkflowExecution_WorkflowNotExist_DuplicateRequestError() {
-	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{}
-	_, err := s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
-	s.Error(err)
-
 	domainID := constants.TestDomainID
 	workflowID := "wId"
 	workflowType := "workflowType"
@@ -2125,7 +2105,7 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_WorkflowNotExist_Dup
 	}
 	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, gomock.Any()).Return(testActiveClusterInfo, nil).Times(1)
 
-	sRequest = &types.HistorySignalWithStartWorkflowExecutionRequest{
+	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{
 		DomainUUID: domainID,
 		SignalWithStartRequest: &types.SignalWithStartWorkflowExecutionRequest{
 			Domain:                              domainID,
@@ -2156,10 +2136,6 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_WorkflowNotExist_Dup
 }
 
 func (s *engine2Suite) TestSignalWithStartWorkflowExecution_WorkflowNotExist_DuplicateRequestError_TypeMismatch() {
-	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{}
-	_, err := s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
-	s.Error(err)
-
 	domainID := constants.TestDomainID
 	workflowID := "wId"
 	workflowType := "workflowType"
@@ -2178,7 +2154,7 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_WorkflowNotExist_Dup
 	}
 	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, gomock.Any()).Return(testActiveClusterInfo, nil).Times(1)
 
-	sRequest = &types.HistorySignalWithStartWorkflowExecutionRequest{
+	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{
 		DomainUUID: domainID,
 		SignalWithStartRequest: &types.SignalWithStartWorkflowExecutionRequest{
 			Domain:                              domainID,
@@ -2203,16 +2179,12 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_WorkflowNotExist_Dup
 		return !request.NewWorkflowSnapshot.ExecutionInfo.StartTimestamp.IsZero() && reflect.DeepEqual(partitionConfig, request.NewWorkflowSnapshot.ExecutionInfo.PartitionConfig)
 	})).Return(nil, &p.DuplicateRequestError{RequestType: p.WorkflowRequestTypeCancel, RunID: "test-run-id"}).Once()
 
-	_, err = s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
+	_, err := s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
 	s.Error(err)
 	s.IsType(&p.DuplicateRequestError{}, err)
 }
 
 func (s *engine2Suite) TestSignalWithStartWorkflowExecution_CreateTimeout() {
-	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{}
-	_, err := s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
-	s.Error(err)
-
 	domainID := constants.TestDomainID
 	workflowID := "wId"
 	workflowType := "workflowType"
@@ -2228,7 +2200,7 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_CreateTimeout() {
 	}
 	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, gomock.Any()).Return(testActiveClusterInfo, nil).Times(1)
 
-	sRequest = &types.HistorySignalWithStartWorkflowExecutionRequest{
+	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{
 		DomainUUID: domainID,
 		SignalWithStartRequest: &types.SignalWithStartWorkflowExecutionRequest{
 			Domain:                              domainID,
@@ -2257,10 +2229,6 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_CreateTimeout() {
 }
 
 func (s *engine2Suite) TestSignalWithStartWorkflowExecution_WorkflowNotRunning() {
-	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{}
-	_, err := s.historyEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
-	s.Error(err)
-
 	domainID := constants.TestDomainID
 	workflowID := "wId"
 	runID := constants.TestRunID
@@ -2281,7 +2249,7 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_WorkflowNotRunning()
 	}
 	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).Times(1)
 	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, gomock.Any()).Return(testActiveClusterInfo, nil).Times(1)
-	sRequest = &types.HistorySignalWithStartWorkflowExecutionRequest{
+	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{
 		DomainUUID: domainID,
 		SignalWithStartRequest: &types.SignalWithStartWorkflowExecutionRequest{
 			Domain:                              domainID,
