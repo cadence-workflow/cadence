@@ -44,9 +44,11 @@ func (e *historyEngineImpl) ReapplyEvents(
 	reapplyEvents []*types.HistoryEvent,
 ) error {
 
-	domainEntry, err := e.getActiveDomainByID(domainUUID)
+	domainEntry, err := e.getActiveDomainByWorkflow(ctx, domainUUID, workflowID, runID)
 	if err != nil {
 		switch {
+		// TODO(active-active): should we remove this check for active-active domain?
+		// It was introduced in https://github.com/cadence-workflow/cadence/pull/3502
 		case domainEntry != nil && domainEntry.IsDomainPendingActive():
 			return nil
 		default:

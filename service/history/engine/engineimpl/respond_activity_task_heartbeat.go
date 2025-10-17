@@ -41,18 +41,17 @@ func (e *historyEngineImpl) RecordActivityTaskHeartbeat(
 	ctx context.Context,
 	req *types.HistoryRecordActivityTaskHeartbeatRequest,
 ) (*types.RecordActivityTaskHeartbeatResponse, error) {
-
-	domainEntry, err := e.getActiveDomainByID(req.DomainUUID)
-	if err != nil {
-		return nil, err
-	}
-	domainID := domainEntry.GetInfo().ID
-
 	request := req.HeartbeatRequest
 	token, err0 := e.tokenSerializer.Deserialize(request.TaskToken)
 	if err0 != nil {
 		return nil, workflow.ErrDeserializingToken
 	}
+
+	domainEntry, err := e.getActiveDomainByWorkflow(ctx, req.DomainUUID, token.WorkflowID, token.RunID)
+	if err != nil {
+		return nil, err
+	}
+	domainID := domainEntry.GetInfo().ID
 
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: token.WorkflowID,
