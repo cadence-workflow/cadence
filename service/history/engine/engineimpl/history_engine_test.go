@@ -150,13 +150,6 @@ func (s *engineSuite) SetupTest() {
 	s.mockDomainCache.EXPECT().GetDomain(constants.TestDomainName).Return(constants.TestLocalDomainEntry, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomainID(constants.TestDomainName).Return(constants.TestDomainID, nil).AnyTimes()
 
-	testActiveClusterInfo := &types.ActiveClusterInfo{
-		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
-		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
-	}
-	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
-	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
-
 	historyEventNotifier := events.NewNotifier(
 		clock.NewRealTimeSource(),
 		s.mockShard.Resource.MetricsClient,
@@ -202,6 +195,12 @@ func (s *engineSuite) TearDownTest() {
 
 func (s *engineSuite) TestGetMutableStateSync() {
 	ctx := context.Background()
+
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "test-get-workflow-execution-event-id",
@@ -281,6 +280,12 @@ func (s *engineSuite) TestGetMutableState_EmptyRunID() {
 func (s *engineSuite) TestGetMutableState_NoVersionHistories() {
 	ctx := context.Background()
 
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "test-get-workflow-execution-event-id",
 		RunID:      constants.TestRunID,
@@ -317,6 +322,12 @@ func (s *engineSuite) TestGetMutableState_NoVersionHistories() {
 
 func (s *engineSuite) TestGetMutableStateLongPoll() {
 	ctx := context.Background()
+
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "test-get-workflow-execution-event-id",
@@ -414,6 +425,12 @@ func (s *engineSuite) TestGetMutableStateLongPoll() {
 func (s *engineSuite) TestGetMutableStateLongPoll_CurrentBranchChanged() {
 	ctx := context.Background()
 
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "test-get-workflow-execution-event-id",
 		RunID:      constants.TestRunID,
@@ -493,6 +510,12 @@ func (s *engineSuite) TestGetMutableStateLongPoll_CurrentBranchChanged() {
 func (s *engineSuite) TestGetMutableStateLongPollTimeout() {
 	ctx := context.Background()
 
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "test-get-workflow-execution-event-id",
 		RunID:      constants.TestRunID,
@@ -559,6 +582,12 @@ func (s *engineSuite) TestQueryWorkflow_RejectBasedOnNotEnabled() {
 }
 
 func (s *engineSuite) TestQueryWorkflow_RejectBasedOnCompleted() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "TestQueryWorkflow_RejectBasedOnCompleted",
 		RunID:      constants.TestRunID,
@@ -598,6 +627,12 @@ func (s *engineSuite) TestQueryWorkflow_RejectBasedOnCompleted() {
 }
 
 func (s *engineSuite) TestQueryWorkflow_RejectBasedOnFailed() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "TestQueryWorkflow_RejectBasedOnFailed",
 		RunID:      constants.TestRunID,
@@ -651,6 +686,12 @@ func (s *engineSuite) TestQueryWorkflow_RejectBasedOnFailed() {
 }
 
 func (s *engineSuite) TestQueryWorkflow_FirstDecisionNotCompleted() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "TestQueryWorkflow_FirstDecisionNotCompleted",
 		RunID:      constants.TestRunID,
@@ -684,6 +725,12 @@ func (s *engineSuite) TestQueryWorkflow_FirstDecisionNotCompleted() {
 }
 
 func (s *engineSuite) TestQueryWorkflow_DirectlyThroughMatching() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "TestQueryWorkflow_DirectlyThroughMatching",
 		RunID:      constants.TestRunID,
@@ -727,6 +774,12 @@ func (s *engineSuite) TestQueryWorkflow_DirectlyThroughMatching() {
 }
 
 func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Timeout() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "TestQueryWorkflow_DecisionTaskDispatch_Timeout",
 		RunID:      constants.TestRunID,
@@ -787,6 +840,12 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Timeout() {
 }
 
 func (s *engineSuite) TestQueryWorkflow_ConsistentQueryBufferFull() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "TestQueryWorkflow_ConsistentQueryBufferFull",
 		RunID:      constants.TestRunID,
@@ -834,6 +893,12 @@ func (s *engineSuite) TestQueryWorkflow_ConsistentQueryBufferFull() {
 }
 
 func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Complete() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "TestQueryWorkflow_DecisionTaskDispatch_Complete",
 		RunID:      constants.TestRunID,
@@ -906,6 +971,12 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Complete() {
 }
 
 func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Complete_ActiveActive() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestActiveActiveDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestActiveActiveDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "TestQueryWorkflow_DecisionTaskDispatch_Complete_ActiveActive",
 		RunID:      constants.TestRunID,
@@ -978,6 +1049,12 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Complete_ActiveActi
 }
 
 func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Unblocked() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "TestQueryWorkflow_DecisionTaskDispatch_Unblocked",
 		RunID:      constants.TestRunID,
@@ -1105,6 +1182,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedIfGetExecutionFailed() {
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedUpdateExecutionFailed() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -1149,6 +1231,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedUpdateExecutionFailed() {
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedIfTaskCompleted() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -1190,6 +1277,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedIfTaskCompleted() {
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedIfTaskNotStarted() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -1228,6 +1320,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedIfTaskNotStarted() {
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedConflictOnUpdate() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -1357,6 +1454,11 @@ func (s *engineSuite) TestValidateSignalRequest() {
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedMaxAttemptsExceeded() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -1420,6 +1522,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedMaxAttemptsExceeded() {
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedCompleteWorkflowFailed() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -1507,6 +1614,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedCompleteWorkflowFailed() {
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedFailWorkflowFailed() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -1596,6 +1708,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedFailWorkflowFailed() {
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedBadDecisionAttributes() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -1718,6 +1835,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedSingleActivityScheduledAtt
 	}
 
 	for _, iVar := range testIterationVariables {
+		testActiveClusterInfo := &types.ActiveClusterInfo{
+			ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+			FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+		}
+		s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 		we := types.WorkflowExecution{
 			WorkflowID: "wId",
@@ -1801,6 +1923,12 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedSingleActivityScheduledAtt
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedBadBinary() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	domainID := uuid.New()
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -1869,6 +1997,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedBadBinary() {
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedSingleActivityScheduledDecision() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -1945,6 +2078,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedSingleActivityScheduledDec
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompleted_DecisionHeartbeatTimeout() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -1993,6 +2131,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompleted_DecisionHeartbeatTimeout(
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompleted_DecisionHeartbeatNotTimeout() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2041,6 +2184,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompleted_DecisionHeartbeatNotTimeo
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompleted_DecisionHeartbeatNotTimeout_ZeroOrignalScheduledTime() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2089,6 +2237,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompleted_DecisionHeartbeatNotTimeo
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedCompleteWorkflowSuccess() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2147,6 +2300,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedCompleteWorkflowSuccess() 
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedFailWorkflowSuccess() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2207,6 +2365,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedFailWorkflowSuccess() {
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedSignalExternalWorkflowSuccess() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2268,6 +2431,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedSignalExternalWorkflowSucc
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedStartChildWorkflowWithAbandonPolicy() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2337,6 +2505,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedStartChildWorkflowWithAban
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedStartChildWorkflowWithTerminatePolicy() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2406,6 +2579,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedStartChildWorkflowWithTerm
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedSignalExternalWorkflowFailed() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2457,6 +2635,11 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedSignalExternalWorkflowFail
 }
 
 func (s *engineSuite) TestRespondDecisionTaskCompletedSignalExternalWorkflowFailed_UnKnownDomain() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2599,6 +2782,11 @@ func (s *engineSuite) TestRespondActivityTaskCompletedIfGetExecutionFailed() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCompletedIfNoAIdProvided() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2637,6 +2825,11 @@ func (s *engineSuite) TestRespondActivityTaskCompletedIfNoAIdProvided() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCompletedIfNotFound() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: "wId",
@@ -2676,6 +2869,11 @@ func (s *engineSuite) TestRespondActivityTaskCompletedIfNotFound() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCompletedUpdateExecutionFailed() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2728,6 +2926,11 @@ func (s *engineSuite) TestRespondActivityTaskCompletedUpdateExecutionFailed() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCompletedIfTaskCompleted() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2781,6 +2984,11 @@ func (s *engineSuite) TestRespondActivityTaskCompletedIfTaskCompleted() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCompletedIfTaskNotStarted() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2830,6 +3038,11 @@ func (s *engineSuite) TestRespondActivityTaskCompletedIfTaskNotStarted() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCompletedConflictOnUpdate() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2905,6 +3118,11 @@ func (s *engineSuite) TestRespondActivityTaskCompletedConflictOnUpdate() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCompletedMaxAttemptsExceeded() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2958,6 +3176,11 @@ func (s *engineSuite) TestRespondActivityTaskCompletedMaxAttemptsExceeded() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCompletedSuccess() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3020,6 +3243,11 @@ func (s *engineSuite) TestRespondActivityTaskCompletedSuccess() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCompletedByIdSuccess() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3169,6 +3397,11 @@ func (s *engineSuite) TestRespondActivityTaskFailedIfGetExecutionFailed() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskFailededIfNoAIdProvided() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: "wId",
@@ -3207,6 +3440,11 @@ func (s *engineSuite) TestRespondActivityTaskFailededIfNoAIdProvided() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskFailededIfNotFound() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: "wId",
@@ -3246,6 +3484,11 @@ func (s *engineSuite) TestRespondActivityTaskFailededIfNotFound() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskFailedUpdateExecutionFailed() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3296,6 +3539,11 @@ func (s *engineSuite) TestRespondActivityTaskFailedUpdateExecutionFailed() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskFailedIfTaskCompleted() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3351,6 +3599,11 @@ func (s *engineSuite) TestRespondActivityTaskFailedIfTaskCompleted() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskFailedIfTaskNotStarted() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3398,6 +3651,11 @@ func (s *engineSuite) TestRespondActivityTaskFailedIfTaskNotStarted() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskFailedConflictOnUpdate() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3480,6 +3738,11 @@ func (s *engineSuite) TestRespondActivityTaskFailedConflictOnUpdate() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskFailedMaxAttemptsExceeded() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3531,6 +3794,11 @@ func (s *engineSuite) TestRespondActivityTaskFailedMaxAttemptsExceeded() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskFailedSuccess() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3595,6 +3863,11 @@ func (s *engineSuite) TestRespondActivityTaskFailedSuccess() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskFailedByIDSuccess() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3662,6 +3935,11 @@ func (s *engineSuite) TestRespondActivityTaskFailedByIDSuccess() {
 }
 
 func (s *engineSuite) TestRecordActivityTaskHeartBeatSuccess_NoTimer() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3713,6 +3991,11 @@ func (s *engineSuite) TestRecordActivityTaskHeartBeatSuccess_NoTimer() {
 }
 
 func (s *engineSuite) TestRecordActivityTaskHeartBeatSuccess_TimerRunning() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3770,6 +4053,11 @@ func (s *engineSuite) TestRecordActivityTaskHeartBeatSuccess_TimerRunning() {
 }
 
 func (s *engineSuite) TestRecordActivityTaskHeartBeatByIDSuccess() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3822,6 +4110,11 @@ func (s *engineSuite) TestRecordActivityTaskHeartBeatByIDSuccess() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCanceled_Scheduled() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3870,6 +4163,11 @@ func (s *engineSuite) TestRespondActivityTaskCanceled_Scheduled() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCanceled_Started() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3933,6 +4231,11 @@ func (s *engineSuite) TestRespondActivityTaskCanceled_Started() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCanceledByID_Started() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -4019,6 +4322,11 @@ func (s *engineSuite) TestRespondActivityTaskCanceledIfNoRunID() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCanceledIfNoAIdProvided() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: "wId",
@@ -4050,6 +4358,11 @@ func (s *engineSuite) TestRespondActivityTaskCanceledIfNoAIdProvided() {
 }
 
 func (s *engineSuite) TestRespondActivityTaskCanceledIfNotFound() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: "wId",
@@ -4082,6 +4395,11 @@ func (s *engineSuite) TestRespondActivityTaskCanceledIfNotFound() {
 }
 
 func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_NotScheduled() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -4138,6 +4456,11 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_NotSchedule
 }
 
 func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_Scheduled() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -4207,6 +4530,11 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_Scheduled()
 }
 
 func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_Started() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -4273,6 +4601,11 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_Started() {
 }
 
 func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_Completed() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -4346,6 +4679,11 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_Completed()
 }
 
 func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_NoHeartBeat() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -4453,6 +4791,11 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_NoHeartBeat
 }
 
 func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_Success() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -4560,6 +4903,12 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_Success() {
 }
 
 func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_SuccessWithQueries() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
 		RunID:      constants.TestRunID,
@@ -4707,6 +5056,12 @@ func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_SuccessWith
 }
 
 func (s *engineSuite) TestRequestCancel_RespondDecisionTaskCompleted_SuccessWithConsistentQueriesUnsupported() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
 		RunID:      constants.TestRunID,
@@ -4798,6 +5153,11 @@ func (s *engineSuite) constructCallContext(featureVersion string) context.Contex
 }
 
 func (s *engineSuite) TestStarTimer_DuplicateTimerID() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -4898,6 +5258,11 @@ func (s *engineSuite) TestStarTimer_DuplicateTimerID() {
 }
 
 func (s *engineSuite) TestUserTimer_RespondDecisionTaskCompleted() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -4961,6 +5326,11 @@ func (s *engineSuite) TestUserTimer_RespondDecisionTaskCompleted() {
 }
 
 func (s *engineSuite) TestCancelTimer_RespondDecisionTaskCompleted_NoStartTimer() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -5019,6 +5389,11 @@ func (s *engineSuite) TestCancelTimer_RespondDecisionTaskCompleted_NoStartTimer(
 }
 
 func (s *engineSuite) TestCancelTimer_RespondDecisionTaskCompleted_TimerFired() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -5097,6 +5472,12 @@ func (s *engineSuite) TestSignalWorkflowExecution_InvalidRequest() {
 }
 
 func (s *engineSuite) TestSignalWorkflowExecution() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	we := types.WorkflowExecution{
 		WorkflowID: constants.TestWorkflowID,
 		RunID:      constants.TestRunID,
@@ -5138,6 +5519,12 @@ func (s *engineSuite) TestSignalWorkflowExecution() {
 
 // Test signal decision by adding request ID
 func (s *engineSuite) TestSignalWorkflowExecution_DuplicateRequest_WorkflowOpen() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	we := types.WorkflowExecution{
 		WorkflowID: constants.TestWorkflowID,
 		RunID:      constants.TestRunID,
@@ -5181,6 +5568,12 @@ func (s *engineSuite) TestSignalWorkflowExecution_DuplicateRequest_WorkflowOpen(
 }
 
 func (s *engineSuite) TestSignalWorkflowExecution_DuplicateRequest_WorkflowCompleted() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	we := types.WorkflowExecution{
 		WorkflowID: constants.TestWorkflowID,
 		RunID:      constants.TestRunID,
@@ -5225,6 +5618,12 @@ func (s *engineSuite) TestSignalWorkflowExecution_DuplicateRequest_WorkflowCompl
 }
 
 func (s *engineSuite) TestSignalWorkflowExecution_WorkflowCompleted() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	we := &types.WorkflowExecution{
 		WorkflowID: constants.TestWorkflowID,
 		RunID:      constants.TestRunID,
@@ -5263,6 +5662,12 @@ func (s *engineSuite) TestSignalWorkflowExecution_WorkflowCompleted() {
 }
 
 func (s *engineSuite) TestRemoveSignalMutableState() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	removeRequest := &types.RemoveSignalMutableStateRequest{}
 	err := s.mockHistoryEngine.RemoveSignalMutableState(context.Background(), removeRequest)
 	s.Error(err)
@@ -5300,6 +5705,12 @@ func (s *engineSuite) TestRemoveSignalMutableState() {
 }
 
 func (s *engineSuite) TestReapplyEvents_ReturnSuccess() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "test-reapply",
 		RunID:      constants.TestRunID,
@@ -5335,6 +5746,12 @@ func (s *engineSuite) TestReapplyEvents_ReturnSuccess() {
 }
 
 func (s *engineSuite) TestReapplyEvents_IgnoreSameVersionEvents() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "test-reapply-same-version",
 		RunID:      constants.TestRunID,
@@ -5371,6 +5788,12 @@ func (s *engineSuite) TestReapplyEvents_IgnoreSameVersionEvents() {
 }
 
 func (s *engineSuite) TestReapplyEvents_ResetWorkflow() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "test-reapply-reset-workflow",
 		RunID:      constants.TestRunID,
