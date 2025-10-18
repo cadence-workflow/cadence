@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"github.com/uber/cadence/simulation/replication/workflows/activityloop"
+	"github.com/uber/cadence/simulation/replication/workflows/childactivityloop"
 	"github.com/uber/cadence/simulation/replication/workflows/query"
 	"github.com/uber/cadence/simulation/replication/workflows/timeractivityloop"
 )
@@ -14,6 +15,7 @@ var (
 			"timer-activity-loop-workflow": timeractivityloop.Workflow,
 			"activity-loop-workflow":       activityloop.Workflow,
 			"query-workflow":               queryWFRunner.Workflow,
+			"child-activity-loop-workflow": childactivityloop.Workflow,
 		}
 	}
 	Activities = map[string]any{

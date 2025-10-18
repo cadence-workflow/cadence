@@ -1522,6 +1522,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_Success
 				childInfo.CreateRequestID,
 				s.mockShard.GetTimeSource().Now(),
 				mutableState.GetExecutionInfo().PartitionConfig,
+				mutableState.GetExecutionInfo().ActiveClusterSelectionPolicy,
 			)
 			require.NoError(s.T(), err)
 			s.mockHistoryClient.EXPECT().StartWorkflowExecution(gomock.Any(), historyReq).Return(&types.StartWorkflowExecutionResponse{RunID: childExecution.RunID}, nil).Times(1)
@@ -1563,6 +1564,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessStartChildExecution_Failure
 				childInfo.CreateRequestID,
 				s.mockShard.GetTimeSource().Now(),
 				mutableState.GetExecutionInfo().PartitionConfig,
+				mutableState.GetExecutionInfo().ActiveClusterSelectionPolicy,
 			)
 			require.NoError(s.T(), err)
 			s.mockHistoryClient.EXPECT().StartWorkflowExecution(gomock.Any(), historyReq).Return(nil, &types.WorkflowExecutionAlreadyStartedError{}).Times(1)
@@ -2358,6 +2360,7 @@ func createTestChildWorkflowExecutionRequest(
 	requestID string,
 	now time.Time,
 	partitionConfig map[string]string,
+	activeClusterSelectionPolicy *types.ActiveClusterSelectionPolicy,
 ) (*types.HistoryStartWorkflowExecutionRequest, error) {
 
 	workflowExecution := types.WorkflowExecution{
@@ -2373,9 +2376,10 @@ func createTestChildWorkflowExecutionRequest(
 		ExecutionStartToCloseTimeoutSeconds: attributes.ExecutionStartToCloseTimeoutSeconds,
 		TaskStartToCloseTimeoutSeconds:      attributes.TaskStartToCloseTimeoutSeconds,
 		// Use the same request ID to dedupe StartWorkflowExecution calls
-		RequestID:             requestID,
-		WorkflowIDReusePolicy: attributes.WorkflowIDReusePolicy,
-		RetryPolicy:           attributes.RetryPolicy,
+		RequestID:                    requestID,
+		WorkflowIDReusePolicy:        attributes.WorkflowIDReusePolicy,
+		RetryPolicy:                  attributes.RetryPolicy,
+		ActiveClusterSelectionPolicy: activeClusterSelectionPolicy,
 	}
 
 	parentInfo := &types.ParentExecutionInfo{

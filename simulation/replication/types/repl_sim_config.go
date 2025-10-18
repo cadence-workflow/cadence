@@ -93,6 +93,8 @@ type Operation struct {
 	WorkflowID                           string                              `yaml:"workflowID"`
 	WorkflowExecutionStartToCloseTimeout time.Duration                       `yaml:"workflowExecutionStartToCloseTimeout"`
 	WorkflowDuration                     time.Duration                       `yaml:"workflowDuration"`
+	ChildWorkflowID                      string                              `yaml:"childWorkflowID"`
+	ChildWorkflowTimeout                 time.Duration                       `yaml:"childWorkflowTimeout"`
 	ActivityCount                        int                                 `yaml:"activityCount"`
 	DelayStartSeconds                    int32                               `yaml:"delayStartSeconds"`
 	CronSchedule                         string                              `yaml:"cronSchedule"`

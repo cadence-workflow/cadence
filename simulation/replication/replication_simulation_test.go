@@ -140,6 +140,12 @@ func startWorkflow(
 		return fmt.Errorf("workflow execution start to close timeout must be specified and should be greater than workflow duration")
 	}
 
+	input := mustJSON(t, &simTypes.WorkflowInput{
+		Duration:             op.WorkflowDuration,
+		ActivityCount:        op.ActivityCount,
+		ChildWorkflowID:      op.ChildWorkflowID,
+		ChildWorkflowTimeout: op.ChildWorkflowTimeout,
+	})
 	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).StartWorkflowExecution(ctx,
 		&types.StartWorkflowExecutionRequest{
 			RequestID:                           uuid.New(),
@@ -149,7 +155,7 @@ func startWorkflow(
 			TaskList:                            &types.TaskList{Name: simTypes.TasklistName},
 			ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32((op.WorkflowExecutionStartToCloseTimeout).Seconds())),
 			TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(5),
-			Input:                               mustJSON(t, &simTypes.WorkflowInput{Duration: op.WorkflowDuration, ActivityCount: op.ActivityCount}),
+			Input:                               input,
 			WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
 			DelayStartSeconds:                   common.Int32Ptr(op.DelayStartSeconds),
 			CronSchedule:                        op.CronSchedule,
