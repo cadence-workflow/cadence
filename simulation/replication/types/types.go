@@ -38,6 +38,8 @@ type OperationFunction func(t *testing.T, op *Operation, simCfg *ReplicationSimu
 type WorkflowInput struct {
 	Duration      time.Duration
 	ActivityCount int
+	ChildWorkflowID string
+	ChildWorkflowTimeout time.Duration
 }
 
 type WorkflowOutput struct {

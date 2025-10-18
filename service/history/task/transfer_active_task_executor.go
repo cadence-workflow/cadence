@@ -852,6 +852,7 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 		childInfo.CreateRequestID,
 		attributes,
 		mutableState.GetExecutionInfo().PartitionConfig,
+		mutableState.GetExecutionInfo().ActiveClusterSelectionPolicy,
 	)
 	if err != nil {
 
@@ -1620,6 +1621,7 @@ func startWorkflowWithRetry(
 	requestID string,
 	attributes *types.StartChildWorkflowExecutionInitiatedEventAttributes,
 	partitionConfig map[string]string,
+	activeClusterSelectionPolicy *types.ActiveClusterSelectionPolicy,
 ) (string, error) {
 
 	// Get parent domain name
@@ -1652,7 +1654,7 @@ func startWorkflowWithRetry(
 		DelayStartSeconds:            attributes.DelayStartSeconds,
 		JitterStartSeconds:           attributes.JitterStartSeconds,
 		FirstRunAtTimeStamp:          attributes.FirstRunAtTimestamp,
-		ActiveClusterSelectionPolicy: attributes.ActiveClusterSelectionPolicy,
+		ActiveClusterSelectionPolicy: activeClusterSelectionPolicy,
 	}
 
 	historyStartReq, err := common.CreateHistoryStartWorkflowRequest(task.TargetDomainID, frontendStartReq, timeSource.Now(), partitionConfig)
