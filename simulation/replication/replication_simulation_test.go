@@ -141,9 +141,9 @@ func startWorkflow(
 	}
 
 	input := mustJSON(t, &simTypes.WorkflowInput{
-		Duration: op.WorkflowDuration,
-		ActivityCount: op.ActivityCount,
-		ChildWorkflowID: op.ChildWorkflowID,
+		Duration:             op.WorkflowDuration,
+		ActivityCount:        op.ActivityCount,
+		ChildWorkflowID:      op.ChildWorkflowID,
 		ChildWorkflowTimeout: op.ChildWorkflowTimeout,
 	})
 	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).StartWorkflowExecution(ctx,
