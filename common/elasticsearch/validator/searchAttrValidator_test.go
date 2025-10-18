@@ -103,7 +103,7 @@ func (s *searchAttributesValidatorSuite) TestValidateSearchAttributes() {
 	}
 	attr.IndexedFields = fields
 	err = validator.ValidateSearchAttributes(attr, domain)
-	s.Equal(`StartTime is read-only Cadence reservered attribute`, err.Error())
+	s.Equal(`StartTime is read-only Cadence reserved attribute`, err.Error())
 
 	fields = map[string][]byte{
 		"CustomKeywordField": []byte(`"123456"`),
