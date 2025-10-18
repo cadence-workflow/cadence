@@ -24,12 +24,13 @@ package execution
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math/rand"
 	"runtime/debug"
+	"slices"
 	"time"
 
 	"github.com/pborman/uuid"
-	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
@@ -1471,18 +1472,18 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		ExecutionInfo:    e.executionInfo,
 		VersionHistories: e.versionHistories,
 
-		UpsertActivityInfos:       maps.Values(e.updateActivityInfos),
-		DeleteActivityInfos:       maps.Keys(e.deleteActivityInfos),
-		UpsertTimerInfos:          maps.Values(e.updateTimerInfos),
-		DeleteTimerInfos:          maps.Keys(e.deleteTimerInfos),
-		UpsertChildExecutionInfos: maps.Values(e.updateChildExecutionInfos),
-		DeleteChildExecutionInfos: maps.Keys(e.deleteChildExecutionInfos),
-		UpsertRequestCancelInfos:  maps.Values(e.updateRequestCancelInfos),
-		DeleteRequestCancelInfos:  maps.Keys(e.deleteRequestCancelInfos),
-		UpsertSignalInfos:         maps.Values(e.updateSignalInfos),
-		DeleteSignalInfos:         maps.Keys(e.deleteSignalInfos),
-		UpsertSignalRequestedIDs:  maps.Keys(e.updateSignalRequestedIDs),
-		DeleteSignalRequestedIDs:  maps.Keys(e.deleteSignalRequestedIDs),
+		UpsertActivityInfos:       slices.Collect(maps.Values(e.updateActivityInfos)),
+		DeleteActivityInfos:       slices.Collect(maps.Keys(e.deleteActivityInfos)),
+		UpsertTimerInfos:          slices.Collect(maps.Values(e.updateTimerInfos)),
+		DeleteTimerInfos:          slices.Collect(maps.Keys(e.deleteTimerInfos)),
+		UpsertChildExecutionInfos: slices.Collect(maps.Values(e.updateChildExecutionInfos)),
+		DeleteChildExecutionInfos: slices.Collect(maps.Keys(e.deleteChildExecutionInfos)),
+		UpsertRequestCancelInfos:  slices.Collect(maps.Values(e.updateRequestCancelInfos)),
+		DeleteRequestCancelInfos:  slices.Collect(maps.Keys(e.deleteRequestCancelInfos)),
+		UpsertSignalInfos:         slices.Collect(maps.Values(e.updateSignalInfos)),
+		DeleteSignalInfos:         slices.Collect(maps.Keys(e.deleteSignalInfos)),
+		UpsertSignalRequestedIDs:  slices.Collect(maps.Keys(e.updateSignalRequestedIDs)),
+		DeleteSignalRequestedIDs:  slices.Collect(maps.Keys(e.deleteSignalRequestedIDs)),
 		NewBufferedEvents:         e.updateBufferedEvents,
 		ClearBufferedEvents:       e.clearBufferedEvents,
 
@@ -1560,12 +1561,12 @@ func (e *mutableStateBuilder) CloseTransactionAsSnapshot(
 		ExecutionInfo:    e.executionInfo,
 		VersionHistories: e.versionHistories,
 
-		ActivityInfos:       maps.Values(e.pendingActivityInfoIDs),
-		TimerInfos:          maps.Values(e.pendingTimerInfoIDs),
-		ChildExecutionInfos: maps.Values(e.pendingChildExecutionInfoIDs),
-		RequestCancelInfos:  maps.Values(e.pendingRequestCancelInfoIDs),
-		SignalInfos:         maps.Values(e.pendingSignalInfoIDs),
-		SignalRequestedIDs:  maps.Keys(e.pendingSignalRequestedIDs),
+		ActivityInfos:       slices.Collect(maps.Values(e.pendingActivityInfoIDs)),
+		TimerInfos:          slices.Collect(maps.Values(e.pendingTimerInfoIDs)),
+		ChildExecutionInfos: slices.Collect(maps.Values(e.pendingChildExecutionInfoIDs)),
+		RequestCancelInfos:  slices.Collect(maps.Values(e.pendingRequestCancelInfoIDs)),
+		SignalInfos:         slices.Collect(maps.Values(e.pendingSignalInfoIDs)),
+		SignalRequestedIDs:  slices.Collect(maps.Keys(e.pendingSignalRequestedIDs)),
 
 		TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
 			persistence.HistoryTaskCategoryTransfer:    e.insertTransferTasks,
