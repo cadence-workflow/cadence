@@ -1,11 +1,6 @@
 package childactivityloop
 
 import (
-	"context"
-	"fmt"
-	"time"
-
-	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/workflow"
 
 	"github.com/uber/cadence/simulation/replication/types"
