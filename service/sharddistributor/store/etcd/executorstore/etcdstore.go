@@ -466,7 +466,7 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 
 	// Use a read-modify-write loop to handle concurrent updates safely.
 	for {
-		// 1. Get the current assigned state of the executor.
+		// 1. Get the current assigned state of the executor and prepare the shard metrics.
 		resp, err := s.client.Get(ctx, assignedState)
 		if err != nil {
 			return fmt.Errorf("get executor state: %w", err)
