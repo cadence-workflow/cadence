@@ -367,11 +367,13 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 			return fmt.Errorf("build shard metrics key: %w", err)
 		}
 		var shardMetrics store.ShardMetrics
+		metricsModRevision := int64(0)
 		metricsResp, err := s.client.Get(ctx, shardMetricsKey)
 		if err != nil {
 			return fmt.Errorf("get shard metrics: %w", err)
 		}
 		if len(metricsResp.Kvs) > 0 {
+			metricsModRevision = metricsResp.Kvs[0].ModRevision
 			if err := json.Unmarshal(metricsResp.Kvs[0].Value, &shardMetrics); err != nil {
 				return fmt.Errorf("unmarshal shard metrics: %w", err)
 			}
@@ -385,6 +387,7 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 			return fmt.Errorf("marshal shard metrics: %w", err)
 		}
 		ops = append(ops, clientv3.OpPut(shardMetricsKey, string(payload)))
+		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(shardMetricsKey), "=", metricsModRevision))
 	}
 
 	// 1. Prepare operations to update executor states and shard ownership,
@@ -496,7 +499,9 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 			return fmt.Errorf("get shard metrics: %w", err)
 		}
 		now := time.Now().Unix()
+		metricsModRevision := int64(0)
 		if len(metricsResp.Kvs) > 0 {
+			metricsModRevision = metricsResp.Kvs[0].ModRevision
 			if err := json.Unmarshal(metricsResp.Kvs[0].Value, &shardMetrics); err != nil {
 				return fmt.Errorf("unmarshal shard metrics: %w", err)
 			}
@@ -528,11 +533,12 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 
 		var comparisons []clientv3.Cmp
 
-		// 3. Prepare and commit the transaction with three atomic checks.
+		// 3. Prepare and commit the transaction with four atomic checks.
 		// a) Check that the executor's status is ACTIVE.
 		comparisons = append(comparisons, clientv3.Compare(clientv3.Value(statusKey), "=", _executorStatusRunningJSON))
-		// b) Check that the assigned_state key hasn't been changed by another process.
+		// b) Check that neither the assigned_state nor shard metrics were modified concurrently.
 		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(assignedState), "=", modRevision))
+		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(shardMetricsKey), "=", metricsModRevision))
 		// c) Check that the cache is up to date.
 		cmp, err := s.shardCache.GetExecutorModRevisionCmp(namespace)
 		if err != nil {
