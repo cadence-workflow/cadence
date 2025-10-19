@@ -521,6 +521,59 @@ func TestAssignShardErrors(t *testing.T) {
 	assert.ErrorIs(t, err, store.ErrVersionConflict, "Error should be ErrVersionConflict for non-active executor")
 }
 
+// TestShardMetricsPersistence verifies that shard metrics are preserved on assignment
+// when they already exist, and that GetState exposes them.
+func TestShardMetricsPersistence(t *testing.T) {
+	tc := testhelper.SetupStoreTestCluster(t)
+	executorStore := createStore(t, tc)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	executorID := "exec-metrics"
+	shardID := "shard-metrics"
+
+	// 1. Setup: ensure executor is ACTIVE
+	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
+
+	// 2. Pre-create shard metrics as if coming from prior history
+	m := store.ShardMetrics{SmoothedLoad: 12.5, LastUpdateTime: 1234, LastMoveTime: 5678}
+	shardMetricsKey, err := etcdkeys.BuildShardKey(tc.EtcdPrefix, tc.Namespace, shardID, etcdkeys.ShardMetricsKey)
+	require.NoError(t, err)
+	payload, err := json.Marshal(m)
+	require.NoError(t, err)
+	_, err = tc.Client.Put(ctx, shardMetricsKey, string(payload))
+	require.NoError(t, err)
+
+	// 3. Assign the shard via AssignShard (should not clobber existing metrics)
+	require.NoError(t, executorStore.AssignShard(ctx, tc.Namespace, shardID, executorID))
+
+	// 4. Verify via GetState that metrics are preserved and exposed
+	nsState, err := executorStore.GetState(ctx, tc.Namespace)
+	require.NoError(t, err)
+	require.Contains(t, nsState.ShardMetrics, shardID)
+	updatedMetrics := nsState.ShardMetrics[shardID]
+	assert.Equal(t, m.SmoothedLoad, updatedMetrics.SmoothedLoad)
+	assert.Equal(t, m.LastUpdateTime, updatedMetrics.LastUpdateTime)
+	// This should be greater than the last move time
+	assert.Greater(t, updatedMetrics.LastMoveTime, m.LastMoveTime)
+
+	// 5. Also ensure assignment recorded correctly
+	require.Contains(t, nsState.ShardAssignments[executorID].AssignedShards, shardID)
+}
+
+// TestGetShardMetricsForMissingShard verifies GetState does not report metrics for unknown shards.
+func TestGetShardMetricsForMissingShard(t *testing.T) {
+	tc := testhelper.SetupStoreTestCluster(t)
+	executorStore := createStore(t, tc)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// No metrics are written; GetState should not contain unknown shard
+	st, err := executorStore.GetState(ctx, tc.Namespace)
+	require.NoError(t, err)
+	assert.NotContains(t, st.ShardMetrics, "unknown")
+}
+
 // --- Test Setup ---
 
 func stringStatus(s types.ExecutorStatus) string {
