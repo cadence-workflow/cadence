@@ -492,12 +492,17 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 		if err != nil {
 			return fmt.Errorf("get shard metrics: %w", err)
 		}
+		now := time.Now().Unix()
 		if len(metricsResp.Kvs) > 0 {
 			if err := json.Unmarshal(metricsResp.Kvs[0].Value, &shardMetrics); err != nil {
 				return fmt.Errorf("unmarshal shard metrics: %w", err)
 			}
+			// Metrics already exist, update the last move time.
+			// This can happen if the shard was previously assigned to an executor, and a lookup happens after the executor is deleted,
+			// AssignShard is then called to assign the shard to a new executor.
+			shardMetrics.LastMoveTime = now
 		} else {
-			now := time.Now().Unix()
+			// Metrics don't exist, initialize them.
 			shardMetrics.SmoothedLoad = 0
 			shardMetrics.LastUpdateTime = now
 			shardMetrics.LastMoveTime = now
