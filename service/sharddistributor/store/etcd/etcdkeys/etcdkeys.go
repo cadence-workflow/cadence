@@ -11,6 +11,7 @@ const (
 	ExecutorReportedShardsKey = "reported_shards"
 	ExecutorAssignedStateKey  = "assigned_state"
 	ShardAssignedKey          = "assigned"
+	ShardMetricsKey           = "metrics"
 )
 
 var validKeyTypes = []string{
@@ -54,6 +55,30 @@ func ParseExecutorKey(prefix string, namespace, key string) (executorID, keyType
 	parts := strings.Split(remainder, "/")
 	if len(parts) != 2 {
 		return "", "", fmt.Errorf("unexpected key format: %s", key)
+	}
+	return parts[0], parts[1], nil
+}
+
+func BuildShardPrefix(prefix string, namespace string) string {
+	return fmt.Sprintf("%s/shards/", BuildNamespacePrefix(prefix, namespace))
+}
+
+func BuildShardKey(prefix string, namespace, shardID, keyType string) (string, error) {
+	if keyType != ShardAssignedKey && keyType != ShardMetricsKey {
+		return "", fmt.Errorf("invalid shard key type: %s", keyType)
+	}
+	return fmt.Sprintf("%s%s/%s", BuildShardPrefix(prefix, namespace), shardID, keyType), nil
+}
+
+func ParseShardKey(prefix string, namespace, key string) (shardID, keyType string, err error) {
+	prefix = BuildShardPrefix(prefix, namespace)
+	if !strings.HasPrefix(key, prefix) {
+		return "", "", fmt.Errorf("key '%s' does not have expected prefix '%s'", key, prefix)
+	}
+	remainder := strings.TrimPrefix(key, prefix)
+	parts := strings.Split(remainder, "/")
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("unexpected shard key format: %s", key)
 	}
 	return parts[0], parts[1], nil
 }
