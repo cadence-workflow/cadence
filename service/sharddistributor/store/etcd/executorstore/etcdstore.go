@@ -354,6 +354,12 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 		}
 	}
 	now := time.Now().Unix()
+	type metricsUpdate struct {
+		key         string
+		value       string
+		modRevision int64
+	}
+	var metricsUpdates []metricsUpdate
 	for shardID, newOwner := range newAssignments {
 		if oldOwner, ok := currentAssignments[shardID]; ok && oldOwner == newOwner {
 			continue
@@ -383,8 +389,11 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 		if err != nil {
 			return fmt.Errorf("marshal shard metrics: %w", err)
 		}
-		ops = append(ops, clientv3.OpPut(shardMetricsKey, string(payload)))
-		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(shardMetricsKey), "=", metricsModRevision))
+		metricsUpdates = append(metricsUpdates, metricsUpdate{
+			key:         shardMetricsKey,
+			value:       string(payload),
+			modRevision: metricsModRevision,
+		})
 	}
 
 	// 1. Prepare operations to update executor states and shard ownership,
@@ -448,6 +457,20 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 	if !nestedResp.Succeeded {
 		// This means our revision checks failed.
 		return fmt.Errorf("%w: transaction failed, a shard may have been concurrently assigned", store.ErrVersionConflict)
+	}
+
+	// Apply shard metrics updates outside the main transaction to stay within etcd's max operations per txn.
+	for _, update := range metricsUpdates {
+		txnResp, err := s.client.Txn(ctx).
+			If(clientv3.Compare(clientv3.ModRevision(update.key), "=", update.modRevision)).
+			Then(clientv3.OpPut(update.key, update.value)).
+			Commit()
+		if err != nil {
+			return fmt.Errorf("commit shard metrics update: %w", err)
+		}
+		if !txnResp.Succeeded {
+			return fmt.Errorf("%w: shard metrics were concurrently updated", store.ErrVersionConflict)
+		}
 	}
 
 	return nil
