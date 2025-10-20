@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -91,6 +92,21 @@ func NewManager(
 }
 
 func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
+	shardID := common.WorkflowIDToHistoryShard(wfID, m.numShards)
+	executionManager, err := m.executionManagerProvider.GetExecutionManager(shardID)
+	if err != nil {
+		return nil, err
+	}
+	if rID == "" {
+		execution, err := executionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
+			DomainID:   domainID,
+			WorkflowID: wfID,
+		})
+		if err != nil {
+			return nil, err
+		}
+		rID = execution.RunID
+	}
 	// Check if the policy is already in the cache. create a key from domainID, wfID, rID
 	key := fmt.Sprintf("%s:%s:%s", domainID, wfID, rID)
 	cacheData := m.workflowPolicyCache.Get(key)
@@ -102,12 +118,6 @@ func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, w
 
 		// This should never happen. If it does, we ignore cache value and get it from DB.
 		m.logger.Warn(fmt.Sprintf("Cache data for key %s is of type %T, not a *types.ActiveClusterSelectionPolicy", key, cacheData))
-	}
-
-	shardID := common.WorkflowIDToHistoryShard(wfID, m.numShards)
-	executionManager, err := m.executionManagerProvider.GetExecutionManager(shardID)
-	if err != nil {
-		return nil, err
 	}
 
 	plcy, err := executionManager.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
