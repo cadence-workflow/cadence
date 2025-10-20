@@ -15,6 +15,7 @@ jobs:
         scenario:
           - activeactive
           - activeactive_child
+          - activeactive_invalid_cluster_attribute
           - activeactive_same_wfid
           - activeactive_same_wfid_signalwithstart
           - activeactive_same_wfid_signalwithstart_delayed
