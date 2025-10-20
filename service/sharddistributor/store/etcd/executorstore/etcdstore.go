@@ -279,17 +279,11 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 		shardMetrics[shardID] = shardMetric
 	}
 
-	// Compute a global revision that reflects both executor and shard state.
-	globalRevision := resp.Header.Revision
-	if shardResp.Header.Revision > globalRevision {
-		globalRevision = shardResp.Header.Revision
-	}
-
 	return &store.NamespaceState{
 		Executors:        heartbeatStates,
 		ShardMetrics:     shardMetrics,
 		ShardAssignments: assignedStates,
-		GlobalRevision:   globalRevision,
+		GlobalRevision:   resp.Header.Revision,
 	}, nil
 }
 
