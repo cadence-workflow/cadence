@@ -719,3 +719,383 @@ func getDomainCacheEntryWithAttributeScopes(cfg *types.ActiveClusters) *cache.Do
 		1,
 	)
 }
+
+func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
+	metricsCl := metrics.NewNoopMetricsClient()
+	logger := log.NewNoop()
+
+	tests := []struct {
+		name                           string
+		activeClusterCfg               *types.ActiveClusters
+		isActiveActive                 bool
+		domainIDToNameErr              error
+		mockExecutionManagerFn         func(em *persistence.MockExecutionManager)
+		mockExecutionManagerProviderFn func(emp *MockExecutionManagerProvider)
+		cachedPolicy                   *types.ActiveClusterSelectionPolicy
+		expectedPolicy                 *types.ActiveClusterSelectionPolicy
+		expectedRunning                bool
+		expectedError                  string
+	}{
+		{
+			name:              "domain ID to name function returns error",
+			isActiveActive:    true,
+			domainIDToNameErr: errors.New("failed to find domain by id"),
+			expectedError:     "failed to find domain by id",
+			expectedRunning:   false,
+		},
+		{
+			name:            "non-active-active domain returns nil",
+			isActiveActive:  false,
+			expectedPolicy:  nil,
+			expectedRunning: false,
+		},
+		{
+			name:           "execution manager provider returns error",
+			isActiveActive: true,
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerProviderFn: func(emp *MockExecutionManagerProvider) {
+				emp.EXPECT().GetExecutionManager(6).Return(nil, errors.New("failed to get execution manager")).AnyTimes()
+			},
+			expectedError:   "failed to get execution manager",
+			expectedRunning: false,
+		},
+		{
+			name:           "GetCurrentExecution returns error",
+			isActiveActive: true,
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+				}).Return(nil, errors.New("workflow not found"))
+			},
+			expectedError:   "workflow not found",
+			expectedRunning: false,
+		},
+		{
+			name:           "workflow completed - returns nil, false",
+			isActiveActive: true,
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+				}).Return(&persistence.GetCurrentExecutionResponse{
+					RunID: "test-run-id",
+					State: persistence.WorkflowStateCompleted,
+				}, nil)
+			},
+			expectedPolicy:  nil,
+			expectedRunning: false,
+		},
+		{
+			name:           "workflow running - successfully returns policy",
+			isActiveActive: true,
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+							"us-east": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   200,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+				}).Return(&persistence.GetCurrentExecutionResponse{
+					RunID: "test-run-id",
+					State: persistence.WorkflowStateRunning,
+				}, nil)
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+					Return(&types.ActiveClusterSelectionPolicy{
+						ClusterAttribute: &types.ClusterAttribute{
+							Scope: "region",
+							Name:  "us-east",
+						},
+					}, nil)
+			},
+			expectedPolicy: &types.ActiveClusterSelectionPolicy{
+				ClusterAttribute: &types.ClusterAttribute{
+					Scope: "region",
+					Name:  "us-east",
+				},
+			},
+			expectedRunning: true,
+		},
+		{
+			name:           "workflow created state - successfully returns policy",
+			isActiveActive: true,
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"datacenter": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"dc1": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   150,
+							},
+							"dc2": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   250,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+				}).Return(&persistence.GetCurrentExecutionResponse{
+					RunID: "test-run-id",
+					State: persistence.WorkflowStateCreated,
+				}, nil)
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+					Return(&types.ActiveClusterSelectionPolicy{
+						ClusterAttribute: &types.ClusterAttribute{
+							Scope: "datacenter",
+							Name:  "dc1",
+						},
+					}, nil)
+			},
+			expectedPolicy: &types.ActiveClusterSelectionPolicy{
+				ClusterAttribute: &types.ClusterAttribute{
+					Scope: "datacenter",
+					Name:  "dc1",
+				},
+			},
+			expectedRunning: true,
+		},
+		{
+			name:           "workflow running but GetActiveClusterSelectionPolicy fails",
+			isActiveActive: true,
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+				}).Return(&persistence.GetCurrentExecutionResponse{
+					RunID: "test-run-id",
+					State: persistence.WorkflowStateRunning,
+				}, nil)
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+					Return(nil, errors.New("database error"))
+			},
+			expectedError:   "database error",
+			expectedRunning: false,
+		},
+		{
+			name:           "workflow running - policy from cache",
+			isActiveActive: true,
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"city": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"seattle": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   300,
+							},
+							"san_francisco": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   350,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+				}).Return(&persistence.GetCurrentExecutionResponse{
+					RunID: "test-run-id",
+					State: persistence.WorkflowStateRunning,
+				}, nil)
+				// No expectation for GetActiveClusterSelectionPolicy since it comes from cache
+			},
+			cachedPolicy: &types.ActiveClusterSelectionPolicy{
+				ClusterAttribute: &types.ClusterAttribute{
+					Scope: "city",
+					Name:  "seattle",
+				},
+			},
+			expectedPolicy: &types.ActiveClusterSelectionPolicy{
+				ClusterAttribute: &types.ClusterAttribute{
+					Scope: "city",
+					Name:  "seattle",
+				},
+			},
+			expectedRunning: true,
+		},
+		{
+			name:           "workflow running with EntityNotExistsError returns error",
+			isActiveActive: true,
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+				}).Return(&persistence.GetCurrentExecutionResponse{
+					RunID: "test-run-id",
+					State: persistence.WorkflowStateRunning,
+				}, nil)
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+					Return(nil, &types.EntityNotExistsError{Message: "policy not found"})
+			},
+			expectedError:   "policy not found",
+			expectedRunning: false,
+		},
+		{
+			name:           "workflow running with nil cluster attribute in policy",
+			isActiveActive: true,
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+				}).Return(&persistence.GetCurrentExecutionResponse{
+					RunID: "test-run-id",
+					State: persistence.WorkflowStateRunning,
+				}, nil)
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+					Return(&types.ActiveClusterSelectionPolicy{
+						ClusterAttribute: nil,
+					}, nil)
+			},
+			expectedPolicy: &types.ActiveClusterSelectionPolicy{
+				ClusterAttribute: nil,
+			},
+			expectedRunning: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
+				return getDomainCacheEntry(tc.activeClusterCfg, tc.isActiveActive), tc.domainIDToNameErr
+			}
+
+			ctrl := gomock.NewController(t)
+
+			wfID := "test-workflow-id"
+			shardID := 6 // corresponds to wfID given numShards
+
+			var emProvider *MockExecutionManagerProvider
+			if tc.mockExecutionManagerProviderFn != nil || tc.mockExecutionManagerFn != nil {
+				emProvider = NewMockExecutionManagerProvider(ctrl)
+
+				if tc.mockExecutionManagerProviderFn != nil {
+					tc.mockExecutionManagerProviderFn(emProvider)
+				} else {
+					// Default case: create execution manager and set up provider
+					em := persistence.NewMockExecutionManager(ctrl)
+					if tc.mockExecutionManagerFn != nil {
+						tc.mockExecutionManagerFn(em)
+					}
+					emProvider.EXPECT().GetExecutionManager(shardID).Return(em, nil).AnyTimes()
+				}
+			}
+
+			mgr, err := NewManager(
+				domainIDToDomainFn,
+				metricsCl,
+				logger,
+				emProvider,
+				numShards,
+			)
+			assert.NoError(t, err)
+
+			if tc.cachedPolicy != nil {
+				// Need to get the runID from the test case to build the cache key
+				// For cached policy tests, we assume the runID is "test-run-id"
+				key := fmt.Sprintf("%s:%s:%s", "test-domain-id", wfID, "test-run-id")
+				mgr.(*managerImpl).workflowPolicyCache.Put(key, tc.cachedPolicy)
+			}
+
+			policy, running, err := mgr.GetActiveClusterSelectionPolicyForCurrentWorkflow(context.Background(), "test-domain-id", wfID)
+			if tc.expectedError != "" {
+				assert.EqualError(t, err, tc.expectedError)
+				assert.Nil(t, policy)
+				assert.Equal(t, tc.expectedRunning, running)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedPolicy, policy)
+				assert.Equal(t, tc.expectedRunning, running)
+			}
+		})
+	}
+}

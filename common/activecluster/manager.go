@@ -40,12 +40,13 @@ import (
 type DomainIDToDomainFn func(id string) (*cache.DomainCacheEntry, error)
 
 const (
-	LookupNewWorkflowOpName                          = "LookupNewWorkflow"
-	LookupWorkflowOpName                             = "LookupWorkflow"
-	GetActiveClusterInfoByClusterAttributeOpName     = "GetActiveClusterInfoByClusterAttribute"
-	GetActiveClusterInfoByWorkflowOpName             = "GetActiveClusterInfoByWorkflow"
-	GetActiveClusterSelectionPolicyForWorkflowOpName = "GetActiveClusterSelectionPolicyForWorkflow"
-	DomainIDToDomainFnErrorReason                    = "domain_id_to_name_fn_error"
+	LookupNewWorkflowOpName                                 = "LookupNewWorkflow"
+	LookupWorkflowOpName                                    = "LookupWorkflow"
+	GetActiveClusterInfoByClusterAttributeOpName            = "GetActiveClusterInfoByClusterAttribute"
+	GetActiveClusterInfoByWorkflowOpName                    = "GetActiveClusterInfoByWorkflow"
+	GetActiveClusterSelectionPolicyForWorkflowOpName        = "GetActiveClusterSelectionPolicyForWorkflow"
+	GetActiveClusterSelectionPolicyForCurrentWorkflowOpName = "GetActiveClusterSelectionPolicyForCurrentWorkflow"
+	DomainIDToDomainFnErrorReason                           = "domain_id_to_name_fn_error"
 
 	workflowPolicyCacheTTL      = 10 * time.Second
 	workflowPolicyCacheMaxCount = 1000
@@ -259,4 +260,41 @@ func (m *managerImpl) GetActiveClusterSelectionPolicyForWorkflow(ctx context.Con
 		return nil, nil
 	}
 	return plcy, nil
+}
+
+func (m *managerImpl) GetActiveClusterSelectionPolicyForCurrentWorkflow(ctx context.Context, domainID, wfID string) (res *types.ActiveClusterSelectionPolicy, running bool, e error) {
+	d, scope, err := m.getDomainAndScope(domainID, GetActiveClusterSelectionPolicyForCurrentWorkflowOpName)
+	if err != nil {
+		return nil, false, err
+	}
+	defer m.handleError(scope, &e, time.Now())
+	if !d.GetReplicationConfig().IsActiveActive() {
+		// Not an active-active domain. return nil
+		m.logger.Debug("GetActiveClusterSelectionPolicyForCurrentWorkflow: not an active-active domain. returning nil",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(wfID),
+		)
+		return nil, false, nil
+	}
+
+	shardID := common.WorkflowIDToHistoryShard(wfID, m.numShards)
+	executionManager, err := m.executionManagerProvider.GetExecutionManager(shardID)
+	if err != nil {
+		return nil, false, err
+	}
+	execution, err := executionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
+		DomainID:   domainID,
+		WorkflowID: wfID,
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	if execution.State == persistence.WorkflowStateRunning || execution.State == persistence.WorkflowStateCreated {
+		policy, err := m.getClusterSelectionPolicy(ctx, domainID, wfID, execution.RunID)
+		if err != nil {
+			return nil, false, err
+		}
+		return policy, true, nil
+	}
+	return nil, false, nil
 }

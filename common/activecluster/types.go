@@ -48,6 +48,10 @@ type Manager interface {
 
 	// GetActiveClusterSelectionPolicyForWorkflow returns the active cluster selection policy for a workflow
 	GetActiveClusterSelectionPolicyForWorkflow(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
+
+	// GetActiveClusterSelectionPolicyForCurrentWorkflow returns the active cluster selection policy for the current workflow
+	// if the workflow is NOT closed, returns policy and true, otherwise returns nil and false
+	GetActiveClusterSelectionPolicyForCurrentWorkflow(ctx context.Context, domainID, wfID string) (*types.ActiveClusterSelectionPolicy, bool, error)
 }
 
 type ExecutionManagerProvider interface {
