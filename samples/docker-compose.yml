@@ -1,4 +1,3 @@
-version: '3'
 services:
   cassandra:
     image: cassandra:3.11
@@ -20,8 +19,8 @@ services:
 
   hello-world-sample:
     build:
-      context: ../
-      dockerfile: samples/hello-world/Dockerfile
+      context: .
+      dockerfile: hello-world/Dockerfile
     environment:
       - "CADENCE_HOST=cadence"
       - "CADENCE_PORT=7933"

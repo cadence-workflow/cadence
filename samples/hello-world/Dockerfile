@@ -5,18 +5,20 @@ FROM golang:1.21-alpine AS builder
 RUN apk add --no-cache ca-certificates git
 
 # Set working directory
-WORKDIR /build/hello-world
+WORKDIR /build/samples
 
-# Copy hello-world code
-COPY hello-world/ .
+# Copy necessary files
+COPY . .
 
-# Initialize module
-RUN go mod init hello-world && \
+# Download dependencies
+RUN cd hello-world && \
+    go mod init github.com/uber/cadence/samples/hello-world && \
+    go mod edit -replace github.com/uber/cadence=../.. && \
     go mod tidy && \
     go mod download
 
 # Build the sample
-RUN CGO_ENABLED=0 GOOS=linux go build -o /hello-world .
+RUN cd hello-world && CGO_ENABLED=0 GOOS=linux go build -o /hello-world .
 
 # Final stage
 FROM alpine:3.18
