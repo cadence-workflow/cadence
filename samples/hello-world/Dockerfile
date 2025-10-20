@@ -4,6 +4,9 @@ FROM golang:1.21-alpine AS builder
 # Install build dependencies
 RUN apk add --no-cache ca-certificates git
 
+# Configure Go to use a more reliable proxy
+ENV GOPROXY=https://goproxy.io
+
 # Set working directory
 WORKDIR /build/samples
 
