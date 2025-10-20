@@ -996,12 +996,22 @@ func (m *MetadataPersistenceSuiteV2) TestUpdateDomain() {
 	notificationVersion++
 	lastUpdateTime++
 	activeClusters := &types.ActiveClusters{
+		// todo (david.porter) remove this once we have completely migrated to AttributeScopes
 		ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 			"region1": {
 				ActiveClusterName: updateClusters[0].ClusterName,
 			},
 			"region2": {
 				ActiveClusterName: updateClusters[1].ClusterName,
+			},
+		},
+		AttributeScopes: map[string]types.ClusterAttributeScope{
+			"city": {
+				ClusterAttributes: map[string]types.ActiveClusterInfo{
+					"seattle": {
+						ActiveClusterName: updateClusters[0].ClusterName,
+					},
+				},
 			},
 		},
 	}
@@ -1054,6 +1064,7 @@ func (m *MetadataPersistenceSuiteV2) TestUpdateDomain() {
 	m.Equal(asyncWFCfg1, resp7.Config.AsyncWorkflowConfig)
 	m.Equal(updateClusterActive, resp7.ReplicationConfig.ActiveClusterName)
 	m.Equal(activeClusters.ActiveClustersByRegion, resp7.ReplicationConfig.ActiveClusters.ActiveClustersByRegion)
+	m.Equal(activeClusters.AttributeScopes, resp7.ReplicationConfig.ActiveClusters.AttributeScopes)
 	m.Equal(len(updateClusters), len(resp7.ReplicationConfig.Clusters))
 	for index := range clusters {
 		m.Equal(updateClusters[index], resp7.ReplicationConfig.Clusters[index])

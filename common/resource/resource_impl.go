@@ -232,17 +232,12 @@ func New(
 		cache.WithTimeSource(params.TimeSource),
 	)
 
-	// TODO(active-active): define external entity providers as plugins
-	var externalEntityProviders []activecluster.ExternalEntityProvider
 	activeClusterMgr, err := activecluster.NewManager(
 		domainCache.GetDomainByID,
-		params.ClusterMetadata,
 		params.MetricsClient,
 		logger,
-		externalEntityProviders,
 		persistenceBean,
 		numShards,
-		activecluster.WithTimeSource(params.TimeSource),
 	)
 	if err != nil {
 		return nil, err
@@ -442,7 +437,6 @@ func (h *Impl) Start() {
 	h.membershipResolver.Start()
 	h.domainCache.Start()
 	h.domainMetricsScopeCache.Start()
-	h.activeClusterMgr.Start()
 
 	hostInfo, err := h.membershipResolver.WhoAmI()
 	if err != nil {
@@ -471,7 +465,6 @@ func (h *Impl) Stop() {
 
 	h.domainCache.Stop()
 	h.domainMetricsScopeCache.Stop()
-	h.activeClusterMgr.Stop()
 	h.membershipResolver.Stop()
 
 	if err := h.dispatcher.Stop(); err != nil {

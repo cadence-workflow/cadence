@@ -11,6 +11,8 @@ require (
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	go.etcd.io/etcd/client/v3 v3.5.5
 	go.uber.org/fx v1.23.0
+	go.uber.org/goleak v1.2.0
+	go.uber.org/mock v0.5.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -34,6 +36,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.0 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/google/gofuzz v1.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
@@ -66,7 +69,6 @@ require (
 	go.uber.org/cadence v0.19.0 // indirect
 	go.uber.org/config v1.4.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
-	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/net/metrics v1.3.0 // indirect
 	go.uber.org/thriftrw v1.29.2 // indirect

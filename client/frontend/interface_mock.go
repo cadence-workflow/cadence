@@ -181,6 +181,26 @@ func (mr *MockClientMockRecorder) DiagnoseWorkflowExecution(arg0, arg1 any, arg2
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiagnoseWorkflowExecution", reflect.TypeOf((*MockClient)(nil).DiagnoseWorkflowExecution), varargs...)
 }
 
+// FailoverDomain mocks base method.
+func (m *MockClient) FailoverDomain(arg0 context.Context, arg1 *types.FailoverDomainRequest, arg2 ...yarpc.CallOption) (*types.FailoverDomainResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "FailoverDomain", varargs...)
+	ret0, _ := ret[0].(*types.FailoverDomainResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FailoverDomain indicates an expected call of FailoverDomain.
+func (mr *MockClientMockRecorder) FailoverDomain(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FailoverDomain", reflect.TypeOf((*MockClient)(nil).FailoverDomain), varargs...)
+}
+
 // GetClusterInfo mocks base method.
 func (m *MockClient) GetClusterInfo(arg0 context.Context, arg1 ...yarpc.CallOption) (*types.ClusterInfo, error) {
 	m.ctrl.T.Helper()

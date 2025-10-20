@@ -28,7 +28,6 @@ import (
 	"runtime/debug"
 
 	"github.com/uber/cadence/common/activecluster"
-	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 )
@@ -36,7 +35,6 @@ import (
 type (
 	executorWrapper struct {
 		currentClusterName string
-		registry           cache.DomainCache
 		activeClusterMgr   activecluster.Manager
 		activeExecutor     Executor
 		standbyExecutor    Executor
@@ -46,7 +44,6 @@ type (
 
 func NewExecutorWrapper(
 	currentClusterName string,
-	registry cache.DomainCache,
 	activeClusterMgr activecluster.Manager,
 	activeExecutor Executor,
 	standbyExecutor Executor,
@@ -54,7 +51,6 @@ func NewExecutorWrapper(
 ) Executor {
 	return &executorWrapper{
 		currentClusterName: currentClusterName,
-		registry:           registry,
 		activeClusterMgr:   activeClusterMgr,
 		activeExecutor:     activeExecutor,
 		standbyExecutor:    standbyExecutor,
@@ -82,54 +78,34 @@ func (e *executorWrapper) isActiveTask(
 	wfID := task.GetWorkflowID()
 	rID := task.GetRunID()
 
-	entry, err := e.registry.GetDomainByID(domainID)
+	activeClusterInfo, err := e.activeClusterMgr.GetActiveClusterInfoByWorkflow(context.Background(), domainID, wfID, rID)
 	if err != nil {
-		e.logger.Warn("Unable to find namespace, process task as active.", tag.WorkflowDomainID(domainID), tag.Value(task.GetInfo()), tag.Error(err))
+		e.logger.Warn("Failed to get active cluster info, process task as active.", tag.WorkflowDomainID(domainID), tag.WorkflowID(wfID), tag.WorkflowRunID(rID), tag.Error(err))
 		return true
 	}
 
-	if entry.GetReplicationConfig().IsActiveActive() {
-		resp, err := e.activeClusterMgr.LookupWorkflow(context.Background(), domainID, wfID, rID)
-		if err != nil {
-			e.logger.Warn("Failed to lookup active cluster, process task as active.",
-				tag.WorkflowDomainID(domainID),
-				tag.WorkflowID(wfID),
-				tag.WorkflowRunID(rID),
-				tag.Error(err),
-			)
-			return true
-		}
-		if resp.ClusterName != e.currentClusterName {
-			if e.logger.DebugOn() {
-				taskJSON, _ := json.Marshal(task)
-				e.logger.Debug("Process task as standby.",
-					tag.WorkflowDomainID(domainID),
-					tag.Dynamic("task", string(taskJSON)),
-					tag.Dynamic("taskType", task.GetTaskType()),
-					tag.ClusterName(resp.ClusterName),
-					tag.Dynamic("stack", string(debug.Stack())),
-				)
-			}
-			return false
-		}
+	if activeClusterInfo.ActiveClusterName != e.currentClusterName {
 		if e.logger.DebugOn() {
 			taskJSON, _ := json.Marshal(task)
-			e.logger.Debug("Process task as active.",
+			e.logger.Debug("Process task as standby.",
 				tag.WorkflowDomainID(domainID),
 				tag.Dynamic("task", string(taskJSON)),
 				tag.Dynamic("taskType", task.GetTaskType()),
-				tag.ClusterName(e.currentClusterName),
+				tag.ClusterName(activeClusterInfo.ActiveClusterName),
 				tag.Dynamic("stack", string(debug.Stack())),
 			)
 		}
-		return true
-	}
-
-	if !entry.IsActiveIn(e.currentClusterName) {
-		e.logger.Debug("Process task as standby.", tag.WorkflowDomainID(domainID), tag.Value(task.GetInfo()), tag.ClusterName(e.currentClusterName))
 		return false
 	}
-
-	e.logger.Debug("Process task as active.", tag.WorkflowDomainID(domainID), tag.Value(task.GetInfo()), tag.ClusterName(e.currentClusterName))
+	if e.logger.DebugOn() {
+		taskJSON, _ := json.Marshal(task)
+		e.logger.Debug("Process task as active.",
+			tag.WorkflowDomainID(domainID),
+			tag.Dynamic("task", string(taskJSON)),
+			tag.Dynamic("taskType", task.GetTaskType()),
+			tag.ClusterName(activeClusterInfo.ActiveClusterName),
+			tag.Dynamic("stack", string(debug.Stack())),
+		)
+	}
 	return true
 }

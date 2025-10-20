@@ -83,4 +83,5 @@ type Client interface {
 	StartWorkflowExecutionAsync(context.Context, *types.StartWorkflowExecutionAsyncRequest, ...yarpc.CallOption) (*types.StartWorkflowExecutionAsyncResponse, error)
 	TerminateWorkflowExecution(context.Context, *types.TerminateWorkflowExecutionRequest, ...yarpc.CallOption) error
 	UpdateDomain(context.Context, *types.UpdateDomainRequest, ...yarpc.CallOption) (*types.UpdateDomainResponse, error)
+	FailoverDomain(context.Context, *types.FailoverDomainRequest, ...yarpc.CallOption) (*types.FailoverDomainResponse, error)
 }

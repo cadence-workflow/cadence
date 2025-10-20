@@ -15,9 +15,14 @@ primaryCluster: "cluster0"
 
 domains:
   test-domain-aa:
+    activeClusterName: cluster0
     activeClustersByRegion:
       region0: cluster0
       region1: cluster1
+    clusterAttributes:
+      region:
+        region0: cluster0
+        region1: cluster1
 
 operations:
   # Start wf1 on cluster0 before failover. It should start in cluster0 and complete in cluster1.
@@ -29,6 +34,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 60s
     workflowID: wf1
@@ -46,6 +55,10 @@ operations:
     newActiveClustersByRegion:
       region0: cluster1 # this is changed from cluster0 to cluster1
       region1: cluster1
+    newClusterAttributes:
+      region:
+        region0: cluster1 # this is changed from cluster0 to cluster1
+        region1: cluster1
 
   # Start wf2 on cluster0 right before failover. It will be started by cluster0 workers and completed by cluster1 workers.
   - op: start_workflow
@@ -56,6 +69,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 70s
     workflowID: wf2
@@ -77,6 +94,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
     delayStartSeconds: 10
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 70s
     workflowID: wf3
@@ -95,6 +116,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
     delayStartSeconds: 10
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 71s
     workflowID: wf4
@@ -113,6 +138,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
     delayStartSeconds: 10
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 72s
     workflowID: wf5
@@ -131,6 +160,10 @@ operations:
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
     delayStartSeconds: 10
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 73s
     workflowID: wf6
@@ -150,6 +183,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
   - op: validate
     at: 75s
     workflowID: wf7

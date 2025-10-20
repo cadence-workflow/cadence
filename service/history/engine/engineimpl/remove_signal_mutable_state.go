@@ -35,7 +35,7 @@ func (e *historyEngineImpl) RemoveSignalMutableState(
 	request *types.RemoveSignalMutableStateRequest,
 ) error {
 
-	domainEntry, err := e.getActiveDomainByID(request.DomainUUID)
+	domainEntry, err := e.getActiveDomainByWorkflow(ctx, request.DomainUUID, request.WorkflowExecution.GetWorkflowID(), request.WorkflowExecution.GetRunID())
 	if err != nil {
 		return err
 	}

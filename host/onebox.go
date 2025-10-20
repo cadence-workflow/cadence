@@ -648,7 +648,7 @@ func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, star
 	params.TimeSource = c.timeSource
 	params.PProfInitializer = newPProfInitializerImpl(c.logger, c.FrontendPProfPort())
 	params.MetricScope = tally.NewTestScope(service.Frontend, make(map[string]string))
-	params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger))
+	params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.HistogramMigration{} /* default, only used in test setups */)
 	params.RPCFactory = c.newRPCFactory(service.Frontend, c.FrontendHost(), params.MetricsClient)
 	params.MembershipResolver = newMembershipResolver(params.Name, hosts, c.FrontendHost())
 	params.ClusterMetadata = c.clusterMetadata
@@ -731,7 +731,7 @@ func (c *cadenceImpl) startHistory(hosts map[string][]membership.HostInfo, start
 		params.TimeSource = c.timeSource
 		params.PProfInitializer = newPProfInitializerImpl(c.logger, pprofPorts[i])
 		params.MetricScope = tally.NewTestScope(service.History, make(map[string]string))
-		params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger))
+		params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.HistogramMigration{} /* default, only used in test setups */)
 		params.RPCFactory = c.newRPCFactory(service.History, hostport, params.MetricsClient)
 		params.MembershipResolver = newMembershipResolver(params.Name, hosts, hostport)
 		params.ClusterMetadata = c.clusterMetadata
@@ -819,7 +819,7 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 			},
 		}
 		params.MetricScope = metricsCfg.NewScope(c.logger, service.Matching)
-		params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger))
+		params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.HistogramMigration{} /* default, only used in test setups */)
 		params.RPCFactory = c.newRPCFactory(service.Matching, hostport, params.MetricsClient)
 		params.MembershipResolver = newMembershipResolver(params.Name, hosts, hostport)
 		params.ClusterMetadata = c.clusterMetadata
@@ -880,7 +880,7 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 	params.TimeSource = c.timeSource
 	params.PProfInitializer = newPProfInitializerImpl(c.logger, c.WorkerPProfPort())
 	params.MetricScope = tally.NewTestScope(service.Worker, make(map[string]string))
-	params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger))
+	params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.HistogramMigration{} /* default, only used in test setups */)
 	params.RPCFactory = c.newRPCFactory(service.Worker, c.WorkerServiceHost(), params.MetricsClient)
 	params.MembershipResolver = newMembershipResolver(params.Name, hosts, c.WorkerServiceHost())
 	params.ClusterMetadata = c.clusterMetadata

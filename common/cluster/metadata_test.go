@@ -42,6 +42,8 @@ func TestMetadataBehaviour(t *testing.T) {
 	const initialFailoverVersionC1 = 0
 	const clusterName2 = "c2"
 	const initialFailoverVersionC2 = 2
+	const clusterName3 = "c3"
+	const initialFailoverVersionC3 = 4
 
 	const failoverVersionIncrement = 100
 
@@ -60,12 +62,17 @@ func TestMetadataBehaviour(t *testing.T) {
 			currentVersion:  0,
 			expectedOut:     2,
 		},
-		"a subsequent failover back": {
+		"a failover to c3 should set the failover version to be based on c3": {
+			failoverCluster: clusterName3,
+			currentVersion:  2,
+			expectedOut:     4,
+		},
+		"a subsequent failover back to c1 should increment the failover version by failoverVersionIncrement": {
 			failoverCluster: clusterName1,
 			currentVersion:  2,
 			expectedOut:     100,
 		},
-		"and a duplicate": {
+		"when the current failover version matches the target cluster it should not increment the failover version": {
 			failoverCluster: clusterName1,
 			currentVersion:  100,
 			expectedOut:     100,
@@ -74,6 +81,21 @@ func TestMetadataBehaviour(t *testing.T) {
 			failoverCluster: clusterName2,
 			currentVersion:  100,
 			expectedOut:     102,
+		},
+		"and a subsequent fail back over to c1 should skip over c3": {
+			failoverCluster: clusterName1,
+			currentVersion:  102,
+			expectedOut:     200,
+		},
+		"Ensuring the behaviour of getNextFailoverVersion can handle negative numbers 1": {
+			failoverCluster: clusterName1,
+			currentVersion:  -1,
+			expectedOut:     0,
+		},
+		"Ensuring the behaviour of getNextFailoverVersion can handle negative numbers 2": {
+			failoverCluster: clusterName2,
+			currentVersion:  -1,
+			expectedOut:     2,
 		},
 	}
 
@@ -88,10 +110,14 @@ func TestMetadataBehaviour(t *testing.T) {
 					clusterName2: {
 						InitialFailoverVersion: initialFailoverVersionC2,
 					},
+					clusterName3: {
+						InitialFailoverVersion: initialFailoverVersionC3,
+					},
 				},
 				versionToClusterName: map[int64]string{
 					initialFailoverVersionC1: clusterName1,
 					initialFailoverVersionC2: clusterName2,
+					initialFailoverVersionC3: clusterName3,
 				},
 				useNewFailoverVersionOverride: func(domain string) bool { return false },
 				metrics:                       metrics.NewNoopMetricsClient().Scope(0),

@@ -30,7 +30,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
@@ -396,14 +395,18 @@ func TestDomainCallback(t *testing.T) {
 			&persistence.DomainReplicationConfig{
 				Clusters: clusters,
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"region0": {
-							ActiveClusterName: "cluster0",
-							FailoverVersion:   1,
-						},
-						"region1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   2,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region0": {
+									ActiveClusterName: "cluster0",
+									FailoverVersion:   1,
+								},
+								"region1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   2,
+								},
+							},
 						},
 					},
 				},
@@ -733,12 +736,11 @@ func TestHistoryEngine_registerDomainFailoverCallback_ClosureBehavior(t *testing
 
 	mockShard := shard.NewMockContext(ctrl)
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
-	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
 
 	// Define the initial shard notification version
 	initialShardVersion := int64(5)
 	mockShard.EXPECT().GetDomainNotificationVersion().Return(initialShardVersion)
-	mockShard.EXPECT().GetShardID().Return(456).Times(2)
+	mockShard.EXPECT().GetShardID().Return(456).Times(1)
 	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 
 	// Capture the registered catchUpFn
@@ -755,9 +757,6 @@ func TestHistoryEngine_registerDomainFailoverCallback_ClosureBehavior(t *testing
 			t.Fatalf("Failed to convert catchUpFn to cache.CatchUpFn: got type %T", catchUpFn)
 		}
 	}).Times(1)
-
-	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).Times(1)
-	mockActiveClusterManager.EXPECT().RegisterChangeCallback(456, gomock.Any()).Times(1)
 
 	cluster := cluster.NewMetadata(
 		config.ClusterGroupMetadata{

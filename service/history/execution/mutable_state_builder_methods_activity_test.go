@@ -68,7 +68,7 @@ func testMutableStateBuilder(t *testing.T) *mutableStateBuilder {
 	mockShard.Resource.MatchingClient.EXPECT().AddActivityTask(gomock.Any(), gomock.Any()).Return(&types.AddActivityTaskResponse{}, nil).AnyTimes()
 	mockShard.Resource.DomainCache.EXPECT().GetDomainID(constants.TestDomainName).Return(constants.TestDomainID, nil).AnyTimes()
 	mockShard.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(&cache.DomainCacheEntry{}, nil).AnyTimes()
-	return newMutableStateBuilder(mockShard, logger, constants.TestLocalDomainEntry)
+	return newMutableStateBuilder(mockShard, logger, constants.TestLocalDomainEntry, constants.TestLocalDomainEntry.GetFailoverVersion())
 }
 
 func Test__AddActivityTaskScheduledEvent(t *testing.T) {

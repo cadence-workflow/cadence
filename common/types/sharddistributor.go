@@ -164,11 +164,19 @@ const (
 
 type ExecutorHeartbeatResponse struct {
 	ShardAssignments map[string]*ShardAssignment
+	MigrationMode    MigrationMode
 }
 
 func (v *ExecutorHeartbeatResponse) GetShardAssignments() (o map[string]*ShardAssignment) {
 	if v != nil {
 		return v.ShardAssignments
+	}
+	return
+}
+
+func (v *ExecutorHeartbeatResponse) GetMigrationPhase() (o MigrationMode) {
+	if v != nil {
+		return v.MigrationMode
 	}
 	return
 }
@@ -191,4 +199,14 @@ type AssignmentStatus int32
 const (
 	AssignmentStatusINVALID AssignmentStatus = 0
 	AssignmentStatusREADY   AssignmentStatus = 1
+)
+
+type MigrationMode int32
+
+const (
+	MigrationModeINVALID                = 0
+	MigrationModeLOCALPASSTHROUGH       = 1
+	MigrationModeLOCALPASSTHROUGHSHADOW = 2
+	MigrationModeDISTRIBUTEDPASSTHROUGH = 3
+	MigrationModeONBOARDED              = 4
 )

@@ -1880,21 +1880,22 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 		}
 	}
 
-	// this function return the following 6 things,
+	// this function return the following 8 things,
 	// 1. branch token
 	// 2. the workflow run ID
 	// 3. the last first event ID (the event ID of the last batch of events in the history)
 	// 4. the next event ID
 	// 5. whether the workflow is closed
-	// 6 The version history
-	// 7. error if any
+	// 6. The version history
+	// 7. the workflow close status
+	// 8. error if any
 	queryHistory := func(
 		domainUUID string,
 		execution *types.WorkflowExecution,
 		expectedNextEventID int64,
 		currentBranchToken []byte,
 		versionHistoryItem *persistence.VersionHistoryItem,
-	) ([]byte, string, int64, int64, bool, *types.VersionHistoryItem, error) {
+	) ([]byte, string, int64, int64, bool, *types.VersionHistoryItem, string, error) {
 
 		response, err := wh.GetHistoryClient().PollMutableState(ctx, &types.PollMutableStateRequest{
 			DomainUUID:          domainUUID,
@@ -1905,19 +1906,24 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 		})
 
 		if err != nil {
-			return nil, "", 0, 0, false, nil, err
+			return nil, "", 0, 0, false, nil, "", err
 		}
 
 		isWorkflowRunning := response.GetWorkflowCloseState() == persistence.WorkflowCloseStatusNone
 		currentVersionHistory, err := persistence.NewVersionHistoriesFromInternalType(response.VersionHistories).GetCurrentVersionHistory()
 		if err != nil {
 			wh.GetLogger().Error("Failed to get current version history", tag.Dynamic("version-histories", response.VersionHistories))
-			return nil, "", 0, 0, false, nil, fmt.Errorf("failed to get the current version from the response from history: %w", err)
+			return nil, "", 0, 0, false, nil, "", fmt.Errorf("failed to get the current version from the response from history: %w", err)
+		}
+
+		wfCloseStatus := "Running"
+		if !isWorkflowRunning {
+			wfCloseStatus = persistence.ToInternalWorkflowExecutionCloseStatus(int(response.GetWorkflowCloseState())).String()
 		}
 
 		lastVersionHistoryItem, err := currentVersionHistory.GetLastItem()
 		if err != nil {
-			return nil, "", 0, 0, false, nil, err
+			return nil, "", 0, 0, false, nil, "", err
 		}
 
 		return response.CurrentBranchToken,
@@ -1926,6 +1932,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 			response.GetNextEventID(),
 			isWorkflowRunning,
 			lastVersionHistoryItem.ToInternalType(),
+			wfCloseStatus,
 			nil
 	}
 
@@ -1938,6 +1945,8 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 	lastFirstEventID := constants.FirstEventID
 	var nextEventID int64
 	var isWorkflowRunning bool
+	var workflowCloseStatus string
+	var workflowCloseTime *time.Time
 
 	// process the token for paging
 	queryNextEventID := constants.EndEventID
@@ -1969,7 +1978,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 			}
 
 			vh := persistence.NewVersionHistoryItemFromInternalType(token.VersionHistoryItem)
-			token.BranchToken, _, lastFirstEventID, nextEventID, isWorkflowRunning, token.VersionHistoryItem, err =
+			token.BranchToken, _, lastFirstEventID, nextEventID, isWorkflowRunning, token.VersionHistoryItem, workflowCloseStatus, err =
 				queryHistory(domainID, execution, queryNextEventID, token.BranchToken, vh)
 			if err != nil {
 				return nil, err
@@ -1982,7 +1991,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 		if !isCloseEventOnly {
 			queryNextEventID = constants.FirstEventID
 		}
-		token.BranchToken, runID, lastFirstEventID, nextEventID, isWorkflowRunning, token.VersionHistoryItem, err =
+		token.BranchToken, runID, lastFirstEventID, nextEventID, isWorkflowRunning, token.VersionHistoryItem, workflowCloseStatus, err =
 			queryHistory(domainID, execution, queryNextEventID, nil, nil)
 		if err != nil {
 			return nil, err
@@ -2088,6 +2097,19 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 	if err != nil {
 		return nil, err
 	}
+
+	// Extract close time from history events for closed workflows
+	if !isWorkflowRunning && len(history.Events) > 0 {
+		// Get the last event (close event) timestamp
+		lastEvent := history.Events[len(history.Events)-1]
+		if lastEvent.Timestamp != nil {
+			t := time.Unix(0, *lastEvent.Timestamp)
+			workflowCloseTime = &t
+		}
+	}
+
+	wh.emitGetWorkflowExecutionHistoryMetrics(domainName, domainID, execution.GetWorkflowID(), workflowCloseStatus, workflowCloseTime)
+
 	return &types.GetWorkflowExecutionHistoryResponse{
 		History:       history,
 		RawHistory:    historyBlob,
@@ -3274,6 +3296,34 @@ func (wh *WorkflowHandler) emitDescribeWorkflowExecutionMetrics(domain string, r
 
 	scope = scope.Tagged(metrics.WorkflowCloseStatusTag(status))
 	scope.IncCounter(metrics.DescribeWorkflowStatusCount)
+}
+
+func (wh *WorkflowHandler) emitGetWorkflowExecutionHistoryMetrics(domainName, domainID, workflowID, workflowCloseStatus string, closeTime *time.Time) {
+	domainEntry, err := wh.GetDomainCache().GetDomainByID(domainID)
+	if err != nil {
+		wh.GetLogger().Warn("Failed to get domain entry for metrics", tag.WorkflowDomainName(domainName), tag.Error(err))
+		return
+	}
+
+	retentionDays := domainEntry.GetRetentionDays(workflowID)
+
+	scope := wh.GetMetricsClient().Scope(
+		metrics.FrontendGetWorkflowExecutionHistoryScope,
+		metrics.DomainTag(domainName),
+		metrics.WorkflowCloseStatusTag(workflowCloseStatus),
+	)
+
+	// For closed workflows with close time, calculate days remaining until retention expires
+	// For running workflows emitting the retention days value
+	metricValue := float64(retentionDays)
+	if closeTime != nil {
+		// (closeTime + retentionDays) - now = days remaining
+		retentionExpiry := closeTime.Add(time.Duration(retentionDays) * 24 * time.Hour)
+		daysRemaining := time.Until(retentionExpiry).Hours() / 24
+		metricValue = daysRemaining
+	}
+
+	scope.UpdateGauge(metrics.WorkflowExecutionHistoryAccess, metricValue)
 }
 
 // Some error types are introduced later that some clients might not support

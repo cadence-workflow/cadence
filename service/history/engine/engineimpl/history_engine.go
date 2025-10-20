@@ -429,6 +429,21 @@ func (e *historyEngineImpl) getActiveDomainByID(id string) (*cache.DomainCacheEn
 	return cache.GetActiveDomainByID(e.shard.GetDomainCache(), e.clusterMetadata.GetCurrentClusterName(), id)
 }
 
+func (e *historyEngineImpl) getActiveDomainByWorkflow(ctx context.Context, domainID, workflowID, runID string) (*cache.DomainCacheEntry, error) {
+	activeClusterInfo, err := e.activeClusterManager.GetActiveClusterInfoByWorkflow(ctx, domainID, workflowID, runID)
+	if err != nil {
+		return nil, err
+	}
+	domain, err := e.shard.GetDomainCache().GetDomainByID(domainID)
+	if err != nil {
+		return nil, err
+	}
+	if activeClusterInfo.ActiveClusterName == e.clusterMetadata.GetCurrentClusterName() {
+		return domain, nil
+	}
+	return nil, domain.NewDomainNotActiveError(e.clusterMetadata.GetCurrentClusterName(), activeClusterInfo.ActiveClusterName)
+}
+
 func createShardNameFromShardID(shardID int) string {
 	return fmt.Sprintf("history-engine-%d", shardID)
 }

@@ -49,7 +49,7 @@ func TestContextMetricsTags(t *testing.T) {
 	mockHandler.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.CountWorkflowExecutionsResponse{}, nil).Times(1)
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	testScope := tally.NewTestScope("test", nil)
-	metricsClient := metrics.NewClient(testScope, metrics.Frontend)
+	metricsClient := metrics.NewClient(testScope, metrics.Frontend, metrics.HistogramMigration{})
 	handler := NewAPIHandler(mockHandler, testlogger.New(t), metricsClient, mockDomainCache, nil)
 
 	tag := metrics.TransportTag("grpc")
@@ -72,7 +72,7 @@ func TestSignalMetricHasSignalName(t *testing.T) {
 	mockHandler.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	testScope := tally.NewTestScope("test", nil)
-	metricsClient := metrics.NewClient(testScope, metrics.Frontend)
+	metricsClient := metrics.NewClient(testScope, metrics.Frontend, metrics.HistogramMigration{})
 	handler := NewAPIHandler(mockHandler, testlogger.New(t), metricsClient, mockDomainCache, &config.Config{EmitSignalNameMetricsTag: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)})
 
 	signalRequest := &types.SignalWorkflowExecutionRequest{
@@ -103,7 +103,7 @@ func TestSignalMetricHasSignalName(t *testing.T) {
 func TestHandleErr_InternalServiceError(t *testing.T) {
 	logger := testlogger.New(t)
 	testScope := tally.NewTestScope("test", nil)
-	metricsClient := metrics.NewClient(testScope, metrics.Frontend)
+	metricsClient := metrics.NewClient(testScope, metrics.Frontend, metrics.HistogramMigration{})
 	handler := &apiHandler{}
 
 	err := handler.handleErr(&types.InternalServiceError{Message: "internal error"}, metricsClient.Scope(0), logger)
@@ -115,7 +115,7 @@ func TestHandleErr_InternalServiceError(t *testing.T) {
 func TestHandleErr_ClientConnectionClosingError(t *testing.T) {
 	logger := testlogger.New(t)
 	testScope := tally.NewTestScope("test", nil)
-	metricsClient := metrics.NewClient(testScope, metrics.Frontend)
+	metricsClient := metrics.NewClient(testScope, metrics.Frontend, metrics.HistogramMigration{})
 	handler := &apiHandler{}
 
 	err := handler.handleErr(errors.New(constants.GRPCConnectionClosingError), metricsClient.Scope(0), logger)
@@ -127,7 +127,7 @@ func TestHandleErr_ClientConnectionClosingError(t *testing.T) {
 func TestHandleErr_UncategorizedError(t *testing.T) {
 	logger := testlogger.New(t)
 	testScope := tally.NewTestScope("test", nil)
-	metricsClient := metrics.NewClient(testScope, metrics.Frontend)
+	metricsClient := metrics.NewClient(testScope, metrics.Frontend, metrics.HistogramMigration{})
 	handler := &apiHandler{}
 
 	err := handler.handleErr(errors.New("unknown error"), metricsClient.Scope(0), logger)
@@ -755,7 +755,7 @@ func TestHandleErr(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := testlogger.New(t)
 			testScope := tally.NewTestScope("test", nil)
-			metricsClient := metrics.NewClient(testScope, metrics.Frontend)
+			metricsClient := metrics.NewClient(testScope, metrics.Frontend, metrics.HistogramMigration{})
 			handler := &apiHandler{}
 
 			err := handler.handleErr(tt.err, metricsClient.Scope(0), logger)

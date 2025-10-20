@@ -193,3 +193,52 @@ func TestHeartBeartLoop_ShardAssignmentChange(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, shardProcessorMock3, processor3)
 }
+
+func TestAssignShards(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	// Setup mocks
+	shardProcessorMock1 := NewMockShardProcessor(ctrl)
+	shardProcessorMock2 := NewMockShardProcessor(ctrl)
+	shardProcessorMock3 := NewMockShardProcessor(ctrl)
+
+	shardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
+	shardProcessorFactory.EXPECT().NewShardProcessor(gomock.Any()).Return(shardProcessorMock3, nil)
+
+	// Create the executor currently has shards 1 and 2 assigned to it
+	executor := &executorImpl[*MockShardProcessor]{
+		logger:                log.NewNoop(),
+		shardProcessorFactory: shardProcessorFactory,
+		metrics:               tally.NoopScope,
+	}
+
+	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
+	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
+
+	// We expect to get a new assignment with shards 2 and 3 assigned to it
+	newAssignment := map[string]*types.ShardAssignment{
+		"test-shard-id2": {Status: types.AssignmentStatusREADY},
+		"test-shard-id3": {Status: types.AssignmentStatusREADY},
+	}
+
+	// With the new assignment, shardProcessorMock1 should be stopped and shardProcessorMock3 should be started
+	shardProcessorMock1.EXPECT().Stop()
+	shardProcessorMock3.EXPECT().Start(gomock.Any())
+
+	// Update the shard assignment
+	executor.AssignShardsFromLocalLogic(context.Background(), newAssignment)
+	time.Sleep(10 * time.Millisecond) // Force the updateShardAssignment goroutines to run
+
+	// Assert that we now have the 2 shards in the assignment
+	_, err := executor.GetShardProcess("test-shard-id1")
+	assert.Error(t, err)
+
+	processor2, err := executor.GetShardProcess("test-shard-id2")
+	assert.NoError(t, err)
+	assert.Equal(t, shardProcessorMock2, processor2)
+
+	processor3, err := executor.GetShardProcess("test-shard-id3")
+	assert.NoError(t, err)
+	assert.Equal(t, shardProcessorMock3, processor3)
+
+}

@@ -101,6 +101,10 @@ func (d *AttrValidatorImpl) validateDomainReplicationConfigForGlobalDomain(
 	clusters := replicationConfig.Clusters
 	activeClusters := replicationConfig.ActiveClusters
 
+	if activeCluster == "" {
+		return errActiveClusterNameRequired
+	}
+
 	for _, clusterConfig := range clusters {
 		if err := d.validateClusterName(clusterConfig.ClusterName); err != nil {
 			return err
@@ -116,7 +120,16 @@ func (d *AttrValidatorImpl) validateDomainReplicationConfigForGlobalDomain(
 		return false
 	}
 
+	if err := d.validateClusterName(activeCluster); err != nil {
+		return err
+	}
+
+	if !isInClusters(activeCluster) {
+		return errActiveClusterNotInClusters
+	}
+
 	if replicationConfig.IsActiveActive() {
+		// For active-active domains, also validate that all clusters in ActiveClustersByRegion are valid
 		for _, cluster := range activeClusters.ActiveClustersByRegion {
 			if err := d.validateClusterName(cluster.ActiveClusterName); err != nil {
 				return err
@@ -125,14 +138,6 @@ func (d *AttrValidatorImpl) validateDomainReplicationConfigForGlobalDomain(
 			if !isInClusters(cluster.ActiveClusterName) {
 				return errActiveClusterNotInClusters
 			}
-		}
-	} else {
-		if err := d.validateClusterName(activeCluster); err != nil {
-			return err
-		}
-
-		if !isInClusters(activeCluster) {
-			return errActiveClusterNotInClusters
 		}
 	}
 

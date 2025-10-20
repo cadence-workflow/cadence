@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 	c "github.com/uber/cadence/common/dynamicconfig/configstore/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
 	"github.com/uber/cadence/common/service"
 )
@@ -92,6 +93,11 @@ type (
 
 		// ShardDistribution is a config for the shard distributor leader election component that allows to run a single process per region and manage shard namespaces.
 		ShardDistribution ShardDistribution `yaml:"shardDistribution"`
+
+		// Histograms controls timer vs histogram metric emission while they are being migrated.
+		//
+		// Timers will eventually be dropped, and this config will be validation-only (e.g. to error if any explicitly request timers).
+		Histograms metrics.HistogramMigration `yaml:"histograms"`
 	}
 
 	// Membership holds peer provider configuration.

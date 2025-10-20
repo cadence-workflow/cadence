@@ -49,6 +49,11 @@ func (g frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *type
 	return proto.ToDiagnoseWorkflowExecutionResponse(response), proto.ToError(err)
 }
 
+func (g frontendClient) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest, p1 ...yarpc.CallOption) (fp2 *types.FailoverDomainResponse, err error) {
+	response, err := g.c.FailoverDomain(ctx, proto.FromFailoverDomainRequest(fp1), p1...)
+	return proto.ToFailoverDomainResponse(response), proto.ToError(err)
+}
+
 func (g frontendClient) GetClusterInfo(ctx context.Context, p1 ...yarpc.CallOption) (cp1 *types.ClusterInfo, err error) {
 	response, err := g.c.GetClusterInfo(ctx, &apiv1.GetClusterInfoRequest{}, p1...)
 	return proto.ToGetClusterInfoResponse(response), proto.ToError(err)

@@ -26,19 +26,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync/atomic"
 	"testing"
-	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -49,335 +42,49 @@ const (
 	numShards = 10
 )
 
-func TestStartStop(t *testing.T) {
-	tests := []struct {
-		name                    string
-		externalEntityProviders func(ctrl *gomock.Controller) []ExternalEntityProvider
-		wantError               string
-	}{
-		{
-			name: "no external entity provider is provided",
-			externalEntityProviders: func(ctrl *gomock.Controller) []ExternalEntityProvider {
-				return nil
-			},
-		},
-		{
-			name: "external entity providers provided",
-			externalEntityProviders: func(ctrl *gomock.Controller) []ExternalEntityProvider {
-				p1 := NewMockExternalEntityProvider(ctrl)
-				p1.EXPECT().ChangeEvents().Return(make(chan ChangeType)).AnyTimes()
-				p1.EXPECT().SupportedType().Return("type1").AnyTimes()
-
-				p2 := NewMockExternalEntityProvider(ctrl)
-				p2.EXPECT().ChangeEvents().Return(make(chan ChangeType)).AnyTimes()
-				p2.EXPECT().SupportedType().Return("type2").AnyTimes()
-
-				return []ExternalEntityProvider{p1, p2}
-			},
-		},
-		{
-			name: "duplicate external entity providers provided",
-			externalEntityProviders: func(ctrl *gomock.Controller) []ExternalEntityProvider {
-				p1 := NewMockExternalEntityProvider(ctrl)
-				p1.EXPECT().ChangeEvents().Return(make(chan ChangeType)).AnyTimes()
-				p1.EXPECT().SupportedType().Return("type1").AnyTimes()
-
-				p2 := NewMockExternalEntityProvider(ctrl)
-				p2.EXPECT().ChangeEvents().Return(make(chan ChangeType)).AnyTimes()
-				p2.EXPECT().SupportedType().Return("type1").AnyTimes()
-
-				return []ExternalEntityProvider{p1, p1}
-			},
-			wantError: "already registered",
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			defer goleak.VerifyNone(t)
-			ctrl := gomock.NewController(t)
-			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-				return getDomainCacheEntry(nil, false), nil
-			}
-
-			metricsCl := metrics.NewNoopMetricsClient()
-			logger := log.NewNoop()
-			clusterMetadata := cluster.NewMetadata(
-				config.ClusterGroupMetadata{},
-				func(d string) bool { return false },
-				metricsCl,
-				logger,
-			)
-			timeSrc := clock.NewMockedTimeSource()
-			mgr, err := NewManager(domainIDToDomainFn, clusterMetadata, metricsCl, logger, tc.externalEntityProviders(ctrl), nil, numShards, WithTimeSource(timeSrc))
-			if tc.wantError != "" {
-				assert.ErrorContains(t, err, tc.wantError)
-				return
-			}
-			assert.NoError(t, err)
-			mgr.Start()
-			mgr.Stop()
-		})
-	}
-}
-
-func TestNotifyChangeCallbacks(t *testing.T) {
-	defer goleak.VerifyNone(t)
-	domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-		return getDomainCacheEntry(nil, false), nil
-	}
-
+func TestGetActiveClusterInfoByClusterAttribute(t *testing.T) {
 	metricsCl := metrics.NewNoopMetricsClient()
 	logger := log.NewNoop()
-	clusterMetadata := cluster.NewMetadata(
-		config.ClusterGroupMetadata{},
-		func(d string) bool { return false },
-		metricsCl,
-		logger,
-	)
-	timeSrc := clock.NewMockedTimeSource()
-	ctrl := gomock.NewController(t)
-	externalEntityProvider := NewMockExternalEntityProvider(ctrl)
-
-	entityChangeEventsCh := make(chan ChangeType)
-	externalEntityProvider.EXPECT().ChangeEvents().Return(entityChangeEventsCh).AnyTimes()
-	externalEntityProvider.EXPECT().SupportedType().Return("test-type").AnyTimes()
-
-	mgr, err := NewManager(domainIDToDomainFn, clusterMetadata, metricsCl, logger, []ExternalEntityProvider{externalEntityProvider}, nil, numShards, WithTimeSource(timeSrc))
-	assert.NoError(t, err)
-	mgr.Start()
-	defer mgr.Stop()
-
-	// register change callbacks
-	var changeCallbackCount int32
-	mgr.RegisterChangeCallback(1, func(changeType ChangeType) {
-		atomic.AddInt32(&changeCallbackCount, 1)
-	})
-	defer mgr.UnregisterChangeCallback(1)
-	mgr.RegisterChangeCallback(2, func(changeType ChangeType) {
-		atomic.AddInt32(&changeCallbackCount, 1)
-	})
-	defer mgr.UnregisterChangeCallback(2)
-
-	// advance the time so ticker ticks
-	timeSrc.Advance(notifyChangeCallbacksInterval + 10*time.Millisecond)
-	// let other goroutine to execute
-	time.Sleep(20 * time.Millisecond)
-
-	// no external entity change event occurred so change callbacks should not be notified
-	assert.Equal(t, atomic.LoadInt32(&changeCallbackCount), int32(0))
-
-	// trigger a few external entity change events
-	for i := 0; i < 3; i++ {
-		select {
-		case entityChangeEventsCh <- ChangeTypeEntityMap:
-		default:
-		}
-	}
-	// let other goroutine to execute
-	time.Sleep(20 * time.Millisecond)
-
-	// advance the time so ticker ticks
-	timeSrc.Advance(notifyChangeCallbacksInterval + 10*time.Millisecond)
-	// let other goroutine to execute
-	time.Sleep(20 * time.Millisecond)
-
-	// assert that change callbacks are notified
-	assert.Equal(t, atomic.LoadInt32(&changeCallbackCount), int32(2), "change callbacks should be notified for 2 times for 2 shards registered")
-}
-
-func TestLookupNewWorkflow(t *testing.T) {
-	metricsCl := metrics.NewNoopMetricsClient()
-	logger := log.NewNoop()
-	clusterMetadata := cluster.NewMetadata(
-		config.ClusterGroupMetadata{
-			ClusterGroup: map[string]config.ClusterInformation{
-				"cluster0": {
-					InitialFailoverVersion: 1,
-					Region:                 "us-west",
-				},
-				"cluster1": {
-					InitialFailoverVersion: 3,
-					Region:                 "us-east",
-				},
-			},
-			FailoverVersionIncrement: 100,
-			CurrentClusterName:       "cluster0",
-		},
-		func(d string) bool { return false },
-		metricsCl,
-		logger,
-	)
 
 	tests := []struct {
-		name                    string
-		policy                  *types.ActiveClusterSelectionPolicy
-		externalEntityProviders func(ctrl *gomock.Controller) []ExternalEntityProvider
-		activeClusterCfg        *types.ActiveClusters
-		expectedResult          *LookupResult
-		expectedError           string
+		name              string
+		clusterAttribute  *types.ClusterAttribute
+		activeClusterCfg  *types.ActiveClusters
+		domainIDToNameErr error
+		expectedResult    *types.ActiveClusterInfo
+		expectedError     string
 	}{
 		{
-			name:             "not active-active domain, returns failover version of the domain",
-			activeClusterCfg: nil, // not active-active domain
-			expectedResult: &LookupResult{
-				ClusterName:     "cluster0",
-				FailoverVersion: 201,
-			},
-		},
-		{
-			name:   "active-active domain, policy is nil. returns failover version of the active cluster in current region",
-			policy: nil,
+			name:             "nil cluster attribute - returns domain-level active cluster info",
+			clusterAttribute: nil,
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 					"us-west": {
 						ActiveClusterName: "cluster0",
 						FailoverVersion:   20,
 					},
-					"us-east": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   22,
-					},
 				},
 			},
-			expectedResult: &LookupResult{
-				ClusterName:     "cluster0",
-				FailoverVersion: 20, // failover version of cluster0 in RegionToClusterMap
+			expectedResult: &types.ActiveClusterInfo{
+				ActiveClusterName: "cluster0",
+				FailoverVersion:   201, // domain failover version
 			},
 		},
 		{
-			name: "active-active domain, policy is region sticky but region is missing in domain's active cluster config",
-			policy: &types.ActiveClusterSelectionPolicy{
-				ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-				StickyRegion:                   "us-west",
+			name: "domain ID to name function returns error",
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "us-west",
 			},
 			activeClusterCfg: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					// missing "us-west" here
-					"us-east": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   22,
-					},
-				},
-			},
-			expectedError: "could not find region us-west in the domain test-domain-id's active cluster config",
-		},
-		{
-			name: "active-active domain, policy is region sticky. returns failover version of the active cluster in sticky region",
-			policy: &types.ActiveClusterSelectionPolicy{
-				ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-				StickyRegion:                   "us-west",
-			},
-			activeClusterCfg: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"us-west": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   20,
-					},
-					"us-east": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   22,
-					},
-				},
-			},
-			expectedResult: &LookupResult{
-				ClusterName:     "cluster0",
-				FailoverVersion: 20, // failover version of cluster0 in RegionToClusterMap
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-				return getDomainCacheEntry(tc.activeClusterCfg, false), nil
-			}
-
-			timeSrc := clock.NewMockedTimeSource()
-			ctrl := gomock.NewController(t)
-			var providers []ExternalEntityProvider
-			if tc.externalEntityProviders != nil {
-				providers = tc.externalEntityProviders(ctrl)
-			}
-			mgr, err := NewManager(
-				domainIDToDomainFn,
-				clusterMetadata,
-				metricsCl,
-				logger,
-				providers,
-				nil,
-				numShards,
-				WithTimeSource(timeSrc),
-			)
-			assert.NoError(t, err)
-
-			result, err := mgr.LookupNewWorkflow(context.Background(), "test-domain-id", tc.policy)
-			if tc.expectedError != "" {
-				assert.EqualError(t, err, tc.expectedError)
-			} else {
-				assert.NoError(t, err)
-			}
-
-			if diff := cmp.Diff(tc.expectedResult, result); diff != "" {
-				t.Fatalf("expected result mismatch: %v", diff)
-			}
-		})
-	}
-}
-
-func TestLookupWorkflow(t *testing.T) {
-	metricsCl := metrics.NewNoopMetricsClient()
-	logger := log.NewNoop()
-	clusterMetadata := cluster.NewMetadata(
-		config.ClusterGroupMetadata{
-			ClusterGroup: map[string]config.ClusterInformation{
-				"cluster0": {
-					InitialFailoverVersion: 1,
-					Region:                 "us-west",
-				},
-				"cluster1": {
-					InitialFailoverVersion: 3,
-					Region:                 "us-east",
-				},
-			},
-			FailoverVersionIncrement: 100,
-			CurrentClusterName:       "cluster0",
-		},
-		func(d string) bool { return false },
-		metricsCl,
-		logger,
-	)
-
-	tests := []struct {
-		name                        string
-		externalEntityProviders     func(ctrl *gomock.Controller) []ExternalEntityProvider
-		getClusterSelectionPolicyFn func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
-		mockFn                      func(em *persistence.MockExecutionManager)
-		activeClusterCfg            *types.ActiveClusters
-		cachedPolicy                *types.ActiveClusterSelectionPolicy
-		domainIDToNameErr           error
-		migratedFromActivePassive   bool
-		expectedResult              *LookupResult
-		expectedError               string
-	}{
-		{
-			name:             "domain is not active-active",
-			activeClusterCfg: nil,
-			expectedResult: &LookupResult{
-				ClusterName:     "cluster0",
-				FailoverVersion: 201,
-			},
-		},
-		{
-			name: "domain id to name fn returns error",
-			activeClusterCfg: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"us-west": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   1,
-					},
-					"us-east": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   3,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
 					},
 				},
 			},
@@ -385,174 +92,156 @@ func TestLookupWorkflow(t *testing.T) {
 			expectedError:     "failed to find domain by id",
 		},
 		{
-			name: "domain is active-active, failed to fetch active cluster policy",
-			activeClusterCfg: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"us-west": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   1,
-					},
-					"us-east": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   3,
-					},
-				},
+			name: "nil active clusters - returns ClusterAttributeNotFoundError",
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "us-west",
 			},
-			mockFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("failed to fetch policy"))
-			},
-			expectedError: "failed to fetch policy",
+			activeClusterCfg: nil,
+			expectedError:    "could not find cluster attribute &{region us-west} in the domain test-domain-id's active cluster config",
 		},
 		{
-			name:                      "domain is migrated from active-passive to active-active, activeness metadata not-found. falls back to domain's active cluster name and failover version",
-			migratedFromActivePassive: true,
+			name: "nil attribute scopes - returns ClusterAttributeNotFoundError",
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "us-west",
+			},
 			activeClusterCfg: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"us-west": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   1,
-					},
-					"us-east": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   3,
-					},
-				},
+				AttributeScopes: nil,
 			},
-			mockFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, &types.EntityNotExistsError{})
-			},
-			expectedResult: &LookupResult{
-				ClusterName:     "cluster0",
-				FailoverVersion: 201,
-			},
+			expectedError: "could not find cluster attribute &{region us-west} in the domain test-domain-id's active cluster config",
 		},
 		{
-			name: "domain is active-active and NOT migrated from active-passive, policy not-found. return cluster name and failover version of current region",
+			name: "scope not found - returns ClusterAttributeNotFoundError",
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "datacenter",
+				Name:  "dc1",
+			},
 			activeClusterCfg: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"us-west": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   101,
-					},
-					"us-east": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   3,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
 					},
 				},
 			},
-			mockFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, &types.EntityNotExistsError{})
-			},
-			expectedResult: &LookupResult{
-				ClusterName:     "cluster0",
-				FailoverVersion: 101,
-				Region:          "us-west",
-			},
+			expectedError: "could not find cluster attribute &{datacenter dc1} in the domain test-domain-id's active cluster config",
 		},
 		{
-			name: "domain is active-active, policy is nil means region sticky",
+			name: "attribute name not found in scope - returns ClusterAttributeNotFoundError",
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "us-central",
+			},
 			activeClusterCfg: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"us-west": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   1,
-					},
-					"us-east": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   3,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+							"us-east": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   200,
+							},
+						},
 					},
 				},
 			},
-			mockFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, nil)
-			},
-			expectedResult: &LookupResult{
-				ClusterName:     "cluster0",
-				FailoverVersion: 1,
-				Region:          "us-west",
-			},
+			expectedError: "could not find cluster attribute &{region us-central} in the domain test-domain-id's active cluster config",
 		},
 		{
-			name: "domain is active-active, policy shows region sticky",
+			name: "successful lookup - returns active cluster info for region attribute",
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "us-west",
+			},
 			activeClusterCfg: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"us-west": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   1,
-					},
-					"us-east": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   3,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+							"us-east": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   200,
+							},
+						},
 					},
 				},
 			},
-			mockFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&types.ActiveClusterSelectionPolicy{
-						ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-						StickyRegion:                   "us-east",
-					}, nil)
-			},
-			expectedResult: &LookupResult{
-				Region:          "us-east",
-				ClusterName:     "cluster1",
-				FailoverVersion: 3,
+			expectedResult: &types.ActiveClusterInfo{
+				ActiveClusterName: "cluster0",
+				FailoverVersion:   100,
 			},
 		},
 		{
-			name: "domain is active-active, policy returned from cache",
+			name: "successful lookup - returns active cluster info for custom scope",
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "datacenter",
+				Name:  "dc1",
+			},
 			activeClusterCfg: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"us-west": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   1,
-					},
-					"us-east": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   3,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"datacenter": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"dc1": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   150,
+							},
+							"dc2": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   250,
+							},
+						},
 					},
 				},
 			},
-			cachedPolicy: &types.ActiveClusterSelectionPolicy{
-				ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-				StickyRegion:                   "us-east",
-			},
-			expectedResult: &LookupResult{
-				Region:          "us-east",
-				ClusterName:     "cluster1",
-				FailoverVersion: 3,
+			expectedResult: &types.ActiveClusterInfo{
+				ActiveClusterName: "cluster0",
+				FailoverVersion:   150,
 			},
 		},
 		{
-			name: "domain is active-active, policy shows region sticky. domain is failed over to cluster1",
+			name: "successful lookup - multiple scopes with different attributes",
+			clusterAttribute: &types.ClusterAttribute{
+				Scope: "city",
+				Name:  "seattle",
+			},
 			activeClusterCfg: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					// both regions have cluster1 as active cluster
-					"us-west": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   3,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
 					},
-					"us-east": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   3,
+					"city": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"seattle": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   300,
+							},
+							"san_francisco": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   350,
+							},
+						},
 					},
 				},
 			},
-			mockFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&types.ActiveClusterSelectionPolicy{
-						ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-						StickyRegion:                   "us-west",
-					}, nil)
-			},
-			expectedResult: &LookupResult{
-				Region:          "us-west",
-				ClusterName:     "cluster1",
-				FailoverVersion: 3,
+			expectedResult: &types.ActiveClusterInfo{
+				ActiveClusterName: "cluster1",
+				FailoverVersion:   300,
 			},
 		},
 	}
@@ -560,53 +249,24 @@ func TestLookupWorkflow(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-				return getDomainCacheEntry(tc.activeClusterCfg, tc.migratedFromActivePassive), tc.domainIDToNameErr
+				return getDomainCacheEntryWithAttributeScopes(tc.activeClusterCfg), tc.domainIDToNameErr
 			}
-
-			timeSrc := clock.NewMockedTimeSource()
-			ctrl := gomock.NewController(t)
-			var providers []ExternalEntityProvider
-			if tc.externalEntityProviders != nil {
-				providers = tc.externalEntityProviders(ctrl)
-			}
-
-			wfID := "test-workflow-id"
-			shardID := 6 // corresponds to wfID given numShards
-			em := persistence.NewMockExecutionManager(ctrl)
-			if tc.mockFn != nil {
-				tc.mockFn(em)
-			}
-			emProvider := NewMockExecutionManagerProvider(ctrl)
-			emProvider.EXPECT().GetExecutionManager(shardID).Return(em, nil).AnyTimes()
 
 			mgr, err := NewManager(
 				domainIDToDomainFn,
-				clusterMetadata,
 				metricsCl,
 				logger,
-				providers,
-				emProvider,
+				nil,
 				numShards,
-				WithTimeSource(timeSrc),
 			)
 			assert.NoError(t, err)
 
-			if tc.cachedPolicy != nil {
-				key := fmt.Sprintf("%s:%s:%s", "test-domain-id", wfID, "test-run-id")
-				mgr.(*managerImpl).workflowPolicyCache.Put(key, tc.cachedPolicy)
-			}
-
-			result, err := mgr.LookupWorkflow(context.Background(), "test-domain-id", wfID, "test-run-id")
+			result, err := mgr.GetActiveClusterInfoByClusterAttribute(context.Background(), "test-domain-id", tc.clusterAttribute)
 			if tc.expectedError != "" {
 				assert.EqualError(t, err, tc.expectedError)
+				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)
-			}
-
-			if tc.expectedResult != nil {
-				if result == nil {
-					t.Fatalf("expected result not nil, got nil")
-				}
 				assert.Equal(t, tc.expectedResult, result)
 			}
 		})
@@ -631,6 +291,350 @@ func getDomainCacheEntry(cfg *types.ActiveClusters, migratedFromActivePassive bo
 			ActiveClusterName: activeClusterName,
 		},
 		201,
+		nil,
+		1,
+		1,
+		1,
+	)
+}
+
+func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
+	metricsCl := metrics.NewNoopMetricsClient()
+	logger := log.NewNoop()
+
+	tests := []struct {
+		name                           string
+		activeClusterCfg               *types.ActiveClusters
+		domainIDToNameErr              error
+		mockExecutionManagerFn         func(em *persistence.MockExecutionManager)
+		mockExecutionManagerProviderFn func(emp *MockExecutionManagerProvider)
+		cachedPolicy                   *types.ActiveClusterSelectionPolicy
+		expectedResult                 *types.ActiveClusterInfo
+		expectedError                  string
+	}{
+		{
+			name: "domain ID to name function returns error",
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			domainIDToNameErr: errors.New("failed to find domain by id"),
+			expectedError:     "failed to find domain by id",
+		},
+		{
+			name: "execution manager provider returns error",
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerProviderFn: func(emp *MockExecutionManagerProvider) {
+				emp.EXPECT().GetExecutionManager(6).Return(nil, errors.New("failed to get execution manager")).AnyTimes()
+			},
+			expectedError: "failed to get execution manager",
+		},
+		{
+			name: "execution manager GetActiveClusterSelectionPolicy returns error",
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+					Return(nil, errors.New("database error"))
+			},
+			expectedError: "database error",
+		},
+		{
+			name: "policy not found (EntityNotExistsError) - uses empty policy with nil cluster attribute",
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+					Return(nil, &types.EntityNotExistsError{Message: "policy not found"})
+			},
+			expectedResult: &types.ActiveClusterInfo{
+				ActiveClusterName: "cluster0", // domain-level active cluster
+				FailoverVersion:   201,        // domain failover version
+			},
+		},
+		{
+			name: "policy not found (EntityNotExistsError) - empty policy with cluster attribute not found",
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+					Return(nil, &types.EntityNotExistsError{Message: "policy not found"})
+			},
+			expectedResult: &types.ActiveClusterInfo{
+				ActiveClusterName: "cluster0", // domain-level active cluster
+				FailoverVersion:   201,        // domain failover version
+			},
+		},
+		{
+			name: "policy found but cluster attribute not found in domain config",
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+					Return(&types.ActiveClusterSelectionPolicy{
+						ClusterAttribute: &types.ClusterAttribute{
+							Scope: "datacenter",
+							Name:  "dc1",
+						},
+					}, nil)
+			},
+			expectedError: "could not find cluster attribute &{datacenter dc1} in the domain test-domain-id's active cluster config",
+		},
+		{
+			name: "successful lookup - policy found and cluster attribute exists",
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+							"us-east": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   200,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+					Return(&types.ActiveClusterSelectionPolicy{
+						ClusterAttribute: &types.ClusterAttribute{
+							Scope: "region",
+							Name:  "us-east",
+						},
+					}, nil)
+			},
+			expectedResult: &types.ActiveClusterInfo{
+				ActiveClusterName: "cluster1",
+				FailoverVersion:   200,
+			},
+		},
+		{
+			name: "successful lookup - policy from cache",
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"datacenter": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"dc1": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   150,
+							},
+							"dc2": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   250,
+							},
+						},
+					},
+				},
+			},
+			cachedPolicy: &types.ActiveClusterSelectionPolicy{
+				ClusterAttribute: &types.ClusterAttribute{
+					Scope: "datacenter",
+					Name:  "dc2",
+				},
+			},
+			// No mock needed since policy comes from cache
+			expectedResult: &types.ActiveClusterInfo{
+				ActiveClusterName: "cluster1",
+				FailoverVersion:   250,
+			},
+		},
+		{
+			name: "successful lookup - nil cluster attribute in policy uses domain-level info",
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+					Return(&types.ActiveClusterSelectionPolicy{
+						ClusterAttribute: nil, // nil cluster attribute
+					}, nil)
+			},
+			expectedResult: &types.ActiveClusterInfo{
+				ActiveClusterName: "cluster0", // domain-level active cluster
+				FailoverVersion:   201,        // domain failover version
+			},
+		},
+		{
+			name: "successful lookup - multiple scopes with different attributes",
+			activeClusterCfg: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+						},
+					},
+					"city": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"seattle": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   300,
+							},
+							"san_francisco": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   350,
+							},
+						},
+					},
+				},
+			},
+			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+					Return(&types.ActiveClusterSelectionPolicy{
+						ClusterAttribute: &types.ClusterAttribute{
+							Scope: "city",
+							Name:  "seattle",
+						},
+					}, nil)
+			},
+			expectedResult: &types.ActiveClusterInfo{
+				ActiveClusterName: "cluster1",
+				FailoverVersion:   300,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
+				return getDomainCacheEntryWithAttributeScopes(tc.activeClusterCfg), tc.domainIDToNameErr
+			}
+
+			ctrl := gomock.NewController(t)
+
+			wfID := "test-workflow-id"
+			shardID := 6 // corresponds to wfID given numShards
+
+			var emProvider *MockExecutionManagerProvider
+			if tc.mockExecutionManagerProviderFn != nil || tc.mockExecutionManagerFn != nil {
+				emProvider = NewMockExecutionManagerProvider(ctrl)
+
+				if tc.mockExecutionManagerProviderFn != nil {
+					tc.mockExecutionManagerProviderFn(emProvider)
+				} else {
+					// Default case: create execution manager and set up provider
+					em := persistence.NewMockExecutionManager(ctrl)
+					if tc.mockExecutionManagerFn != nil {
+						tc.mockExecutionManagerFn(em)
+					}
+					emProvider.EXPECT().GetExecutionManager(shardID).Return(em, nil).AnyTimes()
+				}
+			}
+
+			mgr, err := NewManager(
+				domainIDToDomainFn,
+				metricsCl,
+				logger,
+				emProvider,
+				numShards,
+			)
+			assert.NoError(t, err)
+
+			if tc.cachedPolicy != nil {
+				key := fmt.Sprintf("%s:%s:%s", "test-domain-id", wfID, "test-run-id")
+				mgr.(*managerImpl).workflowPolicyCache.Put(key, tc.cachedPolicy)
+			}
+
+			result, err := mgr.GetActiveClusterInfoByWorkflow(context.Background(), "test-domain-id", wfID, "test-run-id")
+			if tc.expectedError != "" {
+				assert.EqualError(t, err, tc.expectedError)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedResult, result)
+			}
+		})
+	}
+}
+
+func getDomainCacheEntryWithAttributeScopes(cfg *types.ActiveClusters) *cache.DomainCacheEntry {
+	// Helper function specifically for GetActiveClusterInfoByClusterAttribute tests
+	// Always sets activeClusterName to "cluster0" for consistency
+	return cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{
+			Name: "test-domain-id",
+		},
+		nil,
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusters:    cfg,
+			ActiveClusterName: "cluster0",
+		},
+		201, // domain failover version
 		nil,
 		1,
 		1,

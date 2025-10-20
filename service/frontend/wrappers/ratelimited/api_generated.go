@@ -122,6 +122,22 @@ func (h *apiHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.D
 	return h.wrapped.DiagnoseWorkflowExecution(ctx, dp1)
 }
 
+func (h *apiHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest) (fp2 *types.FailoverDomainResponse, err error) {
+	if fp1 == nil {
+		err = validate.ErrRequestNotSet
+		return
+	}
+	if fp1.GetDomain() == "" {
+		err = validate.ErrDomainNotSet
+		return
+	}
+	if ok := h.allowDomain(ratelimitTypeUser, fp1.GetDomain()); !ok {
+		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+		return
+	}
+	return h.wrapped.FailoverDomain(ctx, fp1)
+}
+
 func (h *apiHandler) GetClusterInfo(ctx context.Context) (cp1 *types.ClusterInfo, err error) {
 	return h.wrapped.GetClusterInfo(ctx)
 }

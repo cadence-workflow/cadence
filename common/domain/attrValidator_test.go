@@ -237,6 +237,55 @@ func (s *attrValidatorSuite) TestValidateDomainReplicationConfigForGlobalDomain(
 		},
 	)
 	s.NoError(err)
+
+	// When ActiveClusterName is not provided, and ActiveClusters are not provided, it should return an error
+	err = s.validator.validateDomainReplicationConfigForGlobalDomain(
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: "",
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+			},
+		},
+	)
+	s.Error(err)
+	s.IsType(&types.BadRequestError{}, err)
+
+	// When ActiveClusterName and ActiveClusters are provided, it should not return an error
+	err = s.validator.validateDomainReplicationConfigForGlobalDomain(
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestCurrentClusterName,
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+			ActiveClusters: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+					cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+		},
+	)
+	s.NoError(err)
+
+	// When ActiveClusterName is not provided, and ActiveClusters are provided, it should return an error
+	err = s.validator.validateDomainReplicationConfigForGlobalDomain(
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: "",
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+			ActiveClusters: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+					cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+		},
+	)
+	s.Error(err)
+	s.IsType(&types.BadRequestError{}, err)
 }
 
 func (s *attrValidatorSuite) TestValidateDomainReplicationConfigClustersDoesNotRemove() {

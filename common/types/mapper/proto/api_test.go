@@ -23,11 +23,13 @@ package proto
 import (
 	"testing"
 
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
 )
 
@@ -440,10 +442,45 @@ func TestRecordMarkerDecisionAttributes(t *testing.T) {
 		assert.Equal(t, item, ToRecordMarkerDecisionAttributes(FromRecordMarkerDecisionAttributes(item)))
 	}
 }
-func TestRegisterDomainRequest(t *testing.T) {
-	for _, item := range []*types.RegisterDomainRequest{nil, {EmitMetric: common.BoolPtr(true)}, &testdata.RegisterDomainRequest} {
-		assert.Equal(t, item, ToRegisterDomainRequest(FromRegisterDomainRequest(item)))
-	}
+
+func TestRegisterDomainRequestFuzz(t *testing.T) {
+	t.Run("round trip from internal", func(t *testing.T) {
+		testutils.EnsureFuzzCoverage(t, []string{
+			"nil", "empty", "filled",
+		}, func(t *testing.T, f *fuzz.Fuzzer) string {
+			// Configure fuzzer to generate valid enum values and reasonable day ranges
+			fuzzer := f.Funcs(
+				func(e *types.ArchivalStatus, c fuzz.Continue) {
+					*e = types.ArchivalStatus(c.Intn(2)) // 0-1 are valid values (Disabled=0, Enabled=1)
+				},
+				func(days *int32, c fuzz.Continue) {
+					// Generate reasonable retention period values to avoid precision loss in conversion
+					*days = int32(c.Intn(10000)) // 0-9999 days is reasonable range
+				},
+			).NilChance(0.3)
+
+			var orig *types.RegisterDomainRequest
+			fuzzer.Fuzz(&orig)
+			out := ToRegisterDomainRequest(FromRegisterDomainRequest(orig))
+
+			// Proto RegisterDomainRequest doesn't support EmitMetric field, it's always fixed on
+			if orig != nil {
+				expected := *orig                          // Copy the struct
+				expected.EmitMetric = common.BoolPtr(true) // this is a legacy field which is always true. It's probably safe to remove
+				assert.Equal(t, &expected, out, "RegisterDomainRequest did not survive round-tripping")
+			} else {
+				assert.Equal(t, orig, out, "RegisterDomainRequest did not survive round-tripping")
+			}
+
+			if orig == nil {
+				return "nil"
+			}
+			if orig.Name == "" && orig.ActiveClusterName == "" && orig.ActiveClusters == nil {
+				return "empty"
+			}
+			return "filled"
+		})
+	})
 }
 func TestRequestCancelActivityTaskDecisionAttributes(t *testing.T) {
 	for _, item := range []*types.RequestCancelActivityTaskDecisionAttributes{nil, {}, &testdata.RequestCancelActivityTaskDecisionAttributes} {
@@ -1231,5 +1268,115 @@ func TestToAPITaskListPartitionConfig(t *testing.T) {
 			actual := ToAPITaskListPartitionConfig(tc.config)
 			assert.Equal(t, tc.expected, actual)
 		})
+	}
+}
+
+func TestActiveClustersConversion(t *testing.T) {
+	testCases := []*types.ActiveClusters{
+		nil,
+		{},
+		{
+			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+				"us-west-1": {
+					ActiveClusterName: "cluster1",
+					FailoverVersion:   1,
+				},
+				"us-east-1": {
+					ActiveClusterName: "cluster2",
+					FailoverVersion:   2,
+				},
+			},
+		},
+		{
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   1,
+						},
+						"us-east-1": {
+							ActiveClusterName: "cluster2",
+							FailoverVersion:   2,
+						},
+					},
+				},
+				"datacenter": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"dc1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   10,
+						},
+					},
+				},
+			},
+		},
+		{
+			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+				"us-west-1": {
+					ActiveClusterName: "cluster1",
+					FailoverVersion:   1,
+				},
+			},
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   1,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, original := range testCases {
+		protoObj := FromActiveClusters(original)
+		roundTripObj := ToActiveClusters(protoObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestClusterAttribute(t *testing.T) {
+	for _, item := range []*types.ClusterAttribute{nil, {}, &testdata.ClusterAttribute} {
+		assert.Equal(t, item, ToClusterAttribute(FromClusterAttribute(item)))
+	}
+}
+
+// TODO(active-active): Remove the comment once the strategy is removed
+/*
+func TestActiveClusterSelectionPolicy(t *testing.T) {
+	for _, item := range []*types.ActiveClusterSelectionPolicy{
+		nil,
+		{},
+		&testdata.ActiveClusterSelectionPolicyWithClusterAttribute,
+	} {
+		assert.Equal(t, item, ToActiveClusterSelectionPolicy(FromActiveClusterSelectionPolicy(item)))
+	}
+}*/
+
+func TestClusterAttributeScopeConversion(t *testing.T) {
+	testCases := []*types.ClusterAttributeScope{
+		nil,
+		{},
+		{
+			ClusterAttributes: map[string]types.ActiveClusterInfo{
+				"us-west-1": {
+					ActiveClusterName: "cluster1",
+					FailoverVersion:   1,
+				},
+				"us-east-1": {
+					ActiveClusterName: "cluster2",
+					FailoverVersion:   2,
+				},
+			},
+		},
+	}
+
+	for _, original := range testCases {
+		protoObj := FromClusterAttributeScope(original)
+		roundTripObj := ToClusterAttributeScope(protoObj)
+		assert.Equal(t, original, roundTripObj)
 	}
 }

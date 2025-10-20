@@ -255,10 +255,7 @@ func makeFactoryWithMetrics(t *testing.T, withMetrics bool) Factory {
 	logger := testlogger.New(t)
 	var met metrics.Client
 	if withMetrics {
-		met = metrics.NewClient(
-			tally.NewTestScope("", nil),
-			service.GetMetricsServiceIdx(service.Frontend, logger),
-		)
+		met = metrics.NewClient(tally.NewTestScope("", nil), service.GetMetricsServiceIdx(service.Frontend, logger), metrics.HistogramMigration{})
 	}
 	ctrl := gomock.NewController(t)
 	dc := dynamicconfig.NewCollection(dynamicconfig.NewMockClient(ctrl), logger)

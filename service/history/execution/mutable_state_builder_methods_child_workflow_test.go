@@ -739,6 +739,7 @@ func loadMutableState(t *testing.T, ctx *shard.TestContext, state *persistence.W
 	m := newMutableStateBuilder(ctx,
 		log.NewNoop(),
 		domain,
+		domain.GetFailoverVersion(),
 	)
 	err := m.Load(context.Background(), state)
 	assert.NoError(t, err)

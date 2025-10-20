@@ -150,7 +150,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 	}
 
 	scope := tally.NewTestScope("integration-test", nil)
-	metricsClient := metrics.NewClient(scope, metrics.ServiceIdx(0))
+	metricsClient := metrics.NewClient(scope, metrics.ServiceIdx(0), metrics.HistogramMigration{} /* default, only used in test setups */)
 	domainReplicationQueue := domain.NewReplicationQueue(
 		testBase.DomainReplicationQueueMgr,
 		options.ClusterGroupMetadata.CurrentClusterName,
@@ -231,7 +231,7 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 	pinotClient = pnt.NewPinotClient(pinotRawClient, logger, options.PinotConfig)
 
 	scope := tally.NewTestScope("integration-test", nil)
-	metricsClient := metrics.NewClient(scope, metrics.ServiceIdx(0))
+	metricsClient := metrics.NewClient(scope, metrics.ServiceIdx(0), metrics.HistogramMigration{} /* default, only used in test setups */)
 	domainReplicationQueue := domain.NewReplicationQueue(
 		testBase.DomainReplicationQueueMgr,
 		options.ClusterGroupMetadata.CurrentClusterName,

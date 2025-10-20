@@ -49,7 +49,7 @@ func TestDomainMetricsCacheSuite(t *testing.T) {
 
 func (s *domainMetricsCacheSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
-	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.Frontend)
+	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.Frontend, metrics.HistogramMigration{})
 
 	metricsCache := NewDomainMetricsScopeCache().(*domainMetricsScopeCache)
 	metricsCache.flushDuration = 100 * time.Millisecond

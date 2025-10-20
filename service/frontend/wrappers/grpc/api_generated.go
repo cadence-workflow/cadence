@@ -56,6 +56,11 @@ func (g APIHandler) DiagnoseWorkflowExecution(ctx context.Context, request *apiv
 	return proto.FromDiagnoseWorkflowExecutionResponse(response), proto.FromError(err)
 }
 
+func (g APIHandler) FailoverDomain(ctx context.Context, request *apiv1.FailoverDomainRequest) (*apiv1.FailoverDomainResponse, error) {
+	response, err := g.h.FailoverDomain(ctx, proto.ToFailoverDomainRequest(request))
+	return proto.FromFailoverDomainResponse(response), proto.FromError(err)
+}
+
 func (g APIHandler) GetClusterInfo(ctx context.Context, request *apiv1.GetClusterInfoRequest) (*apiv1.GetClusterInfoResponse, error) {
 	response, err := g.h.GetClusterInfo(ctx)
 	return proto.FromGetClusterInfoResponse(response), proto.FromError(err)

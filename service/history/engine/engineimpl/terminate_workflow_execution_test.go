@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -113,6 +114,8 @@ func TestTerminateWorkflowExecution(t *testing.T) {
 					On("GetWorkflowExecution", mock.Anything, getExecReq).
 					Return(getExecResp, nil).Once()
 
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
+
 				// Mock the retrieval of the workflow's history branch
 				historyBranchResp := &persistence.ReadHistoryBranchResponse{
 					HistoryEvents: []*types.HistoryEvent{
@@ -184,6 +187,8 @@ func TestTerminateWorkflowExecution(t *testing.T) {
 				eft.ShardCtx.Resource.ExecutionMgr.
 					On("GetWorkflowExecution", mock.Anything, getExecReq).
 					Return(getExecResp, nil).Once()
+
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 
 				eft.ShardCtx.Resource.ExecutionMgr.
 					On("UpdateWorkflowExecution", mock.Anything, mock.Anything).
@@ -285,6 +290,8 @@ func TestTerminateWorkflowExecution(t *testing.T) {
 					Return(getExecResp, nil).
 					Once()
 
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
+
 				// ReadHistoryBranch prep
 				historyBranchResp := &persistence.ReadHistoryBranchResponse{
 					HistoryEvents: []*types.HistoryEvent{
@@ -361,6 +368,8 @@ func TestTerminateWorkflowExecution(t *testing.T) {
 					On("GetWorkflowExecution", mock.Anything, getExecReq).
 					Return(getExecResp, nil).Once()
 
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
+
 				getCurrentExecReq := &persistence.GetCurrentExecutionRequest{
 					DomainID:   constants.TestDomainID,
 					WorkflowID: constants.TestWorkflowID,
@@ -433,6 +442,8 @@ func TestTerminateWorkflowExecution(t *testing.T) {
 					On("GetWorkflowExecution", mock.Anything, getExecReq).
 					Return(getExecResp, nil).Once()
 
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
+
 				getCurrentExecReq := &persistence.GetCurrentExecutionRequest{
 					DomainID:   constants.TestDomainID,
 					WorkflowID: constants.TestWorkflowID,
@@ -493,6 +504,8 @@ func TestTerminateWorkflowExecution(t *testing.T) {
 				eft.ShardCtx.Resource.ExecutionMgr.
 					On("GetWorkflowExecution", mock.Anything, getExecReq).
 					Return(getExecResp, nil).Once()
+
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 
 				getCurrentExecReq := &persistence.GetCurrentExecutionRequest{
 					DomainID:   constants.TestDomainID,

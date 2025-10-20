@@ -182,6 +182,28 @@ func (c *frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *typ
 	return dp2, err
 }
 
+func (c *frontendClient) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest, p1 ...yarpc.CallOption) (fp2 *types.FailoverDomainResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.FrontendClientFailoverDomainScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.FrontendClientFailoverDomainScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	fp2, err = c.client.FailoverDomain(ctx, fp1, p1...)
+	sw.Stop()
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return fp2, err
+}
+
 func (c *frontendClient) GetClusterInfo(ctx context.Context, p1 ...yarpc.CallOption) (cp1 *types.ClusterInfo, err error) {
 	retryCount := getRetryCountFromContext(ctx)
 

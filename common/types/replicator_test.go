@@ -732,6 +732,19 @@ func TestReplicationTask_GetSourceTaskID(t *testing.T) {
 	assert.Equal(t, int64(0), res)
 }
 
+func TestReplicationTask_GetSequenceID(t *testing.T) {
+	testStruct := ReplicationTask{
+		SourceTaskID: 12345,
+	}
+
+	res := testStruct.GetSequenceID()
+	assert.Equal(t, int64(12345), res)
+
+	var nilStruct *ReplicationTask
+	res = nilStruct.GetSequenceID()
+	assert.Equal(t, int64(0), res)
+}
+
 func TestReplicationTask_GetDomainTaskAttributes(t *testing.T) {
 	domainTask := &DomainTaskAttributes{}
 	testStruct := ReplicationTask{
