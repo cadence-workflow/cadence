@@ -427,20 +427,6 @@ func (a *apiHandler) RequestCancelWorkflowExecution(ctx context.Context, rp1 *ty
 }
 
 func (a *apiHandler) ResetStickyTaskList(ctx context.Context, rp1 *types.ResetStickyTaskListRequest) (rp2 *types.ResetStickyTaskListResponse, err error) {
-	scope := a.getMetricsScopeWithDomain(metrics.FrontendResetStickyTaskListScope, rp1.GetDomain())
-	attr := &authorization.Attributes{
-		APIName:     "ResetStickyTaskList",
-		Permission:  authorization.PermissionWrite,
-		RequestBody: authorization.NewFilteredRequestBody(rp1),
-		DomainName:  rp1.GetDomain(),
-	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
-	if err != nil {
-		return nil, err
-	}
-	if !isAuthorized {
-		return nil, errUnauthorized
-	}
 	return a.handler.ResetStickyTaskList(ctx, rp1)
 }
 
