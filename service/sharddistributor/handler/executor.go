@@ -91,56 +91,34 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 // assignShardsInCurrentHeartbeat is used during the migration phase to assign the shards to the executors according to what is reported during the heartbeat
 func (h *executor) assignShardsInCurrentHeartbeat(ctx context.Context, request *types.ExecutorHeartbeatRequest, previousHeartbeat *store.HeartbeatState, previousAssignedShards *store.AssignedState) (*store.AssignedState, error) {
 	assignedShards := *previousAssignedShards
-	changeInShardAssignment := isShardAssignmentChanged(previousHeartbeat, request.GetShardStatusReports())
-	if changeInShardAssignment {
-		assignedShards = store.AssignedState{
-			AssignedShards: make(map[string]*types.ShardAssignment),
-			LastUpdated:    h.timeSource.Now().Unix(),
-			ModRevision:    int64(0),
+
+	assignedShards = store.AssignedState{
+		AssignedShards: make(map[string]*types.ShardAssignment),
+		LastUpdated:    h.timeSource.Now().Unix(),
+		ModRevision:    int64(0),
+	}
+	err := h.storage.DeleteExecutors(ctx, request.GetNamespace(), []string{request.GetExecutorID()}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("delete executors: %w", err)
+	}
+	for shard := range request.GetShardStatusReports() {
+		assignedShards.AssignedShards[shard] = &types.ShardAssignment{
+			Status: types.AssignmentStatusREADY,
 		}
-		err := h.storage.DeleteExecutors(ctx, request.GetNamespace(), []string{request.GetExecutorID()}, nil)
-		if err != nil {
-			return nil, fmt.Errorf("delete executors: %w", err)
-		}
-		for shard := range request.GetShardStatusReports() {
-			assignedShards.AssignedShards[shard] = &types.ShardAssignment{
-				Status: types.AssignmentStatusREADY,
-			}
-		}
-		assignShardsRequest := store.AssignShardsRequest{
-			NewState: &store.NamespaceState{
-				ShardAssignments: map[string]store.AssignedState{
-					request.GetExecutorID(): assignedShards,
-				},
+	}
+	assignShardsRequest := store.AssignShardsRequest{
+		NewState: &store.NamespaceState{
+			ShardAssignments: map[string]store.AssignedState{
+				request.GetExecutorID(): assignedShards,
 			},
-		}
-		err = h.storage.AssignShards(ctx, request.GetNamespace(), assignShardsRequest, nil)
-		if err != nil {
-			return nil, fmt.Errorf("assign shards in current heartbeat: %w", err)
-		}
+		},
+	}
+	err = h.storage.AssignShards(ctx, request.GetNamespace(), assignShardsRequest, store.NopGuard())
+	if err != nil {
+		return nil, fmt.Errorf("assign shards in current heartbeat: %w", err)
 	}
 
 	return &assignedShards, nil
-}
-
-func isShardAssignmentChanged(previousHeartbeat *store.HeartbeatState, newShardAssignmentStatus map[string]*types.ShardStatusReport) bool {
-	changeInShardAssignment := false
-	// Check if the shards of the new assignment exists and have the same status in the old assignment
-	for shardAssigned, status := range newShardAssignmentStatus {
-		shardStatusPreviousHeartbeat, ok := previousHeartbeat.ReportedShards[shardAssigned]
-		if !ok {
-			changeInShardAssignment = true
-			break
-		}
-		if status.GetStatus() != shardStatusPreviousHeartbeat.GetStatus() {
-			changeInShardAssignment = true
-		}
-	}
-	// Check if some shards from previous assignment should be deleted
-	if len(newShardAssignmentStatus) != len(previousHeartbeat.ReportedShards) {
-		changeInShardAssignment = true
-	}
-	return changeInShardAssignment
 }
 
 func _convertResponse(shards *store.AssignedState, mode types.MigrationMode) *types.ExecutorHeartbeatResponse {
