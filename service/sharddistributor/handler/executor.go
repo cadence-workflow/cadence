@@ -97,7 +97,7 @@ func (h *executor) assignShardsInCurrentHeartbeat(ctx context.Context, request *
 		LastUpdated:    h.timeSource.Now().Unix(),
 		ModRevision:    int64(0),
 	}
-	err := h.storage.DeleteExecutors(ctx, request.GetNamespace(), []string{request.GetExecutorID()}, nil)
+	err := h.storage.DeleteExecutors(ctx, request.GetNamespace(), []string{request.GetExecutorID()}, store.NopGuard())
 	if err != nil {
 		return nil, fmt.Errorf("delete executors: %w", err)
 	}

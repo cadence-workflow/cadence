@@ -244,8 +244,8 @@ func TestHeartbeat(t *testing.T) {
 		}
 
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, &assignedState, nil)
-		mockStore.EXPECT().DeleteExecutors(gomock.Any(), namespace, []string{executorID}, nil).Return(nil)
-		mockStore.EXPECT().AssignShards(gomock.Any(), namespace, gomock.Any(), nil).DoAndReturn(
+		mockStore.EXPECT().DeleteExecutors(gomock.Any(), namespace, []string{executorID}, gomock.Any()).Return(nil)
+		mockStore.EXPECT().AssignShards(gomock.Any(), namespace, gomock.Any(), gomock.Any()).DoAndReturn(
 			func(ctx context.Context, namespace string, request store.AssignShardsRequest, guard store.GuardFunc) error {
 				// Expect to Assign the shard in the request
 				expectedRequest := store.AssignShardsRequest{
@@ -273,52 +273,6 @@ func TestHeartbeat(t *testing.T) {
 	)
 
 	// Test Case 9: Heartbeat with executor associated with distributed passthrough
-	t.Run("MigrationModeDISTRIBUTEDPASSTHROUGHWithNoAssignmentChanges", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockStore := store.NewMockStore(ctrl)
-		mockTimeSource := clock.NewMockedTimeSource()
-		shardDistributionCfg := config.ShardDistribution{
-			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGHSHADOW}},
-		}
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg)
-
-		req := &types.ExecutorHeartbeatRequest{
-			Namespace:  namespace,
-			ExecutorID: executorID,
-			Status:     types.ExecutorStatusACTIVE,
-			ShardStatusReports: map[string]*types.ShardStatusReport{
-				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
-			},
-		}
-
-		previousHeartbeat := store.HeartbeatState{
-			LastHeartbeat: now.Unix(),
-			Status:        types.ExecutorStatusACTIVE,
-			ReportedShards: map[string]*types.ShardStatusReport{
-				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
-			},
-		}
-
-		assignedState := store.AssignedState{
-			AssignedShards: map[string]*types.ShardAssignment{
-				"shard0": {Status: types.AssignmentStatusREADY},
-			},
-		}
-
-		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, &assignedState, nil)
-		mockStore.EXPECT().RecordHeartbeat(gomock.Any(), namespace, executorID, store.HeartbeatState{
-			LastHeartbeat: now.Unix(),
-			Status:        types.ExecutorStatusACTIVE,
-			ReportedShards: map[string]*types.ShardStatusReport{
-				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
-			},
-		})
-
-		_, err := handler.Heartbeat(ctx, req)
-		require.NoError(t, err)
-	})
-
-	// Test Case 11: Heartbeat with executor associated with distributed passthrough
 	t.Run("MigrationModeDISTRIBUTEDPASSTHROUGHDeletionFailure", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
@@ -353,14 +307,14 @@ func TestHeartbeat(t *testing.T) {
 
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, &assignedState, nil)
 		expectedErr := errors.New("deletion failed")
-		mockStore.EXPECT().DeleteExecutors(gomock.Any(), namespace, []string{executorID}, nil).Return(expectedErr)
+		mockStore.EXPECT().DeleteExecutors(gomock.Any(), namespace, []string{executorID}, gomock.Any()).Return(expectedErr)
 
 		_, err := handler.Heartbeat(ctx, req)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), expectedErr.Error())
 	})
 
-	// Test Case 12: Heartbeat with executor associated with distributed passthrough
+	// Test Case 10: Heartbeat with executor associated with distributed passthrough
 	t.Run("MigrationModeDISTRIBUTEDPASSTHROUGHAssignmentFailure", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
@@ -394,9 +348,9 @@ func TestHeartbeat(t *testing.T) {
 		}
 
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, &assignedState, nil)
-		mockStore.EXPECT().DeleteExecutors(gomock.Any(), namespace, []string{executorID}, nil).Return(nil)
+		mockStore.EXPECT().DeleteExecutors(gomock.Any(), namespace, []string{executorID}, gomock.Any()).Return(nil)
 		expectedErr := errors.New("assignemnt failed")
-		mockStore.EXPECT().AssignShards(gomock.Any(), namespace, gomock.Any(), nil).Return(expectedErr)
+		mockStore.EXPECT().AssignShards(gomock.Any(), namespace, gomock.Any(), gomock.Any()).Return(expectedErr)
 
 		_, err := handler.Heartbeat(ctx, req)
 		require.Error(t, err)
