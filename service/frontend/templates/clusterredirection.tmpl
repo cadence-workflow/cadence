@@ -112,6 +112,11 @@ func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
 	var workflowExecution *types.WorkflowExecution
 	{{- if has $method.Name $startWFAPIs}}
 	actClSelPolicyForNewWF = {{(index $method.Params 1).Name}}.ActiveClusterSelectionPolicy
+	{{- if eq $method.Name "SignalWithStartWorkflowExecution"}}
+	workflowExecution = &types.WorkflowExecution{
+		WorkflowID: {{(index $method.Params 1).Name}}.GetWorkflowID(),
+	}
+	{{- end}}
 	{{- else if has $method.Name $nonstartWFAPIs}}
 	workflowExecution = {{(index $method.Params 1).Name}}.GetWorkflowExecution()
 	{{- end}}
