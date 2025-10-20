@@ -296,7 +296,7 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 		Executors:        heartbeatStates,
 		ShardStats:       shardStats,
 		ShardAssignments: assignedStates,
-		GlobalRevision:   globalRevision,
+		GlobalRevision:   resp.Header.Revision,
 	}, nil
 }
 
