@@ -1,23 +1,34 @@
 # Build stage
 FROM golang:1.21-alpine AS builder
 
+# Install build dependencies
+RUN apk add --no-cache ca-certificates git
+
 # Set working directory
-WORKDIR /app
+WORKDIR /build/hello-world
 
-# Copy go mod files
-COPY go.mod go.sum ./
+# Copy hello-world code
+COPY hello-world/ .
 
-# Download dependencies
-RUN go mod download
+# Initialize module
+RUN go mod init hello-world && \
+    go mod tidy && \
+    go mod download
 
-# Copy source code
-COPY . .
-
-# Build the samples
-RUN CGO_ENABLED=0 GOOS=linux go build -o /samples/hello-world ./cmd/samples/hello-world
+# Build the sample
+RUN CGO_ENABLED=0 GOOS=linux go build -o /hello-world .
 
 # Final stage
 FROM alpine:3.18
+
+# Install required runtime packages
+RUN apk --no-cache add ca-certificates
+
+# Copy the binary from builder
+COPY --from=builder /hello-world /usr/local/bin/
+
+# Set the binary as the entrypoint
+ENTRYPOINT ["hello-world"]
 
 # Install necessary runtime dependencies
 RUN apk --no-cache add ca-certificates tzdata

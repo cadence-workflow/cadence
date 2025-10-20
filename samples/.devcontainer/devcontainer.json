@@ -1,0 +1,28 @@
+{
+    "name": "Go Development Container",
+    "dockerFile": "Dockerfile",
+    "runArgs": [
+        "--cap-add=SYS_PTRACE",
+        "--security-opt", "seccomp=unconfined"
+    ],
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "go.toolsManagement.checkForUpdates": "local",
+                "go.useLanguageServer": true,
+                "go.gopath": "/go"
+            },
+            "extensions": [
+                "golang.go",
+                "ms-azuretools.vscode-docker"
+            ]
+        }
+    },
+    "remoteUser": "vscode",
+    "features": {
+        "docker-in-docker": {
+            "version": "latest",
+            "moby": true
+        }
+    }
+}

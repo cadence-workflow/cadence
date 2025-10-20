@@ -20,8 +20,8 @@ services:
 
   hello-world-sample:
     build:
-      context: .
-      dockerfile: hello-world/Dockerfile
+      context: ../
+      dockerfile: samples/hello-world/Dockerfile
     environment:
       - "CADENCE_HOST=cadence"
       - "CADENCE_PORT=7933"
