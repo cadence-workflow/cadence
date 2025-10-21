@@ -59,23 +59,31 @@ func TestIsActiveActiveMethodsAreInSync(t *testing.T) {
 			want:              false,
 		},
 		{
-			name: "both with only ActiveClustersByRegion populated should return true",
+			name: "both with only AttributeScopes populated should return true",
 			typesConfig: &types.DomainReplicationConfiguration{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east-1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   100,
+								},
+							},
 						},
 					},
 				},
 			},
 			persistenceConfig: &DomainReplicationConfig{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east-1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   100,
+								},
+							},
 						},
 					},
 				},
@@ -115,15 +123,9 @@ func TestIsActiveActiveMethodsAreInSync(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "both with both formats populated should return true",
+			name: "both with AttributeScopes populated should return true",
 			typesConfig: &types.DomainReplicationConfiguration{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
-						},
-					},
 					AttributeScopes: map[string]types.ClusterAttributeScope{
 						"region": {
 							ClusterAttributes: map[string]types.ActiveClusterInfo{
@@ -138,15 +140,13 @@ func TestIsActiveActiveMethodsAreInSync(t *testing.T) {
 			},
 			persistenceConfig: &DomainReplicationConfig{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
-						},
-					},
 					AttributeScopes: map[string]types.ClusterAttributeScope{
 						"region": {
 							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east-1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   100,
+								},
 								"us-west-1": {
 									ActiveClusterName: "cluster2",
 									FailoverVersion:   200,
@@ -159,15 +159,23 @@ func TestIsActiveActiveMethodsAreInSync(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "both with empty ActiveClustersByRegion map should return false",
+			name: "both with empty AttributeScopes region scope should return false",
 			typesConfig: &types.DomainReplicationConfiguration{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{},
+						},
+					},
 				},
 			},
 			persistenceConfig: &DomainReplicationConfig{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{},
+						},
+					},
 				},
 			},
 			want: false,
@@ -275,39 +283,47 @@ func TestIsActiveActiveMethodsAreInSync(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "both with multiple regions in ActiveClustersByRegion should return true",
+			name: "both with multiple regions in AttributeScopes should return true",
 			typesConfig: &types.DomainReplicationConfiguration{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
-						},
-						"us-west-1": {
-							ActiveClusterName: "cluster2",
-							FailoverVersion:   200,
-						},
-						"eu-west-1": {
-							ActiveClusterName: "cluster3",
-							FailoverVersion:   300,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east-1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   100,
+								},
+								"us-west-1": {
+									ActiveClusterName: "cluster2",
+									FailoverVersion:   200,
+								},
+								"eu-west-1": {
+									ActiveClusterName: "cluster3",
+									FailoverVersion:   300,
+								},
+							},
 						},
 					},
 				},
 			},
 			persistenceConfig: &DomainReplicationConfig{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
-						},
-						"us-west-1": {
-							ActiveClusterName: "cluster2",
-							FailoverVersion:   200,
-						},
-						"eu-west-1": {
-							ActiveClusterName: "cluster3",
-							FailoverVersion:   300,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east-1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   100,
+								},
+								"us-west-1": {
+									ActiveClusterName: "cluster2",
+									FailoverVersion:   200,
+								},
+								"eu-west-1": {
+									ActiveClusterName: "cluster3",
+									FailoverVersion:   300,
+								},
+							},
 						},
 					},
 				},

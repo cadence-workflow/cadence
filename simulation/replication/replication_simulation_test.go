@@ -271,7 +271,7 @@ func changeActiveClusters(
 		updateDomainRequest.ActiveClusterName = &toCluster
 	}
 
-	// TODO(active-active): Remove this once we have completely migrated to AttributeScopes
+	// Migrated from ActiveClustersByRegion to AttributeScopes
 	if op.NewActiveClustersByRegion != nil {
 		activeClustersByRegion := make(map[string]types.ActiveClusterInfo)
 		for region, cluster := range op.NewActiveClustersByRegion {
@@ -280,7 +280,11 @@ func changeActiveClusters(
 				FailoverVersion:   -1, // doesn't matter. API handler will override it
 			}
 		}
-		updateDomainRequest.ActiveClusters.ActiveClustersByRegion = activeClustersByRegion
+		updateDomainRequest.ActiveClusters.AttributeScopes = map[string]types.ClusterAttributeScope{
+			"region": {
+				ClusterAttributes: activeClustersByRegion,
+			},
+		}
 		simTypes.Logf(t, "Changing active clusters by region for domain %s from %+v to %+v", op.Domain, descResp.ReplicationConfiguration.ActiveClusters, activeClustersByRegion)
 	}
 

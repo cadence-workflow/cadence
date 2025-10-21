@@ -3612,14 +3612,18 @@ func TestActiveClustersConversion(t *testing.T) {
 		nil,
 		{},
 		{
-			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"us-west-1": {
-					ActiveClusterName: "cluster1",
-					FailoverVersion:   1,
-				},
-				"us-east-1": {
-					ActiveClusterName: "cluster2",
-					FailoverVersion:   2,
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   1,
+						},
+						"us-east-1": {
+							ActiveClusterName: "cluster2",
+							FailoverVersion:   2,
+						},
+					},
 				},
 			},
 		},
@@ -3648,12 +3652,6 @@ func TestActiveClustersConversion(t *testing.T) {
 			},
 		},
 		{
-			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"us-west-1": {
-					ActiveClusterName: "cluster1",
-					FailoverVersion:   1,
-				},
-			},
 			AttributeScopes: map[string]types.ClusterAttributeScope{
 				"region": {
 					ClusterAttributes: map[string]types.ActiveClusterInfo{

@@ -2871,10 +2871,14 @@ func TestReapplyEvents(t *testing.T) {
 					cache.NewGlobalDomainCacheEntryForTest(nil, nil, &persistence.DomainReplicationConfig{
 						ActiveClusterName: cluster.TestCurrentClusterName,
 						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								"region1": {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   1,
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										"region1": {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   1,
+										},
+									},
 								},
 							},
 						},
@@ -2906,10 +2910,14 @@ func TestReapplyEvents(t *testing.T) {
 					cache.NewGlobalDomainCacheEntryForTest(nil, nil, &persistence.DomainReplicationConfig{
 						ActiveClusterName: cluster.TestCurrentClusterName,
 						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								"region1": {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   1,
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										"region1": {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   1,
+										},
+									},
 								},
 							},
 						},
@@ -2949,10 +2957,14 @@ func TestReapplyEvents(t *testing.T) {
 					cache.NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{Name: "test-domain"}, nil, &persistence.DomainReplicationConfig{
 						ActiveClusterName: cluster.TestCurrentClusterName,
 						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								"region1": {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   1,
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										"region1": {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   1,
+										},
+									},
 								},
 							},
 						},

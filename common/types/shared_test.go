@@ -74,20 +74,17 @@ func TestDataBlobDeepCopy(t *testing.T) {
 
 func TestActiveClustersConfigDeepCopy(t *testing.T) {
 	normalConfig := &ActiveClusters{
-		ActiveClustersByRegion: map[string]ActiveClusterInfo{
-			"us-east-1": {
-				ActiveClusterName: "us-east-1-cluster",
-				FailoverVersion:   1,
-			},
-			"us-east-2": {
-				ActiveClusterName: "us-east-2-cluster",
-				FailoverVersion:   2,
-			},
-		},
 		AttributeScopes: map[string]ClusterAttributeScope{
 			"region": {
 				ClusterAttributes: map[string]ActiveClusterInfo{
-					"us-east-1": {ActiveClusterName: "us-east-1-cluster", FailoverVersion: 1},
+					"us-east-1": {
+						ActiveClusterName: "us-east-1-cluster",
+						FailoverVersion:   1,
+					},
+					"us-east-2": {
+						ActiveClusterName: "us-east-2-cluster",
+						FailoverVersion:   2,
+					},
 				},
 			},
 		},
@@ -107,8 +104,7 @@ func TestActiveClustersConfigDeepCopy(t *testing.T) {
 			name:  "empty case",
 			input: &ActiveClusters{},
 			expect: &ActiveClusters{
-				ActiveClustersByRegion: map[string]ActiveClusterInfo{},
-				AttributeScopes:        map[string]ClusterAttributeScope{},
+				AttributeScopes: map[string]ClusterAttributeScope{},
 			},
 		},
 		{
@@ -153,8 +149,12 @@ func TestIsActiveActiveDomain(t *testing.T) {
 			name: "ActiveClusters with only old format populated should return true",
 			activeClusters: &DomainReplicationConfiguration{
 				ActiveClusters: &ActiveClusters{
-					ActiveClustersByRegion: map[string]ActiveClusterInfo{
-						"us-east-1": {ActiveClusterName: "cluster1"},
+					AttributeScopes: map[string]ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]ActiveClusterInfo{
+								"us-east-1": {ActiveClusterName: "cluster1"},
+							},
+						},
 					},
 				},
 			},
@@ -177,9 +177,6 @@ func TestIsActiveActiveDomain(t *testing.T) {
 			name: "ActiveClusters with both formats populated should return true",
 			activeClusters: &DomainReplicationConfiguration{
 				ActiveClusters: &ActiveClusters{
-					ActiveClustersByRegion: map[string]ActiveClusterInfo{
-						"us-east-1": {ActiveClusterName: "cluster1"},
-					},
 					AttributeScopes: map[string]ClusterAttributeScope{
 						"region": {ClusterAttributes: map[string]ActiveClusterInfo{
 							"us-east-1": {ActiveClusterName: "cluster1"},
@@ -229,10 +226,14 @@ func TestActiveClusters_GetActiveClusterByRegion(t *testing.T) {
 		{
 			name: "only old format populated should return from old format",
 			activeClusters: &ActiveClusters{
-				ActiveClustersByRegion: map[string]ActiveClusterInfo{
-					"us-east-1": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   100,
+				AttributeScopes: map[string]ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]ActiveClusterInfo{
+							"us-east-1": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   100,
+							},
+						},
 					},
 				},
 			},
@@ -267,18 +268,12 @@ func TestActiveClusters_GetActiveClusterByRegion(t *testing.T) {
 		{
 			name: "both formats populated should prefer old format for backward compatibility",
 			activeClusters: &ActiveClusters{
-				ActiveClustersByRegion: map[string]ActiveClusterInfo{
-					"us-east-1": {
-						ActiveClusterName: "old-cluster",
-						FailoverVersion:   100,
-					},
-				},
 				AttributeScopes: map[string]ClusterAttributeScope{
 					"region": {
 						ClusterAttributes: map[string]ActiveClusterInfo{
 							"us-east-1": {
-								ActiveClusterName: "new-cluster",
-								FailoverVersion:   200,
+								ActiveClusterName: "old-cluster",
+								FailoverVersion:   100,
 							},
 						},
 					},
@@ -294,10 +289,14 @@ func TestActiveClusters_GetActiveClusterByRegion(t *testing.T) {
 		{
 			name: "region not found in either format should return ErrActiveClusterInfoNotFound",
 			activeClusters: &ActiveClusters{
-				ActiveClustersByRegion: map[string]ActiveClusterInfo{
-					"us-east-1": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   100,
+				AttributeScopes: map[string]ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]ActiveClusterInfo{
+							"us-east-1": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   100,
+							},
+						},
 					},
 				},
 			},
@@ -356,10 +355,14 @@ func TestActiveClusters_GetAllClusters(t *testing.T) {
 		{
 			name: "only old format populated should return attribute names from old format sorted",
 			activeClusters: &ActiveClusters{
-				ActiveClustersByRegion: map[string]ActiveClusterInfo{
-					"us-west-1": {ActiveClusterName: "cluster2"},
-					"us-east-1": {ActiveClusterName: "cluster1"},
-					"eu-west-1": {ActiveClusterName: "cluster3"},
+				AttributeScopes: map[string]ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]ActiveClusterInfo{
+							"us-west-1": {ActiveClusterName: "cluster2"},
+							"us-east-1": {ActiveClusterName: "cluster1"},
+							"eu-west-1": {ActiveClusterName: "cluster3"},
+						},
+					},
 				},
 			},
 			want: []string{"eu-west-1", "us-east-1", "us-west-1"},
@@ -381,13 +384,11 @@ func TestActiveClusters_GetAllClusters(t *testing.T) {
 		{
 			name: "both formats with different attribute names should return deduplicated sorted list",
 			activeClusters: &ActiveClusters{
-				ActiveClustersByRegion: map[string]ActiveClusterInfo{
-					"us-east-1": {ActiveClusterName: "cluster1"},
-					"us-west-1": {ActiveClusterName: "cluster2"},
-				},
 				AttributeScopes: map[string]ClusterAttributeScope{
 					"region": {
 						ClusterAttributes: map[string]ActiveClusterInfo{
+							"us-east-1":  {ActiveClusterName: "cluster1"},
+							"us-west-1":  {ActiveClusterName: "cluster2"},
 							"eu-west-1":  {ActiveClusterName: "cluster3"},
 							"ap-south-1": {ActiveClusterName: "cluster4"},
 						},
@@ -399,14 +400,11 @@ func TestActiveClusters_GetAllClusters(t *testing.T) {
 		{
 			name: "both formats with overlapping attribute names should return deduplicated sorted list",
 			activeClusters: &ActiveClusters{
-				ActiveClustersByRegion: map[string]ActiveClusterInfo{
-					"us-east-1": {ActiveClusterName: "cluster1"},
-					"us-west-1": {ActiveClusterName: "cluster2"},
-				},
 				AttributeScopes: map[string]ClusterAttributeScope{
 					"region": {
 						ClusterAttributes: map[string]ActiveClusterInfo{
 							"us-east-1": {ActiveClusterName: "cluster1"},
+							"us-west-1": {ActiveClusterName: "cluster2"},
 							"eu-west-1": {ActiveClusterName: "cluster3"},
 						},
 					},
@@ -471,10 +469,14 @@ func TestActiveClusters_SetClusterForRegion(t *testing.T) {
 		{
 			name: "existing old format should update both formats",
 			activeClusters: &ActiveClusters{
-				ActiveClustersByRegion: map[string]ActiveClusterInfo{
-					"us-west-1": {
-						ActiveClusterName: "cluster2",
-						FailoverVersion:   200,
+				AttributeScopes: map[string]ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]ActiveClusterInfo{
+							"us-west-1": {
+								ActiveClusterName: "cluster2",
+								FailoverVersion:   200,
+							},
+						},
 					},
 				},
 			},
@@ -498,6 +500,10 @@ func TestActiveClusters_SetClusterForRegion(t *testing.T) {
 				"us-east-1": {
 					ActiveClusterName: "cluster1",
 					FailoverVersion:   100,
+				},
+				"us-west-1": {
+					ActiveClusterName: "cluster2",
+					FailoverVersion:   200,
 				},
 			},
 		},
@@ -526,6 +532,10 @@ func TestActiveClusters_SetClusterForRegion(t *testing.T) {
 					ActiveClusterName: "cluster1",
 					FailoverVersion:   100,
 				},
+				"eu-west-1": {
+					ActiveClusterName: "cluster3",
+					FailoverVersion:   300,
+				},
 			},
 			wantNewFormat: map[string]ActiveClusterInfo{
 				"us-east-1": {
@@ -541,15 +551,13 @@ func TestActiveClusters_SetClusterForRegion(t *testing.T) {
 		{
 			name: "both formats exist should update both",
 			activeClusters: &ActiveClusters{
-				ActiveClustersByRegion: map[string]ActiveClusterInfo{
-					"us-west-1": {
-						ActiveClusterName: "cluster2",
-						FailoverVersion:   200,
-					},
-				},
 				AttributeScopes: map[string]ClusterAttributeScope{
 					"region": {
 						ClusterAttributes: map[string]ActiveClusterInfo{
+							"us-west-1": {
+								ActiveClusterName: "cluster2",
+								FailoverVersion:   200,
+							},
 							"eu-west-1": {
 								ActiveClusterName: "cluster3",
 								FailoverVersion:   300,
@@ -573,11 +581,19 @@ func TestActiveClusters_SetClusterForRegion(t *testing.T) {
 					ActiveClusterName: "cluster2",
 					FailoverVersion:   200,
 				},
+				"eu-west-1": {
+					ActiveClusterName: "cluster3",
+					FailoverVersion:   300,
+				},
 			},
 			wantNewFormat: map[string]ActiveClusterInfo{
 				"us-east-1": {
 					ActiveClusterName: "cluster1",
 					FailoverVersion:   100,
+				},
+				"us-west-1": {
+					ActiveClusterName: "cluster2",
+					FailoverVersion:   200,
 				},
 				"eu-west-1": {
 					ActiveClusterName: "cluster3",
@@ -588,12 +604,6 @@ func TestActiveClusters_SetClusterForRegion(t *testing.T) {
 		{
 			name: "updating existing region should overwrite in both formats",
 			activeClusters: &ActiveClusters{
-				ActiveClustersByRegion: map[string]ActiveClusterInfo{
-					"us-east-1": {
-						ActiveClusterName: "old-cluster",
-						FailoverVersion:   50,
-					},
-				},
 				AttributeScopes: map[string]ClusterAttributeScope{
 					"region": {
 						ClusterAttributes: map[string]ActiveClusterInfo{
@@ -643,9 +653,18 @@ func TestActiveClusters_SetClusterForRegion(t *testing.T) {
 				return
 			}
 
-			// Verify old format
-			if diff := cmp.Diff(tt.wantOldFormat, tt.activeClusters.ActiveClustersByRegion); diff != "" {
-				t.Errorf("SetClusterForRegion() old format mismatch (-want +got):\n%s", diff)
+			// Verify old format (now stored in new format)
+			if tt.activeClusters.AttributeScopes != nil {
+				if scope, ok := tt.activeClusters.AttributeScopes["region"]; ok {
+					gotOldFormat := scope.ClusterAttributes
+					if diff := cmp.Diff(tt.wantOldFormat, gotOldFormat); diff != "" {
+						t.Errorf("SetClusterForRegion() old format mismatch (-want +got):\n%s", diff)
+					}
+				} else if len(tt.wantOldFormat) > 0 {
+					t.Error("SetClusterForRegion() did not initialize region scope when expected")
+				}
+			} else if len(tt.wantOldFormat) > 0 {
+				t.Error("SetClusterForRegion() did not initialize AttributeScopes when expected")
 			}
 
 			// Verify new format

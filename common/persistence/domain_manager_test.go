@@ -92,14 +92,18 @@ func testFixtureDomainReplicationConfigWithActiveClusters() *DomainReplicationCo
 			},
 		},
 		ActiveClusters: &types.ActiveClusters{
-			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"region-1": {
-					ActiveClusterName: "cluster-1",
-					FailoverVersion:   1,
-				},
-				"region-2": {
-					ActiveClusterName: "cluster-2",
-					FailoverVersion:   2,
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"region-1": {
+							ActiveClusterName: "cluster-1",
+							FailoverVersion:   1,
+						},
+						"region-2": {
+							ActiveClusterName: "cluster-2",
+							FailoverVersion:   2,
+						},
+					},
 				},
 			},
 		},

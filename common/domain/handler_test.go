@@ -328,9 +328,15 @@ func TestRegisterDomain(t *testing.T) {
 			request: &types.RegisterDomainRequest{
 				Name:           "active-active-domain",
 				IsGlobalDomain: true,
-				ActiveClustersByRegion: map[string]string{
-					cluster.TestRegion1: cluster.TestCurrentClusterName,
-					cluster.TestRegion2: "invalid-cluster",
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+								cluster.TestRegion2: {ActiveClusterName: "invalid-cluster"},
+							},
+						},
+					},
 				},
 				Clusters: []*types.ClusterReplicationConfiguration{
 					{ClusterName: cluster.TestCurrentClusterName},
@@ -350,9 +356,15 @@ func TestRegisterDomain(t *testing.T) {
 			request: &types.RegisterDomainRequest{
 				Name:           "active-active-domain",
 				IsGlobalDomain: true,
-				ActiveClustersByRegion: map[string]string{
-					cluster.TestRegion1: cluster.TestCurrentClusterName,
-					cluster.TestRegion2: cluster.TestAlternativeClusterName,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+								cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+							},
+						},
+					},
 				},
 				Clusters: []*types.ClusterReplicationConfiguration{
 					{ClusterName: cluster.TestCurrentClusterName},
@@ -372,9 +384,15 @@ func TestRegisterDomain(t *testing.T) {
 				Name:              "active-active-domain",
 				IsGlobalDomain:    true,
 				ActiveClusterName: cluster.TestCurrentClusterName,
-				ActiveClustersByRegion: map[string]string{
-					cluster.TestRegion1: cluster.TestCurrentClusterName,
-					cluster.TestRegion2: cluster.TestAlternativeClusterName,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+								cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+							},
+						},
+					},
 				},
 				Clusters: []*types.ClusterReplicationConfiguration{
 					{ClusterName: cluster.TestCurrentClusterName},
@@ -395,9 +413,15 @@ func TestRegisterDomain(t *testing.T) {
 			request: &types.RegisterDomainRequest{
 				Name:           "active-active-domain",
 				IsGlobalDomain: true,
-				ActiveClustersByRegion: map[string]string{
-					cluster.TestRegion1: cluster.TestCurrentClusterName,
-					cluster.TestRegion2: cluster.TestAlternativeClusterName,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+								cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+							},
+						},
+					},
 				},
 				Clusters: []*types.ClusterReplicationConfiguration{
 					{ClusterName: cluster.TestCurrentClusterName},
@@ -1671,14 +1695,18 @@ func TestHandler_UpdateDomain(t *testing.T) {
 							{ClusterName: cluster.TestAlternativeClusterName},
 						},
 						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								cluster.TestRegion1: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-								},
-								cluster.TestRegion2: {
-									ActiveClusterName: cluster.TestAlternativeClusterName,
-									FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: cluster.TestAlternativeClusterName,
+											FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+										},
+									},
 								},
 							},
 						},
@@ -1724,16 +1752,20 @@ func TestHandler_UpdateDomain(t *testing.T) {
 							{ClusterName: cluster.TestAlternativeClusterName},
 						},
 						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								cluster.TestRegion1: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-								},
-								cluster.TestRegion2: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									// previously it was alternative cluster with failover version 1.
-									// failover version should be the next failover version of the new cluster
-									FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											// previously it was alternative cluster with failover version 1.
+											// failover version should be the next failover version of the new cluster
+											FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+										},
+									},
 								},
 							},
 						},
@@ -1759,14 +1791,18 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			request: &types.UpdateDomainRequest{
 				Name: constants.TestDomainName,
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-						},
-						cluster.TestRegion2: { // failover region2 to region1
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   123123123123, // this number will be ignored and replaced with appropriate failover version
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+								},
+								cluster.TestRegion2: { // failover region2 to region1
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   123123123123, // this number will be ignored and replaced with appropriate failover version
+								},
+							},
 						},
 					},
 				},
@@ -1777,26 +1813,34 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					FromCluster:  cluster.TestCurrentClusterName,
 					FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String(),
 					FromActiveClusters: types.ActiveClusters{
-						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-							cluster.TestRegion1: {
-								ActiveClusterName: cluster.TestCurrentClusterName,
-								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-							},
-							cluster.TestRegion2: {
-								ActiveClusterName: cluster.TestAlternativeClusterName,
-								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									cluster.TestRegion1: {
+										ActiveClusterName: cluster.TestCurrentClusterName,
+										FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+									},
+									cluster.TestRegion2: {
+										ActiveClusterName: cluster.TestAlternativeClusterName,
+										FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+									},
+								},
 							},
 						},
 					},
 					ToActiveClusters: types.ActiveClusters{
-						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-							cluster.TestRegion1: {
-								ActiveClusterName: cluster.TestCurrentClusterName,
-								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-							},
-							cluster.TestRegion2: {
-								ActiveClusterName: cluster.TestCurrentClusterName,
-								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									cluster.TestRegion1: {
+										ActiveClusterName: cluster.TestCurrentClusterName,
+										FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+									},
+									cluster.TestRegion2: {
+										ActiveClusterName: cluster.TestCurrentClusterName,
+										FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+									},
+								},
 							},
 						},
 					},
@@ -1826,14 +1870,18 @@ func TestHandler_UpdateDomain(t *testing.T) {
 							{ClusterName: cluster.TestAlternativeClusterName},
 						},
 						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								cluster.TestRegion1: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-								},
-								cluster.TestRegion2: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+										},
+									},
 								},
 							},
 						},
@@ -1894,14 +1942,18 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						},
 						ActiveClusterName: cluster.TestCurrentClusterName, // should be left as is
 						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								cluster.TestRegion1: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
-								},
-								cluster.TestRegion2: {
-									ActiveClusterName: cluster.TestAlternativeClusterName,
-									FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: cluster.TestAlternativeClusterName,
+											FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+										},
+									},
 								},
 							},
 						},
@@ -1927,14 +1979,18 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			request: &types.UpdateDomainRequest{
 				Name: constants.TestDomainName,
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-						},
-						cluster.TestRegion2: {
-							ActiveClusterName: cluster.TestAlternativeClusterName,
-							FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+								},
+								cluster.TestRegion2: {
+									ActiveClusterName: cluster.TestAlternativeClusterName,
+									FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+								},
+							},
 						},
 					},
 				},
@@ -1945,14 +2001,18 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String(),
 					FromCluster:  cluster.TestCurrentClusterName,
 					ToActiveClusters: types.ActiveClusters{
-						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-							cluster.TestRegion1: {
-								ActiveClusterName: cluster.TestCurrentClusterName,
-								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
-							},
-							cluster.TestRegion2: {
-								ActiveClusterName: cluster.TestAlternativeClusterName,
-								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									cluster.TestRegion1: {
+										ActiveClusterName: cluster.TestCurrentClusterName,
+										FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
+									},
+									cluster.TestRegion2: {
+										ActiveClusterName: cluster.TestAlternativeClusterName,
+										FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+									},
+								},
 							},
 						},
 					},
@@ -1983,14 +2043,18 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						},
 						ActiveClusterName: cluster.TestCurrentClusterName,
 						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								cluster.TestRegion1: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
-								},
-								cluster.TestRegion2: {
-									ActiveClusterName: cluster.TestAlternativeClusterName,
-									FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: cluster.TestAlternativeClusterName,
+											FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+										},
+									},
 								},
 							},
 						},
@@ -2756,7 +2820,6 @@ func TestUpdateDeleteBadBinary(t *testing.T) {
 	}
 }
 
-// TODO(active-active): Update the test to use cluster attributes once region is removed
 func TestUpdateReplicationConfig(t *testing.T) {
 	cfg := func() *persistence.DomainReplicationConfig {
 		return &persistence.DomainReplicationConfig{
@@ -2769,14 +2832,18 @@ func TestUpdateReplicationConfig(t *testing.T) {
 		return &persistence.DomainReplicationConfig{
 			Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					cluster.TestRegion1: {
-						ActiveClusterName: cluster.TestCurrentClusterName,
-						FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-					},
-					cluster.TestRegion2: {
-						ActiveClusterName: cluster.TestAlternativeClusterName,
-						FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							cluster.TestRegion1: {
+								ActiveClusterName: cluster.TestCurrentClusterName,
+								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+							},
+							cluster.TestRegion2: {
+								ActiveClusterName: cluster.TestAlternativeClusterName,
+								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							},
+						},
 					},
 				},
 			},
@@ -2829,60 +2896,18 @@ func TestUpdateReplicationConfig(t *testing.T) {
 			activeClusterUpdated: true,
 		},
 		{
-			name: "active-active domain - ActiveClustersByRegion is nil",
-			request: &types.UpdateDomainRequest{
-				ActiveClusters: &types.ActiveClusters{
-					// nil map in the request should be ignored
-					ActiveClustersByRegion: nil,
-				},
-			},
-			currentReplicationConfig: activeActiveCfg(),
-			updatedReplicationConfig: activeActiveCfg(),
-			clusterUpdated:           false,
-			activeClusterUpdated:     false,
-		},
-		{
-			// todo (david.porter) remove this once we have completely migrated to AttributeScopes
-			name: "outdated active/active - active-active domain - update cluster of region1",
-			request: &types.UpdateDomainRequest{
-				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							// changing this from current cluster to alternative cluster
-							ActiveClusterName: cluster.TestAlternativeClusterName,
-							FailoverVersion:   99999, // this will be ignored
-						},
-					},
-				},
-			},
-			currentReplicationConfig: activeActiveCfg(),
-			updatedReplicationConfig: &persistence.DomainReplicationConfig{
-				Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
-				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							ActiveClusterName: cluster.TestAlternativeClusterName,
-							FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
-						},
-						cluster.TestRegion2: {
-							ActiveClusterName: cluster.TestAlternativeClusterName,
-							FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
-						},
-					},
-				},
-			},
-			clusterUpdated:       false,
-			activeClusterUpdated: true,
-		},
-		{
 			name: "active-active domain - update cluster of region2",
 			request: &types.UpdateDomainRequest{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion2: {
-							// changing this from alternative cluster to current cluster
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   99999, // this will be ignored
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion2: {
+									// changing this from alternative cluster to current cluster
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   99999, // this will be ignored
+								},
+							},
 						},
 					},
 				},
@@ -2891,28 +2916,36 @@ func TestUpdateReplicationConfig(t *testing.T) {
 			updatedReplicationConfig: &persistence.DomainReplicationConfig{
 				Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-						},
-						cluster.TestRegion2: {
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+								},
+								cluster.TestRegion2: {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+								},
+							},
 						},
 					},
 				},
 			},
-			clusterUpdated:       false,
+			clusterUpdated:       true,
 			activeClusterUpdated: true,
 		},
 		{
 			name: "active-active domain - add a new cluster in a new region",
 			request: &types.UpdateDomainRequest{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"region3": {
-							ActiveClusterName: cluster.TestCurrentClusterName,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region3": {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+								},
+							},
 						},
 					},
 				},
@@ -2921,23 +2954,27 @@ func TestUpdateReplicationConfig(t *testing.T) {
 			updatedReplicationConfig: &persistence.DomainReplicationConfig{
 				Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-						},
-						cluster.TestRegion2: {
-							ActiveClusterName: cluster.TestAlternativeClusterName,
-							FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
-						},
-						"region3": {
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+								},
+								cluster.TestRegion2: {
+									ActiveClusterName: cluster.TestAlternativeClusterName,
+									FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+								},
+								"region3": {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+								},
+							},
 						},
 					},
 				},
 			},
-			clusterUpdated:       false,
+			clusterUpdated:       true,
 			activeClusterUpdated: true,
 		},
 	}
@@ -2958,9 +2995,9 @@ func TestUpdateReplicationConfig(t *testing.T) {
 			)
 
 			assert.NoError(t, err)
-			assert.Equal(t, tc.clusterUpdated, clusterUpdated)
-			assert.Equal(t, tc.activeClusterUpdated, activeClusterUpdated)
-			assert.Equal(t, tc.updatedReplicationConfig, updatedReplicationConfig)
+			assert.Equal(t, tc.clusterUpdated, clusterUpdated, "cluster-updated field was %v when it was expected to be %v", clusterUpdated, tc.clusterUpdated)
+			assert.Equal(t, tc.activeClusterUpdated, activeClusterUpdated, "active-cluster-updated field was %v when it was expected to be %v", activeClusterUpdated, tc.activeClusterUpdated)
+			assert.Equal(t, tc.updatedReplicationConfig, updatedReplicationConfig, "replication-config-updated was flagged as %v when it was expected to be %v", updatedReplicationConfig, tc.updatedReplicationConfig)
 		})
 	}
 }
@@ -3156,12 +3193,16 @@ func TestUpdateFailoverHistory(t *testing.T) {
 				FromCluster: fromCluster,
 				ToCluster:   "",
 				ToActiveClusters: types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							ActiveClusterName: "fromCluster1",
-						},
-						cluster.TestRegion2: {
-							ActiveClusterName: "fromCluster2",
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {
+									ActiveClusterName: "fromCluster1",
+								},
+								cluster.TestRegion2: {
+									ActiveClusterName: "fromCluster2",
+								},
+							},
 						},
 					},
 				},
@@ -3176,12 +3217,16 @@ func TestUpdateFailoverHistory(t *testing.T) {
 						FromCluster: fromCluster,
 						ToCluster:   "",
 						ToActiveClusters: types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								cluster.TestRegion1: {
-									ActiveClusterName: "fromCluster1",
-								},
-								cluster.TestRegion2: {
-									ActiveClusterName: "fromCluster2",
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: "fromCluster1",
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: "fromCluster2",
+										},
+									},
 								},
 							},
 						},
@@ -3687,21 +3732,16 @@ func TestBuildActiveActiveClustersFromUpdateRequestMissiongUpdateRepro(t *testin
 		"When both the ActiveClustersByRegion and AttributeScopes are being updated, but the updateScopes don't exist, the function should correctly return that there is a change being made": {
 			updateRequest: &types.UpdateDomainRequest{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"region0": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   0,
-						},
-						"region1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   0,
-						},
-					},
 					AttributeScopes: map[string]types.ClusterAttributeScope{
 						"region": {
 							ClusterAttributes: map[string]types.ActiveClusterInfo{
 								"region0": {
 									ActiveClusterName: "cluster1",
+									FailoverVersion:   0,
+								},
+								"region1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   0,
 								},
 							},
 						},
@@ -3710,17 +3750,20 @@ func TestBuildActiveActiveClustersFromUpdateRequestMissiongUpdateRepro(t *testin
 			},
 			config: &persistence.DomainReplicationConfig{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"region0": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   2,
-						},
-						"region1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   2,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region0": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   2,
+								},
+								"region1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   2,
+								},
+							},
 						},
 					},
-					AttributeScopes: map[string]types.ClusterAttributeScope{},
 				},
 			},
 			expectedActiveClusters: &types.ActiveClusters{
@@ -3835,23 +3878,32 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 			request: &types.RegisterDomainRequest{
 				Name:           "test-domain",
 				IsGlobalDomain: true,
-				ActiveClustersByRegion: map[string]string{
-					"region1": cluster.TestCurrentClusterName,
-					"region2": cluster.TestAlternativeClusterName,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region1": {ActiveClusterName: cluster.TestCurrentClusterName},
+								"region2": {ActiveClusterName: cluster.TestAlternativeClusterName},
+							},
+						},
+					},
 				},
 			},
 			expectedResult: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region1": {
-						ActiveClusterName: cluster.TestCurrentClusterName,
-						FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-					},
-					"region2": {
-						ActiveClusterName: cluster.TestAlternativeClusterName,
-						FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region1": {
+								ActiveClusterName: cluster.TestCurrentClusterName,
+								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+							},
+							"region2": {
+								ActiveClusterName: cluster.TestAlternativeClusterName,
+								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							},
+						},
 					},
 				},
-				AttributeScopes: map[string]types.ClusterAttributeScope{},
 			},
 			expectedErr: nil,
 			clusterMetadata: func() cluster.Metadata {
@@ -3863,8 +3915,14 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 			request: &types.RegisterDomainRequest{
 				Name:           "test-domain",
 				IsGlobalDomain: true,
-				ActiveClustersByRegion: map[string]string{
-					"region1": "unknown-cluster",
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region1": {ActiveClusterName: "unknown-cluster"},
+							},
+						},
+					},
 				},
 			},
 			expectedResult: nil,
@@ -3894,8 +3952,10 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 				},
 			},
 			expectedResult: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
 				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{},
+					},
 					"datacenter": {
 						ClusterAttributes: map[string]types.ActiveClusterInfo{
 							"dc1": {
@@ -3943,11 +4003,13 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 			request: &types.RegisterDomainRequest{
 				Name:           "test-domain",
 				IsGlobalDomain: true,
-				ActiveClustersByRegion: map[string]string{
-					"region1": cluster.TestCurrentClusterName,
-				},
 				ActiveClusters: &types.ActiveClusters{
 					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region1": {ActiveClusterName: cluster.TestCurrentClusterName},
+							},
+						},
 						"datacenter": {
 							ClusterAttributes: map[string]types.ActiveClusterInfo{
 								"dc1": {
@@ -3959,13 +4021,15 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 				},
 			},
 			expectedResult: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region1": {
-						ActiveClusterName: cluster.TestCurrentClusterName,
-						FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-					},
-				},
 				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region1": {
+								ActiveClusterName: cluster.TestCurrentClusterName,
+								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+							},
+						},
+					},
 					"datacenter": {
 						ClusterAttributes: map[string]types.ActiveClusterInfo{
 							"dc1": {
@@ -4009,7 +4073,6 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 				},
 			},
 			expectedResult: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {
 						ClusterAttributes: map[string]types.ActiveClusterInfo{
@@ -4048,8 +4111,11 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 				},
 			},
 			expectedResult: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
-				AttributeScopes:        map[string]types.ClusterAttributeScope{},
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{},
+					},
+				},
 			},
 			expectedErr: nil,
 			clusterMetadata: func() cluster.Metadata {
@@ -4061,23 +4127,32 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 			request: &types.RegisterDomainRequest{
 				Name:           "test-domain",
 				IsGlobalDomain: true,
-				ActiveClustersByRegion: map[string]string{
-					"region1": "clusterA",
-					"region2": "clusterB",
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region1": {ActiveClusterName: "clusterA"},
+								"region2": {ActiveClusterName: "clusterB"},
+							},
+						},
+					},
 				},
 			},
 			expectedResult: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region1": {
-						ActiveClusterName: "clusterA",
-						FailoverVersion:   10,
-					},
-					"region2": {
-						ActiveClusterName: "clusterB",
-						FailoverVersion:   20,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region1": {
+								ActiveClusterName: "clusterA",
+								FailoverVersion:   10,
+							},
+							"region2": {
+								ActiveClusterName: "clusterB",
+								FailoverVersion:   20,
+							},
+						},
 					},
 				},
-				AttributeScopes: map[string]types.ClusterAttributeScope{},
 			},
 			expectedErr: nil,
 			clusterMetadata: func() cluster.Metadata {
@@ -4269,9 +4344,13 @@ func TestValidateDomainReplicationConfigForUpdateDomain(t *testing.T) {
 					{ClusterName: cluster.TestAlternativeClusterName},
 				},
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"region1": {ActiveClusterName: cluster.TestCurrentClusterName},
-						"region2": {ActiveClusterName: cluster.TestAlternativeClusterName},
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region1": {ActiveClusterName: cluster.TestCurrentClusterName},
+								"region2": {ActiveClusterName: cluster.TestAlternativeClusterName},
+							},
+						},
 					},
 				},
 			},

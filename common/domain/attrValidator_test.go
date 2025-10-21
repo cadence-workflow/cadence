@@ -259,9 +259,13 @@ func (s *attrValidatorSuite) TestValidateDomainReplicationConfigForGlobalDomain(
 				{ClusterName: cluster.TestAlternativeClusterName},
 			},
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
-					cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+							cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+						},
+					},
 				},
 			},
 		},
@@ -277,9 +281,13 @@ func (s *attrValidatorSuite) TestValidateDomainReplicationConfigForGlobalDomain(
 				{ClusterName: cluster.TestAlternativeClusterName},
 			},
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
-					cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+							cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+						},
+					},
 				},
 			},
 		},

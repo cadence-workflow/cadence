@@ -575,14 +575,18 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) setupActiveActiveDomainWi
 				{ClusterName: cluster.TestAlternativeClusterName},
 			},
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"us-east": {
-						ActiveClusterName: s.currentClusterName,
-						FailoverVersion:   1,
-					},
-					"us-west": {
-						ActiveClusterName: s.alternativeClusterName,
-						FailoverVersion:   2,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-east": {
+								ActiveClusterName: s.currentClusterName,
+								FailoverVersion:   1,
+							},
+							"us-west": {
+								ActiveClusterName: s.alternativeClusterName,
+								FailoverVersion:   2,
+							},
+						},
 					},
 				},
 			},

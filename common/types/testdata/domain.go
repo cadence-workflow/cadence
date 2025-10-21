@@ -104,14 +104,18 @@ var (
 		ActiveClusterName: ClusterName1,
 		Clusters:          ClusterReplicationConfigurationArray,
 		ActiveClusters: &types.ActiveClusters{
-			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				Region1: {
-					ActiveClusterName: ClusterName1,
-					FailoverVersion:   FailoverVersion1,
-				},
-				Region2: {
-					ActiveClusterName: ClusterName2,
-					FailoverVersion:   FailoverVersion2,
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						Region1: {
+							ActiveClusterName: ClusterName1,
+							FailoverVersion:   FailoverVersion1,
+						},
+						Region2: {
+							ActiveClusterName: ClusterName2,
+							FailoverVersion:   FailoverVersion2,
+						},
+					},
 				},
 			},
 		},
