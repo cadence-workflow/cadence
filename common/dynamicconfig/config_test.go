@@ -120,6 +120,15 @@ func (s *configSuite) TestGetStringPropertyFnByTaskListInfo() {
 	s.Equal("round-robin", value(domain, taskList, taskType))
 }
 
+func (s *configSuite) TestGetStringPropertyFnWithNamespaceFilter() {
+	key := dynamicproperties.MigrationMode
+	namespace := "testService"
+	value := s.cln.GetStringPropertyFilteredByNamespace(key)
+	s.Equal(key.DefaultString(), value(namespace))
+	s.client.SetValue(key, "efg")
+	s.Equal("efg", value(namespace))
+}
+
 func (s *configSuite) TestGetStringPropertyFilteredByRatelimitKey() {
 	key := dynamicproperties.FrontendGlobalRatelimiterMode
 	ratelimitKey := "user:testDomain"

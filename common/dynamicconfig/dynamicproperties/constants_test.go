@@ -248,6 +248,7 @@ func (s *constantSuite) TestStringKey() {
 			Description:  "ReadVisibilityStoreName is key to identify which store to read visibility data from",
 			DefaultValue: "es",
 		},
+		"": {},
 	}
 
 	for _, value := range testStringKeys {
