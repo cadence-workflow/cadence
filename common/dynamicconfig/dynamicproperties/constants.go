@@ -2422,9 +2422,6 @@ const (
 	// Default value: "hash_ring"
 	MatchingShardDistributionMode
 
-	// LastStringKey must be the last one in this const group
-	LastStringKey
-
 	// SerializationEncoding is the encoding type for blobs
 	// KeyName: history.serializationEncoding
 	// Value type: String
@@ -2444,6 +2441,9 @@ const (
 	// Default value: local_pass
 	// Allowed filters: namespace
 	MigrationMode
+
+	// LastStringKey must be the last one in this const group
+	LastStringKey
 )
 
 const (
@@ -4957,6 +4957,7 @@ var StringKeys = map[StringKey]DynamicString{
 		KeyName:      "shardDistributor.migrationMode",
 		Description:  "MigrationMode is the mode the at represent the state of the migration to rely on shard distributor for the sharding mechanism",
 		DefaultValue: "local_pass",
+		Filters:      []Filter{Namespace},
 	},
 }
 
