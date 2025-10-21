@@ -447,7 +447,7 @@ func (c *Collection) GetStringPropertyFilteredByTaskListInfo(key dynamicproperti
 	}
 }
 
-// GetStringPropertyFilteredByDomain gets property with domain filter and asserts that it's a string
+// GetStringPropertyFilteredByNamespace gets property with domain filter and asserts that it's a string
 func (c *Collection) GetStringPropertyFilteredByNamespace(key dynamicproperties.StringKey) dynamicproperties.StringPropertyFnWithNamespaceFilters {
 	return func(namespace string) string {
 		filters := c.toFilterMap(dynamicproperties.NamespaceFilter(namespace))
