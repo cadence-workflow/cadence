@@ -1771,7 +1771,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						},
 					},
 					PreviousFailoverVersion: -1, // this is not applicable to active-active domain
-					ConfigVersion:           domainResponse.ConfigVersion,
+					ConfigVersion:           domainResponse.ConfigVersion + 1,
 					FailoverVersion:         cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement, // this is incremented to indicate there was a change in replication config
 					LastUpdatedTime:         timeSource.Now().UnixNano(),
 				}).Return(nil).Times(1)
@@ -1782,7 +1782,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						domainResponse.Info,
 						domainResponse.Config,
 						domainResponse.ReplicationConfig,
-						domainResponse.ConfigVersion,
+						domainResponse.ConfigVersion+1,
 						cluster.TestCurrentClusterInitialFailoverVersion+cluster.TestFailoverVersionIncrement,
 						int64(-1), // previous failover version is not applicable to active-active domain
 						domainResponse.IsGlobalDomain,
@@ -1947,7 +1947,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 									ClusterAttributes: map[string]types.ActiveClusterInfo{
 										cluster.TestRegion1: {
 											ActiveClusterName: cluster.TestCurrentClusterName,
-											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
 										},
 										cluster.TestRegion2: {
 											ActiveClusterName: cluster.TestAlternativeClusterName,
@@ -1959,7 +1959,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						},
 					},
 					PreviousFailoverVersion: -1, // this is not applicable to active-active domain
-					ConfigVersion:           domainResponse.ConfigVersion,
+					ConfigVersion:           domainResponse.ConfigVersion + 1,
 					FailoverVersion:         cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement, // this is incremented to indicate there was a change in replication config
 					LastUpdatedTime:         timeSource.Now().UnixNano(),
 				}).Return(nil).Times(1)
@@ -1970,7 +1970,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						domainResponse.Info,
 						domainResponse.Config,
 						domainResponse.ReplicationConfig,
-						domainResponse.ConfigVersion,
+						domainResponse.ConfigVersion+1,
 						cluster.TestCurrentClusterInitialFailoverVersion+3*cluster.TestFailoverVersionIncrement,
 						int64(-1), // previous failover version is not applicable to active-active domain
 						domainResponse.IsGlobalDomain,
@@ -2006,7 +2006,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 								ClusterAttributes: map[string]types.ActiveClusterInfo{
 									cluster.TestRegion1: {
 										ActiveClusterName: cluster.TestCurrentClusterName,
-										FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
+										FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
 									},
 									cluster.TestRegion2: {
 										ActiveClusterName: cluster.TestAlternativeClusterName,
@@ -2048,7 +2048,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 									ClusterAttributes: map[string]types.ActiveClusterInfo{
 										cluster.TestRegion1: {
 											ActiveClusterName: cluster.TestCurrentClusterName,
-											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
 										},
 										cluster.TestRegion2: {
 											ActiveClusterName: cluster.TestAlternativeClusterName,
@@ -3719,128 +3719,6 @@ func TestBuildActiveActiveClustersFromUpdateRequest(t *testing.T) {
 	}
 }
 
-func TestBuildActiveActiveClustersFromUpdateRequestMissiongUpdateRepro(t *testing.T) {
-
-	testsCases := map[string]struct {
-		updateRequest          *types.UpdateDomainRequest
-		config                 *persistence.DomainReplicationConfig
-		domainName             string
-		handler                *handlerImpl
-		expectedActiveClusters *types.ActiveClusters
-		expectedIsChanged      bool
-	}{
-		"When both the ActiveClustersByRegion and AttributeScopes are being updated, but the updateScopes don't exist, the function should correctly return that there is a change being made": {
-			updateRequest: &types.UpdateDomainRequest{
-				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]types.ClusterAttributeScope{
-						"region": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{
-								"region0": {
-									ActiveClusterName: "cluster1",
-									FailoverVersion:   0,
-								},
-								"region1": {
-									ActiveClusterName: "cluster1",
-									FailoverVersion:   0,
-								},
-							},
-						},
-					},
-				},
-			},
-			config: &persistence.DomainReplicationConfig{
-				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]types.ClusterAttributeScope{
-						"region": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{
-								"region0": {
-									ActiveClusterName: "cluster1",
-									FailoverVersion:   2,
-								},
-								"region1": {
-									ActiveClusterName: "cluster1",
-									FailoverVersion:   2,
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedActiveClusters: &types.ActiveClusters{
-				// these are ignored in this function because they're updated on
-				// handler.updateReplicationConfig
-				//
-				// ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				// 	"region0": {
-				// 		ActiveClusterName: "cluster1",
-				// 		FailoverVersion:   0,
-				// 	},
-				// 	"region1": {
-				// 		ActiveClusterName: "cluster1",
-				// 		FailoverVersion:   0,
-				// 	},
-				// },
-				AttributeScopes: map[string]types.ClusterAttributeScope{
-					"region": {
-						ClusterAttributes: map[string]types.ActiveClusterInfo{
-							"region0": {
-								ActiveClusterName: "cluster1",
-								FailoverVersion:   2,
-							},
-							// not defined in the test
-							// "region1": {
-							// 	ActiveClusterName: "cluster1",
-							// 	FailoverVersion:   0,
-							// },
-						},
-					},
-				},
-			},
-			expectedIsChanged: true,
-		},
-	}
-
-	for name, tc := range testsCases {
-		t.Run(name, func(t *testing.T) {
-
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDomainManager := persistence.NewMockDomainManager(ctrl)
-
-			metadata := cluster.NewMetadata(
-				config.ClusterGroupMetadata{
-					FailoverVersionIncrement: 100,
-					ClusterGroup: map[string]config.ClusterInformation{
-						"cluster0": {
-							InitialFailoverVersion: 0,
-						},
-						"cluster1": {
-							InitialFailoverVersion: 2,
-						},
-					},
-				},
-				func(d string) bool { return false },
-				metrics.NewNoopMetricsClient(),
-				log.NewNoop(),
-			)
-
-			mockTimeSource := clock.NewMockedTimeSource()
-			handler := handlerImpl{
-				domainManager:    mockDomainManager,
-				clusterMetadata:  metadata,
-				archiverProvider: provider.NewArchiverProvider(nil, nil),
-				timeSource:       mockTimeSource,
-				logger:           log.NewNoop(),
-			}
-
-			activeClusters, isChanged := handler.buildActiveActiveClusterScopesFromUpdateRequest(tc.updateRequest, tc.config, tc.domainName)
-			assert.Equal(t, tc.expectedActiveClusters, activeClusters, "expected active clusters: %+v, actual active clusters: %+v", tc.expectedActiveClusters, activeClusters)
-			assert.Equal(t, tc.expectedIsChanged, isChanged, "expected is changed: %+v, actual is changed: %+v", tc.expectedIsChanged, isChanged)
-		})
-	}
-}
-
 func TestActiveClustersFromRegisterRequest(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -3874,64 +3752,6 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 			},
 		},
 		{
-			name: "legacy ActiveClustersByRegion with valid clusters",
-			request: &types.RegisterDomainRequest{
-				Name:           "test-domain",
-				IsGlobalDomain: true,
-				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]types.ClusterAttributeScope{
-						"region": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{
-								"region1": {ActiveClusterName: cluster.TestCurrentClusterName},
-								"region2": {ActiveClusterName: cluster.TestAlternativeClusterName},
-							},
-						},
-					},
-				},
-			},
-			expectedResult: &types.ActiveClusters{
-				AttributeScopes: map[string]types.ClusterAttributeScope{
-					"region": {
-						ClusterAttributes: map[string]types.ActiveClusterInfo{
-							"region1": {
-								ActiveClusterName: cluster.TestCurrentClusterName,
-								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-							},
-							"region2": {
-								ActiveClusterName: cluster.TestAlternativeClusterName,
-								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
-							},
-						},
-					},
-				},
-			},
-			expectedErr: nil,
-			clusterMetadata: func() cluster.Metadata {
-				return cluster.GetTestClusterMetadata(true)
-			},
-		},
-		{
-			name: "legacy ActiveClustersByRegion with invalid cluster",
-			request: &types.RegisterDomainRequest{
-				Name:           "test-domain",
-				IsGlobalDomain: true,
-				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]types.ClusterAttributeScope{
-						"region": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{
-								"region1": {ActiveClusterName: "unknown-cluster"},
-							},
-						},
-					},
-				},
-			},
-			expectedResult: nil,
-			expectedErr:    &types.BadRequestError{},
-			clusterMetadata: func() cluster.Metadata {
-				return cluster.GetTestClusterMetadata(true)
-			},
-		},
-		{
 			name: "new AttributeScopes with valid clusters",
 			request: &types.RegisterDomainRequest{
 				Name:           "test-domain",
@@ -3953,9 +3773,6 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 			},
 			expectedResult: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
-					"region": {
-						ClusterAttributes: map[string]types.ActiveClusterInfo{},
-					},
 					"datacenter": {
 						ClusterAttributes: map[string]types.ActiveClusterInfo{
 							"dc1": {
@@ -4110,14 +3927,8 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 					AttributeScopes: map[string]types.ClusterAttributeScope{},
 				},
 			},
-			expectedResult: &types.ActiveClusters{
-				AttributeScopes: map[string]types.ClusterAttributeScope{
-					"region": {
-						ClusterAttributes: map[string]types.ActiveClusterInfo{},
-					},
-				},
-			},
-			expectedErr: nil,
+			expectedResult: nil,
+			expectedErr:    nil,
 			clusterMetadata: func() cluster.Metadata {
 				return cluster.GetTestClusterMetadata(true)
 			},

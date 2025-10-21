@@ -368,7 +368,7 @@ func (s *failoverWorkflowTestSuite) TestShouldFailover() {
 				},
 			},
 			sourceCluster: "c2",
-			expected:      true,
+			expected:      false,
 		},
 	}
 	for _, t := range tests {

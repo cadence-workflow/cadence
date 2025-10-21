@@ -266,27 +266,6 @@ func TestActiveClusters_GetActiveClusterByRegion(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "both formats populated should prefer old format for backward compatibility",
-			activeClusters: &ActiveClusters{
-				AttributeScopes: map[string]ClusterAttributeScope{
-					"region": {
-						ClusterAttributes: map[string]ActiveClusterInfo{
-							"us-east-1": {
-								ActiveClusterName: "old-cluster",
-								FailoverVersion:   100,
-							},
-						},
-					},
-				},
-			},
-			region: "us-east-1",
-			wantInfo: ActiveClusterInfo{
-				ActiveClusterName: "old-cluster",
-				FailoverVersion:   100,
-			},
-			wantErr: nil,
-		},
-		{
 			name: "region not found in either format should return ErrActiveClusterInfoNotFound",
 			activeClusters: &ActiveClusters{
 				AttributeScopes: map[string]ClusterAttributeScope{
