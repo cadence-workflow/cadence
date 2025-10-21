@@ -289,7 +289,7 @@ func (m *managerImpl) GetActiveClusterSelectionPolicyForCurrentWorkflow(ctx cont
 	if err != nil {
 		return nil, false, err
 	}
-	if execution.State == persistence.WorkflowStateRunning || execution.State == persistence.WorkflowStateCreated {
+	if persistence.IsWorkflowRunning(execution.State) {
 		policy, err := m.getClusterSelectionPolicy(ctx, domainID, wfID, execution.RunID)
 		if err != nil {
 			return nil, false, err

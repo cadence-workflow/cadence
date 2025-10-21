@@ -519,7 +519,7 @@ func getStartRequest(
 
 func shouldTerminateAndStart(startRequest *types.HistoryStartWorkflowExecutionRequest, state int) bool {
 	return startRequest.StartRequest.GetWorkflowIDReusePolicy() == types.WorkflowIDReusePolicyTerminateIfRunning &&
-		(state == persistence.WorkflowStateRunning || state == persistence.WorkflowStateCreated)
+		persistence.IsWorkflowRunning(state)
 }
 
 func (e *historyEngineImpl) validateStartWorkflowExecutionRequest(request *types.StartWorkflowExecutionRequest, metricsScope metrics.ScopeIdx) error {
