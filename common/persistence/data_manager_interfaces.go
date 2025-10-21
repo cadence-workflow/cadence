@@ -2302,6 +2302,5 @@ func (c *DomainReplicationConfig) IsActiveActive() bool {
 		}
 	}
 
-	// TODO(active-active): Remove this once we have completely migrated to ClusterAttributes
-	return len(c.ActiveClusters.ActiveClustersByRegion) > 0
+	return false
 }
