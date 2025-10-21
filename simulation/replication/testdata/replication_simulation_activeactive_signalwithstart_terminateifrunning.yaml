@@ -39,6 +39,7 @@ operations:
     workflowExecutionStartToCloseTimeout: 65s
     workflowDuration: 35s
     runIDKey: wf1-0
+    workflowIDReusePolicy: TERMINATEIFRUNNING
 
   # start workflow in cluster0 with active cluster selection policy and terminate if running policy
   - op: signal_with_start_workflow
