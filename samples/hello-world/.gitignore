@@ -1,0 +1,7 @@
+# Build artifacts
+hello-world
+*.log
+
+# Go build cache
+*.test
+*.out
