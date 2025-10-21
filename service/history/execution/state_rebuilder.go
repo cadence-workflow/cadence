@@ -210,6 +210,7 @@ func (r *stateRebuilderImpl) initializeBuilders(
 		r.shard,
 		r.logger,
 		domainEntry,
+		constants.EmptyVersion,
 	)
 	stateBuilder := NewStateBuilder(
 		r.shard,

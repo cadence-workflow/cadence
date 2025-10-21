@@ -24,7 +24,7 @@ package types
 
 import "fmt"
 
-//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus -json -output sharddistributor_statuses_enumer_generated.go
+//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus,MigrationMode -json -output sharddistributor_statuses_enumer_generated.go
 
 type GetShardOwnerRequest struct {
 	ShardKey  string
@@ -164,11 +164,19 @@ const (
 
 type ExecutorHeartbeatResponse struct {
 	ShardAssignments map[string]*ShardAssignment
+	MigrationMode    MigrationMode
 }
 
 func (v *ExecutorHeartbeatResponse) GetShardAssignments() (o map[string]*ShardAssignment) {
 	if v != nil {
 		return v.ShardAssignments
+	}
+	return
+}
+
+func (v *ExecutorHeartbeatResponse) GetMigrationPhase() (o MigrationMode) {
+	if v != nil {
+		return v.MigrationMode
 	}
 	return
 }
@@ -191,4 +199,14 @@ type AssignmentStatus int32
 const (
 	AssignmentStatusINVALID AssignmentStatus = 0
 	AssignmentStatusREADY   AssignmentStatus = 1
+)
+
+type MigrationMode int32
+
+const (
+	MigrationModeINVALID                MigrationMode = 0
+	MigrationModeLOCALPASSTHROUGH       MigrationMode = 1
+	MigrationModeLOCALPASSTHROUGHSHADOW MigrationMode = 2
+	MigrationModeDISTRIBUTEDPASSTHROUGH MigrationMode = 3
+	MigrationModeONBOARDED              MigrationMode = 4
 )

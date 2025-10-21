@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -286,6 +287,7 @@ func NewHistoryReplicator(
 				shard,
 				logger,
 				domainEntry,
+				constants.EmptyVersion,
 			)
 		},
 		newReplicationTaskFn:                                         newReplicationTask,
@@ -419,6 +421,7 @@ func applyStartEvents(
 		return err
 	}
 	requestID := uuid.New() // requestID used for start workflow execution request.  This is not on the history event.
+	// since it's replicated from the other cluster, we don't care the active cluster policy, because the failover version will be updated after ApplyEvents
 	mutableState := newMutableState(domainEntry, task.getLogger())
 	stateBuilder := newStateBuilder(mutableState, task.getLogger())
 

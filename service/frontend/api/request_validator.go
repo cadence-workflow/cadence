@@ -54,6 +54,7 @@ type (
 		ValidateUpdateDomainRequest(context.Context, *types.UpdateDomainRequest) error
 		ValidateDeleteDomainRequest(context.Context, *types.DeleteDomainRequest) error
 		ValidateDeprecateDomainRequest(context.Context, *types.DeprecateDomainRequest) error
+		ValidateFailoverDomainRequest(context.Context, *types.FailoverDomainRequest) error
 	}
 
 	requestValidatorImpl struct {
@@ -363,4 +364,20 @@ func (v *requestValidatorImpl) ValidateDeprecateDomainRequest(ctx context.Contex
 		return validate.ErrDomainNotSet
 	}
 	return validate.CheckPermission(v.config, deprecateRequest.SecurityToken)
+}
+
+func (v *requestValidatorImpl) ValidateFailoverDomainRequest(ctx context.Context, failoverDomainRequest *types.FailoverDomainRequest) error {
+	if failoverDomainRequest == nil {
+		return validate.ErrRequestNotSet
+	}
+	if failoverDomainRequest.GetDomainName() == "" {
+		return validate.ErrDomainNotSet
+	}
+
+	if failoverDomainRequest.DomainActiveClusterName == nil {
+		return &types.BadRequestError{Message: "DomainActiveClusterName must be provided to failover the domain"}
+	}
+
+	// Security token is not required for failover request - reject the failover if the cluster is in lockdown
+	return checkFailOverPermission(v.config, failoverDomainRequest.GetDomainName())
 }

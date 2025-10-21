@@ -183,6 +183,7 @@ func FromShardDistributorExecutorHeartbeatResponse(t *types.ExecutorHeartbeatRes
 
 	// Convert the ShardAssignments
 	var shardAssignments map[string]*sharddistributorv1.ShardAssignment
+	var migrationMode sharddistributorv1.MigrationMode
 	if t.GetShardAssignments() != nil {
 		shardAssignments = make(map[string]*sharddistributorv1.ShardAssignment)
 
@@ -198,10 +199,12 @@ func FromShardDistributorExecutorHeartbeatResponse(t *types.ExecutorHeartbeatRes
 				Status: status,
 			}
 		}
+		migrationMode = toMigrationMode(t.MigrationMode)
 	}
 
 	return &sharddistributorv1.HeartbeatResponse{
 		ShardAssignments: shardAssignments,
+		MigrationMode:    migrationMode,
 	}
 }
 
@@ -212,6 +215,7 @@ func ToShardDistributorExecutorHeartbeatResponse(t *sharddistributorv1.Heartbeat
 
 	// Convert the ShardAssignments
 	var shardAssignments map[string]*types.ShardAssignment
+	var migrationMode types.MigrationMode
 	if t.GetShardAssignments() != nil {
 		shardAssignments = make(map[string]*types.ShardAssignment)
 
@@ -227,9 +231,49 @@ func ToShardDistributorExecutorHeartbeatResponse(t *sharddistributorv1.Heartbeat
 				Status: status,
 			}
 		}
+		migrationMode = getMigrationModeFromProto(t.GetMigrationMode())
 	}
 
 	return &types.ExecutorHeartbeatResponse{
 		ShardAssignments: shardAssignments,
+		MigrationMode:    migrationMode,
 	}
+}
+
+func getMigrationModeFromProto(protoMigrationMode sharddistributorv1.MigrationMode) types.MigrationMode {
+	var mode types.MigrationMode
+	switch protoMigrationMode {
+	case sharddistributorv1.MigrationMode_MIGRATION_MODE_INVALID:
+		mode = types.MigrationModeINVALID
+	case sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH:
+		mode = types.MigrationModeLOCALPASSTHROUGH
+	case sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH_SHADOW:
+		mode = types.MigrationModeLOCALPASSTHROUGHSHADOW
+	case sharddistributorv1.MigrationMode_MIGRATION_MODE_DISTRIBUTED_PASSTHROUGH:
+		mode = types.MigrationModeDISTRIBUTEDPASSTHROUGH
+	case sharddistributorv1.MigrationMode_MIGRATION_MODE_ONBOARDED:
+		mode = types.MigrationModeONBOARDED
+	default:
+		mode = types.MigrationModeINVALID
+	}
+	return mode
+}
+
+func toMigrationMode(modeSD types.MigrationMode) sharddistributorv1.MigrationMode {
+	var mode sharddistributorv1.MigrationMode
+	switch modeSD {
+	case types.MigrationModeINVALID:
+		mode = sharddistributorv1.MigrationMode_MIGRATION_MODE_INVALID
+	case types.MigrationModeLOCALPASSTHROUGH:
+		mode = sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH
+	case types.MigrationModeLOCALPASSTHROUGHSHADOW:
+		mode = sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH_SHADOW
+	case types.MigrationModeDISTRIBUTEDPASSTHROUGH:
+		mode = sharddistributorv1.MigrationMode_MIGRATION_MODE_DISTRIBUTED_PASSTHROUGH
+	case types.MigrationModeONBOARDED:
+		mode = sharddistributorv1.MigrationMode_MIGRATION_MODE_ONBOARDED
+	default:
+		mode = sharddistributorv1.MigrationMode_MIGRATION_MODE_INVALID
+	}
+	return mode
 }

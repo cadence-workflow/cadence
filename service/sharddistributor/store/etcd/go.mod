@@ -11,6 +11,8 @@ require (
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	go.etcd.io/etcd/client/v3 v3.5.5
 	go.uber.org/fx v1.23.0
+	go.uber.org/goleak v1.2.0
+	go.uber.org/mock v0.5.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 

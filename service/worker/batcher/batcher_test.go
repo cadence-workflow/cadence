@@ -74,7 +74,7 @@ func setuptest(t *testing.T) (*Batcher, *resource.Test) {
 					},
 				},
 				nil,
-				metrics.NewClient(tally.NoopScope, metrics.Worker),
+				metrics.NewClient(tally.NoopScope, metrics.Worker, metrics.HistogramMigration{}),
 				testlogger.New(t),
 			),
 		},

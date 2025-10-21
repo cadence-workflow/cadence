@@ -49,6 +49,7 @@ type clientParams struct {
 	Logger          log.Logger
 	ServiceFullName string `name:"service-full-name"`
 	SvcCfg          config.Service
+	HistogramCfg    metrics.HistogramMigration
 }
 
 type clientResult struct {
@@ -62,7 +63,7 @@ func buildClient(params clientParams) clientResult {
 	scope := params.SvcCfg.Metrics.NewScope(params.Logger, params.ServiceFullName)
 	return clientResult{
 		Scope:  scope,
-		Client: buildClientFromTally(scope, service.GetMetricsServiceIdx(params.ServiceFullName, params.Logger)),
+		Client: buildClientFromTally(scope, service.GetMetricsServiceIdx(params.ServiceFullName, params.Logger), params.HistogramCfg),
 	}
 }
 
@@ -73,6 +74,6 @@ type serviceIdxParams struct {
 	ServiceFullName string `name:"service-full-name"`
 }
 
-func buildClientFromTally(scope tally.Scope, serviceID metrics.ServiceIdx) metrics.Client {
-	return metrics.NewClient(scope, serviceID)
+func buildClientFromTally(scope tally.Scope, serviceID metrics.ServiceIdx, hm metrics.HistogramMigration) metrics.Client {
+	return metrics.NewClient(scope, serviceID, hm)
 }

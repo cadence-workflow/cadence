@@ -36,5 +36,7 @@ func opts(fixedNamespace, ephemeralNamespace, sharddistributorServiceName string
 		executorclient.ModuleWithNamespace[*processorephemeral.ShardProcessor](ephemeralNamespace),
 
 		processorephemeral.ShardCreatorModule(ephemeralNamespace),
+		// Enabling this back when we have dynamic config to enable it per namespace
+		// exetrnalshardassignment.ShardAssignerModule(ephemeralNamespace),
 	)
 }

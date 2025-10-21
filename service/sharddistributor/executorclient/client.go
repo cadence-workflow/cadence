@@ -41,6 +41,8 @@ type Executor[SP ShardProcessor] interface {
 	Stop()
 
 	GetShardProcess(shardID string) (SP, error)
+	// Used during the migration during local-passthrough and local-passthrough-shadow
+	AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment)
 }
 
 type Params[SP ShardProcessor] struct {
@@ -110,6 +112,7 @@ func newExecutorWithConfig[SP ShardProcessor](params Params[SP], namespaceConfig
 		timeSource:             params.TimeSource,
 		stopC:                  make(chan struct{}),
 		metrics:                metricsScope,
+		migrationMode:          namespaceConfig.GetMigrationMode(),
 	}, nil
 }
 

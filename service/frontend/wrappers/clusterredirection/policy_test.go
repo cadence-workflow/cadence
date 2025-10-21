@@ -598,17 +598,22 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiv
 	domainEntry := s.setupActiveActiveDomainWithTwoReplicationCluster(true)
 
 	usEastStickyPlcy := &types.ActiveClusterSelectionPolicy{
-		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-		StickyRegion:                   "us-east",
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-east",
+		},
 	}
 
 	usWestStickyPlcy := &types.ActiveClusterSelectionPolicy{
-		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-		StickyRegion:                   "us-west",
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-west",
+		},
 	}
 
 	tests := []struct {
 		name                   string
+		apiName                string
 		domainEntry            *cache.DomainCacheEntry
 		workflowExecution      *types.WorkflowExecution
 		actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
@@ -617,28 +622,30 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiv
 	}{
 		{
 			name:                   "new workflow with policy",
+			apiName:                "StartWorkflowExecution",
 			domainEntry:            domainEntry,
 			actClSelPolicyForNewWF: usWestStickyPlcy,
 			mockFn: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupNewWorkflow(gomock.Any(), domainEntry.GetInfo().ID, usWestStickyPlcy).Return(&activecluster.LookupResult{
-					Region:          "us-west",
-					ClusterName:     s.alternativeClusterName,
-					FailoverVersion: 2,
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usWestStickyPlcy.GetClusterAttribute()).Return(&types.ActiveClusterInfo{
+					ActiveClusterName: s.alternativeClusterName,
+					FailoverVersion:   2,
 				}, nil)
 			},
 			want: s.alternativeClusterName,
 		},
 		{
 			name:                   "new workflow with policy - lookup failed",
+			apiName:                "StartWorkflowExecution",
 			domainEntry:            domainEntry,
 			actClSelPolicyForNewWF: usEastStickyPlcy,
 			mockFn: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupNewWorkflow(gomock.Any(), domainEntry.GetInfo().ID, usEastStickyPlcy).Return(nil, errors.New("lookup failed"))
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usEastStickyPlcy.GetClusterAttribute()).Return(nil, errors.New("lookup failed"))
 			},
 			want: s.currentClusterName,
 		},
 		{
 			name:        "existing workflow - missing workflow execution",
+			apiName:     "SignalWorkflowExecution",
 			domainEntry: domainEntry,
 			mockFn: func(activeClusterManager *activecluster.MockManager) {
 			},
@@ -646,6 +653,7 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiv
 		},
 		{
 			name:        "existing workflow - missing workflow id",
+			apiName:     "SignalWorkflowExecution",
 			domainEntry: domainEntry,
 			workflowExecution: &types.WorkflowExecution{
 				RunID: "run1",
@@ -655,39 +663,82 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiv
 			want: s.currentClusterName,
 		},
 		{
-			name:        "existing workflow - missing run id",
-			domainEntry: domainEntry,
-			workflowExecution: &types.WorkflowExecution{
-				WorkflowID: "wf1",
-			},
-			mockFn: func(activeClusterManager *activecluster.MockManager) {
-			},
-			want: s.currentClusterName,
-		},
-		{
 			name:        "existing workflow - lookup failed",
+			apiName:     "SignalWorkflowExecution",
 			domainEntry: domainEntry,
 			workflowExecution: &types.WorkflowExecution{
 				WorkflowID: "wf1",
 				RunID:      "run1",
 			},
 			mockFn: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1", "run1").Return(nil, errors.New("lookup failed"))
+				activeClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1", "run1").Return(nil, errors.New("lookup failed"))
+			},
+			want: s.currentClusterName,
+		},
+		{
+			name:                   "SignalWithStartWorkflowExecution - workflow running, use current workflow policy",
+			apiName:                "SignalWithStartWorkflowExecution",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usEastStickyPlcy, // This should be ignored when workflow is running
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				// Returns the current workflow's policy and running=true
+				activeClusterManager.EXPECT().GetActiveClusterSelectionPolicyForCurrentWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1").Return(usWestStickyPlcy, true, nil)
+				// Should use the west policy (from current workflow), not the east policy (from new workflow param)
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usWestStickyPlcy.GetClusterAttribute()).Return(&types.ActiveClusterInfo{
+					ActiveClusterName: s.alternativeClusterName,
+					FailoverVersion:   2,
+				}, nil)
+			},
+			want: s.alternativeClusterName,
+		},
+		{
+			name:                   "SignalWithStartWorkflowExecution - workflow not running, use new workflow policy",
+			apiName:                "SignalWithStartWorkflowExecution",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usWestStickyPlcy,
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				// Returns policy but running=false
+				activeClusterManager.EXPECT().GetActiveClusterSelectionPolicyForCurrentWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1").Return(usEastStickyPlcy, false, nil)
+				// Should use the west policy (from new workflow param), not the east policy (from current workflow)
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usWestStickyPlcy.GetClusterAttribute()).Return(&types.ActiveClusterInfo{
+					ActiveClusterName: s.alternativeClusterName,
+					FailoverVersion:   2,
+				}, nil)
+			},
+			want: s.alternativeClusterName,
+		},
+		{
+			name:                   "SignalWithStartWorkflowExecution - lookup failed, use current cluster",
+			apiName:                "SignalWithStartWorkflowExecution",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usWestStickyPlcy,
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				// Lookup fails
+				activeClusterManager.EXPECT().GetActiveClusterSelectionPolicyForCurrentWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1").Return(nil, false, errors.New("lookup failed"))
 			},
 			want: s.currentClusterName,
 		},
 		{
 			name:        "existing workflow - success",
+			apiName:     "SignalWorkflowExecution",
 			domainEntry: domainEntry,
 			workflowExecution: &types.WorkflowExecution{
 				WorkflowID: "wf1",
 				RunID:      "run1",
 			},
 			mockFn: func(activeClusterManager *activecluster.MockManager) {
-				activeClusterManager.EXPECT().LookupWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1", "run1").Return(&activecluster.LookupResult{
-					Region:          "us-west",
-					ClusterName:     s.alternativeClusterName,
-					FailoverVersion: 2,
+				activeClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1", "run1").Return(&types.ActiveClusterInfo{
+					ActiveClusterName: s.alternativeClusterName,
+					FailoverVersion:   2,
 				}, nil)
 			},
 			want: s.alternativeClusterName,
@@ -699,12 +750,16 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiv
 			activeClusterManager := activecluster.NewMockManager(s.controller)
 			test.mockFn(activeClusterManager)
 			s.policy.activeClusterManager = activeClusterManager
+			apiName := test.apiName
+			if apiName == "" {
+				apiName = "any random API name"
+			}
 			s.Equal(test.want, s.policy.activeClusterForActiveActiveDomainRequest(
 				context.Background(),
 				test.domainEntry,
 				test.workflowExecution,
 				test.actClSelPolicyForNewWF,
-				"any random API name",
+				apiName,
 			))
 		})
 	}

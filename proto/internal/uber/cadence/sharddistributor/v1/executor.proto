@@ -64,6 +64,7 @@ enum ShardStatus {
 
 message HeartbeatResponse {
   map<string, ShardAssignment> shard_assignments = 1;
+  MigrationMode migration_mode = 2;
 }
 
 message ShardAssignment {
@@ -77,4 +78,13 @@ message ShardAssignment {
 enum AssignmentStatus {
   ASSIGNMENT_STATUS_INVALID = 0;
   ASSIGNMENT_STATUS_READY = 1;
+}
+
+// We handle  the migration steps from SD side
+enum MigrationMode {
+  MIGRATION_MODE_INVALID = 0;
+  MIGRATION_MODE_LOCAL_PASSTHROUGH = 1;
+  MIGRATION_MODE_LOCAL_PASSTHROUGH_SHADOW = 2;
+  MIGRATION_MODE_DISTRIBUTED_PASSTHROUGH = 3;
+  MIGRATION_MODE_ONBOARDED = 4;
 }

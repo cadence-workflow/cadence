@@ -29,6 +29,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -488,10 +489,12 @@ func (b *stateBuilderImpl) ApplyEvents(
 
 			// The length of newRunHistory can be zero in resend case
 			if len(newRunHistory) != 0 {
+				domainEntry := b.mutableState.GetDomainEntry()
 				newRunMutableStateBuilder = NewMutableStateBuilderWithVersionHistories(
 					b.shard,
 					b.logger,
-					b.mutableState.GetDomainEntry(),
+					domainEntry,
+					constants.EmptyVersion,
 				)
 				newRunStateBuilder := NewStateBuilder(b.shard, b.logger, newRunMutableStateBuilder)
 				newRunID := event.WorkflowExecutionContinuedAsNewEventAttributes.GetNewExecutionRunID()

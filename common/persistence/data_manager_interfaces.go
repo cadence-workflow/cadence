@@ -1148,11 +1148,14 @@ type (
 		Clusters []*ClusterReplicationConfig
 
 		// ActiveClusterName is the name of the cluster that the domain is active in.
-		// Applicable for active-passive domains.
+		// Required for all global domains (both active-passive and active-active).
+		// For active-passive domains, this is the single active cluster.
+		// For active-active domains this is the default cluster whenever a ClusterAttribute is not provided
 		ActiveClusterName string
 
 		// ActiveClusters is only applicable for active-active domains.
-		// If this is set, ActiveClusterName is ignored.
+		// When this is set, the domain is considered active-active and workflows are routed
+		// based on their ClusterAttributes.
 		ActiveClusters *types.ActiveClusters
 	}
 
@@ -2282,8 +2285,27 @@ func (p *TaskListPartition) ToInternalType() *types.TaskListPartition {
 	return &types.TaskListPartition{IsolationGroups: p.IsolationGroups}
 }
 
-// IsActiveActive
+// IsActiveActive returns true if the domain has active-active configuration.
+// Returns true if ClusterAttributes (or legacy RegionToClusters) have been configured for this domain.
 // TODO(active-active): Update unit tests of all components that use this function to cover active-active case
 func (c *DomainReplicationConfig) IsActiveActive() bool {
-	return c != nil && c.ActiveClusters != nil && len(c.ActiveClusters.ActiveClustersByRegion) > 0
+	if c == nil || c.ActiveClusters == nil {
+		return false
+	}
+
+	// Check to see if a ClusterAttribute has been configured for this domain.
+	if len(c.ActiveClusters.AttributeScopes) > 0 {
+		for _, scope := range c.ActiveClusters.AttributeScopes {
+			if len(scope.ClusterAttributes) > 0 {
+				return true
+			}
+		}
+	}
+
+	// TODO(active-active): Remove this once we have completely migrated to ClusterAttributes
+	return len(c.ActiveClusters.ActiveClustersByRegion) > 0
+}
+
+func IsWorkflowRunning(state int) bool {
+	return state == WorkflowStateRunning || state == WorkflowStateCreated
 }

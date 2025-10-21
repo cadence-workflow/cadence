@@ -3,6 +3,7 @@ package executorclient
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,6 +25,10 @@ const (
 	processorStateStarting processorState = iota
 	processorStateStarted
 	processorStateStopping
+)
+
+const (
+	heartbeatJitterMax = 100 * time.Millisecond
 )
 
 type managedProcessor[SP ShardProcessor] struct {
@@ -62,6 +67,7 @@ type executorImpl[SP ShardProcessor] struct {
 	processLoopWG          sync.WaitGroup
 	assignmentMutex        sync.Mutex
 	metrics                tally.Scope
+	migrationMode          types.MigrationMode
 }
 
 func (e *executorImpl[SP]) Start(ctx context.Context) {
@@ -88,9 +94,23 @@ func (e *executorImpl[SP]) GetShardProcess(shardID string) (SP, error) {
 	return shardProcess.processor, nil
 }
 
+func (e *executorImpl[SP]) AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment) {
+	e.assignmentMutex.Lock()
+	defer e.assignmentMutex.Unlock()
+
+	e.logger.Info("Executing external shard assignment")
+	e.updateShardAssignment(ctx, shardAssignment)
+}
+
 func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
-	heartBeatTicker := e.timeSource.NewTicker(e.heartBeatInterval)
-	defer heartBeatTicker.Stop()
+	// Check if initial migration mode is LOCAL_PASSTHROUGH - if so, skip heartbeating entirely
+	if e.migrationMode == types.MigrationModeLOCALPASSTHROUGH {
+		e.logger.Info("initial migration mode is local passthrough, skipping heartbeat loop")
+		return
+	}
+
+	heartBeatTimer := e.timeSource.NewTimer(getJitteredHeartbeatDuration(e.heartBeatInterval, heartbeatJitterMax))
+	defer heartBeatTimer.Stop()
 
 	for {
 		select {
@@ -102,12 +122,41 @@ func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
 			e.logger.Info("shard distributorexecutor stopped")
 			e.stopShardProcessors()
 			return
-		case <-heartBeatTicker.Chan():
-			shardAssignment, err := e.heartbeat(ctx)
+		case <-heartBeatTimer.Chan():
+			heartBeatTimer.Reset(getJitteredHeartbeatDuration(e.heartBeatInterval, heartbeatJitterMax))
+			shardAssignment, migrationMode, err := e.heartbeat(ctx)
 			if err != nil {
 				e.logger.Error("failed to heartbeat", tag.Error(err))
 				continue // TODO: should we stop the executor, and drop all the shards?
 			}
+
+			// Handle migration mode logic
+			switch migrationMode {
+			case types.MigrationModeLOCALPASSTHROUGH:
+				// LOCAL_PASSTHROUGH: statically assigned, stop heartbeating
+				e.logger.Info("local passthrough mode: stopping heartbeat loop")
+				return
+
+			case types.MigrationModeLOCALPASSTHROUGHSHADOW:
+				// LOCAL_PASSTHROUGH_SHADOW: check response but don't apply it
+				e.compareAssignments(shardAssignment)
+				continue
+
+			case types.MigrationModeDISTRIBUTEDPASSTHROUGH:
+				// DISTRIBUTED_PASSTHROUGH: validate then apply the assignment
+				e.compareAssignments(shardAssignment)
+				// Continue with applying the assignment from heartbeat
+
+			case types.MigrationModeONBOARDED:
+				// ONBOARDED: normal flow, apply the assignment from heartbeat
+				// Continue with normal assignment logic below
+
+			default:
+				e.logger.Warn("unknown migration mode, skipping assignment",
+					tag.Dynamic("migration-mode", migrationMode))
+				continue
+			}
+
 			if !e.assignmentMutex.TryLock() {
 				e.logger.Warn("already doing shard assignment, will skip this assignment")
 				e.metrics.Counter(metricsconstants.ShardDistributorExecutorAssignmentSkipped).Inc(1)
@@ -127,7 +176,7 @@ func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
 	}
 }
 
-func (e *executorImpl[SP]) heartbeat(ctx context.Context) (shardAssignments map[string]*types.ShardAssignment, err error) {
+func (e *executorImpl[SP]) heartbeat(ctx context.Context) (shardAssignments map[string]*types.ShardAssignment, migrationMode types.MigrationMode, err error) {
 	// Fill in the shard status reports
 	shardStatusReports := make(map[string]*types.ShardStatusReport)
 	e.managedProcessors.Range(func(shardID string, managedProcessor *managedProcessor[SP]) bool {
@@ -155,10 +204,19 @@ func (e *executorImpl[SP]) heartbeat(ctx context.Context) (shardAssignments map[
 	// Send the request
 	response, err := e.shardDistributorClient.Heartbeat(ctx, request)
 	if err != nil {
-		return nil, fmt.Errorf("send heartbeat: %w", err)
+		return nil, types.MigrationModeINVALID, fmt.Errorf("send heartbeat: %w", err)
 	}
 
-	return response.ShardAssignments, nil
+	previousMode := e.migrationMode
+	currentMode := response.MigrationMode
+	if previousMode != currentMode {
+		e.logger.Info("migration mode transition",
+			tag.Dynamic("previous", previousMode),
+			tag.Dynamic("current", currentMode))
+		e.migrationMode = currentMode
+	}
+
+	return response.ShardAssignments, response.MigrationMode, nil
 }
 
 func (e *executorImpl[SP]) updateShardAssignment(ctx context.Context, shardAssignments map[string]*types.ShardAssignment) {
@@ -230,4 +288,57 @@ func (e *executorImpl[SP]) stopShardProcessors() {
 	})
 
 	wg.Wait()
+}
+
+// compareAssignments compares the local assignments with the heartbeat response assignments
+// and emits convergence or divergence metrics
+func (e *executorImpl[SP]) compareAssignments(heartbeatAssignments map[string]*types.ShardAssignment) {
+	// Get current local assignments
+	localAssignments := make(map[string]bool)
+	e.managedProcessors.Range(func(shardID string, managedProcessor *managedProcessor[SP]) bool {
+		if managedProcessor.getState() == processorStateStarted {
+			localAssignments[shardID] = true
+		}
+		return true
+	})
+
+	// Check if all local assignments are in heartbeat assignments with READY status
+	for shardID := range localAssignments {
+		assignment, exists := heartbeatAssignments[shardID]
+		if !exists || assignment.Status != types.AssignmentStatusREADY {
+			e.logger.Warn("assignment divergence: local shard not in heartbeat or not ready",
+				tag.Dynamic("shard-id", shardID))
+			e.emitMetricsConvergence(false)
+			return
+		}
+	}
+
+	// Check if all heartbeat READY assignments are in local assignments
+	for shardID, assignment := range heartbeatAssignments {
+		if assignment.Status == types.AssignmentStatusREADY {
+			if !localAssignments[shardID] {
+				e.logger.Warn("assignment divergence: heartbeat shard not in local",
+					tag.Dynamic("shard-id", shardID))
+				e.emitMetricsConvergence(false)
+				return
+			}
+		}
+	}
+
+	e.emitMetricsConvergence(true)
+}
+
+func (e *executorImpl[SP]) emitMetricsConvergence(converged bool) {
+	if converged {
+		e.metrics.Counter(metricsconstants.ShardDistributorExecutorAssignmentConvergence).Inc(1)
+	} else {
+		e.metrics.Counter(metricsconstants.ShardDistributorExecutorAssignmentDivergence).Inc(1)
+	}
+}
+
+func getJitteredHeartbeatDuration(interval time.Duration, jitterMax time.Duration) time.Duration {
+	jitterMaxNanos := int64(jitterMax)
+	randomJitterNanos := rand.Int63n(jitterMaxNanos)
+	jitter := time.Duration(randomJitterNanos)
+	return interval - jitter
 }

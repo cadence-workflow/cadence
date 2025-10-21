@@ -3,8 +3,6 @@ package store
 import (
 	"context"
 	"fmt"
-
-	"go.uber.org/fx"
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=store_mock.go Store
@@ -23,6 +21,15 @@ var (
 	// ErrExecutorNotRunning is an error that is returned when shard is attempted to be assigned to a not running executor.
 	ErrExecutorNotRunning = fmt.Errorf("executor not running")
 )
+
+type ErrShardAlreadyAssigned struct {
+	ShardID    string
+	AssignedTo string
+}
+
+func (e *ErrShardAlreadyAssigned) Error() string {
+	return fmt.Sprintf("shard %s is already assigned to %s", e.ShardID, e.AssignedTo)
+}
 
 // Txn represents a generic, backend-agnostic transaction.
 // It is used as a vehicle for the GuardFunc to operate on.
@@ -45,10 +52,6 @@ func NopGuard() GuardFunc {
 type AssignShardsRequest struct {
 	// NewState is the new state of the namespace, containing the new assignments of shards to executors.
 	NewState *NamespaceState
-
-	// ShardsToDelete is a map of shards to delete. These shards are not present in the NewState, as they
-	// should be deleted, so we need to pass them explicitly.
-	ShardsToDelete map[string]ShardState
 }
 
 // Store is a composite interface that combines all storage capabilities.
@@ -63,27 +66,4 @@ type Store interface {
 
 	GetHeartbeat(ctx context.Context, namespace string, executorID string) (*HeartbeatState, *AssignedState, error)
 	RecordHeartbeat(ctx context.Context, namespace, executorID string, state HeartbeatState) error
-}
-
-// Impl could be used to build an implementation in the registry.
-// We use registry based approach to avoid introduction of global etcd dependency.
-type Impl fx.Option
-
-var (
-	storeRegistry = make(map[string]Impl)
-)
-
-// Register registers store implementation in the registry.
-func Register(name string, factory Impl) {
-	storeRegistry[name] = factory
-}
-
-// Module returns registered a leader store fx.Option from the configuration.
-// This can introduce extra dependency requirements to the fx application.
-func Module(name string) fx.Option {
-	factory, ok := storeRegistry[name]
-	if !ok {
-		panic(fmt.Sprintf("no store registered with name %s", name))
-	}
-	return factory
 }

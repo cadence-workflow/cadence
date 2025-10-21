@@ -241,7 +241,7 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 	tlMgr, err := NewManager(
 		mockDomainCache,
 		logger,
-		metrics.NewClient(tally.NoopScope, metrics.Matching),
+		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
 		tm,
 		cluster.GetTestClusterMetadata(true),
 		mockIsolationState,
@@ -886,7 +886,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	tlMgr, err := NewManager(
 		mockDomainCache,
 		logger,
-		metrics.NewClient(tally.NoopScope, metrics.Matching),
+		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
 		tm,
 		cluster.GetTestClusterMetadata(true),
 		mockIsolationState,
@@ -957,7 +957,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	tlMgr, err = NewManager(
 		mockDomainCache,
 		logger,
-		metrics.NewClient(tally.NoopScope, metrics.Matching),
+		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
 		tm,
 		cluster.GetTestClusterMetadata(true),
 		mockIsolationState,
@@ -1016,7 +1016,7 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 	tlMgr, err := NewManager(
 		mockDomainCache,
 		logger,
-		metrics.NewClient(tally.NoopScope, metrics.Matching),
+		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
 		tm,
 		cluster.GetTestClusterMetadata(true),
 		mockIsolationState,
@@ -1163,7 +1163,7 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 			tlMgr, err := NewManager(
 				mockDomainCache,
 				logger,
-				metrics.NewClient(tally.NoopScope, metrics.Matching),
+				metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
 				tm,
 				cluster.GetTestClusterMetadata(true),
 				mockIsolationState,

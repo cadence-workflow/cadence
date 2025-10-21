@@ -118,9 +118,9 @@ func TestVerifyActiveTask(t *testing.T) {
 			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
 				domainEntry := activeActiveDomainEntry()
 				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
-				activeClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&activecluster.LookupResult{
-						ClusterName: "another-cluster",
+				activeClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&types.ActiveClusterInfo{
+						ActiveClusterName: "another-cluster",
 					}, nil)
 			},
 			expectedResult: false,
@@ -130,9 +130,9 @@ func TestVerifyActiveTask(t *testing.T) {
 			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
 				domainEntry := activeActiveDomainEntry()
 				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
-				activeClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&activecluster.LookupResult{
-						ClusterName: "currentCluster",
+				activeClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&types.ActiveClusterInfo{
+						ActiveClusterName: "currentCluster",
 					}, nil)
 			},
 			expectedResult: true,
@@ -142,7 +142,7 @@ func TestVerifyActiveTask(t *testing.T) {
 			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
 				domainEntry := activeActiveDomainEntry()
 				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
-				activeClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				activeClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("some error"))
 			},
 			expectedResult:      false,
@@ -453,9 +453,9 @@ func TestVerifyStandbyTask(t *testing.T) {
 			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
 				domainEntry := activeActiveDomainEntry()
 				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
-				activeClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&activecluster.LookupResult{
-						ClusterName: "another-cluster",
+				activeClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&types.ActiveClusterInfo{
+						ActiveClusterName: "another-cluster",
 					}, nil)
 			},
 			standbyCluster: "standbyCluster",
@@ -467,9 +467,9 @@ func TestVerifyStandbyTask(t *testing.T) {
 			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
 				domainEntry := activeActiveDomainEntry()
 				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
-				activeClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&activecluster.LookupResult{
-						ClusterName: "standbyCluster",
+				activeClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&types.ActiveClusterInfo{
+						ActiveClusterName: "standbyCluster",
 					}, nil)
 			},
 			standbyCluster: "standbyCluster",
@@ -481,7 +481,7 @@ func TestVerifyStandbyTask(t *testing.T) {
 			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
 				domainEntry := activeActiveDomainEntry()
 				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
-				activeClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				activeClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("some error"))
 			},
 			standbyCluster: "standbyCluster",

@@ -14,6 +14,8 @@ jobs:
       matrix:
         scenario:
           - activeactive
+          - activeactive_child
+          - activeactive_invalid_cluster_attribute
           - activeactive_same_wfid
           - activeactive_same_wfid_signalwithstart
           - activeactive_same_wfid_signalwithstart_delayed
@@ -23,7 +25,6 @@ jobs:
           - activeactive_regional_failover_start_same_wfid_2
           - activepassive_to_activeactive
           - clusterredirection
-          - reset
           - default
 
     steps:

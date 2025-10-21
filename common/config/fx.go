@@ -27,6 +27,8 @@ import (
 	"os"
 
 	"go.uber.org/fx"
+
+	"github.com/uber/cadence/common/metrics"
 )
 
 // Module returns a config.Provider that could be used byother components.
@@ -59,6 +61,7 @@ type Result struct {
 
 	Config        Config
 	ServiceConfig Service
+	Histograms    metrics.HistogramMigration
 }
 
 // LookupEnvFunc returns the value of the environment variable given by key.
@@ -97,5 +100,6 @@ func New(p Params) (Result, error) {
 	return Result{
 		Config:        cfg,
 		ServiceConfig: svcCfg,
+		Histograms:    cfg.Histograms,
 	}, nil
 }

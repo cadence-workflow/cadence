@@ -752,6 +752,11 @@ func (v *ReplicationTask) GetSourceTaskID() (o int64) {
 	return
 }
 
+// GetSequenceID implements cache.AckCacheItem interface by delegating to GetSourceTaskID
+func (v *ReplicationTask) GetSequenceID() int64 {
+	return v.GetSourceTaskID()
+}
+
 // GetDomainTaskAttributes is an internal getter (TBD...)
 func (v *ReplicationTask) GetDomainTaskAttributes() (o *DomainTaskAttributes) {
 	if v != nil && v.DomainTaskAttributes != nil {

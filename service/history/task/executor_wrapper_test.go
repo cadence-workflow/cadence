@@ -7,7 +7,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/activecluster"
-	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -26,15 +25,6 @@ func TestExecutorWrapper_IsActiveTask(t *testing.T) {
 		lookupError    error
 		expectedResult bool
 	}{
-		{
-			name:           "Domain not found - process as active",
-			currentCluster: "cluster1",
-			domainID:       "domain1",
-			workflowID:     "workflow1",
-			runID:          "run1",
-			domainError:    assert.AnError,
-			expectedResult: true,
-		},
 		{
 			name:           "Active-Active domain - current cluster is active",
 			currentCluster: "cluster1",
@@ -65,26 +55,6 @@ func TestExecutorWrapper_IsActiveTask(t *testing.T) {
 			lookupError:    assert.AnError,
 			expectedResult: true,
 		},
-		{
-			name:           "Non-Active-Active domain - current cluster is active",
-			currentCluster: "cluster1",
-			activeCluster:  "cluster1",
-			domainID:       "domain1",
-			workflowID:     "workflow1",
-			runID:          "run1",
-			isActiveActive: false,
-			expectedResult: true,
-		},
-		{
-			name:           "Non-Active-Active domain - current cluster is not active",
-			currentCluster: "cluster1",
-			activeCluster:  "cluster2",
-			domainID:       "domain1",
-			workflowID:     "workflow1",
-			runID:          "run1",
-			isActiveActive: false,
-			expectedResult: false,
-		},
 	}
 
 	for _, tt := range tests {
@@ -98,53 +68,13 @@ func TestExecutorWrapper_IsActiveTask(t *testing.T) {
 			mockTask.EXPECT().GetInfo().Return(&persistence.DecisionTask{}).AnyTimes()
 			mockTask.EXPECT().GetTaskType().Return(0).AnyTimes() // called by debug log
 
-			mockDomainCache := cache.NewMockDomainCache(ctrl)
 			mockActiveClusterMgr := activecluster.NewMockManager(ctrl)
-			if tt.isActiveActive {
-				domainEntry := cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: tt.domainID},
-					&persistence.DomainConfig{},
-					true,
-					&persistence.DomainReplicationConfig{
-						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								"region1": {ActiveClusterName: tt.activeCluster},
-							},
-						},
-					},
-					0,
-					nil,
-					0,
-					0,
-					0,
-				)
-				mockDomainCache.EXPECT().GetDomainByID(tt.domainID).Return(domainEntry, tt.domainError)
-				if tt.lookupError == nil {
-					mockActiveClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), tt.domainID, tt.workflowID, tt.runID).
-						Return(&activecluster.LookupResult{ClusterName: tt.activeCluster}, nil)
-				} else {
-					mockActiveClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), tt.domainID, tt.workflowID, tt.runID).
-						Return(nil, tt.lookupError)
-				}
+			if tt.lookupError == nil {
+				mockActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), tt.domainID, tt.workflowID, tt.runID).
+					Return(&types.ActiveClusterInfo{ActiveClusterName: tt.activeCluster}, nil)
 			} else {
-				domainEntry := cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: tt.domainID},
-					&persistence.DomainConfig{},
-					true,
-					&persistence.DomainReplicationConfig{
-						ActiveClusterName: tt.activeCluster,
-						Clusters: []*persistence.ClusterReplicationConfig{
-							{ClusterName: tt.currentCluster},
-							{ClusterName: tt.activeCluster},
-						},
-					},
-					0,
-					nil,
-					0,
-					0,
-					0,
-				)
-				mockDomainCache.EXPECT().GetDomainByID(tt.domainID).Return(domainEntry, tt.domainError)
+				mockActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), tt.domainID, tt.workflowID, tt.runID).
+					Return(nil, tt.lookupError)
 			}
 
 			mockLogger := testlogger.New(t)
@@ -152,7 +82,6 @@ func TestExecutorWrapper_IsActiveTask(t *testing.T) {
 			// Create executor wrapper
 			wrapper := NewExecutorWrapper(
 				tt.currentCluster,
-				mockDomainCache,
 				mockActiveClusterMgr,
 				NewMockExecutor(ctrl),
 				NewMockExecutor(ctrl),

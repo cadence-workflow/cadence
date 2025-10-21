@@ -14,6 +14,8 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+
+	types "github.com/uber/cadence/common/types"
 )
 
 // MockShardProcessor is a mock of ShardProcessor interface.
@@ -139,6 +141,18 @@ func NewMockExecutor[SP ShardProcessor](ctrl *gomock.Controller) *MockExecutor[S
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockExecutor[SP]) EXPECT() *MockExecutorMockRecorder[SP] {
 	return m.recorder
+}
+
+// AssignShardsFromLocalLogic mocks base method.
+func (m *MockExecutor[SP]) AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AssignShardsFromLocalLogic", ctx, shardAssignment)
+}
+
+// AssignShardsFromLocalLogic indicates an expected call of AssignShardsFromLocalLogic.
+func (mr *MockExecutorMockRecorder[SP]) AssignShardsFromLocalLogic(ctx, shardAssignment any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardsFromLocalLogic", reflect.TypeOf((*MockExecutor[SP])(nil).AssignShardsFromLocalLogic), ctx, shardAssignment)
 }
 
 // GetShardProcess mocks base method.

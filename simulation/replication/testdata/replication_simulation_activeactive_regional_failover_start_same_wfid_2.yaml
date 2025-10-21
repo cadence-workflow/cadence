@@ -17,9 +17,14 @@ primaryCluster: "cluster0"
 
 domains:
   test-domain-aa:
+    activeClusterName: cluster0
     activeClustersByRegion:
       region0: cluster0
       region1: cluster1
+    clusterAttributes:
+      region:
+        region0: cluster0
+        region1: cluster1
 
 operations:
   # Start wf1 on cluster1 before failover.
@@ -31,6 +36,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 70s
     workflowDuration: 60s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
 
 
   # Failover from cluster1 to cluster0
@@ -39,6 +48,9 @@ operations:
     domain: test-domain-aa
     newActiveClustersByRegion:
       region1: cluster0
+    newClusterAttributes:
+      region:
+        region1: cluster0
 
   # Attempt to start wf1 on cluster0. It should reject with error "Workflow execution is already running".
   - op: start_workflow
@@ -49,6 +61,10 @@ operations:
     domain: test-domain-aa
     workflowExecutionStartToCloseTimeout: 70s
     workflowDuration: 60s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
     want:
       error: "Workflow execution is already running"
 

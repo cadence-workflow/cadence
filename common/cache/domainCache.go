@@ -762,7 +762,6 @@ func (entry *DomainCacheEntry) duplicate() *DomainCacheEntry {
 		result.replicationConfig.Clusters = append(result.replicationConfig.Clusters, &c)
 	}
 	result.replicationConfig.ActiveClusters = entry.replicationConfig.ActiveClusters.DeepCopy()
-	result.activeClusters = entry.activeClusters
 	result.configVersion = entry.configVersion
 	result.failoverVersion = entry.failoverVersion
 	result.isGlobalDomain = entry.isGlobalDomain
@@ -825,6 +824,37 @@ func (entry *DomainCacheEntry) GetFailoverEndTime() *int64 {
 	return entry.failoverEndTime
 }
 
+// GetActiveClusterInfoByClusterAttribute return the active cluster info for a given cluster attribute
+// if clusterAttribute is nil, return the domain-level active cluster info and true
+// if the clusterAttribute exists, return the active cluster info of the clusterAttribute and true
+// if the clusterAttribute is not found, return false
+func (entry *DomainCacheEntry) GetActiveClusterInfoByClusterAttribute(clusterAttribute *types.ClusterAttribute) (*types.ActiveClusterInfo, bool) {
+	if clusterAttribute == nil {
+		return &types.ActiveClusterInfo{
+			ActiveClusterName: entry.GetReplicationConfig().ActiveClusterName,
+			FailoverVersion:   entry.GetFailoverVersion(),
+		}, true
+	}
+	if entry.replicationConfig.ActiveClusters == nil {
+		return nil, false
+	}
+	if entry.replicationConfig.ActiveClusters.AttributeScopes == nil {
+		return nil, false
+	}
+	scope, ok := entry.replicationConfig.ActiveClusters.AttributeScopes[clusterAttribute.Scope]
+	if !ok {
+		return nil, false
+	}
+	info, ok := scope.ClusterAttributes[clusterAttribute.Name]
+	if !ok {
+		return nil, false
+	}
+	return &types.ActiveClusterInfo{
+		ActiveClusterName: info.ActiveClusterName,
+		FailoverVersion:   info.FailoverVersion,
+	}, true
+}
+
 // NewDomainNotActiveError return a domain not active error
 // currentCluster is the current cluster
 // activeCluster is the active cluster which is either domain's active cluster or it's inferred from workflow task version
@@ -872,10 +902,13 @@ func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) bool {
 		return false
 	}
 
+	// TODO(active-active): review this logic because cluster attribute might be an input
 	if entry.GetReplicationConfig().IsActiveActive() {
-		for _, cl := range entry.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion {
-			if cl.ActiveClusterName == currentCluster {
-				return true
+		for _, scope := range entry.GetReplicationConfig().ActiveClusters.AttributeScopes {
+			for _, cl := range scope.ClusterAttributes {
+				if cl.ActiveClusterName == currentCluster {
+					return true
+				}
 			}
 		}
 
@@ -1000,27 +1033,6 @@ func (entry *DomainCacheEntry) IsSampledForLongerRetention(
 	return false
 }
 
-// TODO(active-active): This function should accept active cluster selection policy as a parameter
-func GetActiveDomainByID(cache DomainCache, currentCluster string, domainID string) (*DomainCacheEntry, error) {
-	if err := common.ValidateDomainUUID(domainID); err != nil {
-		return nil, err
-	}
-
-	domain, err := cache.GetDomainByID(domainID)
-	if err != nil {
-		return nil, err
-	}
-
-	if !domain.IsActiveIn(currentCluster) {
-		// return the domain record as well as the not-active-error because some callers check
-		// whether the domain is pending active or not
-		// it's not a good design, but we need to keep it for backward compatibility
-		return domain, domain.NewDomainNotActiveError(currentCluster, domain.GetReplicationConfig().ActiveClusterName)
-	}
-
-	return domain, nil
-}
-
 // IsDeprecatedOrDeleted This function checks the domain status to see if the domain has been deprecated or deleted.
 func (entry *DomainCacheEntry) IsDeprecatedOrDeleted() bool {
 	if entry.info.Status == persistence.DomainStatusDeprecated || entry.info.Status == persistence.DomainStatusDeleted {
@@ -1033,9 +1045,12 @@ func getActiveClusters(replicationConfig *persistence.DomainReplicationConfig) [
 	if !replicationConfig.IsActiveActive() {
 		return nil
 	}
-	activeClusters := make([]string, 0, len(replicationConfig.ActiveClusters.ActiveClustersByRegion))
-	for _, cl := range replicationConfig.ActiveClusters.ActiveClustersByRegion {
-		activeClusters = append(activeClusters, cl.ActiveClusterName)
+	// TODO(active-active): Replace with `GetAllClusters` once we remove regions
+	activeClusters := make([]string, 0, len(replicationConfig.ActiveClusters.AttributeScopes))
+	for _, scope := range replicationConfig.ActiveClusters.AttributeScopes {
+		for _, cl := range scope.ClusterAttributes {
+			activeClusters = append(activeClusters, cl.ActiveClusterName)
+		}
 	}
 	sort.Strings(activeClusters)
 	return activeClusters

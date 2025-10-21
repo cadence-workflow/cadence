@@ -172,9 +172,11 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 	defer ticker.Stop()
 
 	// Perform an initial rebalance on startup.
-	err := p.rebalanceShards(ctx)
-	if err != nil {
-		p.logger.Error("initial rebalance failed", tag.Error(err))
+	if p.namespaceCfg.Mode == config.MigrationModeONBOARDED {
+		err := p.rebalanceShards(ctx)
+		if err != nil {
+			p.logger.Error("initial rebalance failed", tag.Error(err))
+		}
 	}
 
 	updateChan, err := p.shardStore.Subscribe(ctx, p.namespaceCfg.Name)
@@ -195,6 +197,10 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 			}
 			if latestRevision <= p.lastAppliedRevision {
 				continue
+			}
+			if p.namespaceCfg.Mode != config.MigrationModeONBOARDED {
+				p.logger.Info("Namespace not onboarded, rebalance not triggered", tag.ShardNamespace(p.namespaceCfg.Name))
+				break
 			}
 			p.logger.Info("State change detected, triggering rebalance.")
 			err = p.rebalanceShards(ctx)
@@ -282,6 +288,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	}
 
 	if namespaceState.GlobalRevision <= p.lastAppliedRevision {
+		p.logger.Debug("No changes detected. Skipping rebalance.")
 		return nil
 	}
 	p.lastAppliedRevision = namespaceState.GlobalRevision
@@ -303,6 +310,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	distributionChanged = distributionChanged || p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
 
 	if !distributionChanged {
+		p.logger.Debug("No changes to distribution detected. Skipping rebalance.")
 		return nil
 	}
 
@@ -311,8 +319,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	p.logger.Info("Applying new shard distribution.")
 	// Use the leader guard for the assign operation.
 	err = p.shardStore.AssignShards(ctx, p.namespaceCfg.Name, store.AssignShardsRequest{
-		NewState:       namespaceState,
-		ShardsToDelete: deletedShards,
+		NewState: namespaceState,
 	}, p.election.Guard())
 	if err != nil {
 		return fmt.Errorf("assign shards: %w", err)
@@ -329,7 +336,6 @@ func (p *namespaceProcessor) findDeletedShards(namespaceState *store.NamespaceSt
 			if shardState.Status == types.ShardStatusDONE {
 				deletedShards[shardID] = store.ShardState{
 					ExecutorID: executorID,
-					Revision:   namespaceState.Shards[shardID].Revision,
 				}
 			}
 		}
@@ -385,23 +391,21 @@ func (*namespaceProcessor) updateAssignments(shardsToReassign []string, activeEx
 }
 
 func (p *namespaceProcessor) addAssignmentsToNamespaceState(namespaceState *store.NamespaceState, currentAssignments map[string][]string) {
-	if namespaceState.Shards == nil {
-		namespaceState.Shards = make(map[string]store.ShardState)
-	}
-
 	newState := make(map[string]store.AssignedState)
 	for executorID, shards := range currentAssignments {
 		assignedShardsMap := make(map[string]*types.ShardAssignment)
 		for _, shardID := range shards {
 			assignedShardsMap[shardID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
-			namespaceState.Shards[shardID] = store.ShardState{
-				ExecutorID: executorID,
-				Revision:   namespaceState.Shards[shardID].Revision,
-			}
 		}
+		modRevision := int64(0) // Should be 0 if we have not seen it yet
+		if namespaceAssignments, ok := namespaceState.ShardAssignments[executorID]; ok {
+			modRevision = namespaceAssignments.ModRevision
+		}
+
 		newState[executorID] = store.AssignedState{
 			AssignedShards: assignedShardsMap,
 			LastUpdated:    p.timeSource.Now().Unix(),
+			ModRevision:    modRevision,
 		}
 	}
 
@@ -477,12 +481,14 @@ func getShards(cfg config.Namespace, namespaceState *store.NamespaceState, delet
 		return makeShards(cfg.ShardNum)
 	} else if cfg.Type == config.NamespaceTypeEphemeral {
 		shards := make([]string, 0)
-		for shardID := range namespaceState.Shards {
-			// If the shard is deleted, we don't include it in the shards.
-			if _, ok := deletedShards[shardID]; !ok {
-				shards = append(shards, shardID)
+		for _, state := range namespaceState.ShardAssignments {
+			for shardID := range state.AssignedShards {
+				if _, ok := deletedShards[shardID]; !ok {
+					shards = append(shards, shardID)
+				}
 			}
 		}
+
 		return shards
 	}
 	return nil

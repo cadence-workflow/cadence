@@ -60,6 +60,12 @@ type Interface interface {
 		opts ...yarpc.CallOption,
 	) (*shared.DiagnoseWorkflowExecutionResponse, error)
 
+	FailoverDomain(
+		ctx context.Context,
+		FailoverRequest *shared.FailoverDomainRequest,
+		opts ...yarpc.CallOption,
+	) (*shared.FailoverDomainResponse, error)
+
 	GetClusterInfo(
 		ctx context.Context,
 		opts ...yarpc.CallOption,
@@ -509,6 +515,34 @@ func (c client) DiagnoseWorkflowExecution(
 	}
 
 	success, err = cadence.WorkflowService_DiagnoseWorkflowExecution_Helper.UnwrapResponse(&result)
+	return
+}
+
+func (c client) FailoverDomain(
+	ctx context.Context,
+	_FailoverRequest *shared.FailoverDomainRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.FailoverDomainResponse, err error) {
+
+	var result cadence.WorkflowService_FailoverDomain_Result
+	args := cadence.WorkflowService_FailoverDomain_Helper.Args(_FailoverRequest)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = cadence.WorkflowService_FailoverDomain_Helper.UnwrapResponse(&result)
 	return
 }
 

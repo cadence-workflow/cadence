@@ -149,6 +149,24 @@ func (a *apiHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.D
 	return a.handler.DiagnoseWorkflowExecution(ctx, dp1)
 }
 
+func (a *apiHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDomainRequest) (fp2 *types.FailoverDomainResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendFailoverDomainScope, fp1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "FailoverDomain",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(fp1),
+		DomainName:  fp1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.FailoverDomain(ctx, fp1)
+}
+
 func (a *apiHandler) GetClusterInfo(ctx context.Context) (cp1 *types.ClusterInfo, err error) {
 	return a.handler.GetClusterInfo(ctx)
 }
@@ -409,20 +427,6 @@ func (a *apiHandler) RequestCancelWorkflowExecution(ctx context.Context, rp1 *ty
 }
 
 func (a *apiHandler) ResetStickyTaskList(ctx context.Context, rp1 *types.ResetStickyTaskListRequest) (rp2 *types.ResetStickyTaskListResponse, err error) {
-	scope := a.getMetricsScopeWithDomain(metrics.FrontendResetStickyTaskListScope, rp1.GetDomain())
-	attr := &authorization.Attributes{
-		APIName:     "ResetStickyTaskList",
-		Permission:  authorization.PermissionWrite,
-		RequestBody: authorization.NewFilteredRequestBody(rp1),
-		DomainName:  rp1.GetDomain(),
-	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
-	if err != nil {
-		return nil, err
-	}
-	if !isAuthorized {
-		return nil, errUnauthorized
-	}
 	return a.handler.ResetStickyTaskList(ctx, rp1)
 }
 

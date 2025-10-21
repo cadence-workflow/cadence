@@ -1181,6 +1181,10 @@ func ShardExecutors(executorIDs []string) Tag {
 	return newStringsTag("shard-executors", executorIDs)
 }
 
+func ShardKey(shardKey string) Tag {
+	return newStringTag("shard-key", shardKey)
+}
+
 func ElectionDelay(t time.Duration) Tag {
 	return newDurationTag("election-delay", t)
 }

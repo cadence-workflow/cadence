@@ -70,7 +70,7 @@ func (s *queueTaskProcessorSuite) SetupTest() {
 	s.mockPriorityAssigner = NewMockPriorityAssigner(s.controller)
 
 	s.timeSource = clock.NewRealTimeSource()
-	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History)
+	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
 	s.logger = testlogger.New(s.Suite.T())
 
 	s.processor = s.newTestQueueTaskProcessor()
