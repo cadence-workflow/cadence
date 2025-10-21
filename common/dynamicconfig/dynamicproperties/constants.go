@@ -2435,8 +2435,8 @@ const (
 	//
 	// "invalid" invalid mode for the migration, not expected to be used
 	// "local_pass" the executor library is integrated but no external call to the SD happening
-	// "local_pass_shadow" heartbeat calls to the SD to update the state of the SD cache
-	// "distributed_pass" the value of the applied
+	// "local_pass_shadow" heartbeat calls to the SD to update the sharding state in SD
+	// "distributed_pass" the local sharding mechanism is sent to SD, returned by SD and applied in the onboarded service
 	// "onboarded" the sharding logic in SD is used
 	//
 	// KeyName: shardDistributor.migrationMode
