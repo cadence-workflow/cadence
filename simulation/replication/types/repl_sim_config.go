@@ -99,6 +99,7 @@ type Operation struct {
 	DelayStartSeconds                    int32                               `yaml:"delayStartSeconds"`
 	CronSchedule                         string                              `yaml:"cronSchedule"`
 	ActiveClusterSelectionPolicy         *types.ActiveClusterSelectionPolicy `yaml:"activeClusterSelectionPolicy"`
+	WorkflowIDReusePolicy                *types.WorkflowIDReusePolicy        `yaml:"workflowIDReusePolicy"`
 
 	Query            string `yaml:"query"`
 	ConsistencyLevel string `yaml:"consistencyLevel"`

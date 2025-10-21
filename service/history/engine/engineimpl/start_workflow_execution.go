@@ -619,6 +619,24 @@ func (e *historyEngineImpl) terminateAndStartWorkflow(
 	signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest,
 ) (*types.StartWorkflowExecutionResponse, error) {
 	runningMutableState := runningWFCtx.GetMutableState()
+	var err error
+	if signalWithStartRequest != nil {
+		startRequest, err = getStartRequest(domainID, signalWithStartRequest.SignalWithStartRequest, signalWithStartRequest.PartitionConfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	activeCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(runningMutableState.GetCurrentVersion())
+	if err != nil {
+		return nil, err
+	}
+	if activeCluster != e.currentClusterName {
+		if runningMutableState.GetExecutionInfo().ActiveClusterSelectionPolicy.Equals(startRequest.StartRequest.ActiveClusterSelectionPolicy) {
+			return nil, e.newDomainNotActiveError(domainEntry, runningMutableState.GetCurrentVersion())
+		}
+		return nil, &types.BadRequestError{Message: "Cannot terminate the existing workflow and start a new workflow because it is active in a different cluster with a different active cluster selection policy."}
+	}
 UpdateWorkflowLoop:
 	for attempt := 0; attempt < workflow.ConditionalRetryCount; attempt++ {
 		if !runningMutableState.IsWorkflowExecutionRunning() {
@@ -645,14 +663,6 @@ UpdateWorkflowLoop:
 				continue UpdateWorkflowLoop
 			}
 			return nil, err
-		}
-
-		var err error
-		if signalWithStartRequest != nil {
-			startRequest, err = getStartRequest(domainID, signalWithStartRequest.SignalWithStartRequest, signalWithStartRequest.PartitionConfig)
-			if err != nil {
-				return nil, err
-			}
 		}
 
 		// new mutable state

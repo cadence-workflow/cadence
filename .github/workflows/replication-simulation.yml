@@ -19,6 +19,7 @@ jobs:
           - activeactive_same_wfid
           - activeactive_same_wfid_signalwithstart
           - activeactive_same_wfid_signalwithstart_delayed
+          - activeactive_start_terminateifrunning
           - activeactive_cron
           - activeactive_regional_failover
           - activeactive_regional_failover_start_same_wfid
