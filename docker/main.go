@@ -25,6 +25,7 @@ var ClientName = "test-worker"
 var CadenceService = "cadence-frontend"
 
 func main() {
+	println("Starting Worker...")
 	startWorker(buildLogger(), buildCadenceClient())
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
