@@ -367,11 +367,15 @@ func signalWithStartWorkflow(
 
 	frontendCl := simCfg.MustGetFrontendClient(t, op.Cluster)
 
+	workflowIDReusePolicy := types.WorkflowIDReusePolicyAllowDuplicate.Ptr()
+	if op.WorkflowIDReusePolicy != nil {
+		workflowIDReusePolicy = op.WorkflowIDReusePolicy
+	}
 	signalResp, err := frontendCl.SignalWithStartWorkflowExecution(ctx, &types.SignalWithStartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
 		Domain:                              op.Domain,
 		WorkflowID:                          op.WorkflowID,
-		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+		WorkflowIDReusePolicy:               workflowIDReusePolicy,
 		WorkflowType:                        &types.WorkflowType{Name: op.WorkflowType},
 		SignalName:                          op.SignalName,
 		SignalInput:                         mustJSON(t, op.SignalInput),

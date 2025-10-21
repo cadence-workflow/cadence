@@ -635,6 +635,8 @@ func (e *historyEngineImpl) terminateAndStartWorkflow(
 		if runningMutableState.GetExecutionInfo().ActiveClusterSelectionPolicy.Equals(startRequest.StartRequest.ActiveClusterSelectionPolicy) {
 			return nil, e.newDomainNotActiveError(domainEntry, runningMutableState.GetCurrentVersion())
 		}
+		// TODO(active-active): This is a short-term fix to handle this special case, because we don't have a way to terminate the existing workflow in a different cluster and start a new workflow in the current cluster
+		// atomically in one transaction. We'll review this when we have time to implement a better solution.
 		return nil, &types.BadRequestError{Message: "Cannot terminate the existing workflow and start a new workflow because it is active in a different cluster with a different active cluster selection policy."}
 	}
 UpdateWorkflowLoop:
