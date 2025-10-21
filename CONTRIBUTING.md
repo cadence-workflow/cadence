@@ -2,16 +2,14 @@
 
 This doc is intended for contributors to Cadence backend. Thanks for considering to contribute ❤️
 
-Once you go through rest of this doc and get familiar with local development setup, take a look at the list of issues labeled with
+> 📚 **New to contributing to Cadence?** Check out our [Contributing Guide](https://cadenceworkflow.io/community/how-to-contribute/getting-started) for an overview of the contribution process across all Cadence repositories. This document contains cadence backend specific setup and development instructions.
+
+Once you go through the rest of this doc and get familiar with local development setup, take a look at the list of issues labeled with
 [good first issue](https://github.com/cadence-workflow/cadence/labels/good%20first%20issue).
 These issues are a great way to start contributing to Cadence. Later when you are more familiar with Cadence, look at issues with
 [up-for-grabs](https://github.com/cadence-workflow/cadence/labels/up-for-grabs).
 
-Feel free to join our [slack workspace](http://t.uber.com/cadence-slack) to reach out and discuss issues with the team.
-
-
-:warning: Note:
->All contributors need to fill out the [Uber Contributor License Agreement](http://t.uber.com/cla) before we can merge in any of your changes
+Join our community on the CNCF Slack workspace at [cloud-native.slack.com](https://communityinviter.com/apps/cloud-native/cncf) in the **#cadence-users** channel to reach out and discuss issues with the team.
 
 ## Development Environment
 Below are the instructions of how to set up a development Environment.
@@ -115,7 +113,7 @@ Once you have done all above, try running the local binaries:
 
 Then you will be able to run a basic local Cadence server for development.
 
-  * If you use SQLite, then run `./cadence server start --zone sqlite start`, which load , which will load `config/development.yaml` + `config/development_sqlite.yaml` as config
+  * If you use SQLite, then run `./cadence-server --zone sqlite start`, which load , which will load `config/development.yaml` + `config/development_sqlite.yaml` as config
   * If you use `cassandra.yml`, then run `./cadence-server start`, which will load `config/development.yaml` as config
   * If you use `mysql.yml` then run `./cadence-server --zone mysql start`, which will load `config/development.yaml` + `config/development_mysql.yaml` as config
   * If you use `postgres.yml` then run `./cadence-server --zone postgres start` , which will load `config/development.yaml` + `config/development_postgres.yaml` as config
@@ -130,7 +128,7 @@ Then register a domain:
 ```
 
 ### Sample Repo
-The sample code is available in the [Sample repo]https://github.com/cadence-workflow/cadence-samples
+The sample code is available in the [Sample repo](https://github.com/cadence-workflow/cadence-samples)
 
 Then run a helloworld from [Go Client Sample](https://github.com/cadence-workflow/cadence-samples) or [Java Client Sample](https://github.com/cadence-workflow/cadence-java-samples)
 

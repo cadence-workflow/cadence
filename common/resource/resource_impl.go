@@ -232,15 +232,12 @@ func New(
 		cache.WithTimeSource(params.TimeSource),
 	)
 
-	// TODO(active-active): define external entity providers as plugins
 	activeClusterMgr, err := activecluster.NewManager(
 		domainCache.GetDomainByID,
-		params.ClusterMetadata,
 		params.MetricsClient,
 		logger,
 		persistenceBean,
 		numShards,
-		activecluster.WithTimeSource(params.TimeSource),
 	)
 	if err != nil {
 		return nil, err
