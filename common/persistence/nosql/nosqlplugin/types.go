@@ -251,6 +251,31 @@ type (
 		CurrentTimeStamp            time.Time
 	}
 
+	// DomainAuditLogRow defines the row struct for domain audit log entries
+	DomainAuditLogRow struct {
+		DomainID            string
+		EventID             string
+		CreatedTime         time.Time
+		LastUpdatedTime     time.Time
+		OperationType       int
+		StateBefore         []byte
+		StateBeforeEncoding string
+		StateAfter          []byte
+		StateAfterEncoding  string
+		Identity            string
+		IdentityType        string
+		Comment             string
+	}
+
+	// DomainAuditLogRequest is a request struct for SelectDomainAuditLog
+	DomainAuditLogRequest struct {
+		DomainID       string
+		PageSize       int
+		NextPageToken  []byte
+		MinCreatedTime *time.Time
+		MaxCreatedTime *time.Time
+	}
+
 	// SelectMessagesBetweenRequest is a request struct for SelectMessagesBetween
 	SelectMessagesBetweenRequest struct {
 		QueueType               persistence.QueueType

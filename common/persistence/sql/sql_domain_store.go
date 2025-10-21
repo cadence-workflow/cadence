@@ -475,3 +475,21 @@ func (m *sqlDomainStore) ListDomains(
 
 	return resp, nil
 }
+
+func (m *sqlDomainStore) WriteDomainAuditLog(
+	ctx context.Context,
+	request *persistence.WriteDomainAuditLogRequest,
+) error {
+	return &types.InternalServiceError{
+		Message: "domain audit log is not supported in SQL persistence",
+	}
+}
+
+func (m *sqlDomainStore) ReadDomainAuditLog(
+	ctx context.Context,
+	request *persistence.ReadDomainAuditLogRequest,
+) (*persistence.ReadDomainAuditLogResponse, error) {
+	return nil, &types.InternalServiceError{
+		Message: "domain audit log is not supported in SQL persistence",
+	}
+}

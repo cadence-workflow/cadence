@@ -110,6 +110,17 @@ func (c *meteredDomainManager) ListDomains(ctx context.Context, request *persist
 	return
 }
 
+func (c *meteredDomainManager) ReadDomainAuditLog(ctx context.Context, request *persistence.ReadDomainAuditLogRequest) (rp1 *persistence.ReadDomainAuditLogResponse, err error) {
+	op := func() error {
+		rp1, err = c.wrapped.ReadDomainAuditLog(ctx, request)
+		c.emptyMetric("DomainManager.ReadDomainAuditLog", request, rp1, err)
+		return err
+	}
+
+	err = c.call(metrics.PersistenceReadDomainAuditLogScope, op, getCustomMetricTags(request)...)
+	return
+}
+
 func (c *meteredDomainManager) UpdateDomain(ctx context.Context, request *persistence.UpdateDomainRequest) (err error) {
 	op := func() error {
 		err = c.wrapped.UpdateDomain(ctx, request)
@@ -118,5 +129,16 @@ func (c *meteredDomainManager) UpdateDomain(ctx context.Context, request *persis
 	}
 
 	err = c.call(metrics.PersistenceUpdateDomainScope, op, getCustomMetricTags(request)...)
+	return
+}
+
+func (c *meteredDomainManager) WriteDomainAuditLog(ctx context.Context, request *persistence.WriteDomainAuditLogRequest) (err error) {
+	op := func() error {
+		err = c.wrapped.WriteDomainAuditLog(ctx, request)
+		c.emptyMetric("DomainManager.WriteDomainAuditLog", request, err, err)
+		return err
+	}
+
+	err = c.call(metrics.PersistenceWriteDomainAuditLogScope, op, getCustomMetricTags(request)...)
 	return
 }

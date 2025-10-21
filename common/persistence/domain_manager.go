@@ -315,6 +315,20 @@ func (m *domainManagerImpl) GetMetadata(
 	return m.persistence.GetMetadata(ctx)
 }
 
+func (m *domainManagerImpl) WriteDomainAuditLog(
+	ctx context.Context,
+	request *WriteDomainAuditLogRequest,
+) error {
+	return m.persistence.WriteDomainAuditLog(ctx, request)
+}
+
+func (m *domainManagerImpl) ReadDomainAuditLog(
+	ctx context.Context,
+	request *ReadDomainAuditLogRequest,
+) (*ReadDomainAuditLogResponse, error) {
+	return m.persistence.ReadDomainAuditLog(ctx, request)
+}
+
 func (m *domainManagerImpl) Close() {
 	m.persistence.Close()
 }

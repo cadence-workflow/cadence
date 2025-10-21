@@ -167,3 +167,5 @@ replace github.com/apache/thrift => github.com/apache/thrift v0.0.0-201612212036
 
 // DO NOT USE as it misses mysql/config store fix
 retract v1.2.3
+
+replace github.com/uber/cadence-idl => ./idls

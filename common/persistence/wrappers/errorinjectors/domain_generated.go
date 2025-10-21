@@ -130,6 +130,21 @@ func (c *injectorDomainManager) ListDomains(ctx context.Context, request *persis
 	return
 }
 
+func (c *injectorDomainManager) ReadDomainAuditLog(ctx context.Context, request *persistence.ReadDomainAuditLogRequest) (rp1 *persistence.ReadDomainAuditLogResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		rp1, err = c.wrapped.ReadDomainAuditLog(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "DomainManager.ReadDomainAuditLog", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorDomainManager) UpdateDomain(ctx context.Context, request *persistence.UpdateDomainRequest) (err error) {
 	fakeErr := generateFakeError(c.errorRate)
 	var forwardCall bool
@@ -139,6 +154,21 @@ func (c *injectorDomainManager) UpdateDomain(ctx context.Context, request *persi
 
 	if fakeErr != nil {
 		logErr(c.logger, "DomainManager.UpdateDomain", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *injectorDomainManager) WriteDomainAuditLog(ctx context.Context, request *persistence.WriteDomainAuditLogRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		err = c.wrapped.WriteDomainAuditLog(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "DomainManager.WriteDomainAuditLog", fakeErr, forwardCall, err)
 		err = fakeErr
 		return
 	}

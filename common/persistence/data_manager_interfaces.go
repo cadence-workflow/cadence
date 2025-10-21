@@ -1244,6 +1244,42 @@ type (
 		NotificationVersion int64
 	}
 
+	// DomainAuditLogEntry represents a single audit log entry for domain changes
+	DomainAuditLogEntry struct {
+		DomainID            string
+		EventID             string
+		CreatedTime         time.Time
+		LastUpdatedTime     time.Time
+		OperationType       int
+		StateBefore         []byte
+		StateBeforeEncoding string
+		StateAfter          []byte
+		StateAfterEncoding  string
+		Identity            string
+		IdentityType        string
+		Comment             string
+	}
+
+	// WriteDomainAuditLogRequest is used to write domain audit log entries
+	WriteDomainAuditLogRequest struct {
+		Entries []*DomainAuditLogEntry
+	}
+
+	// ReadDomainAuditLogRequest is used to read domain audit log entries
+	ReadDomainAuditLogRequest struct {
+		DomainID       string
+		PageSize       int
+		NextPageToken  []byte
+		MinCreatedTime *time.Time
+		MaxCreatedTime *time.Time
+	}
+
+	// ReadDomainAuditLogResponse is the response for ReadDomainAuditLog
+	ReadDomainAuditLogResponse struct {
+		Entries       []*DomainAuditLogEntry
+		NextPageToken []byte
+	}
+
 	// MutableStateStats is the size stats for MutableState
 	MutableStateStats struct {
 		// Total size of mutable state
@@ -1611,6 +1647,8 @@ type (
 		DeleteDomainByName(ctx context.Context, request *DeleteDomainByNameRequest) error
 		ListDomains(ctx context.Context, request *ListDomainsRequest) (*ListDomainsResponse, error)
 		GetMetadata(ctx context.Context) (*GetMetadataResponse, error)
+		WriteDomainAuditLog(ctx context.Context, request *WriteDomainAuditLogRequest) error
+		ReadDomainAuditLog(ctx context.Context, request *ReadDomainAuditLogRequest) (*ReadDomainAuditLogResponse, error)
 	}
 
 	// QueueManager is used to manage queue store

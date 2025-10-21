@@ -255,6 +255,10 @@ const (
 	PersistenceListDomainsScope
 	// PersistenceGetMetadataScope tracks DeleteDomainByName calls made by service to persistence layer
 	PersistenceGetMetadataScope
+	// PersistenceWriteDomainAuditLogScope tracks WriteDomainAuditLog calls made by service to persistence layer
+	PersistenceWriteDomainAuditLogScope
+	// PersistenceReadDomainAuditLogScope tracks ReadDomainAuditLog calls made by service to persistence layer
+	PersistenceReadDomainAuditLogScope
 	// PersistenceRecordWorkflowExecutionStartedScope tracks RecordWorkflowExecutionStarted calls made by service to persistence layer
 	PersistenceRecordWorkflowExecutionStartedScope
 	// PersistenceRecordWorkflowExecutionClosedScope tracks RecordWorkflowExecutionClosed calls made by service to persistence layer
@@ -1536,6 +1540,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistenceDeleteDomainByNameScope:                       {operation: "DeleteDomainByName"},
 		PersistenceListDomainsScope:                              {operation: "ListDomain"},
 		PersistenceGetMetadataScope:                              {operation: "GetMetadata"},
+		PersistenceWriteDomainAuditLogScope:                      {operation: "WriteDomainAuditLog"},
+		PersistenceReadDomainAuditLogScope:                       {operation: "ReadDomainAuditLog"},
 		PersistenceRecordWorkflowExecutionStartedScope:           {operation: "RecordWorkflowExecutionStarted"},
 		PersistenceRecordWorkflowExecutionClosedScope:            {operation: "RecordWorkflowExecutionClosed"},
 		PersistenceRecordWorkflowExecutionUninitializedScope:     {operation: "RecordWorkflowExecutionUninitialized"},

@@ -257,3 +257,74 @@ func (m *nosqlDomainStore) GetMetadata(
 	}
 	return &persistence.GetMetadataResponse{NotificationVersion: notificationVersion}, nil
 }
+
+func (m *nosqlDomainStore) WriteDomainAuditLog(
+	ctx context.Context,
+	request *persistence.WriteDomainAuditLogRequest,
+) error {
+	rows := make([]*nosqlplugin.DomainAuditLogRow, len(request.Entries))
+	for i, entry := range request.Entries {
+		rows[i] = &nosqlplugin.DomainAuditLogRow{
+			DomainID:            entry.DomainID,
+			EventID:             entry.EventID,
+			CreatedTime:         entry.CreatedTime,
+			LastUpdatedTime:     entry.LastUpdatedTime,
+			OperationType:       entry.OperationType,
+			StateBefore:         entry.StateBefore,
+			StateBeforeEncoding: entry.StateBeforeEncoding,
+			StateAfter:          entry.StateAfter,
+			StateAfterEncoding:  entry.StateAfterEncoding,
+			Identity:            entry.Identity,
+			IdentityType:        entry.IdentityType,
+			Comment:             entry.Comment,
+		}
+	}
+
+	err := m.db.InsertDomainAuditLog(ctx, rows)
+	if err != nil {
+		return convertCommonErrors(m.db, "WriteDomainAuditLog", err)
+	}
+
+	return nil
+}
+
+func (m *nosqlDomainStore) ReadDomainAuditLog(
+	ctx context.Context,
+	request *persistence.ReadDomainAuditLogRequest,
+) (*persistence.ReadDomainAuditLogResponse, error) {
+	pluginRequest := &nosqlplugin.DomainAuditLogRequest{
+		DomainID:       request.DomainID,
+		PageSize:       request.PageSize,
+		NextPageToken:  request.NextPageToken,
+		MinCreatedTime: request.MinCreatedTime,
+		MaxCreatedTime: request.MaxCreatedTime,
+	}
+
+	rows, nextPageToken, err := m.db.SelectDomainAuditLog(ctx, pluginRequest)
+	if err != nil {
+		return nil, convertCommonErrors(m.db, "ReadDomainAuditLog", err)
+	}
+
+	entries := make([]*persistence.DomainAuditLogEntry, len(rows))
+	for i, row := range rows {
+		entries[i] = &persistence.DomainAuditLogEntry{
+			DomainID:            row.DomainID,
+			EventID:             row.EventID,
+			CreatedTime:         row.CreatedTime,
+			LastUpdatedTime:     row.LastUpdatedTime,
+			OperationType:       row.OperationType,
+			StateBefore:         row.StateBefore,
+			StateBeforeEncoding: row.StateBeforeEncoding,
+			StateAfter:          row.StateAfter,
+			StateAfterEncoding:  row.StateAfterEncoding,
+			Identity:            row.Identity,
+			IdentityType:        row.IdentityType,
+			Comment:             row.Comment,
+		}
+	}
+
+	return &persistence.ReadDomainAuditLogResponse{
+		Entries:       entries,
+		NextPageToken: nextPageToken,
+	}, nil
+}

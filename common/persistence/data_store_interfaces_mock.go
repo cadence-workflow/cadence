@@ -617,6 +617,21 @@ func (mr *MockDomainStoreMockRecorder) ListDomains(ctx, request any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDomains", reflect.TypeOf((*MockDomainStore)(nil).ListDomains), ctx, request)
 }
 
+// ReadDomainAuditLog mocks base method.
+func (m *MockDomainStore) ReadDomainAuditLog(ctx context.Context, request *ReadDomainAuditLogRequest) (*ReadDomainAuditLogResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadDomainAuditLog", ctx, request)
+	ret0, _ := ret[0].(*ReadDomainAuditLogResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadDomainAuditLog indicates an expected call of ReadDomainAuditLog.
+func (mr *MockDomainStoreMockRecorder) ReadDomainAuditLog(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadDomainAuditLog", reflect.TypeOf((*MockDomainStore)(nil).ReadDomainAuditLog), ctx, request)
+}
+
 // UpdateDomain mocks base method.
 func (m *MockDomainStore) UpdateDomain(ctx context.Context, request *InternalUpdateDomainRequest) error {
 	m.ctrl.T.Helper()
@@ -629,6 +644,20 @@ func (m *MockDomainStore) UpdateDomain(ctx context.Context, request *InternalUpd
 func (mr *MockDomainStoreMockRecorder) UpdateDomain(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDomain", reflect.TypeOf((*MockDomainStore)(nil).UpdateDomain), ctx, request)
+}
+
+// WriteDomainAuditLog mocks base method.
+func (m *MockDomainStore) WriteDomainAuditLog(ctx context.Context, request *WriteDomainAuditLogRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteDomainAuditLog", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteDomainAuditLog indicates an expected call of WriteDomainAuditLog.
+func (mr *MockDomainStoreMockRecorder) WriteDomainAuditLog(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteDomainAuditLog", reflect.TypeOf((*MockDomainStore)(nil).WriteDomainAuditLog), ctx, request)
 }
 
 // MockTaskStore is a mock of TaskStore interface.

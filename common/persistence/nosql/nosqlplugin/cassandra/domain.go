@@ -539,3 +539,90 @@ func getActiveClustersFields(row *nosqlplugin.DomainRow) ([]byte, string) {
 	}
 	return d, e
 }
+
+// InsertDomainAuditLog inserts domain audit log entries
+func (db *CDB) InsertDomainAuditLog(
+	ctx context.Context,
+	rows []*nosqlplugin.DomainAuditLogRow,
+) error {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	batch := db.session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
+	for _, row := range rows {
+		batch.Query(templateInsertDomainAuditLogQuery,
+			row.DomainID,
+			row.EventID,
+			row.CreatedTime,
+			row.LastUpdatedTime,
+			row.OperationType,
+			row.StateBefore,
+			row.StateBeforeEncoding,
+			row.StateAfter,
+			row.StateAfterEncoding,
+			row.Identity,
+			row.IdentityType,
+			row.Comment,
+		)
+	}
+
+	return db.session.ExecuteBatch(batch)
+}
+
+// SelectDomainAuditLog selects domain audit log entries with pagination
+func (db *CDB) SelectDomainAuditLog(
+	ctx context.Context,
+	request *nosqlplugin.DomainAuditLogRequest,
+) ([]*nosqlplugin.DomainAuditLogRow, []byte, error) {
+	query := db.session.Query(templateSelectDomainAuditLogQuery, request.DomainID).WithContext(ctx)
+
+	iter := query.PageSize(request.PageSize).PageState(request.NextPageToken).Iter()
+	if iter == nil {
+		return nil, nil, &types.InternalServiceError{
+			Message: "SelectDomainAuditLog operation failed. Not able to create query iterator.",
+		}
+	}
+
+	var rows []*nosqlplugin.DomainAuditLogRow
+	row := &nosqlplugin.DomainAuditLogRow{}
+	for iter.Scan(
+		&row.DomainID,
+		&row.EventID,
+		&row.CreatedTime,
+		&row.LastUpdatedTime,
+		&row.OperationType,
+		&row.StateBefore,
+		&row.StateBeforeEncoding,
+		&row.StateAfter,
+		&row.StateAfterEncoding,
+		&row.Identity,
+		&row.IdentityType,
+		&row.Comment,
+	) {
+		// Apply time range filtering in memory if specified
+		if request.MinCreatedTime != nil && row.CreatedTime.Before(*request.MinCreatedTime) {
+			row = &nosqlplugin.DomainAuditLogRow{}
+			continue
+		}
+		if request.MaxCreatedTime != nil && row.CreatedTime.After(*request.MaxCreatedTime) {
+			row = &nosqlplugin.DomainAuditLogRow{}
+			continue
+		}
+
+		rows = append(rows, row)
+		row = &nosqlplugin.DomainAuditLogRow{}
+	}
+
+	nextPageToken := iter.PageState()
+	if err := iter.Close(); err != nil {
+		return nil, nil, err
+	}
+
+	// Return nil instead of empty slice when there are no more pages
+	if len(nextPageToken) == 0 {
+		nextPageToken = nil
+	}
+
+	return rows, nextPageToken, nil
+}

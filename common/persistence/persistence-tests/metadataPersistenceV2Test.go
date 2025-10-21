@@ -1360,6 +1360,409 @@ ListLoop:
 	}
 }
 
+// TestDomainAuditLogWrite test
+func (m *MetadataPersistenceSuiteV2) TestDomainAuditLogWrite() {
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	// Create a test domain first
+	domainID := uuid.New()
+	domainName := "audit-log-write-test-domain"
+	_, err := m.CreateDomain(
+		ctx,
+		&p.DomainInfo{
+			ID:     domainID,
+			Name:   domainName,
+			Status: p.DomainStatusRegistered,
+		},
+		&p.DomainConfig{Retention: 1},
+		&p.DomainReplicationConfig{},
+		false,
+		0,
+		0,
+		0,
+	)
+	m.NoError(err)
+
+	// Create audit log entries
+	now := time.Now()
+	entries := []*p.DomainAuditLogEntry{
+		{
+			DomainID:            domainID,
+			EventID:             uuid.New(),
+			CreatedTime:         now,
+			LastUpdatedTime:     now,
+			OperationType:       1,
+			StateBefore:         []byte(`{"status":"registered"}`),
+			StateBeforeEncoding: "json",
+			StateAfter:          []byte(`{"status":"deprecated"}`),
+			StateAfterEncoding:  "json",
+			Identity:            "test-user",
+			IdentityType:        "user",
+			Comment:             "Test deprecation",
+		},
+		{
+			DomainID:            domainID,
+			EventID:             uuid.New(),
+			CreatedTime:         now.Add(time.Second),
+			LastUpdatedTime:     now.Add(time.Second),
+			OperationType:       2,
+			StateBefore:         []byte(`{"activeCluster":"cluster1"}`),
+			StateBeforeEncoding: "json",
+			StateAfter:          []byte(`{"activeCluster":"cluster2"}`),
+			StateAfterEncoding:  "json",
+			Identity:            "test-admin",
+			IdentityType:        "admin",
+			Comment:             "Test failover",
+		},
+	}
+
+	// Write audit log entries
+	err = m.DomainManager.WriteDomainAuditLog(ctx, &p.WriteDomainAuditLogRequest{
+		Entries: entries,
+	})
+	m.NoError(err)
+
+	// Read back the entries
+	resp, err := m.DomainManager.ReadDomainAuditLog(ctx, &p.ReadDomainAuditLogRequest{
+		DomainID: domainID,
+		PageSize: 10,
+	})
+	m.NoError(err)
+	m.NotNil(resp)
+	m.Equal(2, len(resp.Entries))
+
+	// Verify entries are sorted by created_time DESC
+	m.True(resp.Entries[0].CreatedTime.After(resp.Entries[1].CreatedTime) ||
+		resp.Entries[0].CreatedTime.Equal(resp.Entries[1].CreatedTime))
+
+	// Verify first entry (most recent)
+	m.Equal(domainID, resp.Entries[0].DomainID)
+	m.Equal(2, resp.Entries[0].OperationType)
+	m.Equal([]byte(`{"activeCluster":"cluster2"}`), resp.Entries[0].StateAfter)
+	m.Equal("json", resp.Entries[0].StateAfterEncoding)
+	m.Equal("test-admin", resp.Entries[0].Identity)
+	m.Equal("admin", resp.Entries[0].IdentityType)
+	m.Equal("Test failover", resp.Entries[0].Comment)
+}
+
+// TestDomainAuditLogReadPagination test
+func (m *MetadataPersistenceSuiteV2) TestDomainAuditLogReadPagination() {
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	// Create a test domain
+	domainID := uuid.New()
+	domainName := "audit-log-pagination-test-domain"
+	_, err := m.CreateDomain(
+		ctx,
+		&p.DomainInfo{
+			ID:     domainID,
+			Name:   domainName,
+			Status: p.DomainStatusRegistered,
+		},
+		&p.DomainConfig{Retention: 1},
+		&p.DomainReplicationConfig{},
+		false,
+		0,
+		0,
+		0,
+	)
+	m.NoError(err)
+
+	// Create 5 audit log entries with different timestamps
+	now := time.Now()
+	entries := make([]*p.DomainAuditLogEntry, 5)
+	for i := 0; i < 5; i++ {
+		entries[i] = &p.DomainAuditLogEntry{
+			DomainID:            domainID,
+			EventID:             uuid.New(),
+			CreatedTime:         now.Add(time.Duration(i) * time.Second),
+			LastUpdatedTime:     now.Add(time.Duration(i) * time.Second),
+			OperationType:       i + 1,
+			StateBefore:         []byte(fmt.Sprintf(`{"version":%d}`, i)),
+			StateBeforeEncoding: "json",
+			StateAfter:          []byte(fmt.Sprintf(`{"version":%d}`, i+1)),
+			StateAfterEncoding:  "json",
+			Identity:            fmt.Sprintf("user-%d", i),
+			IdentityType:        "user",
+			Comment:             fmt.Sprintf("Update %d", i),
+		}
+	}
+
+	// Write all entries
+	err = m.DomainManager.WriteDomainAuditLog(ctx, &p.WriteDomainAuditLogRequest{
+		Entries: entries,
+	})
+	m.NoError(err)
+
+	// Read first page (2 entries)
+	resp1, err := m.DomainManager.ReadDomainAuditLog(ctx, &p.ReadDomainAuditLogRequest{
+		DomainID: domainID,
+		PageSize: 2,
+	})
+	m.NoError(err)
+	m.NotNil(resp1)
+	m.Equal(2, len(resp1.Entries))
+	m.NotNil(resp1.NextPageToken)
+
+	// Read second page (2 entries)
+	resp2, err := m.DomainManager.ReadDomainAuditLog(ctx, &p.ReadDomainAuditLogRequest{
+		DomainID:      domainID,
+		PageSize:      2,
+		NextPageToken: resp1.NextPageToken,
+	})
+	m.NoError(err)
+	m.NotNil(resp2)
+	m.Equal(2, len(resp2.Entries))
+	m.NotNil(resp2.NextPageToken)
+
+	// Read third page (1 entry)
+	resp3, err := m.DomainManager.ReadDomainAuditLog(ctx, &p.ReadDomainAuditLogRequest{
+		DomainID:      domainID,
+		PageSize:      2,
+		NextPageToken: resp2.NextPageToken,
+	})
+	m.NoError(err)
+	m.NotNil(resp3)
+	m.Equal(1, len(resp3.Entries))
+	m.Nil(resp3.NextPageToken) // Last page should have no next token
+
+	// Verify all entries are unique
+	allEventIDs := make(map[string]bool)
+	for _, entry := range resp1.Entries {
+		allEventIDs[entry.EventID] = true
+	}
+	for _, entry := range resp2.Entries {
+		allEventIDs[entry.EventID] = true
+	}
+	for _, entry := range resp3.Entries {
+		allEventIDs[entry.EventID] = true
+	}
+	m.Equal(5, len(allEventIDs))
+}
+
+// TestDomainAuditLogReadTimeRange test
+func (m *MetadataPersistenceSuiteV2) TestDomainAuditLogReadTimeRange() {
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	// Create a test domain
+	domainID := uuid.New()
+	domainName := "audit-log-timerange-test-domain"
+	_, err := m.CreateDomain(
+		ctx,
+		&p.DomainInfo{
+			ID:     domainID,
+			Name:   domainName,
+			Status: p.DomainStatusRegistered,
+		},
+		&p.DomainConfig{Retention: 1},
+		&p.DomainReplicationConfig{},
+		false,
+		0,
+		0,
+		0,
+	)
+	m.NoError(err)
+
+	// Create entries with specific timestamps
+	baseTime := time.Now().Add(-10 * time.Hour)
+	entries := []*p.DomainAuditLogEntry{
+		{
+			DomainID:            domainID,
+			EventID:             uuid.New(),
+			CreatedTime:         baseTime,
+			LastUpdatedTime:     baseTime,
+			OperationType:       1,
+			StateBefore:         []byte(`{}`),
+			StateBeforeEncoding: "json",
+			StateAfter:          []byte(`{"v":1}`),
+			StateAfterEncoding:  "json",
+			Identity:            "user-1",
+			IdentityType:        "user",
+			Comment:             "Entry 1 - 10 hours ago",
+		},
+		{
+			DomainID:            domainID,
+			EventID:             uuid.New(),
+			CreatedTime:         baseTime.Add(5 * time.Hour),
+			LastUpdatedTime:     baseTime.Add(5 * time.Hour),
+			OperationType:       2,
+			StateBefore:         []byte(`{"v":1}`),
+			StateBeforeEncoding: "json",
+			StateAfter:          []byte(`{"v":2}`),
+			StateAfterEncoding:  "json",
+			Identity:            "user-2",
+			IdentityType:        "user",
+			Comment:             "Entry 2 - 5 hours ago",
+		},
+		{
+			DomainID:            domainID,
+			EventID:             uuid.New(),
+			CreatedTime:         baseTime.Add(8 * time.Hour),
+			LastUpdatedTime:     baseTime.Add(8 * time.Hour),
+			OperationType:       3,
+			StateBefore:         []byte(`{"v":2}`),
+			StateBeforeEncoding: "json",
+			StateAfter:          []byte(`{"v":3}`),
+			StateAfterEncoding:  "json",
+			Identity:            "user-3",
+			IdentityType:        "user",
+			Comment:             "Entry 3 - 2 hours ago",
+		},
+	}
+
+	// Write all entries
+	err = m.DomainManager.WriteDomainAuditLog(ctx, &p.WriteDomainAuditLogRequest{
+		Entries: entries,
+	})
+	m.NoError(err)
+
+	// Test 1: Read entries from 6 hours ago to now (should get entries 2 and 3)
+	minTime := baseTime.Add(4 * time.Hour)
+	resp1, err := m.DomainManager.ReadDomainAuditLog(ctx, &p.ReadDomainAuditLogRequest{
+		DomainID:       domainID,
+		PageSize:       10,
+		MinCreatedTime: &minTime,
+	})
+	m.NoError(err)
+	m.NotNil(resp1)
+	m.Equal(2, len(resp1.Entries))
+	// Verify we got the right entries (sorted DESC by created_time)
+	m.Equal(3, resp1.Entries[0].OperationType) // Entry 3 (most recent)
+	m.Equal(2, resp1.Entries[1].OperationType) // Entry 2
+
+	// Test 2: Read entries from start to 6 hours ago (should get entry 1)
+	maxTime := baseTime.Add(4 * time.Hour)
+	resp2, err := m.DomainManager.ReadDomainAuditLog(ctx, &p.ReadDomainAuditLogRequest{
+		DomainID:       domainID,
+		PageSize:       10,
+		MaxCreatedTime: &maxTime,
+	})
+	m.NoError(err)
+	m.NotNil(resp2)
+	m.Equal(1, len(resp2.Entries))
+	m.Equal(1, resp2.Entries[0].OperationType) // Entry 1
+
+	// Test 3: Read entries in a specific range (should get entry 2 only)
+	rangeMin := baseTime.Add(4 * time.Hour)
+	rangeMax := baseTime.Add(6 * time.Hour)
+	resp3, err := m.DomainManager.ReadDomainAuditLog(ctx, &p.ReadDomainAuditLogRequest{
+		DomainID:       domainID,
+		PageSize:       10,
+		MinCreatedTime: &rangeMin,
+		MaxCreatedTime: &rangeMax,
+	})
+	m.NoError(err)
+	m.NotNil(resp3)
+	m.Equal(1, len(resp3.Entries))
+	m.Equal(2, resp3.Entries[0].OperationType) // Entry 2
+}
+
+// TestDomainAuditLogMultipleDomains test
+func (m *MetadataPersistenceSuiteV2) TestDomainAuditLogMultipleDomains() {
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	// Create two test domains
+	domain1ID := uuid.New()
+	domain2ID := uuid.New()
+
+	_, err := m.CreateDomain(
+		ctx,
+		&p.DomainInfo{
+			ID:     domain1ID,
+			Name:   "audit-log-multi-domain-1",
+			Status: p.DomainStatusRegistered,
+		},
+		&p.DomainConfig{Retention: 1},
+		&p.DomainReplicationConfig{},
+		false,
+		0,
+		0,
+		0,
+	)
+	m.NoError(err)
+
+	_, err = m.CreateDomain(
+		ctx,
+		&p.DomainInfo{
+			ID:     domain2ID,
+			Name:   "audit-log-multi-domain-2",
+			Status: p.DomainStatusRegistered,
+		},
+		&p.DomainConfig{Retention: 1},
+		&p.DomainReplicationConfig{},
+		false,
+		0,
+		0,
+		0,
+	)
+	m.NoError(err)
+
+	// Create entries for both domains
+	now := time.Now()
+	entries := []*p.DomainAuditLogEntry{
+		{
+			DomainID:            domain1ID,
+			EventID:             uuid.New(),
+			CreatedTime:         now,
+			LastUpdatedTime:     now,
+			OperationType:       1,
+			StateBefore:         []byte(`{}`),
+			StateBeforeEncoding: "json",
+			StateAfter:          []byte(`{"domain":"1"}`),
+			StateAfterEncoding:  "json",
+			Identity:            "user-1",
+			IdentityType:        "user",
+			Comment:             "Domain 1 entry",
+		},
+		{
+			DomainID:            domain2ID,
+			EventID:             uuid.New(),
+			CreatedTime:         now,
+			LastUpdatedTime:     now,
+			OperationType:       2,
+			StateBefore:         []byte(`{}`),
+			StateBeforeEncoding: "json",
+			StateAfter:          []byte(`{"domain":"2"}`),
+			StateAfterEncoding:  "json",
+			Identity:            "user-2",
+			IdentityType:        "user",
+			Comment:             "Domain 2 entry",
+		},
+	}
+
+	// Write both entries
+	err = m.DomainManager.WriteDomainAuditLog(ctx, &p.WriteDomainAuditLogRequest{
+		Entries: entries,
+	})
+	m.NoError(err)
+
+	// Read entries for domain 1
+	resp1, err := m.DomainManager.ReadDomainAuditLog(ctx, &p.ReadDomainAuditLogRequest{
+		DomainID: domain1ID,
+		PageSize: 10,
+	})
+	m.NoError(err)
+	m.NotNil(resp1)
+	m.Equal(1, len(resp1.Entries))
+	m.Equal(domain1ID, resp1.Entries[0].DomainID)
+	m.Equal("Domain 1 entry", resp1.Entries[0].Comment)
+
+	// Read entries for domain 2
+	resp2, err := m.DomainManager.ReadDomainAuditLog(ctx, &p.ReadDomainAuditLogRequest{
+		DomainID: domain2ID,
+		PageSize: 10,
+	})
+	m.NoError(err)
+	m.NotNil(resp2)
+	m.Equal(1, len(resp2.Entries))
+	m.Equal(domain2ID, resp2.Entries[0].DomainID)
+	m.Equal("Domain 2 entry", resp2.Entries[0].Comment)
+}
+
 // CreateDomain helper method
 func (m *MetadataPersistenceSuiteV2) CreateDomain(
 	ctx context.Context,

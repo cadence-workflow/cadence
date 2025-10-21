@@ -537,3 +537,23 @@ CREATE TABLE cluster_config (
   encoding text,
 PRIMARY KEY (row_type, version)
 ) WITH CLUSTERING ORDER BY (version DESC);
+
+-- Domain audit log table for tracking domain update and failover history
+CREATE TABLE domain_audit_log (
+  domain_id uuid,
+  event_id uuid,
+  state_before blob,
+  state_before_encoding text,
+  state_after blob,
+  state_after_encoding text,
+  operation_type int,
+  created_time timestamp,
+  last_updated_time timestamp,
+  identity text,
+  identity_type text,
+  comment text,
+  PRIMARY KEY ((domain_id), created_time, event_id)
+) WITH CLUSTERING ORDER BY (created_time DESC, event_id ASC)
+  AND COMPACTION = {
+    'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
+  };

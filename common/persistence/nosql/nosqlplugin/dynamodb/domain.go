@@ -75,3 +75,19 @@ func (db *ddb) SelectDomainMetadata(
 ) (int64, error) {
 	panic("TODO")
 }
+
+// InsertDomainAuditLog inserts domain audit log entries
+func (db *ddb) InsertDomainAuditLog(
+	ctx context.Context,
+	rows []*nosqlplugin.DomainAuditLogRow,
+) error {
+	panic("TODO")
+}
+
+// SelectDomainAuditLog selects domain audit log entries with pagination
+func (db *ddb) SelectDomainAuditLog(
+	ctx context.Context,
+	request *nosqlplugin.DomainAuditLogRequest,
+) ([]*nosqlplugin.DomainAuditLogRow, []byte, error) {
+	panic("TODO")
+}

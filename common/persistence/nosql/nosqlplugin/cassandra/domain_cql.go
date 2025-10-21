@@ -143,4 +143,16 @@ const (
 		`notification_version ` +
 		`FROM domains_by_name_v2 ` +
 		`WHERE domains_partition = ? `
+
+	templateInsertDomainAuditLogQuery = `INSERT INTO domain_audit_log (` +
+		`domain_id, event_id, created_time, last_updated_time, ` +
+		`operation_type, state_before, state_before_encoding, ` +
+		`state_after, state_after_encoding, identity, identity_type, comment) ` +
+		`VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	templateSelectDomainAuditLogQuery = `SELECT domain_id, event_id, created_time, last_updated_time, ` +
+		`operation_type, state_before, state_before_encoding, ` +
+		`state_after, state_after_encoding, identity, identity_type, comment ` +
+		`FROM domain_audit_log ` +
+		`WHERE domain_id = ?`
 )
