@@ -11,8 +11,11 @@ package queuev2
 
 import (
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
+
+	task "github.com/uber/cadence/service/history/task"
 )
 
 // MockVirtualQueueManager is a mock of VirtualQueueManager interface.
@@ -63,6 +66,32 @@ func (m *MockVirtualQueueManager) GetOrCreateVirtualQueue(arg0 int64) VirtualQue
 func (mr *MockVirtualQueueManagerMockRecorder) GetOrCreateVirtualQueue(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrCreateVirtualQueue", reflect.TypeOf((*MockVirtualQueueManager)(nil).GetOrCreateVirtualQueue), arg0)
+}
+
+// InsertSingleTaskToRootQueue mocks base method.
+func (m *MockVirtualQueueManager) InsertSingleTaskToRootQueue(arg0 task.Task) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSingleTaskToRootQueue", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// InsertSingleTaskToRootQueue indicates an expected call of InsertSingleTaskToRootQueue.
+func (mr *MockVirtualQueueManagerMockRecorder) InsertSingleTaskToRootQueue(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSingleTaskToRootQueue", reflect.TypeOf((*MockVirtualQueueManager)(nil).InsertSingleTaskToRootQueue), arg0)
+}
+
+// RemoveScheduledTasksAfter mocks base method.
+func (m *MockVirtualQueueManager) RemoveScheduledTasksAfter(arg0 time.Time) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "RemoveScheduledTasksAfter", arg0)
+}
+
+// RemoveScheduledTasksAfter indicates an expected call of RemoveScheduledTasksAfter.
+func (mr *MockVirtualQueueManagerMockRecorder) RemoveScheduledTasksAfter(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveScheduledTasksAfter", reflect.TypeOf((*MockVirtualQueueManager)(nil).RemoveScheduledTasksAfter), arg0)
 }
 
 // Start mocks base method.

@@ -2113,6 +2113,7 @@ const (
 	EnableTimerQueueV2
 	EnableTransferQueueV2PendingTaskCountAlert
 	EnableTimerQueueV2PendingTaskCountAlert
+	EnableTimerProcessorInMemoryQueue
 
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
@@ -4677,6 +4678,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableTimerQueueV2PendingTaskCountAlert: {
 		KeyName:      "history.enableTimerQueueV2PendingTaskCountAlert",
 		Description:  "EnableTimerQueueV2PendingTaskCountAlert is to enable timer queue v2 pending task count alert",
+		Filters:      []Filter{ShardID},
+		DefaultValue: false,
+	},
+	EnableTimerProcessorInMemoryQueue: {
+		KeyName:      "history.enableTimerProcessorInMemoryQueue",
+		Description:  "EnableTimerProcessorInMemoryQueue is the flag to enable in-memory queue for timer processor",
 		Filters:      []Filter{ShardID},
 		DefaultValue: false,
 	},

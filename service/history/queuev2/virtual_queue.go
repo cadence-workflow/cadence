@@ -67,6 +67,10 @@ type (
 		SplitSlices(func(VirtualSlice) (remaining []VirtualSlice, split bool))
 		// Pause pauses the virtual queue for a while
 		Pause(time.Duration)
+		// InsertSingleTask inserts a single task to the virtual queue. Return false if the task's timestamp is out of range of the current queue slice..
+		InsertSingleTask(task task.Task) bool
+		// RemoveScheduledTasksAfter removes the scheduled tasks after the given time
+		RemoveScheduledTasksAfter(time.Time)
 	}
 
 	VirtualQueueOptions struct {
@@ -394,34 +398,13 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 
 	now := q.timeSource.Now()
 	for _, task := range tasks {
-		if persistence.IsTaskCorrupted(task) {
-			q.logger.Error("Virtual queue encountered a corrupted task", tag.Dynamic("task", task))
-			q.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
-			task.Ack()
-			continue
-		}
-
-		scheduledTime := task.GetTaskKey().GetScheduledTime()
-		// if the scheduled time is in the future, we need to reschedule the task
-		if now.Before(scheduledTime) {
-			q.rescheduler.RescheduleTask(task, scheduledTime)
-			continue
-		}
-		// shard level metrics for the duration between a task being written to a queue and being fetched from it
-		q.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(task.GetVisibilityTimestamp()))
-		task.SetInitialSubmitTime(now)
-		submitted, err := q.processor.TrySubmit(task)
-		if err != nil {
+		if err := q.submitTask(now, task); err != nil {
 			select {
 			case <-q.ctx.Done():
 				return
 			default:
 				q.logger.Error("Virtual queue failed to submit task", tag.Error(err))
 			}
-		}
-		if !submitted {
-			q.metricsScope.IncCounter(metrics.ProcessingQueueThrottledCounter)
-			q.rescheduler.RescheduleTask(task, q.timeSource.Now().Add(taskSchedulerThrottleBackoffInterval))
 		}
 	}
 
@@ -434,6 +417,86 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 	if q.sliceToRead != nil {
 		q.notify()
 	}
+}
+
+func (q *virtualQueueImpl) InsertSingleTask(task task.Task) bool {
+	q.Lock()
+	defer q.Unlock()
+
+	taskKey := task.GetTaskKey()
+	var slice VirtualSlice
+
+	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
+		s := e.Value.(VirtualSlice)
+		r := s.GetState().Range
+		if taskKey.Compare(r.InclusiveMinTaskKey) >= 0 && taskKey.Compare(r.ExclusiveMaxTaskKey) < 0 {
+			slice = s
+			break
+		}
+	}
+
+	if slice == nil {
+		// the new task is outside of the current range, it will be read from the DB on the next poll
+		return false
+	}
+
+	slice.InsertTask(task)
+	q.monitor.SetSlicePendingTaskCount(slice, slice.GetPendingTaskCount())
+
+	now := q.timeSource.Now()
+	if err := q.submitTask(now, task); err != nil {
+		q.logger.Error("Virtual queue failed to submit task", tag.Error(err))
+		return false
+	}
+
+	return true
+}
+
+func (q *virtualQueueImpl) RemoveScheduledTasksAfter(t time.Time) {
+	q.Lock()
+	defer q.Unlock()
+
+	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
+		s := e.Value.(VirtualSlice)
+		r := s.GetState().Range
+
+		if t.Before(r.InclusiveMinTaskKey.GetScheduledTime()) {
+			continue
+		}
+
+		// TODO: remove scheduled tasks from virtual slices
+		q.monitor.SetSlicePendingTaskCount(s, s.GetPendingTaskCount())
+	}
+}
+
+func (q *virtualQueueImpl) submitTask(now time.Time, task task.Task) error {
+	if persistence.IsTaskCorrupted(task) {
+		q.logger.Error("Virtual queue encountered a corrupted task", tag.Dynamic("task", task))
+		q.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
+		task.Ack()
+		return nil
+	}
+
+	scheduledTime := task.GetTaskKey().GetScheduledTime()
+	// if the scheduled time is in the future, we need to reschedule the task
+	if now.Before(scheduledTime) {
+		q.rescheduler.RescheduleTask(task, scheduledTime)
+		return nil
+	}
+	// shard level metrics for the duration between a task being written to a queue and being fetched from it
+	q.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(task.GetVisibilityTimestamp()))
+	task.SetInitialSubmitTime(now)
+	submitted, err := q.processor.TrySubmit(task)
+	if err != nil {
+		return err
+	}
+
+	if !submitted {
+		q.metricsScope.IncCounter(metrics.ProcessingQueueThrottledCounter)
+		q.rescheduler.RescheduleTask(task, q.timeSource.Now().Add(taskSchedulerThrottleBackoffInterval))
+	}
+
+	return nil
 }
 
 func (q *virtualQueueImpl) resetNextReadSliceLocked() {
