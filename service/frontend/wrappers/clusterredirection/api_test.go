@@ -917,7 +917,7 @@ func (s *clusterRedirectionHandlerSuite) TestSignalWithStartWorkflowExecution() 
 		},
 	}
 
-	s.mockClusterRedirectionPolicy.EXPECT().Redirect(ctx, s.domainCacheEntry, nil, req.ActiveClusterSelectionPolicy, apiName, types.QueryConsistencyLevelEventual, gomock.Any()).
+	s.mockClusterRedirectionPolicy.EXPECT().Redirect(ctx, s.domainCacheEntry, &types.WorkflowExecution{}, req.ActiveClusterSelectionPolicy, apiName, types.QueryConsistencyLevelEventual, gomock.Any()).
 		DoAndReturn(func(ctx context.Context, domainCacheEntry *cache.DomainCacheEntry, wfExec *types.WorkflowExecution, selPlcy *types.ActiveClusterSelectionPolicy, apiName string, consistencyLevel types.QueryConsistencyLevel, callFn func(targetDC string) error) error {
 			// validate callFn logic
 			s.mockFrontendHandler.EXPECT().SignalWithStartWorkflowExecution(ctx, req).Return(&types.StartWorkflowExecutionResponse{}, nil).Times(1)
