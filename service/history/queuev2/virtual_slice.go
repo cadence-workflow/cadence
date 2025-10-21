@@ -43,6 +43,7 @@ type (
 		GetPendingTaskCount() int
 		Clear()
 		PendingTaskStats() PendingTaskStats
+		CancelTasks(predicate func(task.Task) bool)
 
 		TrySplitByTaskKey(persistence.HistoryTaskKey) (VirtualSlice, VirtualSlice, bool)
 		TrySplitByPredicate(Predicate) (VirtualSlice, VirtualSlice, bool)
@@ -194,6 +195,15 @@ func (s *virtualSliceImpl) UpdateAndGetState() VirtualSliceState {
 		}
 	}
 	return s.state
+}
+
+func (s *virtualSliceImpl) CancelTasks(predicate func(task.Task) bool) {
+	taskMap := s.pendingTaskTracker.GetTasks()
+	for _, task := range taskMap {
+		if predicate(task) {
+			task.Cancel()
+		}
+	}
 }
 
 func (s *virtualSliceImpl) TrySplitByTaskKey(taskKey persistence.HistoryTaskKey) (VirtualSlice, VirtualSlice, bool) {

@@ -464,7 +464,11 @@ func (q *virtualQueueImpl) RemoveScheduledTasksAfter(t time.Time) {
 			continue
 		}
 
-		// TODO: remove scheduled tasks from virtual slices
+		s.CancelTasks(func(task task.Task) bool {
+			taskTime := task.GetTaskKey().GetScheduledTime()
+			return taskTime.After(t) || taskTime.Equal(t)
+		})
+
 		q.monitor.SetSlicePendingTaskCount(s, s.GetPendingTaskCount())
 	}
 }

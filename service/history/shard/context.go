@@ -246,7 +246,12 @@ func (s *contextImpl) updateScheduledTaskMaxReadLevel(cluster string) persistenc
 		currentTime = s.remoteClusterCurrentTime[cluster]
 	}
 
-	newMaxReadLevel := currentTime.Add(s.config.TimerProcessorMaxTimeShift()).Truncate(persistence.DBTimestampMinPrecision)
+	maxTimeShift := s.config.TimerProcessorMaxTimeShift()
+	if s.config.TimerProcessorInMemoryQueueMaxTimeShift(s.shardID) > 0 {
+		maxTimeShift = s.config.TimerProcessorInMemoryQueueMaxTimeShift(s.shardID)
+	}
+
+	newMaxReadLevel := currentTime.Add(maxTimeShift).Truncate(persistence.DBTimestampMinPrecision)
 	if newMaxReadLevel.After(s.scheduledTaskMaxReadLevelMap[cluster]) {
 		s.scheduledTaskMaxReadLevelMap[cluster] = newMaxReadLevel
 	}
@@ -1334,8 +1339,8 @@ func (s *contextImpl) allocateTimerIDsLocked(
 		// Above cases can happen if shard move and new host have a time SKU,
 		// or there is db write delay, or we are simply (re-)generating tasks for an old workflow.
 
-		// we need to skip this check for in-memory queue because it is going to be populated before the db is read
-		if !s.config.EnableTimerProcessorInMemoryQueue(s.shardID) {
+		if s.config.TimerProcessorInMemoryQueueMaxTimeShift(s.shardID) == 0 {
+			// this check is only required when an in memory queue is disabled. If it's enabled, we expect timers below read level to be enqueued in memory
 			if ts.Before(readCursorTS) {
 				// This can happen if shard move and new host have a time SKU, or there is db write delay.
 				// We generate a new timer ID using timerMaxReadLevel.

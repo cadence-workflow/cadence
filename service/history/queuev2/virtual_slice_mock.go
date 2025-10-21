@@ -43,6 +43,18 @@ func (m *MockVirtualSlice) EXPECT() *MockVirtualSliceMockRecorder {
 	return m.recorder
 }
 
+// CancelTasks mocks base method.
+func (m *MockVirtualSlice) CancelTasks(predicate func(task.Task) bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "CancelTasks", predicate)
+}
+
+// CancelTasks indicates an expected call of CancelTasks.
+func (mr *MockVirtualSliceMockRecorder) CancelTasks(predicate any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelTasks", reflect.TypeOf((*MockVirtualSlice)(nil).CancelTasks), predicate)
+}
+
 // Clear mocks base method.
 func (m *MockVirtualSlice) Clear() {
 	m.ctrl.T.Helper()

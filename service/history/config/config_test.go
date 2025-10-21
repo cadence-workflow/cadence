@@ -139,6 +139,7 @@ func TestNewConfig(t *testing.T) {
 		"TimerProcessorSplitQueueIntervalJitterCoefficient":    {dynamicproperties.TimerProcessorSplitQueueIntervalJitterCoefficient, 4.0},
 		"TimerProcessorMaxRedispatchQueueSize":                 {dynamicproperties.TimerProcessorMaxRedispatchQueueSize, 45},
 		"TimerProcessorMaxTimeShift":                           {dynamicproperties.TimerProcessorMaxTimeShift, time.Second},
+		"TimerProcessorInMemoryQueueMaxTimeShift":              {dynamicproperties.TimerProcessorInMemoryQueueMaxTimeShift, time.Duration(0)},
 		"TimerProcessorHistoryArchivalSizeLimit":               {dynamicproperties.TimerProcessorHistoryArchivalSizeLimit, 46},
 		"TimerProcessorArchivalTimeLimit":                      {dynamicproperties.TimerProcessorArchivalTimeLimit, time.Second},
 		"TransferTaskBatchSize":                                {dynamicproperties.TransferTaskBatchSize, 47},
@@ -278,7 +279,6 @@ func TestNewConfig(t *testing.T) {
 		"QueueMaxVirtualQueueCount":                            {dynamicproperties.QueueMaxVirtualQueueCount, 101},
 		"VirtualSliceForceAppendInterval":                      {dynamicproperties.VirtualSliceForceAppendInterval, time.Second},
 		"ReplicationTaskProcessorLatencyLogThreshold":          {dynamicproperties.ReplicationTaskProcessorLatencyLogThreshold, time.Duration(0)},
-		"EnableTimerProcessorInMemoryQueue":                    {dynamicproperties.EnableTimerProcessorInMemoryQueue, false},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {
