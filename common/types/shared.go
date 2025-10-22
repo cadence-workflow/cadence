@@ -2335,9 +2335,6 @@ type ActiveClusters struct {
 	AttributeScopes map[string]ClusterAttributeScope `json:"attributeScopes,omitempty" yaml:"attributeScopes,omitempty"`
 }
 
-// DefaultAttributeScopeType is the default scope type for backward compatibility with ActiveClustersByRegion
-const DefaultAttributeScopeType = "region"
-
 type ClusterAttributeNotFoundError struct {
 	ScopeType     string
 	AttributeName string
@@ -2418,19 +2415,6 @@ func (v *ActiveClusters) GetActiveClusterByClusterAttribute(scopeType, attribute
 	return scope.GetActiveClusterByClusterAttribute(attributeName)
 }
 
-// GetActiveClusterByRegion is a convenience method to handle backwards compatibility during the move to AttributeScopes.
-// TODO(active-active): Remove once AttributeScopes is fully migrated and migrate to GetActiveClusterByClusterAttribute
-// TODO(active-active): Replace existing calls to d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region] with this method.
-func (v *ActiveClusters) GetActiveClusterByRegion(region string) (ActiveClusterInfo, error) {
-	if v == nil || region == "" {
-		// This shouldn't happen as we've validated in GetActiveClusterByClusterAttribute
-		return ActiveClusterInfo{}, ErrDomainNotActiveActive
-	}
-
-	// Use AttributeScopes
-	return v.GetActiveClusterByClusterAttribute(DefaultAttributeScopeType, region)
-}
-
 // GetAllClusters returns a sorted, deduplicated list of all attribute names from both
 // the new format (AttributeScopes) and old format (ActiveClustersByRegion).
 // For the "region" scope, these are region names; for other scopes, these are the attribute names.
@@ -2468,7 +2452,6 @@ func (v *ActiveClusters) GetAllClusters() []string {
 
 // SetClusterForClusterAttribute sets the ActiveClusterInfo for a given cluster attribute.
 // If the receiver is nil, this method is a no-op.
-// TODO(active-active): Replace existing calls to v.ActiveClustersByRegion[region] = info with this method.
 func (v *ActiveClusters) SetClusterForClusterAttribute(scopeType, attributeName string, info ActiveClusterInfo) error {
 	if v == nil {
 		return ErrDomainNotActiveActive
@@ -2493,17 +2476,6 @@ func (v *ActiveClusters) SetClusterForClusterAttribute(scopeType, attributeName 
 	v.AttributeScopes[scopeType] = scope
 
 	return nil
-}
-
-// SetClusterForRegion sets the ActiveClusterInfo for a given region in both the new and old formats.
-// This will dual-write until we have fully migrated to AttributeScopes.
-// TODO(active-active): Replace existing calls to v.ActiveClustersByRegion[region] = info with this method.
-func (v *ActiveClusters) SetClusterForRegion(region string, info ActiveClusterInfo) error {
-	if v == nil {
-		return ErrDomainNotActiveActive
-	}
-
-	return v.SetClusterForClusterAttribute(DefaultAttributeScopeType, region, info)
 }
 
 // ByteSize returns the approximate memory used in bytes

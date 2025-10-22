@@ -5566,30 +5566,16 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 		return nil
 	}
 
-	// Convert AttributeScopes to both the new format and backward-compatible regionToCluster
-	var regionToCluster map[string]*apiv1.ActiveClusterInfo
 	var activeClustersByClusterAttribute map[string]*apiv1.ClusterAttributeScope
 
 	if t.AttributeScopes != nil {
 		activeClustersByClusterAttribute = make(map[string]*apiv1.ClusterAttributeScope)
 		for scopeType, scope := range t.AttributeScopes {
 			activeClustersByClusterAttribute[scopeType] = FromClusterAttributeScope(&scope)
-
-			// For backward compatibility, populate regionToCluster from the "region" scope
-			if scopeType == types.DefaultAttributeScopeType {
-				regionToCluster = make(map[string]*apiv1.ActiveClusterInfo)
-				for region, cluster := range scope.ClusterAttributes {
-					regionToCluster[region] = &apiv1.ActiveClusterInfo{
-						ActiveClusterName: cluster.ActiveClusterName,
-						FailoverVersion:   cluster.FailoverVersion,
-					}
-				}
-			}
 		}
 	}
 
 	return &apiv1.ActiveClusters{
-		RegionToCluster:                  regionToCluster,
 		ActiveClustersByClusterAttribute: activeClustersByClusterAttribute,
 	}
 }
@@ -5608,27 +5594,6 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 			if converted := ToClusterAttributeScope(scope); converted != nil {
 				attributeScopes[scopeType] = *converted
 			}
-		}
-	}
-
-	// For backward compatibility, convert RegionToCluster to AttributeScopes with "region" scope
-	if len(t.RegionToCluster) > 0 {
-		if attributeScopes == nil {
-			attributeScopes = make(map[string]types.ClusterAttributeScope)
-		}
-
-		// Only add region scope if it doesn't already exist from ActiveClustersByClusterAttribute
-		if _, exists := attributeScopes[types.DefaultAttributeScopeType]; !exists {
-			regionScope := types.ClusterAttributeScope{
-				ClusterAttributes: make(map[string]types.ActiveClusterInfo),
-			}
-			for region, cluster := range t.RegionToCluster {
-				regionScope.ClusterAttributes[region] = types.ActiveClusterInfo{
-					ActiveClusterName: cluster.ActiveClusterName,
-					FailoverVersion:   cluster.FailoverVersion,
-				}
-			}
-			attributeScopes[types.DefaultAttributeScopeType] = regionScope
 		}
 	}
 

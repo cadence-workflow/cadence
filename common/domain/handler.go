@@ -1668,28 +1668,6 @@ func (d *handlerImpl) activeClustersFromRegisterRequest(registerRequest *types.R
 
 	activeClustersScopes := make(map[string]types.ClusterAttributeScope)
 
-	// Handle legacy ActiveClustersByRegion for backward compatibility
-	if registerRequest.ActiveClustersByRegion != nil {
-		regionScope := types.ClusterAttributeScope{
-			ClusterAttributes: make(map[string]types.ActiveClusterInfo),
-		}
-		for region, cluster := range registerRequest.ActiveClustersByRegion {
-			clusterInfo, ok := clusters[cluster]
-			if !ok {
-				return nil, &types.BadRequestError{
-					Message: fmt.Sprintf("Cluster %v not found. Domain cannot be registered in this cluster for region %v.", cluster, region),
-				}
-			}
-			regionScope.ClusterAttributes[region] = types.ActiveClusterInfo{
-				ActiveClusterName: cluster,
-				FailoverVersion:   clusterInfo.InitialFailoverVersion,
-			}
-		}
-		if len(regionScope.ClusterAttributes) > 0 {
-			activeClustersScopes[types.DefaultAttributeScopeType] = regionScope
-		}
-	}
-
 	// Handle AttributeScopes from the request
 	if registerRequest.ActiveClusters != nil && registerRequest.ActiveClusters.AttributeScopes != nil {
 		for scope, scopeData := range registerRequest.ActiveClusters.AttributeScopes {
