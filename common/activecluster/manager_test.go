@@ -58,10 +58,14 @@ func TestGetActiveClusterInfoByClusterAttribute(t *testing.T) {
 			name:             "nil cluster attribute - returns domain-level active cluster info",
 			clusterAttribute: nil,
 			activeClusterCfg: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"us-west": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   20,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   20,
+							},
+						},
 					},
 				},
 			},

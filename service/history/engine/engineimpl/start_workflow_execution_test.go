@@ -429,14 +429,18 @@ func TestCreateMutableState(t *testing.T) {
 			domainEntry: getDomainCacheEntry(
 				0,
 				&types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-west": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   0,
-						},
-						"us-east": {
-							ActiveClusterName: "cluster2",
-							FailoverVersion:   2,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   0,
+								},
+								"us-east": {
+									ActiveClusterName: "cluster2",
+									FailoverVersion:   2,
+								},
+							},
 						},
 					},
 				}),
@@ -454,14 +458,18 @@ func TestCreateMutableState(t *testing.T) {
 			domainEntry: getDomainCacheEntry(
 				0,
 				&types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-west": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   0,
-						},
-						"us-east": {
-							ActiveClusterName: "cluster2",
-							FailoverVersion:   2,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   0,
+								},
+								"us-east": {
+									ActiveClusterName: "cluster2",
+									FailoverVersion:   2,
+								},
+							},
 						},
 					},
 				}),
@@ -479,14 +487,18 @@ func TestCreateMutableState(t *testing.T) {
 			domainEntry: getDomainCacheEntry(
 				0,
 				&types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-west": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   0,
-						},
-						"us-east": {
-							ActiveClusterName: "cluster2",
-							FailoverVersion:   2,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   0,
+								},
+								"us-east": {
+									ActiveClusterName: "cluster2",
+									FailoverVersion:   2,
+								},
+							},
 						},
 					},
 				}),

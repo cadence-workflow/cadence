@@ -88,12 +88,16 @@ func TestDomainReplicationTaskExecutor_Execute(t *testing.T) {
 						{ClusterName: "standbyClusterName"},
 					},
 					ActiveClusters: &types.ActiveClusters{
-						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-							"region1": {
-								ActiveClusterName: "activeClusterName",
-							},
-							"region2": {
-								ActiveClusterName: "standbyClusterName",
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"region1": {
+										ActiveClusterName: "activeClusterName",
+									},
+									"region2": {
+										ActiveClusterName: "standbyClusterName",
+									},
+								},
 							},
 						},
 					},
@@ -189,9 +193,13 @@ func TestDomainReplicationTaskExecutor_Execute(t *testing.T) {
 						{ClusterName: "standbyClusterName"},
 					},
 					ActiveClusters: &types.ActiveClusters{
-						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-							"region1": {
-								ActiveClusterName: "activeClusterName",
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"region1": {
+										ActiveClusterName: "activeClusterName",
+									},
+								},
 							},
 						},
 					},

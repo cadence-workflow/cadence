@@ -592,15 +592,6 @@ func (d *handlerImpl) UpdateDomain(
 					updateRequest.Name,
 				)
 
-				// TODO(active-active): Increment all ClusterAttributes that have changed
-				// we also use the new failover version belonging to currentActiveCluster for the corresponding ActiveClustersByRegion map entry
-				for region, clusterInfo := range replicationConfig.ActiveClusters.ActiveClustersByRegion {
-					if clusterInfo.ActiveClusterName == currentActiveCluster {
-						clusterInfo.FailoverVersion = failoverVersion
-						replicationConfig.ActiveClusters.ActiveClustersByRegion[region] = clusterInfo
-					}
-				}
-
 				d.logger.Debug("active-passive domain is being migrated to active-active",
 					tag.WorkflowDomainName(info.Name),
 					tag.Dynamic("failover-version", failoverVersion),
@@ -673,7 +664,6 @@ func (d *handlerImpl) UpdateDomain(
 			return nil, err
 		}
 	}
-
 	if isGlobalDomain {
 		if err = d.domainReplicator.HandleTransmissionTask(
 			ctx,
@@ -689,7 +679,6 @@ func (d *handlerImpl) UpdateDomain(
 			return nil, err
 		}
 	}
-
 	response := &types.UpdateDomainResponse{
 		IsGlobalDomain:  isGlobalDomain,
 		FailoverVersion: failoverVersion,
@@ -837,14 +826,6 @@ func (d *handlerImpl) FailoverDomain(
 				failoverVersion+1,
 				updateRequest.Name,
 			)
-
-			// we also use the new failover version belonging to currentActiveCluster for the corresponding ActiveClustersByRegion map entry
-			for region, clusterInfo := range replicationConfig.ActiveClusters.ActiveClustersByRegion {
-				if clusterInfo.ActiveClusterName == currentActiveCluster {
-					clusterInfo.FailoverVersion = failoverVersion
-					replicationConfig.ActiveClusters.ActiveClustersByRegion[region] = clusterInfo
-				}
-			}
 
 			d.logger.Debug("active-passive domain is being migrated to active-active",
 				tag.WorkflowDomainName(info.Name),
@@ -1593,59 +1574,8 @@ func (d *handlerImpl) updateReplicationConfig(
 		config.ActiveClusterName = *updateRequest.ActiveClusterName
 	}
 
-	if updateRequest.ActiveClusters != nil && updateRequest.ActiveClusters.ActiveClustersByRegion != nil {
-		existingActiveClusters := config.ActiveClusters
-		if existingActiveClusters == nil { // migration from active-passive to active-active
-			existingActiveClusters = &types.ActiveClusters{
-				ActiveClustersByRegion: make(map[string]types.ActiveClusterInfo),
-			}
-		}
-		finalActiveClusters := make(map[string]types.ActiveClusterInfo)
-
-		// first add the ones that are not touched
-		for region, activeCluster := range existingActiveClusters.ActiveClustersByRegion {
-			if _, ok := updateRequest.ActiveClusters.ActiveClustersByRegion[region]; !ok {
-				finalActiveClusters[region] = activeCluster
-			}
-		}
-
-		// todo (david.porter) remove this once we have completely migrated to AttributeScopes
-		// then add the ones that are modified
-		for region, activeCluster := range updateRequest.ActiveClusters.ActiveClustersByRegion {
-			existingActiveCluster, ok := existingActiveClusters.ActiveClustersByRegion[region]
-			if !ok {
-				// a cluster is being activated on a region that didn't have any active cluster before
-				// initialize failover version to the initial failover version of the cluster
-				activeCluster.FailoverVersion = d.clusterMetadata.GetNextFailoverVersion(activeCluster.ActiveClusterName, 0, domainName)
-				finalActiveClusters[region] = activeCluster
-				d.logger.Debugf("Setting activeCluster for region %v to %v. a cluster is being activated on a region", region, activeCluster)
-				continue
-			}
-
-			// handle modification of an active cluster change on a region that had an active cluster before
-			if existingActiveCluster.ActiveClusterName != activeCluster.ActiveClusterName {
-				// a region is pointed to another cluster.
-				// set failover version to the next failover version of the newcluster that is greater than the existing active cluster's failover version
-				activeCluster.FailoverVersion = d.clusterMetadata.GetNextFailoverVersion(activeCluster.ActiveClusterName, existingActiveCluster.FailoverVersion, domainName)
-				finalActiveClusters[region] = activeCluster
-				d.logger.Debugf("Setting activeCluster for region %v to %v. a region is being pointed to a new cluster", region, activeCluster)
-			} else {
-				// no update case, just copy the existing active cluster
-				finalActiveClusters[region] = existingActiveCluster
-				d.logger.Debugf("Setting activeCluster for region %v to %v. no update case, just copy the existing active cluster", region, activeCluster)
-			}
-		}
-		if config.ActiveClusters == nil {
-			config.ActiveClusters = &types.ActiveClusters{
-				ActiveClustersByRegion: finalActiveClusters,
-			}
-		} else {
-			config.ActiveClusters.ActiveClustersByRegion = finalActiveClusters
-		}
-		d.logger.Debugf("Setting active clusters to %v, updateRequest.ActiveClusters.ActiveClustersByRegion: %v", finalActiveClusters, updateRequest.ActiveClusters.ActiveClustersByRegion)
-		activeClusterUpdated = true
-	}
-
+	// ActiveClustersByRegion field has been removed - this logic is now handled by AttributeScopes
+	// The legacy ActiveClustersByRegion functionality is replaced by using AttributeScopes with "region" scope
 	if updateRequest != nil && updateRequest.ActiveClusters != nil && updateRequest.ActiveClusters.AttributeScopes != nil {
 		result, isCh := d.buildActiveActiveClusterScopesFromUpdateRequest(updateRequest, config, domainName)
 		if isCh {
@@ -1734,46 +1664,38 @@ func (d *handlerImpl) activeClustersFromRegisterRequest(registerRequest *types.R
 		return nil, nil
 	}
 
-	// todo (david.porter) remove this once we have completely migrated to AttributeScopes
-	// Initialize ActiveClustersByRegion with given cluster names and their initial failover versions
-	activeClustersByRegion := make(map[string]types.ActiveClusterInfo, len(registerRequest.ActiveClustersByRegion))
 	clusters := d.clusterMetadata.GetAllClusterInfo()
-	for region, cluster := range registerRequest.ActiveClustersByRegion {
-		clusterInfo, ok := clusters[cluster]
-		if !ok {
-			return nil, &types.BadRequestError{
-				Message: fmt.Sprintf("Cluster %v not found. Domain cannot be registered in this cluster.", cluster),
-			}
-		}
 
-		activeClustersByRegion[region] = types.ActiveClusterInfo{
-			ActiveClusterName: cluster,
-			FailoverVersion:   clusterInfo.InitialFailoverVersion,
+	activeClustersScopes := make(map[string]types.ClusterAttributeScope)
+
+	// Handle AttributeScopes from the request
+	if registerRequest.ActiveClusters != nil && registerRequest.ActiveClusters.AttributeScopes != nil {
+		for scope, scopeData := range registerRequest.ActiveClusters.AttributeScopes {
+			newScopeData := types.ClusterAttributeScope{
+				ClusterAttributes: make(map[string]types.ActiveClusterInfo),
+			}
+			for attribute, clusterInfo := range scopeData.ClusterAttributes {
+				clusterMetadata, ok := clusters[clusterInfo.ActiveClusterName]
+				if !ok {
+					return nil, &types.BadRequestError{
+						Message: fmt.Sprintf("Cluster %v not found. Domain cannot be registered in this cluster for scope %q and attribute %q", clusterInfo.ActiveClusterName, scope, attribute),
+					}
+				}
+				newScopeData.ClusterAttributes[attribute] = types.ActiveClusterInfo{
+					ActiveClusterName: clusterInfo.ActiveClusterName,
+					FailoverVersion:   clusterMetadata.InitialFailoverVersion,
+				}
+			}
+			activeClustersScopes[scope] = newScopeData
 		}
 	}
 
-	activeClustersScopes := make(map[string]types.ClusterAttributeScope)
-	if registerRequest.ActiveClusters != nil && registerRequest.ActiveClusters.AttributeScopes != nil {
-		for scope, scopeData := range registerRequest.ActiveClusters.AttributeScopes {
-			for attribute := range scopeData.ClusterAttributes {
-				clusterInfo, ok := clusters[scopeData.ClusterAttributes[attribute].ActiveClusterName]
-				if !ok {
-					return nil, &types.BadRequestError{
-						Message: fmt.Sprintf("Cluster %v not found. Domain cannot be registered in this cluster for scope %q and attribute %q", scopeData.ClusterAttributes[attribute].ActiveClusterName, scope, attribute),
-					}
-				}
-				scopeData.ClusterAttributes[attribute] = types.ActiveClusterInfo{
-					ActiveClusterName: scopeData.ClusterAttributes[attribute].ActiveClusterName,
-					FailoverVersion:   clusterInfo.InitialFailoverVersion,
-				}
-			}
-		}
-		activeClustersScopes = registerRequest.ActiveClusters.AttributeScopes
+	if len(activeClustersScopes) == 0 {
+		return nil, nil
 	}
 
 	return &types.ActiveClusters{
-		ActiveClustersByRegion: activeClustersByRegion,
-		AttributeScopes:        activeClustersScopes,
+		AttributeScopes: activeClustersScopes,
 	}, nil
 }
 

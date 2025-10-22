@@ -2274,8 +2274,7 @@ func (v *DomainReplicationConfiguration) IsActiveActive() bool {
 		}
 	}
 
-	// TODO(active-active): Remove this once we have completely migrated to ClusterAttributes
-	return len(v.ActiveClusters.ActiveClustersByRegion) > 0
+	return false
 }
 
 // GetActiveClusterName is an internal getter (TBD...)
@@ -2330,16 +2329,11 @@ func (v *DomainReplicationConfiguration) ByteSize() uint64 {
 //
 // TODO(c-warren): Rename to ClusterAttributes
 type ActiveClusters struct {
-	// TODO(c-warren): Remove once refactor to ClusterAttribute is complete
-	ActiveClustersByRegion map[string]ActiveClusterInfo `json:"activeClustersByRegion,omitempty" yaml:"activeClustersByRegion,omitempty"`
 	// ClusterAttributes
 	// Keyed by a scope type (e.g region, datacenter, city, etc.).
 	// The value is a ClusterAttributeScope - a map of unique names (e.g seattle, san_francisco, etc.) to an ActiveClusterInfo.
 	AttributeScopes map[string]ClusterAttributeScope `json:"attributeScopes,omitempty" yaml:"attributeScopes,omitempty"`
 }
-
-// DefaultAttributeScopeType is the default scope type for backward compatibility with ActiveClustersByRegion
-const DefaultAttributeScopeType = "region"
 
 type ClusterAttributeNotFoundError struct {
 	ScopeType     string
@@ -2384,9 +2378,6 @@ func (v *ActiveClusters) GetFailoverVersionForAttribute(scopeType, attributeName
 
 // TODO(c-warren): Remove once refactor to ClusterAttribute is complete
 func (v *ActiveClusters) GetActiveClustersByRegion() map[string]ActiveClusterInfo {
-	if v != nil && v.ActiveClustersByRegion != nil {
-		return v.ActiveClustersByRegion
-	}
 	return nil
 }
 
@@ -2424,26 +2415,6 @@ func (v *ActiveClusters) GetActiveClusterByClusterAttribute(scopeType, attribute
 	return scope.GetActiveClusterByClusterAttribute(attributeName)
 }
 
-// GetActiveClusterByRegion is a convenience method to handle backwards compatibility during the move to AttributeScopes.
-// TODO(active-active): Remove once AttributeScopes is fully migrated and migrate to GetActiveClusterByClusterAttribute
-// TODO(active-active): Replace existing calls to d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region] with this method.
-func (v *ActiveClusters) GetActiveClusterByRegion(region string) (ActiveClusterInfo, error) {
-	if v == nil || region == "" {
-		// This shouldn't happen as we've validated in GetActiveClusterByClusterAttribute
-		return ActiveClusterInfo{}, ErrDomainNotActiveActive
-	}
-
-	// If ActiveClustersByRegion exists check it first and return the result
-	if v.ActiveClustersByRegion != nil {
-		if info, ok := v.ActiveClustersByRegion[region]; ok {
-			return info, nil
-		}
-	}
-
-	// Otherwise attempt to use AttributeScopes
-	return v.GetActiveClusterByClusterAttribute(DefaultAttributeScopeType, region)
-}
-
 // GetAllClusters returns a sorted, deduplicated list of all attribute names from both
 // the new format (AttributeScopes) and old format (ActiveClustersByRegion).
 // For the "region" scope, these are region names; for other scopes, these are the attribute names.
@@ -2465,12 +2436,7 @@ func (v *ActiveClusters) GetAllClusters() []string {
 		}
 	}
 
-	// Collect region names from old format
-	if v.ActiveClustersByRegion != nil {
-		for region := range v.ActiveClustersByRegion {
-			attributeNames[region] = struct{}{}
-		}
-	}
+	// Old format (ActiveClustersByRegion) no longer supported
 
 	// Convert to sorted slice
 	result := make([]string, 0, len(attributeNames))
@@ -2486,7 +2452,6 @@ func (v *ActiveClusters) GetAllClusters() []string {
 
 // SetClusterForClusterAttribute sets the ActiveClusterInfo for a given cluster attribute.
 // If the receiver is nil, this method is a no-op.
-// TODO(active-active): Replace existing calls to v.ActiveClustersByRegion[region] = info with this method.
 func (v *ActiveClusters) SetClusterForClusterAttribute(scopeType, attributeName string, info ActiveClusterInfo) error {
 	if v == nil {
 		return ErrDomainNotActiveActive
@@ -2513,22 +2478,6 @@ func (v *ActiveClusters) SetClusterForClusterAttribute(scopeType, attributeName 
 	return nil
 }
 
-// SetClusterForRegion sets the ActiveClusterInfo for a given region in both the new and old formats.
-// This will dual-write until we have fully migrated to AttributeScopes.
-// TODO(active-active): Replace existing calls to v.ActiveClustersByRegion[region] = info with this method.
-func (v *ActiveClusters) SetClusterForRegion(region string, info ActiveClusterInfo) error {
-	if v == nil {
-		return ErrDomainNotActiveActive
-	}
-
-	if v.ActiveClustersByRegion == nil {
-		v.ActiveClustersByRegion = make(map[string]ActiveClusterInfo)
-	}
-	v.ActiveClustersByRegion[region] = info
-
-	return v.SetClusterForClusterAttribute(DefaultAttributeScopeType, region, info)
-}
-
 // ByteSize returns the approximate memory used in bytes
 func (v *ActiveClusters) ByteSize() uint64 {
 	if v == nil {
@@ -2536,13 +2485,6 @@ func (v *ActiveClusters) ByteSize() uint64 {
 	}
 
 	size := uint64(unsafe.Sizeof(*v))
-	for k, val := range v.ActiveClustersByRegion {
-		// ByteSize implementation must match the logic in the reflection-based calculator used in the tests from common/types/test_util.go.
-		// reflection-based calculator purposely ignores Go's internal map bucket/storage and treats each map element as
-		// key: dynamic payload only (e.g., len(string)), no string header
-		// value: dynamic payload only (e.g., for a struct, just its fields' dynamic payload), no struct header, no inline ints/bools
-		size += uint64(len(k)) + val.ByteSize() - uint64(unsafe.Sizeof(val))
-	}
 
 	for k, scope := range v.AttributeScopes {
 		size += uint64(len(k)) + scope.ByteSize() - uint64(unsafe.Sizeof(scope))
@@ -2600,17 +2542,12 @@ func (v *ActiveClusters) DeepCopy() *ActiveClusters {
 	if v == nil {
 		return nil
 	}
-	activeClustersByRegion := make(map[string]ActiveClusterInfo)
-	for region, activeClusterInfo := range v.ActiveClustersByRegion {
-		activeClustersByRegion[region] = activeClusterInfo
-	}
 	attributeScopes := make(map[string]ClusterAttributeScope)
 	for scopeType, scope := range v.AttributeScopes {
 		attributeScopes[scopeType] = scope
 	}
 	return &ActiveClusters{
-		ActiveClustersByRegion: activeClustersByRegion,
-		AttributeScopes:        attributeScopes,
+		AttributeScopes: attributeScopes,
 	}
 }
 

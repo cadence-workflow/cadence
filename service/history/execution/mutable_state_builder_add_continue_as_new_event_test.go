@@ -72,12 +72,16 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 		true,
 		&persistence.DomainReplicationConfig{
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region0": {
-						ActiveClusterName: "cluster0",
-					},
-					"region1": {
-						ActiveClusterName: "cluster1",
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region0": {
+								ActiveClusterName: "cluster0",
+							},
+							"region1": {
+								ActiveClusterName: "cluster1",
+							},
+						},
 					},
 				},
 			},

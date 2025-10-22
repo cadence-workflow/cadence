@@ -5566,18 +5566,8 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 		return nil
 	}
 
-	var regionToCluster map[string]*apiv1.ActiveClusterInfo
-	if len(t.ActiveClustersByRegion) > 0 {
-		regionToCluster = make(map[string]*apiv1.ActiveClusterInfo)
-		for region, cluster := range t.ActiveClustersByRegion {
-			regionToCluster[region] = &apiv1.ActiveClusterInfo{
-				ActiveClusterName: cluster.ActiveClusterName,
-				FailoverVersion:   cluster.FailoverVersion,
-			}
-		}
-	}
-
 	var activeClustersByClusterAttribute map[string]*apiv1.ClusterAttributeScope
+
 	if t.AttributeScopes != nil {
 		activeClustersByClusterAttribute = make(map[string]*apiv1.ClusterAttributeScope)
 		for scopeType, scope := range t.AttributeScopes {
@@ -5586,7 +5576,6 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 	}
 
 	return &apiv1.ActiveClusters{
-		RegionToCluster:                  regionToCluster,
 		ActiveClustersByClusterAttribute: activeClustersByClusterAttribute,
 	}
 }
@@ -5596,18 +5585,9 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 		return nil
 	}
 
-	var activeClustersByRegion map[string]types.ActiveClusterInfo
-	if len(t.RegionToCluster) > 0 {
-		activeClustersByRegion = make(map[string]types.ActiveClusterInfo)
-		for region, cluster := range t.RegionToCluster {
-			activeClustersByRegion[region] = types.ActiveClusterInfo{
-				ActiveClusterName: cluster.ActiveClusterName,
-				FailoverVersion:   cluster.FailoverVersion,
-			}
-		}
-	}
-
 	var attributeScopes map[string]types.ClusterAttributeScope
+
+	// Start with ActiveClustersByClusterAttribute if it exists
 	if t.ActiveClustersByClusterAttribute != nil {
 		attributeScopes = make(map[string]types.ClusterAttributeScope)
 		for scopeType, scope := range t.ActiveClustersByClusterAttribute {
@@ -5618,8 +5598,7 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 	}
 
 	return &types.ActiveClusters{
-		ActiveClustersByRegion: activeClustersByRegion,
-		AttributeScopes:        attributeScopes,
+		AttributeScopes: attributeScopes,
 	}
 }
 
