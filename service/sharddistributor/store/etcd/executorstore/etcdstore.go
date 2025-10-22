@@ -48,7 +48,6 @@ type shardStatisticsUpdate struct {
 
 // shardMetricsUpdate tracks the etcd key, revision, and metrics used to update a shard
 // after the main transaction in AssignShards for exec state.
-// Retains metrics to safely merge concurrent updates before retrying.
 type shardMetricsUpdate struct {
 	key               string
 	shardID           string
@@ -417,6 +416,60 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 	s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
 
 	return nil
+}
+
+func (s *executorStoreImpl) prepareShardMetricsUpdates(ctx context.Context, namespace string, newAssignments map[string]store.AssignedState) ([]shardMetricsUpdate, error) {
+	var updates []shardMetricsUpdate
+
+	for executorID, state := range newAssignments {
+		for shardID := range state.AssignedShards {
+			now := s.timeSource.Now().Unix()
+
+			oldOwner, err := s.shardCache.GetShardOwner(ctx, namespace, shardID)
+			if err != nil && !errors.Is(err, store.ErrShardNotFound) {
+				return nil, fmt.Errorf("lookup cached shard owner: %w", err)
+			}
+
+			// we should just skip if the owner hasn't changed
+			if err == nil && oldOwner == executorID {
+				continue
+			}
+
+			shardMetricsKey, err := etcdkeys.BuildShardKey(s.prefix, namespace, shardID, etcdkeys.ShardMetricsKey)
+			if err != nil {
+				return nil, fmt.Errorf("build shard metrics key: %w", err)
+			}
+
+			metricsResp, err := s.client.Get(ctx, shardMetricsKey)
+			if err != nil {
+				return nil, fmt.Errorf("get shard metrics: %w", err)
+			}
+
+			metrics := store.ShardMetrics{}
+			modRevision := int64(0)
+
+			if len(metricsResp.Kvs) > 0 {
+				modRevision = metricsResp.Kvs[0].ModRevision
+				if err := json.Unmarshal(metricsResp.Kvs[0].Value, &metrics); err != nil {
+					return nil, fmt.Errorf("unmarshal shard metrics: %w", err)
+				}
+			} else {
+				metrics.SmoothedLoad = 0
+				metrics.LastUpdateTime = now
+			}
+
+			updates = append(updates, shardMetricsUpdate{
+				key:               shardMetricsKey,
+				shardID:           shardID,
+				metrics:           metrics,
+				modRevision:       modRevision,
+				desiredLastMove:   now,
+				defaultLastUpdate: metrics.LastUpdateTime,
+			})
+		}
+	}
+
+	return updates, nil
 }
 
 // applyShardMetricsUpdates updates shard metrics (like last_move_time) after AssignShards.
