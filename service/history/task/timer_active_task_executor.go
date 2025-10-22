@@ -395,7 +395,7 @@ Loop:
 		// check if it's possible that the timeout is due to activity task lost
 		if timerSequenceID.TimerType == execution.TimerTypeScheduleToStart {
 			domainName, err := t.shard.GetDomainCache().GetDomainName(mutableState.GetExecutionInfo().DomainID)
-			if err == nil && activityInfo.ScheduleToStartTimeout >= int32(t.config.ActivityMaxScheduleToStartTimeoutForRetry(domainName).Seconds()) {
+			if err == nil && activityInfo.ScheduleToStartTimeout > int32(t.config.ActivityMaxScheduleToStartTimeoutForRetry(domainName).Seconds()) {
 				// note that we ignore the race condition for the dynamic config value change here as it's only for metric and logging purpose.
 				// theoratically the check only applies to activities with retry policy
 				// however for activities without retry policy, we also want to check the potential task lost and emit the metric
