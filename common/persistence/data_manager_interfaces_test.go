@@ -634,24 +634,6 @@ func TestDomainReplicationConfig_IsActiveActive(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "only ActiveClustersByRegion populated should return true",
-			config: &DomainReplicationConfig{
-				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]types.ClusterAttributeScope{
-						"region": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{
-								"us-east-1": {
-									ActiveClusterName: "cluster1",
-									FailoverVersion:   100,
-								},
-							},
-						},
-					},
-				},
-			},
-			want: true,
-		},
-		{
 			name: "only AttributeScopes populated should return true",
 			config: &DomainReplicationConfig{
 				ActiveClusters: &types.ActiveClusters{
@@ -690,19 +672,6 @@ func TestDomainReplicationConfig_IsActiveActive(t *testing.T) {
 				},
 			},
 			want: true,
-		},
-		{
-			name: "empty ActiveClustersByRegion map should return false",
-			config: &DomainReplicationConfig{
-				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]types.ClusterAttributeScope{
-						"region": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{},
-						},
-					},
-				},
-			},
-			want: false,
 		},
 		{
 			name: "empty AttributeScopes map should return false",
