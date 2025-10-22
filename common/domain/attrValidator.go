@@ -127,7 +127,6 @@ func (d *AttrValidatorImpl) validateDomainReplicationConfigForGlobalDomain(
 	if !isInClusters(activeCluster) {
 		return errActiveClusterNotInClusters
 	}
-
 	// For active-active domains, also validate that all clusters in AttributeScopes are valid
 	if activeClusters != nil && activeClusters.AttributeScopes != nil {
 		for _, scope := range activeClusters.AttributeScopes {
@@ -188,6 +187,10 @@ func (d *AttrValidatorImpl) validateClusterName(
 func (d *AttrValidatorImpl) validateActiveActiveDomainReplicationConfig(
 	activeClusters *types.ActiveClusters,
 ) error {
+
+	if activeClusters == nil || activeClusters.AttributeScopes == nil {
+		return nil
+	}
 
 	clusters := d.clusterMetadata.GetEnabledClusterInfo()
 

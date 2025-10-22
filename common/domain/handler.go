@@ -1577,8 +1577,11 @@ func (d *handlerImpl) updateReplicationConfig(
 		config.ActiveClusterName = *updateRequest.ActiveClusterName
 	}
 
-	// ActiveClustersByRegion field has been removed - this logic is now handled by AttributeScopes
-	// The legacy ActiveClustersByRegion functionality is replaced by using AttributeScopes with "region" scope
+	err = d.domainAttrValidator.validateActiveActiveDomainReplicationConfig(updateRequest.ActiveClusters)
+	if err != nil {
+		return nil, false, false, err
+	}
+
 	if updateRequest != nil && updateRequest.ActiveClusters != nil && updateRequest.ActiveClusters.AttributeScopes != nil {
 		result, isCh := d.buildActiveActiveClusterScopesFromUpdateRequest(updateRequest, config, domainName)
 		if isCh {
