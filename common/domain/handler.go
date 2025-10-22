@@ -1543,14 +1543,18 @@ func (d *handlerImpl) updateDeleteBadBinary(
 	return config, false, nil
 }
 
+// updateReplicationConfig is the function which takes the input request and current state and edits and returns it
+// to the desired state by merging the request values with the current state.
+// replicationConfigChanged being turned on will trigger an increment in the configVersion.
+// activeClusterChanged indicates a failover is happening and a failover version is to be incremented
 func (d *handlerImpl) updateReplicationConfig(
 	domainName string,
 	config *persistence.DomainReplicationConfig,
 	updateRequest *types.UpdateDomainRequest,
 ) (
 	mutatedCfg *persistence.DomainReplicationConfig,
-	replicationConfigChanged bool, // this being turned on will trigger an increment in the configVersion
-	activeClusterChanged bool, // this indicates a failover is happening and a failover version is to be incremented
+	replicationConfigChanged bool,
+	activeClusterChanged bool,
 	err error,
 ) {
 
