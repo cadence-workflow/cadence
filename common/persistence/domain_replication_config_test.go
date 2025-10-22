@@ -32,7 +32,7 @@ import (
 
 // TestIsActiveActiveMethodsAreInSync ensures that the IsActiveActive() implementations
 // in both persistence.DomainReplicationConfig and types.DomainReplicationConfiguration
-// behave identically for all possible input combinations.
+// behave identically
 func TestIsActiveActiveMethodsAreInSync(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -121,64 +121,6 @@ func TestIsActiveActiveMethodsAreInSync(t *testing.T) {
 				},
 			},
 			want: true,
-		},
-		{
-			name: "both with AttributeScopes populated should return true",
-			typesConfig: &types.DomainReplicationConfiguration{
-				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]types.ClusterAttributeScope{
-						"region": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{
-								"us-west-1": {
-									ActiveClusterName: "cluster2",
-									FailoverVersion:   200,
-								},
-							},
-						},
-					},
-				},
-			},
-			persistenceConfig: &DomainReplicationConfig{
-				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]types.ClusterAttributeScope{
-						"region": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{
-								"us-east-1": {
-									ActiveClusterName: "cluster1",
-									FailoverVersion:   100,
-								},
-								"us-west-1": {
-									ActiveClusterName: "cluster2",
-									FailoverVersion:   200,
-								},
-							},
-						},
-					},
-				},
-			},
-			want: true,
-		},
-		{
-			name: "both with empty AttributeScopes region scope should return false",
-			typesConfig: &types.DomainReplicationConfiguration{
-				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]types.ClusterAttributeScope{
-						"region": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{},
-						},
-					},
-				},
-			},
-			persistenceConfig: &DomainReplicationConfig{
-				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]types.ClusterAttributeScope{
-						"region": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{},
-						},
-					},
-				},
-			},
-			want: false,
 		},
 		{
 			name: "both with empty AttributeScopes map should return false",
@@ -400,6 +342,10 @@ func TestIsActiveActiveMethodsAreInSync(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			typesResult := tt.typesConfig.IsActiveActive()
 			persistenceResult := tt.persistenceConfig.IsActiveActive()
+
+			if tt.persistenceConfig != nil && tt.typesConfig != nil {
+				assert.Equal(t, tt.persistenceConfig.ActiveClusters, tt.typesConfig.ActiveClusters)
+			}
 
 			// Assert that both implementations return the same value
 			assert.Equal(t, persistenceResult, typesResult,

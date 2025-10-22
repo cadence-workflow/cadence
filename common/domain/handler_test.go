@@ -3816,53 +3816,6 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 			},
 		},
 		{
-			name: "both legacy and new formats together",
-			request: &types.RegisterDomainRequest{
-				Name:           "test-domain",
-				IsGlobalDomain: true,
-				ActiveClusters: &types.ActiveClusters{
-					AttributeScopes: map[string]types.ClusterAttributeScope{
-						"region": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{
-								"region1": {ActiveClusterName: cluster.TestCurrentClusterName},
-							},
-						},
-						"datacenter": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{
-								"dc1": {
-									ActiveClusterName: cluster.TestAlternativeClusterName,
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedResult: &types.ActiveClusters{
-				AttributeScopes: map[string]types.ClusterAttributeScope{
-					"region": {
-						ClusterAttributes: map[string]types.ActiveClusterInfo{
-							"region1": {
-								ActiveClusterName: cluster.TestCurrentClusterName,
-								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-							},
-						},
-					},
-					"datacenter": {
-						ClusterAttributes: map[string]types.ActiveClusterInfo{
-							"dc1": {
-								ActiveClusterName: cluster.TestAlternativeClusterName,
-								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
-							},
-						},
-					},
-				},
-			},
-			expectedErr: nil,
-			clusterMetadata: func() cluster.Metadata {
-				return cluster.GetTestClusterMetadata(true)
-			},
-		},
-		{
 			name: "multiple scopes with multiple attributes",
 			request: &types.RegisterDomainRequest{
 				Name:           "test-domain",
