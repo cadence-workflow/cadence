@@ -13,12 +13,11 @@ import (
 	reflect "reflect"
 
 	elastic "github.com/olivere/elastic"
-	cli "github.com/urfave/cli/v2"
-	gomock "go.uber.org/mock/gomock"
-
 	admin "github.com/uber/cadence/client/admin"
 	frontend "github.com/uber/cadence/client/frontend"
 	config "github.com/uber/cadence/common/config"
+	cli "github.com/urfave/cli/v2"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockClientFactory is a mock of ClientFactory interface.

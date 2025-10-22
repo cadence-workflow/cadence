@@ -14,9 +14,8 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "go.uber.org/mock/gomock"
-
 	execution "github.com/uber/cadence/service/history/execution"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MocktransactionManagerForExistingWorkflow is a mock of transactionManagerForExistingWorkflow interface.

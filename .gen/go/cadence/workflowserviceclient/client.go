@@ -71,6 +71,12 @@ type Interface interface {
 		opts ...yarpc.CallOption,
 	) (*shared.ClusterInfo, error)
 
+	GetFailoverEvent(
+		ctx context.Context,
+		GetRequest *shared.GetFailoverEventRequest,
+		opts ...yarpc.CallOption,
+	) (*shared.GetFailoverEventResponse, error)
+
 	GetSearchAttributes(
 		ctx context.Context,
 		opts ...yarpc.CallOption,
@@ -105,6 +111,12 @@ type Interface interface {
 		ListRequest *shared.ListDomainsRequest,
 		opts ...yarpc.CallOption,
 	) (*shared.ListDomainsResponse, error)
+
+	ListFailoverHistory(
+		ctx context.Context,
+		ListRequest *shared.ListFailoverHistoryRequest,
+		opts ...yarpc.CallOption,
+	) (*shared.ListFailoverHistoryResponse, error)
 
 	ListOpenWorkflowExecutions(
 		ctx context.Context,
@@ -573,6 +585,34 @@ func (c client) GetClusterInfo(
 	return
 }
 
+func (c client) GetFailoverEvent(
+	ctx context.Context,
+	_GetRequest *shared.GetFailoverEventRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.GetFailoverEventResponse, err error) {
+
+	var result cadence.WorkflowService_GetFailoverEvent_Result
+	args := cadence.WorkflowService_GetFailoverEvent_Helper.Args(_GetRequest)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = cadence.WorkflowService_GetFailoverEvent_Helper.UnwrapResponse(&result)
+	return
+}
+
 func (c client) GetSearchAttributes(
 	ctx context.Context,
 	opts ...yarpc.CallOption,
@@ -737,6 +777,34 @@ func (c client) ListDomains(
 	}
 
 	success, err = cadence.WorkflowService_ListDomains_Helper.UnwrapResponse(&result)
+	return
+}
+
+func (c client) ListFailoverHistory(
+	ctx context.Context,
+	_ListRequest *shared.ListFailoverHistoryRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.ListFailoverHistoryResponse, err error) {
+
+	var result cadence.WorkflowService_ListFailoverHistory_Result
+	args := cadence.WorkflowService_ListFailoverHistory_Helper.Args(_ListRequest)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = cadence.WorkflowService_ListFailoverHistory_Helper.UnwrapResponse(&result)
 	return
 }
 

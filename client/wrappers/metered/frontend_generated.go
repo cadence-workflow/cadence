@@ -7,11 +7,10 @@ package metered
 import (
 	"context"
 
-	"go.uber.org/yarpc"
-
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
+	"go.uber.org/yarpc"
 )
 
 // frontendClient implements frontend.Client interface instrumented with retries
@@ -226,6 +225,28 @@ func (c *frontendClient) GetClusterInfo(ctx context.Context, p1 ...yarpc.CallOpt
 	return cp1, err
 }
 
+func (c *frontendClient) GetFailoverEvent(ctx context.Context, gp1 *types.GetFailoverEventRequest, p1 ...yarpc.CallOption) (gp2 *types.GetFailoverEventResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.FrontendClientGetFailoverEventScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.FrontendClientGetFailoverEventScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	gp2, err = c.client.GetFailoverEvent(ctx, gp1, p1...)
+	sw.Stop()
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return gp2, err
+}
+
 func (c *frontendClient) GetSearchAttributes(ctx context.Context, p1 ...yarpc.CallOption) (gp1 *types.GetSearchAttributesResponse, err error) {
 	retryCount := getRetryCountFromContext(ctx)
 
@@ -350,6 +371,28 @@ func (c *frontendClient) ListDomains(ctx context.Context, lp1 *types.ListDomains
 
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	lp2, err = c.client.ListDomains(ctx, lp1, p1...)
+	sw.Stop()
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return lp2, err
+}
+
+func (c *frontendClient) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest, p1 ...yarpc.CallOption) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.FrontendClientListFailoverHistoryScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.FrontendClientListFailoverHistoryScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	lp2, err = c.client.ListFailoverHistory(ctx, lp1, p1...)
 	sw.Stop()
 
 	if err != nil {

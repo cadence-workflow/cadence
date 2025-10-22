@@ -13,13 +13,12 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "go.uber.org/mock/gomock"
-
 	future "github.com/uber/cadence/common/future"
 	persistence "github.com/uber/cadence/common/persistence"
 	task "github.com/uber/cadence/common/task"
 	types "github.com/uber/cadence/common/types"
 	shard "github.com/uber/cadence/service/history/shard"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockTask is a mock of Task interface.

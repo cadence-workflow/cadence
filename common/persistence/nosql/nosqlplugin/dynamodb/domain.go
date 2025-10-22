@@ -22,6 +22,7 @@ package dynamodb
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
@@ -89,5 +90,15 @@ func (db *ddb) SelectDomainAuditLog(
 	ctx context.Context,
 	request *nosqlplugin.DomainAuditLogRequest,
 ) ([]*nosqlplugin.DomainAuditLogRow, []byte, error) {
+	panic("TODO")
+}
+
+// GetDomainAuditLogEntry retrieves a specific domain audit log entry by its composite key
+func (db *ddb) GetDomainAuditLogEntry(
+	ctx context.Context,
+	domainID string,
+	eventID string,
+	createdTime time.Time,
+) (*nosqlplugin.DomainAuditLogRow, error) {
 	panic("TODO")
 }

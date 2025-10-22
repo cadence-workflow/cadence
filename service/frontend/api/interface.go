@@ -85,5 +85,7 @@ type (
 		TerminateWorkflowExecution(context.Context, *types.TerminateWorkflowExecutionRequest) error
 		UpdateDomain(context.Context, *types.UpdateDomainRequest) (*types.UpdateDomainResponse, error)
 		FailoverDomain(context.Context, *types.FailoverDomainRequest) (*types.FailoverDomainResponse, error)
+		ListFailoverHistory(context.Context, *types.ListFailoverHistoryRequest) (*types.ListFailoverHistoryResponse, error)
+		GetFailoverEvent(context.Context, *types.GetFailoverEventRequest) (*types.GetFailoverEventResponse, error)
 	}
 )

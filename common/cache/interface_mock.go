@@ -13,9 +13,8 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "go.uber.org/mock/gomock"
-
 	metrics "github.com/uber/cadence/common/metrics"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockCache is a mock of Cache interface.

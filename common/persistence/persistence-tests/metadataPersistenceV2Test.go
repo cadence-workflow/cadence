@@ -1479,7 +1479,7 @@ func (m *MetadataPersistenceSuiteV2) TestDomainAuditLogReadPagination() {
 			EventID:             uuid.New(),
 			CreatedTime:         now.Add(time.Duration(i) * time.Second),
 			LastUpdatedTime:     now.Add(time.Duration(i) * time.Second),
-			OperationType:       i + 1,
+			OperationType:       p.DomainOperationType(i + 1),
 			StateBefore:         []byte(fmt.Sprintf(`{"version":%d}`, i)),
 			StateBeforeEncoding: "json",
 			StateAfter:          []byte(fmt.Sprintf(`{"version":%d}`, i+1)),

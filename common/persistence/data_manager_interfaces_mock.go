@@ -14,9 +14,8 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "go.uber.org/mock/gomock"
-
 	types "github.com/uber/cadence/common/types"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockTask is a mock of Task interface.
@@ -1254,6 +1253,21 @@ func (m *MockDomainManager) GetDomain(ctx context.Context, request *GetDomainReq
 func (mr *MockDomainManagerMockRecorder) GetDomain(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomain", reflect.TypeOf((*MockDomainManager)(nil).GetDomain), ctx, request)
+}
+
+// GetDomainAuditLogEntry mocks base method.
+func (m *MockDomainManager) GetDomainAuditLogEntry(ctx context.Context, request *GetDomainAuditLogEntryRequest) (*GetDomainAuditLogEntryResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDomainAuditLogEntry", ctx, request)
+	ret0, _ := ret[0].(*GetDomainAuditLogEntryResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDomainAuditLogEntry indicates an expected call of GetDomainAuditLogEntry.
+func (mr *MockDomainManagerMockRecorder) GetDomainAuditLogEntry(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainAuditLogEntry", reflect.TypeOf((*MockDomainManager)(nil).GetDomainAuditLogEntry), ctx, request)
 }
 
 // GetMetadata mocks base method.

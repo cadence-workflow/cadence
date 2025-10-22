@@ -10,9 +10,10 @@ import (
 	"github.com/uber/cadence/common/authorization"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/service/frontend/admin"
+
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/frontend/admin"
 )
 
 // adminHandler frontend handler wrapper for authentication and authorization

@@ -9374,6 +9374,97 @@ type AutoConfigHint struct {
 	PollerWaitTimeInMs int64 `json:"pollerWaitTimeInMs"`
 }
 
+// PaginationOptions provides common options for paginated RPCs
+type PaginationOptions struct {
+	PageSize      *int32 `json:"pageSize,omitempty"`
+	NextPageToken []byte `json:"nextPageToken,omitempty"`
+}
+
+// ListFailoverHistoryRequest is used to request failover history for a domain
+type ListFailoverHistoryRequest struct {
+	Filters    *ListFailoverHistoryRequestFilters `json:"filters,omitempty"`
+	Pagination *PaginationOptions                 `json:"pagination,omitempty"`
+}
+
+// GetDomain extracts the domain from filters for cluster redirection
+func (r *ListFailoverHistoryRequest) GetDomain() string {
+	if r.Filters != nil && r.Filters.DomainID != nil {
+		return *r.Filters.DomainID
+	}
+	return ""
+}
+
+// ListFailoverHistoryRequestFilters specifies filters for failover history requests
+type ListFailoverHistoryRequestFilters struct {
+	DomainID             *string             `json:"domainID,omitempty"`
+	Attributes           []*ClusterAttribute `json:"attributes,omitempty"`
+	DefaultActiveCluster *bool               `json:"defaultActiveCluster,omitempty"`
+}
+
+// ListFailoverHistoryResponse contains failover history events
+type ListFailoverHistoryResponse struct {
+	FailoverEvents []*FailoverEvent `json:"failoverEvents,omitempty"`
+	NextPageToken  []byte           `json:"nextPageToken,omitempty"`
+}
+
+// FailoverEvent represents a single failover event
+type FailoverEvent struct {
+	ID           *string       `json:"id,omitempty"`
+	CreatedTime  *int64        `json:"createdTime,omitempty"`
+	FailoverType *FailoverType `json:"failoverType,omitempty"`
+}
+
+// FailoverType describes how a failover operation will be performed
+type FailoverType int32
+
+const (
+	FailoverTypeForce FailoverType = iota
+	FailoverTypeGraceful
+)
+
+func (v FailoverType) String() string {
+	switch v {
+	case FailoverTypeForce:
+		return "FORCE"
+	case FailoverTypeGraceful:
+		return "GRACEFUL"
+	}
+	return "UNKNOWN"
+}
+
+// Ptr is a helper function for getting pointer to FailoverType
+func (v FailoverType) Ptr() *FailoverType {
+	return &v
+}
+
+// GetFailoverEventRequest is used to get details of a specific failover event
+type GetFailoverEventRequest struct {
+	DomainID        *string `json:"domainID,omitempty"`
+	FailoverEventID *string `json:"failoverEventID,omitempty"`
+	CreatedTime     *int64  `json:"createdTime,omitempty"`
+}
+
+// GetDomain extracts the domain ID for cluster redirection
+func (r *GetFailoverEventRequest) GetDomain() string {
+	if r.DomainID != nil {
+		return *r.DomainID
+	}
+	return ""
+}
+
+// GetFailoverEventResponse contains cluster failover details
+type GetFailoverEventResponse struct {
+	ClusterFailovers []*ClusterFailover `json:"clusterFailovers,omitempty"`
+}
+
+// ClusterFailover represents a single cluster failover operation
+type ClusterFailover struct {
+	FromCluster      *ActiveClusterInfo `json:"fromCluster,omitempty"`
+	ToCluster        *ActiveClusterInfo `json:"toCluster,omitempty"`
+	ClusterAttribute *ClusterAttribute  `json:"clusterAttribute,omitempty"`
+	IsDefaultCluster *bool              `json:"isDefaultCluster,omitempty"`
+}
+
 type CronOverlapPolicy int32
 
 const (

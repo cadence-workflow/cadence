@@ -155,4 +155,10 @@ const (
 		`state_after, state_after_encoding, identity, identity_type, comment ` +
 		`FROM domain_audit_log ` +
 		`WHERE domain_id = ?`
+
+	templateGetDomainAuditLogEntryQuery = `SELECT domain_id, event_id, created_time, last_updated_time, ` +
+		`operation_type, state_before, state_before_encoding, ` +
+		`state_after, state_after_encoding, identity, identity_type, comment ` +
+		`FROM domain_audit_log ` +
+		`WHERE domain_id = ? AND created_time = ? AND event_id = ?`
 )

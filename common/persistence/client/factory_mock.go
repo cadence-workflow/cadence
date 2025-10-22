@@ -12,10 +12,9 @@ package client
 import (
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	persistence "github.com/uber/cadence/common/persistence"
 	service "github.com/uber/cadence/common/service"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockFactory is a mock of Factory interface.

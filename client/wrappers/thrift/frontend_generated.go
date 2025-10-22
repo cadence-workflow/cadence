@@ -58,6 +58,11 @@ func (g frontendClient) GetClusterInfo(ctx context.Context, p1 ...yarpc.CallOpti
 	return thrift.ToGetClusterInfoResponse(response), thrift.ToError(err)
 }
 
+func (g frontendClient) GetFailoverEvent(ctx context.Context, gp1 *types.GetFailoverEventRequest, p1 ...yarpc.CallOption) (gp2 *types.GetFailoverEventResponse, err error) {
+	response, err := g.c.GetFailoverEvent(ctx, thrift.FromGetFailoverEventRequest(gp1), p1...)
+	return thrift.ToGetFailoverEventResponse(response), thrift.ToError(err)
+}
+
 func (g frontendClient) GetSearchAttributes(ctx context.Context, p1 ...yarpc.CallOption) (gp1 *types.GetSearchAttributesResponse, err error) {
 	response, err := g.c.GetSearchAttributes(ctx, p1...)
 	return thrift.ToGetSearchAttributesResponse(response), thrift.ToError(err)
@@ -86,6 +91,11 @@ func (g frontendClient) ListClosedWorkflowExecutions(ctx context.Context, lp1 *t
 func (g frontendClient) ListDomains(ctx context.Context, lp1 *types.ListDomainsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListDomainsResponse, err error) {
 	response, err := g.c.ListDomains(ctx, thrift.FromListDomainsRequest(lp1), p1...)
 	return thrift.ToListDomainsResponse(response), thrift.ToError(err)
+}
+
+func (g frontendClient) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest, p1 ...yarpc.CallOption) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	response, err := g.c.ListFailoverHistory(ctx, thrift.FromListFailoverHistoryRequest(lp1), p1...)
+	return thrift.ToListFailoverHistoryResponse(response), thrift.ToError(err)
 }
 
 func (g frontendClient) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {

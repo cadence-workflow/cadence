@@ -8,12 +8,11 @@ import (
 	"context"
 	"strings"
 
-	"go.uber.org/yarpc"
-
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
+	"go.uber.org/yarpc"
 )
 
 // matchingClient implements matching.Client interface instrumented with retries

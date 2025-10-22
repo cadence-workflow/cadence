@@ -13,11 +13,10 @@ import (
 	context "context"
 	reflect "reflect"
 
+	membership "github.com/uber/cadence/common/membership"
 	gomock "go.uber.org/mock/gomock"
 	peer "go.uber.org/yarpc/api/peer"
 	transport "go.uber.org/yarpc/api/transport"
-
-	membership "github.com/uber/cadence/common/membership"
 )
 
 // MockPeerChooserFactory is a mock of PeerChooserFactory interface.

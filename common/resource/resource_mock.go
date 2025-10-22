@@ -12,10 +12,6 @@ package resource
 import (
 	reflect "reflect"
 
-	workflowserviceclient "go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
-	gomock "go.uber.org/mock/gomock"
-	yarpc "go.uber.org/yarpc"
-
 	client "github.com/uber/cadence/client"
 	admin "github.com/uber/cadence/client/admin"
 	frontend "github.com/uber/cadence/client/frontend"
@@ -40,6 +36,9 @@ import (
 	client0 "github.com/uber/cadence/common/persistence/client"
 	rpc "github.com/uber/cadence/common/quotas/global/rpc"
 	service "github.com/uber/cadence/common/service"
+	workflowserviceclient "go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
+	gomock "go.uber.org/mock/gomock"
+	yarpc "go.uber.org/yarpc"
 )
 
 // MockResourceFactory is a mock of ResourceFactory interface.

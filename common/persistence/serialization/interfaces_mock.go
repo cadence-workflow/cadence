@@ -12,12 +12,11 @@ package serialization
 import (
 	reflect "reflect"
 
+	constants "github.com/uber/cadence/common/constants"
+	persistence "github.com/uber/cadence/common/persistence"
 	gomock "go.uber.org/mock/gomock"
 	stream "go.uber.org/thriftrw/protocol/stream"
 	wire "go.uber.org/thriftrw/wire"
-
-	constants "github.com/uber/cadence/common/constants"
-	persistence "github.com/uber/cadence/common/persistence"
 )
 
 // MockParser is a mock of Parser interface.

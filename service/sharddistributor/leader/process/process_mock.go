@@ -13,10 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	config "github.com/uber/cadence/service/sharddistributor/config"
 	store "github.com/uber/cadence/service/sharddistributor/store"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockProcessor is a mock of Processor interface.

@@ -14,11 +14,10 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "go.uber.org/mock/gomock"
-
 	config "github.com/uber/cadence/common/config"
 	log "github.com/uber/cadence/common/log"
 	persistence "github.com/uber/cadence/common/persistence"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockPlugin is a mock of Plugin interface.
@@ -371,6 +370,21 @@ func (m *MockDB) DeleteWorkflowExecution(ctx context.Context, shardID int, domai
 func (mr *MockDBMockRecorder) DeleteWorkflowExecution(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MockDB)(nil).DeleteWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
+}
+
+// GetDomainAuditLogEntry mocks base method.
+func (m *MockDB) GetDomainAuditLogEntry(ctx context.Context, domainID, eventID string, createdTime time.Time) (*DomainAuditLogRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDomainAuditLogEntry", ctx, domainID, eventID, createdTime)
+	ret0, _ := ret[0].(*DomainAuditLogRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDomainAuditLogEntry indicates an expected call of GetDomainAuditLogEntry.
+func (mr *MockDBMockRecorder) GetDomainAuditLogEntry(ctx, domainID, eventID, createdTime any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainAuditLogEntry", reflect.TypeOf((*MockDB)(nil).GetDomainAuditLogEntry), ctx, domainID, eventID, createdTime)
 }
 
 // GetQueueSize mocks base method.
@@ -1516,6 +1530,21 @@ func (m *MocktableCRUD) DeleteWorkflowExecution(ctx context.Context, shardID int
 func (mr *MocktableCRUDMockRecorder) DeleteWorkflowExecution(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MocktableCRUD)(nil).DeleteWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
+}
+
+// GetDomainAuditLogEntry mocks base method.
+func (m *MocktableCRUD) GetDomainAuditLogEntry(ctx context.Context, domainID, eventID string, createdTime time.Time) (*DomainAuditLogRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDomainAuditLogEntry", ctx, domainID, eventID, createdTime)
+	ret0, _ := ret[0].(*DomainAuditLogRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDomainAuditLogEntry indicates an expected call of GetDomainAuditLogEntry.
+func (mr *MocktableCRUDMockRecorder) GetDomainAuditLogEntry(ctx, domainID, eventID, createdTime any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainAuditLogEntry", reflect.TypeOf((*MocktableCRUD)(nil).GetDomainAuditLogEntry), ctx, domainID, eventID, createdTime)
 }
 
 // GetQueueSize mocks base method.
@@ -2757,6 +2786,21 @@ func (m *MockDomainCRUD) DeleteDomain(ctx context.Context, domainID, domainName 
 func (mr *MockDomainCRUDMockRecorder) DeleteDomain(ctx, domainID, domainName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDomain", reflect.TypeOf((*MockDomainCRUD)(nil).DeleteDomain), ctx, domainID, domainName)
+}
+
+// GetDomainAuditLogEntry mocks base method.
+func (m *MockDomainCRUD) GetDomainAuditLogEntry(ctx context.Context, domainID, eventID string, createdTime time.Time) (*DomainAuditLogRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDomainAuditLogEntry", ctx, domainID, eventID, createdTime)
+	ret0, _ := ret[0].(*DomainAuditLogRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDomainAuditLogEntry indicates an expected call of GetDomainAuditLogEntry.
+func (mr *MockDomainCRUDMockRecorder) GetDomainAuditLogEntry(ctx, domainID, eventID, createdTime any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainAuditLogEntry", reflect.TypeOf((*MockDomainCRUD)(nil).GetDomainAuditLogEntry), ctx, domainID, eventID, createdTime)
 }
 
 // InsertDomain mocks base method.

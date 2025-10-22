@@ -25,8 +25,11 @@ package api
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/uber/cadence/common/domain/audit"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/validate"
 )
@@ -217,4 +220,88 @@ func (wh *WorkflowHandler) FailoverDomain(ctx context.Context, failoverRequest *
 
 	logger.Info("Failover domain operation succeeded.")
 	return failoverResp, nil
+}
+
+// ListFailoverHistory returns the failover history for a domain
+func (wh *WorkflowHandler) ListFailoverHistory(
+	ctx context.Context,
+	request *types.ListFailoverHistoryRequest,
+) (*types.ListFailoverHistoryResponse, error) {
+	if wh.isShuttingDown() {
+		return nil, validate.ErrShuttingDown
+	}
+
+	// Extract domain ID from filters
+	if request.Filters == nil || request.Filters.DomainID == nil || *request.Filters.DomainID == "" {
+		return nil, &types.BadRequestError{Message: "domain_id is required in filters"}
+	}
+
+	domainID := *request.Filters.DomainID
+
+	// Set default page size
+	pageSize := 5
+	if request.Pagination != nil && request.Pagination.PageSize != nil && *request.Pagination.PageSize > 0 {
+		pageSize = int(*request.Pagination.PageSize)
+	}
+
+	var nextPageToken []byte
+	if request.Pagination != nil {
+		nextPageToken = request.Pagination.NextPageToken
+	}
+
+	// Read from audit log
+	readResp, err := wh.GetDomainManager().ReadDomainAuditLog(ctx, &persistence.ReadDomainAuditLogRequest{
+		DomainID:      domainID,
+		PageSize:      pageSize,
+		NextPageToken: nextPageToken,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Reconstruct failover events
+	events, err := audit.ReconstructFailoverEvents(readResp.Entries)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.ListFailoverHistoryResponse{
+		FailoverEvents: events,
+		NextPageToken:  readResp.NextPageToken,
+	}, nil
+}
+
+// GetFailoverEvent retrieves detailed information about a specific failover event
+func (wh *WorkflowHandler) GetFailoverEvent(
+	ctx context.Context,
+	request *types.GetFailoverEventRequest,
+) (*types.GetFailoverEventResponse, error) {
+	if wh.isShuttingDown() {
+		return nil, validate.ErrShuttingDown
+	}
+
+	// Validate request
+	if request.DomainID == nil || *request.DomainID == "" ||
+		request.FailoverEventID == nil || *request.FailoverEventID == "" ||
+		request.CreatedTime == nil {
+		return nil, &types.BadRequestError{
+			Message: "domain_id, failover_event_id, and created_time are required",
+		}
+	}
+
+	// Convert Unix timestamp to time.Time
+	createdTime := time.Unix(0, *request.CreatedTime*int64(time.Millisecond))
+
+	// Get specific audit log entry
+	entryResp, err := wh.GetDomainManager().GetDomainAuditLogEntry(ctx, &persistence.GetDomainAuditLogEntryRequest{
+		DomainID:    *request.DomainID,
+		EventID:     *request.FailoverEventID,
+		CreatedTime: createdTime,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Reconstruct cluster failovers from the entry
+	return audit.GetFailoverEventDetails(entryResp.Entry)
 }

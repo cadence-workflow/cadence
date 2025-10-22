@@ -13,9 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	types "github.com/uber/cadence/common/types"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockHandler is a mock of Handler interface.
@@ -175,6 +174,21 @@ func (mr *MockHandlerMockRecorder) GetClusterInfo(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterInfo", reflect.TypeOf((*MockHandler)(nil).GetClusterInfo), arg0)
 }
 
+// GetFailoverEvent mocks base method.
+func (m *MockHandler) GetFailoverEvent(arg0 context.Context, arg1 *types.GetFailoverEventRequest) (*types.GetFailoverEventResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFailoverEvent", arg0, arg1)
+	ret0, _ := ret[0].(*types.GetFailoverEventResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFailoverEvent indicates an expected call of GetFailoverEvent.
+func (mr *MockHandlerMockRecorder) GetFailoverEvent(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFailoverEvent", reflect.TypeOf((*MockHandler)(nil).GetFailoverEvent), arg0, arg1)
+}
+
 // GetSearchAttributes mocks base method.
 func (m *MockHandler) GetSearchAttributes(arg0 context.Context) (*types.GetSearchAttributesResponse, error) {
 	m.ctrl.T.Helper()
@@ -278,6 +292,21 @@ func (m *MockHandler) ListDomains(arg0 context.Context, arg1 *types.ListDomainsR
 func (mr *MockHandlerMockRecorder) ListDomains(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDomains", reflect.TypeOf((*MockHandler)(nil).ListDomains), arg0, arg1)
+}
+
+// ListFailoverHistory mocks base method.
+func (m *MockHandler) ListFailoverHistory(arg0 context.Context, arg1 *types.ListFailoverHistoryRequest) (*types.ListFailoverHistoryResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListFailoverHistory", arg0, arg1)
+	ret0, _ := ret[0].(*types.ListFailoverHistoryResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListFailoverHistory indicates an expected call of ListFailoverHistory.
+func (mr *MockHandlerMockRecorder) ListFailoverHistory(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListFailoverHistory", reflect.TypeOf((*MockHandler)(nil).ListFailoverHistory), arg0, arg1)
 }
 
 // ListOpenWorkflowExecutions mocks base method.

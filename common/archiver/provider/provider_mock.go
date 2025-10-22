@@ -12,9 +12,8 @@ package provider
 import (
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	archiver "github.com/uber/cadence/common/archiver"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockArchiverProvider is a mock of ArchiverProvider interface.

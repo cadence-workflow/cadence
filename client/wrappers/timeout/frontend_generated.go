@@ -90,6 +90,12 @@ func (c *frontendClient) GetClusterInfo(ctx context.Context, p1 ...yarpc.CallOpt
 	return c.client.GetClusterInfo(ctx, p1...)
 }
 
+func (c *frontendClient) GetFailoverEvent(ctx context.Context, gp1 *types.GetFailoverEventRequest, p1 ...yarpc.CallOption) (gp2 *types.GetFailoverEventResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.GetFailoverEvent(ctx, gp1, p1...)
+}
+
 func (c *frontendClient) GetSearchAttributes(ctx context.Context, p1 ...yarpc.CallOption) (gp1 *types.GetSearchAttributesResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
@@ -124,6 +130,12 @@ func (c *frontendClient) ListDomains(ctx context.Context, lp1 *types.ListDomains
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
 	return c.client.ListDomains(ctx, lp1, p1...)
+}
+
+func (c *frontendClient) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest, p1 ...yarpc.CallOption) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.ListFailoverHistory(ctx, lp1, p1...)
 }
 
 func (c *frontendClient) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {

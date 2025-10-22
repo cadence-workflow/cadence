@@ -573,6 +573,21 @@ func (mr *MockDomainStoreMockRecorder) GetDomain(ctx, request any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomain", reflect.TypeOf((*MockDomainStore)(nil).GetDomain), ctx, request)
 }
 
+// GetDomainAuditLogEntry mocks base method.
+func (m *MockDomainStore) GetDomainAuditLogEntry(ctx context.Context, request *GetDomainAuditLogEntryRequest) (*GetDomainAuditLogEntryResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDomainAuditLogEntry", ctx, request)
+	ret0, _ := ret[0].(*GetDomainAuditLogEntryResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDomainAuditLogEntry indicates an expected call of GetDomainAuditLogEntry.
+func (mr *MockDomainStoreMockRecorder) GetDomainAuditLogEntry(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainAuditLogEntry", reflect.TypeOf((*MockDomainStore)(nil).GetDomainAuditLogEntry), ctx, request)
+}
+
 // GetMetadata mocks base method.
 func (m *MockDomainStore) GetMetadata(ctx context.Context) (*GetMetadataResponse, error) {
 	m.ctrl.T.Helper()

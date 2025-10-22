@@ -12,12 +12,11 @@ package cli
 import (
 	reflect "reflect"
 
-	cli "github.com/urfave/cli/v2"
-	gomock "go.uber.org/mock/gomock"
-
 	persistence "github.com/uber/cadence/common/persistence"
 	client "github.com/uber/cadence/common/persistence/client"
 	invariant "github.com/uber/cadence/common/reconciliation/invariant"
+	cli "github.com/urfave/cli/v2"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockManagerFactory is a mock of ManagerFactory interface.

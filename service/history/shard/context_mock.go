@@ -14,8 +14,6 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "go.uber.org/mock/gomock"
-
 	activecluster "github.com/uber/cadence/common/activecluster"
 	cache "github.com/uber/cadence/common/cache"
 	clock "github.com/uber/cadence/common/clock"
@@ -28,6 +26,7 @@ import (
 	engine "github.com/uber/cadence/service/history/engine"
 	events "github.com/uber/cadence/service/history/events"
 	resource "github.com/uber/cadence/service/history/resource"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockContext is a mock of Context interface.

@@ -12,10 +12,9 @@ package queuev2
 import (
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	persistence "github.com/uber/cadence/common/persistence"
 	task "github.com/uber/cadence/service/history/task"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockPendingTaskTracker is a mock of PendingTaskTracker interface.

@@ -65,6 +65,14 @@ func (c *ratelimitedDomainManager) GetDomain(ctx context.Context, request *persi
 	return c.wrapped.GetDomain(ctx, request)
 }
 
+func (c *ratelimitedDomainManager) GetDomainAuditLogEntry(ctx context.Context, request *persistence.GetDomainAuditLogEntryRequest) (gp1 *persistence.GetDomainAuditLogEntryResponse, err error) {
+	if ok := c.rateLimiter.Allow(); !ok {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.GetDomainAuditLogEntry(ctx, request)
+}
+
 func (c *ratelimitedDomainManager) GetMetadata(ctx context.Context) (gp1 *persistence.GetMetadataResponse, err error) {
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded

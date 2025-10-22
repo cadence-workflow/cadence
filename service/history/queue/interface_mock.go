@@ -13,10 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	common "github.com/uber/cadence/service/history/common"
 	task "github.com/uber/cadence/service/history/task"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockProcessingQueueState is a mock of ProcessingQueueState interface.

@@ -94,6 +94,7 @@ type (
 		GetMetadata(ctx context.Context) (*GetMetadataResponse, error)
 		WriteDomainAuditLog(ctx context.Context, request *WriteDomainAuditLogRequest) error
 		ReadDomainAuditLog(ctx context.Context, request *ReadDomainAuditLogRequest) (*ReadDomainAuditLogResponse, error)
+		GetDomainAuditLogEntry(ctx context.Context, request *GetDomainAuditLogEntryRequest) (*GetDomainAuditLogEntryResponse, error)
 	}
 
 	// ExecutionStore is used to manage workflow executions for Persistence layer

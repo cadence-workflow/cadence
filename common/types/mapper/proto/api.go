@@ -21,7 +21,10 @@
 package proto
 
 import (
+	"time"
+
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
@@ -6602,4 +6605,315 @@ func ToActiveClusterSelectionPolicy(p *apiv1.ActiveClusterSelectionPolicy) *type
 	return &types.ActiveClusterSelectionPolicy{
 		ClusterAttribute: ToClusterAttribute(p.ClusterAttribute),
 	}
+}
+
+// FromPaginationOptions converts internal PaginationOptions to proto
+func FromPaginationOptions(t *types.PaginationOptions) *apiv1.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.PaginationOptions{
+		PageSize:      *t.PageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+// ToPaginationOptions converts proto PaginationOptions to internal
+func ToPaginationOptions(t *apiv1.PaginationOptions) *types.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	return &types.PaginationOptions{
+		PageSize:      &t.PageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+// FromFailoverType converts internal FailoverType to proto
+func FromFailoverType(t *types.FailoverType) apiv1.FailoverType {
+	if t == nil {
+		return apiv1.FailoverType_FAILOVER_TYPE_INVALID
+	}
+	switch *t {
+	case types.FailoverTypeForce:
+		return apiv1.FailoverType_FAILOVER_TYPE_FORCE
+	case types.FailoverTypeGraceful:
+		return apiv1.FailoverType_FAILOVER_TYPE_GRACEFUL
+	}
+	panic("unexpected enum value")
+}
+
+// ToFailoverType converts proto FailoverType to internal
+func ToFailoverType(t apiv1.FailoverType) *types.FailoverType {
+	switch t {
+	case apiv1.FailoverType_FAILOVER_TYPE_INVALID:
+		return nil
+	case apiv1.FailoverType_FAILOVER_TYPE_FORCE:
+		return types.FailoverTypeForce.Ptr()
+	case apiv1.FailoverType_FAILOVER_TYPE_GRACEFUL:
+		return types.FailoverTypeGraceful.Ptr()
+	}
+	panic("unexpected enum value")
+}
+
+// FromFailoverEvent converts internal FailoverEvent to proto
+func FromFailoverEvent(t *types.FailoverEvent) *apiv1.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.FailoverEvent{
+		Id:           *t.ID,
+		CreatedTime:  timestamppb.New(time.Unix(0, *t.CreatedTime*int64(time.Millisecond))),
+		FailoverType: FromFailoverType(t.FailoverType),
+	}
+}
+
+// ToFailoverEvent converts proto FailoverEvent to internal
+func ToFailoverEvent(t *apiv1.FailoverEvent) *types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	id := t.Id
+	createdTimeMs := t.CreatedTime.AsTime().UnixNano() / int64(time.Millisecond)
+	return &types.FailoverEvent{
+		ID:           &id,
+		CreatedTime:  &createdTimeMs,
+		FailoverType: ToFailoverType(t.FailoverType),
+	}
+}
+
+// FromClusterFailover converts internal ClusterFailover to proto
+func FromClusterFailover(t *types.ClusterFailover) *apiv1.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ClusterFailover{
+		FromCluster:      FromActiveClusterInfo(t.FromCluster),
+		ToCluster:        FromActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: FromClusterAttribute(t.ClusterAttribute),
+		IsDefaultCluster: *t.IsDefaultCluster,
+	}
+}
+
+// ToClusterFailover converts proto ClusterFailover to internal
+func ToClusterFailover(t *apiv1.ClusterFailover) *types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	isDefault := t.IsDefaultCluster
+	return &types.ClusterFailover{
+		FromCluster:      ToActiveClusterInfo(t.FromCluster),
+		ToCluster:        ToActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: ToClusterAttribute(t.ClusterAttribute),
+		IsDefaultCluster: &isDefault,
+	}
+}
+
+// FromListFailoverHistoryRequestFilters converts internal type to proto
+func FromListFailoverHistoryRequestFilters(t *types.ListFailoverHistoryRequestFilters) *apiv1.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListFailoverHistoryRequestFilters{
+		DomainId:             *t.DomainID,
+		Attributes:           FromClusterAttributeArray(t.Attributes),
+		DefaultActiveCluster: *t.DefaultActiveCluster,
+	}
+}
+
+// ToListFailoverHistoryRequestFilters converts proto type to internal
+func ToListFailoverHistoryRequestFilters(t *apiv1.ListFailoverHistoryRequestFilters) *types.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	domainID := t.DomainId
+	defaultActive := t.DefaultActiveCluster
+	return &types.ListFailoverHistoryRequestFilters{
+		DomainID:             &domainID,
+		Attributes:           ToClusterAttributeArray(t.Attributes),
+		DefaultActiveCluster: &defaultActive,
+	}
+}
+
+// FromListFailoverHistoryRequest converts internal request to proto
+func FromListFailoverHistoryRequest(t *types.ListFailoverHistoryRequest) *apiv1.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListFailoverHistoryRequest{
+		Filters:    FromListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: FromPaginationOptions(t.Pagination),
+	}
+}
+
+// ToListFailoverHistoryRequest converts proto request to internal
+func ToListFailoverHistoryRequest(t *apiv1.ListFailoverHistoryRequest) *types.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryRequest{
+		Filters:    ToListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: ToPaginationOptions(t.Pagination),
+	}
+}
+
+// FromListFailoverHistoryResponse converts internal response to proto
+func FromListFailoverHistoryResponse(t *types.ListFailoverHistoryResponse) *apiv1.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListFailoverHistoryResponse{
+		FailoverEvents: FromFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+// ToListFailoverHistoryResponse converts proto response to internal
+func ToListFailoverHistoryResponse(t *apiv1.ListFailoverHistoryResponse) *types.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryResponse{
+		FailoverEvents: ToFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+// FromGetFailoverEventRequest converts internal request to proto
+func FromGetFailoverEventRequest(t *types.GetFailoverEventRequest) *apiv1.GetFailoverEventRequest {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.GetFailoverEventRequest{
+		DomainId:        *t.DomainID,
+		FailoverEventId: *t.FailoverEventID,
+		CreatedTime:     gogo.TimestampNow(),
+	}
+}
+
+// ToGetFailoverEventRequest converts proto request to internal
+func ToGetFailoverEventRequest(t *apiv1.GetFailoverEventRequest) *types.GetFailoverEventRequest {
+	if t == nil {
+		return nil
+	}
+	domainID := t.DomainId
+	eventID := t.FailoverEventId
+	createdTimeMs := t.CreatedTime.AsTime().UnixNano() / int64(time.Millisecond)
+	return &types.GetFailoverEventRequest{
+		DomainID:        &domainID,
+		FailoverEventID: &eventID,
+		CreatedTime:     &createdTimeMs,
+	}
+}
+
+// FromGetFailoverEventResponse converts internal response to proto
+func FromGetFailoverEventResponse(t *types.GetFailoverEventResponse) *apiv1.GetFailoverEventResponse {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.GetFailoverEventResponse{
+		ClusterFailovers: FromClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+// ToGetFailoverEventResponse converts proto response to internal
+func ToGetFailoverEventResponse(t *apiv1.GetFailoverEventResponse) *types.GetFailoverEventResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.GetFailoverEventResponse{
+		ClusterFailovers: ToClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+// FromFailoverEventArray converts internal array to proto
+func FromFailoverEventArray(t []*types.FailoverEvent) []*apiv1.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*apiv1.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = FromFailoverEvent(t[i])
+	}
+	return v
+}
+
+// ToFailoverEventArray converts proto array to internal
+func ToFailoverEventArray(t []*apiv1.FailoverEvent) []*types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = ToFailoverEvent(t[i])
+	}
+	return v
+}
+
+// FromClusterFailoverArray converts internal array to proto
+func FromClusterFailoverArray(t []*types.ClusterFailover) []*apiv1.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*apiv1.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = FromClusterFailover(t[i])
+	}
+	return v
+}
+
+// ToClusterFailoverArray converts proto array to internal
+func ToClusterFailoverArray(t []*apiv1.ClusterFailover) []*types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = ToClusterFailover(t[i])
+	}
+	return v
+}
+
+// FromActiveClusterInfo converts internal ActiveClusterInfo to proto
+func FromActiveClusterInfo(t *types.ActiveClusterInfo) *apiv1.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ActiveClusterInfo{
+		ActiveClusterName: t.ActiveClusterName,
+	}
+}
+
+// ToActiveClusterInfo converts proto ActiveClusterInfo to internal
+func ToActiveClusterInfo(t *apiv1.ActiveClusterInfo) *types.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &types.ActiveClusterInfo{
+		ActiveClusterName: t.ActiveClusterName,
+	}
+}
+
+// FromClusterAttributeArray converts internal array to proto
+func FromClusterAttributeArray(t []*types.ClusterAttribute) []*apiv1.ClusterAttribute {
+	if t == nil {
+		return nil
+	}
+	v := make([]*apiv1.ClusterAttribute, len(t))
+	for i := range t {
+		v[i] = FromClusterAttribute(t[i])
+	}
+	return v
+}
+
+// ToClusterAttributeArray converts proto array to internal
+func ToClusterAttributeArray(t []*apiv1.ClusterAttribute) []*types.ClusterAttribute {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.ClusterAttribute, len(t))
+	for i := range t {
+		v[i] = ToClusterAttribute(t[i])
+	}
+	return v
 }

@@ -13,9 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	execution "github.com/uber/cadence/service/history/execution"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockconflictResolver is a mock of conflictResolver interface.

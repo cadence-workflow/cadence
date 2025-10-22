@@ -96,6 +96,21 @@ func (c *injectorDomainManager) GetDomain(ctx context.Context, request *persiste
 	return
 }
 
+func (c *injectorDomainManager) GetDomainAuditLogEntry(ctx context.Context, request *persistence.GetDomainAuditLogEntryRequest) (gp1 *persistence.GetDomainAuditLogEntryResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		gp1, err = c.wrapped.GetDomainAuditLogEntry(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "DomainManager.GetDomainAuditLogEntry", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorDomainManager) GetMetadata(ctx context.Context) (gp1 *persistence.GetMetadataResponse, err error) {
 	fakeErr := generateFakeError(c.errorRate)
 	var forwardCall bool

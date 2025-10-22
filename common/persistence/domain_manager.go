@@ -329,6 +329,13 @@ func (m *domainManagerImpl) ReadDomainAuditLog(
 	return m.persistence.ReadDomainAuditLog(ctx, request)
 }
 
+func (m *domainManagerImpl) GetDomainAuditLogEntry(
+	ctx context.Context,
+	request *GetDomainAuditLogEntryRequest,
+) (*GetDomainAuditLogEntryResponse, error) {
+	return m.persistence.GetDomainAuditLogEntry(ctx, request)
+}
+
 func (m *domainManagerImpl) Close() {
 	m.persistence.Close()
 }

@@ -13,10 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
+	types "github.com/uber/cadence/common/types"
 	gomock "go.uber.org/mock/gomock"
 	yarpc "go.uber.org/yarpc"
-
-	types "github.com/uber/cadence/common/types"
 )
 
 // MockClient is a mock of Client interface.
@@ -221,6 +220,26 @@ func (mr *MockClientMockRecorder) GetClusterInfo(arg0 any, arg1 ...any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterInfo", reflect.TypeOf((*MockClient)(nil).GetClusterInfo), varargs...)
 }
 
+// GetFailoverEvent mocks base method.
+func (m *MockClient) GetFailoverEvent(arg0 context.Context, arg1 *types.GetFailoverEventRequest, arg2 ...yarpc.CallOption) (*types.GetFailoverEventResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetFailoverEvent", varargs...)
+	ret0, _ := ret[0].(*types.GetFailoverEventResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFailoverEvent indicates an expected call of GetFailoverEvent.
+func (mr *MockClientMockRecorder) GetFailoverEvent(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFailoverEvent", reflect.TypeOf((*MockClient)(nil).GetFailoverEvent), varargs...)
+}
+
 // GetSearchAttributes mocks base method.
 func (m *MockClient) GetSearchAttributes(arg0 context.Context, arg1 ...yarpc.CallOption) (*types.GetSearchAttributesResponse, error) {
 	m.ctrl.T.Helper()
@@ -339,6 +358,26 @@ func (mr *MockClientMockRecorder) ListDomains(arg0, arg1 any, arg2 ...any) *gomo
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDomains", reflect.TypeOf((*MockClient)(nil).ListDomains), varargs...)
+}
+
+// ListFailoverHistory mocks base method.
+func (m *MockClient) ListFailoverHistory(arg0 context.Context, arg1 *types.ListFailoverHistoryRequest, arg2 ...yarpc.CallOption) (*types.ListFailoverHistoryResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ListFailoverHistory", varargs...)
+	ret0, _ := ret[0].(*types.ListFailoverHistoryResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListFailoverHistory indicates an expected call of ListFailoverHistory.
+func (mr *MockClientMockRecorder) ListFailoverHistory(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListFailoverHistory", reflect.TypeOf((*MockClient)(nil).ListFailoverHistory), varargs...)
 }
 
 // ListOpenWorkflowExecutions mocks base method.

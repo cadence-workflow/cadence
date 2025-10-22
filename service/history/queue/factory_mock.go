@@ -12,12 +12,11 @@ package queue
 import (
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	persistence "github.com/uber/cadence/common/persistence"
 	invariant "github.com/uber/cadence/common/reconciliation/invariant"
 	execution "github.com/uber/cadence/service/history/execution"
 	shard "github.com/uber/cadence/service/history/shard"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockFactory is a mock of Factory interface.

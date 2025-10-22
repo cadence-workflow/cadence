@@ -13,10 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	persistence "github.com/uber/cadence/common/persistence"
 	task "github.com/uber/cadence/service/history/task"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockVirtualSlice is a mock of VirtualSlice interface.

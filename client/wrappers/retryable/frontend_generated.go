@@ -122,6 +122,17 @@ func (c *frontendClient) GetClusterInfo(ctx context.Context, p1 ...yarpc.CallOpt
 	return resp, err
 }
 
+func (c *frontendClient) GetFailoverEvent(ctx context.Context, gp1 *types.GetFailoverEventRequest, p1 ...yarpc.CallOption) (gp2 *types.GetFailoverEventResponse, err error) {
+	var resp *types.GetFailoverEventResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.GetFailoverEvent(ctx, gp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *frontendClient) GetSearchAttributes(ctx context.Context, p1 ...yarpc.CallOption) (gp1 *types.GetSearchAttributesResponse, err error) {
 	var resp *types.GetSearchAttributesResponse
 	op := func(ctx context.Context) error {
@@ -182,6 +193,17 @@ func (c *frontendClient) ListDomains(ctx context.Context, lp1 *types.ListDomains
 	op := func(ctx context.Context) error {
 		var err error
 		resp, err = c.client.ListDomains(ctx, lp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
+func (c *frontendClient) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest, p1 ...yarpc.CallOption) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	var resp *types.ListFailoverHistoryResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.ListFailoverHistory(ctx, lp1, p1...)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)

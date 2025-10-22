@@ -14,10 +14,9 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "go.uber.org/mock/gomock"
-
 	persistence "github.com/uber/cadence/common/persistence"
 	execution "github.com/uber/cadence/service/history/execution"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MocktransactionManager is a mock of transactionManager interface.

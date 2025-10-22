@@ -14,13 +14,12 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "go.uber.org/mock/gomock"
-
 	cache "github.com/uber/cadence/common/cache"
 	definition "github.com/uber/cadence/common/definition"
 	persistence "github.com/uber/cadence/common/persistence"
 	types "github.com/uber/cadence/common/types"
 	query "github.com/uber/cadence/service/history/query"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockMutableState is a mock of MutableState interface.

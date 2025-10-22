@@ -12,11 +12,10 @@ package persistence
 import (
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	checksum "github.com/uber/cadence/common/checksum"
 	constants "github.com/uber/cadence/common/constants"
 	types "github.com/uber/cadence/common/types"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockPayloadSerializer is a mock of PayloadSerializer interface.

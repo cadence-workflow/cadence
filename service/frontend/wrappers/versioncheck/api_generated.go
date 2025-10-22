@@ -101,6 +101,14 @@ func (h *versionCheckHandler) GetClusterInfo(ctx context.Context) (cp1 *types.Cl
 	return h.frontendHandler.GetClusterInfo(ctx)
 }
 
+func (h *versionCheckHandler) GetFailoverEvent(ctx context.Context, gp1 *types.GetFailoverEventRequest) (gp2 *types.GetFailoverEventResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.GetFailoverEvent(ctx, gp1)
+}
+
 func (h *versionCheckHandler) GetSearchAttributes(ctx context.Context) (gp1 *types.GetSearchAttributesResponse, err error) {
 	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
 	if err != nil {
@@ -147,6 +155,14 @@ func (h *versionCheckHandler) ListDomains(ctx context.Context, lp1 *types.ListDo
 		return
 	}
 	return h.frontendHandler.ListDomains(ctx, lp1)
+}
+
+func (h *versionCheckHandler) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.ListFailoverHistory(ctx, lp1)
 }
 
 func (h *versionCheckHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {

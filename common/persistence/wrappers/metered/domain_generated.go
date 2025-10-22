@@ -85,6 +85,17 @@ func (c *meteredDomainManager) GetDomain(ctx context.Context, request *persisten
 	return
 }
 
+func (c *meteredDomainManager) GetDomainAuditLogEntry(ctx context.Context, request *persistence.GetDomainAuditLogEntryRequest) (gp1 *persistence.GetDomainAuditLogEntryResponse, err error) {
+	op := func() error {
+		gp1, err = c.wrapped.GetDomainAuditLogEntry(ctx, request)
+		c.emptyMetric("DomainManager.GetDomainAuditLogEntry", request, gp1, err)
+		return err
+	}
+
+	err = c.call(metrics.PersistenceGetDomainAuditLogEntryScope, op, getCustomMetricTags(request)...)
+	return
+}
+
 func (c *meteredDomainManager) GetMetadata(ctx context.Context) (gp1 *persistence.GetMetadataResponse, err error) {
 	op := func() error {
 		gp1, err = c.wrapped.GetMetadata(ctx)

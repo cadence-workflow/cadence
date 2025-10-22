@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/domain/audit"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -427,6 +428,9 @@ func (d *handlerImpl) UpdateDomain(
 		return nil, err
 	}
 
+	// Capture old domain state for audit logging (save the GetDomainResponse)
+	oldDomainResp := getResponse
+
 	info := getResponse.Info
 	config := getResponse.Config
 	replicationConfig := getResponse.ReplicationConfig
@@ -671,6 +675,12 @@ func (d *handlerImpl) UpdateDomain(
 		err = d.domainManager.UpdateDomain(ctx, &updateReq)
 		if err != nil {
 			return nil, err
+		}
+
+		// Write audit log (best-effort, don't fail update if this fails)
+		if err := d.writeAuditLog(ctx, oldDomainResp, info, updateRequest); err != nil {
+			d.logger.Error("Failed to write domain audit log", tag.Error(err))
+			// Don't fail the update
 		}
 	}
 
@@ -1873,6 +1883,54 @@ func NewFailoverEvent(
 		res.ToActiveClusters = *toActiveClusters
 	}
 	return res
+}
+
+func (d *handlerImpl) writeAuditLog(
+	ctx context.Context,
+	oldDomain *persistence.GetDomainResponse,
+	newDomainInfo *persistence.DomainInfo,
+	request *types.UpdateDomainRequest,
+) error {
+	// Get the full new domain state
+	newDomainResp, err := d.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{
+		ID: newDomainInfo.ID,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Compute diff
+	diffBytes, err := audit.ComputeDomainDiff(oldDomain, newDomainResp)
+	if err != nil {
+		return err
+	}
+
+	// Extract identity
+	identity, identityType := audit.ExtractIdentity(ctx)
+
+	// Determine operation type
+	opType := audit.DetermineOperationType(request)
+
+	// Create audit log entry
+	now := time.Now()
+	entry := &persistence.DomainAuditLogEntry{
+		DomainID:            newDomainInfo.ID,
+		EventID:             uuid.New(),
+		CreatedTime:         now,
+		LastUpdatedTime:     now,
+		OperationType:       opType,
+		StateBefore:         []byte("{}"),
+		StateBeforeEncoding: "json",
+		StateAfter:          diffBytes,
+		StateAfterEncoding:  "json-patch",
+		Identity:            identity,
+		IdentityType:        identityType,
+	}
+
+	// Write to persistence
+	return d.domainManager.WriteDomainAuditLog(ctx, &persistence.WriteDomainAuditLogRequest{
+		Entries: []*persistence.DomainAuditLogEntry{entry},
+	})
 }
 
 func (d *handlerImpl) buildActiveActiveClusterScopesFromUpdateRequest(updateRequest *types.UpdateDomainRequest, config *persistence.DomainReplicationConfig, domainName string) (out *types.ActiveClusters, isChanged bool) {

@@ -179,6 +179,22 @@ func (h *apiHandler) GetClusterInfo(ctx context.Context) (cp1 *types.ClusterInfo
 	}
 	return cp1, err
 }
+func (h *apiHandler) GetFailoverEvent(ctx context.Context, gp1 *types.GetFailoverEventRequest) (gp2 *types.GetFailoverEventResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("GetFailoverEvent")}
+	tags = append(tags, toGetFailoverEventRequestTags(gp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendGetFailoverEventScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(gp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tags...)
+
+	gp2, err = h.handler.GetFailoverEvent(ctx, gp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return gp2, err
+}
 func (h *apiHandler) GetSearchAttributes(ctx context.Context) (gp1 *types.GetSearchAttributesResponse, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("GetSearchAttributes")}
@@ -271,6 +287,22 @@ func (h *apiHandler) ListDomains(ctx context.Context, lp1 *types.ListDomainsRequ
 	logger := h.logger.WithTags(tags...)
 
 	lp2, err = h.handler.ListDomains(ctx, lp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return lp2, err
+}
+func (h *apiHandler) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("ListFailoverHistory")}
+	tags = append(tags, toListFailoverHistoryRequestTags(lp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendListFailoverHistoryScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(lp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tags...)
+
+	lp2, err = h.handler.ListFailoverHistory(ctx, lp1)
 	if err != nil {
 		return nil, h.handleErr(err, scope, logger)
 	}

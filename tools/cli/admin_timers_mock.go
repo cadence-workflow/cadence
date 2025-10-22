@@ -13,9 +13,8 @@ import (
 	io "io"
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	persistence "github.com/uber/cadence/common/persistence"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockLoadCloser is a mock of LoadCloser interface.

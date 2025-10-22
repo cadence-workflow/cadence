@@ -207,6 +207,10 @@ func (handler *clusterRedirectionHandler) GetClusterInfo(ctx context.Context) (c
 	return handler.frontendHandler.GetClusterInfo(ctx)
 }
 
+func (handler *clusterRedirectionHandler) GetFailoverEvent(ctx context.Context, gp1 *types.GetFailoverEventRequest) (gp2 *types.GetFailoverEventResponse, err error) {
+	return handler.frontendHandler.GetFailoverEvent(ctx, gp1)
+}
+
 func (handler *clusterRedirectionHandler) GetSearchAttributes(ctx context.Context) (gp1 *types.GetSearchAttributesResponse, err error) {
 	return handler.frontendHandler.GetSearchAttributes(ctx)
 }
@@ -380,6 +384,10 @@ func (handler *clusterRedirectionHandler) ListClosedWorkflowExecutions(ctx conte
 
 func (handler *clusterRedirectionHandler) ListDomains(ctx context.Context, lp1 *types.ListDomainsRequest) (lp2 *types.ListDomainsResponse, err error) {
 	return handler.frontendHandler.ListDomains(ctx, lp1)
+}
+
+func (handler *clusterRedirectionHandler) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	return handler.frontendHandler.ListFailoverHistory(ctx, lp1)
 }
 
 func (handler *clusterRedirectionHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {

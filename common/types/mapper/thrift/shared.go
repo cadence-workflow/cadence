@@ -8710,3 +8710,307 @@ func ToCronOverlapPolicy(t *shared.CronOverlapPolicy) *types.CronOverlapPolicy {
 	}
 	panic("unexpected enum value")
 }
+
+// FromPaginationOptions converts internal PaginationOptions type to thrift
+func FromPaginationOptions(t *types.PaginationOptions) *shared.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	return &shared.PaginationOptions{
+		PageSize:      t.PageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+// ToPaginationOptions converts thrift PaginationOptions type to internal
+func ToPaginationOptions(t *shared.PaginationOptions) *types.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	return &types.PaginationOptions{
+		PageSize:      t.PageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+// FromFailoverType converts internal FailoverType to thrift
+func FromFailoverType(t *types.FailoverType) *shared.FailoverType {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case types.FailoverTypeForce:
+		return shared.FailoverTypeForce.Ptr()
+	case types.FailoverTypeGraceful:
+		return shared.FailoverTypeGraceful.Ptr()
+	}
+	panic("unexpected enum value")
+}
+
+// ToFailoverType converts thrift FailoverType to internal
+func ToFailoverType(t *shared.FailoverType) *types.FailoverType {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case shared.FailoverTypeForce:
+		return types.FailoverTypeForce.Ptr()
+	case shared.FailoverTypeGraceful:
+		return types.FailoverTypeGraceful.Ptr()
+	}
+	panic("unexpected enum value")
+}
+
+// FromFailoverEvent converts internal FailoverEvent to thrift
+func FromFailoverEvent(t *types.FailoverEvent) *shared.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	return &shared.FailoverEvent{
+		ID:           t.ID,
+		CreatedTime:  t.CreatedTime,
+		FailoverType: FromFailoverType(t.FailoverType),
+	}
+}
+
+// ToFailoverEvent converts thrift FailoverEvent to internal
+func ToFailoverEvent(t *shared.FailoverEvent) *types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	return &types.FailoverEvent{
+		ID:           t.ID,
+		CreatedTime:  t.CreatedTime,
+		FailoverType: ToFailoverType(t.FailoverType),
+	}
+}
+
+// FromClusterFailover converts internal ClusterFailover to thrift
+func FromClusterFailover(t *types.ClusterFailover) *shared.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &shared.ClusterFailover{
+		FromCluster:      FromActiveClusterInfo(t.FromCluster),
+		ToCluster:        FromActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: FromClusterAttribute(t.ClusterAttribute),
+		IsDefaultCluster: t.IsDefaultCluster,
+	}
+}
+
+// ToClusterFailover converts thrift ClusterFailover to internal
+func ToClusterFailover(t *shared.ClusterFailover) *types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &types.ClusterFailover{
+		FromCluster:      ToActiveClusterInfo(t.FromCluster),
+		ToCluster:        ToActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: ToClusterAttribute(t.ClusterAttribute),
+		IsDefaultCluster: t.IsDefaultCluster,
+	}
+}
+
+// FromListFailoverHistoryRequestFilters converts internal type to thrift
+func FromListFailoverHistoryRequestFilters(t *types.ListFailoverHistoryRequestFilters) *shared.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &shared.ListFailoverHistoryRequestFilters{
+		DomainID:             t.DomainID,
+		Attributes:           FromClusterAttributeArray(t.Attributes),
+		DefaultActiveCluster: t.DefaultActiveCluster,
+	}
+}
+
+// ToListFailoverHistoryRequestFilters converts thrift type to internal
+func ToListFailoverHistoryRequestFilters(t *shared.ListFailoverHistoryRequestFilters) *types.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryRequestFilters{
+		DomainID:             t.DomainID,
+		Attributes:           ToClusterAttributeArray(t.Attributes),
+		DefaultActiveCluster: t.DefaultActiveCluster,
+	}
+}
+
+// FromListFailoverHistoryRequest converts internal ListFailoverHistoryRequest type to thrift
+func FromListFailoverHistoryRequest(t *types.ListFailoverHistoryRequest) *shared.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+	return &shared.ListFailoverHistoryRequest{
+		Filters:    FromListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: FromPaginationOptions(t.Pagination),
+	}
+}
+
+// ToListFailoverHistoryRequest converts thrift ListFailoverHistoryRequest type to internal
+func ToListFailoverHistoryRequest(t *shared.ListFailoverHistoryRequest) *types.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryRequest{
+		Filters:    ToListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: ToPaginationOptions(t.Pagination),
+	}
+}
+
+// FromListFailoverHistoryResponse converts internal ListFailoverHistoryResponse type to thrift
+func FromListFailoverHistoryResponse(t *types.ListFailoverHistoryResponse) *shared.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &shared.ListFailoverHistoryResponse{
+		FailoverEvents: FromFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+// ToListFailoverHistoryResponse converts thrift ListFailoverHistoryResponse type to internal
+func ToListFailoverHistoryResponse(t *shared.ListFailoverHistoryResponse) *types.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryResponse{
+		FailoverEvents: ToFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+// FromGetFailoverEventRequest converts internal GetFailoverEventRequest type to thrift
+func FromGetFailoverEventRequest(t *types.GetFailoverEventRequest) *shared.GetFailoverEventRequest {
+	if t == nil {
+		return nil
+	}
+	return &shared.GetFailoverEventRequest{
+		DomainID:        t.DomainID,
+		FailoverEventID: t.FailoverEventID,
+		CreatedTime:     t.CreatedTime,
+	}
+}
+
+// ToGetFailoverEventRequest converts thrift GetFailoverEventRequest type to internal
+func ToGetFailoverEventRequest(t *shared.GetFailoverEventRequest) *types.GetFailoverEventRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.GetFailoverEventRequest{
+		DomainID:        t.DomainID,
+		FailoverEventID: t.FailoverEventID,
+		CreatedTime:     t.CreatedTime,
+	}
+}
+
+// FromGetFailoverEventResponse converts internal GetFailoverEventResponse type to thrift
+func FromGetFailoverEventResponse(t *types.GetFailoverEventResponse) *shared.GetFailoverEventResponse {
+	if t == nil {
+		return nil
+	}
+	return &shared.GetFailoverEventResponse{
+		ClusterFailovers: FromClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+// ToGetFailoverEventResponse converts thrift GetFailoverEventResponse type to internal
+func ToGetFailoverEventResponse(t *shared.GetFailoverEventResponse) *types.GetFailoverEventResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.GetFailoverEventResponse{
+		ClusterFailovers: ToClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+// FromFailoverEventArray converts internal FailoverEvent array to thrift
+func FromFailoverEventArray(t []*types.FailoverEvent) []*shared.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*shared.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = FromFailoverEvent(t[i])
+	}
+	return v
+}
+
+// ToFailoverEventArray converts thrift FailoverEvent array to internal
+func ToFailoverEventArray(t []*shared.FailoverEvent) []*types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = ToFailoverEvent(t[i])
+	}
+	return v
+}
+
+// FromClusterFailoverArray converts internal ClusterFailover array to thrift
+func FromClusterFailoverArray(t []*types.ClusterFailover) []*shared.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*shared.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = FromClusterFailover(t[i])
+	}
+	return v
+}
+
+// ToClusterFailoverArray converts thrift ClusterFailover array to internal
+func ToClusterFailoverArray(t []*shared.ClusterFailover) []*types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = ToClusterFailover(t[i])
+	}
+	return v
+}
+
+// FromActiveClusterInfo converts internal ActiveClusterInfo to thrift
+func FromActiveClusterInfo(t *types.ActiveClusterInfo) *shared.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &shared.ActiveClusterInfo{
+		ActiveClusterName: &t.ActiveClusterName,
+	}
+}
+
+// ToActiveClusterInfo converts thrift ActiveClusterInfo to internal
+func ToActiveClusterInfo(t *shared.ActiveClusterInfo) *types.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &types.ActiveClusterInfo{
+		ActiveClusterName: t.GetActiveClusterName(),
+	}
+}
+
+// FromClusterAttributeArray converts internal ClusterAttribute array to thrift
+func FromClusterAttributeArray(t []*types.ClusterAttribute) []*shared.ClusterAttribute {
+	if t == nil {
+		return nil
+	}
+	v := make([]*shared.ClusterAttribute, len(t))
+	for i := range t {
+		v[i] = FromClusterAttribute(t[i])
+	}
+	return v
+}
+
+// ToClusterAttributeArray converts thrift ClusterAttribute array to internal
+func ToClusterAttributeArray(t []*shared.ClusterAttribute) []*types.ClusterAttribute {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.ClusterAttribute, len(t))
+	for i := range t {
+		v[i] = ToClusterAttribute(t[i])
+	}
+	return v
+}

@@ -12,9 +12,8 @@ package execution
 import (
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	types "github.com/uber/cadence/common/types"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockStateBuilder is a mock of StateBuilder interface.

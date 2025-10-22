@@ -389,6 +389,8 @@ var (
 	FrontendClientOperationGetClusterInfo                        = clientOperation("frontend-get-cluster-info")
 	FrontendClientOperationListTaskListPartitions                = clientOperation("frontend-list-task-list-partitions")
 	FrontendClientOperationGetTaskListsByDomain                  = clientOperation("frontend-get-task-list-for-domain")
+	FrontendClientOperationListFailoverHistory                   = clientOperation("frontend-list-failover-history")
+	FrontendClientOperationGetFailoverEvent                      = clientOperation("frontend-get-failover-event")
 
 	HistoryClientOperationStartWorkflowExecution            = clientOperation("history-start-wf-execution")
 	HistoryClientOperationDescribeHistoryHost               = clientOperation("history-describe-history-host")

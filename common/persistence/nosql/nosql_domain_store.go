@@ -269,7 +269,7 @@ func (m *nosqlDomainStore) WriteDomainAuditLog(
 			EventID:             entry.EventID,
 			CreatedTime:         entry.CreatedTime,
 			LastUpdatedTime:     entry.LastUpdatedTime,
-			OperationType:       entry.OperationType,
+			OperationType:       int(entry.OperationType),
 			StateBefore:         entry.StateBefore,
 			StateBeforeEncoding: entry.StateBeforeEncoding,
 			StateAfter:          entry.StateAfter,
@@ -312,7 +312,7 @@ func (m *nosqlDomainStore) ReadDomainAuditLog(
 			EventID:             row.EventID,
 			CreatedTime:         row.CreatedTime,
 			LastUpdatedTime:     row.LastUpdatedTime,
-			OperationType:       row.OperationType,
+			OperationType:       persistence.DomainOperationType(row.OperationType),
 			StateBefore:         row.StateBefore,
 			StateBeforeEncoding: row.StateBeforeEncoding,
 			StateAfter:          row.StateAfter,
@@ -326,5 +326,35 @@ func (m *nosqlDomainStore) ReadDomainAuditLog(
 	return &persistence.ReadDomainAuditLogResponse{
 		Entries:       entries,
 		NextPageToken: nextPageToken,
+	}, nil
+}
+
+// GetDomainAuditLogEntry retrieves a single audit log entry by its key
+func (m *nosqlDomainStore) GetDomainAuditLogEntry(
+	ctx context.Context,
+	request *persistence.GetDomainAuditLogEntryRequest,
+) (*persistence.GetDomainAuditLogEntryResponse, error) {
+	row, err := m.db.GetDomainAuditLogEntry(ctx, request.DomainID, request.EventID, request.CreatedTime)
+	if err != nil {
+		return nil, convertCommonErrors(m.db, "GetDomainAuditLogEntry", err)
+	}
+
+	entry := &persistence.DomainAuditLogEntry{
+		DomainID:            row.DomainID,
+		EventID:             row.EventID,
+		CreatedTime:         row.CreatedTime,
+		LastUpdatedTime:     row.LastUpdatedTime,
+		OperationType:       persistence.DomainOperationType(row.OperationType),
+		StateBefore:         row.StateBefore,
+		StateBeforeEncoding: row.StateBeforeEncoding,
+		StateAfter:          row.StateAfter,
+		StateAfterEncoding:  row.StateAfterEncoding,
+		Identity:            row.Identity,
+		IdentityType:        row.IdentityType,
+		Comment:             row.Comment,
+	}
+
+	return &persistence.GetDomainAuditLogEntryResponse{
+		Entry: entry,
 	}, nil
 }

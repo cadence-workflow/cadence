@@ -211,6 +211,29 @@ func (_m *MetadataManager) ReadDomainAuditLog(ctx context.Context, request *pers
 	return r0, r1
 }
 
+// GetDomainAuditLogEntry provides a mock function with given fields: ctx, request
+func (_m *MetadataManager) GetDomainAuditLogEntry(ctx context.Context, request *persistence.GetDomainAuditLogEntryRequest) (*persistence.GetDomainAuditLogEntryResponse, error) {
+	ret := _m.Called(ctx, request)
+
+	var r0 *persistence.GetDomainAuditLogEntryResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetDomainAuditLogEntryRequest) *persistence.GetDomainAuditLogEntryResponse); ok {
+		r0 = rf(ctx, request)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*persistence.GetDomainAuditLogEntryResponse)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *persistence.GetDomainAuditLogEntryRequest) error); ok {
+		r1 = rf(ctx, request)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // WriteDomainAuditLog provides a mock function with given fields: ctx, request
 func (_m *MetadataManager) WriteDomainAuditLog(ctx context.Context, request *persistence.WriteDomainAuditLogRequest) error {
 	ret := _m.Called(ctx, request)

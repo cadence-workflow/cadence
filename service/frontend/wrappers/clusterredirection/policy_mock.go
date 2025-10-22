@@ -13,10 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	cache "github.com/uber/cadence/common/cache"
 	types "github.com/uber/cadence/common/types"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockClusterRedirectionPolicy is a mock of ClusterRedirectionPolicy interface.

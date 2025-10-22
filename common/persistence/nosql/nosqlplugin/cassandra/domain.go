@@ -549,7 +549,7 @@ func (db *CDB) InsertDomainAuditLog(
 		return nil
 	}
 
-	batch := db.session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
+	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	for _, row := range rows {
 		batch.Query(templateInsertDomainAuditLogQuery,
 			row.DomainID,
@@ -625,4 +625,44 @@ func (db *CDB) SelectDomainAuditLog(
 	}
 
 	return rows, nextPageToken, nil
+}
+
+// GetDomainAuditLogEntry retrieves a specific domain audit log entry by its composite key
+func (db *CDB) GetDomainAuditLogEntry(
+	ctx context.Context,
+	domainID string,
+	eventID string,
+	createdTime time.Time,
+) (*nosqlplugin.DomainAuditLogRow, error) {
+	row := &nosqlplugin.DomainAuditLogRow{}
+
+	err := db.session.Query(templateGetDomainAuditLogEntryQuery,
+		domainID,
+		createdTime,
+		eventID,
+	).WithContext(ctx).Scan(
+		&row.DomainID,
+		&row.EventID,
+		&row.CreatedTime,
+		&row.LastUpdatedTime,
+		&row.OperationType,
+		&row.StateBefore,
+		&row.StateBeforeEncoding,
+		&row.StateAfter,
+		&row.StateAfterEncoding,
+		&row.Identity,
+		&row.IdentityType,
+		&row.Comment,
+	)
+
+	if err != nil {
+		if db.client.IsNotFoundError(err) {
+			return nil, &types.EntityNotExistsError{
+				Message: "domain audit log entry not found",
+			}
+		}
+		return nil, err
+	}
+
+	return row, nil
 }
