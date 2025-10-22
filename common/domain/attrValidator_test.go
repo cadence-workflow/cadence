@@ -403,14 +403,14 @@ func TestValidateActiveActiveDomainReplicationConfig(t *testing.T) {
 		{
 			name: "empty ActiveClusters - all maps nil",
 			activeClusters: &types.ActiveClusters{
-				AttributeScopes:        nil,
+				AttributeScopes: nil,
 			},
 			expectedErr: false,
 		},
 		{
 			name: "empty ActiveClusters - maps initialized but empty",
 			activeClusters: &types.ActiveClusters{
-				AttributeScopes:        map[string]types.ClusterAttributeScope{},
+				AttributeScopes: map[string]types.ClusterAttributeScope{},
 			},
 			expectedErr: false,
 		},
