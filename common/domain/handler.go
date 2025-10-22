@@ -437,7 +437,6 @@ func (d *handlerImpl) UpdateDomain(
 	isGlobalDomain := getResponse.IsGlobalDomain
 	gracefulFailoverEndTime := getResponse.FailoverEndTime
 	currentActiveCluster := replicationConfig.ActiveClusterName
-	currentActiveClusters := replicationConfig.ActiveClusters.DeepCopy()
 	previousFailoverVersion := getResponse.PreviousFailoverVersion
 	lastUpdatedTime := time.Unix(0, getResponse.LastUpdatedTime)
 
@@ -598,17 +597,7 @@ func (d *handlerImpl) UpdateDomain(
 					tag.Dynamic("failover-type", failoverType),
 				)
 
-				err = updateFailoverHistory(info, d.config, NewFailoverEvent(
-					now,
-					failoverType,
-					&currentActiveCluster,
-					updateRequest.ActiveClusterName,
-					nil,
-					replicationConfig.ActiveClusters,
-				))
-				if err != nil {
-					d.logger.Warn("failed to update failover history", tag.Error(err))
-				}
+				// todo (active-active): update failover history
 			}
 
 			// case 3. active-active domain's ActiveClusters is changed
@@ -628,17 +617,7 @@ func (d *handlerImpl) UpdateDomain(
 					tag.Dynamic("failover-type", failoverType),
 				)
 
-				err = updateFailoverHistory(info, d.config, NewFailoverEvent(
-					now,
-					failoverType,
-					&currentActiveCluster,
-					updateRequest.ActiveClusterName,
-					currentActiveClusters,
-					replicationConfig.ActiveClusters,
-				))
-				if err != nil {
-					d.logger.Warn("failed to update failover history", tag.Error(err))
-				}
+				// todo (active-active): update failover history
 			}
 
 			failoverNotificationVersion = notificationVersion
@@ -722,7 +701,6 @@ func (d *handlerImpl) FailoverDomain(
 	isGlobalDomain := getResponse.IsGlobalDomain
 	gracefulFailoverEndTime := getResponse.FailoverEndTime
 	currentActiveCluster := replicationConfig.ActiveClusterName
-	currentActiveClusters := replicationConfig.ActiveClusters.DeepCopy()
 	previousFailoverVersion := getResponse.PreviousFailoverVersion
 	lastUpdatedTime := time.Unix(0, getResponse.LastUpdatedTime)
 
@@ -832,18 +810,7 @@ func (d *handlerImpl) FailoverDomain(
 				tag.Dynamic("failover-version", failoverVersion),
 				tag.Dynamic("failover-type", failoverType),
 			)
-
-			err = updateFailoverHistory(info, d.config, NewFailoverEvent(
-				now,
-				failoverType,
-				&currentActiveCluster,
-				updateRequest.ActiveClusterName,
-				nil,
-				replicationConfig.ActiveClusters,
-			))
-			if err != nil {
-				d.logger.Warn("failed to update failover history", tag.Error(err))
-			}
+			// todo (active-active): update failover history
 		}
 
 		// case 3. active-active domain's ActiveClusters is changed
@@ -861,18 +828,7 @@ func (d *handlerImpl) FailoverDomain(
 				tag.Dynamic("failover-version", failoverVersion),
 				tag.Dynamic("failover-type", failoverType),
 			)
-
-			err = updateFailoverHistory(info, d.config, NewFailoverEvent(
-				now,
-				failoverType,
-				&currentActiveCluster,
-				nil,
-				currentActiveClusters,
-				replicationConfig.ActiveClusters,
-			))
-			if err != nil {
-				d.logger.Warn("failed to update failover history", tag.Error(err))
-			}
+			// todo (active-active): update failover history
 		}
 
 		failoverNotificationVersion = notificationVersion
