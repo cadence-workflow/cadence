@@ -395,14 +395,18 @@ func TestDomainCallback(t *testing.T) {
 			&persistence.DomainReplicationConfig{
 				Clusters: clusters,
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"region0": {
-							ActiveClusterName: "cluster0",
-							FailoverVersion:   1,
-						},
-						"region1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   2,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region0": {
+									ActiveClusterName: "cluster0",
+									FailoverVersion:   1,
+								},
+								"region1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   2,
+								},
+							},
 						},
 					},
 				},

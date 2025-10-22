@@ -50,7 +50,6 @@ const (
 	ReplicationSimulationOperationValidate                    ReplicationSimulationOperation = "validate"
 	ReplicationSimulationOperationQueryWorkflow               ReplicationSimulationOperation = "query_workflow"
 	ReplicationSimulationOperationSignalWithStartWorkflow     ReplicationSimulationOperation = "signal_with_start_workflow"
-	ReplicationSimulationOperationMigrateDomainToActiveActive ReplicationSimulationOperation = "migrate_domain_to_active_active"
 	ReplicationSimulationOperationValidateWorkflowReplication ReplicationSimulationOperation = "validate_workflow_replication"
 )
 
@@ -94,10 +93,13 @@ type Operation struct {
 	WorkflowID                           string                              `yaml:"workflowID"`
 	WorkflowExecutionStartToCloseTimeout time.Duration                       `yaml:"workflowExecutionStartToCloseTimeout"`
 	WorkflowDuration                     time.Duration                       `yaml:"workflowDuration"`
+	ChildWorkflowID                      string                              `yaml:"childWorkflowID"`
+	ChildWorkflowTimeout                 time.Duration                       `yaml:"childWorkflowTimeout"`
 	ActivityCount                        int                                 `yaml:"activityCount"`
 	DelayStartSeconds                    int32                               `yaml:"delayStartSeconds"`
 	CronSchedule                         string                              `yaml:"cronSchedule"`
 	ActiveClusterSelectionPolicy         *types.ActiveClusterSelectionPolicy `yaml:"activeClusterSelectionPolicy"`
+	WorkflowIDReusePolicy                *types.WorkflowIDReusePolicy        `yaml:"workflowIDReusePolicy"`
 
 	Query            string `yaml:"query"`
 	ConsistencyLevel string `yaml:"consistencyLevel"`

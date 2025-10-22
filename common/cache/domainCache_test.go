@@ -330,9 +330,13 @@ func Test_IsActiveIn(t *testing.T) {
 			isGlobalDomain: true,
 			currentCluster: "A",
 			activeClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region0": {ActiveClusterName: "A"},
-					"region1": {ActiveClusterName: "B"},
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region0": {ActiveClusterName: "A"},
+							"region1": {ActiveClusterName: "B"},
+						},
+					},
 				},
 			},
 			expectIsActive: true,
@@ -342,9 +346,13 @@ func Test_IsActiveIn(t *testing.T) {
 			isGlobalDomain: true,
 			currentCluster: "C",
 			activeClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region0": {ActiveClusterName: "A"},
-					"region1": {ActiveClusterName: "B"},
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region0": {ActiveClusterName: "A"},
+							"region1": {ActiveClusterName: "B"},
+						},
+					},
 				},
 			},
 			expectIsActive: false,
@@ -1109,74 +1117,6 @@ func Test_IsSampledForLongerRetention(t *testing.T) {
 	require.False(t, d.IsSampledForLongerRetention(wid))
 }
 
-func Test_GetActiveDomainByID(t *testing.T) {
-	nonExistingUUID := uuid.New()
-	activeDomainUUID := uuid.New()
-	passiveDomainUUID := uuid.New()
-
-	activeDomain := NewGlobalDomainCacheEntryForTest(
-		&persistence.DomainInfo{ID: activeDomainUUID, Name: "active"},
-		nil,
-		&persistence.DomainReplicationConfig{ActiveClusterName: "A"},
-		0,
-	)
-	passiveDomain := NewGlobalDomainCacheEntryForTest(
-		&persistence.DomainInfo{ID: passiveDomainUUID, Name: "passive"},
-		nil,
-		&persistence.DomainReplicationConfig{ActiveClusterName: "B"},
-		0,
-	)
-
-	tests := []struct {
-		msg          string
-		domainID     string
-		expectDomain *DomainCacheEntry
-		expectedErr  error
-	}{
-		{
-			msg:         "invalid UUID",
-			domainID:    "invalid",
-			expectedErr: &types.BadRequestError{Message: "Invalid domain UUID."},
-		},
-		{
-			msg:         "non existing domain",
-			domainID:    nonExistingUUID,
-			expectedErr: assert.AnError,
-		},
-		{
-			msg:          "active domain",
-			domainID:     activeDomainUUID,
-			expectDomain: activeDomain,
-		},
-		{
-			msg:          "passive domain",
-			domainID:     passiveDomainUUID,
-			expectDomain: passiveDomain,
-			expectedErr: &types.DomainNotActiveError{
-				Message:        "Domain: passive is active in cluster: B, while current cluster A is a standby cluster.",
-				DomainName:     "passive",
-				CurrentCluster: "A",
-				ActiveCluster:  "B",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.msg, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			cache := NewMockDomainCache(ctrl)
-			cache.EXPECT().GetDomainByID(nonExistingUUID).Return(nil, assert.AnError).AnyTimes()
-			cache.EXPECT().GetDomainByID(activeDomainUUID).Return(activeDomain, nil).AnyTimes()
-			cache.EXPECT().GetDomainByID(passiveDomainUUID).Return(passiveDomain, nil).AnyTimes()
-
-			domain, err := GetActiveDomainByID(cache, "A", tt.domainID)
-
-			assert.Equal(t, tt.expectDomain, domain)
-			assert.Equal(t, tt.expectedErr, err)
-		})
-	}
-}
-
 func Test_WithTimeSource(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1223,14 +1163,16 @@ func Test_NewDomainNotActiveError(t *testing.T) {
 				nil,
 				true,
 				&persistence.DomainReplicationConfig{
-					ActiveClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"region1": {
-							ActiveClusterName: "cluster1",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"region1": {ActiveClusterName: "cluster1"},
+									"region2": {ActiveClusterName: "cluster2"},
+								},
+							},
 						},
-						"region2": {
-							ActiveClusterName: "cluster2",
-						},
-					}},
+					},
 				},
 				0,
 				nil,
@@ -1273,14 +1215,16 @@ func Test_getActiveClusters(t *testing.T) {
 			msg: "active-active domain",
 			replicationConfig: &persistence.DomainReplicationConfig{
 				ActiveClusterName: "active",
-				ActiveClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region1": {
-						ActiveClusterName: "cluster1",
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region1": {ActiveClusterName: "cluster1"},
+								"region2": {ActiveClusterName: "cluster2"},
+							},
+						},
 					},
-					"region2": {
-						ActiveClusterName: "cluster2",
-					},
-				}},
+				},
 			},
 			expectedActiveClusters: []string{"cluster1", "cluster2"},
 		},

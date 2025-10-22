@@ -2428,6 +2428,9 @@ const (
 
 	RingResolverError
 
+	// WorkflowExecutionHistoryAccess tracks the access to the workflow history
+	WorkflowExecutionHistoryAccess
+
 	NumCommonMetrics // Needs to be last on this list for iota numbering
 )
 
@@ -3219,6 +3222,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ClusterForwardingPolicyRequests: {metricName: "cluster_forwarding_policy_requests", metricType: Counter},
 
 		RingResolverError: {metricName: "ring_resolver_error", metricType: Counter},
+
+		WorkflowExecutionHistoryAccess: {metricName: "workflow_execution_history_access", metricType: Gauge},
 	},
 	History: {
 		TaskRequests:                     {metricName: "task_requests", metricType: Counter},

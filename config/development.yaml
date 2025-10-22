@@ -157,8 +157,10 @@ shardDistribution:
   namespaces:
     - name: shard-distributor-canary
       type: fixed
+      mode: onboarded
       shardNum: 32
     - name: shard-distributor-canary-ephemeral
+      mode: onboarded
       type: ephemeral
   leaderStore:
     storageParams:

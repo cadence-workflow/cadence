@@ -14,6 +14,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/canary"
+	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/executorclient"
 	"github.com/uber/cadence/tools/common/commoncli"
 )
@@ -38,8 +39,8 @@ func runApp(c *cli.Context) {
 func opts(fixedNamespace, ephemeralNamespace, endpoint string) fx.Option {
 	config := executorclient.Config{
 		Namespaces: []executorclient.NamespaceConfig{
-			{Namespace: fixedNamespace, HeartBeatInterval: 1 * time.Second},
-			{Namespace: ephemeralNamespace, HeartBeatInterval: 1 * time.Second},
+			{Namespace: fixedNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
+			{Namespace: ephemeralNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
 		},
 	}
 

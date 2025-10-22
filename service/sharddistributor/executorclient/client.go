@@ -40,7 +40,7 @@ type Executor[SP ShardProcessor] interface {
 	Start(ctx context.Context)
 	Stop()
 
-	GetShardProcess(shardID string) (SP, error)
+	GetShardProcess(ctx context.Context, shardID string) (SP, error)
 	// Used during the migration during local-passthrough and local-passthrough-shadow
 	AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment)
 }
@@ -102,7 +102,7 @@ func newExecutorWithConfig[SP ShardProcessor](params Params[SP], namespaceConfig
 		"namespace":              namespaceConfig.Namespace,
 	})
 
-	return &executorImpl[SP]{
+	executor := &executorImpl[SP]{
 		logger:                 params.Logger,
 		shardDistributorClient: shardDistributorClient,
 		shardProcessorFactory:  params.ShardProcessorFactory,
@@ -112,7 +112,10 @@ func newExecutorWithConfig[SP ShardProcessor](params Params[SP], namespaceConfig
 		timeSource:             params.TimeSource,
 		stopC:                  make(chan struct{}),
 		metrics:                metricsScope,
-	}, nil
+	}
+	executor.setMigrationMode(namespaceConfig.GetMigrationMode())
+
+	return executor, nil
 }
 
 func createShardDistributorExecutorClient(yarpcClient sharddistributorv1.ShardDistributorExecutorAPIYARPCClient, metricsScope tally.Scope, logger log.Logger) (sharddistributorexecutor.Client, error) {

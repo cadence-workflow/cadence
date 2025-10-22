@@ -156,18 +156,18 @@ func (mr *MockExecutorMockRecorder[SP]) AssignShardsFromLocalLogic(ctx, shardAss
 }
 
 // GetShardProcess mocks base method.
-func (m *MockExecutor[SP]) GetShardProcess(shardID string) (SP, error) {
+func (m *MockExecutor[SP]) GetShardProcess(ctx context.Context, shardID string) (SP, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetShardProcess", shardID)
+	ret := m.ctrl.Call(m, "GetShardProcess", ctx, shardID)
 	ret0, _ := ret[0].(SP)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetShardProcess indicates an expected call of GetShardProcess.
-func (mr *MockExecutorMockRecorder[SP]) GetShardProcess(shardID any) *gomock.Call {
+func (mr *MockExecutorMockRecorder[SP]) GetShardProcess(ctx, shardID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardProcess", reflect.TypeOf((*MockExecutor[SP])(nil).GetShardProcess), shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardProcess", reflect.TypeOf((*MockExecutor[SP])(nil).GetShardProcess), ctx, shardID)
 }
 
 // Start mocks base method.

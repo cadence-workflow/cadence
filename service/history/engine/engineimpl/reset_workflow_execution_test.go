@@ -347,6 +347,7 @@ func TestResetWorkflowExecution(t *testing.T) {
 					},
 					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
 				}),
+				withActiveClusterInfo(constants.TestDomainID, latestExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
 			},
 			expectedErr: &types.BadRequestError{Message: "Cannot reset workflow without a decision task schedule."},
 		},
@@ -364,6 +365,7 @@ func TestResetWorkflowExecution(t *testing.T) {
 					},
 					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
 				}),
+				withActiveClusterInfo(constants.TestDomainID, latestExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
 			},
 			expectedErr: &types.BadRequestError{Message: "Decision finish ID must be > 1 && <= workflow next event ID."},
 		},
@@ -382,6 +384,7 @@ func TestResetWorkflowExecution(t *testing.T) {
 					},
 					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
 				}),
+				withActiveClusterInfo(constants.TestDomainID, latestExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
 			},
 			expected: &types.ResetWorkflowExecutionResponse{
 				RunID: latestRunID,
@@ -405,6 +408,7 @@ func TestResetWorkflowExecution(t *testing.T) {
 					},
 					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
 				}),
+				withActiveClusterInfo(constants.TestDomainID, latestExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
 				withHistoryPagination(branchToken, 24),
 				func(t *testing.T, engine *testdata.EngineForTest) {
 					ctrl := gomock.NewController(t)
@@ -472,6 +476,7 @@ func TestResetWorkflowExecution(t *testing.T) {
 					},
 					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
 				}),
+				withActiveClusterInfo(constants.TestDomainID, latestExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
 				withHistoryPagination(branchToken, 24),
 				func(t *testing.T, engine *testdata.EngineForTest) {
 					ctrl := gomock.NewController(t)
@@ -514,6 +519,7 @@ func TestResetWorkflowExecution(t *testing.T) {
 					},
 					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
 				}),
+				withActiveClusterInfo(constants.TestDomainID, latestExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
 				withState(previousExecution, &persistence.WorkflowMutableState{
 					ExecutionInfo: &persistence.WorkflowExecutionInfo{
 						DomainID:    constants.TestDomainID,
@@ -527,6 +533,7 @@ func TestResetWorkflowExecution(t *testing.T) {
 					},
 					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
 				}),
+				withActiveClusterInfo(constants.TestDomainID, latestExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
 				withHistoryPagination(branchToken, 24),
 				func(t *testing.T, engine *testdata.EngineForTest) {
 					ctrl := gomock.NewController(t)
@@ -571,6 +578,7 @@ func TestResetWorkflowExecution(t *testing.T) {
 					},
 					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
 				}),
+				withActiveClusterInfo(constants.TestDomainID, latestExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
 				withHistoryPagination(branchToken, 24),
 				func(t *testing.T, engine *testdata.EngineForTest) {
 					ctrl := gomock.NewController(t)
@@ -620,6 +628,7 @@ func TestResetWorkflowExecution(t *testing.T) {
 					},
 					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
 				}),
+				withActiveClusterInfo(constants.TestDomainID, latestExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
 				withHistoryPagination(branchToken, 24),
 				func(t *testing.T, engine *testdata.EngineForTest) {
 					ctrl := gomock.NewController(t)
@@ -670,6 +679,7 @@ func TestResetWorkflowExecution(t *testing.T) {
 					},
 					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
 				}),
+				withActiveClusterInfo(constants.TestDomainID, latestExecution, &types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}),
 				withHistoryPagination(branchToken, 24),
 				func(t *testing.T, engine *testdata.EngineForTest) {
 					ctrl := gomock.NewController(t)
@@ -911,6 +921,7 @@ func TestResetWorkflowExecution_ResetPointsValidation(t *testing.T) {
 
 			mockResetter := reset.NewMockWorkflowResetter(ctrl)
 			eft.Engine.(*historyEngineImpl).workflowResetter = mockResetter
+			eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, latestExecution.WorkflowID, latestExecution.RunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil)
 
 			tc.setupMock(mockResetter, tc.resetEventID)
 
@@ -1016,6 +1027,12 @@ func withState(execution *types.WorkflowExecution, state *persistence.WorkflowMu
 		})).Return(&persistence.GetWorkflowExecutionResponse{
 			State: state,
 		}, nil)
+	}
+}
+
+func withActiveClusterInfo(domainID string, execution *types.WorkflowExecution, activeClusterInfo *types.ActiveClusterInfo) InitFn {
+	return func(_ *testing.T, engine *testdata.EngineForTest) {
+		engine.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainID, execution.WorkflowID, execution.RunID).Return(activeClusterInfo, nil)
 	}
 }
 

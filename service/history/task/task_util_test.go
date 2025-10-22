@@ -877,9 +877,9 @@ func TestShouldPushToMatching(t *testing.T) {
 			name: "active-active domain and workflow is active in current cluster so returns true",
 			setupMock: func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager) {
 				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(getDomainCacheEntry(true, true), nil)
-				mockActiveClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), domainID, wfid, rid).
-					Return(&activecluster.LookupResult{
-						ClusterName: currentClusterName,
+				mockActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainID, wfid, rid).
+					Return(&types.ActiveClusterInfo{
+						ActiveClusterName: currentClusterName,
 					}, nil)
 			},
 			expectedResult: true,
@@ -888,9 +888,9 @@ func TestShouldPushToMatching(t *testing.T) {
 			name: "active-active domain and workflow is not active in current cluster so returns false",
 			setupMock: func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager) {
 				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(getDomainCacheEntry(true, true), nil)
-				mockActiveClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), domainID, wfid, rid).
-					Return(&activecluster.LookupResult{
-						ClusterName: "otherCluster",
+				mockActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainID, wfid, rid).
+					Return(&types.ActiveClusterInfo{
+						ActiveClusterName: "otherCluster",
 					}, nil)
 			},
 			expectedResult: false,
@@ -899,7 +899,7 @@ func TestShouldPushToMatching(t *testing.T) {
 			name: "active-active domain - failed to lookup workflow",
 			setupMock: func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager) {
 				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(getDomainCacheEntry(true, true), nil)
-				mockActiveClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), domainID, wfid, rid).
+				mockActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainID, wfid, rid).
 					Return(nil, errors.New("failed to lookup workflow"))
 			},
 			expectedResult: false,
@@ -948,10 +948,14 @@ func TestShouldPushToMatching(t *testing.T) {
 
 func getDomainCacheEntry(isGlobal, isActiveActive bool) *cache.DomainCacheEntry {
 	activeClusters := &types.ActiveClusters{
-		ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-			"us-west": {
-				ActiveClusterName: "cluster0",
-				FailoverVersion:   1,
+		AttributeScopes: map[string]types.ClusterAttributeScope{
+			"region": {
+				ClusterAttributes: map[string]types.ActiveClusterInfo{
+					"us-west": {
+						ActiveClusterName: "cluster0",
+						FailoverVersion:   1,
+					},
+				},
 			},
 		},
 	}
