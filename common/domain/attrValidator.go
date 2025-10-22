@@ -208,16 +208,5 @@ func (d *AttrValidatorImpl) validateActiveActiveDomainReplicationConfig(
 			}
 		}
 	}
-
-	// todo (david.porter) remove this once we have completely migrated to AttributeScopes
-	for _, activeCluster := range activeClusters.ActiveClustersByRegion {
-		if _, ok := clusters[activeCluster.ActiveClusterName]; !ok {
-			return &types.BadRequestError{Message: fmt.Sprintf(
-				"Invalid active cluster name: %v",
-				activeCluster.ActiveClusterName,
-			)}
-		}
-	}
-
 	return nil
 }

@@ -384,45 +384,6 @@ func TestValidateActiveActiveDomainReplicationConfig(t *testing.T) {
 		errType        interface{}
 	}{
 		{
-			name: "valid clusters in ActiveClustersByRegion only",
-			activeClusters: &types.ActiveClusters{
-				AttributeScopes: map[string]types.ClusterAttributeScope{
-					"city": {
-						ClusterAttributes: map[string]types.ActiveClusterInfo{
-							"portland": {
-								ActiveClusterName: clusterB,
-								FailoverVersion:   200,
-							},
-						},
-					},
-				},
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region1": {
-						ActiveClusterName: clusterA,
-						FailoverVersion:   100,
-					},
-					"region2": {
-						ActiveClusterName: clusterB,
-						FailoverVersion:   200,
-					},
-				},
-			},
-			expectedErr: false,
-		},
-		{
-			name: "invalid cluster in ActiveClustersByRegion",
-			activeClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region1": {
-						ActiveClusterName: "invalid-cluster",
-						FailoverVersion:   100,
-					},
-				},
-			},
-			expectedErr: true,
-			errType:     &types.BadRequestError{},
-		},
-		{
 			name: "invalid cluster in AttributeScopes",
 			activeClusters: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
@@ -442,7 +403,6 @@ func TestValidateActiveActiveDomainReplicationConfig(t *testing.T) {
 		{
 			name: "empty ActiveClusters - all maps nil",
 			activeClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: nil,
 				AttributeScopes:        nil,
 			},
 			expectedErr: false,
@@ -450,7 +410,6 @@ func TestValidateActiveActiveDomainReplicationConfig(t *testing.T) {
 		{
 			name: "empty ActiveClusters - maps initialized but empty",
 			activeClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
 				AttributeScopes:        map[string]types.ClusterAttributeScope{},
 			},
 			expectedErr: false,
