@@ -271,10 +271,14 @@ func generateTestActiveClusterSelectionPolicy(t *testing.T) codec.ThriftObject {
 func generateTestActiveClustersConfig(t *testing.T) codec.ThriftObject {
 	t.Helper()
 	return &shared.ActiveClusters{
-		ActiveClustersByRegion: map[string]*shared.ActiveClusterInfo{
-			"region0": {
-				ActiveClusterName: common.StringPtr("cluster1"),
-				FailoverVersion:   common.Int64Ptr(2),
+		ActiveClustersByClusterAttribute: map[string]*shared.ClusterAttributeScope{
+			"region0": &shared.ClusterAttributeScope{
+				ClusterAttributes: map[string]*shared.ActiveClusterInfo{
+					"cluster1": {
+						ActiveClusterName: common.Ptr("cluster1"),
+						FailoverVersion:   common.Int64Ptr(2),
+					},
+				},
 			},
 		},
 	}

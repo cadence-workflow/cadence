@@ -574,7 +574,6 @@ EmitMetrics: {{.EmitMetrics}}
 IsGlobal(XDC)Domain: {{.IsGlobal}}
 ActiveClusterName: {{.ActiveCluster}}
 IsActiveActiveDomain: {{.IsActiveActiveDomain}}
-ActiveClustersByRegion: {{.ActiveClustersByRegion}}
 Clusters: {{if .IsGlobal}}{{.Clusters}}{{else}}N/A, Not a global domain{{end}}
 HistoryArchivalStatus: {{.HistoryArchivalStatus}}{{with .HistoryArchivalURI}}
 HistoryArchivalURI: {{.}}{{end}}
@@ -673,7 +672,6 @@ type DomainRow struct {
 	FailoverInfo                     *FailoverInfoRow
 	LongRunningWorkFlowNum           *int
 	IsActiveActiveDomain             bool
-	ActiveClustersByRegion           []ActiveClusterInfoRow // todo (david.porter) remove this as it's not in use
 	ActiveClustersByClusterAttribute []ActiveClusterInfoRow
 }
 
@@ -719,24 +717,7 @@ func newDomainRow(domain *types.DescribeDomainResponse) DomainRow {
 		BadBinaries:              newBadBinaryRows(domain.Configuration.BadBinaries),
 		FailoverInfo:             newFailoverInfoRow(domain.FailoverInfo),
 		IsActiveActiveDomain:     domain.ReplicationConfiguration.IsActiveActive(),
-		ActiveClustersByRegion:   newActiveClustersByRegion(domain.ReplicationConfiguration.GetActiveClusters()),
 	}
-}
-
-// TODO: Support ClusterAttributes
-func newActiveClustersByRegion(activeClusters *types.ActiveClusters) []ActiveClusterInfoRow {
-	if activeClusters == nil {
-		return nil
-	}
-	rows := []ActiveClusterInfoRow{}
-	for region, cluster := range activeClusters.GetActiveClustersByRegion() {
-		rows = append(rows, ActiveClusterInfoRow{
-			Region:          region,
-			ClusterName:     cluster.ActiveClusterName,
-			FailoverVersion: cluster.FailoverVersion,
-		})
-	}
-	return rows
 }
 
 func newFailoverInfoRow(info *types.FailoverInfo) *FailoverInfoRow {
