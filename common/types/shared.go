@@ -2376,11 +2376,6 @@ func (v *ActiveClusters) GetFailoverVersionForAttribute(scopeType, attributeName
 	return info.FailoverVersion, nil
 }
 
-// TODO(c-warren): Remove once refactor to ClusterAttribute is complete
-func (v *ActiveClusters) GetActiveClustersByRegion() map[string]ActiveClusterInfo {
-	return nil
-}
-
 func (v *ActiveClusters) GetAttributeScopes() map[string]ClusterAttributeScope {
 	if v != nil && v.AttributeScopes != nil {
 		return v.AttributeScopes
@@ -2397,7 +2392,6 @@ var (
 // GetActiveClusterByClusterAttribute retrieves the ActiveClusterInfo for a given cluster attribute.
 // An attribute is a scope, name pair (e.g. region, dca or city, tokyo).
 // Returns ActiveCluster and FailoverVersion if found, otherwise returns an error.
-// TODO(active-active): Replace existing calls to d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region] with this method.
 func (v *ActiveClusters) GetActiveClusterByClusterAttribute(scopeType, attributeName string) (ActiveClusterInfo, error) {
 	if v == nil {
 		return ActiveClusterInfo{}, ErrDomainNotActiveActive
@@ -2416,9 +2410,7 @@ func (v *ActiveClusters) GetActiveClusterByClusterAttribute(scopeType, attribute
 }
 
 // GetAllClusters returns a sorted, deduplicated list of all attribute names from both
-// the new format (AttributeScopes) and old format (ActiveClustersByRegion).
 // For the "region" scope, these are region names; for other scopes, these are the attribute names.
-// TODO(active-active): Replace existing calls to iterating over d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion with this method.
 func (v *ActiveClusters) GetAllClusters() []string {
 	if v == nil {
 		return []string{}
@@ -2435,8 +2427,6 @@ func (v *ActiveClusters) GetAllClusters() []string {
 			}
 		}
 	}
-
-	// Old format (ActiveClustersByRegion) no longer supported
 
 	// Convert to sorted slice
 	result := make([]string, 0, len(attributeNames))
@@ -5393,7 +5383,6 @@ type RegisterDomainRequest struct {
 	EmitMetric                             *bool                              `json:"emitMetric,omitempty"`
 	Clusters                               []*ClusterReplicationConfiguration `json:"clusters,omitempty"`
 	ActiveClusterName                      string                             `json:"activeClusterName,omitempty"`
-	ActiveClustersByRegion                 map[string]string                  `json:"activeClustersByRegion,omitempty"`
 	ActiveClusters                         *ActiveClusters                    `json:"activeClusters,omitempty"`
 	Data                                   map[string]string                  `json:"data,omitempty"`
 	SecurityToken                          string                             `json:"securityToken,omitempty"`
@@ -5449,14 +5438,6 @@ func (v *RegisterDomainRequest) GetEmitMetric() (o bool) {
 func (v *RegisterDomainRequest) GetActiveClusterName() (o string) {
 	if v != nil {
 		return v.ActiveClusterName
-	}
-	return
-}
-
-// GetActiveClustersByRegion is an internal getter (TBD...)
-func (v *RegisterDomainRequest) GetActiveClustersByRegion() (o map[string]string) {
-	if v != nil {
-		return v.ActiveClustersByRegion
 	}
 	return
 }

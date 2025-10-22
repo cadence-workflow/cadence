@@ -2146,8 +2146,6 @@ func FromActiveClusters(t *types.ActiveClusters) *shared.ActiveClusters {
 		return nil
 	}
 
-	var regionToCluster map[string]*shared.ActiveClusterInfo
-
 	var activeClustersByClusterAttribute map[string]*shared.ClusterAttributeScope
 	if t.AttributeScopes != nil {
 		activeClustersByClusterAttribute = make(map[string]*shared.ClusterAttributeScope)
@@ -2157,7 +2155,6 @@ func FromActiveClusters(t *types.ActiveClusters) *shared.ActiveClusters {
 	}
 
 	return &shared.ActiveClusters{
-		ActiveClustersByRegion:           regionToCluster,
 		ActiveClustersByClusterAttribute: activeClustersByClusterAttribute,
 	}
 }
@@ -4276,7 +4273,6 @@ func FromRegisterDomainRequest(t *types.RegisterDomainRequest) *shared.RegisterD
 		EmitMetric:                             t.EmitMetric,
 		Clusters:                               FromClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      &t.ActiveClusterName,
-		ActiveClustersByRegion:                 t.ActiveClustersByRegion,
 		ActiveClusters:                         FromActiveClusters(t.ActiveClusters),
 		Data:                                   t.Data,
 		SecurityToken:                          &t.SecurityToken,
@@ -4301,7 +4297,6 @@ func ToRegisterDomainRequest(t *shared.RegisterDomainRequest) *types.RegisterDom
 		EmitMetric:                             t.EmitMetric,
 		Clusters:                               ToClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      t.GetActiveClusterName(),
-		ActiveClustersByRegion:                 t.ActiveClustersByRegion,
 		ActiveClusters:                         ToActiveClusters(t.ActiveClusters),
 		Data:                                   t.Data,
 		SecurityToken:                          t.GetSecurityToken(),

@@ -1660,7 +1660,7 @@ func (d *handlerImpl) validateDomainReplicationConfigForUpdateDomain(
 }
 
 func (d *handlerImpl) activeClustersFromRegisterRequest(registerRequest *types.RegisterDomainRequest) (*types.ActiveClusters, error) {
-	if !registerRequest.GetIsGlobalDomain() || (registerRequest.ActiveClustersByRegion == nil && registerRequest.ActiveClusters == nil) {
+	if !registerRequest.GetIsGlobalDomain() || registerRequest.ActiveClusters == nil {
 		// local or active-passive domain
 		return nil, nil
 	}

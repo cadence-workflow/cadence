@@ -34,7 +34,6 @@ var (
 		EmitMetric:                             common.BoolPtr(DomainEmitMetric),
 		Clusters:                               ClusterReplicationConfigurationArray,
 		ActiveClusterName:                      ClusterName1,
-		ActiveClustersByRegion:                 map[string]string{Region1: ClusterName1, Region2: ClusterName2},
 		ActiveClusters:                         &ActiveClusters,
 		Data:                                   DomainData,
 		SecurityToken:                          SecurityToken,
