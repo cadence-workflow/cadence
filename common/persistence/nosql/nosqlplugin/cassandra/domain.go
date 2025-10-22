@@ -636,6 +636,12 @@ func (db *CDB) GetDomainAuditLogEntry(
 ) (*nosqlplugin.DomainAuditLogRow, error) {
 	row := &nosqlplugin.DomainAuditLogRow{}
 
+	db.logger.Debug("Querying domain audit log entry",
+		tag.Value(domainID),
+		tag.Value(eventID),
+		tag.Timestamp(createdTime),
+		tag.Value(createdTime.UnixNano()))
+
 	err := db.session.Query(templateGetDomainAuditLogEntryQuery,
 		domainID,
 		createdTime,
@@ -657,12 +663,25 @@ func (db *CDB) GetDomainAuditLogEntry(
 
 	if err != nil {
 		if db.client.IsNotFoundError(err) {
+			db.logger.Debug("Domain audit log entry not found",
+				tag.Value(domainID),
+				tag.Value(eventID),
+				tag.Timestamp(createdTime))
 			return nil, &types.EntityNotExistsError{
 				Message: "domain audit log entry not found",
 			}
 		}
+		db.logger.Error("Error querying domain audit log entry",
+			tag.Error(err),
+			tag.Value(domainID),
+			tag.Value(eventID))
 		return nil, err
 	}
+
+	db.logger.Debug("Successfully retrieved audit log entry",
+		tag.Value(domainID),
+		tag.Value(eventID),
+		tag.Value(len(row.StateAfter)))
 
 	return row, nil
 }

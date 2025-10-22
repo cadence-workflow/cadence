@@ -289,8 +289,17 @@ func (wh *WorkflowHandler) GetFailoverEvent(
 		}
 	}
 
+	logger := wh.GetLogger()
+	logger.Debug("GetFailoverEvent request received",
+		tag.WorkflowDomainID(*request.DomainID),
+		tag.Value(*request.FailoverEventID),
+		tag.Value(*request.CreatedTime))
+
 	// Convert Unix timestamp to time.Time
 	createdTime := time.Unix(0, *request.CreatedTime*int64(time.Millisecond))
+	logger.Debug("Converted timestamp for query",
+		tag.Timestamp(createdTime),
+		tag.Value(createdTime.UnixNano()))
 
 	// Get specific audit log entry
 	entryResp, err := wh.GetDomainManager().GetDomainAuditLogEntry(ctx, &persistence.GetDomainAuditLogEntryRequest{
@@ -299,8 +308,25 @@ func (wh *WorkflowHandler) GetFailoverEvent(
 		CreatedTime: createdTime,
 	})
 	if err != nil {
+		logger.Error("Failed to get domain audit log entry",
+			tag.Error(err),
+			tag.WorkflowDomainID(*request.DomainID),
+			tag.Value(*request.FailoverEventID))
 		return nil, err
 	}
+
+	if entryResp == nil || entryResp.Entry == nil {
+		logger.Warn("GetDomainAuditLogEntry returned nil entry",
+			tag.WorkflowDomainID(*request.DomainID),
+			tag.Value(*request.FailoverEventID))
+		return &types.GetFailoverEventResponse{}, nil
+	}
+
+	logger.Debug("Retrieved audit log entry",
+		tag.WorkflowDomainID(entryResp.Entry.DomainID),
+		tag.Value(entryResp.Entry.EventID),
+		tag.Timestamp(entryResp.Entry.CreatedTime),
+		tag.Value(len(entryResp.Entry.StateAfter)))
 
 	// Reconstruct cluster failovers from the entry
 	return audit.GetFailoverEventDetails(entryResp.Entry)

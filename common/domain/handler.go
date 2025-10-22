@@ -428,8 +428,18 @@ func (d *handlerImpl) UpdateDomain(
 		return nil, err
 	}
 
-	// Capture old domain state for audit logging (save the GetDomainResponse)
-	oldDomainResp := getResponse
+	// Capture old domain state for audit logging - MUST be a deep copy
+	// because we will modify the fields below and don't want to affect oldDomainResp
+	// Use JSON marshal/unmarshal for deep copy
+	oldDomainResp := &persistence.GetDomainResponse{}
+	oldDomainJSON, err := json.Marshal(getResponse)
+	if err == nil {
+		_ = json.Unmarshal(oldDomainJSON, oldDomainResp)
+	}
+	// If deep copy fails, fall back to shallow copy (still better than nothing for audit)
+	if oldDomainResp.Info == nil {
+		oldDomainResp = getResponse
+	}
 
 	info := getResponse.Info
 	config := getResponse.Config
@@ -1899,11 +1909,28 @@ func (d *handlerImpl) writeAuditLog(
 		return err
 	}
 
+	// DEBUG: Log old and new ActiveClusterName
+	oldActiveCluster := "nil"
+	newActiveCluster := "nil"
+	if oldDomain != nil && oldDomain.ReplicationConfig != nil {
+		oldActiveCluster = oldDomain.ReplicationConfig.ActiveClusterName
+	}
+	if newDomainResp != nil && newDomainResp.ReplicationConfig != nil {
+		newActiveCluster = newDomainResp.ReplicationConfig.ActiveClusterName
+	}
+	d.logger.Info("Computing domain diff for audit log",
+		tag.Value(oldActiveCluster),
+		tag.Value(newActiveCluster))
+
 	// Compute diff
 	diffBytes, err := audit.ComputeDomainDiff(oldDomain, newDomainResp)
 	if err != nil {
 		return err
 	}
+
+	d.logger.Info("Domain diff computed",
+		tag.Value(len(diffBytes)),
+		tag.Value(string(diffBytes)))
 
 	// Extract identity
 	identity, identityType := audit.ExtractIdentity(ctx)
