@@ -13,9 +13,10 @@ import (
 	context "context"
 	reflect "reflect"
 
-	clock "github.com/uber/cadence/common/clock"
 	gomock "go.uber.org/mock/gomock"
 	rate "golang.org/x/time/rate"
+
+	clock "github.com/uber/cadence/common/clock"
 )
 
 // MockLimiter is a mock of Limiter interface.

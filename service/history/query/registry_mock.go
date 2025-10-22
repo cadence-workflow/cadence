@@ -12,8 +12,9 @@ package query
 import (
 	reflect "reflect"
 
-	types "github.com/uber/cadence/common/types"
 	gomock "go.uber.org/mock/gomock"
+
+	types "github.com/uber/cadence/common/types"
 )
 
 // MockRegistry is a mock of Registry interface.

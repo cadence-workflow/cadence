@@ -13,8 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	types "github.com/uber/cadence/common/types"
 	gomock "go.uber.org/mock/gomock"
+
+	types "github.com/uber/cadence/common/types"
 )
 
 // MockActivityReplicator is a mock of ActivityReplicator interface.

@@ -361,3 +361,23 @@ func toFailoverDomainRequestTags(req *types.FailoverDomainRequest) []tag.Tag {
 		tag.WorkflowDomainName(req.GetDomain()),
 	}
 }
+
+func toListFailoverHistoryRequestTags(req *types.ListFailoverHistoryRequest) []tag.Tag {
+	var domainID string
+	if req.Filters != nil && req.Filters.DomainID != nil {
+		domainID = *req.Filters.DomainID
+	}
+	return []tag.Tag{
+		tag.WorkflowDomainID(domainID),
+	}
+}
+
+func toGetFailoverEventRequestTags(req *types.GetFailoverEventRequest) []tag.Tag {
+	var domainID string
+	if req.DomainID != nil {
+		domainID = *req.DomainID
+	}
+	return []tag.Tag{
+		tag.WorkflowDomainID(domainID),
+	}
+}

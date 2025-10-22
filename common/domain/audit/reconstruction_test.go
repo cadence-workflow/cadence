@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 )
 
 func TestReconstructFailoverEvents(t *testing.T) {
@@ -24,7 +24,7 @@ func TestReconstructFailoverEvents(t *testing.T) {
 	events, err := ReconstructFailoverEvents(entries)
 	require.NoError(t, err)
 	assert.Len(t, events, 1)
-	assert.Equal(t, "event-1", events[0].Id)
+	assert.Equal(t, "event-1", *events[0].ID)
 }
 
 func TestReconstructClusterFailovers_DefaultCluster(t *testing.T) {
@@ -37,7 +37,7 @@ func TestReconstructClusterFailovers_DefaultCluster(t *testing.T) {
 
 	failover := failovers[0]
 	assert.Equal(t, "cluster2", failover.ToCluster.ActiveClusterName)
-	assert.True(t, failover.IsDefaultCluster)
+	assert.True(t, *failover.IsDefaultCluster)
 	assert.Nil(t, failover.ClusterAttribute)
 }
 
@@ -63,14 +63,14 @@ func TestReconstructClusterFailovers_ClusterAttributes(t *testing.T) {
 
 	// First failover: region/us-east-1
 	assert.Equal(t, "cluster2", failovers[0].ToCluster.ActiveClusterName)
-	assert.False(t, failovers[0].IsDefaultCluster)
+	assert.False(t, *failovers[0].IsDefaultCluster)
 	assert.NotNil(t, failovers[0].ClusterAttribute)
 	assert.Equal(t, "region", failovers[0].ClusterAttribute.Scope)
 	assert.Equal(t, "us-east-1", failovers[0].ClusterAttribute.Name)
 
 	// Second failover: city/seattle
 	assert.Equal(t, "cluster3", failovers[1].ToCluster.ActiveClusterName)
-	assert.False(t, failovers[1].IsDefaultCluster)
+	assert.False(t, *failovers[1].IsDefaultCluster)
 	assert.NotNil(t, failovers[1].ClusterAttribute)
 	assert.Equal(t, "city", failovers[1].ClusterAttribute.Scope)
 	assert.Equal(t, "seattle", failovers[1].ClusterAttribute.Name)
@@ -96,10 +96,10 @@ func TestReconstructClusterFailovers_MixedFailover(t *testing.T) {
 	assert.Len(t, failovers, 2)
 
 	// Find default cluster failover
-	var defaultFailover *apiv1.ClusterFailover
-	var attrFailover *apiv1.ClusterFailover
+	var defaultFailover *types.ClusterFailover
+	var attrFailover *types.ClusterFailover
 	for _, f := range failovers {
-		if f.IsDefaultCluster {
+		if f.IsDefaultCluster != nil && *f.IsDefaultCluster {
 			defaultFailover = f
 		} else {
 			attrFailover = f
@@ -158,8 +158,8 @@ func TestReconstructFailoverEvents_FiltersNonFailovers(t *testing.T) {
 	events, err := ReconstructFailoverEvents(entries)
 	require.NoError(t, err)
 	assert.Len(t, events, 1)
-	assert.Equal(t, "event-2", events[0].Id)
-	assert.Equal(t, apiv1.FailoverType_FAILOVER_TYPE_FORCE, events[0].FailoverType)
+	assert.Equal(t, "event-2", *events[0].ID)
+	assert.Equal(t, types.FailoverTypeForce.Ptr(), events[0].FailoverType)
 }
 
 func TestReconstructFailoverEvents_EmptyInput(t *testing.T) {

@@ -7,10 +7,11 @@ package metered
 import (
 	"context"
 
+	"go.uber.org/yarpc"
+
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
-	"go.uber.org/yarpc"
 )
 
 // frontendClient implements frontend.Client interface instrumented with retries

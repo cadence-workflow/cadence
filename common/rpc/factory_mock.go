@@ -12,10 +12,11 @@ package rpc
 import (
 	reflect "reflect"
 
-	membership "github.com/uber/cadence/common/membership"
 	gomock "go.uber.org/mock/gomock"
 	yarpc "go.uber.org/yarpc"
 	tchannel "go.uber.org/yarpc/transport/tchannel"
+
+	membership "github.com/uber/cadence/common/membership"
 )
 
 // MockFactory is a mock of Factory interface.

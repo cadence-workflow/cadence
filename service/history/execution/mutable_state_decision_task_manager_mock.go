@@ -13,8 +13,9 @@ import (
 	reflect "reflect"
 	time "time"
 
-	types "github.com/uber/cadence/common/types"
 	gomock "go.uber.org/mock/gomock"
+
+	types "github.com/uber/cadence/common/types"
 )
 
 // MockmutableStateDecisionTaskManager is a mock of mutableStateDecisionTaskManager interface.

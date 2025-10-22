@@ -28,12 +28,11 @@ import (
 	"testing"
 	"time"
 
-	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -425,17 +424,17 @@ func TestListFailoverHistory(t *testing.T) {
 	domainID := "test-domain-id"
 	testCases := []struct {
 		name          string
-		req           *apiv1.ListFailoverHistoryRequest
+		req           *types.ListFailoverHistoryRequest
 		setupMocks    func(*mockDeps)
 		expectError   bool
 		expectedError string
-		verifyResp    func(t *testing.T, resp *apiv1.ListFailoverHistoryResponse)
+		verifyResp    func(t *testing.T, resp *types.ListFailoverHistoryResponse)
 	}{
 		{
 			name: "success with default page size",
-			req: &apiv1.ListFailoverHistoryRequest{
-				Filters: &apiv1.ListFailoverHistoryRequestFilters{
-					DomainId: domainID,
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: &domainID,
 				},
 			},
 			setupMocks: func(deps *mockDeps) {
@@ -449,7 +448,7 @@ func TestListFailoverHistory(t *testing.T) {
 				}, nil)
 			},
 			expectError: false,
-			verifyResp: func(t *testing.T, resp *apiv1.ListFailoverHistoryResponse) {
+			verifyResp: func(t *testing.T, resp *types.ListFailoverHistoryResponse) {
 				assert.NotNil(t, resp)
 				assert.Empty(t, resp.FailoverEvents)
 				assert.Nil(t, resp.NextPageToken)
@@ -457,12 +456,12 @@ func TestListFailoverHistory(t *testing.T) {
 		},
 		{
 			name: "success with custom page size",
-			req: &apiv1.ListFailoverHistoryRequest{
-				Filters: &apiv1.ListFailoverHistoryRequestFilters{
-					DomainId: domainID,
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: &domainID,
 				},
-				Pagination: &apiv1.PaginationOptions{
-					PageSize: 10,
+				Pagination: &types.PaginationOptions{
+					PageSize: common.Int32Ptr(10),
 				},
 			},
 			setupMocks: func(deps *mockDeps) {
@@ -476,19 +475,19 @@ func TestListFailoverHistory(t *testing.T) {
 				}, nil)
 			},
 			expectError: false,
-			verifyResp: func(t *testing.T, resp *apiv1.ListFailoverHistoryResponse) {
+			verifyResp: func(t *testing.T, resp *types.ListFailoverHistoryResponse) {
 				assert.NotNil(t, resp)
 				assert.Empty(t, resp.FailoverEvents)
 			},
 		},
 		{
 			name: "success with pagination token",
-			req: &apiv1.ListFailoverHistoryRequest{
-				Filters: &apiv1.ListFailoverHistoryRequestFilters{
-					DomainId: domainID,
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: &domainID,
 				},
-				Pagination: &apiv1.PaginationOptions{
-					PageSize:      5,
+				Pagination: &types.PaginationOptions{
+					PageSize:      common.Int32Ptr(5),
 					NextPageToken: []byte("token123"),
 				},
 			},
@@ -503,14 +502,14 @@ func TestListFailoverHistory(t *testing.T) {
 				}, nil)
 			},
 			expectError: false,
-			verifyResp: func(t *testing.T, resp *apiv1.ListFailoverHistoryResponse) {
+			verifyResp: func(t *testing.T, resp *types.ListFailoverHistoryResponse) {
 				assert.NotNil(t, resp)
 				assert.Equal(t, []byte("token456"), resp.NextPageToken)
 			},
 		},
 		{
 			name: "missing domain_id in filters",
-			req: &apiv1.ListFailoverHistoryRequest{
+			req: &types.ListFailoverHistoryRequest{
 				Filters: nil,
 			},
 			setupMocks:    func(deps *mockDeps) {},
@@ -519,9 +518,9 @@ func TestListFailoverHistory(t *testing.T) {
 		},
 		{
 			name: "empty domain_id in filters",
-			req: &apiv1.ListFailoverHistoryRequest{
-				Filters: &apiv1.ListFailoverHistoryRequestFilters{
-					DomainId: "",
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: common.StringPtr(""),
 				},
 			},
 			setupMocks:    func(deps *mockDeps) {},
@@ -530,9 +529,9 @@ func TestListFailoverHistory(t *testing.T) {
 		},
 		{
 			name: "persistence error",
-			req: &apiv1.ListFailoverHistoryRequest{
-				Filters: &apiv1.ListFailoverHistoryRequestFilters{
-					DomainId: domainID,
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: &domainID,
 				},
 			},
 			setupMocks: func(deps *mockDeps) {
@@ -544,9 +543,9 @@ func TestListFailoverHistory(t *testing.T) {
 		},
 		{
 			name: "shutting down",
-			req: &apiv1.ListFailoverHistoryRequest{
-				Filters: &apiv1.ListFailoverHistoryRequestFilters{
-					DomainId: domainID,
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: &domainID,
 				},
 			},
 			setupMocks:    func(deps *mockDeps) {},
@@ -584,7 +583,7 @@ func TestGetFailoverEvent(t *testing.T) {
 	domainID := "test-domain-id"
 	eventID := "test-event-id"
 	createdTime := time.Now().UTC()
-	createdTimeProto, _ := gogotypes.TimestampProto(createdTime)
+	createdTimeMs := createdTime.UnixNano() / int64(time.Millisecond)
 
 	validStateAfter := []byte(`[
 		{
@@ -596,18 +595,18 @@ func TestGetFailoverEvent(t *testing.T) {
 
 	testCases := []struct {
 		name          string
-		req           *apiv1.GetFailoverEventRequest
+		req           *types.GetFailoverEventRequest
 		setupMocks    func(*mockDeps)
 		expectError   bool
 		expectedError string
-		verifyResp    func(t *testing.T, resp *apiv1.GetFailoverEventResponse)
+		verifyResp    func(t *testing.T, resp *types.GetFailoverEventResponse)
 	}{
 		{
 			name: "success",
-			req: &apiv1.GetFailoverEventRequest{
-				DomainId:        domainID,
-				FailoverEventId: eventID,
-				CreatedTime:     createdTimeProto,
+			req: &types.GetFailoverEventRequest{
+				DomainID:        &domainID,
+				FailoverEventID: &eventID,
+				CreatedTime:     &createdTimeMs,
 			},
 			setupMocks: func(deps *mockDeps) {
 				deps.mockMetadataMgr.On("GetDomainAuditLogEntry", mock.Anything, &persistence.GetDomainAuditLogEntryRequest{
@@ -624,17 +623,17 @@ func TestGetFailoverEvent(t *testing.T) {
 				}, nil)
 			},
 			expectError: false,
-			verifyResp: func(t *testing.T, resp *apiv1.GetFailoverEventResponse) {
+			verifyResp: func(t *testing.T, resp *types.GetFailoverEventResponse) {
 				assert.NotNil(t, resp)
 				assert.NotNil(t, resp.ClusterFailovers)
 			},
 		},
 		{
 			name: "missing domain_id",
-			req: &apiv1.GetFailoverEventRequest{
-				DomainId:        "",
-				FailoverEventId: eventID,
-				CreatedTime:     createdTimeProto,
+			req: &types.GetFailoverEventRequest{
+				DomainID:        common.StringPtr(""),
+				FailoverEventID: &eventID,
+				CreatedTime:     &createdTimeMs,
 			},
 			setupMocks:    func(deps *mockDeps) {},
 			expectError:   true,
@@ -642,10 +641,10 @@ func TestGetFailoverEvent(t *testing.T) {
 		},
 		{
 			name: "missing failover_event_id",
-			req: &apiv1.GetFailoverEventRequest{
-				DomainId:        domainID,
-				FailoverEventId: "",
-				CreatedTime:     createdTimeProto,
+			req: &types.GetFailoverEventRequest{
+				DomainID:        &domainID,
+				FailoverEventID: common.StringPtr(""),
+				CreatedTime:     &createdTimeMs,
 			},
 			setupMocks:    func(deps *mockDeps) {},
 			expectError:   true,
@@ -653,9 +652,9 @@ func TestGetFailoverEvent(t *testing.T) {
 		},
 		{
 			name: "missing created_time",
-			req: &apiv1.GetFailoverEventRequest{
-				DomainId:        domainID,
-				FailoverEventId: eventID,
+			req: &types.GetFailoverEventRequest{
+				DomainID:        &domainID,
+				FailoverEventID: &eventID,
 				CreatedTime:     nil,
 			},
 			setupMocks:    func(deps *mockDeps) {},
@@ -664,10 +663,10 @@ func TestGetFailoverEvent(t *testing.T) {
 		},
 		{
 			name: "persistence error",
-			req: &apiv1.GetFailoverEventRequest{
-				DomainId:        domainID,
-				FailoverEventId: eventID,
-				CreatedTime:     createdTimeProto,
+			req: &types.GetFailoverEventRequest{
+				DomainID:        &domainID,
+				FailoverEventID: &eventID,
+				CreatedTime:     &createdTimeMs,
 			},
 			setupMocks: func(deps *mockDeps) {
 				deps.mockMetadataMgr.On("GetDomainAuditLogEntry", mock.Anything, mock.Anything).
@@ -678,10 +677,10 @@ func TestGetFailoverEvent(t *testing.T) {
 		},
 		{
 			name: "invalid state_after JSON",
-			req: &apiv1.GetFailoverEventRequest{
-				DomainId:        domainID,
-				FailoverEventId: eventID,
-				CreatedTime:     createdTimeProto,
+			req: &types.GetFailoverEventRequest{
+				DomainID:        &domainID,
+				FailoverEventID: &eventID,
+				CreatedTime:     &createdTimeMs,
 			},
 			setupMocks: func(deps *mockDeps) {
 				deps.mockMetadataMgr.On("GetDomainAuditLogEntry", mock.Anything, &persistence.GetDomainAuditLogEntryRequest{
@@ -702,10 +701,10 @@ func TestGetFailoverEvent(t *testing.T) {
 		},
 		{
 			name: "shutting down",
-			req: &apiv1.GetFailoverEventRequest{
-				DomainId:        domainID,
-				FailoverEventId: eventID,
-				CreatedTime:     createdTimeProto,
+			req: &types.GetFailoverEventRequest{
+				DomainID:        &domainID,
+				FailoverEventID: &eventID,
+				CreatedTime:     &createdTimeMs,
 			},
 			setupMocks:    func(deps *mockDeps) {},
 			expectError:   true,

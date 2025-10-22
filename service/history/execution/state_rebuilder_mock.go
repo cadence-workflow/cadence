@@ -14,8 +14,9 @@ import (
 	reflect "reflect"
 	time "time"
 
-	definition "github.com/uber/cadence/common/definition"
 	gomock "go.uber.org/mock/gomock"
+
+	definition "github.com/uber/cadence/common/definition"
 )
 
 // MockStateRebuilder is a mock of StateRebuilder interface.

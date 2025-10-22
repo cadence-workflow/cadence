@@ -15,9 +15,10 @@ import (
 	reflect "reflect"
 	time "time"
 
+	gomock "go.uber.org/mock/gomock"
+
 	config "github.com/uber/cadence/common/config"
 	persistence "github.com/uber/cadence/common/persistence"
-	gomock "go.uber.org/mock/gomock"
 )
 
 // MockPlugin is a mock of Plugin interface.

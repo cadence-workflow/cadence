@@ -59,6 +59,8 @@ import (
 {{$ratelimitTypeMap = set $ratelimitTypeMap "ListDomains" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "RegisterDomain" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "UpdateDomain" "ratelimitTypeNoop"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "ListFailoverHistory" "ratelimitTypeNoop"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "GetFailoverEvent" "ratelimitTypeNoop"}}
 
 {{$domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}

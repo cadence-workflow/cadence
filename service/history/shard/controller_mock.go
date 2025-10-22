@@ -12,8 +12,9 @@ package shard
 import (
 	reflect "reflect"
 
-	engine "github.com/uber/cadence/service/history/engine"
 	gomock "go.uber.org/mock/gomock"
+
+	engine "github.com/uber/cadence/service/history/engine"
 )
 
 // MockEngineFactory is a mock of EngineFactory interface.

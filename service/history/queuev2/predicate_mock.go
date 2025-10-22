@@ -12,8 +12,9 @@ package queuev2
 import (
 	reflect "reflect"
 
-	persistence "github.com/uber/cadence/common/persistence"
 	gomock "go.uber.org/mock/gomock"
+
+	persistence "github.com/uber/cadence/common/persistence"
 )
 
 // MockPredicate is a mock of Predicate interface.

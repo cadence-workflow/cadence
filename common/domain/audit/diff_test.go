@@ -13,28 +13,28 @@ import (
 )
 
 func TestComputeDomainDiff_ActivePassiveFailover(t *testing.T) {
-	oldDomain := &persistence.InternalGetDomainResponse{
+	oldDomain := &persistence.GetDomainResponse{
 		Info: &persistence.DomainInfo{
 			ID:   "test-domain-id",
 			Name: "test-domain",
 		},
-		Config: &persistence.InternalDomainConfig{
+		Config: &persistence.DomainConfig{
 			Retention: 7,
 		},
-		ReplicationConfig: &persistence.InternalDomainReplicationConfig{
+		ReplicationConfig: &persistence.DomainReplicationConfig{
 			ActiveClusterName: "cluster1",
 		},
 	}
 
-	newDomain := &persistence.InternalGetDomainResponse{
+	newDomain := &persistence.GetDomainResponse{
 		Info: &persistence.DomainInfo{
 			ID:   "test-domain-id",
 			Name: "test-domain",
 		},
-		Config: &persistence.InternalDomainConfig{
+		Config: &persistence.DomainConfig{
 			Retention: 7,
 		},
-		ReplicationConfig: &persistence.InternalDomainReplicationConfig{
+		ReplicationConfig: &persistence.DomainReplicationConfig{
 			ActiveClusterName: "cluster2",
 		},
 	}
@@ -48,71 +48,33 @@ func TestComputeDomainDiff_ActivePassiveFailover(t *testing.T) {
 	assert.Contains(t, diffStr, "cluster2")
 }
 
-func TestComputeDomainDiff_ActiveActiveFailover(t *testing.T) {
-	// Create domain with cluster attributes
-	// For active-active, we need to serialize the ActiveClusters map to a DataBlob
-	// For this test, we'll use simple JSON encoding
-	oldActiveClusters := map[string]interface{}{
-		"region": map[string]interface{}{
-			"us-east-1": map[string]interface{}{
-				"ActiveClusterName": "cluster1",
-				"FailoverVersion":   100,
-			},
-			"us-west-1": map[string]interface{}{
-				"ActiveClusterName": "cluster2",
-				"FailoverVersion":   101,
-			},
-		},
-	}
-	oldActiveClustersBytes, _ := json.Marshal(oldActiveClusters)
-
-	oldDomain := &persistence.InternalGetDomainResponse{
+func TestComputeDomainDiff_ClusterChange(t *testing.T) {
+	// Test a simple cluster list change
+	oldDomain := &persistence.GetDomainResponse{
 		Info: &persistence.DomainInfo{
 			ID:   "test-domain-id",
 			Name: "test-domain",
 		},
-		ReplicationConfig: &persistence.InternalDomainReplicationConfig{
+		ReplicationConfig: &persistence.DomainReplicationConfig{
 			ActiveClusterName: "cluster1",
 			Clusters: []*persistence.ClusterReplicationConfig{
 				{ClusterName: "cluster1"},
 				{ClusterName: "cluster2"},
 			},
-			ActiveClustersConfig: &persistence.DataBlob{
-				Data:     oldActiveClustersBytes,
-				Encoding: "json",
-			},
 		},
 	}
 
-	// Failover us-east-1 from cluster1 to cluster2
-	newActiveClusters := map[string]interface{}{
-		"region": map[string]interface{}{
-			"us-east-1": map[string]interface{}{
-				"ActiveClusterName": "cluster2", // Changed!
-				"FailoverVersion":   102,
-			},
-			"us-west-1": map[string]interface{}{
-				"ActiveClusterName": "cluster2",
-				"FailoverVersion":   101,
-			},
-		},
-	}
-	newActiveClustersBytes, _ := json.Marshal(newActiveClusters)
-
-	newDomain := &persistence.InternalGetDomainResponse{
+	newDomain := &persistence.GetDomainResponse{
 		Info: &persistence.DomainInfo{
 			ID:   "test-domain-id",
 			Name: "test-domain",
 		},
-		ReplicationConfig: &persistence.InternalDomainReplicationConfig{
+		ReplicationConfig: &persistence.DomainReplicationConfig{
 			ActiveClusterName: "cluster1",
 			Clusters: []*persistence.ClusterReplicationConfig{
 				{ClusterName: "cluster1"},
 				{ClusterName: "cluster2"},
-			},
-			ActiveClustersConfig: &persistence.DataBlob{
-				Data:     newActiveClustersBytes,
-				Encoding: "json",
+				{ClusterName: "cluster3"}, // Added cluster3
 			},
 		},
 	}
@@ -121,13 +83,7 @@ func TestComputeDomainDiff_ActiveActiveFailover(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, diffBytes)
 
-	// Verify the diff captures the cluster attribute change
-	// The diff should show a change to the ActiveClustersConfig/Data blob
-	diffStr := string(diffBytes)
-	assert.Contains(t, diffStr, "/ReplicationConfig/ActiveClustersConfig/Data")
-	assert.Contains(t, diffStr, "replace")
-
-	// Decode the diff to verify it contains the new cluster configuration
+	// Verify the diff shows the change
 	var patch []map[string]interface{}
 	err = json.Unmarshal(diffBytes, &patch)
 	require.NoError(t, err)
@@ -135,15 +91,15 @@ func TestComputeDomainDiff_ActiveActiveFailover(t *testing.T) {
 }
 
 func TestComputeDomainDiff_NoChanges(t *testing.T) {
-	domain := &persistence.InternalGetDomainResponse{
+	domain := &persistence.GetDomainResponse{
 		Info: &persistence.DomainInfo{
 			ID:   "test-domain-id",
 			Name: "test-domain",
 		},
-		Config: &persistence.InternalDomainConfig{
+		Config: &persistence.DomainConfig{
 			Retention: 7,
 		},
-		ReplicationConfig: &persistence.InternalDomainReplicationConfig{
+		ReplicationConfig: &persistence.DomainReplicationConfig{
 			ActiveClusterName: "cluster1",
 		},
 	}

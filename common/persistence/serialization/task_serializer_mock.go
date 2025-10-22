@@ -12,8 +12,9 @@ package serialization
 import (
 	reflect "reflect"
 
-	persistence "github.com/uber/cadence/common/persistence"
 	gomock "go.uber.org/mock/gomock"
+
+	persistence "github.com/uber/cadence/common/persistence"
 )
 
 // MockTaskSerializer is a mock of TaskSerializer interface.

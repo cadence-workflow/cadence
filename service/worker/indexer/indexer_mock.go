@@ -12,9 +12,10 @@ package indexer
 import (
 	reflect "reflect"
 
+	gomock "go.uber.org/mock/gomock"
+
 	bulk "github.com/uber/cadence/common/elasticsearch/bulk"
 	messaging "github.com/uber/cadence/common/messaging"
-	gomock "go.uber.org/mock/gomock"
 )
 
 // MockESProcessor is a mock of ESProcessor interface.

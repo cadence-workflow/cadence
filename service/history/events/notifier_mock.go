@@ -12,8 +12,9 @@ package events
 import (
 	reflect "reflect"
 
-	definition "github.com/uber/cadence/common/definition"
 	gomock "go.uber.org/mock/gomock"
+
+	definition "github.com/uber/cadence/common/definition"
 )
 
 // MockNotifier is a mock of Notifier interface.

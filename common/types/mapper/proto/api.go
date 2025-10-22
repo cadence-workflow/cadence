@@ -24,7 +24,6 @@ import (
 	"time"
 
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
@@ -6661,9 +6660,10 @@ func FromFailoverEvent(t *types.FailoverEvent) *apiv1.FailoverEvent {
 	if t == nil {
 		return nil
 	}
+	createdTimeNanos := *t.CreatedTime * int64(time.Millisecond)
 	return &apiv1.FailoverEvent{
 		Id:           *t.ID,
-		CreatedTime:  timestamppb.New(time.Unix(0, *t.CreatedTime*int64(time.Millisecond))),
+		CreatedTime:  unixNanoToTime(&createdTimeNanos),
 		FailoverType: FromFailoverType(t.FailoverType),
 	}
 }
@@ -6674,7 +6674,8 @@ func ToFailoverEvent(t *apiv1.FailoverEvent) *types.FailoverEvent {
 		return nil
 	}
 	id := t.Id
-	createdTimeMs := t.CreatedTime.AsTime().UnixNano() / int64(time.Millisecond)
+	createdTimeNanos := timeToUnixNano(t.CreatedTime)
+	createdTimeMs := *createdTimeNanos / int64(time.Millisecond)
 	return &types.FailoverEvent{
 		ID:           &id,
 		CreatedTime:  &createdTimeMs,
@@ -6784,10 +6785,11 @@ func FromGetFailoverEventRequest(t *types.GetFailoverEventRequest) *apiv1.GetFai
 	if t == nil {
 		return nil
 	}
+	createdTimeNanos := *t.CreatedTime * int64(time.Millisecond)
 	return &apiv1.GetFailoverEventRequest{
 		DomainId:        *t.DomainID,
 		FailoverEventId: *t.FailoverEventID,
-		CreatedTime:     gogo.TimestampNow(),
+		CreatedTime:     unixNanoToTime(&createdTimeNanos),
 	}
 }
 
@@ -6798,7 +6800,8 @@ func ToGetFailoverEventRequest(t *apiv1.GetFailoverEventRequest) *types.GetFailo
 	}
 	domainID := t.DomainId
 	eventID := t.FailoverEventId
-	createdTimeMs := t.CreatedTime.AsTime().UnixNano() / int64(time.Millisecond)
+	createdTimeNanos := timeToUnixNano(t.CreatedTime)
+	createdTimeMs := *createdTimeNanos / int64(time.Millisecond)
 	return &types.GetFailoverEventRequest{
 		DomainID:        &domainID,
 		FailoverEventID: &eventID,

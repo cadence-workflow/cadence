@@ -13,9 +13,10 @@ import (
 	context "context"
 	reflect "reflect"
 
-	types "github.com/uber/cadence/common/types"
 	gomock "go.uber.org/mock/gomock"
 	yarpc "go.uber.org/yarpc"
+
+	types "github.com/uber/cadence/common/types"
 )
 
 // MockClient is a mock of Client interface.

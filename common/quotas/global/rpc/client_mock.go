@@ -14,8 +14,9 @@ import (
 	reflect "reflect"
 	time "time"
 
-	shared "github.com/uber/cadence/common/quotas/global/shared"
 	gomock "go.uber.org/mock/gomock"
+
+	shared "github.com/uber/cadence/common/quotas/global/shared"
 )
 
 // MockClient is a mock of Client interface.

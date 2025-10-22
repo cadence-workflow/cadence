@@ -12,9 +12,10 @@ package queue
 import (
 	reflect "reflect"
 
+	gomock "go.uber.org/mock/gomock"
+
 	provider "github.com/uber/cadence/common/asyncworkflow/queue/provider"
 	types "github.com/uber/cadence/common/types"
-	gomock "go.uber.org/mock/gomock"
 )
 
 // MockProvider is a mock of Provider interface.

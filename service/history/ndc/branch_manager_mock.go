@@ -13,8 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	persistence "github.com/uber/cadence/common/persistence"
 	gomock "go.uber.org/mock/gomock"
+
+	persistence "github.com/uber/cadence/common/persistence"
 )
 
 // MockbranchManager is a mock of branchManager interface.

@@ -13,8 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	config "github.com/uber/cadence/service/sharddistributor/config"
 	gomock "go.uber.org/mock/gomock"
+
+	config "github.com/uber/cadence/service/sharddistributor/config"
 )
 
 // MockElector is a mock of Elector interface.

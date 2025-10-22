@@ -12,9 +12,10 @@ package nosql
 import (
 	reflect "reflect"
 
+	gomock "go.uber.org/mock/gomock"
+
 	log "github.com/uber/cadence/common/log"
 	metrics "github.com/uber/cadence/common/metrics"
-	gomock "go.uber.org/mock/gomock"
 )
 
 // MockshardedNosqlStore is a mock of shardedNosqlStore interface.

@@ -14,8 +14,9 @@ import (
 	reflect "reflect"
 	time "time"
 
-	execution "github.com/uber/cadence/service/history/execution"
 	gomock "go.uber.org/mock/gomock"
+
+	execution "github.com/uber/cadence/service/history/execution"
 )
 
 // MockWorkflowResetter is a mock of WorkflowResetter interface.
