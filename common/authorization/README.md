@@ -3,7 +3,7 @@
 1. OAuthAuthorizer: validates JWTs issued by your Identity Provider and enforces permissions.
 2. NoopAuthorizer: turns authorization off.
 
-In order to configure, add an authorization section to Cadence server config (example). These fields map 1:1 to the Go structs in common/config.
+In order to configure, add an authorization section to Cadence server config [example](https://github.com/cadence-workflow/cadence/blob/master/config/development_oauth.yaml). These fields map 1:1 to the Go structs in [common/config](https://github.com/cadence-workflow/cadence/blob/master/common/config/authorization.go).
 
 ### Option A for OAuth : Validate tokens via JWKS
 
