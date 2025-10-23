@@ -48,7 +48,7 @@ func TestPublish(t *testing.T) {
 				metricsClient := &mocks.Client{}
 				metricsScope := &mocks.Scope{}
 				metricsClient.
-					On("Scope", metrics.MessagingClientPublishScope, metrics.TopicTag("test-topic-1")).
+					On("Scope", metrics.MessagingClientPublishScope, []metrics.Tag{metrics.TopicTag("test-topic-1")}).
 					Return(metricsScope).
 					Once()
 				metricsScope.On("IncCounter", metrics.CadenceClientRequests).Once()
@@ -68,7 +68,7 @@ func TestPublish(t *testing.T) {
 				metricsClient := &mocks.Client{}
 				metricsScope := &mocks.Scope{}
 				metricsClient.
-					On("Scope", metrics.MessagingClientPublishScope, metrics.TopicTag("test-topic-2")).
+					On("Scope", metrics.MessagingClientPublishScope, []metrics.Tag{metrics.TopicTag("test-topic-2")}).
 					Return(metricsScope).
 					Once()
 				metricsScope.On("IncCounter", metrics.CadenceClientRequests).Once()

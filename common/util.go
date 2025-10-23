@@ -282,7 +282,7 @@ func ToServiceTransientError(err error) error {
 	if err == nil || IsServiceTransientError(err) {
 		return err
 	}
-	return yarpcerrors.Newf(yarpcerrors.CodeUnavailable, err.Error())
+	return yarpcerrors.Newf(yarpcerrors.CodeUnavailable, "%v", err)
 }
 
 // HistoryRetryFuncFrontendExceptions checks if an error should be retried
