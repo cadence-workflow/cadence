@@ -39,12 +39,10 @@ type executorStoreImpl struct {
 // shardMetricsUpdate tracks the etcd key, revision, and metrics used to update a shard
 // after the main transaction in AssignShards for exec state.
 type shardMetricsUpdate struct {
-	key               string
-	shardID           string
-	metrics           store.ShardMetrics
-	modRevision       int64
-	desiredLastMove   int64 // intended LastMoveTime for this update
-	defaultLastUpdate int64
+	key             string
+	shardID         string
+	metrics         store.ShardMetrics
+	desiredLastMove int64 // intended LastMoveTime for this update
 }
 
 // ExecutorStoreParams defines the dependencies for the etcd store, for use with fx.
@@ -442,10 +440,8 @@ func (s *executorStoreImpl) prepareShardMetricsUpdates(ctx context.Context, name
 			}
 
 			metrics := store.ShardMetrics{}
-			modRevision := int64(0)
 
 			if len(metricsResp.Kvs) > 0 {
-				modRevision = metricsResp.Kvs[0].ModRevision
 				if err := json.Unmarshal(metricsResp.Kvs[0].Value, &metrics); err != nil {
 					return nil, fmt.Errorf("unmarshal shard metrics: %w", err)
 				}
@@ -455,12 +451,10 @@ func (s *executorStoreImpl) prepareShardMetricsUpdates(ctx context.Context, name
 			}
 
 			updates = append(updates, shardMetricsUpdate{
-				key:               shardMetricsKey,
-				shardID:           shardID,
-				metrics:           metrics,
-				modRevision:       modRevision,
-				desiredLastMove:   now,
-				defaultLastUpdate: metrics.LastUpdateTime,
+				key:             shardMetricsKey,
+				shardID:         shardID,
+				metrics:         metrics,
+				desiredLastMove: now,
 			})
 		}
 	}
@@ -468,71 +462,30 @@ func (s *executorStoreImpl) prepareShardMetricsUpdates(ctx context.Context, name
 	return updates, nil
 }
 
-// applyShardMetricsUpdates updates shard metrics (like last_move_time) after AssignShards.
-// Decided to run these writes outside the primary transaction
-// so we are less likely to exceed etcd's max txn-op threshold (128?), and we retry
-// logs failures instead of failing the main assignment.
+// applyShardMetricsUpdates updates shard metrics.
+// Is intentionally made tolerant of failures since the data is telemetry only.
 func (s *executorStoreImpl) applyShardMetricsUpdates(ctx context.Context, namespace string, updates []shardMetricsUpdate) {
-	for i := range updates {
-		update := &updates[i]
+	for _, update := range updates {
+		update.metrics.LastMoveTime = update.desiredLastMove
 
-		for {
-			// If a newer rebalance already set a later LastMoveTime, there's nothing left for this iteration.
-			if update.metrics.LastMoveTime >= update.desiredLastMove {
-				break
-			}
+		payload, err := json.Marshal(update.metrics)
+		if err != nil {
+			s.logger.Warn(
+				"failed to marshal shard metrics after assignment",
+				tag.ShardNamespace(namespace),
+				tag.ShardKey(update.shardID),
+				tag.Error(err),
+			)
+			continue
+		}
 
-			update.metrics.LastMoveTime = update.desiredLastMove
-
-			payload, err := json.Marshal(update.metrics)
-			if err != nil {
-				// Log and move on. failing metrics formatting should not invalidate the finished assignment.
-				s.logger.Warn("failed to marshal shard metrics after assignment", tag.ShardNamespace(namespace), tag.ShardKey(update.shardID), tag.Error(err))
-				break
-			}
-
-			txnResp, err := s.client.Txn(ctx).
-				If(clientv3.Compare(clientv3.ModRevision(update.key), "=", update.modRevision)).
-				Then(clientv3.OpPut(update.key, string(payload))).
-				Commit()
-			if err != nil {
-				// log and abandon this shard rather than propagating an error after assignments commit.
-				s.logger.Warn("failed to commit shard metrics update after assignment", tag.ShardNamespace(namespace), tag.ShardKey(update.shardID), tag.Error(err))
-				break
-			}
-
-			if txnResp.Succeeded {
-				break
-			}
-
-			if ctx.Err() != nil {
-				s.logger.Warn("context canceled while updating shard metrics", tag.ShardNamespace(namespace), tag.ShardKey(update.shardID), tag.Error(ctx.Err()))
-				return
-			}
-
-			// Another writer beat us. pull the latest metrics so we can merge their view and retry.
-			metricsResp, err := s.client.Get(ctx, update.key)
-			if err != nil {
-				// Unable to observe the conflicting write, so we skip this shard and keep the assignment result.
-				s.logger.Warn("failed to refresh shard metrics after compare conflict", tag.ShardNamespace(namespace), tag.ShardKey(update.shardID), tag.Error(err))
-				break
-			}
-
-			update.modRevision = 0
-			if len(metricsResp.Kvs) > 0 {
-				update.modRevision = metricsResp.Kvs[0].ModRevision
-				if err := json.Unmarshal(metricsResp.Kvs[0].Value, &update.metrics); err != nil {
-					// If the value is corrupt we cannot safely merge, so we abandon this shard's metrics update.
-					s.logger.Warn("failed to unmarshal shard metrics after compare conflict", tag.ShardNamespace(namespace), tag.ShardKey(update.shardID), tag.Error(err))
-					break
-				}
-			} else {
-				update.metrics = store.ShardMetrics{
-					SmoothedLoad:   0,
-					LastUpdateTime: update.defaultLastUpdate,
-				}
-				update.modRevision = 0
-			}
+		if _, err := s.client.Put(ctx, update.key, string(payload)); err != nil {
+			s.logger.Warn(
+				"failed to update shard metrics",
+				tag.ShardNamespace(namespace),
+				tag.ShardKey(update.shardID),
+				tag.Error(err),
+			)
 		}
 	}
 }
