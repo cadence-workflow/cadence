@@ -57,14 +57,18 @@ func TestRecordHeartbeat(t *testing.T) {
 	resp, err = tc.Client.Get(ctx, stateKey)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), resp.Count, "State key should exist")
-	assert.Equal(t, stringStatus(types.ExecutorStatusACTIVE), string(resp.Kvs[0].Value))
+	decompressedState, err := decompressJSON(resp.Kvs[0].Value)
+	require.NoError(t, err)
+	assert.Equal(t, stringStatus(types.ExecutorStatusACTIVE), string(decompressedState))
 
 	resp, err = tc.Client.Get(ctx, reportedShardsKey)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), resp.Count, "Reported shards key should exist")
 
+	decompressedReportedShards, err := decompressJSON(resp.Kvs[0].Value)
+	require.NoError(t, err)
 	var reportedShards map[string]*types.ShardStatusReport
-	err = json.Unmarshal(resp.Kvs[0].Value, &reportedShards)
+	err = json.Unmarshal(decompressedReportedShards, &reportedShards)
 	require.NoError(t, err)
 	require.Len(t, reportedShards, 1)
 	assert.Equal(t, types.ShardStatusREADY, reportedShards["shard-TestRecordHeartbeat"].Status)
@@ -353,7 +357,9 @@ func TestSubscribe(t *testing.T) {
 	// Now update the reported shards, which IS a significant change
 	reportedShardsKey, err := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "reported_shards")
 	require.NoError(t, err)
-	_, err = tc.Client.Put(ctx, reportedShardsKey, `{"shard-1":{"status":"running"}}`)
+	compressedShards, err := compressJSON([]byte(`{"shard-1":{"status":"running"}}`))
+	require.NoError(t, err)
+	_, err = tc.Client.Put(ctx, reportedShardsKey, string(compressedShards))
 	require.NoError(t, err)
 
 	select {
