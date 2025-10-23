@@ -229,7 +229,6 @@ func (s *ReplicationSimulationConfig) MustRegisterDomain(
 		require.Fail(t, "activeClusterName is required but missing for domain %s", domainName)
 	}
 
-	// TODO(active-active): Remove this once we have completely migrated to AttributeScopes
 	if !domainCfg.ClusterAttributes.IsEmpty() {
 		req.ActiveClusters = &types.ActiveClusters{}
 		req.ActiveClusters.AttributeScopes = domainCfg.ClusterAttributes.ToAttributeScopes()
