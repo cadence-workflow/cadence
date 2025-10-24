@@ -918,7 +918,6 @@ func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) bool {
 		}
 	}
 
-
 	return false
 }
 

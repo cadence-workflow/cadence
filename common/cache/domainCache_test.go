@@ -342,6 +342,23 @@ func Test_IsActiveIn(t *testing.T) {
 			expectIsActive: true,
 		},
 		{
+			msg:            "active-active domain on domain level active cluster",
+			isGlobalDomain: true,
+			currentCluster: "A",
+			activeCluster:  "A",
+			activeClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region0": {ActiveClusterName: "B"},
+							"region1": {ActiveClusterName: "B"},
+						},
+					},
+				},
+			},
+			expectIsActive: true,
+		},
+		{
 			msg:            "active-active domain on passive cluster",
 			isGlobalDomain: true,
 			currentCluster: "C",
