@@ -1808,43 +1808,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				},
 			},
 			response: func(timeSource clock.MockedTimeSource) *types.UpdateDomainResponse {
-				data, _ := json.Marshal([]FailoverEvent{{
-					EventTime:    timeSource.Now(),
-					FromCluster:  cluster.TestCurrentClusterName,
-					FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String(),
-					FromActiveClusters: types.ActiveClusters{
-						AttributeScopes: map[string]types.ClusterAttributeScope{
-							"region": {
-								ClusterAttributes: map[string]types.ActiveClusterInfo{
-									cluster.TestRegion1: {
-										ActiveClusterName: cluster.TestCurrentClusterName,
-										FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-									},
-									cluster.TestRegion2: {
-										ActiveClusterName: cluster.TestAlternativeClusterName,
-										FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
-									},
-								},
-							},
-						},
-					},
-					ToActiveClusters: types.ActiveClusters{
-						AttributeScopes: map[string]types.ClusterAttributeScope{
-							"region": {
-								ClusterAttributes: map[string]types.ActiveClusterInfo{
-									cluster.TestRegion1: {
-										ActiveClusterName: cluster.TestCurrentClusterName,
-										FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-									},
-									cluster.TestRegion2: {
-										ActiveClusterName: cluster.TestCurrentClusterName,
-										FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
-									},
-								},
-							},
-						},
-					},
-				}})
+				// Note: failover history is NOT updated for active-active domain changes (case 3)
 				return &types.UpdateDomainResponse{
 					IsGlobalDomain:  true,
 					FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
@@ -1852,7 +1816,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						Name:   constants.TestDomainName,
 						UUID:   constants.TestDomainID,
 						Status: common.Ptr(types.DomainStatusRegistered),
-						Data:   map[string]string{commonconstants.DomainDataKeyForFailoverHistory: string(data)},
+						Data:   nil, // no failover history for active-active domain changes
 					},
 					Configuration: &types.DomainConfiguration{
 						WorkflowExecutionRetentionPeriodInDays: 1,
@@ -1996,28 +1960,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				},
 			},
 			response: func(timeSource clock.MockedTimeSource) *types.UpdateDomainResponse {
-				data, _ := json.Marshal([]FailoverEvent{{
-					EventTime:    timeSource.Now(),
-					FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String(),
-					FromCluster:  cluster.TestCurrentClusterName,
-					ToActiveClusters: types.ActiveClusters{
-						AttributeScopes: map[string]types.ClusterAttributeScope{
-							"region": {
-								ClusterAttributes: map[string]types.ActiveClusterInfo{
-									cluster.TestRegion1: {
-										ActiveClusterName: cluster.TestCurrentClusterName,
-										FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-									},
-									cluster.TestRegion2: {
-										ActiveClusterName: cluster.TestAlternativeClusterName,
-										FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
-									},
-								},
-							},
-						},
-					},
-				}})
-
+				// Note: failover history is NOT updated for active-passive to active-active migration (case 2)
 				return &types.UpdateDomainResponse{
 					IsGlobalDomain:  true,
 					FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
@@ -2025,7 +1968,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						Name:   constants.TestDomainName,
 						UUID:   constants.TestDomainID,
 						Status: common.Ptr(types.DomainStatusRegistered),
-						Data:   map[string]string{commonconstants.DomainDataKeyForFailoverHistory: string(data)},
+						Data:   nil, // no failover history for active-passive to active-active migration
 					},
 					Configuration: &types.DomainConfiguration{
 						WorkflowExecutionRetentionPeriodInDays: 1,
