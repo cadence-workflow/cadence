@@ -51,7 +51,7 @@ type shardStatisticsUpdate struct {
 type shardMetricsUpdate struct {
 	key             string
 	shardID         string
-	metrics         store.ShardMetrics
+	metrics         store.ShardStatistics
 	desiredLastMove int64 // intended LastMoveTime for this update
 }
 
@@ -416,7 +416,7 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 	return nil
 }
 
-func (s *executorStoreImpl) prepareShardMetricsUpdates(ctx context.Context, namespace string, newAssignments map[string]store.AssignedState) ([]shardMetricsUpdate, error) {
+func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, namespace string, newAssignments map[string]store.AssignedState) ([]shardMetricsUpdate, error) {
 	var updates []shardMetricsUpdate
 
 	for executorID, state := range newAssignments {
@@ -433,31 +433,31 @@ func (s *executorStoreImpl) prepareShardMetricsUpdates(ctx context.Context, name
 				continue
 			}
 
-			shardMetricsKey, err := etcdkeys.BuildShardKey(s.prefix, namespace, shardID, etcdkeys.ShardMetricsKey)
+			shardStatisticsKey, err := etcdkeys.BuildShardKey(s.prefix, namespace, shardID, etcdkeys.ShardStatisticsKey)
 			if err != nil {
-				return nil, fmt.Errorf("build shard metrics key: %w", err)
+				return nil, fmt.Errorf("build shard statistics key: %w", err)
 			}
 
-			metricsResp, err := s.client.Get(ctx, shardMetricsKey)
+			statsResp, err := s.client.Get(ctx, shardStatisticsKey)
 			if err != nil {
-				return nil, fmt.Errorf("get shard metrics: %w", err)
+				return nil, fmt.Errorf("get shard statistics: %w", err)
 			}
 
-			metrics := store.ShardMetrics{}
+			stats := store.ShardStatistics{}
 
-			if len(metricsResp.Kvs) > 0 {
-				if err := json.Unmarshal(metricsResp.Kvs[0].Value, &metrics); err != nil {
-					return nil, fmt.Errorf("unmarshal shard metrics: %w", err)
+			if len(statsResp.Kvs) > 0 {
+				if err := json.Unmarshal(statsResp.Kvs[0].Value, &stats); err != nil {
+					return nil, fmt.Errorf("unmarshal shard statistics: %w", err)
 				}
 			} else {
-				metrics.SmoothedLoad = 0
-				metrics.LastUpdateTime = now
+				stats.SmoothedLoad = 0
+				stats.LastUpdateTime = now
 			}
 
 			updates = append(updates, shardMetricsUpdate{
-				key:             shardMetricsKey,
+				key:             shardStatisticsKey,
 				shardID:         shardID,
-				metrics:         metrics,
+				metrics:         stats,
 				desiredLastMove: now,
 			})
 		}
@@ -466,16 +466,16 @@ func (s *executorStoreImpl) prepareShardMetricsUpdates(ctx context.Context, name
 	return updates, nil
 }
 
-// applyShardMetricsUpdates updates shard metrics.
+// applyShardStatisticsUpdates updates shard statistics.
 // Is intentionally made tolerant of failures since the data is telemetry only.
-func (s *executorStoreImpl) applyShardMetricsUpdates(ctx context.Context, namespace string, updates []shardMetricsUpdate) {
+func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, namespace string, updates []shardMetricsUpdate) {
 	for _, update := range updates {
 		update.metrics.LastMoveTime = update.desiredLastMove
 
 		payload, err := json.Marshal(update.metrics)
 		if err != nil {
 			s.logger.Warn(
-				"failed to marshal shard metrics after assignment",
+				"failed to marshal shard statistics after assignment",
 				tag.ShardNamespace(namespace),
 				tag.ShardKey(update.shardID),
 				tag.Error(err),
@@ -485,7 +485,7 @@ func (s *executorStoreImpl) applyShardMetricsUpdates(ctx context.Context, namesp
 
 		if _, err := s.client.Put(ctx, update.key, string(payload)); err != nil {
 			s.logger.Warn(
-				"failed to update shard metrics",
+				"failed to update shard statistics",
 				tag.ShardNamespace(namespace),
 				tag.ShardKey(update.shardID),
 				tag.Error(err),
