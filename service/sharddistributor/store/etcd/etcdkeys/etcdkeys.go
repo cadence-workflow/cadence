@@ -11,7 +11,7 @@ const (
 	ExecutorReportedShardsKey = "reported_shards"
 	ExecutorAssignedStateKey  = "assigned_state"
 	ShardAssignedKey          = "assigned"
-	ShardMetricsKey           = "metrics"
+	ShardStatisticsKey        = "statistics"
 )
 
 var validKeyTypes = []string{
@@ -64,7 +64,7 @@ func BuildShardPrefix(prefix string, namespace string) string {
 }
 
 func BuildShardKey(prefix string, namespace, shardID, keyType string) (string, error) {
-	if keyType != ShardAssignedKey && keyType != ShardMetricsKey {
+	if keyType != ShardAssignedKey && keyType != ShardStatisticsKey {
 		return "", fmt.Errorf("invalid shard key type: %s", keyType)
 	}
 	return fmt.Sprintf("%s%s/%s", BuildShardPrefix(prefix, namespace), shardID, keyType), nil
