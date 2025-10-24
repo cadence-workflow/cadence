@@ -54,7 +54,6 @@ func SetupStoreTestCluster(t *testing.T) *StoreTestCluster {
 	require.NoError(t, err)
 
 	leaderCfg := shardDistributorCfg.ShardDistribution{
-		Enabled:     true,
 		Store:       shardDistributorCfg.Store{StorageParams: yamlNode},
 		LeaderStore: shardDistributorCfg.Store{StorageParams: yamlNode},
 	}

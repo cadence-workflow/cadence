@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/fx/fxtest"
@@ -20,14 +19,6 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/testflags"
 )
-
-func TestShardDistributionDisabled(t *testing.T) {
-	store, err := NewLeaderStore(StoreParams{
-		Cfg: shardDistributorCfg.ShardDistribution{Enabled: false},
-	})
-	require.NoError(t, err)
-	assert.Nil(t, store)
-}
 
 // TestCreateElection tests that an election can be created successfully
 func TestCreateElection(t *testing.T) {
@@ -237,7 +228,7 @@ func setupETCDCluster(t *testing.T) *testCluster {
 
 	// Create store
 	storeParams := StoreParams{
-		Cfg:       shardDistributorCfg.ShardDistribution{Enabled: true, LeaderStore: shardDistributorCfg.Store{StorageParams: createConfig(t, testConfig)}},
+		Cfg:       shardDistributorCfg.ShardDistribution{LeaderStore: shardDistributorCfg.Store{StorageParams: createConfig(t, testConfig)}},
 		Lifecycle: fxtest.NewLifecycle(t),
 	}
 

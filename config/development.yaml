@@ -149,7 +149,6 @@ shardDistributorClient:
   hostPort: "localhost:7943"
 
 shardDistribution:
-  enabled: true
   election:
     leaderPeriod: 60s
     maxRandomDelay: 1s

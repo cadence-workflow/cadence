@@ -49,7 +49,6 @@ type (
 
 	// ShardDistribution is a configuration for leader election running.
 	ShardDistribution struct {
-		Enabled     bool          `yaml:"enabled"`
 		LeaderStore Store         `yaml:"leaderStore"`
 		Election    Election      `yaml:"election"`
 		Namespaces  []Namespace   `yaml:"namespaces"`
@@ -133,7 +132,6 @@ func GetShardDistributionFromExternal(in config.ShardDistribution) ShardDistribu
 	}
 
 	return ShardDistribution{
-		Enabled:     in.Enabled,
 		LeaderStore: Store(in.LeaderStore),
 		Store:       Store(in.Store),
 		Election:    Election(in.Election),

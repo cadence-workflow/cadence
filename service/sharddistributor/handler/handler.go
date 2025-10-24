@@ -78,10 +78,6 @@ func (h *handlerImpl) Health(ctx context.Context) (*types.HealthStatus, error) {
 func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShardOwnerRequest) (resp *types.GetShardOwnerResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
 
-	if !h.shardDistributionCfg.Enabled {
-		return nil, fmt.Errorf("shard distributor disabled")
-	}
-
 	namespaceIdx := slices.IndexFunc(h.shardDistributionCfg.Namespaces, func(namespace config.Namespace) bool {
 		return namespace.Name == request.Namespace
 	})

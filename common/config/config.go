@@ -631,7 +631,6 @@ type (
 	// ShardDistribution is a configuration for leader election running.
 	// This configuration should be in sync with sharddistributor.
 	ShardDistribution struct {
-		Enabled     bool          `yaml:"enabled"`
 		LeaderStore Store         `yaml:"leaderStore"`
 		Election    Election      `yaml:"election"`
 		Namespaces  []Namespace   `yaml:"namespaces"`

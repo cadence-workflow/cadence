@@ -43,7 +43,6 @@ const (
 
 func TestGetShardOwner(t *testing.T) {
 	cfg := config.ShardDistribution{
-		Enabled: true,
 		Namespaces: []config.Namespace{
 			{
 				Name:     _testNamespaceFixed,

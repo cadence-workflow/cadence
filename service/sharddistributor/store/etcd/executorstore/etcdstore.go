@@ -46,10 +46,6 @@ type ExecutorStoreParams struct {
 
 // NewStore creates a new etcd-backed store and provides it to the fx application.
 func NewStore(p ExecutorStoreParams) (store.Store, error) {
-	if !p.Cfg.Enabled {
-		return nil, nil
-	}
-
 	var err error
 	var etcdCfg struct {
 		Endpoints   []string      `yaml:"endpoints"`

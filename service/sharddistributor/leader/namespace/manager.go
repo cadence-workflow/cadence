@@ -47,10 +47,6 @@ type ManagerParams struct {
 
 // NewManager creates a new namespace manager
 func NewManager(p ManagerParams) *Manager {
-	if !p.Cfg.Enabled {
-		return nil
-	}
-
 	manager := &Manager{
 		cfg:             p.Cfg,
 		logger:          p.Logger.WithTags(tag.ComponentNamespaceManager),
