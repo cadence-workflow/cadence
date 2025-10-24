@@ -19,7 +19,7 @@ type AssignedState struct {
 
 type NamespaceState struct {
 	Executors        map[string]HeartbeatState
-	ShardMetrics     map[string]ShardMetrics
+	ShardStats       map[string]ShardStatistics
 	ShardAssignments map[string]AssignedState
 	GlobalRevision   int64
 }
@@ -28,7 +28,7 @@ type ShardState struct {
 	ExecutorID string
 }
 
-type ShardMetrics struct {
+type ShardStatistics struct {
 	SmoothedLoad   float64 `json:"smoothed_load"`    // EWMA of shard load that persists across executor changes
 	LastUpdateTime int64   `json:"last_update_time"` // heartbeat timestamp that last updated the EWMA
 	LastMoveTime   int64   `json:"last_move_time"`   // timestamp for the latest reassignment, used for cooldowns
