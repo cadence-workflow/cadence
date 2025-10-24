@@ -237,7 +237,7 @@ func (handler *taskHandlerImpl) handleDecisionScheduleActivity(
 				domainID,
 				targetDomainID,
 				attr,
-				executionInfo.WorkflowTimeout,
+				executionInfo,
 				metrics.HistoryRespondDecisionTaskCompletedScope,
 			)
 		},
