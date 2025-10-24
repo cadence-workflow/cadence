@@ -320,8 +320,15 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 	updateRequest.SecurityToken = securityToken
 	_, err = d.updateDomain(ctx, updateRequest)
 	if err != nil {
-		if _, ok := err.(*types.EntityNotExistsError); ok {
+		var entityNotExistsErr *types.EntityNotExistsError
+		if errors.As(err, &entityNotExistsErr) {
 			return commoncli.Problem(fmt.Sprintf("Domain %s does not exist.", domainName), err)
+		}
+		var accessDeniedErr *types.AccessDeniedError
+		if errors.As(err, &accessDeniedErr) {
+			fmt.Fprintf(os.Stderr, "WARNING: Update domain operation may not be available for general user use and is reserved for administrative operations.\n")
+			fmt.Fprintf(os.Stderr, "Please use the 'cadence domain failover' cli-command instead for domain management.\n")
+			return commoncli.Problem("Operation UpdateDomain failed due to authorization.", err)
 		}
 		return commoncli.Problem("Operation UpdateDomain failed.", err)
 	}
