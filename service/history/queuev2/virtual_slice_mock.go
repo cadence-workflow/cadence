@@ -43,6 +43,18 @@ func (m *MockVirtualSlice) EXPECT() *MockVirtualSliceMockRecorder {
 	return m.recorder
 }
 
+// CancelTasks mocks base method.
+func (m *MockVirtualSlice) CancelTasks(predicate func(task.Task) bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "CancelTasks", predicate)
+}
+
+// CancelTasks indicates an expected call of CancelTasks.
+func (mr *MockVirtualSliceMockRecorder) CancelTasks(predicate any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelTasks", reflect.TypeOf((*MockVirtualSlice)(nil).CancelTasks), predicate)
+}
+
 // Clear mocks base method.
 func (m *MockVirtualSlice) Clear() {
 	m.ctrl.T.Helper()
@@ -110,6 +122,18 @@ func (m *MockVirtualSlice) HasMoreTasks() bool {
 func (mr *MockVirtualSliceMockRecorder) HasMoreTasks() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasMoreTasks", reflect.TypeOf((*MockVirtualSlice)(nil).HasMoreTasks))
+}
+
+// InsertTask mocks base method.
+func (m *MockVirtualSlice) InsertTask(arg0 task.Task) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "InsertTask", arg0)
+}
+
+// InsertTask indicates an expected call of InsertTask.
+func (mr *MockVirtualSliceMockRecorder) InsertTask(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTask", reflect.TypeOf((*MockVirtualSlice)(nil).InsertTask), arg0)
 }
 
 // IsEmpty mocks base method.

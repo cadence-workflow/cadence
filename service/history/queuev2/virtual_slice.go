@@ -37,11 +37,13 @@ type (
 		GetState() VirtualSliceState
 		IsEmpty() bool
 		GetTasks(context.Context, int) ([]task.Task, error)
+		InsertTask(task.Task)
 		HasMoreTasks() bool
 		UpdateAndGetState() VirtualSliceState
 		GetPendingTaskCount() int
 		Clear()
 		PendingTaskStats() PendingTaskStats
+		CancelTasks(predicate func(task.Task) bool)
 
 		TrySplitByTaskKey(persistence.HistoryTaskKey) (VirtualSlice, VirtualSlice, bool)
 		TrySplitByPredicate(Predicate) (VirtualSlice, VirtualSlice, bool)
@@ -113,6 +115,10 @@ func (s *virtualSliceImpl) Clear() {
 			NextTaskKey:   s.state.Range.InclusiveMinTaskKey,
 		},
 	}
+}
+
+func (s *virtualSliceImpl) InsertTask(task task.Task) {
+	s.pendingTaskTracker.AddTask(task)
 }
 
 func (s *virtualSliceImpl) GetTasks(ctx context.Context, pageSize int) ([]task.Task, error) {
@@ -189,6 +195,15 @@ func (s *virtualSliceImpl) UpdateAndGetState() VirtualSliceState {
 		}
 	}
 	return s.state
+}
+
+func (s *virtualSliceImpl) CancelTasks(predicate func(task.Task) bool) {
+	taskMap := s.pendingTaskTracker.GetTasks()
+	for _, task := range taskMap {
+		if predicate(task) {
+			task.Cancel()
+		}
+	}
 }
 
 func (s *virtualSliceImpl) TrySplitByTaskKey(taskKey persistence.HistoryTaskKey) (VirtualSlice, VirtualSlice, bool) {

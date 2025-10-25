@@ -56,6 +56,9 @@ type (
 		// Add a new virtual slice to the root queue. This is used when new tasks are generated and max read level is updated.
 		// By default, all new tasks belong to the root queue, so we need to add a new virtual slice to the root queue.
 		AddNewVirtualSliceToRootQueue(VirtualSlice)
+		// Insert a single task to the current slice. Return false if the task's timestamp is out of range of the current slice.
+		InsertSingleTaskToRootQueue(task.Task) bool
+		RemoveScheduledTasksAfter(time.Time)
 	}
 
 	virtualQueueManagerImpl struct {
@@ -218,6 +221,24 @@ func (m *virtualQueueManagerImpl) AddNewVirtualSliceToRootQueue(s VirtualSlice) 
 	m.virtualQueues[rootQueueID].Start()
 }
 
+func (m *virtualQueueManagerImpl) InsertSingleTaskToRootQueue(t task.Task) bool {
+	m.Lock()
+	defer m.Unlock()
+	if vq, ok := m.virtualQueues[rootQueueID]; ok {
+		return vq.InsertSingleTask(t)
+	}
+
+	// if a root queue is not created yet, no need to schedule an incoming task, it will be read from the slice
+	return false
+}
+
+func (m *virtualQueueManagerImpl) RemoveScheduledTasksAfter(t time.Time) {
+	m.Lock()
+	defer m.Unlock()
+	for _, vq := range m.virtualQueues {
+		vq.RemoveScheduledTasksAfter(t)
+	}
+}
 func (m *virtualQueueManagerImpl) appendOrMergeSlice(vq VirtualQueue, s VirtualSlice) {
 	now := m.timeSource.Now()
 	newVirtualSliceState := s.GetState()
