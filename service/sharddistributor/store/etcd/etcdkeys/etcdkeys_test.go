@@ -33,14 +33,14 @@ func TestBuildExecutorKeyFail(t *testing.T) {
 }
 
 func TestBuildShardKey(t *testing.T) {
-	got, err := BuildShardKey("/cadence", "test-ns", "shard-1", ShardStatisticsKey)
+	got, err := BuildShardKey("/cadence", "test-ns", "shard-1", "statistics")
 	assert.NoError(t, err)
 	assert.Equal(t, "/cadence/test-ns/shards/shard-1/statistics", got)
 }
 
 func TestBuildShardKeyFail(t *testing.T) {
-	_, err := BuildShardKey("/cadence", "test-ns", "shard-1", "not-valid")
-	assert.ErrorContains(t, err, "invalid shard key type: not-valid")
+	_, err := BuildShardKey("/cadence", "test-ns", "shard-1", "invalid")
+	assert.ErrorContains(t, err, "invalid shard key type: invalid")
 }
 
 func TestParseExecutorKey(t *testing.T) {
@@ -61,18 +61,18 @@ func TestParseExecutorKey(t *testing.T) {
 
 func TestParseShardKey(t *testing.T) {
 	// Valid key
-	shardID, keyType, err := ParseShardKey("/cadence", "test-ns", "/cadence/test-ns/shards/shard-7/statistics")
+	shardID, keyType, err := ParseShardKey("/cadence", "test-ns", "/cadence/test-ns/shards/shard-1/statistics")
 	assert.NoError(t, err)
-	assert.Equal(t, "shard-7", shardID)
-	assert.Equal(t, ShardStatisticsKey, keyType)
+	assert.Equal(t, "shard-1", shardID)
+	assert.Equal(t, "statistics", keyType)
 
 	// Prefix missing
-	_, _, err = ParseShardKey("/cadence", "test-ns", "/cadence/other/shards/shard-7/statistics")
-	assert.ErrorContains(t, err, "key '/cadence/other/shards/shard-7/statistics' does not have expected prefix '/cadence/test-ns/shards/'")
+	_, _, err = ParseShardKey("/cadence", "test-ns", "/cadence/other/shards/shard-1/statistics")
+	assert.ErrorContains(t, err, "key '/cadence/other/shards/shard-1/statistics' does not have expected prefix '/cadence/test-ns/shards/'")
 
 	// Unexpected format
-	_, _, err = ParseShardKey("/cadence", "test-ns", "/cadence/test-ns/shards/shard-7/statistics/extra")
-	assert.ErrorContains(t, err, "unexpected shard key format: /cadence/test-ns/shards/shard-7/statistics/extra")
+	_, _, err = ParseShardKey("/cadence", "test-ns", "/cadence/test-ns/shards/shard-1/statistics/extra")
+	assert.ErrorContains(t, err, "unexpected shard key format: /cadence/test-ns/shards/shard-1/statistics/extra")
 }
 
 func TestBuildMetadataKey(t *testing.T) {
