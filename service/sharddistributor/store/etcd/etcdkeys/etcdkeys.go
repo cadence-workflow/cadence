@@ -64,7 +64,7 @@ func BuildShardPrefix(prefix string, namespace string) string {
 }
 
 func BuildShardKey(prefix string, namespace, shardID, keyType string) (string, error) {
-	if keyType != ShardAssignedKey && keyType != ShardStatisticsKey {
+	if keyType != ShardStatisticsKey {
 		return "", fmt.Errorf("invalid shard key type: %s", keyType)
 	}
 	return fmt.Sprintf("%s%s/%s", BuildShardPrefix(prefix, namespace), shardID, keyType), nil
