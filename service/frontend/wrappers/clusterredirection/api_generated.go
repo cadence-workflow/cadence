@@ -382,6 +382,45 @@ func (handler *clusterRedirectionHandler) ListDomains(ctx context.Context, lp1 *
 	return handler.frontendHandler.ListDomains(ctx, lp1)
 }
 
+func (handler *clusterRedirectionHandler) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	var (
+		apiName                   = "ListFailoverHistory"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
+
+	var domainEntry *cache.DomainCacheEntry
+	scope, startTime := handler.beforeCall(metrics.DCRedirectionListFailoverHistoryScope)
+	defer func() {
+		handler.afterCall(recover(), scope, startTime, domainEntry, cluster, &err)
+	}()
+
+	domainEntry, err = handler.domainCache.GetDomain(lp1.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
+	var workflowExecution *types.WorkflowExecution
+
+	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
+		cluster = targetDC
+		switch {
+		case targetDC == handler.currentClusterName:
+			lp2, err = handler.frontendHandler.ListFailoverHistory(ctx, lp1)
+		default:
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
+			}
+			lp2, err = remoteClient.ListFailoverHistory(ctx, lp1, handler.callOptions...)
+		}
+		return err
+	})
+
+	return lp2, err
+}
+
 func (handler *clusterRedirectionHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {
 	var (
 		apiName                   = "ListOpenWorkflowExecutions"

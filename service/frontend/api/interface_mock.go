@@ -13,9 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	types "github.com/uber/cadence/common/types"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockHandler is a mock of Handler interface.
@@ -278,6 +277,21 @@ func (m *MockHandler) ListDomains(arg0 context.Context, arg1 *types.ListDomainsR
 func (mr *MockHandlerMockRecorder) ListDomains(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDomains", reflect.TypeOf((*MockHandler)(nil).ListDomains), arg0, arg1)
+}
+
+// ListFailoverHistory mocks base method.
+func (m *MockHandler) ListFailoverHistory(arg0 context.Context, arg1 *types.ListFailoverHistoryRequest) (*types.ListFailoverHistoryResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListFailoverHistory", arg0, arg1)
+	ret0, _ := ret[0].(*types.ListFailoverHistoryResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListFailoverHistory indicates an expected call of ListFailoverHistory.
+func (mr *MockHandlerMockRecorder) ListFailoverHistory(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListFailoverHistory", reflect.TypeOf((*MockHandler)(nil).ListFailoverHistory), arg0, arg1)
 }
 
 // ListOpenWorkflowExecutions mocks base method.

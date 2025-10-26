@@ -218,3 +218,30 @@ func (wh *WorkflowHandler) FailoverDomain(ctx context.Context, failoverRequest *
 	logger.Info("Failover domain operation succeeded.")
 	return failoverResp, nil
 }
+
+// ListFailoverHistory is used to list the failover history for a domain.
+func (wh *WorkflowHandler) ListFailoverHistory(ctx context.Context, request *types.ListFailoverHistoryRequest) (*types.ListFailoverHistoryResponse, error) {
+	if wh.isShuttingDown() {
+		return nil, validate.ErrShuttingDown
+	}
+
+	// TODO: Implement validation for ListFailoverHistoryRequest
+	// if err := wh.requestValidator.ValidateListFailoverHistoryRequest(ctx, request); err != nil {
+	//     return nil, err
+	// }
+
+	logger := wh.GetLogger().WithTags(
+		tag.OperationName("ListFailoverHistory"))
+
+	logger.Info("List failover history request received.")
+
+	// TODO: Implement the actual logic for listing failover history
+	// This is a scaffold implementation that returns an empty response
+	response := &types.ListFailoverHistoryResponse{
+		FailoverEvents: []*types.FailoverEvent{},
+		NextPageToken:  nil,
+	}
+
+	logger.Info("List failover history operation completed.")
+	return response, nil
+}

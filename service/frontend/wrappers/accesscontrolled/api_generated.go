@@ -11,9 +11,10 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/service/frontend/api"
+
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/frontend/api"
 )
 
 // apiHandler frontend handler wrapper for authentication and authorization
@@ -253,6 +254,10 @@ func (a *apiHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *type
 
 func (a *apiHandler) ListDomains(ctx context.Context, lp1 *types.ListDomainsRequest) (lp2 *types.ListDomainsResponse, err error) {
 	return a.handler.ListDomains(ctx, lp1)
+}
+
+func (a *apiHandler) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	return a.handler.ListFailoverHistory(ctx, lp1)
 }
 
 func (a *apiHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {
