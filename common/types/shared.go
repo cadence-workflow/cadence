@@ -1828,6 +1828,168 @@ func (v *FailoverDomainResponse) GetIsGlobalDomain() (o bool) {
 	return
 }
 
+// ListFailoverHistoryRequest is an internal type (TBD...)
+type ListFailoverHistoryRequest struct {
+	Domain     string                             `json:"domain,omitempty"`
+	Filters    *ListFailoverHistoryRequestFilters `json:"filters,omitempty"`
+	Pagination *PaginationOptions                 `json:"pagination,omitempty"`
+}
+
+// GetDomain is an internal getter (TBD...)
+func (v *ListFailoverHistoryRequest) GetDomain() (o string) {
+	if v != nil {
+		return v.Domain
+	}
+	return
+}
+
+// GetFilters is an internal getter (TBD...)
+func (v *ListFailoverHistoryRequest) GetFilters() (o *ListFailoverHistoryRequestFilters) {
+	if v != nil && v.Filters != nil {
+		return v.Filters
+	}
+	return
+}
+
+// GetPagination is an internal getter (TBD...)
+func (v *ListFailoverHistoryRequest) GetPagination() (o *PaginationOptions) {
+	if v != nil && v.Pagination != nil {
+		return v.Pagination
+	}
+	return
+}
+
+// ListFailoverHistoryRequestFilters is an internal type (TBD...)
+type ListFailoverHistoryRequestFilters struct {
+	DomainID string `json:"domainId,omitempty"`
+}
+
+// GetDomainID is an internal getter (TBD...)
+func (v *ListFailoverHistoryRequestFilters) GetDomainID() (o string) {
+	if v != nil {
+		return v.DomainID
+	}
+	return
+}
+
+// ListFailoverHistoryResponse is an internal type (TBD...)
+type ListFailoverHistoryResponse struct {
+	FailoverEvents []*FailoverEvent `json:"failoverEvents,omitempty"`
+	NextPageToken  []byte           `json:"nextPageToken,omitempty"`
+}
+
+// GetFailoverEvents is an internal getter (TBD...)
+func (v *ListFailoverHistoryResponse) GetFailoverEvents() (o []*FailoverEvent) {
+	if v != nil && v.FailoverEvents != nil {
+		return v.FailoverEvents
+	}
+	return
+}
+
+// GetNextPageToken is an internal getter (TBD...)
+func (v *ListFailoverHistoryResponse) GetNextPageToken() (o []byte) {
+	if v != nil && v.NextPageToken != nil {
+		return v.NextPageToken
+	}
+	return
+}
+
+// PaginationOptions is an internal type (TBD...)
+type PaginationOptions struct {
+	PageSize      *int32 `json:"pageSize,omitempty"`
+	NextPageToken []byte `json:"nextPageToken,omitempty"`
+}
+
+// GetPageSize is an internal getter (TBD...)
+func (v *PaginationOptions) GetPageSize() (o int32) {
+	if v != nil && v.PageSize != nil {
+		return *v.PageSize
+	}
+	return
+}
+
+// GetNextPageToken is an internal getter (TBD...)
+func (v *PaginationOptions) GetNextPageToken() (o []byte) {
+	if v != nil && v.NextPageToken != nil {
+		return v.NextPageToken
+	}
+	return
+}
+
+// FailoverEvent is an internal type (TBD...)
+type FailoverEvent struct {
+	ID               *string            `json:"id,omitempty"`
+	CreatedTime      *int64             `json:"createdTime,omitempty"`
+	FailoverType     *FailoverType      `json:"failoverType,omitempty"`
+	ClusterFailovers []*ClusterFailover `json:"clusterFailovers,omitempty"`
+}
+
+// GetID is an internal getter (TBD...)
+func (v *FailoverEvent) GetID() (o string) {
+	if v != nil && v.ID != nil {
+		return *v.ID
+	}
+	return
+}
+
+// GetCreatedTime is an internal getter (TBD...)
+func (v *FailoverEvent) GetCreatedTime() (o int64) {
+	if v != nil && v.CreatedTime != nil {
+		return *v.CreatedTime
+	}
+	return
+}
+
+// GetFailoverType is an internal getter (TBD...)
+func (v *FailoverEvent) GetFailoverType() (o FailoverType) {
+	if v != nil && v.FailoverType != nil {
+		return *v.FailoverType
+	}
+	return
+}
+
+// GetClusterFailovers is an internal getter (TBD...)
+func (v *FailoverEvent) GetClusterFailovers() (o []*ClusterFailover) {
+	if v != nil && v.ClusterFailovers != nil {
+		return v.ClusterFailovers
+	}
+	return
+}
+
+// FailoverType is an internal type (TBD...)
+type FailoverType int32
+
+// ClusterFailover is an internal type (TBD...)
+type ClusterFailover struct {
+	FromCluster      *ActiveClusterInfo `json:"fromCluster,omitempty"`
+	ToCluster        *ActiveClusterInfo `json:"toCluster,omitempty"`
+	ClusterAttribute *ClusterAttribute  `json:"clusterAttribute,omitempty"`
+}
+
+// GetFromCluster is an internal getter (TBD...)
+func (v *ClusterFailover) GetFromCluster() (o *ActiveClusterInfo) {
+	if v != nil && v.FromCluster != nil {
+		return v.FromCluster
+	}
+	return
+}
+
+// GetToCluster is an internal getter (TBD...)
+func (v *ClusterFailover) GetToCluster() (o *ActiveClusterInfo) {
+	if v != nil && v.ToCluster != nil {
+		return v.ToCluster
+	}
+	return
+}
+
+// GetClusterAttribute is an internal getter (TBD...)
+func (v *ClusterFailover) GetClusterAttribute() (o *ClusterAttribute) {
+	if v != nil && v.ClusterAttribute != nil {
+		return v.ClusterAttribute
+	}
+	return
+}
+
 // DescribeHistoryHostRequest is an internal type (TBD...)
 type DescribeHistoryHostRequest struct {
 	HostAddress      *string            `json:"hostAddress,omitempty"`

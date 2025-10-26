@@ -531,6 +531,39 @@ func (mr *_MockClientRecorder) ListDomains(
 	return mr.mock.ctrl.RecordCall(mr.mock, "ListDomains", args...)
 }
 
+// ListFailoverHistory responds to a ListFailoverHistory call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().ListFailoverHistory(gomock.Any(), ...).Return(...)
+//	... := client.ListFailoverHistory(...)
+func (m *MockClient) ListFailoverHistory(
+	ctx context.Context,
+	_ListRequest *shared.ListFailoverHistoryRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.ListFailoverHistoryResponse, err error) {
+
+	args := []interface{}{ctx, _ListRequest}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "ListFailoverHistory", args...)
+	success, _ = ret[i].(*shared.ListFailoverHistoryResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) ListFailoverHistory(
+	ctx interface{},
+	_ListRequest interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _ListRequest}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "ListFailoverHistory", args...)
+}
+
 // ListOpenWorkflowExecutions responds to a ListOpenWorkflowExecutions call based on the mock expectations. This
 // call will fail if the mock does not expect this call. Use EXPECT to expect
 // a call to this function.

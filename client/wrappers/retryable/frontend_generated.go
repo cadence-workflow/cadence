@@ -188,6 +188,17 @@ func (c *frontendClient) ListDomains(ctx context.Context, lp1 *types.ListDomains
 	return resp, err
 }
 
+func (c *frontendClient) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest, p1 ...yarpc.CallOption) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	var resp *types.ListFailoverHistoryResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.ListFailoverHistory(ctx, lp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *frontendClient) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {
 	var resp *types.ListOpenWorkflowExecutionsResponse
 	op := func(ctx context.Context) error {

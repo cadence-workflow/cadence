@@ -4600,6 +4600,49 @@ func ToFailoverDomainResponse(t *apiv1.FailoverDomainResponse) *types.FailoverDo
 	}
 }
 
+func FromListFailoverHistoryRequest(t *types.ListFailoverHistoryRequest) *apiv1.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+	// TODO: Implement proper proto conversion for ListFailoverHistoryRequest
+	return &apiv1.ListFailoverHistoryRequest{
+		// Placeholder implementation
+	}
+}
+
+func ToListFailoverHistoryRequest(t *apiv1.ListFailoverHistoryRequest) *types.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+	// TODO: Implement proper proto conversion for ListFailoverHistoryRequest
+	return &types.ListFailoverHistoryRequest{
+		Domain:     "", // Placeholder - extract from filters or set appropriately
+		Filters:    nil,
+		Pagination: nil,
+	}
+}
+
+func ToListFailoverHistoryResponse(t *apiv1.ListFailoverHistoryResponse) *types.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	// TODO: Implement proper proto conversion for ListFailoverHistoryResponse
+	return &types.ListFailoverHistoryResponse{
+		FailoverEvents: []*types.FailoverEvent{},
+		NextPageToken:  nil,
+	}
+}
+
+func FromListFailoverHistoryResponse(t *types.ListFailoverHistoryResponse) *apiv1.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	// TODO: Implement proper proto conversion for ListFailoverHistoryResponse
+	return &apiv1.ListFailoverHistoryResponse{
+		// Placeholder implementation
+	}
+}
+
 func FromUpsertWorkflowSearchAttributesDecisionAttributes(t *types.UpsertWorkflowSearchAttributesDecisionAttributes) *apiv1.UpsertWorkflowSearchAttributesDecisionAttributes {
 	if t == nil {
 		return nil
