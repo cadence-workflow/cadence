@@ -15,6 +15,7 @@ import (
 
 	gomock "go.uber.org/mock/gomock"
 
+	persistence "github.com/uber/cadence/common/persistence"
 	task "github.com/uber/cadence/service/history/task"
 )
 
@@ -151,7 +152,7 @@ func (mr *MockVirtualQueueMockRecorder) Pause(arg0 any) *gomock.Call {
 }
 
 // RemoveScheduledTasksAfter mocks base method.
-func (m *MockVirtualQueue) RemoveScheduledTasksAfter(arg0 time.Time) {
+func (m *MockVirtualQueue) RemoveScheduledTasksAfter(arg0 persistence.HistoryTaskKey) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "RemoveScheduledTasksAfter", arg0)
 }

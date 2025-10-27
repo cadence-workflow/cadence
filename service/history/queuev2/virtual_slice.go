@@ -43,7 +43,7 @@ type (
 		GetPendingTaskCount() int
 		Clear()
 		PendingTaskStats() PendingTaskStats
-		CancelTasks(predicate func(task.Task) bool)
+		CancelTasksAfter(key persistence.HistoryTaskKey)
 
 		TrySplitByTaskKey(persistence.HistoryTaskKey) (VirtualSlice, VirtualSlice, bool)
 		TrySplitByPredicate(Predicate) (VirtualSlice, VirtualSlice, bool)
@@ -197,11 +197,38 @@ func (s *virtualSliceImpl) UpdateAndGetState() VirtualSliceState {
 	return s.state
 }
 
-func (s *virtualSliceImpl) CancelTasks(predicate func(task.Task) bool) {
+func (s *virtualSliceImpl) CancelTasksAfter(key persistence.HistoryTaskKey) {
 	taskMap := s.pendingTaskTracker.GetTasks()
 	for _, task := range taskMap {
-		if predicate(task) {
+		if task.GetTaskKey().Compare(key) >= 0 {
 			task.Cancel()
+		}
+	}
+
+	if len(s.progress) == 0 {
+		s.progress = []*GetTaskProgress{
+			{
+				Range: Range{
+					InclusiveMinTaskKey: key,
+					ExclusiveMaxTaskKey: s.state.Range.ExclusiveMaxTaskKey,
+				},
+				NextPageToken: nil,
+				NextTaskKey:   key,
+			},
+		}
+		return
+	}
+
+	for i, progress := range s.progress {
+		if progress.NextTaskKey.Compare(key) > 0 {
+			s.progress[i] = &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: key,
+					ExclusiveMaxTaskKey: progress.Range.ExclusiveMaxTaskKey,
+				},
+				NextPageToken: nil,
+				NextTaskKey:   key,
+			}
 		}
 	}
 }

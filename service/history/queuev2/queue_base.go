@@ -278,8 +278,8 @@ func (q *queueBase) insertSingleTask(task task.Task) bool {
 	return q.virtualQueueManager.InsertSingleTaskToRootQueue(task)
 }
 
-func (q *queueBase) removeScheduledTasksAfter(t time.Time) {
-	q.virtualQueueManager.RemoveScheduledTasksAfter(t)
+func (q *queueBase) removeScheduledTasksAfter(key persistence.HistoryTaskKey) {
+	q.virtualQueueManager.RemoveScheduledTasksAfter(key)
 }
 
 func (q *queueBase) updateQueueState(ctx context.Context) {

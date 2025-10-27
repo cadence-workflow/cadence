@@ -11,10 +11,10 @@ package queuev2
 
 import (
 	reflect "reflect"
-	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 
+	persistence "github.com/uber/cadence/common/persistence"
 	task "github.com/uber/cadence/service/history/task"
 )
 
@@ -83,7 +83,7 @@ func (mr *MockVirtualQueueManagerMockRecorder) InsertSingleTaskToRootQueue(arg0 
 }
 
 // RemoveScheduledTasksAfter mocks base method.
-func (m *MockVirtualQueueManager) RemoveScheduledTasksAfter(arg0 time.Time) {
+func (m *MockVirtualQueueManager) RemoveScheduledTasksAfter(arg0 persistence.HistoryTaskKey) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "RemoveScheduledTasksAfter", arg0)
 }

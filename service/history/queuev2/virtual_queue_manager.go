@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/service/history/task"
 )
@@ -58,7 +59,7 @@ type (
 		AddNewVirtualSliceToRootQueue(VirtualSlice)
 		// Insert a single task to the current slice. Return false if the task's timestamp is out of range of the current slice.
 		InsertSingleTaskToRootQueue(task.Task) bool
-		RemoveScheduledTasksAfter(time.Time)
+		RemoveScheduledTasksAfter(persistence.HistoryTaskKey)
 	}
 
 	virtualQueueManagerImpl struct {
@@ -232,13 +233,14 @@ func (m *virtualQueueManagerImpl) InsertSingleTaskToRootQueue(t task.Task) bool 
 	return false
 }
 
-func (m *virtualQueueManagerImpl) RemoveScheduledTasksAfter(t time.Time) {
+func (m *virtualQueueManagerImpl) RemoveScheduledTasksAfter(key persistence.HistoryTaskKey) {
 	m.Lock()
 	defer m.Unlock()
 	for _, vq := range m.virtualQueues {
-		vq.RemoveScheduledTasksAfter(t)
+		vq.RemoveScheduledTasksAfter(key)
 	}
 }
+
 func (m *virtualQueueManagerImpl) appendOrMergeSlice(vq VirtualQueue, s VirtualSlice) {
 	now := m.timeSource.Now()
 	newVirtualSliceState := s.GetState()

@@ -175,7 +175,7 @@ func (q *scheduledQueue) NotifyNewTask(clusterName string, info *hcommon.NotifyT
 	}
 
 	if !nextReadTime.IsZero() {
-		q.base.removeScheduledTasksAfter(nextReadTime)
+		q.base.removeScheduledTasksAfter(persistence.NewHistoryTaskKey(nextReadTime, 0))
 		q.notify(nextReadTime)
 	}
 

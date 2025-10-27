@@ -70,7 +70,7 @@ type (
 		// InsertSingleTask inserts a single task to the virtual queue. Return false if the task's timestamp is out of range of the current queue slice..
 		InsertSingleTask(task task.Task) bool
 		// RemoveScheduledTasksAfter removes the scheduled tasks after the given time
-		RemoveScheduledTasksAfter(time.Time)
+		RemoveScheduledTasksAfter(persistence.HistoryTaskKey)
 	}
 
 	VirtualQueueOptions struct {
@@ -452,24 +452,14 @@ func (q *virtualQueueImpl) InsertSingleTask(task task.Task) bool {
 	return true
 }
 
-func (q *virtualQueueImpl) RemoveScheduledTasksAfter(t time.Time) {
+func (q *virtualQueueImpl) RemoveScheduledTasksAfter(key persistence.HistoryTaskKey) {
 	q.Lock()
 	defer q.Unlock()
 
 	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
-		s := e.Value.(VirtualSlice)
-		r := s.GetState().Range
-
-		if t.Before(r.InclusiveMinTaskKey.GetScheduledTime()) {
-			continue
-		}
-
-		s.CancelTasks(func(task task.Task) bool {
-			taskTime := task.GetTaskKey().GetScheduledTime()
-			return taskTime.After(t) || taskTime.Equal(t)
-		})
-
-		q.monitor.SetSlicePendingTaskCount(s, s.GetPendingTaskCount())
+		slice := e.Value.(VirtualSlice)
+		slice.CancelTasksAfter(key)
+		q.monitor.SetSlicePendingTaskCount(slice, slice.GetPendingTaskCount())
 	}
 }
 
@@ -477,6 +467,7 @@ func (q *virtualQueueImpl) submitTask(now time.Time, task task.Task) error {
 	if persistence.IsTaskCorrupted(task) {
 		q.logger.Error("Virtual queue encountered a corrupted task", tag.Dynamic("task", task))
 		q.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
+
 		task.Ack()
 		return nil
 	}
