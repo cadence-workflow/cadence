@@ -170,6 +170,12 @@ func (s *executorStoreImpl) updateShardStatisticsFromHeartbeat(ctx context.Conte
 
 		load := report.ShardLoad
 		if math.IsNaN(load) || math.IsInf(load, 0) {
+			s.logger.Warn(
+				"invalid shard load reported; skipping EWMA update",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+			)
 			continue
 		}
 
