@@ -36,12 +36,12 @@ type executorStoreImpl struct {
 	timeSource clock.TimeSource
 }
 
-// shardMetricsUpdate tracks the etcd key and statistics used to update a shard
-// after the main transaction in AssignShards for exec state.
-type shardMetricsUpdate struct {
+// shardStatisticsUpdate holds the staged statistics for a shard so we can write them
+// to etcd after the main AssignShards transaction commits.
+type shardStatisticsUpdate struct {
 	key             string
 	shardID         string
-	metrics         store.ShardStatistics
+	stats           store.ShardStatistics
 	desiredLastMove int64 // intended LastMoveTime for this update
 }
 
@@ -264,7 +264,7 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 		assignedStates[executorID] = assigned
 	}
 
-	// Fetch shard-level metrics stored under shard namespace keys.
+	// Fetch shard-level statistics stored under shard namespace keys.
 	shardPrefix := etcdkeys.BuildShardPrefix(s.prefix, namespace)
 	shardResp, err := s.client.Get(ctx, shardPrefix, clientv3.WithPrefix())
 	if err != nil {
@@ -412,8 +412,8 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 	return nil
 }
 
-func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, namespace string, newAssignments map[string]store.AssignedState) ([]shardMetricsUpdate, error) {
-	var updates []shardMetricsUpdate
+func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, namespace string, newAssignments map[string]store.AssignedState) ([]shardStatisticsUpdate, error) {
+	var updates []shardStatisticsUpdate
 
 	for executorID, state := range newAssignments {
 		for shardID := range state.AssignedShards {
@@ -450,10 +450,10 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 				stats.LastUpdateTime = now
 			}
 
-			updates = append(updates, shardMetricsUpdate{
+			updates = append(updates, shardStatisticsUpdate{
 				key:             shardStatisticsKey,
 				shardID:         shardID,
-				metrics:         stats,
+				stats:           stats,
 				desiredLastMove: now,
 			})
 		}
@@ -464,11 +464,11 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 
 // applyShardStatisticsUpdates updates shard statistics.
 // Is intentionally made tolerant of failures since the data is telemetry only.
-func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, namespace string, updates []shardMetricsUpdate) {
+func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, namespace string, updates []shardStatisticsUpdate) {
 	for _, update := range updates {
-		update.metrics.LastMoveTime = update.desiredLastMove
+		update.stats.LastMoveTime = update.desiredLastMove
 
-		payload, err := json.Marshal(update.metrics)
+		payload, err := json.Marshal(update.stats)
 		if err != nil {
 			s.logger.Warn(
 				"failed to marshal shard statistics after assignment",
