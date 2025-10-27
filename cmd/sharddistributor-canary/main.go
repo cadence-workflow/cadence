@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/uber/cadence/service/sharddistributor/canary/executors"
 	"os"
 	"time"
 
@@ -25,11 +26,7 @@ const (
 	defaultFixedNamespace           = "shard-distributor-canary"
 	defaultEphemeralNamespace       = "shard-distributor-canary-ephemeral"
 
-	shardDistributorServiceName     = "cadence-shard-distributor"
-	localPassthroughNamespace       = "test-local-passthrough"
-	localPassthroughShadowNamespace = "test-local-passthrough-shadow"
-	distributedPassthroughNamespace = "test-distributed-passthrough"
-	externalAssignmentNamespace     = "test-external-assignment"
+	shardDistributorServiceName = "cadence-shard-distributor"
 )
 
 func runApp(c *cli.Context) {
@@ -45,10 +42,10 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string) fx.Option {
 		Namespaces: []executorclient.NamespaceConfig{
 			{Namespace: fixedNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
 			{Namespace: ephemeralNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
-			{Namespace: localPassthroughNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeLOCALPASSTHROUGH},
-			{Namespace: localPassthroughShadowNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeLOCALPASSTHROUGHSHADOW},
-			{Namespace: distributedPassthroughNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeDISTRIBUTEDPASSTHROUGH},
-			{Namespace: externalAssignmentNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeDISTRIBUTEDPASSTHROUGH},
+			{Namespace: executors.LocalPassthroughNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeLOCALPASSTHROUGH},
+			{Namespace: executors.LocalPassthroughShadowNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeLOCALPASSTHROUGHSHADOW},
+			{Namespace: executors.DistributedPassthroughNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeDISTRIBUTEDPASSTHROUGH},
+			{Namespace: executors.ExternalAssignmentNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeDISTRIBUTEDPASSTHROUGH},
 		},
 	}
 
@@ -82,7 +79,7 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string) fx.Option {
 		}),
 
 		// Include the canary module
-		canary.Module(canary.NamespacesNames{FixedNamespace: fixedNamespace, EphemeralNamespace: ephemeralNamespace, ExternalAssignmentNamespace: externalAssignmentNamespace, SharddistributorServiceName: shardDistributorServiceName}),
+		canary.Module(canary.NamespacesNames{FixedNamespace: fixedNamespace, EphemeralNamespace: ephemeralNamespace, ExternalAssignmentNamespace: executors.ExternalAssignmentNamespace, SharddistributorServiceName: shardDistributorServiceName}),
 	)
 }
 

@@ -10,6 +10,17 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/executorclient"
 )
 
+const (
+	// LocalPassthroughNamespace namespace used to test the local passthrough
+	LocalPassthroughNamespace = "test-local-passthrough"
+	// LocalPassthroughShadowNamespace namespace used to test the local passthrough shadow
+	LocalPassthroughShadowNamespace = "test-local-passthrough-shadow"
+	// DistributedPassthroughNamespace namespace used to test the distributed passthrough
+	DistributedPassthroughNamespace = "test-distributed-passthrough"
+	// ExternalAssignmentNamespace namespace used to test the external assignments
+	ExternalAssignmentNamespace = "test-external-assignment"
+)
+
 type ExecutorResult struct {
 	fx.Out
 	Executor executorclient.Executor[*processor.ShardProcessor] `group:"executor-fixed-proc"`
@@ -31,26 +42,26 @@ func NewExecutorWithEphemeralNamespace(params executorclient.Params[*processorep
 }
 
 func NewExecutorLocalPassthroughNamespace(params executorclient.Params[*processor.ShardProcessor]) (ExecutorResult, error) {
-	executor, err := executorclient.NewExecutorWithNamespace(params, "test-local-passthrough")
+	executor, err := executorclient.NewExecutorWithNamespace(params, LocalPassthroughNamespace)
 	return ExecutorResult{Executor: executor}, err
 }
 func NewExecutorLocalPassthroughShadowNamespace(params executorclient.Params[*processorephemeral.ShardProcessor]) (ExecutorEphemeralResult, error) {
-	executor, err := executorclient.NewExecutorWithNamespace(params, "test-local-passthrough-shadow")
+	executor, err := executorclient.NewExecutorWithNamespace(params, LocalPassthroughShadowNamespace)
 	return ExecutorEphemeralResult{Executor: executor}, err
 }
 func NewExecutorDistrebutedPassthroughNamespace(params executorclient.Params[*processor.ShardProcessor]) (ExecutorResult, error) {
-	executor, err := executorclient.NewExecutorWithNamespace(params, "test-distributed-passthrough")
+	executor, err := executorclient.NewExecutorWithNamespace(params, DistributedPassthroughNamespace)
 	return ExecutorResult{Executor: executor}, err
 }
 
 func NewExecutorExternalAssignmentNamespace(params executorclient.Params[*processorephemeral.ShardProcessor], shardDistributorClient sharddistributor.Client) (ExecutorEphemeralResult, *exetrnalshardassignment.ShardAssigner, error) {
-	executor, err := executorclient.NewExecutorWithNamespace(params, "test-external-assignment")
+	executor, err := executorclient.NewExecutorWithNamespace(params, ExternalAssignmentNamespace)
 	assigner := exetrnalshardassignment.NewShardAssigner(exetrnalshardassignment.ShardAssignerParams{
 		Logger:           params.Logger,
 		TimeSource:       params.TimeSource,
 		ShardDistributor: shardDistributorClient,
 		Executorclient:   executor,
-	}, "test-external-assignment")
+	}, ExternalAssignmentNamespace)
 
 	return ExecutorEphemeralResult{Executor: executor}, assigner, err
 }
