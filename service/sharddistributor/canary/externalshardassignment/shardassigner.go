@@ -8,12 +8,13 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/fx"
-	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/canary/processor"
+	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
 	"github.com/uber/cadence/service/sharddistributor/executorclient"
 )
 
@@ -23,22 +24,20 @@ const (
 
 // ShardAssigneer assigns shards to the executor for canary testing
 type ShardAssigner struct {
-	logger         *zap.Logger
+	logger         log.Logger
 	timeSource     clock.TimeSource
-	executorclient executorclient.Executor[*processor.ShardProcessor]
+	executorclient executorclient.Executor[*processorephemeral.ShardProcessor]
 	stopChan       chan struct{}
 	goRoutineWg    sync.WaitGroup
 	namespace      string
 }
 
-// ShardCreatorParams contains the dependencies needed to create a ShardCreator
+// ShardAssignerParams contains the dependencies needed to create a ShardParam
 type ShardAssignerParams struct {
-	fx.In
-
-	Logger           *zap.Logger
+	Logger           log.Logger
 	TimeSource       clock.TimeSource
 	ShardDistributor sharddistributor.Client
-	Executorclient   executorclient.Executor[*processor.ShardProcessor]
+	Executorclient   executorclient.Executor[*processorephemeral.ShardProcessor]
 }
 
 // NewShardCreator creates a new ShardCreator instance with the given parameters and namespace
@@ -71,6 +70,7 @@ func (s *ShardAssigner) Stop() {
 func ShardAssignerModule(namespace string) fx.Option {
 	return fx.Module("shard-assigner",
 		fx.Provide(func(params ShardAssignerParams) *ShardAssigner {
+
 			return NewShardAssigner(params, namespace)
 		}),
 		fx.Invoke(func(lifecycle fx.Lifecycle, shardAssigner *ShardAssigner) {
@@ -93,7 +93,7 @@ func (s *ShardAssigner) process(ctx context.Context) {
 			return
 		case <-ticker.Chan():
 			newAssignedShard := uuid.New().String()
-			s.logger.Info("Assign a new shard from external source", zap.String("shardKey", newAssignedShard))
+			s.logger.Info("Assign a new shard from external source", tag.ShardKey(newAssignedShard))
 			shardAssignment := map[string]*types.ShardAssignment{
 				newAssignedShard: {
 					Status: types.AssignmentStatusREADY,
@@ -102,9 +102,9 @@ func (s *ShardAssigner) process(ctx context.Context) {
 			s.executorclient.AssignShardsFromLocalLogic(context.Background(), shardAssignment)
 			sp, err := s.executorclient.GetShardProcess(ctx, newAssignedShard)
 			if err != nil {
-				s.logger.Error("failed to get shard assigned", zap.String("shardKey", newAssignedShard), zap.Error(err))
+				s.logger.Error("failed to get shard assigned", tag.ShardKey(newAssignedShard), tag.Error(err))
 			} else {
-				s.logger.Info("shard assigned", zap.String("shardStatus", string(sp.GetShardReport().Status)), zap.String("shardLoad", strconv.FormatFloat(sp.GetShardReport().ShardLoad, 'f', -1, 64)))
+				s.logger.Info("shard assigned", tag.ShardStatus(string(sp.GetShardReport().Status)), tag.ShardLoad(strconv.FormatFloat(sp.GetShardReport().ShardLoad, 'f', -1, 64)))
 			}
 
 		}

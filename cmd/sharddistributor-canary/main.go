@@ -25,7 +25,11 @@ const (
 	defaultFixedNamespace           = "shard-distributor-canary"
 	defaultEphemeralNamespace       = "shard-distributor-canary-ephemeral"
 
-	shardDistributorServiceName = "cadence-shard-distributor"
+	shardDistributorServiceName     = "cadence-shard-distributor"
+	localPassthroughNamespace       = "test-local-passthrough"
+	localPassthroughShadowNamespace = "test-local-passthrough-shadow"
+	distributedPassthroughNamespace = "test-distributed-passthrough"
+	externalAssignmentNamespace     = "test-external-assignment"
 )
 
 func runApp(c *cli.Context) {
@@ -37,10 +41,14 @@ func runApp(c *cli.Context) {
 }
 
 func opts(fixedNamespace, ephemeralNamespace, endpoint string) fx.Option {
-	config := executorclient.Config{
+	configuration := executorclient.Config{
 		Namespaces: []executorclient.NamespaceConfig{
 			{Namespace: fixedNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
 			{Namespace: ephemeralNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
+			{Namespace: localPassthroughNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeLOCALPASSTHROUGH},
+			{Namespace: localPassthroughShadowNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeLOCALPASSTHROUGHSHADOW},
+			{Namespace: distributedPassthroughNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeDISTRIBUTEDPASSTHROUGH},
+			{Namespace: externalAssignmentNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeDISTRIBUTEDPASSTHROUGH},
 		},
 	}
 
@@ -59,7 +67,7 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string) fx.Option {
 			fx.Annotate(tally.NoopScope, fx.As(new(tally.Scope))),
 			fx.Annotate(clock.NewRealTimeSource(), fx.As(new(clock.TimeSource))),
 			yarpcConfig,
-			config,
+			configuration,
 		),
 		fx.Provide(
 			yarpc.NewDispatcher,
@@ -74,7 +82,7 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string) fx.Option {
 		}),
 
 		// Include the canary module
-		canary.Module(fixedNamespace, ephemeralNamespace, shardDistributorServiceName),
+		canary.Module(canary.NamespacesNames{FixedNamespace: fixedNamespace, EphemeralNamespace: ephemeralNamespace, ExternalAssignmentNamespace: externalAssignmentNamespace, SharddistributorServiceName: shardDistributorServiceName}),
 	)
 }
 

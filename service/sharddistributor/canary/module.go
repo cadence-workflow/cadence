@@ -4,6 +4,7 @@ import (
 	"go.uber.org/fx"
 
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
+	"github.com/uber/cadence/service/sharddistributor/canary/executors"
 	"github.com/uber/cadence/service/sharddistributor/canary/factory"
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
 	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
@@ -11,14 +12,22 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/executorclient"
 )
 
-func Module(fixedNamespace, ephemeralNamespace, sharddistributorServiceName string) fx.Option {
-	return fx.Module("shard-distributor-canary", opts(fixedNamespace, ephemeralNamespace, sharddistributorServiceName))
+type NamespacesNames struct {
+	fx.In
+	FixedNamespace              string
+	EphemeralNamespace          string
+	ExternalAssignmentNamespace string
+	SharddistributorServiceName string
 }
 
-func opts(fixedNamespace, ephemeralNamespace, sharddistributorServiceName string) fx.Option {
+func Module(namespacesNames NamespacesNames) fx.Option {
+	return fx.Module("shard-distributor-canary", opts(namespacesNames))
+}
+
+func opts(names NamespacesNames) fx.Option {
 	return fx.Options(
-		fx.Provide(sharddistributorv1.NewFxShardDistributorExecutorAPIYARPCClient(sharddistributorServiceName)),
-		fx.Provide(sharddistributorv1.NewFxShardDistributorAPIYARPCClient(sharddistributorServiceName)),
+		fx.Provide(sharddistributorv1.NewFxShardDistributorExecutorAPIYARPCClient(names.SharddistributorServiceName)),
+		fx.Provide(sharddistributorv1.NewFxShardDistributorAPIYARPCClient(names.SharddistributorServiceName)),
 
 		fx.Provide(sharddistributorclient.NewShardDistributorClient),
 
@@ -32,11 +41,13 @@ func opts(fixedNamespace, ephemeralNamespace, sharddistributorServiceName string
 			},
 		),
 
-		executorclient.ModuleWithNamespace[*processor.ShardProcessor](fixedNamespace),
-		executorclient.ModuleWithNamespace[*processorephemeral.ShardProcessor](ephemeralNamespace),
+		// Simple way to instantiate executor if only one namespace is used
+		// executorclient.ModuleWithNamespace[*processor.ShardProcessor](names.FixedNamespace),
+		// executorclient.ModuleWithNamespace[*processorephemeral.ShardProcessor](names.EphemeralNamespace),
 
-		processorephemeral.ShardCreatorModule(ephemeralNamespace),
-		// Enabling this back when we have dynamic config to enable it per namespace
-		// exetrnalshardassignment.ShardAssignerModule(ephemeralNamespace),
+		// Instantiate executors for multiple namespaces
+		executors.Module,
+
+		processorephemeral.ShardCreatorModule([]string{names.EphemeralNamespace, names.ExternalAssignmentNamespace, "test-local-passthrough-shadow"}),
 	)
 }

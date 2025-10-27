@@ -23,6 +23,8 @@
 package proto
 
 import (
+	"fmt"
+
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/types"
 )
@@ -231,8 +233,8 @@ func ToShardDistributorExecutorHeartbeatResponse(t *sharddistributorv1.Heartbeat
 				Status: status,
 			}
 		}
-		migrationMode = getMigrationModeFromProto(t.GetMigrationMode())
 	}
+	migrationMode = getMigrationModeFromProto(t.GetMigrationMode())
 
 	return &types.ExecutorHeartbeatResponse{
 		ShardAssignments: shardAssignments,
@@ -242,9 +244,8 @@ func ToShardDistributorExecutorHeartbeatResponse(t *sharddistributorv1.Heartbeat
 
 func getMigrationModeFromProto(protoMigrationMode sharddistributorv1.MigrationMode) types.MigrationMode {
 	var mode types.MigrationMode
+	fmt.Println("Mode received " + protoMigrationMode.String())
 	switch protoMigrationMode {
-	case sharddistributorv1.MigrationMode_MIGRATION_MODE_INVALID:
-		mode = types.MigrationModeINVALID
 	case sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH:
 		mode = types.MigrationModeLOCALPASSTHROUGH
 	case sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH_SHADOW:
@@ -254,6 +255,7 @@ func getMigrationModeFromProto(protoMigrationMode sharddistributorv1.MigrationMo
 	case sharddistributorv1.MigrationMode_MIGRATION_MODE_ONBOARDED:
 		mode = types.MigrationModeONBOARDED
 	default:
+		fmt.Println("finisco in default " + protoMigrationMode.String())
 		mode = types.MigrationModeINVALID
 	}
 	return mode
@@ -273,6 +275,7 @@ func toMigrationMode(modeSD types.MigrationMode) sharddistributorv1.MigrationMod
 	case types.MigrationModeONBOARDED:
 		mode = sharddistributorv1.MigrationMode_MIGRATION_MODE_ONBOARDED
 	default:
+		fmt.Println("I am hereeeee")
 		mode = sharddistributorv1.MigrationMode_MIGRATION_MODE_INVALID
 	}
 	return mode

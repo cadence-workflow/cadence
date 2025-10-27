@@ -7,20 +7,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
-	"go.uber.org/zap/zaptest"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/service/sharddistributor/canary/processor"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
 	"github.com/uber/cadence/service/sharddistributor/executorclient"
 )
 
 func TestSShardAssigner_Lifecycle(t *testing.T) {
 	goleak.VerifyNone(t)
 
-	logger := zaptest.NewLogger(t)
+	logger := log.NewNoop()
 	timeSource := clock.NewMockedTimeSource()
 	ctrl := gomock.NewController(t)
-	executorclientmock := executorclient.NewMockExecutor[*processor.ShardProcessor](ctrl)
+	executorclientmock := executorclient.NewMockExecutor[*processorephemeral.ShardProcessor](ctrl)
 
 	namespace := "test-namespace"
 

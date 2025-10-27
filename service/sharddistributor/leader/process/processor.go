@@ -205,6 +205,10 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 			p.logger.Info("State change detected, triggering rebalance.")
 			err = p.rebalanceShards(ctx)
 		case <-ticker.Chan():
+			if p.namespaceCfg.Mode != config.MigrationModeONBOARDED {
+				p.logger.Info("Namespace not onboarded,skipped periodic reconciliation", tag.ShardNamespace(p.namespaceCfg.Name))
+				break
+			}
 			p.logger.Info("Periodic reconciliation triggered, rebalancing.")
 			err = p.rebalanceShards(ctx)
 		}

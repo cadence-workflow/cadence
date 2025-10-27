@@ -206,7 +206,7 @@ func (e *executorImpl[SP]) heartbeatAndHandleMigrationMode(ctx context.Context) 
 
 	default:
 		e.logger.Warn("unknown migration mode, skipping assignment",
-			tag.Dynamic("migration-mode", migrationMode))
+			tag.ShardNamespace(e.namespace), tag.Dynamic("migration-mode", migrationMode))
 		return nil, nil
 	}
 }
