@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -37,7 +37,7 @@ import (
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -56,7 +56,7 @@ type (
 		mockShard          *shard.TestContext
 		mockStateRebuilder *execution.MockStateRebuilder
 
-		mockHistoryV2Mgr *mocks.HistoryV2Manager
+		mockHistoryV2Mgr *persistence.MockHistoryManager
 
 		logger       log.Logger
 		domainID     string

@@ -21,15 +21,17 @@
 package domain
 
 import (
+	"github.com/uber/cadence/common/mocks"
+	"github.com/stretchr/testify/mock"
 	"context"
 	"testing"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
+	
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common/log/testlogger"
-	"github.com/uber/cadence/common/mocks"
+	
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )

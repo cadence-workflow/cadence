@@ -36,7 +36,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
@@ -70,7 +69,8 @@ var (
 type historyArchiverSuite struct {
 	*require.Assertions
 	suite.Suite
-	s3cli              *mocks.S3API
+	controller         *gomock.Controller
+	s3cli              *mocks.MockS3API
 	container          *archiver.HistoryBootstrapContainer
 	testArchivalURI    archiver.URI
 	historyBatchesV1   []*archiver.HistoryBlob
@@ -83,12 +83,12 @@ func TestHistoryArchiverSuite(t *testing.T) {
 
 func (s *historyArchiverSuite) SetupSuite() {
 	var err error
-	s.s3cli = &mocks.S3API{}
+	s.testArchivalURI, err = archiver.NewURI(testBucketURI)
+	s.Require().NoError(err)
+	s.controller = gomock.NewController(s.T())
+	s.s3cli = mocks.NewMockS3API(s.controller)
 	setupFsEmulation(s.s3cli)
 	s.setupHistoryDirectory()
-	s.testArchivalURI, err = archiver.NewURI(testBucketURI)
-
-	s.Require().NoError(err)
 }
 
 func (s *historyArchiverSuite) TearDownSuite() {
@@ -103,22 +103,26 @@ func (s *historyArchiverSuite) SetupTest() {
 	}
 }
 
-func setupFsEmulation(s3cli *mocks.S3API) {
+func (s *historyArchiverSuite) TearDownTest() {
+	s.controller.Finish()
+}
+
+func setupFsEmulation(s3cli *mocks.MockS3API) {
 	fs := make(map[string][]byte)
 
-	putObjectFn := func(_ aws.Context, input *s3.PutObjectInput, _ ...request.Option) *s3.PutObjectOutput {
+	putObjectFn := func(_ aws.Context, input *s3.PutObjectInput, _ ...request.Option) (*s3.PutObjectOutput, error) {
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(input.Body)
 		fs[*input.Bucket+*input.Key] = buf.Bytes()
-		return &s3.PutObjectOutput{}
+		return &s3.PutObjectOutput{}, nil
 	}
-	getObjectFn := func(_ aws.Context, input *s3.GetObjectInput, _ ...request.Option) *s3.GetObjectOutput {
+	getObjectFn := func(_ aws.Context, input *s3.GetObjectInput, _ ...request.Option) (*s3.GetObjectOutput, error) {
 		return &s3.GetObjectOutput{
 			Body: ioutil.NopCloser(bytes.NewReader(fs[*input.Bucket+*input.Key])),
-		}
+		}, nil
 	}
-	s3cli.On("ListObjectsV2WithContext", mock.Anything, mock.Anything).
-		Return(func(_ context.Context, input *s3.ListObjectsV2Input, opts ...request.Option) *s3.ListObjectsV2Output {
+	s3cli.EXPECT().ListObjectsV2WithContext(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, input *s3.ListObjectsV2Input, opts ...request.Option) (*s3.ListObjectsV2Output, error) {
 			objects := make([]*s3.Object, 0)
 			commonPrefixMap := map[string]bool{}
 			for k := range fs {
@@ -193,21 +197,27 @@ func setupFsEmulation(s3cli *mocks.S3API) {
 				Contents:              objects,
 				IsTruncated:           &isTruncated,
 				NextContinuationToken: nextContinuationToken,
+			}, nil
+		}).AnyTimes()
+	s3cli.EXPECT().PutObjectWithContext(gomock.Any(), gomock.Any()).DoAndReturn(putObjectFn).AnyTimes()
+
+	s3cli.EXPECT().HeadObjectWithContext(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, input *s3.HeadObjectInput, opts ...request.Option) (*s3.HeadObjectOutput, error) {
+			_, ok := fs[*input.Bucket+*input.Key]
+			if !ok {
+				return nil, awserr.New("NotFound", "", nil)
 			}
-		}, nil)
-	s3cli.On("PutObjectWithContext", mock.Anything, mock.Anything).Return(putObjectFn, nil)
+			return &s3.HeadObjectOutput{}, nil
+		}).AnyTimes()
 
-	s3cli.On("HeadObjectWithContext", mock.Anything, mock.MatchedBy(func(input *s3.HeadObjectInput) bool {
-		_, ok := fs[*input.Bucket+*input.Key]
-		return !ok
-	})).Return(nil, awserr.New("NotFound", "", nil))
-	s3cli.On("HeadObjectWithContext", mock.Anything, mock.Anything).Return(&s3.HeadObjectOutput{}, nil)
-
-	s3cli.On("GetObjectWithContext", mock.Anything, mock.MatchedBy(func(input *s3.GetObjectInput) bool {
-		_, ok := fs[*input.Bucket+*input.Key]
-		return !ok
-	})).Return(nil, awserr.New(s3.ErrCodeNoSuchKey, "", nil))
-	s3cli.On("GetObjectWithContext", mock.Anything, mock.Anything).Return(getObjectFn, nil)
+	s3cli.EXPECT().GetObjectWithContext(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, input *s3.GetObjectInput, opts ...request.Option) (*s3.GetObjectOutput, error) {
+			_, ok := fs[*input.Bucket+*input.Key]
+			if !ok {
+				return nil, awserr.New(s3.ErrCodeNoSuchKey, "", nil)
+			}
+			return getObjectFn(ctx, input, opts...)
+		}).AnyTimes()
 }
 
 func (s *historyArchiverSuite) TestValidateURI() {
@@ -233,10 +243,13 @@ func (s *historyArchiverSuite) TestValidateURI() {
 		},
 	}
 
-	s.s3cli.On("HeadBucketWithContext", mock.Anything, mock.MatchedBy(func(input *s3.HeadBucketInput) bool {
-		return *input.Bucket != s.testArchivalURI.Hostname()
-	})).Return(nil, awserr.New("NotFound", "", nil))
-	s.s3cli.On("HeadBucketWithContext", mock.Anything, mock.Anything).Return(&s3.HeadBucketOutput{}, nil)
+	s.s3cli.EXPECT().HeadBucketWithContext(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, input *s3.HeadBucketInput, opts ...request.Option) (*s3.HeadBucketOutput, error) {
+			if *input.Bucket != s.testArchivalURI.Hostname() {
+				return nil, awserr.New("NotFound", "", nil)
+			}
+			return &s3.HeadBucketOutput{}, nil
+		}).AnyTimes()
 
 	historyArchiver := s.newTestHistoryArchiver(nil)
 	for _, tc := range testCases {

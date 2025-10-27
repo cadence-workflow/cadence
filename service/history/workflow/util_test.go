@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -134,7 +133,7 @@ func TestWorkflowLoad(t *testing.T) {
 			msg:   "runID not empty",
 			runID: constants.TestRunID,
 			mockSetupFn: func(mockShard *shard.TestContext) {
-				mockShard.Resource.ExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(
+				mockShard.Resource.ExecutionMgr.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(
 					&persistence.GetWorkflowExecutionResponse{
 						State: persistenceMS,
 					},
@@ -148,14 +147,14 @@ func TestWorkflowLoad(t *testing.T) {
 			runID: "",
 			mockSetupFn: func(mockShard *shard.TestContext) {
 				persistenceMS.ExecutionInfo.State = persistence.WorkflowStateCompleted
-				mockShard.Resource.ExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(
+				mockShard.Resource.ExecutionMgr.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(
 					&persistence.GetWorkflowExecutionResponse{
 						State: persistenceMS,
 					},
 					nil,
 				).Times(1)
 				mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
-				mockShard.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).Return(
+				mockShard.Resource.ExecutionMgr.EXPECT().GetCurrentExecution(gomock.Any(), gomock.Any()).Return(
 					&persistence.GetCurrentExecutionResponse{
 						RunID: constants.TestRunID,
 					},

@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -35,7 +34,6 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -56,7 +54,7 @@ type (
 		mockStateRebuilder      *execution.MockStateRebuilder
 
 		logger           log.Logger
-		mockHistoryV2Mgr *mocks.HistoryV2Manager
+		mockHistoryV2Mgr *persistence.MockHistoryManager
 
 		domainID   string
 		domainName string
@@ -192,7 +190,7 @@ func (s *workflowResetterSuite) TestResetWorkflow_NoError() {
 	}).Times(1)
 
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(gomock.Any()).Return(domainName, nil).AnyTimes()
-	s.mockHistoryV2Mgr.On("ForkHistoryBranch", mock.Anything, &persistence.ForkHistoryBranchRequest{
+	s.mockHistoryV2Mgr.EXPECT().ForkHistoryBranch( gomock.Any(), &persistence.ForkHistoryBranchRequest{
 		ForkBranchToken: branchToken,
 		ForkNodeID:      baseEventID + 1,
 		Info:            persistence.BuildHistoryGarbageCleanupInfo(s.domainID, s.workflowID, s.newRunID),

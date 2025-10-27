@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -38,7 +38,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -55,8 +55,8 @@ type (
 		config           *config.Config
 		mockClientBean   *client.MockBean
 		adminClient      *admin.MockClient
-		executionManager *mocks.ExecutionManager
-		shardManager     *mocks.ShardManager
+		executionManager *persistence.MockExecutionManager
+		shardManager     *persistence.MockShardManager
 		taskExecutor     *fakeTaskExecutor
 		taskExecutors    map[string]TaskExecutor
 		sourceCluster    string

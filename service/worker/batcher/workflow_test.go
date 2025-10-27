@@ -27,7 +27,7 @@ import (
 	"testing"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/stretchr/testify/mock"
+	
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
 	"go.uber.org/cadence/testsuite"

@@ -27,14 +27,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
 	c2 "github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/entity"
 	"github.com/uber/cadence/common/types"
@@ -174,9 +172,9 @@ func (s *OpenCurrentExecutionSuite) TestCheck() {
 	ctrl := gomock.NewController(s.T())
 	domainCache := cache.NewMockDomainCache(ctrl)
 	for _, tc := range testCases {
-		execManager := &mocks.ExecutionManager{}
-		execManager.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(tc.getConcreteResp, tc.getConcreteErr)
-		execManager.On("GetCurrentExecution", mock.Anything, mock.Anything).Return(tc.getCurrentResp, tc.getCurrentErr)
+		execManager := persistence.NewMockExecutionManager(ctrl)
+		execManager.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(tc.getConcreteResp, tc.getConcreteErr).AnyTimes()
+		execManager.EXPECT().GetCurrentExecution(gomock.Any(), gomock.Any()).Return(tc.getCurrentResp, tc.getCurrentErr).AnyTimes()
 		domainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain-name", nil).AnyTimes()
 		o := NewOpenCurrentExecution(persistence.NewPersistenceRetryer(execManager, nil, c2.CreatePersistenceRetryPolicy()), domainCache)
 		s.Equal(tc.expectedResult, o.Check(context.Background(), tc.execution))

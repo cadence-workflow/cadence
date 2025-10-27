@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -39,7 +39,7 @@ import (
 	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -59,7 +59,7 @@ type (
 		mockTaskRefresher        *MockMutableStateTaskRefresher
 		mockDomainCache          *cache.MockDomainCache
 		mockActiveClusterManager *activecluster.MockManager
-		mockHistoryV2Mgr         *mocks.HistoryV2Manager
+		mockHistoryV2Mgr         *persistence.MockHistoryManager
 		logger                   log.Logger
 
 		domainID   string

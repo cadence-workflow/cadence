@@ -30,7 +30,6 @@ import (
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -45,7 +44,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/metrics/mocks"
+	metricsmocks "github.com/uber/cadence/common/metrics/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
@@ -237,10 +236,10 @@ func (t *MatcherTestSuite) TestSyncMatchFailure() {
 }
 
 func (t *MatcherTestSuite) TestRateLimitHandling() {
-	scope := mocks.Scope{}
-	scope.On("IncCounter", metrics.SyncMatchForwardTaskThrottleErrorPerTasklist)
-	scope.On("RecordTimer", mock.Anything, mock.Anything)
-	t.matcher.scope = &scope
+	scope := metricsmocks.NewMockScope(t.controller)
+	scope.EXPECT().IncCounter(metrics.SyncMatchForwardTaskThrottleErrorPerTasklist).AnyTimes()
+	scope.EXPECT().RecordTimer(gomock.Any(), gomock.Any()).AnyTimes()
+	t.matcher.scope = scope
 	for i := 0; i < 5; i++ {
 		t.client.EXPECT().AddDecisionTask(gomock.Any(), gomock.Any()).Return(&types.AddDecisionTaskResponse{}, nil).AnyTimes()
 		task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", true, nil, "")
@@ -479,13 +478,13 @@ func (t *MatcherTestSuite) TestMustOfferRemoteMatch() {
 }
 
 func (t *MatcherTestSuite) TestMustOfferRemoteRateLimit() {
-	scope := mocks.Scope{}
-	scope.On("IncCounter", metrics.AsyncMatchForwardTaskThrottleErrorPerTasklist)
-	scope.On("RecordTimer", mock.Anything, mock.Anything)
-	t.matcher.scope = &scope
+	scope := metricsmocks.NewMockScope(t.controller)
+	scope.EXPECT().IncCounter(metrics.AsyncMatchForwardTaskThrottleErrorPerTasklist).AnyTimes()
+	scope.EXPECT().RecordTimer(gomock.Any(), gomock.Any()).AnyTimes()
+	scope.EXPECT().IncCounter(metrics.AsyncMatchForwardPollCounterPerTaskList).AnyTimes()
+	t.matcher.scope = scope
 	completionFunc := func(*persistence.TaskInfo, error) {}
 	for i := 0; i < 5; i++ {
-		scope.On("IncCounter", metrics.AsyncMatchForwardPollCounterPerTaskList)
 		t.client.EXPECT().AddDecisionTask(gomock.Any(), gomock.Any()).Return(&types.AddDecisionTaskResponse{}, nil)
 		task := newInternalTask(t.newTaskInfo(), completionFunc, types.TaskSourceDbBacklog, "", false, nil, "")
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)

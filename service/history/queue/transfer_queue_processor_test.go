@@ -29,13 +29,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	""
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/types"
@@ -208,7 +208,7 @@ func TestTransferQueueProcessor_FailoverDomain(t *testing.T) {
 						},
 					},
 				}
-				mockShard.GetExecutionManager().(*mocks.ExecutionManager).On("GetHistoryTasks", mock.Anything, mock.Anything).Return(response, nil).Once()
+				mockShard.GetExecutionManager().(*persistence.MockExecutionManager).On("GetHistoryTasks", mock.Anything, mock.Anything).Return(response, nil).Once()
 			},
 			processorStarted: true,
 		},
@@ -335,7 +335,7 @@ func TestTransferQueueProcessor_completeTransfer(t *testing.T) {
 			mockSetup: func(mockShard *shard.TestContext) {
 				mockShard.Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
 					Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil).Once()
-				mockShard.GetShardManager().(*mocks.ShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Once()
+				mockShard.GetShardManager().(*persistence.MockShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Once()
 			},
 		},
 	}
@@ -378,7 +378,7 @@ func TestTransferQueueProcessor_completeTransferLoop(t *testing.T) {
 	processor.shard.(*shard.TestContext).Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
 		Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil)
 
-	processor.shard.(*shard.TestContext).GetShardManager().(*mocks.ShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
+	processor.shard.(*shard.TestContext).GetShardManager().(*persistence.MockShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
 
 	processor.shutdownWG.Add(1)
 
@@ -570,7 +570,7 @@ func Test_transferQueueActiveProcessor_updateClusterAckLevel(t *testing.T) {
 		taskID: taskID,
 	}
 
-	processor.shard.(*shard.TestContext).GetShardManager().(*mocks.ShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Once()
+	processor.shard.(*shard.TestContext).GetShardManager().(*persistence.MockShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Once()
 
 	err := processor.activeQueueProcessor.processorBase.updateClusterAckLevel(key)
 
@@ -592,7 +592,7 @@ func Test_transferQueueActiveProcessor_updateProcessingQueueStates(t *testing.T)
 
 	states := []ProcessingQueueState{state}
 
-	processor.shard.(*shard.TestContext).GetShardManager().(*mocks.ShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Once()
+	processor.shard.(*shard.TestContext).GetShardManager().(*persistence.MockShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Once()
 
 	err := processor.activeQueueProcessor.processorBase.updateProcessingQueueStates(states)
 
@@ -745,7 +745,7 @@ func Test_transferQueueStandbyProcessor_updateClusterAckLevel(t *testing.T) {
 		taskID: taskID,
 	}
 
-	processor.shard.(*shard.TestContext).GetShardManager().(*mocks.ShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Once()
+	processor.shard.(*shard.TestContext).GetShardManager().(*persistence.MockShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Once()
 
 	err := processor.standbyQueueProcessors["standby"].processorBase.updateClusterAckLevel(key)
 
@@ -767,7 +767,7 @@ func Test_transferQueueStandbyProcessor_updateProcessingQueueStates(t *testing.T
 
 	states := []ProcessingQueueState{state}
 
-	processor.shard.(*shard.TestContext).GetShardManager().(*mocks.ShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Once()
+	processor.shard.(*shard.TestContext).GetShardManager().(*persistence.MockShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Once()
 
 	err := processor.standbyQueueProcessors["standby"].processorBase.updateProcessingQueueStates(states)
 

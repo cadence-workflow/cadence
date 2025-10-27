@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -40,7 +40,7 @@ import (
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -63,8 +63,8 @@ type (
 		mockDomainCache    *cache.MockDomainCache
 		mockMatchingClient *matching.MockClient
 
-		mockExecutionMgr *mocks.ExecutionManager
-		mockHistoryV2Mgr *mocks.HistoryV2Manager
+		mockExecutionMgr *persistence.MockExecutionManager
+		mockHistoryV2Mgr *persistence.MockHistoryManager
 
 		executionCache execution.Cache
 		logger         log.Logger

@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
@@ -36,7 +36,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/mocks"
+	""
 	p "github.com/uber/cadence/common/persistence"
 )
 
@@ -45,7 +45,7 @@ type (
 		suite.Suite
 		taskListTable   *mockTaskListTable
 		taskTables      map[string]*mockTaskTable
-		taskMgr         *mocks.TaskManager
+		taskMgr         *persistence.MockTaskManager
 		scvgr           *Scavenger
 		scvgrCancelFn   context.CancelFunc
 		mockDomainCache *cache.MockDomainCache
@@ -63,7 +63,7 @@ func TestScavengerTestSuite(t *testing.T) {
 }
 
 func (s *ScavengerTestSuite) SetupTest() {
-	s.taskMgr = &mocks.TaskManager{}
+	s.taskMgr = &persistence.MockTaskManager{}
 	s.taskListTable = &mockTaskListTable{}
 	s.taskTables = make(map[string]*mockTaskTable)
 	logger := testlogger.New(s.T())

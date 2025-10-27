@@ -25,7 +25,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/cadence/testsuite"
 	"go.uber.org/cadence/worker"
@@ -38,7 +38,7 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	mmocks "github.com/uber/cadence/common/metrics/mocks"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/service"
 )
 
@@ -248,7 +248,7 @@ func (s *activitiesSuite) TestUploadHistory_Success() {
 func (s *activitiesSuite) TestDeleteHistoryActivity_Fail_DeleteFromV2NonRetryableError() {
 	s.metricsClient.On("Scope", metrics.ArchiverDeleteHistoryActivityScope, metrics.DomainTag(testDomainName)).Return(s.metricsScope).Once()
 	s.metricsScope.On("IncCounter", metrics.ArchiverNonRetryableErrorCount).Once()
-	mockHistoryV2Manager := &mocks.HistoryV2Manager{}
+	mockHistoryV2Manager := &persistence.MockHistoryManager{}
 	mockHistoryV2Manager.On("DeleteHistoryBranch", mock.Anything, mock.Anything).Return(errPersistenceNonRetryable)
 	container := &BootstrapContainer{
 		Logger:           s.logger,

@@ -52,7 +52,6 @@ import (
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/quotas/global/rpc"
@@ -94,12 +93,12 @@ type (
 
 		// persistence clients
 
-		MetadataMgr     *mocks.MetadataManager
-		TaskMgr         *mocks.TaskManager
-		VisibilityMgr   *mocks.VisibilityManager
-		ShardMgr        *mocks.ShardManager
-		HistoryMgr      *mocks.HistoryV2Manager
-		ExecutionMgr    *mocks.ExecutionManager
+		MetadataMgr     *persistence.MockDomainManager
+		TaskMgr         *persistence.MockTaskManager
+		VisibilityMgr   *persistence.MockVisibilityManager
+		ShardMgr        *persistence.MockShardManager
+		HistoryMgr      *persistence.MockHistoryManager
+		ExecutionMgr    *persistence.MockExecutionManager
 		PersistenceBean *persistenceClient.MockBean
 
 		IsolationGroups     *isolationgroup.MockState
@@ -144,12 +143,12 @@ func NewTest(
 	clientBean.EXPECT().GetRemoteAdminClient(gomock.Any()).Return(remoteAdminClient, nil).AnyTimes()
 	clientBean.EXPECT().GetRemoteFrontendClient(gomock.Any()).Return(remoteFrontendClient, nil).AnyTimes()
 
-	metadataMgr := &mocks.MetadataManager{}
-	taskMgr := &mocks.TaskManager{}
-	visibilityMgr := &mocks.VisibilityManager{}
-	shardMgr := &mocks.ShardManager{}
-	historyMgr := &mocks.HistoryV2Manager{}
-	executionMgr := &mocks.ExecutionManager{}
+	metadataMgr := persistence.NewMockDomainManager(controller)
+	taskMgr := persistence.NewMockTaskManager(controller)
+	visibilityMgr := persistence.NewMockVisibilityManager(controller)
+	shardMgr := persistence.NewMockShardManager(controller)
+	historyMgr := persistence.NewMockHistoryManager(controller)
+	executionMgr := persistence.NewMockExecutionManager(controller)
 	domainReplicationQueue := domain.NewMockReplicationQueue(controller)
 	domainReplicationQueue.EXPECT().Start().AnyTimes()
 	domainReplicationQueue.EXPECT().Stop().AnyTimes()
@@ -462,10 +461,4 @@ func (s *Test) Finish(
 ) {
 	s.ArchivalMetadata.AssertExpectations(t)
 
-	s.MetadataMgr.AssertExpectations(t)
-	s.TaskMgr.AssertExpectations(t)
-	s.VisibilityMgr.AssertExpectations(t)
-	s.ShardMgr.AssertExpectations(t)
-	s.HistoryMgr.AssertExpectations(t)
-	s.ExecutionMgr.AssertExpectations(t)
 }
