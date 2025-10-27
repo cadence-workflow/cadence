@@ -120,7 +120,6 @@ func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string
 	// Get the current state of the namespace and evaluate executor load to choose a placement target.
 	state, err := h.storage.GetState(ctx, namespace)
 	if err != nil {
-		h.logger.Error("failed to read namespace state for ephemeral assignment", tag.ShardNamespace(namespace), tag.ShardKey(shardID), tag.Error(err))
 		return nil, fmt.Errorf("get state: %w", err)
 	}
 

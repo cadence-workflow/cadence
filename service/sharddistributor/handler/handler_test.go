@@ -210,3 +210,96 @@ func TestGetShardOwner(t *testing.T) {
 		})
 	}
 }
+
+func TestPickLeastLoadedExecutor(t *testing.T) {
+	tests := []struct {
+		name          string
+		state         *store.NamespaceState
+		expectedOwner string
+		expectedLoad  float64
+		expectedCount int
+		expectedError bool
+	}{
+		{
+			name: "SelectsLeastLoaded",
+			state: &store.NamespaceState{
+				ShardAssignments: map[string]store.AssignedState{
+					"exec1": {
+						AssignedShards: map[string]*types.ShardAssignment{
+							"shard1": {},
+							"shard2": {},
+							"shard3": {},
+							"shard4": {},
+						},
+					},
+					"exec2": {
+						AssignedShards: map[string]*types.ShardAssignment{
+							"shard4": {},
+							"shard5": {},
+						},
+					},
+				},
+				ShardStats: map[string]store.ShardStatistics{
+					"shard1": {SmoothedLoad: 1.0},
+					"shard2": {SmoothedLoad: 2.0},
+					"shard3": {SmoothedLoad: 0.5},
+					"shard4": {SmoothedLoad: 0.25},
+					"shard5": {SmoothedLoad: 1.0},
+				},
+			},
+			expectedOwner: "exec2",
+			expectedLoad:  1.25,
+			expectedCount: 2,
+			expectedError: false,
+		},
+		{
+			name: "SelectsLeastLoaded_Tie",
+			state: &store.NamespaceState{
+				ShardAssignments: map[string]store.AssignedState{
+					"exec1": {AssignedShards: map[string]*types.ShardAssignment{
+						"shard1": {},
+					}},
+					"exec2": {AssignedShards: map[string]*types.ShardAssignment{
+						"shard2": {},
+					}},
+				},
+				ShardStats: map[string]store.ShardStatistics{
+					"shard1": {SmoothedLoad: 1.0},
+					"shard2": {SmoothedLoad: 1.0},
+				},
+			},
+			expectedOwner: "exec1",
+			expectedLoad:  1.0,
+			expectedCount: 1,
+			expectedError: false,
+		},
+		{
+			name:          "SelectsLeastLoaded_NoExecutors",
+			state:         &store.NamespaceState{},
+			expectedError: true,
+		},
+		{
+			name: "SelectsLeastLoaded_NoShards",
+			state: &store.NamespaceState{
+				ShardAssignments: map[string]store.AssignedState{},
+			},
+			expectedError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			owner, load, count, err := pickLeastLoadedExecutor(tt.state)
+			if tt.expectedError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedOwner, owner)
+				require.Equal(t, tt.expectedLoad, load)
+				require.Equal(t, tt.expectedCount, count)
+
+			}
+		})
+	}
+
+}
