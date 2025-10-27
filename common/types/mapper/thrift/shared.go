@@ -3250,13 +3250,7 @@ func ToListFailoverHistoryRequest(t *shared.ListFailoverHistoryRequest) *types.L
 		return nil
 	}
 
-	var domain string
-	if t.Filters != nil {
-		domain = t.Filters.GetDomainID()
-	}
-
 	return &types.ListFailoverHistoryRequest{
-		Domain:     domain,
 		Filters:    ToListFailoverHistoryRequestFilters(t.Filters),
 		Pagination: ToPaginationOptions(t.Pagination),
 	}
@@ -3268,18 +3262,8 @@ func FromListFailoverHistoryRequest(t *types.ListFailoverHistoryRequest) *shared
 		return nil
 	}
 
-	// If Domain is provided but no filters, create filters with the domain
-	var filters *shared.ListFailoverHistoryRequestFilters
-	if t.Filters != nil {
-		filters = FromListFailoverHistoryRequestFilters(t.Filters)
-	} else if t.Domain != "" {
-		filters = &shared.ListFailoverHistoryRequestFilters{
-			DomainID: &t.Domain,
-		}
-	}
-
 	return &shared.ListFailoverHistoryRequest{
-		Filters:    filters,
+		Filters:    FromListFailoverHistoryRequestFilters(t.Filters),
 		Pagination: FromPaginationOptions(t.Pagination),
 	}
 }

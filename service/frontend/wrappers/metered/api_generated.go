@@ -279,8 +279,7 @@ func (h *apiHandler) ListDomains(ctx context.Context, lp1 *types.ListDomainsRequ
 func (h *apiHandler) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest) (lp2 *types.ListFailoverHistoryResponse, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("ListFailoverHistory")}
-	tags = append(tags, toListFailoverHistoryRequestTags(lp1)...)
-	scope := h.metricsClient.Scope(metrics.FrontendListFailoverHistoryScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(lp1.GetDomain()))...)
+	scope := h.metricsClient.Scope(metrics.FrontendListFailoverHistoryScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainUnknownTag())...)
 	scope.IncCounter(metrics.CadenceRequests)
 	sw := scope.StartTimer(metrics.CadenceLatency)
 	defer sw.Stop()

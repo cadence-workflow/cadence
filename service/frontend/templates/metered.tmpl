@@ -9,7 +9,7 @@ import (
 	"github.com/uber/cadence/service/frontend/config"
 )
 
-{{- $nonDomainSpecificAPIs := list "Health" "DeprecateDomain" "DeleteDomain" "DescribeDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo"}}
+{{- $nonDomainSpecificAPIs := list "Health" "DeprecateDomain" "DeleteDomain" "DescribeDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo" "ListFailoverHistory"}}
 {{- $domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{- $queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
 {{- $pollerAPIs := list "PollForActivityTask" "PollForDecisionTask"}}

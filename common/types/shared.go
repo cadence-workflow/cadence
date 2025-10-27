@@ -1830,17 +1830,8 @@ func (v *FailoverDomainResponse) GetIsGlobalDomain() (o bool) {
 
 // ListFailoverHistoryRequest is an internal type (TBD...)
 type ListFailoverHistoryRequest struct {
-	Domain     string                             `json:"domain,omitempty"`
 	Filters    *ListFailoverHistoryRequestFilters `json:"filters,omitempty"`
 	Pagination *PaginationOptions                 `json:"pagination,omitempty"`
-}
-
-// GetDomain is an internal getter (TBD...)
-func (v *ListFailoverHistoryRequest) GetDomain() (o string) {
-	if v != nil {
-		return v.Domain
-	}
-	return
 }
 
 // GetFilters is an internal getter (TBD...)

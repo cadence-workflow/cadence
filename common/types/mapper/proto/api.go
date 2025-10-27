@@ -4616,7 +4616,6 @@ func ToListFailoverHistoryRequest(t *apiv1.ListFailoverHistoryRequest) *types.Li
 	}
 	// TODO: Implement proper proto conversion for ListFailoverHistoryRequest
 	return &types.ListFailoverHistoryRequest{
-		Domain:     "", // Placeholder - extract from filters or set appropriately
 		Filters:    nil,
 		Pagination: nil,
 	}
