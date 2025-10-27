@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/uber/cadence/service/sharddistributor/canary/executors"
 	"os"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/canary"
+	"github.com/uber/cadence/service/sharddistributor/canary/executors"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/executorclient"
 	"github.com/uber/cadence/tools/common/commoncli"

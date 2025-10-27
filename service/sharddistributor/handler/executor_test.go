@@ -369,6 +369,7 @@ func TestConvertResponse(t *testing.T) {
 			input: nil,
 			expectedResp: &types.ExecutorHeartbeatResponse{
 				ShardAssignments: make(map[string]*types.ShardAssignment),
+				MigrationMode:    types.MigrationModeONBOARDED,
 			},
 		},
 		{
