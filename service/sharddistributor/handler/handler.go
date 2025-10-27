@@ -31,6 +31,7 @@ import (
 	"sync"
 
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -116,30 +117,88 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 
 func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string, shardID string) (*types.GetShardOwnerResponse, error) {
 
-	// Get the current state of the namespace and find the executor with the least assigned shards
+	// Get the current state of the namespace and evaluate executor load to choose a placement target.
 	state, err := h.storage.GetState(ctx, namespace)
 	if err != nil {
+		h.logger.Error("failed to read namespace state for ephemeral assignment", tag.ShardNamespace(namespace), tag.ShardKey(shardID), tag.Error(err))
 		return nil, fmt.Errorf("get state: %w", err)
 	}
 
-	var executor string
-	minAssignedShards := math.MaxInt
-
-	for assignedExecutor, assignment := range state.ShardAssignments {
-		if len(assignment.AssignedShards) < minAssignedShards {
-			minAssignedShards = len(assignment.AssignedShards)
-			executor = assignedExecutor
-		}
+	executorID, aggregatedLoad, assignedCount, err := pickLeastLoadedExecutor(state)
+	if err != nil {
+		h.logger.Error(
+			"no eligible executor found for ephemeral assignment",
+			tag.ShardNamespace(namespace),
+			tag.ShardKey(shardID),
+			tag.Error(err),
+		)
+		return nil, err
 	}
 
+	h.logger.Info(
+		"selected executor for ephemeral shard assignment",
+		tag.AggregateLoad(aggregatedLoad),
+		tag.AssignedCount(assignedCount),
+		tag.ShardNamespace(namespace),
+		tag.ShardKey(shardID),
+		tag.ShardExecutor(executorID),
+	)
+
 	// Assign the shard to the executor with the least assigned shards
-	err = h.storage.AssignShard(ctx, namespace, shardID, executor)
+	err = h.storage.AssignShard(ctx, namespace, shardID, executorID)
 	if err != nil {
+		h.logger.Error(
+			"failed to assign ephemeral shard",
+			tag.ShardNamespace(namespace),
+			tag.ShardKey(shardID),
+			tag.ShardExecutor(executorID),
+			tag.Error(err),
+		)
 		return nil, fmt.Errorf("assign ephemeral shard: %w", err)
 	}
 
 	return &types.GetShardOwnerResponse{
-		Owner:     executor,
+		Owner:     executorID,
 		Namespace: namespace,
 	}, nil
+}
+
+// pickLeastLoadedExecutor returns the executor with the minimal aggregated smoothed load.
+// Ties are broken by fewer assigned shards.
+func pickLeastLoadedExecutor(state *store.NamespaceState) (executorID string, aggregatedLoad float64, assignedCount int, err error) {
+	if state == nil || len(state.ShardAssignments) == 0 {
+		return "", 0, 0, fmt.Errorf("namespace state is nil or has no executors")
+	}
+
+	var chosenID string
+	var chosenAggregatedLoad float64
+	var chosenAssignedCount int
+	minAggregatedLoad := math.MaxFloat64
+	minAssignedShards := math.MaxInt
+
+	for candidate, assignment := range state.ShardAssignments {
+		aggregated := 0.0
+		for shard := range assignment.AssignedShards {
+			if stats, ok := state.ShardStats[shard]; ok {
+				if !math.IsNaN(stats.SmoothedLoad) && !math.IsInf(stats.SmoothedLoad, 0) {
+					aggregated += stats.SmoothedLoad
+				}
+			}
+		}
+
+		count := len(assignment.AssignedShards)
+		if aggregated < minAggregatedLoad || (aggregated == minAggregatedLoad && count < minAssignedShards) {
+			minAggregatedLoad = aggregated
+			minAssignedShards = count
+			chosenID = candidate
+			chosenAggregatedLoad = aggregated
+			chosenAssignedCount = count
+		}
+	}
+
+	if chosenID == "" {
+		return "", 0, 0, fmt.Errorf("no executors in namespace state")
+	}
+
+	return chosenID, chosenAggregatedLoad, chosenAssignedCount, nil
 }
