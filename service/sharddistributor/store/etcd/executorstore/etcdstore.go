@@ -51,7 +51,7 @@ type shardStatisticsUpdate struct {
 type shardMetricsUpdate struct {
 	key             string
 	shardID         string
-	metrics         store.ShardStatistics
+	stats           store.ShardStatistics
 	desiredLastMove int64 // intended LastMoveTime for this update
 }
 
@@ -416,8 +416,8 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 	return nil
 }
 
-func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, namespace string, newAssignments map[string]store.AssignedState) ([]shardMetricsUpdate, error) {
-	var updates []shardMetricsUpdate
+func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, namespace string, newAssignments map[string]store.AssignedState) ([]shardStatisticsUpdate, error) {
+	var updates []shardStatisticsUpdate
 
 	for executorID, state := range newAssignments {
 		for shardID := range state.AssignedShards {
@@ -454,10 +454,10 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 				stats.LastUpdateTime = now
 			}
 
-			updates = append(updates, shardMetricsUpdate{
+			updates = append(updates, shardStatisticsUpdate{
 				key:             shardStatisticsKey,
 				shardID:         shardID,
-				metrics:         stats,
+				stats:           stats,
 				desiredLastMove: now,
 			})
 		}
@@ -468,11 +468,11 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 
 // applyShardStatisticsUpdates updates shard statistics.
 // Is intentionally made tolerant of failures since the data is telemetry only.
-func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, namespace string, updates []shardMetricsUpdate) {
+func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, namespace string, updates []shardStatisticsUpdate) {
 	for _, update := range updates {
-		update.metrics.LastMoveTime = update.desiredLastMove
+		update.stats.LastMoveTime = update.desiredLastMove
 
-		payload, err := json.Marshal(update.metrics)
+		payload, err := json.Marshal(update.stats)
 		if err != nil {
 			s.logger.Warn(
 				"failed to marshal shard statistics after assignment",
