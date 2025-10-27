@@ -91,6 +91,93 @@ func TestRecordHeartbeat(t *testing.T) {
 	assert.Equal(t, "value-2", string(resp.Kvs[0].Value))
 }
 
+func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {
+	tc := testhelper.SetupStoreTestCluster(t)
+	executorStore := createStore(t, tc)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	executorID := "executor-shard-stats"
+	shardID := "shard-with-load"
+
+	initialStats := store.ShardStatistics{
+		SmoothedLoad:   1.23,
+		LastUpdateTime: 10,
+		LastMoveTime:   123,
+	}
+
+	shardStatsKey, err := etcdkeys.BuildShardKey(tc.EtcdPrefix, tc.Namespace, shardID, etcdkeys.ShardStatisticsKey)
+	require.NoError(t, err)
+	payload, err := json.Marshal(initialStats)
+	require.NoError(t, err)
+	_, err = tc.Client.Put(ctx, shardStatsKey, string(payload))
+	require.NoError(t, err)
+
+	nowTS := time.Now().Unix()
+
+	req := store.HeartbeatState{
+		LastHeartbeat: nowTS,
+		Status:        types.ExecutorStatusACTIVE,
+		ReportedShards: map[string]*types.ShardStatusReport{
+			shardID: {
+				Status:    types.ShardStatusREADY,
+				ShardLoad: 45.6,
+			},
+		},
+	}
+
+	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, req))
+
+	nsState, err := executorStore.GetState(ctx, tc.Namespace)
+	require.NoError(t, err)
+
+	require.Contains(t, nsState.ShardStats, shardID)
+	updated := nsState.ShardStats[shardID]
+
+	assert.InDelta(t, 45.6, updated.SmoothedLoad, 1e-9)
+	assert.GreaterOrEqual(t, updated.LastUpdateTime, nowTS)
+	assert.Equal(t, initialStats.LastMoveTime, updated.LastMoveTime)
+}
+
+func TestRecordHeartbeatSkipsShardStatisticsWithNilReport(t *testing.T) {
+	tc := testhelper.SetupStoreTestCluster(t)
+	executorStore := createStore(t, tc)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	executorID := "executor-missing-load"
+	validShardID := "shard-with-valid-load"
+	skippedShardID := "shard-missing-load"
+
+	nowTS := time.Now().Unix()
+
+	req := store.HeartbeatState{
+		LastHeartbeat: nowTS,
+		Status:        types.ExecutorStatusACTIVE,
+		ReportedShards: map[string]*types.ShardStatusReport{
+			validShardID: {
+				Status:    types.ShardStatusREADY,
+				ShardLoad: 3.21,
+			},
+			skippedShardID: nil,
+		},
+	}
+
+	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, req))
+
+	nsState, err := executorStore.GetState(ctx, tc.Namespace)
+	require.NoError(t, err)
+
+	require.Contains(t, nsState.ShardStats, validShardID)
+	validStats := nsState.ShardStats[validShardID]
+	assert.InDelta(t, 3.21, validStats.SmoothedLoad, 1e-9)
+	assert.Greater(t, validStats.LastUpdateTime, int64(0))
+
+	assert.NotContains(t, nsState.ShardStats, skippedShardID)
+}
+
 func TestGetHeartbeat(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
