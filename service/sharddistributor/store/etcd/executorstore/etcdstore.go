@@ -224,7 +224,8 @@ func (s *executorStoreImpl) updateShardStatisticsFromHeartbeat(ctx context.Conte
 			}
 		}
 
-		stats.SmoothedLoad = load
+		// Update smoothed load via EWMA.
+		stats.SmoothedLoad = ewmaSmoothedLoad(stats.SmoothedLoad, load, stats.LastUpdateTime, now)
 		stats.LastUpdateTime = now
 
 		payload, err := json.Marshal(stats)
@@ -811,4 +812,21 @@ func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, nam
 			)
 		}
 	}
+}
+
+// ewmaSmoothedLoad computes an EWMA for shard load.
+func ewmaSmoothedLoad(prev, current float64, lastUpdate, now int64) float64 {
+	const tauSeconds = 30.0 // smaller = more responsive, larger = smoother, slower
+	if lastUpdate <= 0 {
+		return current
+	}
+	dt := now - lastUpdate
+	if dt < 0 {
+		dt = 0
+	}
+	if tauSeconds <= 0 {
+		return current
+	}
+	alpha := 1 - math.Exp(-float64(dt)/tauSeconds)
+	return (1-alpha)*prev + alpha*current
 }
