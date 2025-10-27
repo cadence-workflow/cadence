@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -149,7 +150,92 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 	if err != nil {
 		return fmt.Errorf("record heartbeat: %w", err)
 	}
+
+	s.updateShardStatisticsFromHeartbeat(ctx, namespace, executorID, request.ReportedShards)
+
 	return nil
+}
+
+func (s *executorStoreImpl) updateShardStatisticsFromHeartbeat(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) {
+	if len(reported) == 0 {
+		return
+	}
+
+	now := s.timeSource.Now().Unix()
+
+	for shardID, report := range reported {
+		if report == nil {
+			continue
+		}
+
+		load := report.ShardLoad
+		if math.IsNaN(load) || math.IsInf(load, 0) {
+			continue
+		}
+
+		shardStatsKey, err := etcdkeys.BuildShardKey(s.prefix, namespace, shardID, etcdkeys.ShardStatisticsKey)
+		if err != nil {
+			s.logger.Warn(
+				"failed to build shard statistics key from heartbeat",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+				tag.Error(err),
+			)
+			continue
+		}
+
+		statsResp, err := s.client.Get(ctx, shardStatsKey)
+		if err != nil {
+			s.logger.Warn(
+				"failed to read shard statistics for heartbeat update",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+				tag.Error(err),
+			)
+			continue
+		}
+
+		var stats store.ShardStatistics
+		if len(statsResp.Kvs) > 0 {
+			if err := json.Unmarshal(statsResp.Kvs[0].Value, &stats); err != nil {
+				s.logger.Warn(
+					"failed to unmarshal shard statistics for heartbeat update",
+					tag.ShardNamespace(namespace),
+					tag.ShardExecutor(executorID),
+					tag.ShardKey(shardID),
+					tag.Error(err),
+				)
+				continue
+			}
+		}
+
+		stats.SmoothedLoad = load
+		stats.LastUpdateTime = now
+
+		payload, err := json.Marshal(stats)
+		if err != nil {
+			s.logger.Warn(
+				"failed to marshal shard statistics after heartbeat",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+				tag.Error(err),
+			)
+			continue
+		}
+
+		if _, err := s.client.Put(ctx, shardStatsKey, string(payload)); err != nil {
+			s.logger.Warn(
+				"failed to persist shard statistics from heartbeat",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+				tag.Error(err),
+			)
+		}
+	}
 }
 
 // GetHeartbeat retrieves the last known heartbeat state for a single executor.
