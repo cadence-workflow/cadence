@@ -1378,3 +1378,114 @@ func TestClusterAttributeScopeConversion(t *testing.T) {
 		assert.Equal(t, original, roundTripObj)
 	}
 }
+
+func TestPaginationOptions(t *testing.T) {
+	for _, item := range []*types.PaginationOptions{nil, {}, &testdata.PaginationOptions} {
+		assert.Equal(t, item, ToPaginationOptions(FromPaginationOptions(item)))
+	}
+}
+
+func TestListFailoverHistoryRequestFilters(t *testing.T) {
+	for _, item := range []*types.ListFailoverHistoryRequestFilters{nil, {}, &testdata.ListFailoverHistoryRequestFilters} {
+		assert.Equal(t, item, ToListFailoverHistoryRequestFilters(FromListFailoverHistoryRequestFilters(item)))
+	}
+}
+
+func TestListFailoverHistoryRequest(t *testing.T) {
+	for _, item := range []*types.ListFailoverHistoryRequest{nil, {}, &testdata.ListFailoverHistoryRequest} {
+		assert.Equal(t, item, ToListFailoverHistoryRequest(FromListFailoverHistoryRequest(item)))
+	}
+}
+
+func TestListFailoverHistoryResponse(t *testing.T) {
+	for _, item := range []*types.ListFailoverHistoryResponse{nil, {}, &testdata.ListFailoverHistoryResponse} {
+		assert.Equal(t, item, ToListFailoverHistoryResponse(FromListFailoverHistoryResponse(item)))
+	}
+}
+
+func TestFailoverEvent(t *testing.T) {
+	for _, item := range []*types.FailoverEvent{nil, {}, &testdata.FailoverEvent} {
+		assert.Equal(t, item, ToFailoverEvent(FromFailoverEvent(item)))
+	}
+}
+
+func TestFailoverEventArray(t *testing.T) {
+	testCases := [][]*types.FailoverEvent{
+		nil,
+		{},
+		{nil},
+		{&testdata.FailoverEvent},
+		{&testdata.FailoverEvent, nil, &testdata.FailoverEvent},
+	}
+	for _, item := range testCases {
+		assert.Equal(t, item, ToFailoverEventArray(FromFailoverEventArray(item)))
+	}
+}
+
+func TestClusterFailover(t *testing.T) {
+	for _, item := range []*types.ClusterFailover{nil, {}, &testdata.ClusterFailover} {
+		assert.Equal(t, item, ToClusterFailover(FromClusterFailover(item)))
+	}
+}
+
+func TestClusterFailoverArray(t *testing.T) {
+	testCases := [][]*types.ClusterFailover{
+		nil,
+		{},
+		{nil},
+		{&testdata.ClusterFailover},
+		{&testdata.ClusterFailover, nil, &testdata.ClusterFailover},
+	}
+	for _, item := range testCases {
+		assert.Equal(t, item, ToClusterFailoverArray(FromClusterFailoverArray(item)))
+	}
+}
+
+func TestActiveClusterInfo(t *testing.T) {
+	for _, item := range []*types.ActiveClusterInfo{nil, {}, &testdata.ActiveClusterInfo1, &testdata.ActiveClusterInfo2} {
+		assert.Equal(t, item, ToActiveClusterInfo(FromActiveClusterInfo(item)))
+	}
+}
+
+func TestFailoverType(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    *types.FailoverType
+		expected apiv1.FailoverType
+	}{
+		{
+			name:     "nil",
+			input:    nil,
+			expected: apiv1.FailoverType_FAILOVER_TYPE_INVALID,
+		},
+		{
+			name:     "force",
+			input:    types.FailoverTypeForce.Ptr(),
+			expected: apiv1.FailoverType_FAILOVER_TYPE_FORCE,
+		},
+		{
+			name:     "graceful",
+			input:    types.FailoverTypeGraceful.Ptr(),
+			expected: apiv1.FailoverType_FAILOVER_TYPE_GRACEFUL,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := FromFailoverType(tc.input)
+			assert.Equal(t, tc.expected, result)
+
+			// Test round-trip
+			if tc.input != nil {
+				roundTrip := ToFailoverType(result)
+				assert.Equal(t, tc.input, roundTrip)
+			}
+		})
+	}
+
+	// Test ToFailoverType for all enum values
+	assert.Equal(t, types.FailoverTypeForce.Ptr(), ToFailoverType(apiv1.FailoverType_FAILOVER_TYPE_FORCE))
+	assert.Equal(t, types.FailoverTypeGraceful.Ptr(), ToFailoverType(apiv1.FailoverType_FAILOVER_TYPE_GRACEFUL))
+	assert.Nil(t, ToFailoverType(apiv1.FailoverType_FAILOVER_TYPE_INVALID))
+	assert.Nil(t, ToFailoverType(apiv1.FailoverType(999))) // Unknown value
+}

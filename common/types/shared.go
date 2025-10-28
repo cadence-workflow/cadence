@@ -1950,6 +1950,20 @@ func (v *FailoverEvent) GetClusterFailovers() (o []*ClusterFailover) {
 // FailoverType is an internal type (TBD...)
 type FailoverType int32
 
+// this should line up with the IDL values in common.proto
+// ie FailoverType_FAILOVER_TYPE_FORCE = 1
+// ie FailoverType_FAILOVER_TYPE_GRACEFUL = 2
+const (
+	FailoverTypeInvalid  = FailoverType(0)
+	FailoverTypeForce    = FailoverType(1)
+	FailoverTypeGraceful = FailoverType(2)
+)
+
+// Ptr is a helper routine that returns a pointer to given FailoverType value.
+func (e FailoverType) Ptr() *FailoverType {
+	return &e
+}
+
 // ClusterFailover is an internal type (TBD...)
 type ClusterFailover struct {
 	FromCluster      *ActiveClusterInfo `json:"fromCluster,omitempty"`

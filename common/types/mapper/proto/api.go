@@ -4604,9 +4604,9 @@ func FromListFailoverHistoryRequest(t *types.ListFailoverHistoryRequest) *apiv1.
 	if t == nil {
 		return nil
 	}
-	// TODO: Implement proper proto conversion for ListFailoverHistoryRequest
 	return &apiv1.ListFailoverHistoryRequest{
-		// Placeholder implementation
+		Filters:    FromListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: FromPaginationOptions(t.Pagination),
 	}
 }
 
@@ -4614,10 +4614,9 @@ func ToListFailoverHistoryRequest(t *apiv1.ListFailoverHistoryRequest) *types.Li
 	if t == nil {
 		return nil
 	}
-	// TODO: Implement proper proto conversion for ListFailoverHistoryRequest
 	return &types.ListFailoverHistoryRequest{
-		Filters:    nil,
-		Pagination: nil,
+		Filters:    ToListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: ToPaginationOptions(t.Pagination),
 	}
 }
 
@@ -4625,10 +4624,9 @@ func ToListFailoverHistoryResponse(t *apiv1.ListFailoverHistoryResponse) *types.
 	if t == nil {
 		return nil
 	}
-	// TODO: Implement proper proto conversion for ListFailoverHistoryResponse
 	return &types.ListFailoverHistoryResponse{
-		FailoverEvents: []*types.FailoverEvent{},
-		NextPageToken:  nil,
+		FailoverEvents: ToFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
 	}
 }
 
@@ -4636,10 +4634,197 @@ func FromListFailoverHistoryResponse(t *types.ListFailoverHistoryResponse) *apiv
 	if t == nil {
 		return nil
 	}
-	// TODO: Implement proper proto conversion for ListFailoverHistoryResponse
 	return &apiv1.ListFailoverHistoryResponse{
-		// Placeholder implementation
+		FailoverEvents: FromFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
 	}
+}
+
+func FromListFailoverHistoryRequestFilters(t *types.ListFailoverHistoryRequestFilters) *apiv1.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListFailoverHistoryRequestFilters{
+		DomainId: t.DomainID,
+	}
+}
+
+func ToListFailoverHistoryRequestFilters(t *apiv1.ListFailoverHistoryRequestFilters) *types.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryRequestFilters{
+		DomainID: t.DomainId,
+	}
+}
+
+func FromPaginationOptions(t *types.PaginationOptions) *apiv1.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	pageSize := int32(0)
+	if t.PageSize != nil {
+		pageSize = *t.PageSize
+	}
+	return &apiv1.PaginationOptions{
+		PageSize:      pageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+func ToPaginationOptions(t *apiv1.PaginationOptions) *types.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	var pageSize *int32
+	if t.PageSize != 0 {
+		pageSize = common.Int32Ptr(t.PageSize)
+	}
+	return &types.PaginationOptions{
+		PageSize:      pageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+func FromFailoverEvent(t *types.FailoverEvent) *apiv1.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	id := ""
+	if t.ID != nil {
+		id = *t.ID
+	}
+	return &apiv1.FailoverEvent{
+		Id:               id,
+		CreatedTime:      unixNanoToTime(t.CreatedTime),
+		FailoverType:     FromFailoverType(t.FailoverType),
+		ClusterFailovers: FromClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+func ToFailoverEvent(t *apiv1.FailoverEvent) *types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	var id *string
+	if t.Id != "" {
+		id = common.StringPtr(t.Id)
+	}
+	return &types.FailoverEvent{
+		ID:               id,
+		CreatedTime:      timeToUnixNano(t.CreatedTime),
+		FailoverType:     ToFailoverType(t.FailoverType),
+		ClusterFailovers: ToClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+func FromFailoverEventArray(t []*types.FailoverEvent) []*apiv1.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*apiv1.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = FromFailoverEvent(t[i])
+	}
+	return v
+}
+
+func ToFailoverEventArray(t []*apiv1.FailoverEvent) []*types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = ToFailoverEvent(t[i])
+	}
+	return v
+}
+
+func FromClusterFailover(t *types.ClusterFailover) *apiv1.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ClusterFailover{
+		FromCluster:      FromActiveClusterInfo(t.FromCluster),
+		ToCluster:        FromActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: FromClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+func ToClusterFailover(t *apiv1.ClusterFailover) *types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &types.ClusterFailover{
+		FromCluster:      ToActiveClusterInfo(t.FromCluster),
+		ToCluster:        ToActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: ToClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+func FromClusterFailoverArray(t []*types.ClusterFailover) []*apiv1.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*apiv1.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = FromClusterFailover(t[i])
+	}
+	return v
+}
+
+func ToClusterFailoverArray(t []*apiv1.ClusterFailover) []*types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = ToClusterFailover(t[i])
+	}
+	return v
+}
+
+func FromActiveClusterInfo(t *types.ActiveClusterInfo) *apiv1.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ActiveClusterInfo{
+		ActiveClusterName: t.ActiveClusterName,
+		FailoverVersion:   t.FailoverVersion,
+	}
+}
+
+func ToActiveClusterInfo(t *apiv1.ActiveClusterInfo) *types.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &types.ActiveClusterInfo{
+		ActiveClusterName: t.ActiveClusterName,
+		FailoverVersion:   t.FailoverVersion,
+	}
+}
+
+func FromFailoverType(t *types.FailoverType) apiv1.FailoverType {
+	if t == nil {
+		return apiv1.FailoverType_FAILOVER_TYPE_INVALID
+	}
+	switch *t {
+	case types.FailoverTypeForce:
+		return apiv1.FailoverType_FAILOVER_TYPE_FORCE
+	case types.FailoverTypeGraceful:
+		return apiv1.FailoverType_FAILOVER_TYPE_GRACEFUL
+	}
+	return apiv1.FailoverType_FAILOVER_TYPE_INVALID
+}
+
+func ToFailoverType(t apiv1.FailoverType) *types.FailoverType {
+	switch t {
+	case apiv1.FailoverType_FAILOVER_TYPE_FORCE:
+		return types.FailoverTypeForce.Ptr()
+	case apiv1.FailoverType_FAILOVER_TYPE_GRACEFUL:
+		return types.FailoverTypeGraceful.Ptr()
+	}
+	return nil
 }
 
 func FromUpsertWorkflowSearchAttributesDecisionAttributes(t *types.UpsertWorkflowSearchAttributesDecisionAttributes) *apiv1.UpsertWorkflowSearchAttributesDecisionAttributes {

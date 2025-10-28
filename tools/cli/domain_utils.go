@@ -272,6 +272,21 @@ var (
 		},
 	}
 
+	listFailoverHistoryFlags = []cli.Flag{
+		&cli.IntFlag{
+			Name:    FlagPageSize,
+			Aliases: []string{"ps"},
+			Usage:   "Page size for pagination (default: 5)",
+			Value:   5,
+		},
+		&cli.BoolFlag{
+			Name:    FlagPrintJSON,
+			Aliases: []string{"pjson"},
+			Usage:   "Print in raw JSON format",
+		},
+		getFormatFlag(),
+	}
+
 	adminDomainCommonFlags = getDBFlags()
 
 	adminRegisterDomainFlags = append(

@@ -659,6 +659,15 @@ type ActiveClusterInfoRow struct {
 	FailoverVersion int64  `header:"Failover Version"`
 }
 
+type FailoverHistoryRow struct {
+	EventID      string    `header:"Event ID"`
+	CreatedTime  time.Time `header:"Created Time"`
+	FailoverType string    `header:"Failover Type"`
+	FromCluster  string    `header:"From Cluster"`
+	ToCluster    string    `header:"To Cluster"`
+	Attribute    string    `header:"Cluster Attribute"`
+}
+
 type DomainRow struct {
 	Name                             string `header:"Name"`
 	UUID                             string `header:"UUID"`
@@ -754,6 +763,43 @@ func newBadBinaryRows(bb *types.BadBinaries) []BadBinaryRow {
 		})
 	}
 	return rows
+}
+
+func newFailoverHistoryRow(event *types.FailoverEvent) FailoverHistoryRow {
+	row := FailoverHistoryRow{
+		EventID:      event.GetID(),
+		CreatedTime:  time.Unix(0, event.GetCreatedTime()),
+		FailoverType: failoverTypeToString(event.GetFailoverType()),
+	}
+
+	// Extract cluster failover information
+	// For simplicity, we'll show the first cluster failover
+	clusterFailovers := event.GetClusterFailovers()
+	if len(clusterFailovers) > 0 {
+		firstFailover := clusterFailovers[0]
+		if fromCluster := firstFailover.GetFromCluster(); fromCluster != nil {
+			row.FromCluster = fromCluster.ActiveClusterName
+		}
+		if toCluster := firstFailover.GetToCluster(); toCluster != nil {
+			row.ToCluster = toCluster.ActiveClusterName
+		}
+		if attr := firstFailover.GetClusterAttribute(); attr != nil {
+			row.Attribute = fmt.Sprintf("%s.%s", attr.Scope, attr.Name)
+		}
+	}
+
+	return row
+}
+
+func failoverTypeToString(ft types.FailoverType) string {
+	switch ft {
+	case types.FailoverTypeForce:
+		return "FORCE"
+	case types.FailoverTypeGraceful:
+		return "GRACEFUL"
+	default:
+		return "UNKNOWN"
+	}
 }
 
 func domainTableOptions(c *cli.Context) RenderOptions {
@@ -898,6 +944,82 @@ func (d *domainCLIImpl) deleteDomain(
 	}
 
 	return d.domainHandler.DeleteDomain(ctx, request)
+}
+
+// ListFailoverHistory lists the failover history for a domain
+func (d *domainCLIImpl) ListFailoverHistory(c *cli.Context) error {
+	domainName, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+
+	// Get domain ID by describing the domain first
+	ctx, cancel, err := newContext(c)
+	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
+
+	describeResp, err := d.describeDomain(ctx, &types.DescribeDomainRequest{
+		Name: common.StringPtr(domainName),
+	})
+	if err != nil {
+		if _, ok := err.(*types.EntityNotExistsError); ok {
+			return commoncli.Problem(fmt.Sprintf("Domain %s does not exist.", domainName), err)
+		}
+		return commoncli.Problem("Failed to describe domain.", err)
+	}
+
+	domainID := describeResp.DomainInfo.GetUUID()
+	pageSize := c.Int(FlagPageSize)
+	printJSON := c.Bool(FlagPrintJSON)
+
+	request := &types.ListFailoverHistoryRequest{
+		Filters: &types.ListFailoverHistoryRequestFilters{
+			DomainID: domainID,
+		},
+		Pagination: &types.PaginationOptions{
+			PageSize: common.Int32Ptr(int32(pageSize)),
+		},
+	}
+
+	ctx, cancel, err = newContext(c)
+	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
+
+	resp, err := d.frontendClient.ListFailoverHistory(ctx, request)
+	if err != nil {
+		return commoncli.Problem("Failed to list failover history.", err)
+	}
+
+	if printJSON {
+		output, err := json.Marshal(resp)
+		if err != nil {
+			return commoncli.Problem("Failed to encode failover history into JSON.", err)
+		}
+		fmt.Println(string(output))
+		return nil
+	}
+
+	// Convert failover events to rows for display
+	rows := make([]FailoverHistoryRow, 0, len(resp.GetFailoverEvents()))
+	for _, event := range resp.GetFailoverEvents() {
+		rows = append(rows, newFailoverHistoryRow(event))
+	}
+
+	if len(rows) == 0 {
+		fmt.Println("No failover history found for domain:", domainName)
+		return nil
+	}
+
+	return Render(c, rows, RenderOptions{
+		DefaultTemplate: templateTable,
+		Color:           true,
+		Border:          true,
+		PrintDateTime:   true,
+	})
 }
 
 func (d *domainCLIImpl) describeDomain(
