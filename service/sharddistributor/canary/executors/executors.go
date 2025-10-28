@@ -4,7 +4,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/client/sharddistributor"
-	exetrnalshardassignment "github.com/uber/cadence/service/sharddistributor/canary/externalshardassignment"
+	"github.com/uber/cadence/service/sharddistributor/canary/externalshardassignment"
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
 	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
 	"github.com/uber/cadence/service/sharddistributor/executorclient"
@@ -54,9 +54,9 @@ func NewExecutorDistributedPassthroughNamespace(params executorclient.Params[*pr
 	return ExecutorResult{Executor: executor}, err
 }
 
-func NewExecutorExternalAssignmentNamespace(params executorclient.Params[*processorephemeral.ShardProcessor], shardDistributorClient sharddistributor.Client) (ExecutorEphemeralResult, *exetrnalshardassignment.ShardAssigner, error) {
+func NewExecutorExternalAssignmentNamespace(params executorclient.Params[*processorephemeral.ShardProcessor], shardDistributorClient sharddistributor.Client) (ExecutorEphemeralResult, *externalshardassignment.ShardAssigner, error) {
 	executor, err := executorclient.NewExecutorWithNamespace(params, ExternalAssignmentNamespace)
-	assigner := exetrnalshardassignment.NewShardAssigner(exetrnalshardassignment.ShardAssignerParams{
+	assigner := externalshardassignment.NewShardAssigner(externalshardassignment.ShardAssignerParams{
 		Logger:           params.Logger,
 		TimeSource:       params.TimeSource,
 		ShardDistributor: shardDistributorClient,
@@ -92,7 +92,7 @@ var Module = fx.Module(
 	),
 	fx.Module("Executor-with-external-assignment",
 		fx.Provide(NewExecutorExternalAssignmentNamespace),
-		fx.Invoke(func(lifecycle fx.Lifecycle, shardAssigner *exetrnalshardassignment.ShardAssigner) {
+		fx.Invoke(func(lifecycle fx.Lifecycle, shardAssigner *externalshardassignment.ShardAssigner) {
 			lifecycle.Append(fx.StartStopHook(shardAssigner.Start, shardAssigner.Stop))
 		}),
 	),

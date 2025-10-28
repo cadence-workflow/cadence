@@ -1,4 +1,4 @@
-package exetrnalshardassignment
+package externalshardassignment
 
 import (
 	"testing"

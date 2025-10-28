@@ -1,4 +1,4 @@
-package exetrnalshardassignment
+package externalshardassignment
 
 import (
 	"context"
@@ -40,7 +40,7 @@ type ShardAssignerParams struct {
 	Executorclient   executorclient.Executor[*processorephemeral.ShardProcessor]
 }
 
-// NewShardCreator creates a new ShardCreator instance with the given parameters and namespace
+// NewShardAssigner creates a new ShardAssigner instance with the given parameters and namespace
 func NewShardAssigner(params ShardAssignerParams, namespace string) *ShardAssigner {
 	return &ShardAssigner{
 		logger:         params.Logger,
@@ -66,7 +66,7 @@ func (s *ShardAssigner) Stop() {
 	s.goRoutineWg.Wait()
 }
 
-// ShardCreatorModule creates an fx module for the shard creator with the given namespace
+// ShardAssignerModule creates a fx module for the shard creator with the given namespace
 func ShardAssignerModule(namespace string) fx.Option {
 	return fx.Module("shard-assigner",
 		fx.Provide(func(params ShardAssignerParams) *ShardAssigner {
