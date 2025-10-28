@@ -4,7 +4,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/client/sharddistributor"
-	"github.com/uber/cadence/service/sharddistributor/canary/externalshardassignment"
+	exetrnalshardassignment "github.com/uber/cadence/service/sharddistributor/canary/externalshardassignment"
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
 	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
 	"github.com/uber/cadence/service/sharddistributor/executorclient"
