@@ -4,7 +4,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/client/sharddistributor"
-	exetrnalshardassignment "github.com/uber/cadence/service/sharddistributor/canary/externalshardassignment"
+	"github.com/uber/cadence/service/sharddistributor/canary/externalshardassignment"
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
 	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
 	"github.com/uber/cadence/service/sharddistributor/executorclient"
@@ -49,7 +49,7 @@ func NewExecutorLocalPassthroughShadowNamespace(params executorclient.Params[*pr
 	executor, err := executorclient.NewExecutorWithNamespace(params, LocalPassthroughShadowNamespace)
 	return ExecutorEphemeralResult{Executor: executor}, err
 }
-func NewExecutorDistrebutedPassthroughNamespace(params executorclient.Params[*processor.ShardProcessor]) (ExecutorResult, error) {
+func NewExecutorDistributedPassthroughNamespace(params executorclient.Params[*processor.ShardProcessor]) (ExecutorResult, error) {
 	executor, err := executorclient.NewExecutorWithNamespace(params, DistributedPassthroughNamespace)
 	return ExecutorResult{Executor: executor}, err
 }
@@ -88,7 +88,7 @@ var Module = fx.Module(
 		NewExecutorWithEphemeralNamespace,
 		NewExecutorLocalPassthroughNamespace,
 		NewExecutorLocalPassthroughShadowNamespace,
-		NewExecutorDistrebutedPassthroughNamespace,
+		NewExecutorDistributedPassthroughNamespace,
 	),
 	fx.Module("Executor-with-external-assignment",
 		fx.Provide(NewExecutorExternalAssignmentNamespace),
