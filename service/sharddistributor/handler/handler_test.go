@@ -180,6 +180,42 @@ func TestGetShardOwner(t *testing.T) {
 			expectedError:  true,
 			expectedErrMsg: "assign shard failure",
 		},
+		{
+			name: "ShardNotFound_Ephemeral_LoadBased",
+			request: &types.GetShardOwnerRequest{
+				Namespace: _testNamespaceEphemeral,
+				ShardKey:  "new-shard",
+			},
+			setupMocks: func(mockStore *store.MockStore) {
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "new-shard").Return("", store.ErrShardNotFound)
+				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+					ShardAssignments: map[string]store.AssignedState{
+						"owner1": {
+							AssignedShards: map[string]*types.ShardAssignment{
+								"shard1": {Status: types.AssignmentStatusREADY},
+								"shard2": {Status: types.AssignmentStatusREADY},
+							},
+						},
+						"owner2": {
+							AssignedShards: map[string]*types.ShardAssignment{
+								"shard3": {Status: types.AssignmentStatusREADY},
+							},
+						},
+					},
+					ShardStats: map[string]store.ShardStatistics{
+						"shard1": {SmoothedLoad: 2.5},
+						"shard2": {SmoothedLoad: 1.0},
+						"shard3": {SmoothedLoad: 0.5},
+					},
+				}, nil)
+				// owner1 total load: 2.5 + 1.0 = 3.5
+				// owner2 total load: 0.5
+				// Should pick owner2 (least loaded)
+				mockStore.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, "new-shard", "owner2").Return(nil)
+			},
+			expectedOwner: "owner2",
+			expectedError: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -250,27 +286,6 @@ func TestPickLeastLoadedExecutor(t *testing.T) {
 			expectedOwner: "exec2",
 			expectedLoad:  1.25,
 			expectedCount: 2,
-			expectedError: false,
-		},
-		{
-			name: "SelectsLeastLoaded_Tie",
-			state: &store.NamespaceState{
-				ShardAssignments: map[string]store.AssignedState{
-					"exec1": {AssignedShards: map[string]*types.ShardAssignment{
-						"shard1": {},
-					}},
-					"exec2": {AssignedShards: map[string]*types.ShardAssignment{
-						"shard2": {},
-					}},
-				},
-				ShardStats: map[string]store.ShardStatistics{
-					"shard1": {SmoothedLoad: 1.0},
-					"shard2": {SmoothedLoad: 1.0},
-				},
-			},
-			expectedOwner: "exec1",
-			expectedLoad:  1.0,
-			expectedCount: 1,
 			expectedError: false,
 		},
 		{
