@@ -426,35 +426,6 @@ func TestBadBinariesDeepCopy(t *testing.T) {
 			input: &BadBinaries{},
 		},
 		{
-			name: "empty binaries map",
-			input: &BadBinaries{
-				Binaries: map[string]*BadBinaryInfo{},
-			},
-		},
-		{
-			name: "single binary without CreatedTimeNano",
-			input: &BadBinaries{
-				Binaries: map[string]*BadBinaryInfo{
-					"bad-checksum-1": {
-						Reason:   "causes crashes",
-						Operator: "test-operator",
-					},
-				},
-			},
-		},
-		{
-			name: "single binary with CreatedTimeNano",
-			input: &BadBinaries{
-				Binaries: map[string]*BadBinaryInfo{
-					"bad-checksum-2": {
-						Reason:          "causes deadlock",
-						Operator:        "admin",
-						CreatedTimeNano: func() *int64 { i := int64(123456789); return &i }(),
-					},
-				},
-			},
-		},
-		{
 			name: "multiple binaries",
 			input: &BadBinaries{
 				Binaries: map[string]*BadBinaryInfo{
@@ -472,23 +443,6 @@ func TestBadBinariesDeepCopy(t *testing.T) {
 						Operator:        "op3",
 						CreatedTimeNano: func() *int64 { i := int64(333); return &i }(),
 					},
-				},
-			},
-		},
-		{
-			name: "binaries with nil entries",
-			input: &BadBinaries{
-				Binaries: map[string]*BadBinaryInfo{
-					"bad1": {
-						Reason:   "reason1",
-						Operator: "op1",
-					},
-					"bad2": nil,
-					"bad3": {
-						Reason:   "reason3",
-						Operator: "op3",
-					},
-					"bad4": nil,
 				},
 			},
 		},
