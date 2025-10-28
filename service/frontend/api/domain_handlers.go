@@ -233,6 +233,7 @@ func (wh *WorkflowHandler) ListFailoverHistory(ctx context.Context, request *typ
 
 	logger.Info("List failover history request received.")
 
+	// todo (active-active): implement this
 	return generateDummyFailoverHistory(request.GetPagination().GetNextPageToken()), nil
 }
 

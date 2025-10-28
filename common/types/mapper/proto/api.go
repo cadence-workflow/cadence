@@ -4690,12 +4690,8 @@ func FromFailoverEvent(t *types.FailoverEvent) *apiv1.FailoverEvent {
 	if t == nil {
 		return nil
 	}
-	id := ""
-	if t.ID != nil {
-		id = *t.ID
-	}
 	return &apiv1.FailoverEvent{
-		Id:               id,
+		Id:               t.GetID(),
 		CreatedTime:      unixNanoToTime(t.CreatedTime),
 		FailoverType:     FromFailoverType(t.FailoverType),
 		ClusterFailovers: FromClusterFailoverArray(t.ClusterFailovers),
@@ -4823,8 +4819,10 @@ func ToFailoverType(t apiv1.FailoverType) *types.FailoverType {
 		return types.FailoverTypeForce.Ptr()
 	case apiv1.FailoverType_FAILOVER_TYPE_GRACEFUL:
 		return types.FailoverTypeGraceful.Ptr()
+	default:
+		// For FAILOVER_TYPE_INVALID and unknown values, return nil
+		return nil
 	}
-	return nil
 }
 
 func FromUpsertWorkflowSearchAttributesDecisionAttributes(t *types.UpsertWorkflowSearchAttributesDecisionAttributes) *apiv1.UpsertWorkflowSearchAttributesDecisionAttributes {

@@ -28,6 +28,7 @@ import (
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/testing/testdatagen"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
@@ -1419,6 +1420,23 @@ func TestFailoverEventArray(t *testing.T) {
 	}
 	for _, item := range testCases {
 		assert.Equal(t, item, ToFailoverEventArray(FromFailoverEventArray(item)))
+	}
+}
+
+func TestListFailoverHistoryResponseMapping(t *testing.T) {
+	fuzzer := testdatagen.New(t,
+		func(v *types.FailoverEvent, c fuzz.Continue) {
+			c.Fuzz(v)
+			// Don't allow empty strings for ID - use nil or a non-empty string
+			if v.ID != nil && *v.ID == "" {
+				v.ID = nil
+			}
+		})
+	for i := 0; i < 100; i++ {
+		var response types.ListFailoverHistoryResponse
+		fuzzer.Fuzz(&response)
+		protoResponse := FromListFailoverHistoryResponse(&response)
+		assert.Equal(t, &response, ToListFailoverHistoryResponse(protoResponse))
 	}
 }
 

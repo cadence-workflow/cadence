@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
 	cadence_errors "github.com/uber/cadence/common/errors"
+	"github.com/uber/cadence/common/testing/testdatagen"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
@@ -3694,5 +3695,22 @@ func TestClusterAttributeScopeConversion(t *testing.T) {
 		thriftObj := FromClusterAttributeScope(original)
 		roundTripObj := ToClusterAttributeScope(thriftObj)
 		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestListFailoverHistoryResponseConversion(t *testing.T) {
+	fuzzer := testdatagen.New(t,
+		func(v *types.FailoverEvent, c fuzz.Continue) {
+			c.Fuzz(v)
+			// Don't allow empty strings for ID - use nil or a non-empty string
+			if v.ID != nil && *v.ID == "" {
+				v.ID = nil
+			}
+		})
+	for i := 0; i < 100; i++ {
+		var response types.ListFailoverHistoryResponse
+		fuzzer.Fuzz(&response)
+		thriftResponse := FromListFailoverHistoryResponse(&response)
+		assert.Equal(t, &response, ToListFailoverHistoryResponse(thriftResponse))
 	}
 }
