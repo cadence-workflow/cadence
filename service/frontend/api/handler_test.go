@@ -2227,8 +2227,10 @@ func (s *workflowHandlerSuite) TestRestartWorkflowExecution() {
 								Name: "tasklist",
 							},
 							ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-								ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-								StickyRegion:                   "us-west-1",
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "region",
+									Name:  "us-west-1",
+								},
 							},
 						},
 					}},
@@ -2240,11 +2242,11 @@ func (s *workflowHandlerSuite) TestRestartWorkflowExecution() {
 						if request.StartRequest.ActiveClusterSelectionPolicy == nil {
 							return nil, errors.New("expected ActiveClusterSelectionPolicy to be preserved")
 						}
-						if *request.StartRequest.ActiveClusterSelectionPolicy.ActiveClusterSelectionStrategy != types.ActiveClusterSelectionStrategyRegionSticky {
-							return nil, errors.New("ActiveClusterSelectionStrategy not preserved")
-						}
-						if request.StartRequest.ActiveClusterSelectionPolicy.StickyRegion != "us-west-1" {
-							return nil, errors.New("StickyRegion not preserved")
+						if !request.StartRequest.ActiveClusterSelectionPolicy.ClusterAttribute.Equals(&types.ClusterAttribute{
+							Scope: "region",
+							Name:  "us-west-1",
+						}) {
+							return nil, errors.New("expected ActiveClusterSelectionPolicy to be preserved")
 						}
 						return &types.StartWorkflowExecutionResponse{RunID: testRunID}, nil
 					},
@@ -4934,8 +4936,10 @@ func TestConstructRestartWorkflowRequest(t *testing.T) {
 				CronSchedule:                    "0 */2 * * *",
 				FirstDecisionTaskBackoffSeconds: common.Int32Ptr(30),
 				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-					StickyRegion:                   "us-west-2",
+					ClusterAttribute: &types.ClusterAttribute{
+						Scope: "region",
+						Name:  "us-west-1",
+					},
 				},
 			},
 			domain:      "test-domain",
@@ -4943,23 +4947,6 @@ func TestConstructRestartWorkflowRequest(t *testing.T) {
 			workflowID:  "test-workflow-id",
 			expectPanic: false,
 			description: "complete field validation ensures all fields are properly set",
-		},
-		{
-			name: "ActiveClusterSelectionPolicy with ExternalEntity strategy",
-			originalAttributes: &types.WorkflowExecutionStartedEventAttributes{
-				WorkflowType: &types.WorkflowType{Name: "testWorkflow"},
-				TaskList:     &types.TaskList{Name: "testTaskList"},
-				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
-					ExternalEntityType:             "order",
-					ExternalEntityKey:              "order-789",
-				},
-			},
-			domain:      "test-domain",
-			identity:    "test-identity",
-			workflowID:  "test-workflow-id",
-			expectPanic: false,
-			description: "ExternalEntity policy should be completely preserved",
 		},
 		{
 			name: "nil ActiveClusterSelectionPolicy should remain nil",

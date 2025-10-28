@@ -346,7 +346,7 @@ var (
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,
 		FirstRunAtTimeStamp:                 &Timestamp1,
-		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyExternalEntity,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyWithClusterAttribute,
 	}
 	StartWorkflowExecutionResponse = types.StartWorkflowExecutionResponse{
 		RunID: RunID,
@@ -385,7 +385,7 @@ var (
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,
 		FirstRunAtTimestamp:                 &Timestamp1,
-		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyRegionSticky,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyWithClusterAttribute,
 	}
 	SignalWithStartWorkflowExecutionAsyncRequest = types.SignalWithStartWorkflowExecutionAsyncRequest{
 		SignalWithStartWorkflowExecutionRequest: &SignalWithStartWorkflowExecutionRequest,

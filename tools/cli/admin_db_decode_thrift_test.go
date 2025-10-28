@@ -108,12 +108,13 @@ func TestThriftDecodeHelper(t *testing.T) {
 			encoding:  "hex",
 			wantObjFn: generateTestActiveClustersConfig,
 		},
+		/* TODO(Shaddoll): update this test once we pull the new IDL
 		{
 			desc:      "Active cluster selection policy",
-			input:     "5908000a000000000b001400000007726567696f6e300b001e000000000b00280000000000",
+			input:     "0x590c00010b000100000006726567696f6e0b000200000007726567696f6e300008000a000000000b0014000000000b001e000000000b00280000000000",
 			encoding:  "hex",
 			wantObjFn: generateTestActiveClusterSelectionPolicy,
-		},
+		},*/
 	}
 
 	for _, tc := range tests {
@@ -261,10 +262,10 @@ func generateTestTimerInfo(t *testing.T) codec.ThriftObject {
 func generateTestActiveClusterSelectionPolicy(t *testing.T) codec.ThriftObject {
 	t.Helper()
 	return &shared.ActiveClusterSelectionPolicy{
-		Strategy:           shared.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-		StickyRegion:       common.StringPtr("region0"),
-		ExternalEntityType: common.StringPtr(""),
-		ExternalEntityKey:  common.StringPtr(""),
+		ClusterAttribute: &shared.ClusterAttribute{
+			Scope: common.StringPtr("region"),
+			Name:  common.StringPtr("region0"),
+		},
 	}
 }
 
