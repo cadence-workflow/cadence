@@ -391,6 +391,34 @@ func (b *BadBinaries) ByteSize() uint64 {
 	return size
 }
 
+// DeepCopy returns a deep copy of BadBinaries
+func (b *BadBinaries) DeepCopy() BadBinaries {
+	if b == nil {
+		return BadBinaries{}
+	}
+	result := BadBinaries{}
+	if b.Binaries != nil {
+		result.Binaries = make(map[string]*BadBinaryInfo, len(b.Binaries))
+		for k, v := range b.Binaries {
+			if v != nil {
+				copyV := &BadBinaryInfo{
+					Reason:   v.Reason,
+					Operator: v.Operator,
+				}
+				if v.CreatedTimeNano != nil {
+					createdTime := *v.CreatedTimeNano
+					copyV.CreatedTimeNano = &createdTime
+				}
+				result.Binaries[k] = copyV
+			} else {
+				// Preserve nil entries in the map
+				result.Binaries[k] = nil
+			}
+		}
+	}
+	return result
+}
+
 // BadBinaryInfo is an internal type (TBD...)
 type BadBinaryInfo struct {
 	Reason          string `json:"reason,omitempty"`
@@ -2685,13 +2713,14 @@ func (v *ActiveClusters) DeepCopy() *ActiveClusters {
 	if v == nil {
 		return nil
 	}
-	attributeScopes := make(map[string]ClusterAttributeScope)
-	for scopeType, scope := range v.AttributeScopes {
-		attributeScopes[scopeType] = scope
+	result := &ActiveClusters{}
+	if v.AttributeScopes != nil {
+		result.AttributeScopes = make(map[string]ClusterAttributeScope, len(v.AttributeScopes))
+		for scopeType, scope := range v.AttributeScopes {
+			result.AttributeScopes[scopeType] = scope
+		}
 	}
-	return &ActiveClusters{
-		AttributeScopes: attributeScopes,
-	}
+	return result
 }
 
 type ClusterAttribute struct {

@@ -422,10 +422,12 @@ func (d *handlerImpl) UpdateDomain(
 		return nil, err
 	}
 	notificationVersion := metadata.NotificationVersion
-	getResponse, err := d.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()})
+	currentDomainState, err := d.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()})
 	if err != nil {
 		return nil, err
 	}
+
+	getResponse := currentDomainState.DeepCopy()
 
 	info := getResponse.Info
 	config := getResponse.Config
