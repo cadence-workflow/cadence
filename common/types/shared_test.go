@@ -100,8 +100,15 @@ func TestActiveClustersConfigDeepCopy(t *testing.T) {
 			expect: nil,
 		},
 		{
-			name:  "empty case",
-			input: &ActiveClusters{},
+			name:   "empty case with nil map",
+			input:  &ActiveClusters{},
+			expect: &ActiveClusters{},
+		},
+		{
+			name: "empty case with empty map",
+			input: &ActiveClusters{
+				AttributeScopes: map[string]ClusterAttributeScope{},
+			},
 			expect: &ActiveClusters{
 				AttributeScopes: map[string]ClusterAttributeScope{},
 			},
@@ -401,6 +408,135 @@ func TestActiveClusters_GetFailoverVersionForAttribute(t *testing.T) {
 			got, gotErr := tt.activeClusters.GetFailoverVersionForAttribute(tt.scopeType, tt.attributeName)
 			assert.Equal(t, tt.expected, got)
 			assert.Equal(t, tt.expectedErr, gotErr)
+		})
+	}
+}
+
+func TestBadBinariesDeepCopy(t *testing.T) {
+	tests := []struct {
+		name  string
+		input *BadBinaries
+	}{
+		{
+			name:  "nil",
+			input: nil,
+		},
+		{
+			name:  "empty",
+			input: &BadBinaries{},
+		},
+		{
+			name: "empty binaries map",
+			input: &BadBinaries{
+				Binaries: map[string]*BadBinaryInfo{},
+			},
+		},
+		{
+			name: "single binary without CreatedTimeNano",
+			input: &BadBinaries{
+				Binaries: map[string]*BadBinaryInfo{
+					"bad-checksum-1": {
+						Reason:   "causes crashes",
+						Operator: "test-operator",
+					},
+				},
+			},
+		},
+		{
+			name: "single binary with CreatedTimeNano",
+			input: &BadBinaries{
+				Binaries: map[string]*BadBinaryInfo{
+					"bad-checksum-2": {
+						Reason:          "causes deadlock",
+						Operator:        "admin",
+						CreatedTimeNano: func() *int64 { i := int64(123456789); return &i }(),
+					},
+				},
+			},
+		},
+		{
+			name: "multiple binaries",
+			input: &BadBinaries{
+				Binaries: map[string]*BadBinaryInfo{
+					"bad1": {
+						Reason:          "reason1",
+						Operator:        "op1",
+						CreatedTimeNano: func() *int64 { i := int64(111); return &i }(),
+					},
+					"bad2": {
+						Reason:   "reason2",
+						Operator: "op2",
+					},
+					"bad3": {
+						Reason:          "reason3",
+						Operator:        "op3",
+						CreatedTimeNano: func() *int64 { i := int64(333); return &i }(),
+					},
+				},
+			},
+		},
+		{
+			name: "binaries with nil entries",
+			input: &BadBinaries{
+				Binaries: map[string]*BadBinaryInfo{
+					"bad1": {
+						Reason:   "reason1",
+						Operator: "op1",
+					},
+					"bad2": nil,
+					"bad3": {
+						Reason:   "reason3",
+						Operator: "op3",
+					},
+					"bad4": nil,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			copied := tt.input.DeepCopy()
+
+			// Test for nil input
+			if tt.input == nil {
+				assert.Empty(t, copied.Binaries)
+				return
+			}
+
+			// Verify values are equal
+			assert.Equal(t, tt.input.Binaries, copied.Binaries, "values should be equal")
+
+			// Verify maps are different pointers (if not nil)
+			if tt.input.Binaries != nil {
+				assert.True(t, &tt.input.Binaries != &copied.Binaries, "maps should have different memory addresses")
+
+				// Verify each BadBinaryInfo is a different pointer
+				for key, originalInfo := range tt.input.Binaries {
+					copiedInfo := copied.Binaries[key]
+					if originalInfo != nil {
+						assert.NotNil(t, copiedInfo)
+						assert.Equal(t, originalInfo.Reason, copiedInfo.Reason)
+						assert.Equal(t, originalInfo.Operator, copiedInfo.Operator)
+						assert.True(t, originalInfo != copiedInfo, "BadBinaryInfo should be different pointers")
+
+						// Verify CreatedTimeNano is deep copied
+						if originalInfo.CreatedTimeNano != nil {
+							assert.NotNil(t, copiedInfo.CreatedTimeNano)
+							assert.Equal(t, *originalInfo.CreatedTimeNano, *copiedInfo.CreatedTimeNano)
+							assert.True(t, originalInfo.CreatedTimeNano != copiedInfo.CreatedTimeNano, "CreatedTimeNano pointers should be different")
+						}
+					}
+				}
+
+				// Verify modifications to original don't affect copy
+				if len(tt.input.Binaries) > 0 {
+					originalLen := len(copied.Binaries)
+					tt.input.Binaries["new-bad"] = &BadBinaryInfo{Reason: "new-reason"}
+					assert.Equal(t, originalLen, len(copied.Binaries), "modifying original should not affect copy")
+					assert.NotContains(t, copied.Binaries, "new-bad")
+				}
+			}
 		})
 	}
 }

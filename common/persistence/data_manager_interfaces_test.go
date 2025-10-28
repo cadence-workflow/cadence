@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common/testing/testdatagen"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -40,6 +41,108 @@ func TestClusterReplicationConfigGetCopy(t *testing.T) {
 	}
 	assert.Equal(t, config, config.GetCopy()) // deep equal
 	assert.Equal(t, true, config != config.GetCopy())
+}
+
+func TestGetDomainResponseDeepCopy(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *GetDomainResponse
+		validate func(t *testing.T, original, copied *GetDomainResponse)
+	}{
+		{
+			name:  "nil response",
+			input: nil,
+			validate: func(t *testing.T, original, copied *GetDomainResponse) {
+				assert.Nil(t, copied)
+			},
+		},
+		{
+			name:  "empty response",
+			input: &GetDomainResponse{},
+			validate: func(t *testing.T, original, copied *GetDomainResponse) {
+				assert.NotNil(t, copied)
+				assert.Equal(t, original, copied)
+				assert.True(t, original != copied, "should be different pointers")
+			},
+		},
+		{
+			name: "full populated response",
+			input: &GetDomainResponse{
+				Info: &DomainInfo{
+					ID:          "full-id",
+					Name:        "full-name",
+					Status:      1,
+					Description: "full-description",
+					OwnerEmail:  "full@example.com",
+					Data:        map[string]string{"k": "v"},
+				},
+				Config: &DomainConfig{
+					Retention:                30,
+					EmitMetric:               true,
+					HistoryArchivalStatus:    types.ArchivalStatusEnabled,
+					HistoryArchivalURI:       "test://history",
+					VisibilityArchivalStatus: types.ArchivalStatusDisabled,
+					VisibilityArchivalURI:    "test://visibility",
+					BadBinaries:              types.BadBinaries{},
+					IsolationGroups:          types.IsolationGroupConfiguration{},
+					AsyncWorkflowConfig:      types.AsyncWorkflowConfiguration{Enabled: true},
+				},
+				ReplicationConfig: &DomainReplicationConfig{
+					ActiveClusterName: "active",
+					Clusters:          []*ClusterReplicationConfig{{ClusterName: "c1"}},
+				},
+				IsGlobalDomain:              true,
+				ConfigVersion:               100,
+				FailoverVersion:             200,
+				FailoverNotificationVersion: 300,
+				PreviousFailoverVersion:     400,
+				FailoverEndTime:             func() *int64 { i := int64(500); return &i }(),
+				LastUpdatedTime:             600,
+				NotificationVersion:         700,
+			},
+			validate: func(t *testing.T, original, copied *GetDomainResponse) {
+				assert.NotNil(t, copied)
+				assert.Equal(t, original, copied)
+				// Verify all nested pointers are different
+				assert.True(t, original != copied)
+				assert.True(t, original.Info != copied.Info)
+				assert.True(t, original.Config != copied.Config)
+				assert.True(t, original.ReplicationConfig != copied.ReplicationConfig)
+				assert.True(t, original.FailoverEndTime != copied.FailoverEndTime)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			copied := tt.input.DeepCopy()
+			tt.validate(t, tt.input, copied)
+		})
+	}
+}
+
+func TestGetDomainResponseDeepCopy_FuzzGenerated(t *testing.T) {
+	fuzzer := testdatagen.New(t)
+
+	// Run multiple iterations to test with different data
+	for i := 0; i < 100; i++ {
+		t.Run(fmt.Sprintf("iteration_%d", i), func(t *testing.T) {
+			original := &GetDomainResponse{}
+			fuzzer.Fuzz(original)
+
+			// Create a deep copy
+			copied := original.DeepCopy()
+
+			// Verify the copy is not nil
+			require.NotNil(t, copied, "DeepCopy should not return nil for non-nil input")
+
+			// Verify the copied struct is equal to the original
+			assert.Equal(t, original, copied, "DeepCopy should produce an equal struct")
+
+			// Verify they are different instances (different memory addresses)
+			assert.True(t, original != copied, "DeepCopy should create a new instance")
+		})
+	}
 }
 
 func TestIsTransientError(t *testing.T) {
