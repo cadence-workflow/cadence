@@ -631,11 +631,12 @@ type (
 	// ShardDistribution is a configuration for leader election running.
 	// This configuration should be in sync with sharddistributor.
 	ShardDistribution struct {
-		LeaderStore Store         `yaml:"leaderStore"`
-		Election    Election      `yaml:"election"`
-		Namespaces  []Namespace   `yaml:"namespaces"`
-		Process     LeaderProcess `yaml:"process"`
-		Store       Store         `yaml:"store"`
+		LeaderStore     Store         `yaml:"leaderStore"`
+		Election        Election      `yaml:"election"`
+		Namespaces      []Namespace   `yaml:"namespaces"`
+		Process         LeaderProcess `yaml:"process"`
+		Store           Store         `yaml:"store"`
+		DataCompression bool          `yaml:"dataCompression" default:"true"`
 	}
 
 	// Store is a generic container for any storage configuration that should be parsed by the implementation.

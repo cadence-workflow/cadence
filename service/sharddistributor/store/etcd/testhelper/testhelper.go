@@ -54,8 +54,9 @@ func SetupStoreTestCluster(t *testing.T) *StoreTestCluster {
 	require.NoError(t, err)
 
 	leaderCfg := shardDistributorCfg.ShardDistribution{
-		Store:       shardDistributorCfg.Store{StorageParams: yamlNode},
-		LeaderStore: shardDistributorCfg.Store{StorageParams: yamlNode},
+		Store:           shardDistributorCfg.Store{StorageParams: yamlNode},
+		LeaderStore:     shardDistributorCfg.Store{StorageParams: yamlNode},
+		DataCompression: true,
 	}
 
 	client, err := clientv3.New(clientv3.Config{Endpoints: endpoints, DialTimeout: 5 * time.Second})
