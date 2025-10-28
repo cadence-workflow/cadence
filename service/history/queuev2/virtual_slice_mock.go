@@ -43,18 +43,6 @@ func (m *MockVirtualSlice) EXPECT() *MockVirtualSliceMockRecorder {
 	return m.recorder
 }
 
-// CancelTasksAfter mocks base method.
-func (m *MockVirtualSlice) CancelTasksAfter(key persistence.HistoryTaskKey) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CancelTasksAfter", key)
-}
-
-// CancelTasksAfter indicates an expected call of CancelTasksAfter.
-func (mr *MockVirtualSliceMockRecorder) CancelTasksAfter(key any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelTasksAfter", reflect.TypeOf((*MockVirtualSlice)(nil).CancelTasksAfter), key)
-}
-
 // Clear mocks base method.
 func (m *MockVirtualSlice) Clear() {
 	m.ctrl.T.Helper()
@@ -162,6 +150,18 @@ func (m *MockVirtualSlice) PendingTaskStats() PendingTaskStats {
 func (mr *MockVirtualSliceMockRecorder) PendingTaskStats() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PendingTaskStats", reflect.TypeOf((*MockVirtualSlice)(nil).PendingTaskStats))
+}
+
+// ResetProgress mocks base method.
+func (m *MockVirtualSlice) ResetProgress(key persistence.HistoryTaskKey) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ResetProgress", key)
+}
+
+// ResetProgress indicates an expected call of ResetProgress.
+func (mr *MockVirtualSliceMockRecorder) ResetProgress(key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetProgress", reflect.TypeOf((*MockVirtualSlice)(nil).ResetProgress), key)
 }
 
 // TryMergeWithVirtualSlice mocks base method.

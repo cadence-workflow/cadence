@@ -151,16 +151,16 @@ func (mr *MockVirtualQueueMockRecorder) Pause(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Pause", reflect.TypeOf((*MockVirtualQueue)(nil).Pause), arg0)
 }
 
-// RemoveScheduledTasksAfter mocks base method.
-func (m *MockVirtualQueue) RemoveScheduledTasksAfter(arg0 persistence.HistoryTaskKey) {
+// ResetProgress mocks base method.
+func (m *MockVirtualQueue) ResetProgress(arg0 persistence.HistoryTaskKey) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RemoveScheduledTasksAfter", arg0)
+	m.ctrl.Call(m, "ResetProgress", arg0)
 }
 
-// RemoveScheduledTasksAfter indicates an expected call of RemoveScheduledTasksAfter.
-func (mr *MockVirtualQueueMockRecorder) RemoveScheduledTasksAfter(arg0 any) *gomock.Call {
+// ResetProgress indicates an expected call of ResetProgress.
+func (mr *MockVirtualQueueMockRecorder) ResetProgress(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveScheduledTasksAfter", reflect.TypeOf((*MockVirtualQueue)(nil).RemoveScheduledTasksAfter), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetProgress", reflect.TypeOf((*MockVirtualQueue)(nil).ResetProgress), arg0)
 }
 
 // SplitSlices mocks base method.

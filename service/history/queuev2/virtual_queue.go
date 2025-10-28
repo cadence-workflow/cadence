@@ -69,8 +69,8 @@ type (
 		Pause(time.Duration)
 		// InsertSingleTask inserts a single task to the virtual queue. Return false if the task's timestamp is out of range of the current queue slice..
 		InsertSingleTask(task task.Task) bool
-		// RemoveScheduledTasksAfter removes the scheduled tasks after the given time
-		RemoveScheduledTasksAfter(persistence.HistoryTaskKey)
+		// ResetProgress removes the scheduled tasks after the given time
+		ResetProgress(persistence.HistoryTaskKey)
 	}
 
 	VirtualQueueOptions struct {
@@ -445,21 +445,24 @@ func (q *virtualQueueImpl) InsertSingleTask(task task.Task) bool {
 
 	now := q.timeSource.Now()
 	if err := q.submitTask(now, task); err != nil {
-		q.logger.Error("Virtual queue failed to submit task", tag.Error(err))
-		return false
+		q.logger.Error("Error submitting task to virtual queue", tag.Error(err))
 	}
 
 	return true
 }
 
-func (q *virtualQueueImpl) RemoveScheduledTasksAfter(key persistence.HistoryTaskKey) {
+func (q *virtualQueueImpl) ResetProgress(key persistence.HistoryTaskKey) {
 	q.Lock()
 	defer q.Unlock()
 
 	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
 		slice := e.Value.(VirtualSlice)
-		slice.CancelTasksAfter(key)
+		slice.ResetProgress(key)
 		q.monitor.SetSlicePendingTaskCount(slice, slice.GetPendingTaskCount())
+
+		if e == q.sliceToRead {
+			break
+		}
 	}
 }
 
@@ -482,16 +485,13 @@ func (q *virtualQueueImpl) submitTask(now time.Time, task task.Task) error {
 	q.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(task.GetVisibilityTimestamp()))
 	task.SetInitialSubmitTime(now)
 	submitted, err := q.processor.TrySubmit(task)
-	if err != nil {
-		return err
-	}
 
 	if !submitted {
 		q.metricsScope.IncCounter(metrics.ProcessingQueueThrottledCounter)
 		q.rescheduler.RescheduleTask(task, q.timeSource.Now().Add(taskSchedulerThrottleBackoffInterval))
 	}
 
-	return nil
+	return err
 }
 
 func (q *virtualQueueImpl) resetNextReadSliceLocked() {

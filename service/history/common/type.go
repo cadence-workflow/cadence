@@ -38,7 +38,9 @@ type (
 		PersistenceError bool
 
 		// if true, the task will be scheduled in memory for the current execution, otherwise
-		// it will only be scheduled after the next DB scan
+		// it will only be scheduled after the next DB scan. This notification is sometimes passed with a fake
+		// timer with the sole purpose of resetting the next scheduled DB read, that's why sometimes we want to
+		// avoid scheduling the task in memory.
 		ScheduleInMemory bool
 	}
 )

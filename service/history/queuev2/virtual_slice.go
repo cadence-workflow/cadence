@@ -43,7 +43,7 @@ type (
 		GetPendingTaskCount() int
 		Clear()
 		PendingTaskStats() PendingTaskStats
-		CancelTasksAfter(key persistence.HistoryTaskKey)
+		ResetProgress(key persistence.HistoryTaskKey)
 
 		TrySplitByTaskKey(persistence.HistoryTaskKey) (VirtualSlice, VirtualSlice, bool)
 		TrySplitByPredicate(Predicate) (VirtualSlice, VirtualSlice, bool)
@@ -197,7 +197,10 @@ func (s *virtualSliceImpl) UpdateAndGetState() VirtualSliceState {
 	return s.state
 }
 
-func (s *virtualSliceImpl) CancelTasksAfter(key persistence.HistoryTaskKey) {
+// this function is used when we are not sure if our in-memory state after the given key is correct,
+// we want to cancel all the tasks after the given key and reset the progress to the given key,
+// so that in the next poll, we will read the tasks from the DB starting from the given key.
+func (s *virtualSliceImpl) ResetProgress(key persistence.HistoryTaskKey) {
 	taskMap := s.pendingTaskTracker.GetTasks()
 	for _, task := range taskMap {
 		if task.GetTaskKey().Compare(key) >= 0 {

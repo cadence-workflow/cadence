@@ -82,16 +82,16 @@ func (mr *MockVirtualQueueManagerMockRecorder) InsertSingleTaskToRootQueue(arg0 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSingleTaskToRootQueue", reflect.TypeOf((*MockVirtualQueueManager)(nil).InsertSingleTaskToRootQueue), arg0)
 }
 
-// RemoveScheduledTasksAfter mocks base method.
-func (m *MockVirtualQueueManager) RemoveScheduledTasksAfter(arg0 persistence.HistoryTaskKey) {
+// ResetProgress mocks base method.
+func (m *MockVirtualQueueManager) ResetProgress(arg0 persistence.HistoryTaskKey) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RemoveScheduledTasksAfter", arg0)
+	m.ctrl.Call(m, "ResetProgress", arg0)
 }
 
-// RemoveScheduledTasksAfter indicates an expected call of RemoveScheduledTasksAfter.
-func (mr *MockVirtualQueueManagerMockRecorder) RemoveScheduledTasksAfter(arg0 any) *gomock.Call {
+// ResetProgress indicates an expected call of ResetProgress.
+func (mr *MockVirtualQueueManagerMockRecorder) ResetProgress(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveScheduledTasksAfter", reflect.TypeOf((*MockVirtualQueueManager)(nil).RemoveScheduledTasksAfter), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetProgress", reflect.TypeOf((*MockVirtualQueueManager)(nil).ResetProgress), arg0)
 }
 
 // Start mocks base method.
