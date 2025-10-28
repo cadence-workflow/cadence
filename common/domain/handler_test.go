@@ -3464,7 +3464,7 @@ func TestUpdateFailoverHistory(t *testing.T) {
 			}
 
 			domainInfo := tc.domainInfo()
-			err := updateFailoverHistory(domainInfo, cfg, tc.newFailoverEvent)
+			err := updateFailoverHistoryInDomainData(domainInfo, cfg, tc.newFailoverEvent)
 
 			if tc.err != nil {
 				assert.Equal(t, tc.err, err)
