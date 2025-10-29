@@ -691,6 +691,69 @@ func (d *handlerImpl) UpdateDomain(
 	return response, nil
 }
 
+
+func (d *handlerImpl) updateLocalDomain() {
+
+		lastUpdatedTime = now
+
+		updateReq := createUpdateRequest(
+			info,
+			config,
+			replicationConfig,
+			configVersion,
+			failoverVersion,
+			failoverNotificationVersion,
+			gracefulFailoverEndTime,
+			previousFailoverVersion,
+			lastUpdatedTime,
+			notificationVersion,
+		)
+
+		err = d.domainManager.UpdateDomain(ctx, &updateReq)
+		if err != nil {
+			return nil, err
+		}
+	}
+	response := &types.UpdateDomainResponse{
+		IsGlobalDomain:  isGlobalDomain,
+		FailoverVersion: failoverVersion,
+	}
+	response.DomainInfo, response.Configuration, response.ReplicationConfiguration = d.createResponse(info, config, replicationConfig)
+
+	d.logger.Info("Update domain succeeded",
+		tag.WorkflowDomainName(info.Name),
+		tag.WorkflowDomainID(info.ID),
+	)
+	return response, nil
+}
+
+func (d *handlerImpl) failoverActivePassiveDomain() {
+
+		failoverVersion = d.clusterMetadata.GetNextFailoverVersion(
+			replicationConfig.ActiveClusterName,
+			failoverVersion,
+			updateRequest.Name,
+		)
+
+		d.logger.Debug("active-passive domain failover",
+			tag.WorkflowDomainName(info.Name),
+			tag.Dynamic("failover-version", failoverVersion),
+			tag.Dynamic("failover-type", failoverType),
+		)
+
+		err = updateFailoverHistoryInDomainData(info, d.config, NewFailoverEvent(
+			now,
+			failoverType,
+			&currentActiveCluster,
+			updateRequest.ActiveClusterName,
+			nil,
+			nil,
+		))
+		if err != nil {
+			d.logger.Warn("failed to update failover history", tag.Error(err))
+		}
+}
+
 // FailoverDomain handles failover of the domain to a different cluster
 func (d *handlerImpl) FailoverDomain(
 	ctx context.Context,
