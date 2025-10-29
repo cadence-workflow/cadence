@@ -580,6 +580,41 @@ func (s *executorStoreImpl) DeleteExecutors(ctx context.Context, namespace strin
 	return nil
 }
 
+func (s *executorStoreImpl) DeleteShardStats(ctx context.Context, namespace string, shardIDs []string, guard store.GuardFunc) error {
+	if len(shardIDs) == 0 {
+		return nil
+	}
+	var ops []clientv3.Op
+	for _, shardID := range shardIDs {
+		shardStatsKey, err := etcdkeys.BuildShardKey(s.prefix, namespace, shardID, etcdkeys.ShardStatisticsKey)
+		if err != nil {
+			return fmt.Errorf("build shard statistics key: %w", err)
+		}
+		ops = append(ops, clientv3.OpDelete(shardStatsKey))
+	}
+
+	nativeTxn := s.client.Txn(ctx)
+	guardedTxn, err := guard(nativeTxn)
+
+	if err != nil {
+		return fmt.Errorf("apply transaction guard: %w", err)
+	}
+	etcdGuardedTxn, ok := guardedTxn.(clientv3.Txn)
+	if !ok {
+		return fmt.Errorf("guard function returned invalid transaction type")
+	}
+
+	etcdGuardedTxn = etcdGuardedTxn.Then(ops...)
+	resp, err := etcdGuardedTxn.Commit()
+	if err != nil {
+		return fmt.Errorf("commit shard statistics deletion: %w", err)
+	}
+	if !resp.Succeeded {
+		return fmt.Errorf("transaction failed, leadership may have changed")
+	}
+	return nil
+}
+
 func (s *executorStoreImpl) GetShardOwner(ctx context.Context, namespace, shardID string) (string, error) {
 	return s.shardCache.GetShardOwner(ctx, namespace, shardID)
 }

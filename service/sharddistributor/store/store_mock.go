@@ -106,6 +106,20 @@ func (mr *MockStoreMockRecorder) DeleteExecutors(ctx, namespace, executorIDs, gu
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExecutors", reflect.TypeOf((*MockStore)(nil).DeleteExecutors), ctx, namespace, executorIDs, guard)
 }
 
+// DeleteShardStats mocks base method.
+func (m *MockStore) DeleteShardStats(ctx context.Context, namespace string, shardIDs []string, guard GuardFunc) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteShardStats", ctx, namespace, shardIDs, guard)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteShardStats indicates an expected call of DeleteShardStats.
+func (mr *MockStoreMockRecorder) DeleteShardStats(ctx, namespace, shardIDs, guard any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteShardStats", reflect.TypeOf((*MockStore)(nil).DeleteShardStats), ctx, namespace, shardIDs, guard)
+}
+
 // GetHeartbeat mocks base method.
 func (m *MockStore) GetHeartbeat(ctx context.Context, namespace, executorID string) (*HeartbeatState, *AssignedState, error) {
 	m.ctrl.T.Helper()
