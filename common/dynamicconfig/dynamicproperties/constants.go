@@ -2440,7 +2440,7 @@ const (
 	//
 	// KeyName: shardDistributor.migrationMode
 	// Value type: String
-	// Default value: local_pass
+	// Default value: onboarded
 	// Allowed filters: namespace
 	MigrationMode
 
@@ -4964,7 +4964,7 @@ var StringKeys = map[StringKey]DynamicString{
 	MigrationMode: {
 		KeyName:      "shardDistributor.migrationMode",
 		Description:  "MigrationMode is the mode the at represent the state of the migration to rely on shard distributor for the sharding mechanism",
-		DefaultValue: "local_pass",
+		DefaultValue: "onboarded",
 		Filters:      []Filter{Namespace},
 	},
 }

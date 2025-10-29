@@ -70,3 +70,17 @@ system.readVisibilityStoreName:
   - value: "db"
 matching.enableClientAutoConfig:
 - value: true
+shardDistributor.MigrationMode:
+  - value: "onboarded"
+  - value: "local_pass"
+    constraints:
+    namespace: "test-local-passthrough"
+  - value: "local_pass_shadow"
+    constraints:
+    namespace: "test-local-passthrough-shadow"
+  - value: "distributed_pass"
+    constraints:
+    namespace: "test-distributed-passthrough"
+  - value: "distributed_pass"
+    constraints:
+    namespace: "test-external-assignment"
