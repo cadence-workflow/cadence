@@ -1441,12 +1441,12 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				timeSource.Advance(time.Hour)
 
 				failoverData, _ := json.Marshal([]FailoverEvent{{
-					EventTime:    timeSource.Now(),
-					FromCluster:  cluster.TestCurrentClusterName,
-					ToCluster:    cluster.TestAlternativeClusterName,
-					FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String(),
-					FromActiveClusters: types.ActiveClusters{ },
-					ToActiveClusters: types.ActiveClusters{ },
+					EventTime:          timeSource.Now(),
+					FromCluster:        cluster.TestCurrentClusterName,
+					ToCluster:          cluster.TestAlternativeClusterName,
+					FailoverType:       commonconstants.FailoverType(commonconstants.FailoverTypeForce).String(),
+					FromActiveClusters: types.ActiveClusters{},
+					ToActiveClusters:   types.ActiveClusters{},
 				}})
 
 				expectedUpdateRequest := &persistence.UpdateDomainRequest{
