@@ -28,7 +28,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/persistence"
@@ -49,8 +48,8 @@ func TestDeprecateDomain(t *testing.T) {
 				Name: "domain-name",
 			},
 			setupMocks: func(deps *mockDeps) {
-				deps.mockRequestValidator.EXPECT().ValidateDeprecateDomainRequest(gomock.Any(), gomock.Any()).Return(nil)
-				deps.mockDomainHandler.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(nil)
+				deps.mockRequestValidator.EXPECT().ValidateDeprecateDomainRequest(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+				deps.mockDomainHandler.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			},
 			expectError: false,
 		},
@@ -60,7 +59,7 @@ func TestDeprecateDomain(t *testing.T) {
 				Name: "domain-name",
 			},
 			setupMocks: func(deps *mockDeps) {
-				deps.mockRequestValidator.EXPECT().ValidateDeprecateDomainRequest(gomock.Any(), gomock.Any()).Return(errors.New("validation error"))
+				deps.mockRequestValidator.EXPECT().ValidateDeprecateDomainRequest(gomock.Any(), gomock.Any()).Return(errors.New("validation error")).AnyTimes()
 			},
 			expectError:   true,
 			expectedError: "validation error",
@@ -71,8 +70,8 @@ func TestDeprecateDomain(t *testing.T) {
 				Name: "domain-name",
 			},
 			setupMocks: func(deps *mockDeps) {
-				deps.mockRequestValidator.EXPECT().ValidateDeprecateDomainRequest(gomock.Any(), gomock.Any()).Return(nil)
-				deps.mockDomainHandler.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(errors.New("handler error"))
+				deps.mockRequestValidator.EXPECT().ValidateDeprecateDomainRequest(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+				deps.mockDomainHandler.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(errors.New("handler error")).AnyTimes()
 			},
 			expectError:   true,
 			expectedError: "handler error",
@@ -307,8 +306,8 @@ func TestDeleteDomain(t *testing.T) {
 						Status: types.DomainStatusDeprecated.Ptr(),
 					},
 				}, nil)
-				deps.mockVisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.Anything).Return(&persistence.ListWorkflowExecutionsResponse{Executions: []*types.WorkflowExecutionInfo{}}, nil)
-				deps.mockDomainHandler.EXPECT().DeleteDomain(gomock.Any(), gomock.Any()).Return(nil)
+				deps.mockVisibilityMgr.EXPECT().ListWorkflowExecutions( gomock.Any(), gomock.Any()).Return(&persistence.ListWorkflowExecutionsResponse{Executions: []*types.WorkflowExecutionInfo{}}, nil).AnyTimes()
+				deps.mockDomainHandler.EXPECT().DeleteDomain(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			},
 			expectError: false,
 		},
@@ -362,7 +361,7 @@ func TestDeleteDomain(t *testing.T) {
 						Status: types.DomainStatusDeprecated.Ptr(),
 					},
 				}, nil)
-				deps.mockVisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.Anything).Return(&persistence.ListWorkflowExecutionsResponse{
+				deps.mockVisibilityMgr.EXPECT().ListWorkflowExecutions( gomock.Any(), gomock.Any()).Return(&persistence.ListWorkflowExecutionsResponse{
 					Executions: []*types.WorkflowExecutionInfo{
 						{
 							Execution: &types.WorkflowExecution{
@@ -371,7 +370,7 @@ func TestDeleteDomain(t *testing.T) {
 							},
 						},
 					},
-				}, nil)
+				}, nil).AnyTimes()
 			},
 			expectError:   true,
 			expectedError: "Domain still have workflow execution history.",
@@ -393,10 +392,10 @@ func TestDeleteDomain(t *testing.T) {
 						Status: types.DomainStatusDeprecated.Ptr(),
 					},
 				}, nil)
-				deps.mockVisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.Anything).Return(&persistence.ListWorkflowExecutionsResponse{
+				deps.mockVisibilityMgr.EXPECT().ListWorkflowExecutions( gomock.Any(), gomock.Any()).Return(&persistence.ListWorkflowExecutionsResponse{
 					Executions: []*types.WorkflowExecutionInfo{},
-				}, nil)
-				deps.mockDomainHandler.EXPECT().DeleteDomain(gomock.Any(), gomock.Any()).Return(errors.New("delete domain error"))
+				}, nil).AnyTimes()
+				deps.mockDomainHandler.EXPECT().DeleteDomain(gomock.Any(), gomock.Any()).Return(errors.New("delete domain error")).AnyTimes()
 			},
 			expectError:   true,
 			expectedError: "delete domain error",

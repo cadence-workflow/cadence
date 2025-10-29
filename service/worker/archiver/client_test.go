@@ -25,7 +25,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/mock"
+	
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/cadence/mocks"

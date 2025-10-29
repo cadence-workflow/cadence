@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
@@ -107,8 +106,8 @@ func (s *visibilityArchiverSuite) TestValidateVisibilityURI() {
 		},
 	}
 
-	storageWrapper := &mocks.Client{}
-	storageWrapper.On("Exist", mock.Anything, mock.Anything, "").Return(false, nil)
+	storageWrapper := mocks.NewMockClient(gomock.NewController(s.T()))
+	storageWrapper.EXPECT().Exist(gomock.Any(), gomock.Any(), "").Return(false, nil)
 	visibilityArchiver := new(visibilityArchiver)
 	visibilityArchiver.gcloudStorage = storageWrapper
 	for _, tc := range testCases {
@@ -122,8 +121,8 @@ func (s *visibilityArchiverSuite) TestArchive_Fail_InvalidVisibilityURI() {
 	ctx := context.Background()
 	URI, err := archiver.NewURI("wrongscheme://")
 	s.NoError(err)
-	storageWrapper := &mocks.Client{}
-	storageWrapper.On("Exist", mock.Anything, URI, "").Return(true, nil).Times(1)
+	storageWrapper := mocks.NewMockClient(gomock.NewController(s.T()))
+	storageWrapper.EXPECT().Exist(gomock.Any(), URI, "").Return(true, nil).Times(1)
 
 	visibilityArchiver := newVisibilityArchiver(s.container, storageWrapper)
 	s.NoError(err)
@@ -142,8 +141,8 @@ func (s *visibilityArchiverSuite) TestQuery_Fail_InvalidVisibilityURI() {
 	ctx := context.Background()
 	URI, err := archiver.NewURI("wrongscheme://")
 	s.NoError(err)
-	storageWrapper := &mocks.Client{}
-	storageWrapper.On("Exist", mock.Anything, URI, "").Return(true, nil).Times(1)
+	storageWrapper := mocks.NewMockClient(gomock.NewController(s.T()))
+	storageWrapper.EXPECT().Exist(gomock.Any(), URI, "").Return(true, nil).Times(1)
 
 	visibilityArchiver := newVisibilityArchiver(s.container, storageWrapper)
 	s.NoError(err)
@@ -161,9 +160,9 @@ func (s *visibilityArchiverSuite) TestVisibilityArchive() {
 	ctx := context.Background()
 	URI, err := archiver.NewURI("gs://my-bucket-cad/cadence_archival/visibility")
 	s.NoError(err)
-	storageWrapper := &mocks.Client{}
-	storageWrapper.On("Exist", mock.Anything, URI, mock.Anything).Return(false, nil)
-	storageWrapper.On("Upload", mock.Anything, URI, mock.Anything, mock.Anything).Return(nil)
+	storageWrapper := mocks.NewMockClient(gomock.NewController(s.T()))
+	storageWrapper.EXPECT().Exist(gomock.Any(), URI, gomock.Any()).Return(false, nil)
+	storageWrapper.EXPECT().Upload(gomock.Any(), URI, gomock.Any(), gomock.Any()).Return(nil)
 
 	visibilityArchiver := newVisibilityArchiver(s.container, storageWrapper)
 	s.NoError(err)
@@ -189,8 +188,8 @@ func (s *visibilityArchiverSuite) TestQuery_Fail_InvalidQuery() {
 	ctx := context.Background()
 	URI, err := archiver.NewURI("gs://my-bucket-cad/cadence_archival/visibility")
 	s.NoError(err)
-	storageWrapper := &mocks.Client{}
-	storageWrapper.On("Exist", mock.Anything, URI, mock.Anything).Return(false, nil)
+	storageWrapper := mocks.NewMockClient(gomock.NewController(s.T()))
+	storageWrapper.EXPECT().Exist(gomock.Any(), URI, gomock.Any()).Return(false, nil)
 	visibilityArchiver := newVisibilityArchiver(s.container, storageWrapper)
 	s.NoError(err)
 	mockCtrl := gomock.NewController(s.T())
@@ -210,8 +209,8 @@ func (s *visibilityArchiverSuite) TestQuery_Fail_InvalidQuery() {
 func (s *visibilityArchiverSuite) TestQuery_Fail_InvalidToken() {
 	URI, err := archiver.NewURI("gs://my-bucket-cad/cadence_archival/visibility")
 	s.NoError(err)
-	storageWrapper := &mocks.Client{}
-	storageWrapper.On("Exist", mock.Anything, URI, mock.Anything).Return(false, nil)
+	storageWrapper := mocks.NewMockClient(gomock.NewController(s.T()))
+	storageWrapper.EXPECT().Exist(gomock.Any(), URI, gomock.Any()).Return(false, nil)
 	visibilityArchiver := newVisibilityArchiver(s.container, storageWrapper)
 	s.NoError(err)
 	mockCtrl := gomock.NewController(s.T())
@@ -237,10 +236,10 @@ func (s *visibilityArchiverSuite) TestQuery_Success_NoNextPageToken() {
 	ctx := context.Background()
 	URI, err := archiver.NewURI("gs://my-bucket-cad/cadence_archival/visibility")
 	s.NoError(err)
-	storageWrapper := &mocks.Client{}
-	storageWrapper.On("Exist", mock.Anything, URI, mock.Anything).Return(false, nil)
-	storageWrapper.On("QueryWithFilters", mock.Anything, URI, mock.Anything, 10, 0, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]string{"closeTimeout_2020-02-05T09:56:14Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility"}, true, 1, nil).Times(1)
-	storageWrapper.On("Get", mock.Anything, URI, "test-domain-id/closeTimeout_2020-02-05T09:56:14Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility").Return([]byte(exampleVisibilityRecord), nil)
+	storageWrapper := mocks.NewMockClient(gomock.NewController(s.T()))
+	storageWrapper.EXPECT().Exist(gomock.Any(), URI, gomock.Any()).Return(false, nil)
+	storageWrapper.EXPECT().QueryWithFilters(gomock.Any(), URI, gomock.Any(), 10, 0, gomock.Any()).Return([]string{"closeTimeout_2020-02-05T09:56:14Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility"}, true, 1, nil).Times(1)
+	storageWrapper.EXPECT().Get(gomock.Any(), URI, "test-domain-id/closeTimeout_2020-02-05T09:56:14Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility").Return([]byte(exampleVisibilityRecord), nil)
 
 	visibilityArchiver := newVisibilityArchiver(s.container, storageWrapper)
 	s.NoError(err)
@@ -276,13 +275,13 @@ func (s *visibilityArchiverSuite) TestQuery_Success_SmallPageSize() {
 	ctx := context.Background()
 	URI, err := archiver.NewURI("gs://my-bucket-cad/cadence_archival/visibility")
 	s.NoError(err)
-	storageWrapper := &mocks.Client{}
-	storageWrapper.On("Exist", mock.Anything, URI, mock.Anything).Return(false, nil)
-	storageWrapper.On("QueryWithFilters", mock.Anything, URI, mock.Anything, pageSize, 0, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]string{"closeTimeout_2020-02-05T09:56:14Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility", "closeTimeout_2020-02-05T09:56:15Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility"}, false, 1, nil).Times(2)
-	storageWrapper.On("QueryWithFilters", mock.Anything, URI, mock.Anything, pageSize, 1, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]string{"closeTimeout_2020-02-05T09:56:16Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility"}, true, 2, nil).Times(2)
-	storageWrapper.On("Get", mock.Anything, URI, "test-domain-id/closeTimeout_2020-02-05T09:56:14Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility").Return([]byte(exampleVisibilityRecord), nil)
-	storageWrapper.On("Get", mock.Anything, URI, "test-domain-id/closeTimeout_2020-02-05T09:56:15Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility").Return([]byte(exampleVisibilityRecord), nil)
-	storageWrapper.On("Get", mock.Anything, URI, "test-domain-id/closeTimeout_2020-02-05T09:56:16Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility").Return([]byte(exampleVisibilityRecord), nil)
+	storageWrapper := mocks.NewMockClient(gomock.NewController(s.T()))
+	storageWrapper.EXPECT().Exist(gomock.Any(), URI, gomock.Any()).Return(false, nil)
+	storageWrapper.EXPECT().QueryWithFilters(gomock.Any(), URI, gomock.Any(), pageSize, 0, gomock.Any()).Return([]string{"closeTimeout_2020-02-05T09:56:14Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility", "closeTimeout_2020-02-05T09:56:15Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility"}, false, 1, nil).Times(2)
+	storageWrapper.EXPECT().QueryWithFilters(gomock.Any(), URI, gomock.Any(), pageSize, 1, gomock.Any()).Return([]string{"closeTimeout_2020-02-05T09:56:16Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility"}, true, 2, nil).Times(2)
+	storageWrapper.EXPECT().Get(gomock.Any(), URI, "test-domain-id/closeTimeout_2020-02-05T09:56:14Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility").Return([]byte(exampleVisibilityRecord), nil)
+	storageWrapper.EXPECT().Get(gomock.Any(), URI, "test-domain-id/closeTimeout_2020-02-05T09:56:15Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility").Return([]byte(exampleVisibilityRecord), nil)
+	storageWrapper.EXPECT().Get(gomock.Any(), URI, "test-domain-id/closeTimeout_2020-02-05T09:56:16Z_test-workflow-id_MobileOnlyWorkflow::processMobileOnly_test-run-id.visibility").Return([]byte(exampleVisibilityRecord), nil)
 
 	visibilityArchiver := newVisibilityArchiver(s.container, storageWrapper)
 	s.NoError(err)

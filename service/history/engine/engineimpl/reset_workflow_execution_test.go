@@ -29,12 +29,12 @@ import (
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	""
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	commonconstants "github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -987,7 +987,7 @@ func withHistoryPagination(pageToken []byte, resetEventID int64) InitFn {
 				pageToken = nil
 			}
 
-			engine.ShardCtx.GetHistoryManager().(*mocks.HistoryV2Manager).On("ReadHistoryBranchByBatch", mock.Anything, &persistence.ReadHistoryBranchRequest{
+			engine.ShardCtx.GetHistoryManager().(*persistence.MockHistoryManager).On("ReadHistoryBranchByBatch", mock.Anything, &persistence.ReadHistoryBranchRequest{
 				BranchToken:   branchToken,
 				MinEventID:    firstEventID,
 				MaxEventID:    resetEventID + 1, // Rebuild adds 1 to nextEventID

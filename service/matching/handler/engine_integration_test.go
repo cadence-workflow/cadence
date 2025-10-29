@@ -54,7 +54,6 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
@@ -74,7 +73,7 @@ type (
 		matchingEngine       *matchingEngineImpl
 		taskManager          *tasklist.TestTaskManager
 		isolationState       isolationgroup.State
-		mockExecutionManager *mocks.ExecutionManager
+		mockExecutionManager *persistence.MockExecutionManager
 		mockTimeSource       clock.MockedTimeSource
 		logger               log.Logger
 		handlerContext       *handlerContext
@@ -122,7 +121,7 @@ func (s *matchingEngineSuite) SetupTest() {
 	defer s.Unlock()
 	s.logger = testlogger.New(s.Suite.T()).WithTags(tag.Dynamic("test-name", s.T().Name()))
 	tlKindNormal := types.TaskListKindNormal
-	s.mockExecutionManager = &mocks.ExecutionManager{}
+	s.mockExecutionManager = persistence.NewMockExecutionManager(s.controller)
 	s.controller = gomock.NewController(s.T())
 	s.mockHistoryClient = history.NewMockClient(s.controller)
 	s.mockTimeSource = clock.NewMockedTimeSourceAt(time.Now())
@@ -162,7 +161,6 @@ func (s *matchingEngineSuite) SetupTest() {
 }
 
 func (s *matchingEngineSuite) TearDownTest() {
-	s.mockExecutionManager.AssertExpectations(s.T())
 	s.matchingEngine.Stop()
 	s.controller.Finish()
 }

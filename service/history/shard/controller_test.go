@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -38,7 +38,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
-	mmocks "github.com/uber/cadence/common/mocks"
+	mmocks ""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
@@ -58,7 +58,7 @@ type (
 		mockMembershipResolver *membership.MockResolver
 
 		hostInfo          membership.HostInfo
-		mockShardManager  *mmocks.ShardManager
+		mockShardManager  *mpersistence.MockShardManager
 		mockEngineFactory *MockEngineFactory
 
 		config          *config.Config

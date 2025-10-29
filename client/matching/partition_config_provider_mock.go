@@ -12,11 +12,10 @@ package matching
 import (
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	log "github.com/uber/cadence/common/log"
 	metrics "github.com/uber/cadence/common/metrics"
 	types "github.com/uber/cadence/common/types"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockPartitionConfigProvider is a mock of PartitionConfigProvider interface.

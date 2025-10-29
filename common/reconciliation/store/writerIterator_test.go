@@ -27,13 +27,12 @@ import (
 	"testing"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/blobstore/filestore"
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/pagination"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/entity"
@@ -62,7 +61,7 @@ func TestWriterIterator(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			assertions := require.New(t)
-			pr := persistence.NewPersistenceRetryer(getMockExecutionManager(tc.pages, tc.countPerPage), nil, common.CreatePersistenceRetryPolicy())
+			pr := persistence.NewPersistenceRetryer(getMockExecutionManager(t, tc.pages, tc.countPerPage), nil, common.CreatePersistenceRetryPolicy())
 			pItr := fetcher.ConcreteExecutionIterator(context.Background(), pr, executionPageSize)
 
 			uuid := "uuid"
@@ -123,8 +122,9 @@ func TestWriterIterator(t *testing.T) {
 
 }
 
-func getMockExecutionManager(pages int, countPerPage int) persistence.ExecutionManager {
-	execManager := &mocks.ExecutionManager{}
+func getMockExecutionManager(t *testing.T, pages int, countPerPage int) persistence.ExecutionManager {
+	ctrl := gomock.NewController(t)
+	execManager := persistence.NewMockExecutionManager(ctrl)
 	for i := 0; i < pages; i++ {
 		req := &persistence.ListConcreteExecutionsRequest{
 			PageToken: []byte(fmt.Sprintf("token_%v", i)),
@@ -140,8 +140,8 @@ func getMockExecutionManager(pages int, countPerPage int) persistence.ExecutionM
 		if i == pages-1 {
 			resp.PageToken = nil
 		}
-		execManager.On("ListConcreteExecutions", mock.Anything, req).Return(resp, nil)
-		execManager.On("GetShardID").Return(testShardID)
+		execManager.EXPECT().ListConcreteExecutions(gomock.Any(), req).Return(resp, nil).AnyTimes()
+		execManager.EXPECT().GetShardID().Return(testShardID).AnyTimes()
 	}
 	return execManager
 }

@@ -20,6 +20,8 @@
 
 package connector
 
+//go:generate mockgen -package mocks -destination mocks/Client.go github.com/uber/cadence/common/archiver/gcloud/connector Client
+
 import (
 	"bytes"
 	"context"

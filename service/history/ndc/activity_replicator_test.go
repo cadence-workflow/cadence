@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -37,7 +36,6 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -58,7 +56,7 @@ type (
 		mockDomainCache  *cache.MockDomainCache
 		mockMutableState *execution.MockMutableState
 
-		mockExecutionMgr *mocks.ExecutionManager
+		mockExecutionMgr *persistence.MockExecutionManager
 
 		logger         log.Logger
 		executionCache execution.Cache
@@ -133,7 +131,7 @@ func (s *activityReplicatorSuite) TestSyncActivity_WorkflowNotFound() {
 		RunID:      runID,
 	}
 	s.mockDomainCache.EXPECT().GetDomainName(domainID).Return(domainName, nil).AnyTimes()
-	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, &persistence.GetWorkflowExecutionRequest{
+	s.mockExecutionMgr.EXPECT().GetWorkflowExecution( gomock.Any(), &persistence.GetWorkflowExecutionRequest{
 		DomainID: domainID,
 		Execution: types.WorkflowExecution{
 			WorkflowID: workflowID,
@@ -141,7 +139,7 @@ func (s *activityReplicatorSuite) TestSyncActivity_WorkflowNotFound() {
 		},
 		DomainName: domainName,
 		RangeID:    1,
-	}).Return(nil, &types.EntityNotExistsError{})
+	}).Return(nil, &types.EntityNotExistsError{}).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomainByID(domainID).Return(
 		cache.NewGlobalDomainCacheEntryForTest(
 			&persistence.DomainInfo{ID: domainID, Name: domainName},

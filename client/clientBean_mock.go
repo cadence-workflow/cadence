@@ -12,13 +12,12 @@ package client
 import (
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	admin "github.com/uber/cadence/client/admin"
 	frontend "github.com/uber/cadence/client/frontend"
 	history "github.com/uber/cadence/client/history"
 	matching "github.com/uber/cadence/client/matching"
 	sharddistributor "github.com/uber/cadence/client/sharddistributor"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockBean is a mock of Bean interface.

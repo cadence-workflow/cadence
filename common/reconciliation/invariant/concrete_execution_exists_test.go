@@ -29,13 +29,11 @@ import (
 	"testing"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	c "github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/entity"
 	"github.com/uber/cadence/common/types"
@@ -293,10 +291,10 @@ func TestConcreteExecutionCheckAndFix(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
-			execManager := &mocks.ExecutionManager{}
-			execManager.On("IsWorkflowExecutionExists", mock.Anything, mock.Anything).Return(tc.getConcreteResp, tc.getConcreteErr)
-			execManager.On("GetCurrentExecution", mock.Anything, mock.Anything).Return(tc.getCurrentResp, tc.getCurrentErr)
-			execManager.On("DeleteCurrentWorkflowExecution", mock.Anything, mock.Anything).Return(nil)
+			execManager := persistence.NewMockExecutionManager(ctrl)
+			execManager.EXPECT().IsWorkflowExecutionExists(gomock.Any(), gomock.Any()).Return(tc.getConcreteResp, tc.getConcreteErr).AnyTimes()
+			execManager.EXPECT().GetCurrentExecution(gomock.Any(), gomock.Any()).Return(tc.getCurrentResp, tc.getCurrentErr).AnyTimes()
+			execManager.EXPECT().DeleteCurrentWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDomainCache.EXPECT().GetDomainName(domainID).Return(domainName, tc.getDomainNameErr).AnyTimes()
 			o := NewConcreteExecutionExists(persistence.NewPersistenceRetryer(execManager, nil, c.CreatePersistenceRetryPolicy()), mockDomainCache)
 			ctx := tc.ctx

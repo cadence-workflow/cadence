@@ -21,6 +21,7 @@
 package elasticsearch
 
 import (
+	"github.com/stretchr/testify/mock"
 	"context"
 	"encoding/json"
 	"errors"
@@ -29,7 +30,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
+	
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/valyala/fastjson"
@@ -42,7 +43,7 @@ import (
 	esMocks "github.com/uber/cadence/common/elasticsearch/mocks"
 	"github.com/uber/cadence/common/elasticsearch/query"
 	"github.com/uber/cadence/common/log/testlogger"
-	"github.com/uber/cadence/common/mocks"
+	
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
@@ -54,7 +55,7 @@ type ESVisibilitySuite struct {
 	// not merely log an error
 	*require.Assertions
 	visibilityStore *esVisibilityStore
-	mockESClient    *esMocks.GenericClient
+	mockESClient    *esMocks.MockGenericClient
 	mockProducer    *mocks.KafkaProducer
 }
 
@@ -98,7 +99,7 @@ func (s *ESVisibilitySuite) SetupTest() {
 	// Have to define our overridden assertions in the test setup. If we did it earlier, s.T() will return nil
 	s.Assertions = require.New(s.T())
 
-	s.mockESClient = &esMocks.GenericClient{}
+	s.mockESClient = &esMocks.MockGenericClient{}
 	config := &service.Config{
 		ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(esIndexMaxResultWindow),
 		ValidSearchAttributes:  dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),

@@ -36,7 +36,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/ndc"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -59,7 +59,7 @@ type (
 		mockDomainCache    *cache.MockDomainCache
 		mockClientBean     *client.MockBean
 		adminClient        *admin.MockClient
-		executionManager   *mocks.ExecutionManager
+		executionManager   *persistence.MockExecutionManager
 		nDCHistoryResender *ndc.MockHistoryResender
 
 		taskHandler *taskExecutorImpl

@@ -22,4 +22,4 @@
 
 package mocks
 
-//go:generate mockery --srcpkg github.com/aws/aws-sdk-go/service/s3/s3iface --quiet --name S3API --output . --filename s3_api_mock.go
+//go:generate mockgen -package mocks -destination s3_api_mock.go github.com/aws/aws-sdk-go/service/s3/s3iface S3API

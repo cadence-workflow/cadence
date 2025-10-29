@@ -25,16 +25,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-	mmocks "github.com/uber/cadence/common/metrics/mocks"
-	"github.com/uber/cadence/common/mocks"
+	metricsmocks "github.com/uber/cadence/common/metrics/mocks"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/wrappers/sampled"
 	"github.com/uber/cadence/common/types"
@@ -43,9 +42,10 @@ import (
 type VisibilitySamplingSuite struct {
 	*require.Assertions // override suite.Suite.Assertions with require.Assertions; this means that s.NotNil(nil) will stop the test, not merely log an error
 	suite.Suite
+	controller   *gomock.Controller
 	client       p.VisibilityManager
-	persistence  *mocks.VisibilityManager
-	metricClient *mmocks.Client
+	persistence  *p.MockVisibilityManager
+	metricClient *metricsmocks.MockClient
 }
 
 var (
@@ -67,13 +67,14 @@ func TestVisibilitySamplingSuite(t *testing.T) {
 func (s *VisibilitySamplingSuite) SetupTest() {
 	s.Assertions = require.New(s.T()) // Have to define our overridden assertions in the test setup. If we did it earlier, s.T() will return nil
 
-	s.persistence = &mocks.VisibilityManager{}
+	s.controller = gomock.NewController(s.T())
+	s.persistence = p.NewMockVisibilityManager(s.controller)
 	config := &sampled.Config{
 		VisibilityOpenMaxQPS:   dynamicproperties.GetIntPropertyFilteredByDomain(1),
 		VisibilityClosedMaxQPS: dynamicproperties.GetIntPropertyFilteredByDomain(10),
 		VisibilityListMaxQPS:   dynamicproperties.GetIntPropertyFilteredByDomain(1),
 	}
-	s.metricClient = &mmocks.Client{}
+	s.metricClient = metricsmocks.NewMockClient(s.controller)
 	s.client = sampled.NewVisibilityManager(s.persistence, sampled.Params{
 		Config:                 config,
 		MetricClient:           s.metricClient,
@@ -84,8 +85,7 @@ func (s *VisibilitySamplingSuite) SetupTest() {
 }
 
 func (s *VisibilitySamplingSuite) TearDownTest() {
-	s.persistence.AssertExpectations(s.T())
-	s.metricClient.AssertExpectations(s.T())
+	s.controller.Finish()
 }
 
 func (s *VisibilitySamplingSuite) TestRecordWorkflowExecutionStarted() {
@@ -99,11 +99,11 @@ func (s *VisibilitySamplingSuite) TestRecordWorkflowExecutionStarted() {
 		WorkflowTypeName: testWorkflowTypeName,
 		StartTimestamp:   time.Now().UnixNano(),
 	}
-	s.persistence.On("RecordWorkflowExecutionStarted", mock.Anything, request).Return(nil).Once()
+	s.persistence.EXPECT().RecordWorkflowExecutionStarted(gomock.Any(), request).Return(nil).Times(1)
 	s.NoError(s.client.RecordWorkflowExecutionStarted(ctx, request))
 
 	// no remaining tokens
-	s.metricClient.On("IncCounter", metrics.PersistenceRecordWorkflowExecutionStartedScope, metrics.PersistenceSampledCounter).Once()
+	s.metricClient.EXPECT().IncCounter(metrics.PersistenceRecordWorkflowExecutionStartedScope, metrics.PersistenceSampledCounter).Times(1)
 	s.NoError(s.client.RecordWorkflowExecutionStarted(ctx, request))
 }
 
@@ -126,15 +126,15 @@ func (s *VisibilitySamplingSuite) TestRecordWorkflowExecutionClosed() {
 		Status:           types.WorkflowExecutionCloseStatusFailed,
 	}
 
-	s.persistence.On("RecordWorkflowExecutionClosed", mock.Anything, request).Return(nil).Once()
+	s.persistence.EXPECT().RecordWorkflowExecutionClosed(gomock.Any(), request).Return(nil).Times(1)
 	s.NoError(s.client.RecordWorkflowExecutionClosed(ctx, request))
-	s.persistence.On("RecordWorkflowExecutionClosed", mock.Anything, request2).Return(nil).Once()
+	s.persistence.EXPECT().RecordWorkflowExecutionClosed(gomock.Any(), request2).Return(nil).Times(1)
 	s.NoError(s.client.RecordWorkflowExecutionClosed(ctx, request2))
 
 	// no remaining tokens
-	s.metricClient.On("IncCounter", metrics.PersistenceRecordWorkflowExecutionClosedScope, metrics.PersistenceSampledCounter).Once()
+	s.metricClient.EXPECT().IncCounter(metrics.PersistenceRecordWorkflowExecutionClosedScope, metrics.PersistenceSampledCounter).Times(1)
 	s.NoError(s.client.RecordWorkflowExecutionClosed(ctx, request))
-	s.metricClient.On("IncCounter", metrics.PersistenceRecordWorkflowExecutionClosedScope, metrics.PersistenceSampledCounter).Once()
+	s.metricClient.EXPECT().IncCounter(metrics.PersistenceRecordWorkflowExecutionClosedScope, metrics.PersistenceSampledCounter).Times(1)
 	s.NoError(s.client.RecordWorkflowExecutionClosed(ctx, request2))
 }
 
@@ -146,7 +146,7 @@ func (s *VisibilitySamplingSuite) TestListOpenWorkflowExecutions() {
 		DomainUUID: testDomainUUID,
 		Domain:     testDomain,
 	}
-	s.persistence.On("ListOpenWorkflowExecutions", mock.Anything, request).Return(nil, nil).Once()
+	s.persistence.EXPECT().ListOpenWorkflowExecutions(gomock.Any(), request).Return(nil, nil).Times(1)
 	_, err := s.client.ListOpenWorkflowExecutions(ctx, request)
 	s.NoError(err)
 
@@ -166,7 +166,7 @@ func (s *VisibilitySamplingSuite) TestListClosedWorkflowExecutions() {
 		DomainUUID: testDomainUUID,
 		Domain:     testDomain,
 	}
-	s.persistence.On("ListClosedWorkflowExecutions", mock.Anything, request).Return(nil, nil).Once()
+	s.persistence.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), request).Return(nil, nil).Times(1)
 	_, err := s.client.ListClosedWorkflowExecutions(ctx, request)
 	s.NoError(err)
 
@@ -190,7 +190,7 @@ func (s *VisibilitySamplingSuite) TestListOpenWorkflowExecutionsByType() {
 		ListWorkflowExecutionsRequest: req,
 		WorkflowTypeName:              testWorkflowTypeName,
 	}
-	s.persistence.On("ListOpenWorkflowExecutionsByType", mock.Anything, request).Return(nil, nil).Once()
+	s.persistence.EXPECT().ListOpenWorkflowExecutionsByType(gomock.Any(), request).Return(nil, nil).Times(1)
 	_, err := s.client.ListOpenWorkflowExecutionsByType(ctx, request)
 	s.NoError(err)
 
@@ -214,7 +214,7 @@ func (s *VisibilitySamplingSuite) TestListClosedWorkflowExecutionsByType() {
 		ListWorkflowExecutionsRequest: req,
 		WorkflowTypeName:              testWorkflowTypeName,
 	}
-	s.persistence.On("ListClosedWorkflowExecutionsByType", mock.Anything, request).Return(nil, nil).Once()
+	s.persistence.EXPECT().ListClosedWorkflowExecutionsByType(gomock.Any(), request).Return(nil, nil).Times(1)
 	_, err := s.client.ListClosedWorkflowExecutionsByType(ctx, request)
 	s.NoError(err)
 
@@ -238,7 +238,7 @@ func (s *VisibilitySamplingSuite) TestListOpenWorkflowExecutionsByWorkflowID() {
 		ListWorkflowExecutionsRequest: req,
 		WorkflowID:                    testWorkflowExecution.GetWorkflowID(),
 	}
-	s.persistence.On("ListOpenWorkflowExecutionsByWorkflowID", mock.Anything, request).Return(nil, nil).Once()
+	s.persistence.EXPECT().ListOpenWorkflowExecutionsByWorkflowID(gomock.Any(), request).Return(nil, nil).Times(1)
 	_, err := s.client.ListOpenWorkflowExecutionsByWorkflowID(ctx, request)
 	s.NoError(err)
 
@@ -262,7 +262,7 @@ func (s *VisibilitySamplingSuite) TestListClosedWorkflowExecutionsByWorkflowID()
 		ListWorkflowExecutionsRequest: req,
 		WorkflowID:                    testWorkflowExecution.GetWorkflowID(),
 	}
-	s.persistence.On("ListClosedWorkflowExecutionsByWorkflowID", mock.Anything, request).Return(nil, nil).Once()
+	s.persistence.EXPECT().ListClosedWorkflowExecutionsByWorkflowID(gomock.Any(), request).Return(nil, nil).Times(1)
 	_, err := s.client.ListClosedWorkflowExecutionsByWorkflowID(ctx, request)
 	s.NoError(err)
 
@@ -286,7 +286,7 @@ func (s *VisibilitySamplingSuite) TestListClosedWorkflowExecutionsByStatus() {
 		ListWorkflowExecutionsRequest: req,
 		Status:                        types.WorkflowExecutionCloseStatusFailed,
 	}
-	s.persistence.On("ListClosedWorkflowExecutionsByStatus", mock.Anything, request).Return(nil, nil).Once()
+	s.persistence.EXPECT().ListClosedWorkflowExecutionsByStatus(gomock.Any(), request).Return(nil, nil).Times(1)
 	_, err := s.client.ListClosedWorkflowExecutionsByStatus(ctx, request)
 	s.NoError(err)
 

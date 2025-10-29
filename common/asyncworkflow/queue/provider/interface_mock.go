@@ -12,9 +12,8 @@ package provider
 import (
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	messaging "github.com/uber/cadence/common/messaging"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockDecoder is a mock of Decoder interface.

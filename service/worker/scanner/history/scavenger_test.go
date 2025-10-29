@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
@@ -38,7 +38,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/mocks"
+	""
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -63,8 +63,8 @@ func (s *ScavengerTestSuite) SetupTest() {
 	s.mockCache = cache.NewMockDomainCache(controller)
 }
 
-func (s *ScavengerTestSuite) createTestScavenger(rps int) (*mocks.HistoryV2Manager, *history.MockClient, *Scavenger) {
-	db := &mocks.HistoryV2Manager{}
+func (s *ScavengerTestSuite) createTestScavenger(rps int) (*persistence.MockHistoryManager, *history.MockClient, *Scavenger) {
+	db := &persistence.MockHistoryManager{}
 	controller := gomock.NewController(s.T())
 	workflowClient := history.NewMockClient(controller)
 	maxWorkflowRetentionInDays := dynamicproperties.GetIntPropertyFn(dynamicproperties.MaxRetentionDays.DefaultInt())

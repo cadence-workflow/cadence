@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -39,7 +39,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
-	mmocks "github.com/uber/cadence/common/mocks"
+	mmocks ""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
@@ -53,7 +53,7 @@ type (
 
 		controller          *gomock.Controller
 		mockResource        *resource.Test
-		mockMetadataManager *mmocks.MetadataManager
+		mockMetadataManager *mpersistence.MockDomainManager
 		historyClient       *history.MockClient
 		config              *config.Config
 		coordinator         *coordinatorImpl

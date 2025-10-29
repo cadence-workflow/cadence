@@ -28,7 +28,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/.gen/go/indexer"
@@ -39,7 +39,7 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	metricsClientMocks "github.com/uber/cadence/common/metrics/mocks"
-	"github.com/uber/cadence/common/mocks"
+	
 	"github.com/uber/cadence/common/persistence"
 	p "github.com/uber/cadence/common/persistence"
 	pnt "github.com/uber/cadence/common/pinot"

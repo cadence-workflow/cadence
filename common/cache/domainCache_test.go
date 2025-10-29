@@ -28,7 +28,6 @@ import (
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
@@ -40,7 +39,6 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/testing/testdatagen"
 	"github.com/uber/cadence/common/types"
@@ -51,7 +49,8 @@ type (
 		suite.Suite
 		*require.Assertions
 
-		metadataMgr *mocks.MetadataManager
+		controller  *gomock.Controller
+		metadataMgr *persistence.MockDomainManager
 
 		domainCache *DefaultDomainCache
 		logger      log.Logger
@@ -74,8 +73,9 @@ func (s *domainCacheSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 
 	s.logger = testlogger.New(s.Suite.T())
-
-	s.metadataMgr = &mocks.MetadataManager{}
+	
+	s.controller = gomock.NewController(s.T())
+	s.metadataMgr = persistence.NewMockDomainManager(s.controller)
 	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
 	s.domainCache = NewDomainCache(s.metadataMgr, cluster.GetTestClusterMetadata(true), metricsClient, s.logger)
 
@@ -84,7 +84,7 @@ func (s *domainCacheSuite) SetupTest() {
 
 func (s *domainCacheSuite) TearDownTest() {
 	s.domainCache.Stop()
-	s.metadataMgr.AssertExpectations(s.T())
+	s.controller.Finish()
 }
 
 func (s *domainCacheSuite) TestListDomain() {
@@ -167,22 +167,22 @@ func (s *domainCacheSuite) TestListDomain() {
 
 	pageToken := []byte("some random page token")
 
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil)
-	s.metadataMgr.On("ListDomains", mock.Anything, &persistence.ListDomainsRequest{
+	s.metadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil)
+	s.metadataMgr.EXPECT().ListDomains(gomock.Any(), &persistence.ListDomainsRequest{
 		PageSize:      domainCacheRefreshPageSize,
 		NextPageToken: nil,
 	}).Return(&persistence.ListDomainsResponse{
 		Domains:       []*persistence.GetDomainResponse{domainRecord1},
 		NextPageToken: pageToken,
-	}, nil).Once()
+	}, nil).Times(1)
 
-	s.metadataMgr.On("ListDomains", mock.Anything, &persistence.ListDomainsRequest{
+	s.metadataMgr.EXPECT().ListDomains(gomock.Any(), &persistence.ListDomainsRequest{
 		PageSize:      domainCacheRefreshPageSize,
 		NextPageToken: pageToken,
 	}).Return(&persistence.ListDomainsResponse{
 		Domains:       []*persistence.GetDomainResponse{domainRecord2, domainRecord3},
 		NextPageToken: nil,
-	}, nil).Once()
+	}, nil).Times(1)
 
 	// load domains
 	s.domainCache.Start()
@@ -211,7 +211,7 @@ func (s *domainCacheSuite) TestListDomain() {
 
 func (s *domainCacheSuite) TestGetDomain_NonLoaded_GetByName() {
 	domainNotificationVersion := int64(999999) // make this notification version really large for test
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil)
+	s.metadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil)
 	domainRecord := &persistence.GetDomainResponse{
 		Info: &persistence.DomainInfo{ID: uuid.New(), Name: "some random domain name", Data: make(map[string]string)},
 		Config: &persistence.DomainConfig{
@@ -235,14 +235,14 @@ func (s *domainCacheSuite) TestGetDomain_NonLoaded_GetByName() {
 	}
 	entry := s.buildEntryFromRecord(domainRecord)
 
-	s.metadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{Name: entry.info.Name}).Return(domainRecord, nil).Once()
-	s.metadataMgr.On("ListDomains", mock.Anything, &persistence.ListDomainsRequest{
+	s.metadataMgr.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{Name: entry.info.Name}).Return(domainRecord, nil).Times(1)
+	s.metadataMgr.EXPECT().ListDomains(gomock.Any(), &persistence.ListDomainsRequest{
 		PageSize:      domainCacheRefreshPageSize,
 		NextPageToken: nil,
 	}).Return(&persistence.ListDomainsResponse{
 		Domains:       []*persistence.GetDomainResponse{domainRecord},
 		NextPageToken: nil,
-	}, nil).Once()
+	}, nil).Times(1)
 
 	entryByName, err := s.domainCache.GetDomain(domainRecord.Info.Name)
 	s.Nil(err)
@@ -254,7 +254,7 @@ func (s *domainCacheSuite) TestGetDomain_NonLoaded_GetByName() {
 
 func (s *domainCacheSuite) TestGetDomain_NonLoaded_GetByID() {
 	domainNotificationVersion := int64(999999) // make this notification version really large for test
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil)
+	s.metadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil)
 	domainRecord := &persistence.GetDomainResponse{
 		Info: &persistence.DomainInfo{ID: uuid.New(), Name: "some random domain name", Data: make(map[string]string)},
 		Config: &persistence.DomainConfig{
@@ -273,14 +273,14 @@ func (s *domainCacheSuite) TestGetDomain_NonLoaded_GetByID() {
 	}
 	entry := s.buildEntryFromRecord(domainRecord)
 
-	s.metadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{ID: entry.info.ID}).Return(domainRecord, nil).Once()
-	s.metadataMgr.On("ListDomains", mock.Anything, &persistence.ListDomainsRequest{
+	s.metadataMgr.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{ID: entry.info.ID}).Return(domainRecord, nil).Times(1)
+	s.metadataMgr.EXPECT().ListDomains(gomock.Any(), &persistence.ListDomainsRequest{
 		PageSize:      domainCacheRefreshPageSize,
 		NextPageToken: nil,
 	}).Return(&persistence.ListDomainsResponse{
 		Domains:       []*persistence.GetDomainResponse{domainRecord},
 		NextPageToken: nil,
-	}, nil).Once()
+	}, nil).Times(1)
 
 	entryByID, err := s.domainCache.GetDomainByID(domainRecord.Info.ID)
 	s.Nil(err)
@@ -465,14 +465,14 @@ func (s *domainCacheSuite) TestUpdateCache_TriggerCallBack() {
 	}
 	domainNotificationVersion++
 
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil).Once()
-	s.metadataMgr.On("ListDomains", mock.Anything, &persistence.ListDomainsRequest{
+	s.metadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil).Times(1)
+	s.metadataMgr.EXPECT().ListDomains(gomock.Any(), &persistence.ListDomainsRequest{
 		PageSize:      domainCacheRefreshPageSize,
 		NextPageToken: nil,
 	}).Return(&persistence.ListDomainsResponse{
 		Domains:       []*persistence.GetDomainResponse{domainRecord1Old, domainRecord2Old},
 		NextPageToken: nil,
-	}, nil).Once()
+	}, nil).Times(1)
 
 	// load domains
 	s.Nil(s.domainCache.refreshDomains())
@@ -528,14 +528,14 @@ func (s *domainCacheSuite) TestUpdateCache_TriggerCallBack() {
 	s.False(prepareCallbackInvoked)
 	s.Empty(entriesNew)
 
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil).Once()
-	s.metadataMgr.On("ListDomains", mock.Anything, &persistence.ListDomainsRequest{
+	s.metadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil).Times(1)
+	s.metadataMgr.EXPECT().ListDomains(gomock.Any(), &persistence.ListDomainsRequest{
 		PageSize:      domainCacheRefreshPageSize,
 		NextPageToken: nil,
 	}).Return(&persistence.ListDomainsResponse{
 		Domains:       []*persistence.GetDomainResponse{domainRecord1New, domainRecord2New},
 		NextPageToken: nil,
-	}, nil).Once()
+	}, nil).Times(1)
 
 	s.domainCache.timeSource.(clock.MockedTimeSource).Advance(domainCacheMinRefreshInterval)
 	s.Nil(s.domainCache.refreshDomains())
@@ -550,7 +550,7 @@ func (s *domainCacheSuite) TestUpdateCache_TriggerCallBack() {
 
 func (s *domainCacheSuite) TestGetTriggerListAndUpdateCache_ConcurrentAccess() {
 	domainNotificationVersion := int64(999999) // make this notification version really large for test
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil)
+	s.metadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil)
 	id := uuid.New()
 	domainRecordOld := &persistence.GetDomainResponse{
 		Info: &persistence.DomainInfo{ID: id, Name: "some random domain name", Data: make(map[string]string)},
@@ -571,14 +571,14 @@ func (s *domainCacheSuite) TestGetTriggerListAndUpdateCache_ConcurrentAccess() {
 	}
 	entryOld := s.buildEntryFromRecord(domainRecordOld)
 
-	s.metadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{ID: id}).Return(domainRecordOld, nil).Maybe()
-	s.metadataMgr.On("ListDomains", mock.Anything, &persistence.ListDomainsRequest{
+	s.metadataMgr.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{ID: id}).Return(domainRecordOld, nil).AnyTimes()
+	s.metadataMgr.EXPECT().ListDomains(gomock.Any(), &persistence.ListDomainsRequest{
 		PageSize:      domainCacheRefreshPageSize,
 		NextPageToken: nil,
 	}).Return(&persistence.ListDomainsResponse{
 		Domains:       []*persistence.GetDomainResponse{domainRecordOld},
 		NextPageToken: nil,
-	}, nil).Once()
+	}, nil).Times(1)
 
 	coroutineCountGet := 1000
 	waitGroup := &sync.WaitGroup{}
@@ -638,7 +638,7 @@ func (s *domainCacheSuite) TestStart_Stop() {
 
 	mockTimeSource.BlockUntil(1)
 
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: 4}, nil).Once()
+	s.metadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(&persistence.GetMetadataResponse{NotificationVersion: 4}, nil).Times(1)
 
 	domainResponse := &persistence.GetDomainResponse{
 		Info: &persistence.DomainInfo{ID: domainID, Name: domainName, Data: make(map[string]string)},
@@ -658,7 +658,7 @@ func (s *domainCacheSuite) TestStart_Stop() {
 		Domains: []*persistence.GetDomainResponse{domainResponse},
 	}
 
-	s.metadataMgr.On("ListDomains", mock.Anything, mock.Anything).Return(listDomainsResponse, nil).Once()
+	s.metadataMgr.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(listDomainsResponse, nil).Times(1)
 
 	mockTimeSource.Advance(DomainCacheRefreshInterval)
 
@@ -682,7 +682,7 @@ func (s *domainCacheSuite) TestStart_Error() {
 
 	s.Equal(domainCacheInitialized, s.domainCache.status)
 
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(nil, assert.AnError).Once()
+	s.metadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(nil, assert.AnError).Times(1)
 	mockLogger.EXPECT().Fatal("Unable to initialize domain cache", gomock.Any()).Times(1)
 
 	s.domainCache.Start()
@@ -778,7 +778,7 @@ func (s *domainCacheSuite) TestGetDomainName() {
 }
 
 func (s *domainCacheSuite) TestGetDomainName_Error() {
-	s.metadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{Name: "", ID: ""}).Return(nil, assert.AnError).Once()
+	s.metadataMgr.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{Name: "", ID: ""}).Return(nil, assert.AnError).Times(1)
 
 	entry, err := s.domainCache.GetDomainName("")
 	s.Empty(entry)
@@ -803,7 +803,7 @@ func (s *domainCacheSuite) Test_updateIDToDomainCache_Error() {
 func (s *domainCacheSuite) Test_getDomain_Error_checkDomainExists() {
 	domainName := "testDomain"
 
-	s.metadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{Name: domainName, ID: ""}).Return(nil, assert.AnError).Once()
+	s.metadataMgr.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{Name: domainName, ID: ""}).Return(nil, assert.AnError).Times(1)
 
 	entry, err := s.domainCache.getDomain(domainName)
 
@@ -814,8 +814,8 @@ func (s *domainCacheSuite) Test_getDomain_Error_checkDomainExists() {
 func (s *domainCacheSuite) Test_getDomain_Error_refreshDomainsLocked() {
 	domainName := "testDomain"
 
-	s.metadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{Name: domainName, ID: ""}).Return(nil, nil).Once()
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(nil, assert.AnError).Once()
+	s.metadataMgr.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{Name: domainName, ID: ""}).Return(nil, nil).Times(1)
+	s.metadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(nil, assert.AnError).Times(1)
 
 	entry, err := s.domainCache.getDomain(domainName)
 
@@ -861,7 +861,7 @@ func (s *domainCacheSuite) Test_getDomain_cacheHitAfterRefreshLockLocked() {
 
 	wg.Wait()
 
-	s.metadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{Name: domainName, ID: ""}).Return(nil, nil).Once()
+	s.metadataMgr.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{Name: domainName, ID: ""}).Return(nil, nil).Times(1)
 
 	entry, err := s.domainCache.getDomain(domainName)
 
@@ -876,8 +876,8 @@ func (s *domainCacheSuite) Test_getDomain_cacheHitAfterRefreshLockLocked() {
 func (s *domainCacheSuite) Test_getDomainByID_refreshDomainsLockedError() {
 	domainID := "testDomainID"
 
-	s.metadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{Name: "", ID: domainID}).Return(nil, nil).Once()
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(nil, assert.AnError).Once()
+	s.metadataMgr.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{Name: "", ID: domainID}).Return(nil, nil).Times(1)
+	s.metadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(nil, assert.AnError).Times(1)
 
 	entry, err := s.domainCache.getDomainByID(domainID, false)
 
@@ -890,7 +890,7 @@ func (s *domainCacheSuite) Test_refreshLoop_domainCacheRefreshedError() {
 
 	s.domainCache.timeSource = mockedTimeSource
 
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(nil, assert.AnError).Once()
+	s.metadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(nil, assert.AnError).Times(1)
 
 	go func() {
 		mockedTimeSource.BlockUntil(1)
@@ -914,8 +914,8 @@ func (s *domainCacheSuite) Test_refreshDomainsLocked_IntervalTooShort() {
 }
 
 func (s *domainCacheSuite) Test_refreshDomains_ListDomainsNonRetryableError() {
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: 0}, nil).Once()
-	s.metadataMgr.On("ListDomains", mock.Anything, mock.Anything).Return(nil, assert.AnError).Once()
+	s.metadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(&persistence.GetMetadataResponse{NotificationVersion: 0}, nil).Times(1)
+	s.metadataMgr.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1)
 
 	err := s.domainCache.refreshDomains()
 	s.ErrorIs(err, assert.AnError)
@@ -927,13 +927,13 @@ func (s *domainCacheSuite) Test_refreshDomains_ListDomainsRetryableError() {
 	}
 
 	// We expect the metadataMgr to be called twice, once for the initial attempt and once for the retry
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: 0}, nil).Times(2)
+	s.metadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(&persistence.GetMetadataResponse{NotificationVersion: 0}, nil).Times(2)
 
 	// First time return retryable error
-	s.metadataMgr.On("ListDomains", mock.Anything, mock.Anything).Return(nil, retryableError).Once()
+	s.metadataMgr.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(nil, retryableError).Times(1)
 
 	// Second time return non-retryable error
-	s.metadataMgr.On("ListDomains", mock.Anything, mock.Anything).Return(nil, assert.AnError).Once()
+	s.metadataMgr.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1)
 
 	err := s.domainCache.refreshDomains()
 
@@ -1138,7 +1138,7 @@ func Test_WithTimeSource(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	metadataMgr := &mocks.MetadataManager{}
+	metadataMgr := persistence.NewMockDomainManager(gomock.NewController(t))
 
 	timeSource := clock.NewRealTimeSource()
 	domainCache := NewDomainCache(metadataMgr, cluster.GetTestClusterMetadata(true), metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}), log.NewNoop(), WithTimeSource(timeSource))

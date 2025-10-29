@@ -20,6 +20,9 @@
 
 package metrics
 
+//go:generate mockgen -package mocks -destination mocks/Client.go github.com/uber/cadence/common/metrics Client
+//go:generate mockgen -package mocks -destination mocks/Scope.go github.com/uber/cadence/common/metrics Scope
+
 import (
 	"time"
 

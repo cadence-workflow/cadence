@@ -30,7 +30,6 @@ import (
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
@@ -52,7 +51,6 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
@@ -73,7 +71,7 @@ type (
 		frontendClient    *frontend.MockClient
 		mockResolver      *membership.MockResolver
 
-		mockHistoryV2Mgr *mocks.HistoryV2Manager
+		mockHistoryV2Mgr *persistence.MockHistoryManager
 
 		domainName string
 		domainID   string
@@ -203,10 +201,10 @@ func (s *adminHandlerSuite) testMaintainCorruptWorkflow(
 		}
 		s.mockHistoryClient.EXPECT().DescribeMutableState(gomock.Any(), gomock.Any()).Return(testMutableState, nil)
 
-		s.mockHistoryV2Mgr.On("DeleteHistoryBranch", mock.Anything, mock.Anything).Return(nil).Once()
-		s.mockResource.ExecutionMgr.On("DeleteWorkflowExecution", mock.Anything, mock.Anything).Return(nil).Once()
-		s.mockResource.ExecutionMgr.On("DeleteCurrentWorkflowExecution", mock.Anything, mock.Anything).Return(nil).Once()
-		s.mockResource.VisibilityMgr.On("DeleteWorkflowExecution", mock.Anything, mock.Anything).Return(nil).Once()
+		s.mockHistoryV2Mgr.EXPECT().DeleteHistoryBranch(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+		s.mockResource.ExecutionMgr.EXPECT().DeleteWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+		s.mockResource.ExecutionMgr.EXPECT().DeleteCurrentWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+		s.mockResource.VisibilityMgr.EXPECT().DeleteWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	}
 
 	_, err := handler.MaintainCorruptWorkflow(ctx, request)
@@ -347,11 +345,11 @@ func (s *adminHandlerSuite) Test_GetWorkflowExecutionRawHistoryV2() {
 	}
 	s.mockHistoryClient.EXPECT().GetMutableState(gomock.Any(), gomock.Any()).Return(mState, nil).AnyTimes()
 
-	s.mockHistoryV2Mgr.On("ReadRawHistoryBranch", mock.Anything, mock.Anything).Return(&persistence.ReadRawHistoryBranchResponse{
+	s.mockHistoryV2Mgr.EXPECT().ReadRawHistoryBranch(gomock.Any(), gomock.Any()).Return(&persistence.ReadRawHistoryBranchResponse{
 		HistoryEventBlobs: []*persistence.DataBlob{},
 		NextPageToken:     []byte{},
 		Size:              0,
-	}, nil)
+	}, nil).AnyTimes()
 	_, err := s.handler.GetWorkflowExecutionRawHistoryV2(ctx,
 		&types.GetWorkflowExecutionRawHistoryV2Request{
 			Domain: s.domainName,
@@ -1488,8 +1486,8 @@ func Test_DescribeHistoryHost(t *testing.T) {
 func Test_DescribeCluster(t *testing.T) {
 	goMock := gomock.NewController(t)
 	mockResource := resource.NewTest(t, goMock, metrics.Frontend)
-	mockResource.VisibilityMgr.On("GetName").Return("test").Once()
-	mockResource.HistoryMgr.On("GetName").Return("test").Once()
+	mockResource.VisibilityMgr.EXPECT().GetName().Return("test").Times(1)
+	mockResource.HistoryMgr.EXPECT().GetName().Return("test").Times(1)
 	mockResource.MembershipResolver.EXPECT().WhoAmI().Return(membership.NewHostInfo("1.0.0.1"), nil).AnyTimes()
 	mockResource.MembershipResolver.EXPECT().Members(gomock.Any()).Return([]membership.HostInfo{
 		membership.NewHostInfo("1.0.0.1"),
@@ -1509,8 +1507,8 @@ func Test_DescribeCluster(t *testing.T) {
 func Test_DescribeCluster_HostError(t *testing.T) {
 	goMock := gomock.NewController(t)
 	mockResource := resource.NewTest(t, goMock, metrics.Frontend)
-	mockResource.VisibilityMgr.On("GetName").Return("test").Once()
-	mockResource.HistoryMgr.On("GetName").Return("test").Once()
+	mockResource.VisibilityMgr.EXPECT().GetName().Return("test").Times(1)
+	mockResource.HistoryMgr.EXPECT().GetName().Return("test").Times(1)
 	mockResource.MembershipResolver.EXPECT().WhoAmI().Return(membership.NewHostInfo("1.0.0.1"), assert.AnError).AnyTimes()
 	handler := adminHandlerImpl{
 		params: &resource.Params{
@@ -1527,8 +1525,8 @@ func Test_DescribeCluster_HostError(t *testing.T) {
 func Test_DescribeCluster_MemberError(t *testing.T) {
 	goMock := gomock.NewController(t)
 	mockResource := resource.NewTest(t, goMock, metrics.Frontend)
-	mockResource.VisibilityMgr.On("GetName").Return("test").Once()
-	mockResource.HistoryMgr.On("GetName").Return("test").Once()
+	mockResource.VisibilityMgr.EXPECT().GetName().Return("test").Times(1)
+	mockResource.HistoryMgr.EXPECT().GetName().Return("test").Times(1)
 	mockResource.MembershipResolver.EXPECT().WhoAmI().Return(membership.NewHostInfo("1.0.0.1"), nil).AnyTimes()
 	mockResource.MembershipResolver.EXPECT().Members(gomock.Any()).Return([]membership.HostInfo{
 		membership.NewHostInfo("1.0.0.1"),

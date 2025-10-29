@@ -22,6 +22,9 @@
 
 package bulk
 
+//go:generate mockgen -package mocks -destination mocks/GenericBulkableRequest.go github.com/uber/cadence/common/elasticsearch/bulk GenericBulkableRequest
+//go:generate mockgen -package mocks -destination mocks/GenericBulkProcessor.go github.com/uber/cadence/common/elasticsearch/bulk GenericBulkProcessor
+
 import (
 	"context"
 	"time"

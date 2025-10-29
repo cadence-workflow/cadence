@@ -30,7 +30,7 @@ import (
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
@@ -50,7 +50,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/reconciliation"
@@ -73,7 +73,7 @@ type (
 		mockClientBean     *client.MockBean
 		mockFrontendClient *frontend.MockClient
 		adminClient        *admin.MockClient
-		executionManager   *mocks.ExecutionManager
+		executionManager   *persistence.MockExecutionManager
 		requestChan        chan *request
 		taskFetcher        *fakeTaskFetcher
 		taskExecutor       *MockTaskExecutor

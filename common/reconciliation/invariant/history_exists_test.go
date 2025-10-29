@@ -27,14 +27,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
 	c2 "github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -134,10 +132,10 @@ func (s *HistoryExistsSuite) TestCheck() {
 	ctrl := gomock.NewController(s.T())
 	domainCache := cache.NewMockDomainCache(ctrl)
 	for _, tc := range testCases {
-		execManager := &mocks.ExecutionManager{}
-		historyManager := &mocks.HistoryV2Manager{}
-		execManager.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(tc.getExecResp, tc.getExecErr)
-		historyManager.On("ReadHistoryBranch", mock.Anything, mock.Anything).Return(tc.getHistoryResp, tc.getHistoryErr)
+		execManager := persistence.NewMockExecutionManager(ctrl)
+		historyManager := persistence.NewMockHistoryManager(ctrl)
+		execManager.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(tc.getExecResp, tc.getExecErr).AnyTimes()
+		historyManager.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).Return(tc.getHistoryResp, tc.getHistoryErr).AnyTimes()
 		domainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain-name", nil).AnyTimes()
 		i := NewHistoryExists(persistence.NewPersistenceRetryer(execManager, historyManager, c2.CreatePersistenceRetryPolicy()), domainCache)
 		result := i.Check(context.Background(), getOpenConcreteExecution())

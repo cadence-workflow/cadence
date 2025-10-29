@@ -27,14 +27,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/entity"
 	"github.com/uber/cadence/common/types"
@@ -84,10 +82,10 @@ func (s *UtilSuite) TestDeleteExecution() {
 	ctrl := gomock.NewController(s.T())
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	for _, tc := range testCases {
-		execManager := &mocks.ExecutionManager{}
-		execManager.On("DeleteWorkflowExecution", mock.Anything, mock.Anything, mock.Anything).Return(tc.deleteConcreteErr).Once()
+		execManager := persistence.NewMockExecutionManager(ctrl)
+		execManager.EXPECT().DeleteWorkflowExecution(gomock.Any(), gomock.Any()).Return(tc.deleteConcreteErr).Times(1)
 		if tc.deleteConcreteErr == nil {
-			execManager.On("DeleteCurrentWorkflowExecution", mock.Anything, mock.Anything).Return(tc.deleteCurrentErr).Once()
+			execManager.EXPECT().DeleteCurrentWorkflowExecution(gomock.Any(), gomock.Any()).Return(tc.deleteCurrentErr).Times(1)
 		}
 		pr := persistence.NewPersistenceRetryer(execManager, nil, common.CreatePersistenceRetryPolicy())
 		mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain-name", nil).AnyTimes()
@@ -143,8 +141,8 @@ func (s *UtilSuite) TestExecutionStillOpen() {
 	ctrl := gomock.NewController(s.T())
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	for _, tc := range testCases {
-		execManager := &mocks.ExecutionManager{}
-		execManager.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(tc.getExecResp, tc.getExecErr)
+		execManager := persistence.NewMockExecutionManager(ctrl)
+		execManager.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(tc.getExecResp, tc.getExecErr).AnyTimes()
 		pr := persistence.NewPersistenceRetryer(execManager, nil, common.CreatePersistenceRetryPolicy())
 		mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain-name", nil)
 		open, err := ExecutionStillOpen(context.Background(), &entity.Execution{}, pr, mockDomainCache)
@@ -190,8 +188,8 @@ func (s *UtilSuite) TestExecutionStillExists() {
 	ctrl := gomock.NewController(s.T())
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	for _, tc := range testCases {
-		execManager := &mocks.ExecutionManager{}
-		execManager.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(tc.getExecResp, tc.getExecErr)
+		execManager := persistence.NewMockExecutionManager(ctrl)
+		execManager.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(tc.getExecResp, tc.getExecErr).AnyTimes()
 		pr := persistence.NewPersistenceRetryer(execManager, nil, common.CreatePersistenceRetryPolicy())
 		mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain-name", nil)
 		exists, err := ExecutionStillExists(context.Background(), &entity.Execution{}, pr, mockDomainCache)

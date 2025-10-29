@@ -21,6 +21,8 @@
 package domain
 
 import (
+	"github.com/uber/cadence/common/mocks"
+	"github.com/stretchr/testify/mock"
 	"context"
 	"encoding/json"
 	"log"
@@ -29,7 +31,7 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
+	
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common"
@@ -41,7 +43,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/mocks"
+	
 	"github.com/uber/cadence/common/persistence"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"

@@ -12,9 +12,8 @@ package log
 import (
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	tag "github.com/uber/cadence/common/log/tag"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockLogger is a mock of Logger interface.

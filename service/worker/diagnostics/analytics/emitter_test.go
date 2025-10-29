@@ -28,11 +28,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
+	
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/.gen/go/indexer"
-	"github.com/uber/cadence/common/mocks"
+	
 )
 
 func Test__EmitUsageData(t *testing.T) {
