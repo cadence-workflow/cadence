@@ -2093,7 +2093,6 @@ func (r *GetDomainResponse) DeepCopy() *GetDomainResponse {
 		failoverEndTime := *r.FailoverEndTime
 		result.FailoverEndTime = &failoverEndTime
 	}
-
 	// Deep copy DomainInfo
 	if r.Info != nil {
 		result.Info = &DomainInfo{
