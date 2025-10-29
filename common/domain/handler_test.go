@@ -1440,6 +1440,15 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
 				timeSource.Advance(time.Hour)
 
+				failoverData, _ := json.Marshal([]FailoverEvent{{
+					EventTime:    timeSource.Now(),
+					FromCluster:  cluster.TestCurrentClusterName,
+					ToCluster:    cluster.TestAlternativeClusterName,
+					FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String(),
+					FromActiveClusters: types.ActiveClusters{ },
+					ToActiveClusters: types.ActiveClusters{ },
+				}})
+
 				expectedUpdateRequest := &persistence.UpdateDomainRequest{
 					Info: &persistence.DomainInfo{
 						Name:        constants.TestDomainName,
@@ -1448,7 +1457,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						Description: domainResponse.Info.Description,
 						OwnerEmail:  domainResponse.Info.OwnerEmail,
 						Data: map[string]string{
-							"FailoverHistory": `[{"eventTime":"2025-10-29T14:24:32-07:00","fromCluster":"active","toCluster":"standby","failoverType":"Force","fromActiveClusters":{},"toActiveClusters":{}}]`,
+							"FailoverHistory": string(failoverData),
 						},
 					},
 					Config: domainResponse.Config,
