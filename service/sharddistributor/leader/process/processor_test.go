@@ -185,6 +185,55 @@ func TestCleanupStaleExecutors(t *testing.T) {
 	processor.cleanupStaleExecutors(context.Background())
 }
 
+func TestCleanupStaleShardStats(t *testing.T) {
+	t.Run("stale shard stats are deleted", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+		now := mocks.timeSource.Now()
+
+		heartbeats := map[string]store.HeartbeatState{
+			"exec-active": {LastHeartbeat: now.Unix(), Status: types.ExecutorStatusACTIVE},
+			"exec-stale":  {LastHeartbeat: now.Add(-2 * time.Second).Unix()},
+		}
+
+		assignments := map[string]store.AssignedState{
+			"exec-active": {
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard-1": {Status: types.AssignmentStatusREADY},
+					"shard-2": {Status: types.AssignmentStatusREADY},
+				},
+			},
+			"exec-stale": {
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard-3": {Status: types.AssignmentStatusREADY},
+				},
+			},
+		}
+
+		shardStats := map[string]store.ShardStatistics{
+			"shard-1": {SmoothedLoad: 1.0, LastUpdateTime: now.Unix(), LastMoveTime: now.Unix()},
+			"shard-2": {SmoothedLoad: 2.0, LastUpdateTime: now.Unix(), LastMoveTime: now.Unix()},
+			"shard-3": {SmoothedLoad: 3.0, LastUpdateTime: now.Unix(), LastMoveTime: now.Unix()},
+		}
+
+		namespaceState := &store.NamespaceState{
+			Executors:        heartbeats,
+			ShardAssignments: assignments,
+			ShardStats:       shardStats,
+		}
+
+		gomock.InOrder(
+			mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(namespaceState, nil),
+			mocks.election.EXPECT().Guard().Return(store.NopGuard()),
+			mocks.store.EXPECT().DeleteShardStats(gomock.Any(), mocks.cfg.Name, []string{"shard-3"}, gomock.Any()).Return(nil),
+		)
+		processor.cleanupStaleShardStats(context.Background())
+	})
+
+}
+
 func TestRebalance_StoreErrors(t *testing.T) {
 	mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
 	defer mocks.ctrl.Finish()
