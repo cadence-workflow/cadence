@@ -558,3 +558,61 @@ func (s *taskExecutorSuite) TestProcess_UnknownTask() {
 	s.Error(err)
 	s.ErrorIs(err, ErrUnknownReplicationTask)
 }
+
+func (s *taskExecutorSuite) TestHandleActivityTask_Panic() {
+	domainID := uuid.New()
+	workflowID := "6d89f939-e6a4-4c26-a0ed-626ce27bcc9c" // belong to shard 0
+	runID := uuid.New()
+	task := &types.ReplicationTask{
+		TaskType: types.ReplicationTaskTypeSyncActivity.Ptr(),
+		SyncActivityTaskAttributes: &types.SyncActivityTaskAttributes{
+			DomainID:   domainID,
+			WorkflowID: workflowID,
+			RunID:      runID,
+		},
+	}
+	request := &types.SyncActivityRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	}
+
+	// Mock SyncActivity to panic
+	s.mockEngine.EXPECT().SyncActivity(gomock.Any(), request).DoAndReturn(func(ctx interface{}, req interface{}) error {
+		panic("test panic in handleActivityTask")
+	}).Times(1)
+
+	err := s.taskHandler.handleActivityTask(task, true)
+	s.Error(err)
+	s.Contains(err.Error(), "handleActivityTask panic")
+}
+
+func (s *taskExecutorSuite) TestHandleHistoryReplicationTaskV2_Panic() {
+	domainID := uuid.New()
+	workflowID := "6d89f939-e6a4-4c26-a0ed-626ce27bcc9c" // belong to shard 0
+	runID := uuid.New()
+	task := &types.ReplicationTask{
+		TaskType: types.ReplicationTaskTypeHistoryV2.Ptr(),
+		HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{
+			DomainID:   domainID,
+			WorkflowID: workflowID,
+			RunID:      runID,
+		},
+	}
+	request := &types.ReplicateEventsV2Request{
+		DomainUUID: domainID,
+		WorkflowExecution: &types.WorkflowExecution{
+			WorkflowID: workflowID,
+			RunID:      runID,
+		},
+	}
+
+	// Mock ReplicateEventsV2 to panic
+	s.mockEngine.EXPECT().ReplicateEventsV2(gomock.Any(), request).DoAndReturn(func(ctx interface{}, req interface{}) error {
+		panic("test panic in handleHistoryReplicationTaskV2")
+	}).Times(1)
+
+	err := s.taskHandler.handleHistoryReplicationTaskV2(task, true)
+	s.Error(err)
+	s.Contains(err.Error(), "handleHistoryReplicationTaskV2 panic")
+}
