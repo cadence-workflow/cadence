@@ -284,7 +284,7 @@ func TestCleanupStaleShardStats(t *testing.T) {
 		shardStats := map[string]store.ShardStatistics{
 			"shard-1": {SmoothedLoad: 1.0, LastUpdateTime: now.Unix(), LastMoveTime: now.Unix()},
 			"shard-2": {SmoothedLoad: 2.0, LastUpdateTime: now.Unix(), LastMoveTime: now.Unix()},
-			"shard-3": {SmoothedLoad: 3.0, LastUpdateTime: now.Unix(), LastMoveTime: now.Unix()},
+			"shard-3": {SmoothedLoad: 3.0, LastUpdateTime: now.Add(-2 * time.Second).Unix(), LastMoveTime: now.Add(-2 * time.Second).Unix()},
 		}
 
 		namespaceState := &store.NamespaceState{
@@ -299,6 +299,30 @@ func TestCleanupStaleShardStats(t *testing.T) {
 			mocks.store.EXPECT().DeleteShardStats(gomock.Any(), mocks.cfg.Name, []string{"shard-3"}, gomock.Any()).Return(nil),
 		)
 		processor.cleanupStaleShardStats(context.Background())
+	})
+
+	t.Run("recent shard stats are preserved", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+		now := mocks.timeSource.Now()
+
+		expiredExecutor := now.Add(-2 * time.Second).Unix()
+		state := &store.NamespaceState{
+			Executors: map[string]store.HeartbeatState{
+				"exec-stale": {LastHeartbeat: expiredExecutor},
+			},
+			ShardAssignments: map[string]store.AssignedState{},
+			ShardStats: map[string]store.ShardStatistics{
+				"shard-1": {SmoothedLoad: 5.0, LastUpdateTime: now.Unix(), LastMoveTime: now.Unix()},
+			},
+		}
+
+		mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(state, nil)
+		processor.cleanupStaleShardStats(context.Background())
+
+		// No delete expected since stats are recent.
 	})
 
 }
