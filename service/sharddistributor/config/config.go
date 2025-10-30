@@ -37,9 +37,12 @@ type (
 		PersistenceMaxQPS       dynamicproperties.IntPropertyFn
 		PersistenceGlobalMaxQPS dynamicproperties.IntPropertyFn
 		ThrottledLogRPS         dynamicproperties.IntPropertyFn
-
 		// hostname info
 		HostName string
+	}
+
+	MigrationConfig struct {
+		MigrationMode dynamicproperties.StringPropertyFnWithNamespaceFilters
 	}
 
 	StaticConfig struct {
@@ -121,6 +124,21 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string) *Config {
 		ThrottledLogRPS:         dc.GetIntProperty(dynamicproperties.ShardManagerThrottledLogRPS),
 		HostName:                hostName,
 	}
+}
+
+// NewMigrationConfig returns new dynamic config with onboarding info
+func NewMigrationConfig(dc *dynamicconfig.Collection) *MigrationConfig {
+	return &MigrationConfig{
+		MigrationMode: dc.GetStringPropertyFilteredByNamespace(dynamicproperties.MigrationMode),
+	}
+}
+
+func (c *MigrationConfig) GetMigrationMode(namespace string) types.MigrationMode {
+	mode, ok := ConfigMode[c.MigrationMode(namespace)]
+	if !ok {
+		return ConfigMode[MigrationModeONBOARDED]
+	}
+	return mode
 }
 
 // GetShardDistributionFromExternal converts other configs to an internal one.

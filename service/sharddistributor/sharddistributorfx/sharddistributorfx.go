@@ -72,7 +72,8 @@ func registerHandlers(params registerHandlersParams) error {
 	rawHandler := handler.NewHandler(params.Logger, params.ShardDistributionCfg, params.Store)
 	wrappedHandler := metered.NewMetricsHandler(rawHandler, params.Logger, params.MetricsClient)
 
-	executorHandler := handler.NewExecutorHandler(params.Logger, params.Store, params.TimeSource, params.ShardDistributionCfg)
+	migrationConfig := config.NewMigrationConfig(params.DynamicCollection)
+	executorHandler := handler.NewExecutorHandler(params.Logger, params.Store, params.TimeSource, params.ShardDistributionCfg, migrationConfig)
 	wrappedExecutor := metered.NewExecutorMetricsExecutor(executorHandler, params.Logger, params.MetricsClient)
 
 	grpcHandler := grpc.NewGRPCHandler(wrappedHandler)
