@@ -45,18 +45,18 @@ func (m *MockPeerChooserFactory) EXPECT() *MockPeerChooserFactoryMockRecorder {
 }
 
 // CreatePeerChooser mocks base method.
-func (m *MockPeerChooserFactory) CreatePeerChooser(transport peer.Transport, opts PeerChooserOptions) (PeerChooser, error) {
+func (m *MockPeerChooserFactory) CreatePeerChooser(arg0 peer.Transport, opts PeerChooserOptions) (PeerChooser, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreatePeerChooser", transport, opts)
+	ret := m.ctrl.Call(m, "CreatePeerChooser", arg0, opts)
 	ret0, _ := ret[0].(PeerChooser)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreatePeerChooser indicates an expected call of CreatePeerChooser.
-func (mr *MockPeerChooserFactoryMockRecorder) CreatePeerChooser(transport, opts any) *gomock.Call {
+func (mr *MockPeerChooserFactoryMockRecorder) CreatePeerChooser(arg0, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePeerChooser", reflect.TypeOf((*MockPeerChooserFactory)(nil).CreatePeerChooser), transport, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePeerChooser", reflect.TypeOf((*MockPeerChooserFactory)(nil).CreatePeerChooser), arg0, opts)
 }
 
 // MockPeerChooser is a mock of PeerChooser interface.
