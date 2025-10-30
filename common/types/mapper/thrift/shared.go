@@ -7059,9 +7059,9 @@ func ToActiveClusterSelectionPolicy(t *shared.ActiveClusterSelectionPolicy) *typ
 	}
 	return &types.ActiveClusterSelectionPolicy{
 		ActiveClusterSelectionStrategy: ToActiveClusterSelectionStrategy(t.Strategy),
-		ExternalEntityType:             *t.ExternalEntityType,
-		ExternalEntityKey:              *t.ExternalEntityKey,
-		StickyRegion:                   *t.StickyRegion,
+		ExternalEntityType:             t.GetExternalEntityType(),
+		ExternalEntityKey:              t.GetExternalEntityKey(),
+		StickyRegion:                   t.GetStickyRegion(),
 		ClusterAttribute:               ToClusterAttribute(t.ClusterAttribute),
 	}
 }

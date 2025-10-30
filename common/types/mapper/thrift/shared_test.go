@@ -3591,6 +3591,8 @@ func TestQueueStateConversion(t *testing.T) {
 	}
 }
 
+// TODO: The way we're testing mappers doesn't have good coverage. The round trip tests don't cover serialization and deserialization of thrift.
+// We should also generate test data in thrift types and do round trip tests from thrift to internal and back to thrift.
 func TestActiveClusterSelectionPolicyConversion(t *testing.T) {
 	testCases := []*types.ActiveClusterSelectionPolicy{
 		nil,
