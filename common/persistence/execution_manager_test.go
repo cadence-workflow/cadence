@@ -1652,10 +1652,8 @@ func sampleActiveClusterSelectionPolicyData() *DataBlob {
 
 func sampleActiveClusterSelectionPolicy() *types.ActiveClusterSelectionPolicy {
 	return &types.ActiveClusterSelectionPolicy{
-		ClusterAttribute: &types.ClusterAttribute{
-			Scope: "region",
-			Name:  "us-west-1",
-		},
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+		StickyRegion:                   "region-1",
 	}
 }
 

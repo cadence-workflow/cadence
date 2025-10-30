@@ -81,10 +81,8 @@ func (s *workflowSuite) TestGetMethods() {
 	lastEventVersion := int64(12)
 	startTimestamp := time.Now()
 	activeClusterSelectionPolicy := &types.ActiveClusterSelectionPolicy{
-		ClusterAttribute: &types.ClusterAttribute{
-			Scope: "region",
-			Name:  "us-west-1",
-		},
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+		StickyRegion:                   "region-1",
 	}
 	s.mockMutableState.EXPECT().GetLastWriteVersion().Return(lastEventVersion, nil).AnyTimes()
 	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
@@ -441,12 +439,10 @@ func TestWorkflowHappensAfter(t *testing.T) {
 	laterTime := baseTime.Add(time.Hour)
 
 	// Helper function to create ActiveClusterSelectionPolicy
-	createPolicy := func(scope, name string) *types.ActiveClusterSelectionPolicy {
+	createPolicy := func(strategy types.ActiveClusterSelectionStrategy, region string) *types.ActiveClusterSelectionPolicy {
 		return &types.ActiveClusterSelectionPolicy{
-			ClusterAttribute: &types.ClusterAttribute{
-				Scope: scope,
-				Name:  name,
-			},
+			ActiveClusterSelectionStrategy: &strategy,
+			StickyRegion:                   region,
 		}
 	}
 
@@ -461,8 +457,8 @@ func TestWorkflowHappensAfter(t *testing.T) {
 		}
 	}
 
-	policy1 := createPolicy("region", "us-west-1")
-	policy2 := createPolicy("region", "us-east-1")
+	policy1 := createPolicy(types.ActiveClusterSelectionStrategyRegionSticky, "region-1")
+	policy2 := createPolicy(types.ActiveClusterSelectionStrategyRegionSticky, "region-2")
 
 	tests := []struct {
 		name            string

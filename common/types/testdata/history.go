@@ -276,7 +276,7 @@ var (
 		Header:                              &Header,
 		PartitionConfig:                     PartitionConfig,
 		RequestID:                           RequestID,
-		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyWithClusterAttribute,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyExternalEntity,
 		CronOverlapPolicy:                   &CronOverlapPolicy,
 	}
 	WorkflowExecutionCompletedEventAttributes = types.WorkflowExecutionCompletedEventAttributes{
@@ -476,7 +476,7 @@ var (
 		Header:                              &Header,
 		Memo:                                &Memo,
 		SearchAttributes:                    &SearchAttributes,
-		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyWithClusterAttribute,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyExternalEntity,
 		CronOverlapPolicy:                   &CronOverlapPolicy,
 	}
 	StartChildWorkflowExecutionInitiatedEventAttributes = types.StartChildWorkflowExecutionInitiatedEventAttributes{
