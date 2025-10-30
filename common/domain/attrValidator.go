@@ -48,6 +48,16 @@ func newAttrValidator(
 	}
 }
 
+func (d *AttrValidatorImpl) validateLocalDomainUpdateRequest(updateRequest *types.UpdateDomainRequest) error {
+	if updateRequest.ActiveClusterName != nil || updateRequest.ActiveClusters != nil || updateRequest.Clusters != nil {
+		return errLocalDomainsCannotFailover
+	}
+	if updateRequest.FailoverTimeoutInSeconds != nil {
+		return errLocalDomainsCannotFailover
+	}
+	return nil
+}
+
 func (d *AttrValidatorImpl) validateDomainConfig(config *persistence.DomainConfig) error {
 	if config.Retention < int32(d.minRetentionDays) {
 		return errInvalidRetentionPeriod

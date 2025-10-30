@@ -130,6 +130,41 @@ func TestActiveClustersConfigDeepCopy(t *testing.T) {
 	}
 }
 
+// Todo (david.porter) delete this test and codegen this
+func TestActiveClustersDeepCopyMutationIsolation(t *testing.T) {
+
+	t.Run("modifying nested ClusterAttributes map in original should not affect copy", func(t *testing.T) {
+		original := &ActiveClusters{
+			AttributeScopes: map[string]ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]ActiveClusterInfo{
+						"us-east-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   100,
+						},
+					},
+				},
+			},
+		}
+
+		copied := original.DeepCopy()
+
+		assert.Equal(t, original, copied)
+
+		scope := original.AttributeScopes["region"]
+		scope.ClusterAttributes["us-west-1"] = ActiveClusterInfo{
+			ActiveClusterName: "cluster2",
+			FailoverVersion:   200,
+		}
+		original.AttributeScopes["region"] = scope
+
+		assert.Len(t, original.AttributeScopes["region"].ClusterAttributes, 2)
+		assert.Len(t, copied.AttributeScopes["region"].ClusterAttributes, 1)
+		assert.Contains(t, original.AttributeScopes["region"].ClusterAttributes, "us-west-1")
+		assert.NotContains(t, copied.AttributeScopes["region"].ClusterAttributes, "us-west-1")
+	})
+}
+
 func TestIsActiveActiveDomain(t *testing.T) {
 	tests := []struct {
 		name           string

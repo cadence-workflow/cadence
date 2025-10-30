@@ -427,6 +427,7 @@ func (d *handlerImpl) UpdateDomain(
 		return nil, err
 	}
 
+	// todo (david.porter) remove this and push the deepcopy into each of the branches
 	getResponse := currentDomainState.DeepCopy()
 
 	info := getResponse.Info
@@ -439,9 +440,14 @@ func (d *handlerImpl) UpdateDomain(
 	isGlobalDomain := getResponse.IsGlobalDomain
 	gracefulFailoverEndTime := getResponse.FailoverEndTime
 	currentActiveCluster := replicationConfig.ActiveClusterName
-	currentActiveClusters := replicationConfig.ActiveClusters.DeepCopy()
 	previousFailoverVersion := getResponse.PreviousFailoverVersion
 	lastUpdatedTime := time.Unix(0, getResponse.LastUpdatedTime)
+
+	if !isGlobalDomain {
+		return d.updateLocalDomain(ctx, updateRequest, getResponse, notificationVersion)
+	}
+	// todo (active-active) refactor the rest of this method to remove all branching for global domain variations
+	// and the split between domain update and failover
 
 	// whether history archival config changed
 	historyArchivalConfigChanged := false
@@ -632,7 +638,7 @@ func (d *handlerImpl) UpdateDomain(
 					failoverType,
 					&currentActiveCluster,
 					updateRequest.ActiveClusterName,
-					currentActiveClusters,
+					currentDomainState.ReplicationConfig.GetActiveClusters(),
 					replicationConfig.ActiveClusters,
 				))
 				if err != nil {
@@ -663,6 +669,8 @@ func (d *handlerImpl) UpdateDomain(
 			return nil, err
 		}
 	}
+	// todo (david.porter) remove this - all domains at this point are global
+	// leaving during the refactor just for clarity
 	if isGlobalDomain {
 		if err = d.domainReplicator.HandleTransmissionTask(
 			ctx,
@@ -688,6 +696,122 @@ func (d *handlerImpl) UpdateDomain(
 		tag.WorkflowDomainName(info.Name),
 		tag.WorkflowDomainID(info.ID),
 	)
+	return response, nil
+}
+
+func (d *handlerImpl) updateLocalDomain(ctx context.Context,
+	updateRequest *types.UpdateDomainRequest,
+	currentState *persistence.GetDomainResponse,
+	notificationVersion int64,
+) (*types.UpdateDomainResponse, error) {
+
+	err := d.domainAttrValidator.validateLocalDomainUpdateRequest(updateRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// whether history archival config changed
+	historyArchivalConfigChanged := false
+	// whether visibility archival config changed
+	visibilityArchivalConfigChanged := false
+	// whether anything other than active cluster is changed
+	configurationChanged := false
+
+	intendedDomainState := currentState.DeepCopy()
+
+	configVersion := currentState.ConfigVersion
+
+	now := d.timeSource.Now()
+
+	lastUpdatedTime := time.Unix(0, currentState.LastUpdatedTime)
+
+	// Update history archival state
+	historyArchivalConfigChanged, err = d.updateHistoryArchivalState(intendedDomainState.Config, updateRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update visibility archival state
+	visibilityArchivalConfigChanged, err = d.updateVisibilityArchivalState(intendedDomainState.Config, updateRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update domain info
+	info, domainInfoChanged := d.updateDomainInfo(
+		updateRequest,
+		intendedDomainState.Info,
+	)
+
+	// Update domain config
+	config, domainConfigChanged, err := d.updateDomainConfiguration(
+		updateRequest.GetName(),
+		intendedDomainState.Config,
+		updateRequest,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update domain bad binary
+	config, deleteBinaryChanged, err := d.updateDeleteBadBinary(
+		config,
+		updateRequest.DeleteBadBinary,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	configurationChanged = historyArchivalConfigChanged || visibilityArchivalConfigChanged || domainInfoChanged || domainConfigChanged || deleteBinaryChanged
+
+	if err = d.domainAttrValidator.validateDomainConfig(config); err != nil {
+		return nil, err
+	}
+
+	if err = d.domainAttrValidator.validateDomainReplicationConfigForLocalDomain(
+		intendedDomainState.ReplicationConfig,
+	); err != nil {
+		return nil, err
+	}
+
+	if configurationChanged {
+		// Check the failover cool down time
+		if lastUpdatedTime.Add(d.config.FailoverCoolDown(info.Name)).After(now) {
+			d.logger.Debugf("Domain was last updated at %v, failoverCoolDown: %v, current time: %v.", lastUpdatedTime, d.config.FailoverCoolDown(info.Name), now)
+			return nil, errDomainUpdateTooFrequent
+		}
+
+		// set the versions
+		if configurationChanged {
+			configVersion = intendedDomainState.ConfigVersion + 1
+		}
+
+		lastUpdatedTime = now
+
+		updateReq := createUpdateRequest(
+			info,
+			config,
+			intendedDomainState.ReplicationConfig,
+			configVersion,
+			intendedDomainState.FailoverVersion,
+			intendedDomainState.FailoverNotificationVersion,
+			intendedDomainState.FailoverEndTime,
+			intendedDomainState.PreviousFailoverVersion,
+			lastUpdatedTime,
+			notificationVersion,
+		)
+
+		err = d.domainManager.UpdateDomain(ctx, &updateReq)
+		if err != nil {
+			return nil, err
+		}
+	}
+	response := &types.UpdateDomainResponse{
+		IsGlobalDomain:  false,
+		FailoverVersion: intendedDomainState.FailoverVersion,
+	}
+	response.DomainInfo, response.Configuration, response.ReplicationConfiguration = d.createResponse(info, config, intendedDomainState.ReplicationConfig)
+
 	return response, nil
 }
 

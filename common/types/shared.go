@@ -2731,7 +2731,14 @@ func (v *ActiveClusters) DeepCopy() *ActiveClusters {
 	if v.AttributeScopes != nil {
 		result.AttributeScopes = make(map[string]ClusterAttributeScope, len(v.AttributeScopes))
 		for scopeType, scope := range v.AttributeScopes {
-			result.AttributeScopes[scopeType] = scope
+			copiedScope := ClusterAttributeScope{}
+			if scope.ClusterAttributes != nil {
+				copiedScope.ClusterAttributes = make(map[string]ActiveClusterInfo, len(scope.ClusterAttributes))
+				for attrName, attrInfo := range scope.ClusterAttributes {
+					copiedScope.ClusterAttributes[attrName] = attrInfo
+				}
+			}
+			result.AttributeScopes[scopeType] = copiedScope
 		}
 	}
 	return result

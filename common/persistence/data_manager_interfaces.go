@@ -1933,6 +1933,13 @@ func (t *TimerTaskInfo) ToTask() (Task, error) {
 	}
 }
 
+func (c *DomainReplicationConfig) GetActiveClusters() *types.ActiveClusters {
+	if c != nil && c.ActiveClusters != nil {
+		return c.ActiveClusters
+	}
+	return nil
+}
+
 // ToNilSafeCopy
 // TODO: it seems that we just need a nil safe shardInfo, deep copy is not necessary
 func (s *ShardInfo) ToNilSafeCopy() *ShardInfo {

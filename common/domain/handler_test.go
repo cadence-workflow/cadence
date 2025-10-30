@@ -2210,7 +2210,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			},
 		},
 		{
-			name: "Success case - local domain force failover",
+			name: "Error case - local domain force failover - shoudl not be able to failover a local domain",
 			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.UpdateDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, timeSource clock.MockedTimeSource, _ *MockReplicator) {
 				domainResponse := &persistence.GetDomainResponse{
 					ReplicationConfig: &persistence.DomainReplicationConfig{
@@ -2239,17 +2239,6 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
 				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
 					Return(domainResponse, nil).Times(1)
-				archivalConfig := archiver.NewArchivalConfig(
-					commonconstants.ArchivalDisabled,
-					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
-					false,
-					dynamicproperties.GetBoolPropertyFn(false),
-					commonconstants.ArchivalDisabled,
-					"")
-				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
-				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
-				timeSource.Advance(time.Hour)
-				domainManager.EXPECT().UpdateDomain(ctx, gomock.Any()).Return(nil).Times(1)
 			},
 			request: &types.UpdateDomainRequest{
 				Name:              constants.TestDomainName,
@@ -2281,6 +2270,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					},
 				}
 			},
+			err: errLocalDomainsCannotFailover,
 		},
 		{
 			name: "Error case - GetMetadata error",
@@ -2417,7 +2407,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			},
 		},
 		{
-			name: "Error case - handleGracefulFailover error",
+			name: "Error case - handleGracefulFailover error in the case of a global domain - it should return an error to the user",
 			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.UpdateDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, _ clock.MockedTimeSource, _ *MockReplicator) {
 				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
 				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
@@ -2427,6 +2417,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						},
 						ReplicationConfig: &persistence.DomainReplicationConfig{},
 						Config:            &persistence.DomainConfig{},
+						IsGlobalDomain:    true,
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
@@ -2452,6 +2443,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					Return(&persistence.GetDomainResponse{
 						ReplicationConfig: &persistence.DomainReplicationConfig{},
 						Config:            &persistence.DomainConfig{},
+						IsGlobalDomain:    true,
 						Info: &persistence.DomainInfo{
 							Name: constants.TestDomainName,
 						},

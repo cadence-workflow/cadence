@@ -33,6 +33,7 @@ var (
 	errOngoingGracefulFailover             = &types.BadRequestError{Message: "Cannot start concurrent graceful failover."}
 	errInvalidGracefulFailover             = &types.BadRequestError{Message: "Cannot start graceful failover without updating active cluster or in local domain."}
 	errActiveClusterNameRequired           = &types.BadRequestError{Message: "ActiveClusterName is required for all global domains."}
+	errLocalDomainsCannotFailover          = &types.BadRequestError{Message: "Local domains cannot perform failovers or change replication configuration"}
 
 	errInvalidRetentionPeriod = &types.BadRequestError{Message: "A valid retention period is not set on request."}
 	errInvalidArchivalConfig  = &types.BadRequestError{Message: "Invalid to enable archival without specifying a uri."}
