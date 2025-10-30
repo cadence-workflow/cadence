@@ -22,6 +22,7 @@ package replication
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
@@ -109,7 +110,19 @@ func (e *taskExecutorImpl) execute(
 func (e *taskExecutorImpl) handleActivityTask(
 	task *types.ReplicationTask,
 	forceApply bool,
-) error {
+) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			attr := task.SyncActivityTaskAttributes
+			e.logger.Error(
+				"handleActivityTask encountered panic.",
+				tag.WorkflowID(attr.GetWorkflowID()),
+				tag.WorkflowRunID(attr.GetRunID()),
+				tag.Value(r),
+			)
+			err = fmt.Errorf("handleActivityTask panic: %v", r)
+		}
+	}()
 
 	attr := task.SyncActivityTaskAttributes
 	doContinue, err := e.filterTask(attr.GetDomainID(), forceApply)
@@ -200,7 +213,19 @@ func (e *taskExecutorImpl) handleActivityTask(
 func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 	task *types.ReplicationTask,
 	forceApply bool,
-) error {
+) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			attr := task.HistoryTaskV2Attributes
+			e.logger.Error(
+				"handleHistoryReplicationTaskV2 encountered panic.",
+				tag.WorkflowID(attr.GetWorkflowID()),
+				tag.WorkflowRunID(attr.GetRunID()),
+				tag.Value(r),
+			)
+			err = fmt.Errorf("handleHistoryReplicationTaskV2 panic: %v", r)
+		}
+	}()
 
 	attr := task.HistoryTaskV2Attributes
 	doContinue, err := e.filterTask(attr.GetDomainID(), forceApply)
