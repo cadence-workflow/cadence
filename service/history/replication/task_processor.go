@@ -301,6 +301,13 @@ func (p *taskProcessorImpl) cleanupAckedReplicationTasks() error {
 }
 
 func (p *taskProcessorImpl) processResponse(response *types.ReplicationMessages) {
+	defer func() {
+		if r := recover(); r != nil {
+			p.logger.Error("processResponse encountered panic.", tag.Value(r))
+			panic(r)
+		}
+	}()
+
 	select {
 	case p.syncShardChan <- response.GetSyncShardStatus():
 	default:
