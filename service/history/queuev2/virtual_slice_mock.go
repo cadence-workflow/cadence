@@ -113,9 +113,11 @@ func (mr *MockVirtualSliceMockRecorder) HasMoreTasks() *gomock.Call {
 }
 
 // InsertTask mocks base method.
-func (m *MockVirtualSlice) InsertTask(arg0 task.Task) {
+func (m *MockVirtualSlice) InsertTask(arg0 task.Task) bool {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "InsertTask", arg0)
+	ret := m.ctrl.Call(m, "InsertTask", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
 }
 
 // InsertTask indicates an expected call of InsertTask.

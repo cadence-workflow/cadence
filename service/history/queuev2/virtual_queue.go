@@ -67,7 +67,7 @@ type (
 		SplitSlices(func(VirtualSlice) (remaining []VirtualSlice, split bool))
 		// Pause pauses the virtual queue for a while
 		Pause(time.Duration)
-		// InsertSingleTask inserts a single task to the virtual queue. Return false if the task's timestamp is out of range of the current queue slice..
+		// InsertSingleTask inserts a single task to the virtual queue. Return false if the task's timestamp is out of range of the current queue slice or the task does not satisfy the predicate
 		InsertSingleTask(task task.Task) bool
 		// ResetProgress removes the scheduled tasks after the given time
 		ResetProgress(persistence.HistoryTaskKey)
@@ -398,7 +398,7 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 
 	now := q.timeSource.Now()
 	for _, task := range tasks {
-		if err := q.submitTask(now, task); err != nil {
+		if err := q.submitOrRescheduleTask(now, task); err != nil {
 			select {
 			case <-q.ctx.Done():
 				return
@@ -423,32 +423,21 @@ func (q *virtualQueueImpl) InsertSingleTask(task task.Task) bool {
 	q.Lock()
 	defer q.Unlock()
 
-	taskKey := task.GetTaskKey()
-	var slice VirtualSlice
-
 	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
-		s := e.Value.(VirtualSlice)
-		r := s.GetState().Range
-		if taskKey.Compare(r.InclusiveMinTaskKey) >= 0 && taskKey.Compare(r.ExclusiveMaxTaskKey) < 0 {
-			slice = s
-			break
+		slice := e.Value.(VirtualSlice)
+		inserted := slice.InsertTask(task)
+		if inserted {
+			q.monitor.SetSlicePendingTaskCount(slice, slice.GetPendingTaskCount())
+			now := q.timeSource.Now()
+			if err := q.submitOrRescheduleTask(now, task); err != nil {
+				q.logger.Error("Error submitting task to virtual queue", tag.Error(err))
+			}
+
+			return true
 		}
 	}
 
-	if slice == nil {
-		// the new task is outside of the current range, it will be read from the DB on the next poll
-		return false
-	}
-
-	slice.InsertTask(task)
-	q.monitor.SetSlicePendingTaskCount(slice, slice.GetPendingTaskCount())
-
-	now := q.timeSource.Now()
-	if err := q.submitTask(now, task); err != nil {
-		q.logger.Error("Error submitting task to virtual queue", tag.Error(err))
-	}
-
-	return true
+	return false
 }
 
 func (q *virtualQueueImpl) ResetProgress(key persistence.HistoryTaskKey) {
@@ -464,9 +453,11 @@ func (q *virtualQueueImpl) ResetProgress(key persistence.HistoryTaskKey) {
 			break
 		}
 	}
+
+	q.resetNextReadSliceLocked()
 }
 
-func (q *virtualQueueImpl) submitTask(now time.Time, task task.Task) error {
+func (q *virtualQueueImpl) submitOrRescheduleTask(now time.Time, task task.Task) error {
 	if persistence.IsTaskCorrupted(task) {
 		q.logger.Error("Virtual queue encountered a corrupted task", tag.Dynamic("task", task))
 		q.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)

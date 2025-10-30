@@ -1363,6 +1363,15 @@ func (s *contextImpl) allocateTimerIDsLocked(
 				tag.ValueShardAllocateTimerBeforeRead)
 			ts = now.Add(persistence.DBTimestampMinPrecision)
 		}
+
+		if ts.Before(s.shardInfo.TimerAckLevel) {
+			s.logger.Warn("New timer generated is less than ack level",
+				tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+				tag.WorkflowID(workflowID),
+				tag.Timestamp(ts))
+			ts = s.shardInfo.TimerAckLevel.Add(persistence.DBTimestampMinPrecision)
+		}
+
 		task.SetVisibilityTimestamp(ts)
 
 		seqNum, err := s.generateTaskIDLocked()

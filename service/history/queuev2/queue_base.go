@@ -275,7 +275,7 @@ func (q *queueBase) processNewTasks() bool {
 }
 
 func (q *queueBase) insertSingleTask(task task.Task) bool {
-	return q.virtualQueueManager.InsertSingleTaskToRootQueue(task)
+	return q.virtualQueueManager.InsertSingleTask(task)
 }
 
 func (q *queueBase) resetProgress(key persistence.HistoryTaskKey) {

@@ -58,7 +58,8 @@ type (
 		// By default, all new tasks belong to the root queue, so we need to add a new virtual slice to the root queue.
 		AddNewVirtualSliceToRootQueue(VirtualSlice)
 		// Insert a single task to the current slice. Return false if the task's timestamp is out of range of the current slice.
-		InsertSingleTaskToRootQueue(task.Task) bool
+		InsertSingleTask(task.Task) bool
+		// ResetProgress resets the progress of the virtual queue to the given key. Pending tasks after the given key are cancelled.
 		ResetProgress(persistence.HistoryTaskKey)
 	}
 
@@ -222,15 +223,18 @@ func (m *virtualQueueManagerImpl) AddNewVirtualSliceToRootQueue(s VirtualSlice) 
 	m.virtualQueues[rootQueueID].Start()
 }
 
-func (m *virtualQueueManagerImpl) InsertSingleTaskToRootQueue(t task.Task) bool {
+func (m *virtualQueueManagerImpl) InsertSingleTask(t task.Task) bool {
 	m.Lock()
 	defer m.Unlock()
-	if vq, ok := m.virtualQueues[rootQueueID]; ok {
-		return vq.InsertSingleTask(t)
+
+	inserted := false
+	for _, vq := range m.virtualQueues {
+		if vq.InsertSingleTask(t) {
+			inserted = true
+		}
 	}
 
-	// if a root queue is not created yet, no need to schedule an incoming task, it will be read from the slice
-	return false
+	return inserted
 }
 
 func (m *virtualQueueManagerImpl) ResetProgress(key persistence.HistoryTaskKey) {

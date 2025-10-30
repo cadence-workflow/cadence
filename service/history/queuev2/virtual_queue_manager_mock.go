@@ -68,8 +68,8 @@ func (mr *MockVirtualQueueManagerMockRecorder) GetOrCreateVirtualQueue(arg0 any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrCreateVirtualQueue", reflect.TypeOf((*MockVirtualQueueManager)(nil).GetOrCreateVirtualQueue), arg0)
 }
 
-// InsertSingleTaskToRootQueue mocks base method.
-func (m *MockVirtualQueueManager) InsertSingleTaskToRootQueue(arg0 task.Task) bool {
+// InsertSingleTask mocks base method.
+func (m *MockVirtualQueueManager) InsertSingleTask(arg0 task.Task) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertSingleTaskToRootQueue", arg0)
 	ret0, _ := ret[0].(bool)
@@ -79,7 +79,7 @@ func (m *MockVirtualQueueManager) InsertSingleTaskToRootQueue(arg0 task.Task) bo
 // InsertSingleTaskToRootQueue indicates an expected call of InsertSingleTaskToRootQueue.
 func (mr *MockVirtualQueueManagerMockRecorder) InsertSingleTaskToRootQueue(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSingleTaskToRootQueue", reflect.TypeOf((*MockVirtualQueueManager)(nil).InsertSingleTaskToRootQueue), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSingleTaskToRootQueue", reflect.TypeOf((*MockVirtualQueueManager)(nil).InsertSingleTask), arg0)
 }
 
 // ResetProgress mocks base method.

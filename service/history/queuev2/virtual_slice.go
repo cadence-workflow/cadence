@@ -37,7 +37,7 @@ type (
 		GetState() VirtualSliceState
 		IsEmpty() bool
 		GetTasks(context.Context, int) ([]task.Task, error)
-		InsertTask(task.Task)
+		InsertTask(task.Task) bool
 		HasMoreTasks() bool
 		UpdateAndGetState() VirtualSliceState
 		GetPendingTaskCount() int
@@ -117,8 +117,20 @@ func (s *virtualSliceImpl) Clear() {
 	}
 }
 
-func (s *virtualSliceImpl) InsertTask(task task.Task) {
+func (s *virtualSliceImpl) InsertTask(task task.Task) bool {
+	r := s.state.Range
+	key := task.GetTaskKey()
+
+	if key.Compare(r.InclusiveMinTaskKey) < 0 || key.Compare(r.ExclusiveMaxTaskKey) >= 0 {
+		return false
+	}
+
+	if !s.state.Predicate.Check(task) {
+		return false
+	}
+
 	s.pendingTaskTracker.AddTask(task)
+	return true
 }
 
 func (s *virtualSliceImpl) GetTasks(ctx context.Context, pageSize int) ([]task.Task, error) {
@@ -223,15 +235,21 @@ func (s *virtualSliceImpl) ResetProgress(key persistence.HistoryTaskKey) {
 	}
 
 	for i, progress := range s.progress {
+		// progress contains sorted non-overlapping ranges. If we found a range that contains the given key, we can reset
+		// this range's progress to the given key and merge the remaining ranges into it.
 		if progress.NextTaskKey.Compare(key) > 0 {
+			maxTaskKey := s.progress[len(s.progress)-1].Range.ExclusiveMaxTaskKey
 			s.progress[i] = &GetTaskProgress{
 				Range: Range{
 					InclusiveMinTaskKey: key,
-					ExclusiveMaxTaskKey: progress.Range.ExclusiveMaxTaskKey,
+					ExclusiveMaxTaskKey: maxTaskKey,
 				},
 				NextPageToken: nil,
 				NextTaskKey:   key,
 			}
+
+			s.progress = s.progress[:i+1]
+			break
 		}
 	}
 }
