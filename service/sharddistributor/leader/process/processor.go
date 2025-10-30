@@ -307,10 +307,19 @@ func (p *namespaceProcessor) cleanupStaleShardStats(ctx context.Context) {
 
 	// append all shard stats that are not in the active shards set
 	var staleShardStats []string
-	for shardID := range namespaceState.ShardStats {
-		if _, ok := activeShards[shardID]; !ok {
-			staleShardStats = append(staleShardStats, shardID)
+	for shardID, stats := range namespaceState.ShardStats {
+		if _, ok := activeShards[shardID]; ok {
+			continue
 		}
+		recentUpdate := stats.LastUpdateTime > 0 && (now-stats.LastUpdateTime) <= shardStatsTTL
+		recentMove := stats.LastMoveTime > 0 && (now-stats.LastMoveTime) <= shardStatsTTL
+		if recentUpdate || recentMove {
+			// Preserve stats that have been updated recently to allow cooldown/load history to
+			// survive executor churn. These shards are likely awaiting reassignment,
+			// so we don't want to delete them.
+			continue
+		}
+		staleShardStats = append(staleShardStats, shardID)
 	}
 
 	if len(staleShardStats) == 0 {
