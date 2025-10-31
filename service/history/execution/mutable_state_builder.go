@@ -2287,62 +2287,96 @@ func (e *mutableStateBuilder) logDataInconsistency() {
 	)
 }
 func (e *mutableStateBuilder) reorderAndFilterDuplicateEvents(events []*types.HistoryEvent, source string) []*types.HistoryEvent {
-	type activityTaskUniqueEventParams struct {
+	type eventUniquenessParams struct {
 		eventType        types.EventType
 		scheduledEventID int64
 		attempt          int32
 		startedEventID   int64
 	}
 
-	activityTaskUniqueEvents := make(map[activityTaskUniqueEventParams]struct{})
+	activityTaskUniqueEvents := make(map[eventUniquenessParams]struct{})
 
-	checkActivityTaskEventUniqueness := func(event *types.HistoryEvent) bool {
-		var uniqueEventParams activityTaskUniqueEventParams
+	checkEventUniqueness := func(event *types.HistoryEvent) bool {
+		var uniqueEventParams eventUniquenessParams
 
 		var scheduledEventID int64
 
 		switch event.GetEventType() {
 		case types.EventTypeActivityTaskStarted:
 			scheduledEventID = event.ActivityTaskStartedEventAttributes.GetScheduledEventID()
-			uniqueEventParams = activityTaskUniqueEventParams{
+			uniqueEventParams = eventUniquenessParams{
 				eventType:        event.GetEventType(),
 				scheduledEventID: scheduledEventID,
 				attempt:          event.ActivityTaskStartedEventAttributes.Attempt,
 			}
 		case types.EventTypeActivityTaskCompleted:
 			scheduledEventID = event.ActivityTaskCompletedEventAttributes.GetScheduledEventID()
-			uniqueEventParams = activityTaskUniqueEventParams{
+			uniqueEventParams = eventUniquenessParams{
 				eventType:        event.GetEventType(),
 				scheduledEventID: scheduledEventID,
 				startedEventID:   event.ActivityTaskCompletedEventAttributes.GetStartedEventID(),
 			}
 		case types.EventTypeActivityTaskFailed:
 			scheduledEventID = event.ActivityTaskFailedEventAttributes.GetScheduledEventID()
-			uniqueEventParams = activityTaskUniqueEventParams{
+			uniqueEventParams = eventUniquenessParams{
 				eventType:        event.GetEventType(),
 				scheduledEventID: scheduledEventID,
 				startedEventID:   event.ActivityTaskFailedEventAttributes.GetStartedEventID(),
 			}
 		case types.EventTypeActivityTaskCanceled:
 			scheduledEventID = event.ActivityTaskCanceledEventAttributes.GetScheduledEventID()
-			uniqueEventParams = activityTaskUniqueEventParams{
+			uniqueEventParams = eventUniquenessParams{
 				eventType:        event.GetEventType(),
 				scheduledEventID: scheduledEventID,
 				startedEventID:   event.ActivityTaskCanceledEventAttributes.StartedEventID,
 			}
 		case types.EventTypeActivityTaskTimedOut:
 			scheduledEventID = event.ActivityTaskTimedOutEventAttributes.GetScheduledEventID()
-			uniqueEventParams = activityTaskUniqueEventParams{
+			uniqueEventParams = eventUniquenessParams{
 				eventType:        event.GetEventType(),
 				scheduledEventID: scheduledEventID,
 				startedEventID:   event.ActivityTaskTimedOutEventAttributes.StartedEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionStarted:
+			scheduledEventID = event.ChildWorkflowExecutionStartedEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionCompleted:
+			scheduledEventID = event.ChildWorkflowExecutionCompletedEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ChildWorkflowExecutionCompletedEventAttributes.StartedEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionFailed:
+			scheduledEventID = event.ChildWorkflowExecutionFailedEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ChildWorkflowExecutionFailedEventAttributes.StartedEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionTimedOut:
+			scheduledEventID = event.ChildWorkflowExecutionTimedOutEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ChildWorkflowExecutionTimedOutEventAttributes.StartedEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionCanceled:
+			scheduledEventID = event.ChildWorkflowExecutionCanceledEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ChildWorkflowExecutionCanceledEventAttributes.StartedEventID,
 			}
 		default:
 			return true
 		}
 
 		if _, ok := activityTaskUniqueEvents[uniqueEventParams]; ok {
-			e.logger.Error("Duplicate activity task event found",
+			e.logger.Error("Duplicate event found",
 				tag.WorkflowDomainName(e.GetDomainEntry().GetInfo().Name),
 				tag.WorkflowID(e.GetExecutionInfo().WorkflowID),
 				tag.WorkflowRunID(e.GetExecutionInfo().RunID),
@@ -2366,7 +2400,7 @@ func (e *mutableStateBuilder) reorderAndFilterDuplicateEvents(events []*types.Hi
 	// is added to reorder buffered events to guarantee all activity completion events will always be processed at the end.
 	for _, event := range events {
 		// We sometimes see duplicate events
-		if unique := checkActivityTaskEventUniqueness(event); !unique {
+		if unique := checkEventUniqueness(event); !unique {
 			continue
 		}
 		switch event.GetEventType() {
