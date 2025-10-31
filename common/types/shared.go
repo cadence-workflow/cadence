@@ -2793,17 +2793,7 @@ func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolic
 		return false
 	}
 
-	return p.GetStrategy() == other.GetStrategy() &&
-		p.StickyRegion == other.StickyRegion &&
-		p.ExternalEntityType == other.ExternalEntityType &&
-		p.ExternalEntityKey == other.ExternalEntityKey && p.ClusterAttribute.Equals(other.ClusterAttribute)
-}
-
-func (p *ActiveClusterSelectionPolicy) GetStrategy() ActiveClusterSelectionStrategy {
-	if p == nil || p.ActiveClusterSelectionStrategy == nil {
-		return ActiveClusterSelectionStrategyRegionSticky
-	}
-	return *p.ActiveClusterSelectionStrategy
+	return p.ClusterAttribute.Equals(other.ClusterAttribute)
 }
 
 func (e ActiveClusterSelectionStrategy) Ptr() *ActiveClusterSelectionStrategy {

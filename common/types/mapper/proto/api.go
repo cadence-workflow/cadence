@@ -6753,7 +6753,12 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 		return nil
 	}
 	// TODO(active-active): Remove the switch statement once the strategy is removed
-	switch p.GetStrategy() {
+	if p.ActiveClusterSelectionStrategy == nil {
+		return &apiv1.ActiveClusterSelectionPolicy{
+			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
+		}
+	}
+	switch *p.ActiveClusterSelectionStrategy {
 	case types.ActiveClusterSelectionStrategyRegionSticky:
 		return &apiv1.ActiveClusterSelectionPolicy{
 			Strategy: apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY,
