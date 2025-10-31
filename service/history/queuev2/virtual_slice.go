@@ -37,11 +37,13 @@ type (
 		GetState() VirtualSliceState
 		IsEmpty() bool
 		GetTasks(context.Context, int) ([]task.Task, error)
+		InsertTask(task.Task) bool
 		HasMoreTasks() bool
 		UpdateAndGetState() VirtualSliceState
 		GetPendingTaskCount() int
 		Clear()
 		PendingTaskStats() PendingTaskStats
+		ResetProgress(key persistence.HistoryTaskKey)
 
 		TrySplitByTaskKey(persistence.HistoryTaskKey) (VirtualSlice, VirtualSlice, bool)
 		TrySplitByPredicate(Predicate) (VirtualSlice, VirtualSlice, bool)
@@ -113,6 +115,22 @@ func (s *virtualSliceImpl) Clear() {
 			NextTaskKey:   s.state.Range.InclusiveMinTaskKey,
 		},
 	}
+}
+
+func (s *virtualSliceImpl) InsertTask(task task.Task) bool {
+	r := s.state.Range
+	key := task.GetTaskKey()
+
+	if key.Compare(r.InclusiveMinTaskKey) < 0 || key.Compare(r.ExclusiveMaxTaskKey) >= 0 {
+		return false
+	}
+
+	if !s.state.Predicate.Check(task) {
+		return false
+	}
+
+	s.pendingTaskTracker.AddTask(task)
+	return true
 }
 
 func (s *virtualSliceImpl) GetTasks(ctx context.Context, pageSize int) ([]task.Task, error) {
@@ -189,6 +207,51 @@ func (s *virtualSliceImpl) UpdateAndGetState() VirtualSliceState {
 		}
 	}
 	return s.state
+}
+
+// this function is used when we are not sure if our in-memory state after the given key is correct,
+// we want to cancel all the tasks after the given key and reset the progress to the given key,
+// so that in the next poll, we will read the tasks from the DB starting from the given key.
+func (s *virtualSliceImpl) ResetProgress(key persistence.HistoryTaskKey) {
+	taskMap := s.pendingTaskTracker.GetTasks()
+	for _, task := range taskMap {
+		if task.GetTaskKey().Compare(key) >= 0 {
+			task.Cancel()
+		}
+	}
+
+	if len(s.progress) == 0 {
+		s.progress = []*GetTaskProgress{
+			{
+				Range: Range{
+					InclusiveMinTaskKey: key,
+					ExclusiveMaxTaskKey: s.state.Range.ExclusiveMaxTaskKey,
+				},
+				NextPageToken: nil,
+				NextTaskKey:   key,
+			},
+		}
+		return
+	}
+
+	for i, progress := range s.progress {
+		// progress contains sorted non-overlapping ranges. If we found a range that contains the given key, we can reset
+		// this range's progress to the given key and merge the remaining ranges into it.
+		if progress.NextTaskKey.Compare(key) > 0 {
+			maxTaskKey := s.progress[len(s.progress)-1].Range.ExclusiveMaxTaskKey
+			s.progress[i] = &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: key,
+					ExclusiveMaxTaskKey: maxTaskKey,
+				},
+				NextPageToken: nil,
+				NextTaskKey:   key,
+			}
+
+			s.progress = s.progress[:i+1]
+			break
+		}
+	}
 }
 
 func (s *virtualSliceImpl) TrySplitByTaskKey(taskKey persistence.HistoryTaskKey) (VirtualSlice, VirtualSlice, bool) {
