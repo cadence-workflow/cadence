@@ -2433,7 +2433,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				Name:                     constants.TestDomainName,
 				FailoverTimeoutInSeconds: common.Int32Ptr(1),
 			},
-			err: errInvalidGracefulFailover,
+			err: errInvalidFailoverNoChangeDetected,
 		},
 		{
 			name: "Error case - validateDomainConfig error",

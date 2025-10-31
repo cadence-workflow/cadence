@@ -7943,10 +7943,20 @@ type UpdateDomainRequest struct {
 	FailoverTimeoutInSeconds               *int32                             `json:"failoverTimeoutInSeconds,omitempty"`
 }
 
-// IsAFailoverRequest will return true if the update request includes
-// an active cluster change or a change to one of the domain's cluster-attribute fields
+// IsAFailoverRequest identifies if any part of the request is a failover request
+// and if so, will return true
+// this includes:
+//
+// - an active cluster change  (force failver)
+// - any failvoer timeout values (for graceful failover)
+// - or a change to one of the domain's cluster-attribute fields (active-active failover)
+//
+// this is not a validation function
+// and doesn't attempt to give valid or coherent combinations
 func (v *UpdateDomainRequest) IsAFailoverRequest() bool {
-	return v.ActiveClusterName != nil || (v.ActiveClusters != nil && len(v.ActiveClusters.AttributeScopes) > 0)
+	return v.ActiveClusterName != nil ||
+		(v.FailoverTimeoutInSeconds != nil && *v.FailoverTimeoutInSeconds > 0) ||
+		(v.ActiveClusters != nil && len(v.ActiveClusters.AttributeScopes) > 0)
 }
 
 // GetName is an internal getter (TBD...)
