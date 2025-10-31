@@ -470,16 +470,22 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 	isGlobalDomain := currentState.IsGlobalDomain
 	gracefulFailoverEndTime := currentState.FailoverEndTime
 	currentActiveCluster := currentState.ReplicationConfig.ActiveClusterName
-	previousFailoverVersion := currentState.PreviousFailoverVersion
-	lastUpdatedTime := time.Unix(0, currentState.LastUpdatedTime)
 	wasActiveActive := currentState.ReplicationConfig.IsActiveActive()
 	now := d.timeSource.Now()
+
+	failoverType := constants.FailoverTypeForce
 
 	var activeClusterChanged bool
 	var configurationChanged bool
 
 	// will be set to the notification version of the domain after the update
-	var failoverNotificationVersion int64 = -1
+	intendedDomainState.FailoverNotificationVersion = types.UndefinedFailoverVersion
+	// not used except for graceful failover requests, but specifically set to -1
+	// so as to be explicitly undefined
+	intendedDomainState.PreviousFailoverVersion = constants.InitialPreviousFailoverVersion
+
+	// by default, we assume a force failover and that any preexisting graceful failover state is invalidated
+	intendedDomainState.FailoverEndTime = nil
 
 	// Update replication config
 	replicationConfig, replicationConfigChanged, activeClusterChanged, err := d.updateReplicationConfig(
@@ -501,7 +507,8 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 
 	// Handle graceful failover request
 	if updateRequest.FailoverTimeoutInSeconds != nil {
-		gracefulFailoverEndTime, previousFailoverVersion, err = d.handleGracefulFailover(
+		failoverType = constants.FailoverTypeGrace
+		gracefulFailoverEndTime, previousFailoverVersion, err := d.handleGracefulFailover(
 			updateRequest,
 			replicationConfig,
 			currentActiveCluster,
@@ -513,6 +520,8 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 		if err != nil {
 			return nil, err
 		}
+		intendedDomainState.FailoverEndTime = gracefulFailoverEndTime
+		intendedDomainState.PreviousFailoverVersion = previousFailoverVersion
 	}
 
 	// replication config is a subset of config,
@@ -527,24 +536,9 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 		return nil, err
 	}
 
-	// Check the failover cool down time
-	if lastUpdatedTime.Add(d.config.FailoverCoolDown(intendedDomainState.Info.Name)).After(now) {
-		d.logger.Debugf("Domain was last updated at %v, failoverCoolDown: %v, current time: %v.", lastUpdatedTime, d.config.FailoverCoolDown(intendedDomainState.Info.Name), now)
-		return nil, errDomainUpdateTooFrequent
-	}
-
 	// set the versions
 	if configurationChanged {
 		configVersion++
-	}
-
-	var failoverType constants.FailoverType = constants.FailoverTypeGrace
-
-	// Force failover cleans graceful failover state
-	if updateRequest.FailoverTimeoutInSeconds == nil {
-		failoverType = constants.FailoverTypeForce
-		gracefulFailoverEndTime = nil
-		previousFailoverVersion = constants.InitialPreviousFailoverVersion
 	}
 
 	// Cases:
@@ -638,9 +632,7 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 		}
 	}
 
-	failoverNotificationVersion = notificationVersion
-
-	lastUpdatedTime = now
+	intendedDomainState.FailoverNotificationVersion = notificationVersion
 
 	updateReq := createUpdateRequest(
 		intendedDomainState.Info,
@@ -648,10 +640,10 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 		replicationConfig,
 		configVersion,
 		failoverVersion,
-		failoverNotificationVersion,
-		gracefulFailoverEndTime,
-		previousFailoverVersion,
-		lastUpdatedTime,
+		intendedDomainState.FailoverNotificationVersion,
+		intendedDomainState.FailoverEndTime,
+		intendedDomainState.PreviousFailoverVersion,
+		now,
 		notificationVersion,
 	)
 
@@ -667,7 +659,7 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 		replicationConfig,
 		configVersion,
 		failoverVersion,
-		previousFailoverVersion,
+		intendedDomainState.PreviousFailoverVersion,
 		isGlobalDomain,
 	); err != nil {
 		return nil, err
@@ -700,10 +692,7 @@ func (d *handlerImpl) updateGlobalDomainConfiguration(ctx context.Context,
 
 	configVersion := currentDomainState.ConfigVersion
 	failoverVersion := currentDomainState.FailoverVersion
-	failoverNotificationVersion := currentDomainState.FailoverNotificationVersion
 	isGlobalDomain := currentDomainState.IsGlobalDomain
-	gracefulFailoverEndTime := currentDomainState.FailoverEndTime
-	previousFailoverVersion := currentDomainState.PreviousFailoverVersion
 
 	now := d.timeSource.Now()
 
@@ -792,9 +781,9 @@ func (d *handlerImpl) updateGlobalDomainConfiguration(ctx context.Context,
 			replicationConfig,
 			configVersion,
 			failoverVersion,
-			failoverNotificationVersion,
-			gracefulFailoverEndTime,
-			previousFailoverVersion,
+			currentDomainState.FailoverNotificationVersion,
+			intendedDomainState.FailoverEndTime,
+			intendedDomainState.PreviousFailoverVersion,
 			now,
 			notificationVersion,
 		)
@@ -812,7 +801,7 @@ func (d *handlerImpl) updateGlobalDomainConfiguration(ctx context.Context,
 		replicationConfig,
 		configVersion,
 		failoverVersion,
-		previousFailoverVersion,
+		intendedDomainState.PreviousFailoverVersion,
 		isGlobalDomain,
 	); err != nil {
 		return nil, err
@@ -853,8 +842,6 @@ func (d *handlerImpl) updateLocalDomain(ctx context.Context,
 	configVersion := currentState.ConfigVersion
 
 	now := d.timeSource.Now()
-
-	lastUpdatedTime := time.Unix(0, currentState.LastUpdatedTime)
 
 	// Update history archival state
 	historyArchivalConfigChanged, err = d.updateHistoryArchivalState(intendedDomainState.Config, updateRequest)
@@ -911,8 +898,6 @@ func (d *handlerImpl) updateLocalDomain(ctx context.Context,
 			configVersion = intendedDomainState.ConfigVersion + 1
 		}
 
-		lastUpdatedTime = now
-
 		updateReq := createUpdateRequest(
 			info,
 			config,
@@ -922,7 +907,7 @@ func (d *handlerImpl) updateLocalDomain(ctx context.Context,
 			intendedDomainState.FailoverNotificationVersion,
 			intendedDomainState.FailoverEndTime,
 			intendedDomainState.PreviousFailoverVersion,
-			lastUpdatedTime,
+			now,
 			notificationVersion,
 		)
 
@@ -1882,10 +1867,9 @@ func (d *handlerImpl) handleGracefulFailover(
 		return nil, 0, errOngoingGracefulFailover
 	}
 	endTime := d.timeSource.Now().Add(time.Duration(updateRequest.GetFailoverTimeoutInSeconds()) * time.Second).UnixNano()
-	gracefulFailoverEndTime = &endTime
 	previousFailoverVersion := failoverVersion
 
-	return gracefulFailoverEndTime, previousFailoverVersion, nil
+	return &endTime, previousFailoverVersion, nil
 }
 
 func (d *handlerImpl) validateDomainReplicationConfigForUpdateDomain(

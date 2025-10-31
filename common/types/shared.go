@@ -2543,6 +2543,7 @@ func (e *ClusterAttributeNotFoundError) Error() string {
 // Failover versions are valid for Int64 >= 0
 // and, but implication, 0 is a valid failover version. To distinguish between it and an undefined
 // failover version, we use a negative value.
+// todo (david.porter) move this to constants package and give it a type
 const UndefinedFailoverVersion = int64(-1)
 
 // GetFailoverVersionForAttribute returns the failover version for a given attribute.
