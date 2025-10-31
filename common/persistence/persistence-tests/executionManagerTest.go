@@ -1498,10 +1498,8 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 				Memo:                        testMemo,
 				PartitionConfig:             testPartitionConfig,
 				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-					ClusterAttribute: &types.ClusterAttribute{
-						Scope: "region",
-						Name:  "us-west-1",
-					},
+					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+					StickyRegion:                   "region1",
 				},
 			},
 			ExecutionStats: &p.ExecutionStats{

@@ -539,9 +539,9 @@ func generateActiveClusters() *types.ActiveClusters {
 
 func generateActiveClusterSelectionPolicy() *types.ActiveClusterSelectionPolicy {
 	return &types.ActiveClusterSelectionPolicy{
-		ClusterAttribute: &types.ClusterAttribute{
-			Scope: "region",
-			Name:  "us-west-1",
-		},
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+		StickyRegion:                   "region1",
+		ExternalEntityType:             "externalEntityType1",
+		ExternalEntityKey:              "externalEntityKey1",
 	}
 }
