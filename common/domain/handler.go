@@ -775,12 +775,6 @@ func (d *handlerImpl) updateLocalDomain(ctx context.Context,
 	}
 
 	if configurationChanged {
-		// Check the failover cool down time
-		if lastUpdatedTime.Add(d.config.FailoverCoolDown(info.Name)).After(now) {
-			d.logger.Debugf("Domain was last updated at %v, failoverCoolDown: %v, current time: %v.", lastUpdatedTime, d.config.FailoverCoolDown(info.Name), now)
-			return nil, errDomainUpdateTooFrequent
-		}
-
 		// set the versions
 		if configurationChanged {
 			configVersion = intendedDomainState.ConfigVersion + 1
