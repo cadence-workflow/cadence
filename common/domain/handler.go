@@ -827,7 +827,6 @@ func (d *handlerImpl) updateGlobalDomainConfiguration(ctx context.Context,
 	return response, nil
 }
 
-
 func (d *handlerImpl) updateLocalDomain(ctx context.Context,
 	updateRequest *types.UpdateDomainRequest,
 	currentState *persistence.GetDomainResponse,
@@ -1177,7 +1176,6 @@ func (d *handlerImpl) FailoverDomain(
 		IsGlobalDomain:           isGlobalDomain,
 	}, nil
 }
-
 
 // DeleteDomain deletes a domain
 func (d *handlerImpl) DeleteDomain(
