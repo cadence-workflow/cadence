@@ -608,9 +608,6 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 		notificationVersion,
 	)
 
-	dat, _ := json.Marshal(updateReq)
-	fmt.Println(">>> actual", string(dat))
-
 	err = d.domainManager.UpdateDomain(ctx, &updateReq)
 	if err != nil {
 		return nil, err

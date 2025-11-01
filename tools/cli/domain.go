@@ -162,7 +162,7 @@ func newDomainCommands() []*cli.Command {
 					return err
 				}
 				return withDomainClient(c, false, func(dc *domainCLIImpl) error {
-					return dc.UpdateDomain(c)
+					return dc.FailoverDomain(c)
 				})
 			},
 		},

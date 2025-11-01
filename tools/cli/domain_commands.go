@@ -457,7 +457,9 @@ func (d *domainCLIImpl) FailoverDomain(c *cli.Context) error {
 		return commoncli.Problem("Required flag not found: ", err)
 	}
 
-	var failoverRequest *types.FailoverDomainRequest
+	failoverRequest := &types.FailoverDomainRequest{
+		DomainName: domainName,
+	}
 
 	ctx, cancel, err := newContext(c)
 	defer cancel()
@@ -465,14 +467,20 @@ func (d *domainCLIImpl) FailoverDomain(c *cli.Context) error {
 		return commoncli.Problem("Error in creating context: ", err)
 	}
 
+	if !c.IsSet(FlagActiveClusterName) && !c.IsSet(FlagActiveClusters) {
+		return commoncli.Problem("At least one of the flags --active-cluster-name or --active-clusters must be provided.", nil)
+	}
+
 	if c.IsSet(FlagActiveClusterName) { // active-passive domain failover
 		activeCluster := c.String(FlagActiveClusterName)
-		fmt.Printf("Will set active cluster name to: %s, other flag will be omitted.\n", activeCluster)
-
-		failoverRequest = &types.FailoverDomainRequest{
-			DomainName:              domainName,
-			DomainActiveClusterName: common.StringPtr(activeCluster),
+		failoverRequest.DomainActiveClusterName = common.StringPtr(activeCluster)
+	}
+	if c.IsSet(FlagActiveClusters) { // active-active domain failover
+		ac, err := parseActiveClustersByClusterAttribute(c.String(FlagActiveClusters))
+		if err != nil {
+			return err
 		}
+		failoverRequest.ActiveClusters = &ac
 	}
 	_, err = d.failoverDomain(ctx, failoverRequest)
 	if err != nil {

@@ -270,6 +270,11 @@ var (
 			Aliases: []string{"ac"},
 			Usage:   "Active cluster name",
 		},
+		&cli.StringSliceFlag{
+			Name:    FlagActiveClusters,
+			Aliases: []string{"acs"},
+			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
+		},
 	}
 
 	listFailoverHistoryFlags = []cli.Flag{
