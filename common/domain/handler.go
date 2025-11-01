@@ -122,10 +122,6 @@ type (
 		FromCluster  string `json:"fromCluster,omitempty"`
 		ToCluster    string `json:"toCluster,omitempty"`
 		FailoverType string `json:"failoverType,omitempty"`
-
-		// active-active domain failover
-		FromActiveClusters types.ActiveClusters `json:"fromActiveClusters,omitempty"`
-		ToActiveClusters   types.ActiveClusters `json:"toActiveClusters,omitempty"`
 	}
 
 	// FailoverHistory is the history of failovers for a domain limited by the FailoverHistoryMaxSize config
@@ -546,101 +542,58 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 		intendedDomainState.ConfigVersion++
 	}
 
-	// Cases:
-	// 1. active-passive domain's ActiveClusterName is changed
-	// 2. active-passive domain is being migrated to active-active
-	// 3. active-active domain's ActiveClusters is changed
-	isActiveActive := intendedDomainState.ReplicationConfig.IsActiveActive()
+	intendedDomainState.FailoverVersion = d.clusterMetadata.GetNextFailoverVersion(
+		intendedDomainState.ReplicationConfig.ActiveClusterName,
+		currentState.FailoverVersion,
+		updateRequest.Name,
+	)
 
-	// case 1. active-passive domain's ActiveClusterName is changed
-	if !wasActiveActive && !isActiveActive {
-		intendedDomainState.FailoverVersion = d.clusterMetadata.GetNextFailoverVersion(
-			intendedDomainState.ReplicationConfig.ActiveClusterName,
-			currentState.FailoverVersion,
-			updateRequest.Name,
-		)
-
-		d.logger.Debug("active-passive domain failover",
-			tag.WorkflowDomainName(intendedDomainState.Info.Name),
-			tag.Dynamic("failover-version", intendedDomainState.FailoverVersion),
-			tag.Dynamic("failover-type", failoverType),
-		)
-
-		err = updateFailoverHistoryInDomainData(intendedDomainState.Info, d.config, NewFailoverEvent(
-			now,
-			failoverType,
-			&currentActiveCluster,
-			updateRequest.ActiveClusterName,
-			nil,
-			nil,
-		))
-		if err != nil {
-			d.logger.Warn("failed to update failover history", tag.Error(err))
-		}
-	}
-
-	// case 2. active-passive domain is being migrated to active-active
-	if !wasActiveActive && isActiveActive {
-		// for active-passive to active-active migration,
-		// we increment failover version so top level failoverVersion is updated and domain data is replicated.
-		intendedDomainState.FailoverVersion = d.clusterMetadata.GetNextFailoverVersion(
-			intendedDomainState.ReplicationConfig.ActiveClusterName,
-			currentState.FailoverVersion+1, //todo: (active-active): Let's review if we need to increment
-			// this for cluster-attr failover changes. It may not be necessary to increment
-			updateRequest.Name,
-		)
-
-		d.logger.Debug("active-passive domain is being migrated to active-active",
-			tag.WorkflowDomainName(intendedDomainState.Info.Name),
-			tag.Dynamic("failover-version", intendedDomainState.FailoverVersion),
-			tag.Dynamic("failover-type", failoverType),
-		)
-
-		err = updateFailoverHistoryInDomainData(intendedDomainState.Info, d.config, NewFailoverEvent(
-			now,
-			failoverType,
-			&currentActiveCluster,
-			updateRequest.ActiveClusterName,
-			nil,
-			intendedDomainState.ReplicationConfig.ActiveClusters,
-		))
-		if err != nil {
-			d.logger.Warn("failed to update failover history", tag.Error(err))
-		}
-	}
-
-	// case 3. active-active domain's ActiveClusters is changed
-	if wasActiveActive && isActiveActive {
-		intendedDomainState.FailoverVersion = d.clusterMetadata.GetNextFailoverVersion(
-			intendedDomainState.ReplicationConfig.ActiveClusterName,
-			currentState.FailoverVersion+1, //todo: (active-active): Let's review if we need to increment
-			// this for cluster-attr failover changes. It may not be necessary to increment
-			updateRequest.Name,
-		)
-
-		d.logger.Debug("active-active domain failover",
-			tag.WorkflowDomainName(intendedDomainState.Info.Name),
-			tag.Dynamic("failover-version", intendedDomainState.FailoverVersion),
-			tag.Dynamic("failover-type", failoverType),
-		)
-
-		err = updateFailoverHistoryInDomainData(intendedDomainState.Info, d.config, NewFailoverEvent(
-			now,
-			failoverType,
-			&currentActiveCluster,
-			updateRequest.ActiveClusterName,
-			currentState.ReplicationConfig.GetActiveClusters(),
-			intendedDomainState.ReplicationConfig.GetActiveClusters(),
-		))
-		if err != nil {
-			d.logger.Warn("failed to update failover history", tag.Error(err))
-		}
-	}
-
-	// this is an intended failover step, to capture the current global domain configuration
-	// (represented by notification version) and set it when running failover to allow
+	// this is an intended failover step, to capture the current cluster's domain configuration
+	// (represented by the notification-version counter) and set it when running failover to allow
 	// systems like graceful failover to dedup failover processes and callbacks
 	intendedDomainState.FailoverNotificationVersion = notificationVersion
+
+	isActiveActive := intendedDomainState.ReplicationConfig.IsActiveActive()
+
+	if wasActiveActive || isActiveActive {
+		// if the domain was ever active-active, we bump the failover-version at the domain level
+		// to ensure that it gets incremented every single time, even though the failover may be only
+		// at the cluster-attribute level (ie the FailoverVersion may just go up by the failover-increment
+		// but otherwise be a noop - the actual active cluster may not have changed)).
+		//
+		// The reason for this is caution and simplicity at the time of writing:
+		// It's harmless to bump and this simplifies thinking about failover events
+		// through out the rest of the Cadence codebase. We can reliably assume that every failover
+		// event that has meaningful changes only needs to subscribe to this fencing token.
+		// to detect changes.
+		//
+		// Any parts of the system (domain-callbacks, domain cache etc) that watch for
+		// failover events and may trigger some action or cache invalidation will be watching
+		// the domain-level failver counter for changes. Therefore, by bumping it even for
+		// cases where it isn't changing, we ensure all these other subprocesses will
+		// take
+		intendedDomainState.FailoverVersion = d.clusterMetadata.GetNextFailoverVersion(
+			intendedDomainState.ReplicationConfig.ActiveClusterName,
+			currentState.FailoverVersion+1,
+			updateRequest.Name,
+		)
+	}
+
+	// the domain-data table is only updated for active-passive domain failovers
+	// as a historical backwards compatibility measure.
+	// Going forward, any history use-cases should rely on the FailoverHistory endpoint which
+	// supports all failover types and more than a handful of entries.
+	if !wasActiveActive && !isActiveActive {
+		err = updateFailoverHistoryInDomainData(intendedDomainState.Info, d.config, NewFailoverEvent(
+			now,
+			failoverType,
+			&currentActiveCluster,
+			updateRequest.ActiveClusterName,
+		))
+		if err != nil {
+			d.logger.Warn("failed to update failover history", tag.Error(err))
+		}
+	}
 
 	updateReq := createUpdateRequest(
 		intendedDomainState.Info,
@@ -654,6 +607,9 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 		now,
 		notificationVersion,
 	)
+
+	dat, _ := json.Marshal(updateReq)
+	fmt.Println(">>> actual", string(dat))
 
 	err = d.domainManager.UpdateDomain(ctx, &updateReq)
 	if err != nil {
@@ -939,16 +895,21 @@ func (d *handlerImpl) FailoverDomain(
 	failoverRequest *types.FailoverDomainRequest,
 ) (*types.FailoverDomainResponse, error) {
 
+	metadata, err := d.domainManager.GetMetadata(ctx)
+	if err != nil {
+		return nil, err
+	}
+	notificationVersion := metadata.NotificationVersion
+
 	currentDomainState, err := d.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{Name: failoverRequest.GetDomainName()})
 	if err != nil {
 		return nil, err
 	}
 
-	if !currentDomainState.IsGlobalDomain {
-		return nil, errLocalDomainsCannotFailover
+	err = d.validateDomainFailoverRequest(failoverRequest, currentDomainState)
+	if err != nil {
+		return nil, err
 	}
-
-	notificationVersion := currentDomainState.NotificationVersion
 
 	response, err := d.handleFailoverRequest(
 		ctx,
@@ -1686,6 +1647,31 @@ func (d *handlerImpl) validateGlobalDomainReplicationConfigForUpdateDomain(
 	return nil
 }
 
+// validateDomainFailoverRequest is the handler method for the FailoverDomain
+// handler. It can receive request to failover domains in a variety of combinations
+// including invalid ones.
+func (d *handlerImpl) validateDomainFailoverRequest(
+	request *types.FailoverDomainRequest,
+	currentDomainState *persistence.GetDomainResponse,
+) error {
+	if request == nil {
+		return &types.BadRequestError{Message: "Request cannot be nil"}
+	}
+
+	if request.DomainName == "" {
+		return &types.BadRequestError{Message: "DomainName cannot be empty"}
+	}
+
+	if !currentDomainState.IsGlobalDomain {
+		return errLocalDomainsCannotFailover
+	}
+
+	if request.ActiveClusters == nil && request.DomainActiveClusterName == nil {
+		return &types.BadRequestError{Message: "Domain's ActiveClusterName or ActiveClusters must be set to failover the domain"}
+	}
+	return nil
+}
+
 // validateDomainReplicationConfigForFailover is to check if the replication config
 // is valid and sane for failovers. It is only for global domains
 func (d *handlerImpl) validateDomainReplicationConfigForFailover(
@@ -1814,8 +1800,6 @@ func NewFailoverEvent(
 	failoverType constants.FailoverType,
 	fromCluster *string,
 	toCluster *string,
-	fromActiveClusters *types.ActiveClusters,
-	toActiveClusters *types.ActiveClusters,
 ) FailoverEvent {
 	res := FailoverEvent{
 		EventTime:    eventTime,
@@ -1826,12 +1810,6 @@ func NewFailoverEvent(
 	}
 	if toCluster != nil {
 		res.ToCluster = *toCluster
-	}
-	if fromActiveClusters != nil {
-		res.FromActiveClusters = *fromActiveClusters
-	}
-	if toActiveClusters != nil {
-		res.ToActiveClusters = *toActiveClusters
 	}
 	return res
 }
