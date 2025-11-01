@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -38,7 +38,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -481,7 +481,7 @@ func TestHistoryLoader_GetEventBlob(t *testing.T) {
 		name           string
 		task           *persistence.HistoryReplicationTask
 		domains        fakeDomainCache
-		mockHistory    func(hm *mocks.HistoryV2Manager)
+		mockHistory    func(hm *persistence.MockHistoryManager)
 		expectDataBlob *types.DataBlob
 		expectErr      string
 	}{
@@ -496,7 +496,7 @@ func TestHistoryLoader_GetEventBlob(t *testing.T) {
 				NextEventID:  11,
 			},
 			domains: fakeDomainCache{testDomainID: testDomain},
-			mockHistory: func(hm *mocks.HistoryV2Manager) {
+			mockHistory: func(hm *persistence.MockHistoryManager) {
 				hm.On("ReadRawHistoryBranch", mock.Anything, &persistence.ReadHistoryBranchRequest{
 					BranchToken: testBranchToken,
 					MinEventID:  10,
@@ -514,14 +514,14 @@ func TestHistoryLoader_GetEventBlob(t *testing.T) {
 			name:        "failed to get domain name",
 			task:        &persistence.HistoryReplicationTask{WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: testDomainID}},
 			domains:     fakeDomainCache{},
-			mockHistory: func(hm *mocks.HistoryV2Manager) {},
+			mockHistory: func(hm *persistence.MockHistoryManager) {},
 			expectErr:   "domain does not exist",
 		},
 		{
 			name:    "load failure",
 			task:    &persistence.HistoryReplicationTask{WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: testDomainID}},
 			domains: fakeDomainCache{testDomainID: testDomain},
-			mockHistory: func(hm *mocks.HistoryV2Manager) {
+			mockHistory: func(hm *persistence.MockHistoryManager) {
 				hm.On("ReadRawHistoryBranch", mock.Anything, mock.Anything).Return(nil, errors.New("load failure"))
 			},
 			expectErr: "load failure",
@@ -530,7 +530,7 @@ func TestHistoryLoader_GetEventBlob(t *testing.T) {
 			name:    "response must contain exactly one blob",
 			task:    &persistence.HistoryReplicationTask{WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: testDomainID}},
 			domains: fakeDomainCache{testDomainID: testDomain},
-			mockHistory: func(hm *mocks.HistoryV2Manager) {
+			mockHistory: func(hm *persistence.MockHistoryManager) {
 				hm.On("ReadRawHistoryBranch", mock.Anything, mock.Anything).Return(&persistence.ReadRawHistoryBranchResponse{
 					HistoryEventBlobs: []*persistence.DataBlob{{}, {}}, // two blobs
 				}, nil)
@@ -541,7 +541,7 @@ func TestHistoryLoader_GetEventBlob(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hm := &mocks.HistoryV2Manager{}
+			hm := &persistence.MockHistoryManager{}
 			tt.mockHistory(hm)
 			loader := historyLoader{shardID: testShardID, history: hm, domains: tt.domains}
 			dataBlob, err := loader.GetEventBlob(context.Background(), tt.task)
@@ -556,7 +556,7 @@ func TestHistoryLoader_GetEventBlob(t *testing.T) {
 }
 
 func TestHistoryLoader_GetNextRunEventBlob(t *testing.T) {
-	hm := &mocks.HistoryV2Manager{}
+	hm := &persistence.MockHistoryManager{}
 	loader := historyLoader{shardID: testShardID, history: hm, domains: fakeDomainCache{testDomainID: testDomain}}
 
 	dataBlob, err := loader.GetNextRunEventBlob(context.Background(), &persistence.HistoryReplicationTask{NewRunBranchToken: nil})

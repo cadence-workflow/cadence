@@ -32,7 +32,7 @@ import (
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
@@ -52,7 +52,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/thrift"
@@ -86,9 +86,9 @@ type (
 		mockWorkflowResetter *reset.MockWorkflowResetter
 
 		mockHistoryEngine *historyEngineImpl
-		mockExecutionMgr  *mocks.ExecutionManager
-		mockHistoryV2Mgr  *mocks.HistoryV2Manager
-		mockShardManager  *mocks.ShardManager
+		mockExecutionMgr  *persistence.MockExecutionManager
+		mockHistoryV2Mgr  *persistence.MockHistoryManager
+		mockShardManager  *persistence.MockShardManager
 
 		eventsCache events.Cache
 		config      *config.Config

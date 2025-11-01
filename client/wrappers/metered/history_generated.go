@@ -7,11 +7,10 @@ package metered
 import (
 	"context"
 
-	"go.uber.org/yarpc"
-
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
+	"go.uber.org/yarpc"
 )
 
 // historyClient implements history.Client interface instrumented with retries

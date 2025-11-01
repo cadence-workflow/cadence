@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
+	
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/.gen/go/indexer"

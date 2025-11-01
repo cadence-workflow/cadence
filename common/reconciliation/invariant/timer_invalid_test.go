@@ -28,13 +28,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/entity"
 	"github.com/uber/cadence/common/types"
@@ -143,8 +141,8 @@ func (ts *TimerInvalidTest) TestCheck() {
 	for _, tc := range testCases {
 		mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain-name", nil).AnyTimes()
 		ts.Run(tc.name, func() {
-			execManager := &mocks.ExecutionManager{}
-			execManager.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(tc.getExecResp, tc.getExecErr)
+			execManager := persistence.NewMockExecutionManager(ctrl)
+			execManager.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(tc.getExecResp, tc.getExecErr).AnyTimes()
 			i := NewTimerInvalid(
 				persistence.NewPersistenceRetryer(
 					execManager,
@@ -270,9 +268,9 @@ func (ts *TimerInvalidTest) TestFix() {
 	for _, tc := range testCases {
 		mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain-name", nil).AnyTimes()
 		ts.Run(tc.name, func() {
-			execManager := &mocks.ExecutionManager{}
-			execManager.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(tc.getExecResp, tc.getExecErr)
-			execManager.On("CompleteHistoryTask", mock.Anything, mock.Anything).Return(tc.ttComplete)
+			execManager := persistence.NewMockExecutionManager(ctrl)
+			execManager.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(tc.getExecResp, tc.getExecErr).AnyTimes()
+			execManager.EXPECT().CompleteHistoryTask(gomock.Any(), gomock.Any()).Return(tc.ttComplete).AnyTimes()
 			i := NewTimerInvalid(
 				persistence.NewPersistenceRetryer(
 					execManager,

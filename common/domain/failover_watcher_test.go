@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
@@ -40,7 +39,6 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -53,7 +51,7 @@ type (
 
 		mockDomainCache *cache.MockDomainCache
 		timeSource      clock.TimeSource
-		mockMetadataMgr *mocks.MetadataManager
+		mockMetadataMgr *persistence.MockDomainManager
 		watcher         *failoverWatcherImpl
 	}
 )
@@ -78,11 +76,11 @@ func (s *failoverWatcherSuite) SetupTest() {
 
 	s.mockDomainCache = cache.NewMockDomainCache(s.controller)
 	s.timeSource = clock.NewMockedTimeSource()
-	s.mockMetadataMgr = &mocks.MetadataManager{}
+	s.mockMetadataMgr = persistence.NewMockDomainManager(s.controller)
 
-	s.mockMetadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{
+	s.mockMetadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(&persistence.GetMetadataResponse{
 		NotificationVersion: 1,
-	}, nil)
+	}, nil).AnyTimes()
 
 	logger := testlogger.New(s.T())
 	scope := tally.NewTestScope("failover_test", nil)
@@ -124,7 +122,7 @@ func (s *failoverWatcherSuite) TestCleanPendingActiveState() {
 		},
 	}
 
-	s.mockMetadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{
+	s.mockMetadataMgr.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{
 		ID: domainName,
 	}).Return(&persistence.GetDomainResponse{
 		Info:                        info,
@@ -142,7 +140,7 @@ func (s *failoverWatcherSuite) TestCleanPendingActiveState() {
 	err := CleanPendingActiveState(s.mockMetadataMgr, domainName, 1, s.watcher.retryPolicy)
 	s.NoError(err)
 
-	s.mockMetadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{
+	s.mockMetadataMgr.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{
 		ID: domainName,
 	}).Return(&persistence.GetDomainResponse{
 		Info:                        info,
@@ -160,7 +158,7 @@ func (s *failoverWatcherSuite) TestCleanPendingActiveState() {
 	err = CleanPendingActiveState(s.mockMetadataMgr, domainName, 5, s.watcher.retryPolicy)
 	s.NoError(err)
 
-	s.mockMetadataMgr.On("UpdateDomain", mock.Anything, &persistence.UpdateDomainRequest{
+	s.mockMetadataMgr.EXPECT().UpdateDomain(gomock.Any(), &persistence.UpdateDomainRequest{
 		Info:                        info,
 		Config:                      domainConfig,
 		ReplicationConfig:           replicationConfig,
@@ -170,7 +168,7 @@ func (s *failoverWatcherSuite) TestCleanPendingActiveState() {
 		FailoverEndTime:             nil,
 		NotificationVersion:         1,
 	}).Return(nil).Times(1)
-	s.mockMetadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{
+	s.mockMetadataMgr.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{
 		ID: domainName,
 	}).Return(&persistence.GetDomainResponse{
 		Info:                        info,
@@ -210,7 +208,7 @@ func (s *failoverWatcherSuite) TestHandleFailoverTimeout() {
 	}
 	endtime := common.Int64Ptr(s.timeSource.Now().UnixNano() - 1)
 
-	s.mockMetadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{
+	s.mockMetadataMgr.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{
 		ID: domainName,
 	}).Return(&persistence.GetDomainResponse{
 		Info:                        info,
@@ -223,7 +221,7 @@ func (s *failoverWatcherSuite) TestHandleFailoverTimeout() {
 		FailoverEndTime:             endtime,
 		NotificationVersion:         1,
 	}, nil).Times(1)
-	s.mockMetadataMgr.On("UpdateDomain", mock.Anything, &persistence.UpdateDomainRequest{
+	s.mockMetadataMgr.EXPECT().UpdateDomain(gomock.Any(), &persistence.UpdateDomainRequest{
 		Info:                        info,
 		Config:                      domainConfig,
 		ReplicationConfig:           replicationConfig,
@@ -290,9 +288,9 @@ func (s *failoverWatcherSuite) TestRefreshDomainLoop() {
 	domainsMap := map[string]*cache.DomainCacheEntry{domainID: domainEntry}
 	s.mockDomainCache.EXPECT().GetAllDomain().Return(domainsMap).AnyTimes()
 
-	s.mockMetadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: 1}, nil).Maybe()
+	s.mockMetadataMgr.EXPECT().GetMetadata(gomock.Any()).Return(&persistence.GetMetadataResponse{NotificationVersion: 1}, nil).AnyTimes()
 
-	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.AnythingOfType("*persistence.GetDomainRequest")).Return(&persistence.GetDomainResponse{
+	s.mockMetadataMgr.EXPECT().GetDomain(gomock.Any(), gomock.Any()).Return(&persistence.GetDomainResponse{
 		Info:                        domainInfo,
 		Config:                      domainConfig,
 		ReplicationConfig:           replicationConfig,
@@ -302,9 +300,9 @@ func (s *failoverWatcherSuite) TestRefreshDomainLoop() {
 		FailoverNotificationVersion: 1,
 		FailoverEndTime:             failoverEndTime,
 		NotificationVersion:         1,
-	}, nil).Once()
+	}, nil).Times(1)
 
-	s.mockMetadataMgr.On("UpdateDomain", mock.Anything, mock.Anything).Return(nil).Once()
+	s.mockMetadataMgr.EXPECT().UpdateDomain(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	s.watcher.Start()
 
@@ -317,5 +315,4 @@ func (s *failoverWatcherSuite) TestRefreshDomainLoop() {
 	// Enough time for shutdown process to complete
 	time.Sleep(1 * time.Second)
 
-	s.mockMetadataMgr.AssertExpectations(s.T())
 }

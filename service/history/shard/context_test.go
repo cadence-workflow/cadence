@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
@@ -44,7 +44,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -71,7 +71,7 @@ type (
 
 		controller       *gomock.Controller
 		mockResource     *resource.Test
-		mockShardManager *mocks.ShardManager
+		mockShardManager *persistence.MockShardManager
 
 		metricsClient metrics.Client
 		logger        log.Logger
@@ -1032,7 +1032,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 	testCases := []struct {
 		name           string
 		request        *persistence.GetWorkflowExecutionRequest
-		mockSetup      func(*mocks.ExecutionManager)
+		mockSetup      func(*persistence.MockExecutionManager)
 		expectedResult *persistence.GetWorkflowExecutionResponse
 		expectedError  error
 	}{
@@ -1042,7 +1042,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 				DomainID:  "testDomain",
 				Execution: types.WorkflowExecution{WorkflowID: "testWorkflowID", RunID: "testRunID"},
 			},
-			mockSetup: func(mgr *mocks.ExecutionManager) {
+			mockSetup: func(mgr *persistence.MockExecutionManager) {
 				mgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{
 					State: &persistence.WorkflowMutableState{
 						ExecutionInfo: &persistence.WorkflowExecutionInfo{
@@ -1070,7 +1070,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 				DomainID:  "testDomain",
 				Execution: types.WorkflowExecution{WorkflowID: "testWorkflowID", RunID: "testRunID"},
 			},
-			mockSetup: func(mgr *mocks.ExecutionManager) {
+			mockSetup: func(mgr *persistence.MockExecutionManager) {
 				mgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(nil, errors.New("some random error"))
 			},
 			expectedResult: nil,
@@ -1079,7 +1079,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		mockExecutionMgr := &mocks.ExecutionManager{}
+		mockExecutionMgr := &persistence.MockExecutionManager{}
 		shardContext := &contextImpl{
 			executionManager: mockExecutionMgr,
 			shardInfo: &persistence.ShardInfo{

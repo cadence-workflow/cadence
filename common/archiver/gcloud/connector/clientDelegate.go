@@ -20,6 +20,13 @@
 
 package connector
 
+//go:generate mockgen -package mocks -destination mocks/GcloudStorageClient.go github.com/uber/cadence/common/archiver/gcloud/connector GcloudStorageClient
+//go:generate mockgen -package mocks -destination mocks/BucketHandleWrapper.go github.com/uber/cadence/common/archiver/gcloud/connector BucketHandleWrapper
+//go:generate mockgen -package mocks -destination mocks/ObjectHandleWrapper.go github.com/uber/cadence/common/archiver/gcloud/connector ObjectHandleWrapper
+//go:generate mockgen -package mocks -destination mocks/WriterWrapper.go github.com/uber/cadence/common/archiver/gcloud/connector WriterWrapper
+//go:generate mockgen -package mocks -destination mocks/ReaderWrapper.go github.com/uber/cadence/common/archiver/gcloud/connector ReaderWrapper
+//go:generate mockgen -package mocks -destination mocks/ObjectIteratorWrapper.go github.com/uber/cadence/common/archiver/gcloud/connector ObjectIteratorWrapper
+
 import (
 	"context"
 	"io/ioutil"

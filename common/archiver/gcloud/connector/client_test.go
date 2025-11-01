@@ -31,9 +31,9 @@ import (
 	"testing"
 
 	"cloud.google.com/go/storage"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/api/iterator"
 
 	"github.com/uber/cadence/common/archiver"
@@ -43,6 +43,7 @@ import (
 
 func (s *clientSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
+	s.controller = gomock.NewController(s.T())
 	file, _ := json.MarshalIndent(&fakeData{data: "example"}, "", " ")
 
 	os.MkdirAll("/tmp/cadence_archival/development", os.ModePerm)
@@ -50,6 +51,7 @@ func (s *clientSuite) SetupTest() {
 }
 
 func (s *clientSuite) TearDownTest() {
+	s.controller.Finish()
 	os.Remove("/tmp/cadence_archival/development/myfile.history")
 }
 
@@ -60,6 +62,7 @@ func TestClientSuite(t *testing.T) {
 type clientSuite struct {
 	*require.Assertions
 	suite.Suite
+	controller *gomock.Controller
 }
 
 type fakeData struct {
@@ -69,18 +72,18 @@ type fakeData struct {
 func (s *clientSuite) TestUpload() {
 	ctx := context.Background()
 
-	mockStorageClient := &mocks.GcloudStorageClient{}
-	mockBucketHandleClient := &mocks.BucketHandleWrapper{}
-	mockObjectHandler := &mocks.ObjectHandleWrapper{}
-	mockWriter := &mocks.WriterWrapper{}
+	mockStorageClient := mocks.NewMockGcloudStorageClient(s.controller)
+	mockBucketHandleClient := mocks.NewMockBucketHandleWrapper(s.controller)
+	mockObjectHandler := mocks.NewMockObjectHandleWrapper(s.controller)
+	mockWriter := mocks.NewMockWriterWrapper(s.controller)
 
 	storageWrapper, _ := connector.NewClientWithParams(mockStorageClient)
 
-	mockStorageClient.On("Bucket", "my-bucket-cad").Return(mockBucketHandleClient).Times(1)
-	mockBucketHandleClient.On("Object", "cadence_archival/development/myfile.history").Return(mockObjectHandler).Times(1)
-	mockObjectHandler.On("NewWriter", ctx).Return(mockWriter).Times(1)
-	mockWriter.On("Write", mock.Anything).Return(2, nil).Times(2)
-	mockWriter.On("Close").Return(nil).Times(1)
+	mockStorageClient.EXPECT().Bucket("my-bucket-cad").Return(mockBucketHandleClient).Times(1)
+	mockBucketHandleClient.EXPECT().Object("cadence_archival/development/myfile.history").Return(mockObjectHandler).Times(1)
+	mockObjectHandler.EXPECT().NewWriter(ctx).Return(mockWriter).Times(1)
+	mockWriter.EXPECT().Write(gomock.Any()).Return(2, nil).Times(2)
+	mockWriter.EXPECT().Close().Return(nil).Times(1)
 
 	URI, err := archiver.NewURI("gs://my-bucket-cad/cadence_archival/development")
 	s.Require().NoError(err)
@@ -91,18 +94,18 @@ func (s *clientSuite) TestUpload() {
 func (s *clientSuite) TestUploadWriterCloseError() {
 	ctx := context.Background()
 
-	mockStorageClient := &mocks.GcloudStorageClient{}
-	mockBucketHandleClient := &mocks.BucketHandleWrapper{}
-	mockObjectHandler := &mocks.ObjectHandleWrapper{}
-	mockWriter := &mocks.WriterWrapper{}
+	mockStorageClient := mocks.NewMockGcloudStorageClient(s.controller)
+	mockBucketHandleClient := mocks.NewMockBucketHandleWrapper(s.controller)
+	mockObjectHandler := mocks.NewMockObjectHandleWrapper(s.controller)
+	mockWriter := mocks.NewMockWriterWrapper(s.controller)
 
 	storageWrapper, _ := connector.NewClientWithParams(mockStorageClient)
 
-	mockStorageClient.On("Bucket", "my-bucket-cad").Return(mockBucketHandleClient).Times(1)
-	mockBucketHandleClient.On("Object", "cadence_archival/development/myfile.history").Return(mockObjectHandler).Times(1)
-	mockObjectHandler.On("NewWriter", ctx).Return(mockWriter).Times(1)
-	mockWriter.On("Write", mock.Anything).Return(2, nil).Times(2)
-	mockWriter.On("Close").Return(errors.New("Not Found")).Times(1)
+	mockStorageClient.EXPECT().Bucket("my-bucket-cad").Return(mockBucketHandleClient).Times(1)
+	mockBucketHandleClient.EXPECT().Object("cadence_archival/development/myfile.history").Return(mockObjectHandler).Times(1)
+	mockObjectHandler.EXPECT().NewWriter(ctx).Return(mockWriter).Times(1)
+	mockWriter.EXPECT().Write(gomock.Any()).Return(2, nil).Times(2)
+	mockWriter.EXPECT().Close().Return(errors.New("Not Found")).Times(1)
 
 	URI, err := archiver.NewURI("gs://my-bucket-cad/cadence_archival/development")
 	s.Require().NoError(err)
@@ -166,14 +169,14 @@ func (s *clientSuite) TestExist() {
 
 	for _, tc := range testCases {
 
-		mockStorageClient := &mocks.GcloudStorageClient{}
-		mockBucketHandleClient := &mocks.BucketHandleWrapper{}
-		mockObjectHandler := &mocks.ObjectHandleWrapper{}
+		mockStorageClient := mocks.NewMockGcloudStorageClient(s.controller)
+		mockBucketHandleClient := mocks.NewMockBucketHandleWrapper(s.controller)
+		mockObjectHandler := mocks.NewMockObjectHandleWrapper(s.controller)
 
-		mockStorageClient.On("Bucket", tc.bucketName).Return(mockBucketHandleClient).Times(1)
-		mockBucketHandleClient.On("Attrs", tc.callContext).Return(nil, tc.bucketExpectedError).Times(1)
-		mockBucketHandleClient.On("Object", tc.fileName).Return(mockObjectHandler).Times(1)
-		mockObjectHandler.On("Attrs", tc.callContext).Return(nil, tc.objectExpectedError).Times(1)
+		mockStorageClient.EXPECT().Bucket(tc.bucketName).Return(mockBucketHandleClient).Times(1)
+		mockBucketHandleClient.EXPECT().Attrs(tc.callContext).Return(nil, tc.bucketExpectedError).Times(1)
+		mockBucketHandleClient.EXPECT().Object(tc.fileName).Return(mockObjectHandler).Times(1)
+		mockObjectHandler.EXPECT().Attrs(tc.callContext).Return(nil, tc.objectExpectedError).Times(1)
 		URI, _ := archiver.NewURI(tc.URI)
 		storageWrapper, _ := connector.NewClientWithParams(mockStorageClient)
 		exists, err := storageWrapper.Exist(tc.callContext, URI, tc.fileName)
@@ -198,18 +201,18 @@ func (s *clientSuite) TestExist() {
 
 func (s *clientSuite) TestGet() {
 	ctx := context.Background()
-	mockStorageClient := &mocks.GcloudStorageClient{}
-	mockBucketHandleClient := &mocks.BucketHandleWrapper{}
-	mockObjectHandler := &mocks.ObjectHandleWrapper{}
-	mockReader := &mocks.ReaderWrapper{}
+	mockStorageClient := mocks.NewMockGcloudStorageClient(s.controller)
+	mockBucketHandleClient := mocks.NewMockBucketHandleWrapper(s.controller)
+	mockObjectHandler := mocks.NewMockObjectHandleWrapper(s.controller)
+	mockReader := mocks.NewMockReaderWrapper(s.controller)
 
 	storageWrapper, _ := connector.NewClientWithParams(mockStorageClient)
 
-	mockStorageClient.On("Bucket", "my-bucket-cad").Return(mockBucketHandleClient).Times(1)
-	mockBucketHandleClient.On("Object", "cadence_archival/development/myfile.history").Return(mockObjectHandler).Times(1)
-	mockObjectHandler.On("NewReader", ctx).Return(mockReader, nil).Times(1)
-	mockReader.On("Read", mock.Anything).Return(2, io.EOF).Times(2)
-	mockReader.On("Close").Return(nil).Times(1)
+	mockStorageClient.EXPECT().Bucket("my-bucket-cad").Return(mockBucketHandleClient).Times(1)
+	mockBucketHandleClient.EXPECT().Object("cadence_archival/development/myfile.history").Return(mockObjectHandler).Times(1)
+	mockObjectHandler.EXPECT().NewReader(ctx).Return(mockReader, nil).Times(1)
+	mockReader.EXPECT().Read(gomock.Any()).Return(2, io.EOF).Times(2)
+	mockReader.EXPECT().Close().Return(nil).Times(1)
 
 	URI, err := archiver.NewURI("gs://my-bucket-cad/cadence_archival/development")
 	s.Require().NoError(err)
@@ -227,18 +230,18 @@ func (s *clientSuite) TestWrongGoogleCredentialsPath() {
 func (s *clientSuite) TestQuery() {
 
 	ctx := context.Background()
-	mockBucketHandleClient := &mocks.BucketHandleWrapper{}
-	mockStorageClient := &mocks.GcloudStorageClient{}
-	mockObjectIterator := &mocks.ObjectIteratorWrapper{}
+	mockBucketHandleClient := mocks.NewMockBucketHandleWrapper(s.controller)
+	mockStorageClient := mocks.NewMockGcloudStorageClient(s.controller)
+	mockObjectIterator := mocks.NewMockObjectIteratorWrapper(s.controller)
 	storageWrapper, _ := connector.NewClientWithParams(mockStorageClient)
 
 	attr := new(storage.ObjectAttrs)
 	attr.Name = "fileName_01"
 
-	mockStorageClient.On("Bucket", "my-bucket-cad").Return(mockBucketHandleClient).Times(1)
-	mockBucketHandleClient.On("Objects", ctx, mock.Anything).Return(mockObjectIterator).Times(1)
+	mockStorageClient.EXPECT().Bucket("my-bucket-cad").Return(mockBucketHandleClient).Times(1)
+	mockBucketHandleClient.EXPECT().Objects(ctx, gomock.Any()).Return(mockObjectIterator).Times(1)
 	mockIterator := 0
-	mockObjectIterator.On("Next").Return(func() *storage.ObjectAttrs {
+	mockObjectIterator.EXPECT().Next().Return(func() *storage.ObjectAttrs {
 		mockIterator++
 		if mockIterator == 1 {
 			return attr
@@ -264,9 +267,9 @@ func (s *clientSuite) TestQuery() {
 func (s *clientSuite) TestQueryWithFilter() {
 
 	ctx := context.Background()
-	mockBucketHandleClient := &mocks.BucketHandleWrapper{}
-	mockStorageClient := &mocks.GcloudStorageClient{}
-	mockObjectIterator := &mocks.ObjectIteratorWrapper{}
+	mockBucketHandleClient := mocks.NewMockBucketHandleWrapper(s.controller)
+	mockStorageClient := mocks.NewMockGcloudStorageClient(s.controller)
+	mockObjectIterator := mocks.NewMockObjectIteratorWrapper(s.controller)
 	storageWrapper, _ := connector.NewClientWithParams(mockStorageClient)
 
 	attr := new(storage.ObjectAttrs)
@@ -274,10 +277,10 @@ func (s *clientSuite) TestQueryWithFilter() {
 	attrInvalid := new(storage.ObjectAttrs)
 	attrInvalid.Name = "closeTimeout_2020-02-27T09:42:28Z_12851121011173788097_4418294404690464321_15619178330501475177.visibility"
 
-	mockStorageClient.On("Bucket", "my-bucket-cad").Return(mockBucketHandleClient).Times(1)
-	mockBucketHandleClient.On("Objects", ctx, mock.Anything).Return(mockObjectIterator).Times(1)
+	mockStorageClient.EXPECT().Bucket("my-bucket-cad").Return(mockBucketHandleClient).Times(1)
+	mockBucketHandleClient.EXPECT().Objects(ctx, gomock.Any()).Return(mockObjectIterator).Times(1)
 	mockIterator := 0
-	mockObjectIterator.On("Next").Return(func() *storage.ObjectAttrs {
+	mockObjectIterator.EXPECT().Next().Return(func() *storage.ObjectAttrs {
 		mockIterator++
 		switch mockIterator {
 		case 1:

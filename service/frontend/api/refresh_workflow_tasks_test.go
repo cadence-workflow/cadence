@@ -62,13 +62,13 @@ type mockDeps struct {
 	mockMatchingClient     *matching.MockClient
 	mockProducer           *mocks.KafkaProducer
 	mockMessagingClient    messaging.Client
-	mockMetadataMgr        *mocks.MetadataManager
-	mockHistoryV2Mgr       *mocks.HistoryV2Manager
-	mockVisibilityMgr      *mocks.VisibilityManager
+	mockMetadataMgr        *persistence.MockDomainManager
+	mockHistoryV2Mgr       *persistence.MockHistoryManager
+	mockVisibilityMgr      *persistence.MockVisibilityManager
 	mockArchivalMetadata   *archiver.MockArchivalMetadata
 	mockArchiverProvider   *provider.MockArchiverProvider
-	mockHistoryArchiver    *archiver.HistoryArchiverMock
-	mockVisibilityArchiver *archiver.VisibilityArchiverMock
+	mockHistoryArchiver    *archiver.MockHistoryArchiver
+	mockVisibilityArchiver *archiver.MockVisibilityArchiver
 	mockVersionChecker     *client.MockVersionChecker
 	mockTokenSerializer    *common.MockTaskTokenSerializer
 	mockDomainHandler      *domain.MockHandler
@@ -95,8 +95,8 @@ func setupMocksForWorkflowHandler(t *testing.T) (*WorkflowHandler, *mockDeps) {
 
 		mockProducer:           mockProducer,
 		mockMessagingClient:    mocks.NewMockMessagingClient(mockProducer, nil),
-		mockHistoryArchiver:    &archiver.HistoryArchiverMock{},
-		mockVisibilityArchiver: &archiver.VisibilityArchiverMock{},
+		mockHistoryArchiver:    archiver.NewMockHistoryArchiver(ctrl),
+		mockVisibilityArchiver: archiver.NewMockVisibilityArchiver(ctrl),
 		mockVersionChecker:     client.NewMockVersionChecker(ctrl),
 		mockDomainHandler:      domain.NewMockHandler(ctrl),
 		mockRequestValidator:   NewMockRequestValidator(ctrl),

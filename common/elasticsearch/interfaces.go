@@ -20,6 +20,8 @@
 
 package elasticsearch
 
+//go:generate mockgen -package mocks -destination mocks/GenericClient.go github.com/uber/cadence/common/elasticsearch GenericClient
+
 import (
 	"context"
 	"encoding/json"

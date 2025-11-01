@@ -13,9 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	shared "github.com/uber/cadence/.gen/go/shared"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockVersionChecker is a mock of VersionChecker interface.

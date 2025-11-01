@@ -20,6 +20,8 @@
 
 package archiver
 
+//go:generate mockgen -package archiver -destination interface_mock.go github.com/uber/cadence/common/archiver HistoryArchiver,VisibilityArchiver
+
 import (
 	"context"
 

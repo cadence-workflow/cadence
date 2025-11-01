@@ -26,14 +26,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
@@ -54,9 +54,9 @@ type (
 		mockWorkflowExecutionContext *execution.MockContext
 		mockMutableState             *execution.MockMutableState
 
-		mockExecutionManager  *mocks.ExecutionManager
-		mockVisibilityManager *mocks.VisibilityManager
-		mockHistoryV2Manager  *mocks.HistoryV2Manager
+		mockExecutionManager  *persistence.MockExecutionManager
+		mockVisibilityManager *persistence.MockVisibilityManager
+		mockHistoryV2Manager  *persistence.MockHistoryManager
 		mockArchivalClient    *archiver.MockClient
 
 		timerQueueTaskExecutorBase *timerTaskExecutorBase

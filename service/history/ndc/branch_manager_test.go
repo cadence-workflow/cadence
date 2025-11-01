@@ -25,14 +25,12 @@ import (
 	"testing"
 
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -50,7 +48,7 @@ type (
 		mockContext      *execution.MockContext
 		mockMutableState *execution.MockMutableState
 
-		mockHistoryV2Manager *mocks.HistoryV2Manager
+		mockHistoryV2Manager *persistence.MockHistoryManager
 
 		logger log.Logger
 
@@ -132,7 +130,7 @@ func (s *branchManagerSuite) TestCreateNewBranch() {
 		RunID:      s.runID,
 	}).AnyTimes()
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(gomock.Any()).Return(domainName, nil).AnyTimes()
-	s.mockHistoryV2Manager.On("ForkHistoryBranch", mock.Anything, mock.MatchedBy(func(input *persistence.ForkHistoryBranchRequest) bool {
+	s.mockHistoryV2Manager.EXPECT().ForkHistoryBranch(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, input *persistence.ForkHistoryBranchRequest) (*persistence.ForkHistoryBranchResponse, error) {
 		input.Info = ""
 		s.Equal(&persistence.ForkHistoryBranchRequest{
 			ForkBranchToken: baseBranchToken,
@@ -141,10 +139,10 @@ func (s *branchManagerSuite) TestCreateNewBranch() {
 			ShardID:         common.IntPtr(s.mockShard.GetShardID()),
 			DomainName:      domainName,
 		}, input)
-		return true
-	})).Return(&persistence.ForkHistoryBranchResponse{
-		NewBranchToken: newBranchToken,
-	}, nil).Once()
+		return &persistence.ForkHistoryBranchResponse{
+			NewBranchToken: newBranchToken,
+		}, nil
+	}).Times(1)
 
 	newIndex, err := s.branchManager.createNewBranch(ctx.Background(), baseBranchToken, baseBranchLCAEventID, newVersionHistory)
 	s.Nil(err)
@@ -308,7 +306,7 @@ func (s *branchManagerSuite) TestPrepareVersionHistory_BranchNotAppendable_NoMis
 		RunID:      s.runID,
 	}).AnyTimes()
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(gomock.Any()).Return(domainName, nil).AnyTimes()
-	s.mockHistoryV2Manager.On("ForkHistoryBranch", mock.Anything, mock.MatchedBy(func(input *persistence.ForkHistoryBranchRequest) bool {
+	s.mockHistoryV2Manager.EXPECT().ForkHistoryBranch(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, input *persistence.ForkHistoryBranchRequest) (*persistence.ForkHistoryBranchResponse, error) {
 		input.Info = ""
 		s.Equal(&persistence.ForkHistoryBranchRequest{
 			ForkBranchToken: baseBranchToken,
@@ -317,10 +315,10 @@ func (s *branchManagerSuite) TestPrepareVersionHistory_BranchNotAppendable_NoMis
 			ShardID:         common.IntPtr(s.mockShard.GetShardID()),
 			DomainName:      domainName,
 		}, input)
-		return true
-	})).Return(&persistence.ForkHistoryBranchResponse{
-		NewBranchToken: newBranchToken,
-	}, nil).Once()
+		return &persistence.ForkHistoryBranchResponse{
+			NewBranchToken: newBranchToken,
+		}, nil
+	}).Times(1)
 
 	doContinue, index, err := s.branchManager.prepareVersionHistory(
 		ctx.Background(),

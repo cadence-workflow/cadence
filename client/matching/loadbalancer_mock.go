@@ -12,9 +12,8 @@ package matching
 import (
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	types "github.com/uber/cadence/common/types"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockWriteRequest is a mock of WriteRequest interface.

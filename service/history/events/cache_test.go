@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
+	""
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
@@ -38,7 +38,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/mocks"
+	""
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -49,7 +49,7 @@ type (
 		*require.Assertions
 
 		logger             log.Logger
-		mockHistoryManager *mocks.HistoryV2Manager
+		mockHistoryManager *persistence.MockHistoryManager
 
 		cache       *cacheImpl
 		ctrl        *gomock.Controller
@@ -76,7 +76,7 @@ func (s *eventsCacheSuite) SetupTest() {
 	s.logger = testlogger.New(s.Suite.T())
 	// Have to define our overridden assertions in the test setup. If we did it earlier, s.T() will return nil
 	s.Assertions = require.New(s.T())
-	s.mockHistoryManager = &mocks.HistoryV2Manager{}
+	s.mockHistoryManager = &persistence.MockHistoryManager{}
 	s.ctrl = gomock.NewController(s.T())
 	s.domainCache = cache.NewMockDomainCache(s.ctrl)
 	s.cache = s.newTestEventsCache()
