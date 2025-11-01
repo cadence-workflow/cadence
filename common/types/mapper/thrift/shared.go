@@ -1622,6 +1622,7 @@ func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *shared.FailoverD
 	return &shared.FailoverDomainRequest{
 		DomainName:              &t.DomainName,
 		DomainActiveClusterName: t.DomainActiveClusterName,
+		ActiveClusters:          FromActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -1633,6 +1634,7 @@ func ToFailoverDomainRequest(t *shared.FailoverDomainRequest) *types.FailoverDom
 	return &types.FailoverDomainRequest{
 		DomainName:              t.GetDomainName(),
 		DomainActiveClusterName: t.DomainActiveClusterName,
+		ActiveClusters:          ToActiveClusters(t.ActiveClusters),
 	}
 }
 

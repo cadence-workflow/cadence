@@ -2433,7 +2433,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				Name:                     constants.TestDomainName,
 				FailoverTimeoutInSeconds: common.Int32Ptr(1),
 			},
-			err: errInvalidGracefulFailover,
+			err: errInvalidFailoverNoChangeDetected,
 		},
 		{
 			name: "Error case - validateDomainConfig error",
@@ -4350,7 +4350,7 @@ func TestActiveClustersFromRegisterRequest(t *testing.T) {
 	}
 }
 
-func TestValidateDomainReplicationConfigForUpdateDomain(t *testing.T) {
+func TestValidateDomainReplicationConfigForFailover(t *testing.T) {
 	tests := []struct {
 		name                 string
 		replicationConfig    *persistence.DomainReplicationConfig
@@ -4360,49 +4360,6 @@ func TestValidateDomainReplicationConfigForUpdateDomain(t *testing.T) {
 		isPrimaryCluster     bool
 		expectedErr          error
 	}{
-		{
-			name: "local domain with valid config",
-			replicationConfig: &persistence.DomainReplicationConfig{
-				ActiveClusterName: cluster.TestCurrentClusterName,
-				Clusters: []*persistence.ClusterReplicationConfig{
-					{ClusterName: cluster.TestCurrentClusterName},
-				},
-			},
-			isGlobalDomain:       false,
-			configurationChanged: false,
-			activeClusterChanged: false,
-			isPrimaryCluster:     true,
-			expectedErr:          nil,
-		},
-		{
-			name: "local domain with invalid active cluster",
-			replicationConfig: &persistence.DomainReplicationConfig{
-				ActiveClusterName: cluster.TestAlternativeClusterName,
-				Clusters: []*persistence.ClusterReplicationConfig{
-					{ClusterName: cluster.TestAlternativeClusterName},
-				},
-			},
-			isGlobalDomain:       false,
-			configurationChanged: false,
-			activeClusterChanged: false,
-			isPrimaryCluster:     true,
-			expectedErr:          &types.BadRequestError{},
-		},
-		{
-			name: "local domain with invalid cluster configuration",
-			replicationConfig: &persistence.DomainReplicationConfig{
-				ActiveClusterName: cluster.TestCurrentClusterName,
-				Clusters: []*persistence.ClusterReplicationConfig{
-					{ClusterName: cluster.TestCurrentClusterName},
-					{ClusterName: cluster.TestAlternativeClusterName},
-				},
-			},
-			isGlobalDomain:       false,
-			configurationChanged: false,
-			activeClusterChanged: false,
-			isPrimaryCluster:     true,
-			expectedErr:          &types.BadRequestError{},
-		},
 		{
 			name: "global domain with valid config on primary cluster - no changes",
 			replicationConfig: &persistence.DomainReplicationConfig{
@@ -4565,9 +4522,8 @@ func TestValidateDomainReplicationConfigForUpdateDomain(t *testing.T) {
 				logger:              log.NewNoop(),
 			}
 
-			err := handler.validateDomainReplicationConfigForUpdateDomain(
+			err := handler.validateDomainReplicationConfigForFailover(
 				tc.replicationConfig,
-				tc.isGlobalDomain,
 				tc.configurationChanged,
 				tc.activeClusterChanged,
 			)
