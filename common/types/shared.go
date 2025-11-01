@@ -1779,8 +1779,20 @@ func (v *DescribeDomainResponse) GetFailoverInfo() (o *FailoverInfo) {
 
 // FailoverDomainRequest is an internal type (TBD...)
 type FailoverDomainRequest struct {
-	DomainName              string  `json:"domainName,omitempty"`
-	DomainActiveClusterName *string `json:"domainActiveClusterName,omitempty"`
+	DomainName              string          `json:"domainName,omitempty"`
+	DomainActiveClusterName *string         `json:"domainActiveClusterName,omitempty"`
+	ActiveClusters          *ActiveClusters `json:"activeClusters,omitempty"`
+}
+
+func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {
+	if v == nil {
+		return nil
+	}
+	return &UpdateDomainRequest{
+		Name:              v.DomainName,
+		ActiveClusterName: v.DomainActiveClusterName,
+		ActiveClusters:    v.ActiveClusters,
+	}
 }
 
 // GetDomainName is an internal getter (TBD...)
@@ -8061,6 +8073,19 @@ type UpdateDomainResponse struct {
 	ReplicationConfiguration *DomainReplicationConfiguration `json:"replicationConfiguration,omitempty"`
 	FailoverVersion          int64                           `json:"failoverVersion,omitempty"`
 	IsGlobalDomain           bool                            `json:"isGlobalDomain,omitempty"`
+}
+
+func (v *UpdateDomainResponse) ToFailoverDomainResponse() *FailoverDomainResponse {
+	if v == nil {
+		return nil
+	}
+	return &FailoverDomainResponse{
+		DomainInfo:               v.DomainInfo,
+		Configuration:            v.Configuration,
+		ReplicationConfiguration: v.ReplicationConfiguration,
+		FailoverVersion:          v.FailoverVersion,
+		IsGlobalDomain:           v.IsGlobalDomain,
+	}
 }
 
 // GetDomainInfo is an internal getter (TBD...)

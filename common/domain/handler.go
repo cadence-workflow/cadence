@@ -939,242 +939,27 @@ func (d *handlerImpl) FailoverDomain(
 	failoverRequest *types.FailoverDomainRequest,
 ) (*types.FailoverDomainResponse, error) {
 
-	// must get the metadata (notificationVersion) first
-	// this version can be regarded as the lock on the v2 domain table
-	// and since we do not know which table will return the domain afterwards
-	// this call has to be made
-	metadata, err := d.domainManager.GetMetadata(ctx)
-	if err != nil {
-		return nil, err
-	}
-	notificationVersion := metadata.NotificationVersion
-	getResponse, err := d.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{Name: failoverRequest.GetDomainName()})
+	currentDomainState, err := d.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{Name: failoverRequest.GetDomainName()})
 	if err != nil {
 		return nil, err
 	}
 
-	info := getResponse.Info
-	config := getResponse.Config
-	replicationConfig := getResponse.ReplicationConfig
-	wasActiveActive := replicationConfig.IsActiveActive()
-	configVersion := getResponse.ConfigVersion
-	failoverVersion := getResponse.FailoverVersion
-	failoverNotificationVersion := getResponse.FailoverNotificationVersion
-	isGlobalDomain := getResponse.IsGlobalDomain
-	gracefulFailoverEndTime := getResponse.FailoverEndTime
-	currentActiveCluster := replicationConfig.ActiveClusterName
-	currentActiveClusters := replicationConfig.ActiveClusters.DeepCopy()
-	previousFailoverVersion := getResponse.PreviousFailoverVersion
-	lastUpdatedTime := time.Unix(0, getResponse.LastUpdatedTime)
-
-	updateRequest := &types.UpdateDomainRequest{
-		Name:              failoverRequest.DomainName,
-		ActiveClusterName: failoverRequest.DomainActiveClusterName,
+	if !currentDomainState.IsGlobalDomain {
+		return nil, errLocalDomainsCannotFailover
 	}
 
-	// Update replication config
-	replicationConfig, replicationConfigChanged, activeClusterChanged, err := d.updateReplicationConfig(
-		getResponse.Info.Name,
-		replicationConfig,
-		updateRequest,
-	)
-	if err != nil {
-		return nil, err
-	}
+	notificationVersion := currentDomainState.NotificationVersion
 
-	// Handle graceful failover request
-	if updateRequest.FailoverTimeoutInSeconds != nil {
-		gracefulFailoverEndTime, previousFailoverVersion, err = d.handleGracefulFailover(
-			updateRequest,
-			replicationConfig,
-			currentActiveCluster,
-			gracefulFailoverEndTime,
-			failoverVersion,
-			activeClusterChanged,
-			isGlobalDomain,
-		)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	err = d.validateGlobalDomainReplicationConfigForUpdateDomain(replicationConfig, replicationConfigChanged, activeClusterChanged)
-	if err != nil {
-		return nil, err
-	}
-
-	now := d.timeSource.Now()
-	// Check the failover cool down time
-	if lastUpdatedTime.Add(d.config.FailoverCoolDown(info.Name)).After(now) {
-		d.logger.Debugf("Domain was last updated at %v, failoverCoolDown: %v, current time: %v.", lastUpdatedTime, d.config.FailoverCoolDown(info.Name), now)
-		return nil, errDomainUpdateTooFrequent
-	}
-
-	// set the version
-	if replicationConfigChanged {
-		configVersion++
-	}
-
-	if activeClusterChanged && isGlobalDomain {
-		var failoverType constants.FailoverType = constants.FailoverTypeGrace
-
-		// Force failover cleans graceful failover state
-		if updateRequest.FailoverTimeoutInSeconds == nil {
-			failoverType = constants.FailoverTypeForce
-			gracefulFailoverEndTime = nil
-			previousFailoverVersion = constants.InitialPreviousFailoverVersion
-		}
-
-		// Cases:
-		// 1. active-passive domain's ActiveClusterName is changed
-		// 2. active-passive domain is being migrated to active-active
-		// 3. active-active domain's ActiveClusters is changed
-		isActiveActive := replicationConfig.IsActiveActive()
-
-		// case 1. active-passive domain's ActiveClusterName is changed
-		if !wasActiveActive && !isActiveActive {
-			failoverVersion = d.clusterMetadata.GetNextFailoverVersion(
-				replicationConfig.ActiveClusterName,
-				failoverVersion,
-				updateRequest.Name,
-			)
-
-			d.logger.Debug("active-passive domain failover",
-				tag.WorkflowDomainName(info.Name),
-				tag.Dynamic("failover-version", failoverVersion),
-				tag.Dynamic("failover-type", failoverType),
-			)
-
-			err = updateFailoverHistoryInDomainData(info, d.config, NewFailoverEvent(
-				now,
-				failoverType,
-				&currentActiveCluster,
-				updateRequest.ActiveClusterName,
-				nil,
-				nil,
-			))
-			if err != nil {
-				d.logger.Warn("failed to update failover history", tag.Error(err))
-			}
-		}
-
-		// case 2. active-passive domain is being migrated to active-active
-		if !wasActiveActive && isActiveActive {
-			// for active-passive to active-active migration,
-			// we increment failover version so top level failoverVersion is updated and domain data is replicated.
-
-			failoverVersion = d.clusterMetadata.GetNextFailoverVersion(
-				replicationConfig.ActiveClusterName,
-				failoverVersion+1, //todo: (active-active): Let's review if we need to increment
-				// this for cluster-attr failover changes. It may not be necessary to increment
-				updateRequest.Name,
-			)
-
-			d.logger.Debug("active-passive domain is being migrated to active-active",
-				tag.WorkflowDomainName(info.Name),
-				tag.Dynamic("failover-version", failoverVersion),
-				tag.Dynamic("failover-type", failoverType),
-			)
-
-			err = updateFailoverHistoryInDomainData(info, d.config, NewFailoverEvent(
-				now,
-				failoverType,
-				&currentActiveCluster,
-				updateRequest.ActiveClusterName,
-				nil,
-				replicationConfig.ActiveClusters,
-			))
-			if err != nil {
-				d.logger.Warn("failed to update failover history", tag.Error(err))
-			}
-		}
-
-		// case 3. active-active domain's ActiveClusters is changed
-		if wasActiveActive && isActiveActive {
-			// top level failover version is not used for task versions for active-active domains but we still increment it
-			// to indicate there was a change in replication config
-			failoverVersion = d.clusterMetadata.GetNextFailoverVersion(
-				replicationConfig.ActiveClusterName,
-				failoverVersion+1, //todo: (active-active): Let's review if we need to increment
-				// this for cluster-attr failover changes. It may not be necessary to increment
-				updateRequest.Name,
-			)
-
-			d.logger.Debug("active-active domain failover",
-				tag.WorkflowDomainName(info.Name),
-				tag.Dynamic("failover-version", failoverVersion),
-				tag.Dynamic("failover-type", failoverType),
-			)
-
-			err = updateFailoverHistoryInDomainData(info, d.config, NewFailoverEvent(
-				now,
-				failoverType,
-				&currentActiveCluster,
-				nil,
-				currentActiveClusters,
-				replicationConfig.ActiveClusters,
-			))
-			if err != nil {
-				d.logger.Warn("failed to update failover history", tag.Error(err))
-			}
-		}
-
-		failoverNotificationVersion = notificationVersion
-	}
-
-	lastUpdatedTime = now
-
-	updateReq := createUpdateRequest(
-		info,
-		config,
-		replicationConfig,
-		configVersion,
-		failoverVersion,
-		failoverNotificationVersion,
-		gracefulFailoverEndTime,
-		previousFailoverVersion,
-		lastUpdatedTime,
+	response, err := d.handleFailoverRequest(
+		ctx,
+		failoverRequest.ToUpdateDomainRequest(),
+		currentDomainState,
 		notificationVersion,
 	)
-
-	err = d.domainManager.UpdateDomain(ctx, &updateReq)
 	if err != nil {
-		d.logger.Info("Update domain's replication configs failed",
-			tag.WorkflowDomainName(info.Name),
-			tag.WorkflowDomainID(info.ID),
-		)
 		return nil, err
 	}
-
-	if isGlobalDomain {
-		if err = d.domainReplicator.HandleTransmissionTask(
-			ctx,
-			types.DomainOperationUpdate,
-			info,
-			config,
-			replicationConfig,
-			configVersion,
-			failoverVersion,
-			previousFailoverVersion,
-			isGlobalDomain,
-		); err != nil {
-			return nil, err
-		}
-	}
-
-	domainInfo, configuration, replicationConfiguration := d.createResponse(info, config, replicationConfig)
-
-	d.logger.Info("Update domain's replication configs succeeded",
-		tag.WorkflowDomainName(info.Name),
-		tag.WorkflowDomainID(info.ID),
-	)
-	return &types.FailoverDomainResponse{
-		DomainInfo:               domainInfo,
-		Configuration:            configuration,
-		ReplicationConfiguration: replicationConfiguration,
-		FailoverVersion:          failoverVersion,
-		IsGlobalDomain:           isGlobalDomain,
-	}, nil
+	return response.ToFailoverDomainResponse(), nil
 }
 
 // DeleteDomain deletes a domain
