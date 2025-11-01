@@ -2543,6 +2543,7 @@ func (e *ClusterAttributeNotFoundError) Error() string {
 // Failover versions are valid for Int64 >= 0
 // and, but implication, 0 is a valid failover version. To distinguish between it and an undefined
 // failover version, we use a negative value.
+// todo (david.porter) move this to constants package and give it a type
 const UndefinedFailoverVersion = int64(-1)
 
 // GetFailoverVersionForAttribute returns the failover version for a given attribute.
@@ -8003,6 +8004,22 @@ type UpdateDomainRequest struct {
 	SecurityToken                          string                             `json:"securityToken,omitempty"`
 	DeleteBadBinary                        *string                            `json:"deleteBadBinary,omitempty"`
 	FailoverTimeoutInSeconds               *int32                             `json:"failoverTimeoutInSeconds,omitempty"`
+}
+
+// IsAFailoverRequest identifies if any part of the request is a failover request
+// and if so, will return true
+// this includes:
+//
+// - an active cluster change  (force failver)
+// - any failvoer timeout values (for graceful failover)
+// - or a change to one of the domain's cluster-attribute fields (active-active failover)
+//
+// this is not a validation function
+// and doesn't attempt to give valid or coherent combinations
+func (v *UpdateDomainRequest) IsAFailoverRequest() bool {
+	return v.ActiveClusterName != nil ||
+		(v.FailoverTimeoutInSeconds != nil && *v.FailoverTimeoutInSeconds > 0) ||
+		(v.ActiveClusters != nil && len(v.ActiveClusters.AttributeScopes) > 0)
 }
 
 // GetName is an internal getter (TBD...)
