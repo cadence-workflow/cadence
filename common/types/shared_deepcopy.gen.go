@@ -23,7 +23,8 @@ func (o DescribeDomainResponse) DeepCopy() DescribeDomainResponse {
 		cp.Configuration = new(DomainConfiguration)
 		*cp.Configuration = *o.Configuration
 		if o.Configuration.BadBinaries != nil {
-			cp.Configuration.BadBinaries = o.Configuration.BadBinaries.DeepCopy()
+			badBinaries := o.Configuration.BadBinaries.DeepCopy()
+			cp.Configuration.BadBinaries = &badBinaries
 		}
 		if o.Configuration.HistoryArchivalStatus != nil {
 			cp.Configuration.HistoryArchivalStatus = new(ArchivalStatus)
@@ -56,7 +57,8 @@ func (o DescribeDomainResponse) DeepCopy() DescribeDomainResponse {
 			}
 		}
 		if o.ReplicationConfiguration.ActiveClusters != nil {
-			cp.ReplicationConfiguration.ActiveClusters = o.ReplicationConfiguration.ActiveClusters.DeepCopy()
+			activeClusters := o.ReplicationConfiguration.ActiveClusters.DeepCopy()
+			cp.ReplicationConfiguration.ActiveClusters = &activeClusters
 		}
 	}
 	if o.FailoverInfo != nil {

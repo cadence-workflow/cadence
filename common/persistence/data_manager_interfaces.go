@@ -49,9 +49,6 @@
 // execution metered wrapper is special
 //go:generate gowrap gen -g -p . -i ExecutionManager -t ./wrappers/templates/metered_execution.tmpl -o wrappers/metered/execution_generated.go
 
-// Generate DeepCopy methods
-//go:generate deep-copy -pointer-receiver -o ./data_manager_deepcopy.gen.go -type GetDomainResponse -type ClusterReplicationConfig .
-
 package persistence
 
 import (
@@ -1162,6 +1159,8 @@ type (
 		ActiveClusters *types.ActiveClusters
 	}
 
+	//go:generate deep-copy -pointer-receiver -o ./data_manager_deepcopy.gen.go -type ClusterReplicationConfig .
+
 	// ClusterReplicationConfig describes the cross DC cluster replication configuration
 	ClusterReplicationConfig struct {
 		ClusterName string
@@ -1190,6 +1189,8 @@ type (
 		ID   string
 		Name string
 	}
+
+	//go:generate deep-copy -pointer-receiver -o ./data_manager_deepcopy.gen.go -type GetDomainResponse .
 
 	// GetDomainResponse is the response for GetDomain
 	GetDomainResponse struct {

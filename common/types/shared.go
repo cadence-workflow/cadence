@@ -372,6 +372,8 @@ const (
 	ArchivalStatusEnabled
 )
 
+//go:generate deep-copy -o ./shared_deepcopy.gen.go -type BadBinaries .
+
 // BadBinaries is an internal type (TBD...)
 type BadBinaries struct {
 	Binaries map[string]*BadBinaryInfo `json:"binaries,omitempty"`
@@ -961,6 +963,8 @@ func (v *CurrentBranchChangedError) GetCurrentBranchToken() (o []byte) {
 	}
 	return
 }
+
+//go:generate deep-copy -o ./shared_deepcopy.gen.go -type DataBlob .
 
 // DataBlob is an internal type (TBD...)
 type DataBlob struct {
@@ -1685,7 +1689,7 @@ func (v *DescribeDomainRequest) GetUUID() (o string) {
 	return
 }
 
-//go:generate deep-copy -o ./shared_deepcopy.gen.go -type DescribeDomainResponse -type BadBinaries -type DataBlob -type ActiveClusters .
+//go:generate deep-copy -o ./shared_deepcopy.gen.go -type DescribeDomainResponse .
 
 // DescribeDomainResponse is an internal type (TBD...)
 type DescribeDomainResponse struct {
@@ -2481,6 +2485,8 @@ func (v *DomainReplicationConfiguration) ByteSize() uint64 {
 //	  },
 //	}
 //
+//go:generate deep-copy -o ./shared_deepcopy.gen.go -type ActiveClusters .
+
 // TODO(c-warren): Rename to ClusterAttributes
 type ActiveClusters struct {
 	// ClusterAttributes
