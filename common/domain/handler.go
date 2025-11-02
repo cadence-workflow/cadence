@@ -839,7 +839,11 @@ func (d *handlerImpl) FailoverDomain(
 	isGlobalDomain := getResponse.IsGlobalDomain
 	gracefulFailoverEndTime := getResponse.FailoverEndTime
 	currentActiveCluster := replicationConfig.ActiveClusterName
-	currentActiveClusters := replicationConfig.ActiveClusters.DeepCopy()
+	var currentActiveClusters *types.ActiveClusters
+	if replicationConfig.ActiveClusters != nil {
+		currentActiveClustersCopy := replicationConfig.ActiveClusters.DeepCopy()
+		currentActiveClusters = &currentActiveClustersCopy
+	}
 	previousFailoverVersion := getResponse.PreviousFailoverVersion
 	lastUpdatedTime := time.Unix(0, getResponse.LastUpdatedTime)
 

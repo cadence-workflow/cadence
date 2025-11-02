@@ -7,6 +7,7 @@ toolchain go1.23.4
 require (
 	github.com/daixiang0/gci v0.12.0
 	github.com/dmarkham/enumer v1.5.8
+	github.com/globusdigital/deep-copy v0.5.4
 	github.com/gogo/protobuf v1.3.2
 	github.com/hexdigest/gowrap v1.2.5
 	github.com/mgechev/revive v1.3.2

@@ -28,6 +28,8 @@ import (
 	_ "github.com/daixiang0/gci"
 	// enumer for generating utility methods for const enums
 	_ "github.com/dmarkham/enumer"
+	// deep-copy for generating DeepCopy methods
+	_ "github.com/globusdigital/deep-copy"
 	// protobuf stuff
 	_ "github.com/gogo/protobuf/protoc-gen-gofast"
 	// gowrap for generating decorators for interface

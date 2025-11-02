@@ -392,32 +392,6 @@ func (b *BadBinaries) ByteSize() uint64 {
 }
 
 // DeepCopy returns a deep copy of BadBinaries
-func (b *BadBinaries) DeepCopy() BadBinaries {
-	if b == nil {
-		return BadBinaries{}
-	}
-	result := BadBinaries{}
-	if b.Binaries != nil {
-		result.Binaries = make(map[string]*BadBinaryInfo, len(b.Binaries))
-		for k, v := range b.Binaries {
-			if v != nil {
-				copyV := &BadBinaryInfo{
-					Reason:   v.Reason,
-					Operator: v.Operator,
-				}
-				if v.CreatedTimeNano != nil {
-					createdTime := *v.CreatedTimeNano
-					copyV.CreatedTimeNano = &createdTime
-				}
-				result.Binaries[k] = copyV
-			} else {
-				// Preserve nil entries in the map
-				result.Binaries[k] = nil
-			}
-		}
-	}
-	return result
-}
 
 // BadBinaryInfo is an internal type (TBD...)
 type BadBinaryInfo struct {
@@ -1008,23 +982,6 @@ func (v *DataBlob) GetData() (o []byte) {
 		return v.Data
 	}
 	return
-}
-
-func (v *DataBlob) DeepCopy() *DataBlob {
-	if v == nil {
-		return nil
-	}
-
-	res := &DataBlob{
-		EncodingType: v.EncodingType,
-	}
-
-	if v.Data != nil {
-		res.Data = make([]byte, len(v.Data))
-		copy(res.Data, v.Data)
-	}
-
-	return res
 }
 
 // ByteSize returns the approximate memory used in bytes
@@ -1727,6 +1684,8 @@ func (v *DescribeDomainRequest) GetUUID() (o string) {
 	}
 	return
 }
+
+//go:generate deep-copy -o ./shared_deepcopy.gen.go -type DescribeDomainResponse -type BadBinaries -type DataBlob -type ActiveClusters .
 
 // DescribeDomainResponse is an internal type (TBD...)
 type DescribeDomainResponse struct {
@@ -2721,27 +2680,6 @@ type ActiveClusterInfo struct {
 // ByteSize returns the approximate memory used in bytes
 func (v ActiveClusterInfo) ByteSize() uint64 {
 	return uint64(unsafe.Sizeof(v)) + uint64(len(v.ActiveClusterName))
-}
-
-func (v *ActiveClusters) DeepCopy() *ActiveClusters {
-	if v == nil {
-		return nil
-	}
-	result := &ActiveClusters{}
-	if v.AttributeScopes != nil {
-		result.AttributeScopes = make(map[string]ClusterAttributeScope, len(v.AttributeScopes))
-		for scopeType, scope := range v.AttributeScopes {
-			copiedScope := ClusterAttributeScope{}
-			if scope.ClusterAttributes != nil {
-				copiedScope.ClusterAttributes = make(map[string]ActiveClusterInfo, len(scope.ClusterAttributes))
-				for attrName, attrInfo := range scope.ClusterAttributes {
-					copiedScope.ClusterAttributes[attrName] = attrInfo
-				}
-			}
-			result.AttributeScopes[scopeType] = copiedScope
-		}
-	}
-	return result
 }
 
 type ClusterAttribute struct {

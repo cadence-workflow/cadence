@@ -2151,7 +2151,8 @@ func (r *GetDomainResponse) DeepCopy() *GetDomainResponse {
 		}
 		// Deep copy ActiveClusters
 		if r.ReplicationConfig.ActiveClusters != nil {
-			result.ReplicationConfig.ActiveClusters = r.ReplicationConfig.ActiveClusters.DeepCopy()
+			activeClusters := r.ReplicationConfig.ActiveClusters.DeepCopy()
+			result.ReplicationConfig.ActiveClusters = &activeClusters
 		}
 	}
 

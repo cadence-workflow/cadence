@@ -761,7 +761,10 @@ func (entry *DomainCacheEntry) duplicate() *DomainCacheEntry {
 		c := *clusterCfg
 		result.replicationConfig.Clusters = append(result.replicationConfig.Clusters, &c)
 	}
-	result.replicationConfig.ActiveClusters = entry.replicationConfig.ActiveClusters.DeepCopy()
+	if entry.replicationConfig.ActiveClusters != nil {
+		activeClusters := entry.replicationConfig.ActiveClusters.DeepCopy()
+		result.replicationConfig.ActiveClusters = &activeClusters
+	}
 	result.configVersion = entry.configVersion
 	result.failoverVersion = entry.failoverVersion
 	result.isGlobalDomain = entry.isGlobalDomain
