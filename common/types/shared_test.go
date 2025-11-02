@@ -501,7 +501,7 @@ func TestBadBinariesDeepCopy(t *testing.T) {
 				// Cannot call DeepCopy on nil with value receiver
 				return
 			}
-			
+
 			copied := tt.input.DeepCopy()
 
 			// Verify values are equal
