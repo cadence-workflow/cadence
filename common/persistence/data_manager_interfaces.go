@@ -50,7 +50,7 @@
 //go:generate gowrap gen -g -p . -i ExecutionManager -t ./wrappers/templates/metered_execution.tmpl -o wrappers/metered/execution_generated.go
 
 // Generate DeepCopy methods
-//go:generate deep-copy -o ./data_manager_deepcopy.gen.go -type GetDomainResponse -type ClusterReplicationConfig .
+//go:generate deep-copy -pointer-receiver -o ./data_manager_deepcopy.gen.go -type GetDomainResponse -type ClusterReplicationConfig .
 
 package persistence
 

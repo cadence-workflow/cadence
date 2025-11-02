@@ -444,7 +444,7 @@ func (d *handlerImpl) UpdateDomain(
 	lastUpdatedTime := time.Unix(0, getResponse.LastUpdatedTime)
 
 	if !isGlobalDomain {
-		return d.updateLocalDomain(ctx, updateRequest, &getResponse, notificationVersion)
+		return d.updateLocalDomain(ctx, updateRequest, getResponse, notificationVersion)
 	}
 	// todo (active-active) refactor the rest of this method to remove all branching for global domain variations
 	// and the split between domain update and failover

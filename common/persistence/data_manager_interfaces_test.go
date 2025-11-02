@@ -40,8 +40,8 @@ func TestClusterReplicationConfigGetCopy(t *testing.T) {
 		ClusterName: "test",
 	}
 	configCopy := config.DeepCopy()
-	assert.Equal(t, *config, configCopy) // deep equal
-	assert.Equal(t, true, config != &configCopy)
+	assert.Equal(t, config, configCopy) // deep equal
+	assert.Equal(t, true, config != configCopy)
 }
 
 func TestGetDomainResponseDeepCopy(t *testing.T) {
@@ -122,7 +122,7 @@ func TestGetDomainResponseDeepCopy(t *testing.T) {
 				return
 			}
 			copied := tt.input.DeepCopy()
-			tt.validate(t, tt.input, &copied)
+			tt.validate(t, tt.input, copied)
 		})
 	}
 }
@@ -143,10 +143,10 @@ func TestGetDomainResponseDeepCopy_FuzzGenerated(t *testing.T) {
 			require.NotNil(t, copied, "DeepCopy should not return nil for non-nil input")
 
 			// Verify the copied struct is equal to the original
-			assert.Equal(t, *original, copied, "DeepCopy should produce an equal struct")
+			assert.Equal(t, original, copied, "DeepCopy should produce an equal struct")
 
 			// Verify they are different instances (different memory addresses)
-			assert.True(t, original != &copied, "DeepCopy should create a new instance")
+			assert.True(t, original != copied, "DeepCopy should create a new instance")
 		})
 	}
 }

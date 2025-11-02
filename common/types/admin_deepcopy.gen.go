@@ -6,8 +6,8 @@ package types
 func (o AsyncWorkflowConfiguration) DeepCopy() AsyncWorkflowConfiguration {
 	var cp AsyncWorkflowConfiguration = o
 	if o.QueueConfig != nil {
-		queueConfig := o.QueueConfig.DeepCopy()
-		cp.QueueConfig = &queueConfig
+		retV := o.QueueConfig.DeepCopy()
+		cp.QueueConfig = &retV
 	}
 	return cp
 }
