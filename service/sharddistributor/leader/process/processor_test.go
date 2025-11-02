@@ -178,11 +178,11 @@ func TestCleanupStaleExecutors(t *testing.T) {
 		"exec-stale":  {LastHeartbeat: now.Add(-2 * time.Second).Unix()},
 	}
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: heartbeats}, nil)
+	namespaceState := &store.NamespaceState{Executors: heartbeats}
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 	mocks.store.EXPECT().DeleteExecutors(gomock.Any(), mocks.cfg.Name, []string{"exec-stale"}, gomock.Any()).Return(nil)
 
-	processor.cleanupStaleExecutors(context.Background())
+	processor.cleanupStaleExecutors(context.Background(), namespaceState)
 }
 
 func TestCleanupStaleShardStats(t *testing.T) {
@@ -224,12 +224,9 @@ func TestCleanupStaleShardStats(t *testing.T) {
 			ShardStats:       shardStats,
 		}
 
-		gomock.InOrder(
-			mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(namespaceState, nil),
-			mocks.election.EXPECT().Guard().Return(store.NopGuard()),
-			mocks.store.EXPECT().DeleteShardStats(gomock.Any(), mocks.cfg.Name, []string{"shard-3"}, gomock.Any()).Return(nil),
-		)
-		processor.cleanupStaleShardStats(context.Background())
+		mocks.election.EXPECT().Guard().Return(store.NopGuard())
+		mocks.store.EXPECT().DeleteShardStats(gomock.Any(), mocks.cfg.Name, []string{"shard-3"}, gomock.Any()).Return(nil)
+		processor.cleanupStaleShardStats(context.Background(), namespaceState)
 	})
 
 	t.Run("recent shard stats are preserved", func(t *testing.T) {
@@ -240,7 +237,7 @@ func TestCleanupStaleShardStats(t *testing.T) {
 		now := mocks.timeSource.Now()
 
 		expiredExecutor := now.Add(-2 * time.Second).Unix()
-		state := &store.NamespaceState{
+		namespaceState := &store.NamespaceState{
 			Executors: map[string]store.HeartbeatState{
 				"exec-stale": {LastHeartbeat: expiredExecutor},
 			},
@@ -250,8 +247,7 @@ func TestCleanupStaleShardStats(t *testing.T) {
 			},
 		}
 
-		mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(state, nil)
-		processor.cleanupStaleShardStats(context.Background())
+		processor.cleanupStaleShardStats(context.Background(), namespaceState)
 
 		// No delete expected since stats are recent.
 	})
@@ -286,16 +282,13 @@ func TestCleanup_StoreErrors(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 	expectedErr := errors.New("store is down")
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(nil, expectedErr)
-	processor.cleanupStaleExecutors(context.Background())
-
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+	namespaceState := &store.NamespaceState{
 		Executors:      map[string]store.HeartbeatState{"stale": {LastHeartbeat: 0}},
 		GlobalRevision: 1,
-	}, nil)
+	}
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 	mocks.store.EXPECT().DeleteExecutors(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).Return(expectedErr)
-	processor.cleanupStaleExecutors(context.Background())
+	processor.cleanupStaleExecutors(context.Background(), namespaceState)
 }
 
 func TestRunLoop_SubscriptionError(t *testing.T) {

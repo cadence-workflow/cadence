@@ -230,17 +230,21 @@ func (p *namespaceProcessor) runCleanupLoop(ctx context.Context) {
 			return
 		case <-ticker.Chan():
 			p.logger.Info("Periodic heartbeat cleanup triggered.")
-			p.cleanupStaleExecutors(ctx)
-			p.cleanupStaleShardStats(ctx)
+			namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
+			if err != nil {
+				p.logger.Error("Failed to get state for cleanup", tag.Error(err))
+				continue
+			}
+			p.cleanupStaleExecutors(ctx, namespaceState)
+			p.cleanupStaleShardStats(ctx, namespaceState)
 		}
 	}
 }
 
 // cleanupStaleExecutors removes executors who have not reported a heartbeat recently.
-func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context) {
-	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
-	if err != nil {
-		p.logger.Error("Failed to get state for heartbeat cleanup", tag.Error(err))
+func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context, namespaceState *store.NamespaceState) {
+	if namespaceState == nil {
+		p.logger.Error("Namespace state missing for heartbeat cleanup")
 		return
 	}
 
@@ -265,10 +269,9 @@ func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context) {
 	}
 }
 
-func (p *namespaceProcessor) cleanupStaleShardStats(ctx context.Context) {
-	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
-	if err != nil {
-		p.logger.Error("Failed to get state for shard stats cleanup", tag.Error(err))
+func (p *namespaceProcessor) cleanupStaleShardStats(ctx context.Context, namespaceState *store.NamespaceState) {
+	if namespaceState == nil {
+		p.logger.Error("Namespace state missing for shard stats cleanup")
 		return
 	}
 
