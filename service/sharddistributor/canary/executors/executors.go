@@ -31,13 +31,13 @@ type ExecutorEphemeralResult struct {
 	Executor executorclient.Executor[*processorephemeral.ShardProcessor] `group:"executor-ephemeral-proc"`
 }
 
-func NewExecutorWithFixedNamespace(params executorclient.Params[*processor.ShardProcessor]) (ExecutorResult, error) {
-	executor, err := executorclient.NewExecutorWithNamespace(params, "shard-distributor-canary")
+func NewExecutorWithFixedNamespace(params executorclient.Params[*processor.ShardProcessor], namespace string) (ExecutorResult, error) {
+	executor, err := executorclient.NewExecutorWithNamespace(params, namespace)
 	return ExecutorResult{Executor: executor}, err
 }
 
-func NewExecutorWithEphemeralNamespace(params executorclient.Params[*processorephemeral.ShardProcessor]) (ExecutorEphemeralResult, error) {
-	executor, err := executorclient.NewExecutorWithNamespace(params, "shard-distributor-canary-ephemeral")
+func NewExecutorWithEphemeralNamespace(params executorclient.Params[*processorephemeral.ShardProcessor], namespace string) (ExecutorEphemeralResult, error) {
+	executor, err := executorclient.NewExecutorWithNamespace(params, namespace)
 	return ExecutorEphemeralResult{Executor: executor}, err
 }
 
@@ -54,14 +54,14 @@ func NewExecutorDistributedPassthroughNamespace(params executorclient.Params[*pr
 	return ExecutorResult{Executor: executor}, err
 }
 
-func NewExecutorExternalAssignmentNamespace(params executorclient.Params[*processorephemeral.ShardProcessor], shardDistributorClient sharddistributor.Client) (ExecutorEphemeralResult, *externalshardassignment.ShardAssigner, error) {
-	executor, err := executorclient.NewExecutorWithNamespace(params, ExternalAssignmentNamespace)
+func NewExecutorExternalAssignmentNamespace(params executorclient.Params[*processorephemeral.ShardProcessor], shardDistributorClient sharddistributor.Client, namespace string) (ExecutorEphemeralResult, *externalshardassignment.ShardAssigner, error) {
+	executor, err := executorclient.NewExecutorWithNamespace(params, namespace)
 	assigner := externalshardassignment.NewShardAssigner(externalshardassignment.ShardAssignerParams{
 		Logger:           params.Logger,
 		TimeSource:       params.TimeSource,
 		ShardDistributor: shardDistributorClient,
 		Executorclient:   executor,
-	}, ExternalAssignmentNamespace)
+	}, namespace)
 
 	return ExecutorEphemeralResult{Executor: executor}, assigner, err
 }
@@ -82,6 +82,7 @@ func NewExecutorsModule(params ExecutorsParams) {
 	}
 }
 
+/*
 var Module = fx.Module(
 	"Executors",
 	fx.Provide(NewExecutorWithFixedNamespace,
@@ -97,4 +98,31 @@ var Module = fx.Module(
 		}),
 	),
 	fx.Invoke(NewExecutorsModule),
-)
+)*/
+
+func Module(fixedNamespace, ephemeralNamespace, externalAssignmentNamespace string) fx.Option {
+	return fx.Module(
+		"Executors",
+		fx.Provide(
+			func(params executorclient.Params[*processor.ShardProcessor]) (ExecutorResult, error) {
+				return NewExecutorWithFixedNamespace(params, fixedNamespace)
+			}),
+		fx.Provide(func(params executorclient.Params[*processorephemeral.ShardProcessor]) (ExecutorEphemeralResult, error) {
+			return NewExecutorWithEphemeralNamespace(params, ephemeralNamespace)
+		}),
+		fx.Provide(
+			NewExecutorLocalPassthroughNamespace,
+			NewExecutorLocalPassthroughShadowNamespace,
+			NewExecutorDistributedPassthroughNamespace,
+		),
+		fx.Module("Executor-with-external-assignment",
+			fx.Provide(func(params executorclient.Params[*processorephemeral.ShardProcessor], shardDistributorClient sharddistributor.Client) (ExecutorEphemeralResult, *externalshardassignment.ShardAssigner, error) {
+				return NewExecutorExternalAssignmentNamespace(params, shardDistributorClient, externalAssignmentNamespace)
+			}),
+			fx.Invoke(func(lifecycle fx.Lifecycle, shardAssigner *externalshardassignment.ShardAssigner) {
+				lifecycle.Append(fx.StartStopHook(shardAssigner.Start, shardAssigner.Stop))
+			}),
+		),
+		fx.Invoke(NewExecutorsModule),
+	)
+}
