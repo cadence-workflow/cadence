@@ -1780,6 +1780,7 @@ const (
 	// Default value: false
 	// Allowed filters: DomainName
 	EnableContextHeaderInVisibility
+	EnableClusterAttributeInVisibility
 	// EnableCrossClusterOperationsForDomain indicates if cross cluster operations can be scheduled for a domain
 	// KeyName: history.enableCrossClusterOperations
 	// Value type: Bool
@@ -4363,6 +4364,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.enableContextHeaderInVisibility",
 		Filters:      []Filter{DomainName},
 		Description:  "EnableContextHeaderInVisibility is key for enable context header in visibility",
+		DefaultValue: false,
+	},
+	EnableClusterAttributeInVisibility: {
+		KeyName:      "history.enableClusterAttributeInVisibility",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableClusterAttributeInVisibility is key for enable cluster attribute in visibility",
 		DefaultValue: false,
 	},
 	EnableCrossClusterOperationsForDomain: {

@@ -235,6 +235,7 @@ func TestNewConfig(t *testing.T) {
 		"EnableConsistentQueryByDomain":                        {dynamicproperties.EnableConsistentQueryByDomain, true},
 		"MaxBufferedQueryCount":                                {dynamicproperties.MaxBufferedQueryCount, 89},
 		"EnableContextHeaderInVisibility":                      {dynamicproperties.EnableContextHeaderInVisibility, true},
+		"EnableClusterAttributeInVisibility":                   {dynamicproperties.EnableClusterAttributeInVisibility, true},
 		"EnableCrossClusterOperationsForDomain":                {dynamicproperties.EnableCrossClusterOperationsForDomain, true},
 		"MutableStateChecksumGenProbability":                   {dynamicproperties.MutableStateChecksumGenProbability, 90},
 		"MutableStateChecksumVerifyProbability":                {dynamicproperties.MutableStateChecksumVerifyProbability, 91},

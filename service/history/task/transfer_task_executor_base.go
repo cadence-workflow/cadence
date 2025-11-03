@@ -183,6 +183,7 @@ func (t *transferTaskExecutorBase) recordWorkflowStarted(
 	updateTimeUnixNano int64,
 	immutableSearchAttributes map[string][]byte,
 	headers map[string][]byte,
+	clusterAttribute *types.ClusterAttribute,
 ) error {
 
 	domain := defaultDomainName
@@ -207,6 +208,12 @@ func (t *transferTaskExecutorBase) recordWorkflowStarted(
 		// fail open, if error occurs, just log it; successfully appended headers will be stored
 		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
 			t.logger.Error("failed to add headers to search attributes", tag.Error(err))
+		}
+	}
+	if t.config.EnableClusterAttributeInVisibility(domainEntry.GetInfo().Name) {
+		// fail open, if error occurs, just log it; successfully appended cluster attribute will be stored
+		if searchAttributes, err = appendClusterAttributeToSearchAttributes(searchAttributes, clusterAttribute, t.config.ValidSearchAttributes()); err != nil {
+			t.logger.Error("failed to add cluster attribute to search attributes", tag.Error(err))
 		}
 	}
 
@@ -268,6 +275,7 @@ func (t *transferTaskExecutorBase) upsertWorkflowExecution(
 	updateTimeUnixNano int64,
 	immutableSearchAttributes map[string][]byte,
 	headers map[string][]byte,
+	clusterAttribute *types.ClusterAttribute,
 ) error {
 
 	domain, err := t.shard.GetDomainCache().GetDomainName(domainID)
@@ -284,6 +292,12 @@ func (t *transferTaskExecutorBase) upsertWorkflowExecution(
 		// fail open, if error occurs, just log it; successfully appended headers will be stored
 		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
 			t.logger.Error("failed to add headers to search attributes", tag.Error(err))
+		}
+	}
+	if t.config.EnableClusterAttributeInVisibility(domain) {
+		// fail open, if error occurs, just log it; successfully appended cluster attribute will be stored
+		if searchAttributes, err = appendClusterAttributeToSearchAttributes(searchAttributes, clusterAttribute, t.config.ValidSearchAttributes()); err != nil {
+			t.logger.Error("failed to add cluster attribute to search attributes", tag.Error(err))
 		}
 	}
 
@@ -330,6 +344,7 @@ func (t *transferTaskExecutorBase) recordWorkflowClosed(
 	updateTimeUnixNano int64,
 	immutableSearchAttributes map[string][]byte,
 	headers map[string][]byte,
+	clusterAttribute *types.ClusterAttribute,
 ) error {
 
 	// Record closing in visibility store
@@ -364,6 +379,12 @@ func (t *transferTaskExecutorBase) recordWorkflowClosed(
 		// fail open, if error occurs, just log it; successfully appended headers will be stored
 		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
 			t.logger.Error("failed to add headers to search attributes", tag.Error(err))
+		}
+	}
+	if t.config.EnableClusterAttributeInVisibility(domainEntry.GetInfo().Name) {
+		// fail open, if error occurs, just log it; successfully appended cluster attribute will be stored
+		if searchAttributes, err = appendClusterAttributeToSearchAttributes(searchAttributes, clusterAttribute, t.config.ValidSearchAttributes()); err != nil {
+			t.logger.Error("failed to add cluster attribute to search attributes", tag.Error(err))
 		}
 	}
 
@@ -540,4 +561,23 @@ func shouldRedactContextHeader(key string, hiddenValueKeys map[string]interface{
 		}
 	}
 	return false
+}
+
+func appendClusterAttributeToSearchAttributes(attr map[string][]byte, clusterAttribute *types.ClusterAttribute, allowedKeys map[string]interface{}) (map[string][]byte, error) {
+	if clusterAttribute == nil {
+		return attr, nil
+	}
+	// sanity check
+	if attr == nil {
+		attr = make(map[string][]byte)
+	}
+	key := fmt.Sprintf(definition.ClusterAttributeFormat, clusterAttribute.Scope)
+	if _, ok := attr[key]; ok { // skip if key already exists
+		return attr, nil
+	}
+	if _, allowed := allowedKeys[key]; !allowed { // skip if not allowed
+		return attr, nil
+	}
+	attr[key] = []byte(clusterAttribute.Name)
+	return attr, nil
 }

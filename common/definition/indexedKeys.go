@@ -59,6 +59,8 @@ const (
 	Attr = "Attr"
 	// HeaderFormat is the format of context headers in search attributes
 	HeaderFormat = "Header_%s"
+	// ClusterAttributeFormat is the format of cluster attributes in search attributes
+	ClusterAttributeFormat = "ClusterAttribute_%s"
 )
 
 // defaultIndexedKeys defines all searchable keys

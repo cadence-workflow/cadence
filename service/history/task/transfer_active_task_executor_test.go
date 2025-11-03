@@ -1828,7 +1828,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessRecordWorkflowStartedTask()
 		createRecordWorkflowExecutionStartedRequest(
 			s.T(),
 			s.domainName, startEvent, transferTask, mutableState, 2, s.mockShard.GetTimeSource().Now(),
-			false),
+			false, false),
 	).Once().Return(nil)
 
 	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
@@ -1881,7 +1881,66 @@ func (s *transferActiveTaskExecutorSuite) TestProcessRecordWorkflowStartedTaskWi
 		createRecordWorkflowExecutionStartedRequest(
 			s.T(),
 			s.domainName, startEvent, transferTask, mutableState, 2, s.mockShard.GetTimeSource().Now(),
-			true),
+			true, false),
+	).Once().Return(nil)
+
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
+	s.Nil(err)
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessRecordWorkflowStartedTaskWithClusterAttribute() {
+	// switch on cluster attribute in viz
+	s.mockShard.GetConfig().EnableClusterAttributeInVisibility = func(domain string) bool { return true }
+	s.mockShard.GetConfig().EnableContextHeaderInVisibility = func(domain string) bool { return true }
+	s.mockShard.GetConfig().ValidSearchAttributes = func(opts ...dynamicproperties.FilterOption) map[string]interface{} {
+		return map[string]interface{}{
+			"ClusterAttribute_region": struct{}{},
+		}
+	}
+
+	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+	executionInfo := mutableState.GetExecutionInfo()
+	executionInfo.CronSchedule = "@every 5s"
+	executionInfo.ActiveClusterSelectionPolicy = &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-west",
+		},
+	}
+	startEvent, err := mutableState.GetStartEvent(context.Background())
+	s.NoError(err)
+	startEvent.WorkflowExecutionStartedEventAttributes.FirstDecisionTaskBackoffSeconds = common.Int32Ptr(5)
+
+	transferTask := s.newTransferTaskFromInfo(&persistence.RecordWorkflowStartedTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version: s.version,
+			TaskID:  int64(59),
+		},
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, decisionCompletionID, mutableState.GetCurrentVersion())
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+	if s.mockShard.GetConfig().EnableRecordWorkflowExecutionUninitialized(s.domainName) {
+		s.mockVisibilityMgr.On(
+			"RecordWorkflowExecutionUninitialized",
+			mock.Anything,
+			createRecordWorkflowExecutionUninitializedRequest(transferTask, mutableState, s.mockShard.GetTimeSource().Now(), 1234),
+		).Once().Return(nil)
+	}
+	s.mockVisibilityMgr.On(
+		"RecordWorkflowExecutionStarted",
+		mock.Anything,
+		createRecordWorkflowExecutionStartedRequest(
+			s.T(),
+			s.domainName, startEvent, transferTask, mutableState, 2, s.mockShard.GetTimeSource().Now(),
+			false, true),
 	).Once().Return(nil)
 
 	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
@@ -1916,7 +1975,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessUpsertWorkflowSearchAttribu
 		createUpsertWorkflowSearchAttributesRequest(
 			s.T(),
 			s.domainName, startEvent, transferTask, mutableState, 2, s.mockShard.GetTimeSource().Now(),
-			false),
+			false, false),
 	).Once().Return(nil)
 
 	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
@@ -1958,7 +2017,57 @@ func (s *transferActiveTaskExecutorSuite) TestProcessUpsertWorkflowSearchAttribu
 		createUpsertWorkflowSearchAttributesRequest(
 			s.T(),
 			s.domainName, startEvent, transferTask, mutableState, 2, s.mockShard.GetTimeSource().Now(),
-			true),
+			true, false),
+	).Once().Return(nil)
+
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
+	s.Nil(err)
+}
+
+func (s *transferActiveTaskExecutorSuite) TestProcessUpsertWorkflowSearchAttributesWithClusterAttribute() {
+	// switch on cluster attribute in viz
+	s.mockShard.GetConfig().EnableClusterAttributeInVisibility = func(domain string) bool { return true }
+	s.mockShard.GetConfig().EnableContextHeaderInVisibility = func(domain string) bool { return true }
+	s.mockShard.GetConfig().ValidSearchAttributes = func(opts ...dynamicproperties.FilterOption) map[string]interface{} {
+		return map[string]interface{}{
+			"ClusterAttribute_region": struct{}{},
+		}
+	}
+
+	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+	executionInfo := mutableState.GetExecutionInfo()
+	executionInfo.ActiveClusterSelectionPolicy = &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-west",
+		},
+	}
+
+	transferTask := s.newTransferTaskFromInfo(&persistence.UpsertWorkflowSearchAttributesTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version: s.version,
+			TaskID:  int64(59),
+		},
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, decisionCompletionID, mutableState.GetCurrentVersion())
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+	startEvent, err := mutableState.GetStartEvent(context.Background())
+	s.NoError(err)
+	s.mockVisibilityMgr.On(
+		"UpsertWorkflowExecution",
+		mock.Anything,
+		createUpsertWorkflowSearchAttributesRequest(
+			s.T(),
+			s.domainName, startEvent, transferTask, mutableState, 2, s.mockShard.GetTimeSource().Now(),
+			false, true),
 	).Once().Return(nil)
 
 	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
@@ -2201,6 +2310,7 @@ func createRecordWorkflowExecutionStartedRequest(
 	numClusters int16,
 	updateTime time.Time,
 	enableContextHeaderInVisibility bool,
+	enableClusterAttributeInVisibility bool,
 ) *persistence.RecordWorkflowExecutionStartedRequest {
 	taskInfo := transferTask.GetInfo().(*persistence.RecordWorkflowStartedTask)
 	workflowExecution := types.WorkflowExecution{
@@ -2222,6 +2332,12 @@ func createRecordWorkflowExecutionStartedRequest(
 		searchAttributes = map[string][]byte{
 			"Header_context_key": contextValueJSONString,
 		}
+	}
+	if enableClusterAttributeInVisibility {
+		if searchAttributes == nil {
+			searchAttributes = make(map[string][]byte)
+		}
+		searchAttributes["ClusterAttribute_region"] = []byte("us-west")
 	}
 	return &persistence.RecordWorkflowExecutionStartedRequest{
 		Domain:             domainName,
@@ -2408,6 +2524,7 @@ func createUpsertWorkflowSearchAttributesRequest(
 	numClusters int16,
 	updateTime time.Time,
 	enableContextHeaderInVisibility bool,
+	enableClusterAttributeInVisibility bool,
 ) *persistence.UpsertWorkflowExecutionRequest {
 
 	taskInfo := transferTask.GetInfo().(*persistence.UpsertWorkflowSearchAttributesTask)
@@ -2430,6 +2547,12 @@ func createUpsertWorkflowSearchAttributesRequest(
 		searchAttributes = map[string][]byte{
 			"Header_context_key": contextValueJSONString,
 		}
+	}
+	if enableClusterAttributeInVisibility {
+		if searchAttributes == nil {
+			searchAttributes = make(map[string][]byte)
+		}
+		searchAttributes["ClusterAttribute_region"] = []byte("us-west")
 	}
 
 	return &persistence.UpsertWorkflowExecutionRequest{

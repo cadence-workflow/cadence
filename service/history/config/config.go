@@ -293,7 +293,8 @@ type Config struct {
 
 	// EnableContextHeaderInVisibility whether to enable indexing context header in visibility
 	EnableContextHeaderInVisibility dynamicproperties.BoolPropertyFnWithDomainFilter
-
+	// EnableClusterAttributeInVisibility whether to enable indexing cluster attribute in visibility
+	EnableClusterAttributeInVisibility    dynamicproperties.BoolPropertyFnWithDomainFilter
 	EnableCrossClusterOperationsForDomain dynamicproperties.BoolPropertyFnWithDomainFilter
 
 	// Data integrity check related config knobs
@@ -562,6 +563,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		EnableConsistentQuery:                 dc.GetBoolProperty(dynamicproperties.EnableConsistentQuery),
 		EnableConsistentQueryByDomain:         dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableConsistentQueryByDomain),
 		EnableContextHeaderInVisibility:       dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableContextHeaderInVisibility),
+		EnableClusterAttributeInVisibility:    dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableClusterAttributeInVisibility),
 		EnableCrossClusterOperationsForDomain: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCrossClusterOperationsForDomain),
 		MaxBufferedQueryCount:                 dc.GetIntProperty(dynamicproperties.MaxBufferedQueryCount),
 		MutableStateChecksumGenProbability:    dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumGenProbability),
