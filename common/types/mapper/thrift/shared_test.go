@@ -3701,18 +3701,13 @@ func TestClusterAttributeScopeConversion(t *testing.T) {
 }
 
 func TestListFailoverHistoryResponseConversion(t *testing.T) {
-	fuzzer := testdatagen.New(t,
-		func(v *types.FailoverEvent, c fuzz.Continue) {
-			c.Fuzz(v)
-			// Don't allow empty strings for ID - use nil or a non-empty string
-			if v.ID != nil && *v.ID == "" {
-				v.ID = nil
-			}
-		})
+	fuzzer := testdatagen.New(t)
 	for i := 0; i < 100; i++ {
 		var response types.ListFailoverHistoryResponse
 		fuzzer.Fuzz(&response)
 		thriftResponse := FromListFailoverHistoryResponse(&response)
-		assert.Equal(t, &response, ToListFailoverHistoryResponse(thriftResponse))
+
+		toResponse := ToListFailoverHistoryResponse(thriftResponse)
+		assert.Equal(t, &response, toResponse)
 	}
 }
