@@ -44,8 +44,6 @@ type (
 		primaryClusterName string
 		// currentClusterName is the name of the current cluster
 		currentClusterName string
-		// currentRegion is the name of the current region
-		currentRegion string
 		// allClusters contains all cluster info
 		allClusters map[string]config.ClusterInformation
 		// enabledClusters contains enabled info
@@ -54,8 +52,6 @@ type (
 		remoteClusters map[string]config.ClusterInformation
 		// versionToClusterName contains all initial version -> corresponding cluster name
 		versionToClusterName map[int64]string
-		// versionToRegionName contains all initial version -> corresponding region name
-		versionToRegionName map[int64]string
 		// allows for a new failover version migration
 		useNewFailoverVersionOverride dynamicproperties.BoolPropertyFnWithDomainFilter
 	}
@@ -95,7 +91,6 @@ func NewMetadata(
 		failoverVersionIncrement:      clusterGroupMetadata.FailoverVersionIncrement,
 		primaryClusterName:            clusterGroupMetadata.PrimaryClusterName,
 		currentClusterName:            clusterGroupMetadata.CurrentClusterName,
-		currentRegion:                 clusterGroupMetadata.ClusterGroup[clusterGroupMetadata.CurrentClusterName].Region,
 		allClusters:                   clusterGroupMetadata.ClusterGroup,
 		enabledClusters:               enabledClusters,
 		remoteClusters:                remoteClusters,
@@ -106,7 +101,6 @@ func NewMetadata(
 	m.log.Info("cluster metadata created",
 		tag.Dynamic("primary-cluster-name", m.primaryClusterName),
 		tag.Dynamic("current-cluster-name", m.currentClusterName),
-		tag.Dynamic("current-region", m.currentRegion),
 		tag.Dynamic("failover-version-increment", m.failoverVersionIncrement),
 	)
 
@@ -147,11 +141,6 @@ func (m Metadata) IsPrimaryCluster() bool {
 // GetCurrentClusterName return the current cluster name
 func (m Metadata) GetCurrentClusterName() string {
 	return m.currentClusterName
-}
-
-// GetCurrentRegion return the current region
-func (m Metadata) GetCurrentRegion() string {
-	return m.currentRegion
 }
 
 // GetAllClusterInfo return all cluster info
