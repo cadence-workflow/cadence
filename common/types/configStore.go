@@ -44,9 +44,13 @@ func (dcf *DynamicConfigFilter) Copy() *DynamicConfigFilter {
 	if dcf == nil {
 		return nil
 	}
+	var valueCopy *DataBlob
+	if dcf.Value != nil {
+		valueCopy = dcf.Value.DeepCopy()
+	}
 	return &DynamicConfigFilter{
 		Name:  dcf.Name,
-		Value: dcf.Value.DeepCopy(),
+		Value: valueCopy,
 	}
 }
 
@@ -63,8 +67,12 @@ func (dcv *DynamicConfigValue) Copy() *DynamicConfigValue {
 		}
 	}
 
+	var valueCopy *DataBlob
+	if dcv.Value != nil {
+		valueCopy = dcv.Value.DeepCopy()
+	}
 	return &DynamicConfigValue{
-		Value:   dcv.Value.DeepCopy(),
+		Value:   valueCopy,
 		Filters: newFilters,
 	}
 }

@@ -1159,6 +1159,8 @@ type (
 		ActiveClusters *types.ActiveClusters
 	}
 
+	//go:generate deep-copy -pointer-receiver -o ./data_manager_deepcopy.gen.go -type ClusterReplicationConfig .
+
 	// ClusterReplicationConfig describes the cross DC cluster replication configuration
 	ClusterReplicationConfig struct {
 		ClusterName string
@@ -1187,6 +1189,8 @@ type (
 		ID   string
 		Name string
 	}
+
+	//go:generate deep-copy -pointer-receiver -o ./data_manager_deepcopy.gen.go -type GetDomainResponse .
 
 	// GetDomainResponse is the response for GetDomain
 	GetDomainResponse struct {
@@ -2072,91 +2076,6 @@ func (config *ClusterReplicationConfig) deserialize(input map[string]interface{}
 }
 
 // GetCopy return a copy of ClusterReplicationConfig
-func (config *ClusterReplicationConfig) GetCopy() *ClusterReplicationConfig {
-	res := *config
-	return &res
-}
-
-// DeepCopy returns a deep copy of GetDomainResponse
-// todo (david.porter) delete this manual deepcopying since it's annoying to maintain and
-// use codegen for generating them instead
-func (r *GetDomainResponse) DeepCopy() *GetDomainResponse {
-	if r == nil {
-		return nil
-	}
-
-	result := &GetDomainResponse{
-		IsGlobalDomain:              r.IsGlobalDomain,
-		ConfigVersion:               r.ConfigVersion,
-		FailoverVersion:             r.FailoverVersion,
-		FailoverNotificationVersion: r.FailoverNotificationVersion,
-		PreviousFailoverVersion:     r.PreviousFailoverVersion,
-		LastUpdatedTime:             r.LastUpdatedTime,
-		NotificationVersion:         r.NotificationVersion,
-	}
-
-	// Deep copy FailoverEndTime
-	if r.FailoverEndTime != nil {
-		failoverEndTime := *r.FailoverEndTime
-		result.FailoverEndTime = &failoverEndTime
-	}
-	// Deep copy DomainInfo
-	if r.Info != nil {
-		result.Info = &DomainInfo{
-			ID:          r.Info.ID,
-			Name:        r.Info.Name,
-			Status:      r.Info.Status,
-			Description: r.Info.Description,
-			OwnerEmail:  r.Info.OwnerEmail,
-		}
-		if r.Info.Data != nil {
-			result.Info.Data = make(map[string]string, len(r.Info.Data))
-			for k, v := range r.Info.Data {
-				result.Info.Data[k] = v
-			}
-		}
-	}
-
-	// Deep copy DomainConfig
-	if r.Config != nil {
-		result.Config = &DomainConfig{
-			Retention:                r.Config.Retention,
-			EmitMetric:               r.Config.EmitMetric,
-			HistoryArchivalStatus:    r.Config.HistoryArchivalStatus,
-			HistoryArchivalURI:       r.Config.HistoryArchivalURI,
-			VisibilityArchivalStatus: r.Config.VisibilityArchivalStatus,
-			VisibilityArchivalURI:    r.Config.VisibilityArchivalURI,
-		}
-		// Deep copy BadBinaries
-		result.Config.BadBinaries = r.Config.BadBinaries.DeepCopy()
-		// Deep copy IsolationGroups
-		result.Config.IsolationGroups = r.Config.IsolationGroups.DeepCopy()
-		// Deep copy AsyncWorkflowConfig
-		result.Config.AsyncWorkflowConfig = r.Config.AsyncWorkflowConfig.DeepCopy()
-	}
-
-	// Deep copy DomainReplicationConfig
-	if r.ReplicationConfig != nil {
-		result.ReplicationConfig = &DomainReplicationConfig{
-			ActiveClusterName: r.ReplicationConfig.ActiveClusterName,
-		}
-		// Deep copy Clusters
-		if r.ReplicationConfig.Clusters != nil {
-			result.ReplicationConfig.Clusters = make([]*ClusterReplicationConfig, len(r.ReplicationConfig.Clusters))
-			for i, cluster := range r.ReplicationConfig.Clusters {
-				if cluster != nil {
-					result.ReplicationConfig.Clusters[i] = cluster.GetCopy()
-				}
-			}
-		}
-		// Deep copy ActiveClusters
-		if r.ReplicationConfig.ActiveClusters != nil {
-			result.ReplicationConfig.ActiveClusters = r.ReplicationConfig.ActiveClusters.DeepCopy()
-		}
-	}
-
-	return result
-}
 
 // DBTimestampToUnixNano converts Milliseconds timestamp to UnixNano
 func DBTimestampToUnixNano(milliseconds int64) int64 {

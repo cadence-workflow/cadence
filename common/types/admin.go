@@ -428,22 +428,13 @@ type GetDomainAsyncWorkflowConfiguratonResponse struct {
 	Configuration *AsyncWorkflowConfiguration
 }
 
+//go:generate deep-copy -o ./admin_deepcopy.gen.go -type AsyncWorkflowConfiguration .
+
 type AsyncWorkflowConfiguration struct {
 	Enabled             bool
 	PredefinedQueueName string
 	QueueType           string
 	QueueConfig         *DataBlob
-}
-
-func (c AsyncWorkflowConfiguration) DeepCopy() AsyncWorkflowConfiguration {
-	res := AsyncWorkflowConfiguration{
-		Enabled:             c.Enabled,
-		PredefinedQueueName: c.PredefinedQueueName,
-		QueueType:           c.QueueType,
-		QueueConfig:         c.QueueConfig.DeepCopy(),
-	}
-
-	return res
 }
 
 // ByteSize returns an approximate size of the object in bytes
