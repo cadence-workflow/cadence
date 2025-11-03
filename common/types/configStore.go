@@ -46,8 +46,7 @@ func (dcf *DynamicConfigFilter) Copy() *DynamicConfigFilter {
 	}
 	var valueCopy *DataBlob
 	if dcf.Value != nil {
-		v := dcf.Value.DeepCopy()
-		valueCopy = &v
+		valueCopy = dcf.Value.DeepCopy()
 	}
 	return &DynamicConfigFilter{
 		Name:  dcf.Name,
@@ -70,8 +69,7 @@ func (dcv *DynamicConfigValue) Copy() *DynamicConfigValue {
 
 	var valueCopy *DataBlob
 	if dcv.Value != nil {
-		v := dcv.Value.DeepCopy()
-		valueCopy = &v
+		valueCopy = dcv.Value.DeepCopy()
 	}
 	return &DynamicConfigValue{
 		Value:   valueCopy,

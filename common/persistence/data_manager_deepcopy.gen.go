@@ -18,7 +18,10 @@ func (o *GetDomainResponse) DeepCopy() *GetDomainResponse {
 	if o.Config != nil {
 		cp.Config = new(DomainConfig)
 		*cp.Config = *o.Config
-		cp.Config.BadBinaries = o.Config.BadBinaries.DeepCopy()
+		{
+			retV := o.Config.BadBinaries.DeepCopy()
+			cp.Config.BadBinaries = *retV
+		}
 		cp.Config.IsolationGroups = o.Config.IsolationGroups.DeepCopy()
 		cp.Config.AsyncWorkflowConfig = o.Config.AsyncWorkflowConfig.DeepCopy()
 	}
@@ -35,8 +38,7 @@ func (o *GetDomainResponse) DeepCopy() *GetDomainResponse {
 			}
 		}
 		if o.ReplicationConfig.ActiveClusters != nil {
-			retV := o.ReplicationConfig.ActiveClusters.DeepCopy()
-			cp.ReplicationConfig.ActiveClusters = &retV
+			cp.ReplicationConfig.ActiveClusters = o.ReplicationConfig.ActiveClusters.DeepCopy()
 		}
 	}
 	if o.FailoverEndTime != nil {

@@ -63,11 +63,12 @@ func TestDataBlobDeepCopy(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.input == nil {
-				// Cannot call DeepCopy on nil with value receiver
+				// Cannot call DeepCopy on nil with pointer receiver
 				return
 			}
 			got := tc.input.DeepCopy()
-			assert.Equal(t, *tc.input, got)
+			assert.Equal(t, tc.input, got)
+			assert.True(t, tc.input != got, "DeepCopy should return a different pointer")
 			if tc.input.Data != nil && identicalByteArray(tc.input.Data, got.Data) {
 				t.Error("expected DeepCopy to return a new data slice")
 			}
@@ -127,16 +128,17 @@ func TestActiveClustersConfigDeepCopy(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.input == nil {
-				// Cannot call DeepCopy on nil with value receiver
+				// Cannot call DeepCopy on nil with pointer receiver
 				if tc.expect != nil {
 					t.Errorf("expected nil but got %+v", tc.expect)
 				}
 				return
 			}
 			deepCopy := tc.input.DeepCopy()
-			if diff := cmp.Diff(*tc.expect, deepCopy); diff != "" {
+			if diff := cmp.Diff(tc.expect, deepCopy); diff != "" {
 				t.Errorf("DeepCopy() mismatch (-want +got):\n%s", diff)
 			}
+			assert.True(t, tc.input != deepCopy, "DeepCopy should return a different pointer")
 		})
 	}
 }
@@ -160,7 +162,8 @@ func TestActiveClustersDeepCopyMutationIsolation(t *testing.T) {
 
 		copied := original.DeepCopy()
 
-		assert.Equal(t, *original, copied)
+		assert.Equal(t, original, copied)
+		assert.True(t, original != copied, "DeepCopy should return a different pointer")
 
 		scope := original.AttributeScopes["region"]
 		scope.ClusterAttributes["us-west-1"] = ActiveClusterInfo{
