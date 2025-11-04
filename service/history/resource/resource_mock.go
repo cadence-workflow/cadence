@@ -546,33 +546,33 @@ func (mr *MockResourceMockRecorder) GetRatelimiterAlgorithm() *gomock.Call {
 }
 
 // GetRemoteAdminClient mocks base method.
-func (m *MockResource) GetRemoteAdminClient(cluster string) (admin.Client, error) {
+func (m *MockResource) GetRemoteAdminClient(arg0 string) (admin.Client, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRemoteAdminClient", cluster)
+	ret := m.ctrl.Call(m, "GetRemoteAdminClient", arg0)
 	ret0, _ := ret[0].(admin.Client)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetRemoteAdminClient indicates an expected call of GetRemoteAdminClient.
-func (mr *MockResourceMockRecorder) GetRemoteAdminClient(cluster any) *gomock.Call {
+func (mr *MockResourceMockRecorder) GetRemoteAdminClient(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRemoteAdminClient", reflect.TypeOf((*MockResource)(nil).GetRemoteAdminClient), cluster)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRemoteAdminClient", reflect.TypeOf((*MockResource)(nil).GetRemoteAdminClient), arg0)
 }
 
 // GetRemoteFrontendClient mocks base method.
-func (m *MockResource) GetRemoteFrontendClient(cluster string) (frontend.Client, error) {
+func (m *MockResource) GetRemoteFrontendClient(arg0 string) (frontend.Client, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRemoteFrontendClient", cluster)
+	ret := m.ctrl.Call(m, "GetRemoteFrontendClient", arg0)
 	ret0, _ := ret[0].(frontend.Client)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetRemoteFrontendClient indicates an expected call of GetRemoteFrontendClient.
-func (mr *MockResourceMockRecorder) GetRemoteFrontendClient(cluster any) *gomock.Call {
+func (mr *MockResourceMockRecorder) GetRemoteFrontendClient(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRemoteFrontendClient", reflect.TypeOf((*MockResource)(nil).GetRemoteFrontendClient), cluster)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRemoteFrontendClient", reflect.TypeOf((*MockResource)(nil).GetRemoteFrontendClient), arg0)
 }
 
 // GetSDKClient mocks base method.

@@ -1004,18 +1004,18 @@ func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockExecutor) Execute(task Task) (ExecuteResponse, error) {
+func (m *MockExecutor) Execute(arg0 Task) (ExecuteResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", task)
+	ret := m.ctrl.Call(m, "Execute", arg0)
 	ret0, _ := ret[0].(ExecuteResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockExecutorMockRecorder) Execute(task any) *gomock.Call {
+func (mr *MockExecutorMockRecorder) Execute(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockExecutor)(nil).Execute), task)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockExecutor)(nil).Execute), arg0)
 }
 
 // Stop mocks base method.

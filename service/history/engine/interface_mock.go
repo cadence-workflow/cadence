@@ -287,17 +287,17 @@ func (mr *MockEngineMockRecorder) ReadDLQMessages(ctx, messagesRequest any) *gom
 }
 
 // ReapplyEvents mocks base method.
-func (m *MockEngine) ReapplyEvents(ctx context.Context, domainUUID, workflowID, runID string, events []*types.HistoryEvent) error {
+func (m *MockEngine) ReapplyEvents(ctx context.Context, domainUUID, workflowID, runID string, arg4 []*types.HistoryEvent) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReapplyEvents", ctx, domainUUID, workflowID, runID, events)
+	ret := m.ctrl.Call(m, "ReapplyEvents", ctx, domainUUID, workflowID, runID, arg4)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ReapplyEvents indicates an expected call of ReapplyEvents.
-func (mr *MockEngineMockRecorder) ReapplyEvents(ctx, domainUUID, workflowID, runID, events any) *gomock.Call {
+func (mr *MockEngineMockRecorder) ReapplyEvents(ctx, domainUUID, workflowID, runID, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReapplyEvents", reflect.TypeOf((*MockEngine)(nil).ReapplyEvents), ctx, domainUUID, workflowID, runID, events)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReapplyEvents", reflect.TypeOf((*MockEngine)(nil).ReapplyEvents), ctx, domainUUID, workflowID, runID, arg4)
 }
 
 // RecordActivityTaskHeartbeat mocks base method.

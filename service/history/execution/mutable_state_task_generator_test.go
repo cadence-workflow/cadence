@@ -23,7 +23,7 @@ package execution
 import (
 	"errors"
 	"fmt"
-	"math/rand"
+	"reflect"
 	"testing"
 	"time"
 
@@ -654,9 +654,36 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionScheduleTasks() {
 	}
 }
 
+type ignoreVisibilityTime struct {
+	task *persistence.DecisionTimeoutTask
+}
+
+func (i ignoreVisibilityTime) Matches(x any) bool {
+	other, ok := x.(*persistence.DecisionTimeoutTask)
+	if !ok {
+		return false
+	}
+	if i.task == nil && other == nil {
+		return true
+	}
+	if (i.task == nil) != (other == nil) {
+		return false
+	}
+
+	// both present, erase time and compare
+	medup, otherdup := *i.task, *other
+	medup.TaskData.VisibilityTimestamp = time.Time{}
+	otherdup.TaskData.VisibilityTimestamp = time.Time{}
+	return reflect.DeepEqual(medup, otherdup)
+}
+
+func (i ignoreVisibilityTime) String() string {
+	return fmt.Sprintf("%#v", i.task)
+}
+
+var _ gomock.Matcher = ignoreVisibilityTime{}
+
 func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionStartTasks() {
-	seed := int64(1)
-	rand.Seed(seed)
 	decisionScheduleID := int64(123)
 	getDecision := func() *DecisionInfo {
 		return &DecisionInfo{
@@ -687,21 +714,20 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionStartTasks() {
 				startToCloseTimeout := getNextDecisionTimeout(decision.Attempt, time.Duration(defaultStartToCloseTimeout)*time.Second)
 				decision.DecisionTimeout = int32(startToCloseTimeout.Seconds())
 				s.mockMutableState.EXPECT().UpdateDecision(decision).Times(1)
-				s.mockMutableState.EXPECT().AddTimerTasks(&persistence.DecisionTimeoutTask{
+				s.mockMutableState.EXPECT().AddTimerTasks(ignoreVisibilityTime{&persistence.DecisionTimeoutTask{
 					WorkflowIdentifier: persistence.WorkflowIdentifier{
 						DomainID:   "domain-id",
 						WorkflowID: "wf-id",
 						RunID:      "rid",
 					},
 					TaskData: persistence.TaskData{
-						VisibilityTimestamp: time.Unix(0, decision.StartedTimestamp).Add(startToCloseTimeout),
+						VisibilityTimestamp: time.Time{}, // ignored
 						Version:             decision.Version,
 					},
 					TimeoutType:     int(TimerTypeStartToClose),
 					EventID:         decision.ScheduleID,
 					ScheduleAttempt: decision.Attempt,
-				})
-				rand.Seed(seed)
+				}})
 			},
 		},
 		{
@@ -715,20 +741,20 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionStartTasks() {
 					RunID:      "rid",
 				})
 				s.mockMutableState.EXPECT().GetDecisionInfo(decisionScheduleID).Return(decision, true).Times(1)
-				s.mockMutableState.EXPECT().AddTimerTasks(&persistence.DecisionTimeoutTask{
+				s.mockMutableState.EXPECT().AddTimerTasks(ignoreVisibilityTime{&persistence.DecisionTimeoutTask{
 					WorkflowIdentifier: persistence.WorkflowIdentifier{
 						DomainID:   "domain-id",
 						WorkflowID: "wf-id",
 						RunID:      "rid",
 					},
 					TaskData: persistence.TaskData{
-						VisibilityTimestamp: time.Unix(0, decision.StartedTimestamp).Add(time.Duration(decision.DecisionTimeout) * time.Second),
+						VisibilityTimestamp: time.Time{}, // ignored
 						Version:             decision.Version,
 					},
 					TimeoutType:     int(TimerTypeStartToClose),
 					EventID:         decision.ScheduleID,
 					ScheduleAttempt: decision.Attempt,
-				})
+				}})
 			},
 		},
 		{

@@ -1,4 +1,4 @@
-FROM golang:1.23.4-bullseye
+FROM golang:1.24.7-bookworm
 
 # Tried to set Python to ignore warnings due to the instructions at this link:
 # https://github.com/yaml/pyyaml/wiki/PyYAML-yaml.load(input)-Deprecation
@@ -11,12 +11,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       gettext-base \
       libyaml-dev \
       python3-pip \
-      python-setuptools \
+      python3-setuptools \
       time \
       unzip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install cqlsh
+RUN pip install cqlsh --break-system-packages
 
 # verbose test output from `make`, can be disabled with V=0
 ENV V=0
