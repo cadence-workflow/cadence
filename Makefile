@@ -62,7 +62,7 @@ $(BUILD)/proto-lint:
 $(BUILD)/gomod-lint:
 $(BUILD)/goversion-lint:
 $(BUILD)/fmt: $(BUILD)/codegen # formatting must occur only after all other go-file-modifications are done
-# $(BUILD)/copyright 
+# $(BUILD)/copyright
 # $(BUILD)/copyright: $(BUILD)/codegen # must add copyright to generated code, sometimes needs re-formatting
 $(BUILD)/codegen: $(BUILD)/thrift $(BUILD)/protoc
 $(BUILD)/thrift: $(BUILD)/go_mod_check
@@ -156,7 +156,7 @@ LINT_SRC := $(filter-out %_test.go ./.gen/%, $(ALL_SRC))
 # the good news is that you can just drop that and `cd` to the folder and it works.
 define go_build_tool
 $Q echo "building $(or $(2), $(notdir $(1))) from internal/tools/go.mod..."
-$Q cd internal/tools; go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))) $(1)
+$Q cd internal/tools; GOTOOLCHAIN=auto go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))) $(1)
 endef
 
 # same as go_build_tool, but uses our main module file, not the tools one.
@@ -204,6 +204,9 @@ $(BIN)/gowrap: go.mod go.work
 
 $(BIN)/revive: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/mgechev/revive)
+
+$(BIN)/nilaway: internal/tools/go.mod go.work
+	$(call go_build_tool,go.uber.org/nilaway/cmd/nilaway,nilaway)
 
 $(BIN)/protoc-gen-gogofast: go.mod go.work | $(BIN)
 	$(call go_mod_build_tool,github.com/gogo/protobuf/protoc-gen-gogofast)
@@ -390,7 +393,7 @@ $(BUILD)/gomod-lint: go.mod internal/tools/go.mod common/archiver/gcloud/go.mod 
 
 # note that LINT_SRC is fairly fake as a prerequisite.
 # it's a coarse "you probably don't need to re-lint" filter, nothing more.
-$(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive | $(BUILD)
+$(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive $(BIN)/nilaway | $(BUILD)
 	$Q echo "lint..."
 	$Q # non-optional vet checks.  unfortunately these are not currently included in `go test`'s default behavior.
 	$Q go vet -copylocks ./... ./common/archiver/gcloud/...
@@ -402,6 +405,8 @@ $(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive | $(BUILD)
 		  echo 'non-directive comments must have a space after the "//"' >&2; \
 		  exit 1; \
 		fi
+	$Q echo "nilaway check..."
+	$Q GOTOOLCHAIN=go1.24.0 $(BIN)/nilaway github.com/uber/cadence/common/types/mapper/... || true # todo (remove the || true) to block builds which break this
 	$Q touch $@
 
 $(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}

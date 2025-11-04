@@ -34,6 +34,8 @@ import (
 	_ "github.com/hexdigest/gowrap"
 	// replaces golint - configurable and much faster
 	_ "github.com/mgechev/revive"
+	// nilaway for nil pointer analysis
+	_ "go.uber.org/nilaway"
 	// mockery for generating mocks
 	_ "github.com/vektra/mockery/v2"
 	// mockgen for generating mocks
