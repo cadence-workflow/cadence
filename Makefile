@@ -156,7 +156,7 @@ LINT_SRC := $(filter-out %_test.go ./.gen/%, $(ALL_SRC))
 # the good news is that you can just drop that and `cd` to the folder and it works.
 define go_build_tool
 $Q echo "building $(or $(2), $(notdir $(1))) from internal/tools/go.mod..."
-$Q cd internal/tools; go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))) $(1)
+$Q cd internal/tools; GOTOOLCHAIN=auto go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))) $(1)
 endef
 
 # same as go_build_tool, but uses our main module file, not the tools one.
@@ -168,7 +168,7 @@ endef
 define go_mod_build_tool
 $Q echo "building $(or $(2), $(notdir $(1))) from go.mod..."
 $Q ./scripts/check-gomod-version.sh $(1) $(if $(verbose),-v)
-$Q go build -mod=readonly -o $(BIN)/$(or $(2), $(notdir $(1))) $(1)
+$Q GOTOOLCHAIN=auto go build -mod=readonly -o $(BIN)/$(or $(2), $(notdir $(1))) $(1)
 endef
 
 # utility target.
