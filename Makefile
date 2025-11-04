@@ -168,7 +168,7 @@ endef
 define go_mod_build_tool
 $Q echo "building $(or $(2), $(notdir $(1))) from go.mod..."
 $Q ./scripts/check-gomod-version.sh $(1) $(if $(verbose),-v)
-$Q go build -mod=readonly -o $(BIN)/$(or $(2), $(notdir $(1))) $(1)
+$Q GOTOOLCHAIN=auto go build -mod=readonly -o $(BIN)/$(or $(2), $(notdir $(1))) $(1)
 endef
 
 # utility target.

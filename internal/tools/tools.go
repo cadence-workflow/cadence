@@ -34,12 +34,12 @@ import (
 	_ "github.com/hexdigest/gowrap"
 	// replaces golint - configurable and much faster
 	_ "github.com/mgechev/revive"
-	// nilaway for nil pointer analysis
-	_ "go.uber.org/nilaway"
 	// mockery for generating mocks
 	_ "github.com/vektra/mockery/v2"
 	// mockgen for generating mocks
 	_ "go.uber.org/mock/mockgen"
+	// nilaway for nil pointer analysis
+	_ "go.uber.org/nilaway"
 	// thriftrw code gen
 	_ "go.uber.org/thriftrw"
 	_ "go.uber.org/yarpc/encoding/protobuf/protoc-gen-yarpc-go"
