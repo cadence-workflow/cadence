@@ -82,39 +82,26 @@ func NewExecutorsModule(params ExecutorsParams) {
 	}
 }
 
-/*
-var Module = fx.Module(
-	"Executors",
-	fx.Provide(NewExecutorWithFixedNamespace,
-		NewExecutorWithEphemeralNamespace,
-		NewExecutorLocalPassthroughNamespace,
-		NewExecutorLocalPassthroughShadowNamespace,
-		NewExecutorDistributedPassthroughNamespace,
-	),
-	fx.Module("Executor-with-external-assignment",
-		fx.Provide(NewExecutorExternalAssignmentNamespace),
-		fx.Invoke(func(lifecycle fx.Lifecycle, shardAssigner *externalshardassignment.ShardAssigner) {
-			lifecycle.Append(fx.StartStopHook(shardAssigner.Start, shardAssigner.Stop))
-		}),
-	),
-	fx.Invoke(NewExecutorsModule),
-)*/
-
 func Module(fixedNamespace, ephemeralNamespace, externalAssignmentNamespace string) fx.Option {
 	return fx.Module(
 		"Executors",
-		fx.Provide(
-			func(params executorclient.Params[*processor.ShardProcessor]) (ExecutorResult, error) {
-				return NewExecutorWithFixedNamespace(params, fixedNamespace)
-			}),
-		fx.Provide(func(params executorclient.Params[*processorephemeral.ShardProcessor]) (ExecutorEphemeralResult, error) {
-			return NewExecutorWithEphemeralNamespace(params, ephemeralNamespace)
-		}),
+		// Executors that are used for testing namespaces with the different modes of the migration
 		fx.Provide(
 			NewExecutorLocalPassthroughNamespace,
 			NewExecutorLocalPassthroughShadowNamespace,
 			NewExecutorDistributedPassthroughNamespace,
 		),
+		// Executor that is used for testing a namespace with fixed shards
+		fx.Provide(
+			func(params executorclient.Params[*processor.ShardProcessor]) (ExecutorResult, error) {
+				return NewExecutorWithFixedNamespace(params, fixedNamespace)
+			}),
+		// Executor that is used for testing a namespaces with ephemeral shards
+		fx.Provide(func(params executorclient.Params[*processorephemeral.ShardProcessor]) (ExecutorEphemeralResult, error) {
+			return NewExecutorWithEphemeralNamespace(params, ephemeralNamespace)
+		}),
+		// Executor used for testing a namespace where the shards are assigned externally and reflected in the state of the SD
+		// this is reproducing the behaviour that matching service is going to have during the DistributedPassthrough mode
 		fx.Module("Executor-with-external-assignment",
 			fx.Provide(func(params executorclient.Params[*processorephemeral.ShardProcessor], shardDistributorClient sharddistributor.Client) (ExecutorEphemeralResult, *externalshardassignment.ShardAssigner, error) {
 				return NewExecutorExternalAssignmentNamespace(params, shardDistributorClient, externalAssignmentNamespace)
