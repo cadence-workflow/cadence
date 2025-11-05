@@ -437,6 +437,16 @@ func TestParseActiveClustersByClusterAttribute(t *testing.T) {
 				},
 			},
 		},
+		"other things can use dashes too": {
+			clusters: "region-us-east1.new-york:cluster-0-us-east-1",
+			expected: types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region-us-east1": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"new-york": {ActiveClusterName: "cluster-0-us-east-1"},
+					}},
+				},
+			},
+		},
 		"duplicate keys consistutes an error in parsing and shouldn't be allowed": {
 			clusters:      "region.newyork:cluster0,region.newyork:cluster1",
 			expectedError: fmt.Errorf(`option active_clusters format is invalid. the key "newyork" was duplicated. This can only map to a single active cluster`),
