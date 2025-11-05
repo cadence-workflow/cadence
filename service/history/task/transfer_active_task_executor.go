@@ -869,6 +869,7 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 				tag.WorkflowRunID(task.RunID),
 				tag.TargetWorkflowDomainID(task.TargetDomainID),
 				tag.TargetWorkflowID(attributes.WorkflowID),
+				tag.WorkflowRequestID(childInfo.CreateRequestID),
 			)
 			err = recordStartChildExecutionFailed(ctx, t.logger, task, wfContext, attributes, t.shard.GetTimeSource().Now())
 		default:
