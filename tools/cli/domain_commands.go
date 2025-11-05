@@ -1077,7 +1077,7 @@ func clustersToStrings(clusters []*types.ClusterReplicationConfiguration) []stri
 }
 
 func parseActiveClustersByClusterAttribute(clusters string) (types.ActiveClusters, error) {
-	split := regexp.MustCompile(`(?P<attribute>[a-zA-Z0-9_]+).(?P<scope>[a-zA-Z0-9_]+):(?P<name>[a-zA-Z0-9_]+)`)
+	split := regexp.MustCompile(`(?P<attribute>[a-zA-Z0-9_-]+).(?P<scope>[a-zA-Z0-9_-]+):(?P<name>[a-zA-Z0-9_-]+)`)
 	matches := split.FindAllStringSubmatch(clusters, -1)
 	if len(matches) == 0 {
 		return types.ActiveClusters{}, fmt.Errorf("option %s format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'", FlagActiveClusters)

@@ -20,3 +20,5 @@ history.enableTransferQueueV2:
   - value: true
 history.enableTimerQueueV2:
   - value: true
+frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
+  - value: true

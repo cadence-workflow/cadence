@@ -46,7 +46,7 @@ func opts(names NamespacesNames) fx.Option {
 		// executorclient.ModuleWithNamespace[*processorephemeral.ShardProcessor](names.EphemeralNamespace),
 
 		// Instantiate executors for multiple namespaces
-		executors.Module,
+		executors.Module(names.FixedNamespace, names.EphemeralNamespace, names.ExternalAssignmentNamespace),
 
 		processorephemeral.ShardCreatorModule([]string{names.EphemeralNamespace, names.ExternalAssignmentNamespace, "test-local-passthrough-shadow"}),
 	)

@@ -15,6 +15,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/executorstore/common"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/leaderstore"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/testhelper"
 )
@@ -63,14 +64,18 @@ func TestRecordHeartbeat(t *testing.T) {
 	resp, err = tc.Client.Get(ctx, stateKey)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), resp.Count, "State key should exist")
-	assert.Equal(t, stringStatus(types.ExecutorStatusACTIVE), string(resp.Kvs[0].Value))
+	decompressedState, err := common.Decompress(resp.Kvs[0].Value)
+	require.NoError(t, err)
+	assert.Equal(t, stringStatus(types.ExecutorStatusACTIVE), string(decompressedState))
 
 	resp, err = tc.Client.Get(ctx, reportedShardsKey)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), resp.Count, "Reported shards key should exist")
 
+	decompressedReportedShards, err := common.Decompress(resp.Kvs[0].Value)
+	require.NoError(t, err)
 	var reportedShards map[string]*types.ShardStatusReport
-	err = json.Unmarshal(resp.Kvs[0].Value, &reportedShards)
+	err = json.Unmarshal(decompressedReportedShards, &reportedShards)
 	require.NoError(t, err)
 	require.Len(t, reportedShards, 1)
 	assert.Equal(t, types.ShardStatusREADY, reportedShards["shard-TestRecordHeartbeat"].Status)

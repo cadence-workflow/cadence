@@ -2114,6 +2114,8 @@ const (
 	EnableTransferQueueV2PendingTaskCountAlert
 	EnableTimerQueueV2PendingTaskCountAlert
 
+	EnableActiveClusterSelectionPolicyInStartWorkflow
+
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
 )
@@ -4693,6 +4695,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableTimerQueueV2PendingTaskCountAlert is to enable timer queue v2 pending task count alert",
 		Filters:      []Filter{ShardID},
 		DefaultValue: false,
+	},
+	EnableActiveClusterSelectionPolicyInStartWorkflow: {
+		KeyName:      "frontend.enableActiveClusterSelectionPolicyInStartWorkflow",
+		Description:  "EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain",
+		DefaultValue: false,
+		Filters:      []Filter{DomainName},
 	},
 }
 
