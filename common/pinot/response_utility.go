@@ -115,21 +115,21 @@ func ConvertSearchResultToVisibilityRecord(hit []interface{}, columnNames []stri
 	}
 
 	record := &p.InternalVisibilityWorkflowExecutionInfo{
-		DomainID:         source.DomainID,
-		WorkflowType:     source.WorkflowType,
-		WorkflowID:       source.WorkflowID,
-		RunID:            source.RunID,
-		TypeName:         source.WorkflowType,
-		StartTime:        time.UnixMilli(source.StartTime), // be careful: source.StartTime is in milliseconds
-		ExecutionTime:    time.UnixMilli(source.ExecutionTime),
-		TaskList:         source.TaskList,
-		IsCron:           source.IsCron,
-		NumClusters:      source.NumClusters,
+		DomainID:              source.DomainID,
+		WorkflowType:          source.WorkflowType,
+		WorkflowID:            source.WorkflowID,
+		RunID:                 source.RunID,
+		TypeName:              source.WorkflowType,
+		StartTime:             time.UnixMilli(source.StartTime), // be careful: source.StartTime is in milliseconds
+		ExecutionTime:         time.UnixMilli(source.ExecutionTime),
+		TaskList:              source.TaskList,
+		IsCron:                source.IsCron,
+		NumClusters:           source.NumClusters,
 		ClusterAttributeScope: source.ClusterAttributeScope,
 		ClusterAttributeName:  source.ClusterAttributeName,
-		ShardID:          source.ShardID,
-		SearchAttributes: attributeMap,
-		Memo:             memo,
+		ShardID:               source.ShardID,
+		SearchAttributes:      attributeMap,
+		Memo:                  memo,
 	}
 	if source.UpdateTime > 0 {
 		record.UpdateTime = time.UnixMilli(source.UpdateTime)

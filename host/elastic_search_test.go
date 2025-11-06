@@ -185,6 +185,19 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflowByClusterAttribute() {
 	we, err := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err)
 
+	descRequest := &types.DescribeWorkflowExecutionRequest{
+		Domain: s.ActiveActiveDomainName,
+		Execution: &types.WorkflowExecution{
+			WorkflowID: id,
+		},
+	}
+	ctx, cancel = createContext()
+	defer cancel()
+	descResp, err := s.Engine.DescribeWorkflowExecution(ctx, descRequest)
+	s.Nil(err)
+	s.Equal("region", descResp.WorkflowExecutionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope())
+	s.Equal("us-east", descResp.WorkflowExecutionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName())
+
 	query := `ClusterAttributeScope = "region" and ClusterAttributeName = "us-east"`
 	s.testHelperForReadOnceWithDomain(s.ActiveActiveDomainName, we.GetRunID(), query, false, false)
 }
