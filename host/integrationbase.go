@@ -63,6 +63,7 @@ type (
 		TestRawHistoryDomainName string
 		ForeignDomainName        string
 		ArchivalDomainName       string
+		ActiveActiveDomainName   string
 		DefaultTestCluster       testcluster.PersistenceTestCluster
 		VisibilityTestCluster    testcluster.PersistenceTestCluster
 	}
@@ -135,14 +136,29 @@ func (s *IntegrationBase) setupSuite() {
 	s.TestRawHistoryDomainName = "TestRawHistoryDomain"
 	s.DomainName = s.RandomizeStr("integration-test-domain")
 	s.Require().NoError(
-		s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+		s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 	s.Require().NoError(
-		s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+		s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 	s.ForeignDomainName = s.RandomizeStr("integration-foreign-test-domain")
 	s.Require().NoError(
-		s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+		s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
 	s.Require().NoError(s.registerArchivalDomain())
+	s.ActiveActiveDomainName = s.RandomizeStr("integration-active-active-test-domain")
+	s.Require().NoError(s.RegisterDomain(s.ActiveActiveDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", &types.ActiveClusters{
+		AttributeScopes: map[string]types.ClusterAttributeScope{
+			"region": {
+				ClusterAttributes: map[string]types.ActiveClusterInfo{
+					"us-east": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
+				},
+			},
+			"city": {
+				ClusterAttributes: map[string]types.ActiveClusterInfo{
+					"tokyo": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
+				},
+			},
+		},
+	}))
 
 	// this sleep is necessary because domainv2 cache gets refreshed in the
 	// background only every domainCacheRefreshInterval period
@@ -225,6 +241,7 @@ func (s *IntegrationBase) RegisterDomain(
 	historyArchivalURI string,
 	visibilityArchivalStatus types.ArchivalStatus,
 	visibilityArchivalURI string,
+	activeClusters *types.ActiveClusters,
 ) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -236,6 +253,7 @@ func (s *IntegrationBase) RegisterDomain(
 		HistoryArchivalURI:                     historyArchivalURI,
 		VisibilityArchivalStatus:               &visibilityArchivalStatus,
 		VisibilityArchivalURI:                  visibilityArchivalURI,
+		ActiveClusters:                         activeClusters,
 	})
 }
 
