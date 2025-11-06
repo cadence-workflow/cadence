@@ -1622,6 +1622,7 @@ func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *shared.FailoverD
 	return &shared.FailoverDomainRequest{
 		DomainName:              &t.DomainName,
 		DomainActiveClusterName: t.DomainActiveClusterName,
+		ActiveClusters:          FromActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -1633,6 +1634,7 @@ func ToFailoverDomainRequest(t *shared.FailoverDomainRequest) *types.FailoverDom
 	return &types.FailoverDomainRequest{
 		DomainName:              t.GetDomainName(),
 		DomainActiveClusterName: t.DomainActiveClusterName,
+		ActiveClusters:          ToActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -3405,11 +3407,10 @@ func ToClusterFailover(t *shared.ClusterFailover) *types.ClusterFailover {
 	if t == nil {
 		return nil
 	}
-	// TODO: Implement proper conversion for complex types
 	return &types.ClusterFailover{
-		FromCluster:      nil, // TODO: ToActiveClusterInfo(t.FromCluster),
-		ToCluster:        nil, // TODO: ToActiveClusterInfo(t.ToCluster),
-		ClusterAttribute: nil, // TODO: ToClusterAttribute(t.ClusterAttribute),
+		FromCluster:      ToActiveClusterInfo(t.FromCluster),
+		ToCluster:        ToActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: ToClusterAttribute(t.ClusterAttribute),
 	}
 }
 
@@ -3418,11 +3419,10 @@ func FromClusterFailover(t *types.ClusterFailover) *shared.ClusterFailover {
 	if t == nil {
 		return nil
 	}
-	// TODO: Implement proper conversion for complex types
 	return &shared.ClusterFailover{
-		FromCluster:      nil, // TODO: FromActiveClusterInfo(t.FromCluster),
-		ToCluster:        nil, // TODO: FromActiveClusterInfo(t.ToCluster),
-		ClusterAttribute: nil, // TODO: FromClusterAttribute(t.ClusterAttribute),
+		FromCluster:      FromActiveClusterInfo(t.FromCluster),
+		ToCluster:        FromActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: FromClusterAttribute(t.ClusterAttribute),
 	}
 }
 
@@ -3448,6 +3448,28 @@ func FromClusterFailoverArray(t []*types.ClusterFailover) []*shared.ClusterFailo
 		v[i] = FromClusterFailover(t[i])
 	}
 	return v
+}
+
+// ToActiveClusterInfo converts thrift ActiveClusterInfo type to internal
+func ToActiveClusterInfo(t *shared.ActiveClusterInfo) *types.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &types.ActiveClusterInfo{
+		ActiveClusterName: t.GetActiveClusterName(),
+		FailoverVersion:   t.GetFailoverVersion(),
+	}
+}
+
+// FromActiveClusterInfo converts internal ActiveClusterInfo type to thrift
+func FromActiveClusterInfo(t *types.ActiveClusterInfo) *shared.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &shared.ActiveClusterInfo{
+		ActiveClusterName: &t.ActiveClusterName,
+		FailoverVersion:   &t.FailoverVersion,
+	}
 }
 
 // FromListOpenWorkflowExecutionsRequest converts internal ListOpenWorkflowExecutionsRequest type to thrift

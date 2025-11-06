@@ -1779,8 +1779,20 @@ func (v *DescribeDomainResponse) GetFailoverInfo() (o *FailoverInfo) {
 
 // FailoverDomainRequest is an internal type (TBD...)
 type FailoverDomainRequest struct {
-	DomainName              string  `json:"domainName,omitempty"`
-	DomainActiveClusterName *string `json:"domainActiveClusterName,omitempty"`
+	DomainName              string          `json:"domainName,omitempty"`
+	DomainActiveClusterName *string         `json:"domainActiveClusterName,omitempty"`
+	ActiveClusters          *ActiveClusters `json:"activeClusters,omitempty"`
+}
+
+func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {
+	if v == nil {
+		return nil
+	}
+	return &UpdateDomainRequest{
+		Name:              v.DomainName,
+		ActiveClusterName: v.DomainActiveClusterName,
+		ActiveClusters:    v.ActiveClusters,
+	}
 }
 
 // GetDomainName is an internal getter (TBD...)
@@ -2543,6 +2555,7 @@ func (e *ClusterAttributeNotFoundError) Error() string {
 // Failover versions are valid for Int64 >= 0
 // and, but implication, 0 is a valid failover version. To distinguish between it and an undefined
 // failover version, we use a negative value.
+// todo (david.porter) move this to constants package and give it a type
 const UndefinedFailoverVersion = int64(-1)
 
 // GetFailoverVersionForAttribute returns the failover version for a given attribute.
@@ -2793,17 +2806,7 @@ func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolic
 		return false
 	}
 
-	return p.GetStrategy() == other.GetStrategy() &&
-		p.StickyRegion == other.StickyRegion &&
-		p.ExternalEntityType == other.ExternalEntityType &&
-		p.ExternalEntityKey == other.ExternalEntityKey && p.ClusterAttribute.Equals(other.ClusterAttribute)
-}
-
-func (p *ActiveClusterSelectionPolicy) GetStrategy() ActiveClusterSelectionStrategy {
-	if p == nil || p.ActiveClusterSelectionStrategy == nil {
-		return ActiveClusterSelectionStrategyRegionSticky
-	}
-	return *p.ActiveClusterSelectionStrategy
+	return p.ClusterAttribute.Equals(other.ClusterAttribute)
 }
 
 func (e ActiveClusterSelectionStrategy) Ptr() *ActiveClusterSelectionStrategy {
@@ -8005,6 +8008,22 @@ type UpdateDomainRequest struct {
 	FailoverTimeoutInSeconds               *int32                             `json:"failoverTimeoutInSeconds,omitempty"`
 }
 
+// IsAFailoverRequest identifies if any part of the request is a failover request
+// and if so, will return true
+// this includes:
+//
+// - an active cluster change  (force failver)
+// - any failvoer timeout values (for graceful failover)
+// - or a change to one of the domain's cluster-attribute fields (active-active failover)
+//
+// this is not a validation function
+// and doesn't attempt to give valid or coherent combinations
+func (v *UpdateDomainRequest) IsAFailoverRequest() bool {
+	return v.ActiveClusterName != nil ||
+		(v.FailoverTimeoutInSeconds != nil && *v.FailoverTimeoutInSeconds > 0) ||
+		(v.ActiveClusters != nil && len(v.ActiveClusters.AttributeScopes) > 0)
+}
+
 // GetName is an internal getter (TBD...)
 func (v *UpdateDomainRequest) GetName() (o string) {
 	if v != nil {
@@ -8044,6 +8063,19 @@ type UpdateDomainResponse struct {
 	ReplicationConfiguration *DomainReplicationConfiguration `json:"replicationConfiguration,omitempty"`
 	FailoverVersion          int64                           `json:"failoverVersion,omitempty"`
 	IsGlobalDomain           bool                            `json:"isGlobalDomain,omitempty"`
+}
+
+func (v *UpdateDomainResponse) ToFailoverDomainResponse() *FailoverDomainResponse {
+	if v == nil {
+		return nil
+	}
+	return &FailoverDomainResponse{
+		DomainInfo:               v.DomainInfo,
+		Configuration:            v.Configuration,
+		ReplicationConfiguration: v.ReplicationConfiguration,
+		FailoverVersion:          v.FailoverVersion,
+		IsGlobalDomain:           v.IsGlobalDomain,
+	}
 }
 
 // GetDomainInfo is an internal getter (TBD...)

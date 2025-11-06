@@ -439,10 +439,12 @@ func TestWorkflowHappensAfter(t *testing.T) {
 	laterTime := baseTime.Add(time.Hour)
 
 	// Helper function to create ActiveClusterSelectionPolicy
-	createPolicy := func(strategy types.ActiveClusterSelectionStrategy, region string) *types.ActiveClusterSelectionPolicy {
+	createPolicy := func(scope, name string) *types.ActiveClusterSelectionPolicy {
 		return &types.ActiveClusterSelectionPolicy{
-			ActiveClusterSelectionStrategy: &strategy,
-			StickyRegion:                   region,
+			ClusterAttribute: &types.ClusterAttribute{
+				Scope: scope,
+				Name:  name,
+			},
 		}
 	}
 
@@ -457,8 +459,8 @@ func TestWorkflowHappensAfter(t *testing.T) {
 		}
 	}
 
-	policy1 := createPolicy(types.ActiveClusterSelectionStrategyRegionSticky, "region-1")
-	policy2 := createPolicy(types.ActiveClusterSelectionStrategyRegionSticky, "region-2")
+	policy1 := createPolicy("region", "region-1")
+	policy2 := createPolicy("region", "region-2")
 
 	tests := []struct {
 		name            string

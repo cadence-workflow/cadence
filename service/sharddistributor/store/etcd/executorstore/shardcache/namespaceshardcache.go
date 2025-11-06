@@ -2,7 +2,6 @@ package shardcache
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -13,6 +12,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/executorstore/common"
 )
 
 type namespaceShardToExecutor struct {
@@ -150,9 +150,9 @@ func (n *namespaceShardToExecutor) refresh(ctx context.Context) error {
 			shardOwner := getOrCreateShardOwner(shardOwners, executorID)
 
 			var assignedState store.AssignedState
-			err = json.Unmarshal(kv.Value, &assignedState)
+			err = common.DecompressAndUnmarshal(kv.Value, &assignedState)
 			if err != nil {
-				return fmt.Errorf("unmarshal assigned state: %w", err)
+				return fmt.Errorf("parse assigned state: %w", err)
 			}
 			for shardID := range assignedState.AssignedShards {
 				n.shardToExecutor[shardID] = shardOwner

@@ -1343,17 +1343,17 @@ func TestClusterAttribute(t *testing.T) {
 	}
 }
 
-// TODO(active-active): Remove the comment once the strategy is removed
-/*
 func TestActiveClusterSelectionPolicy(t *testing.T) {
 	for _, item := range []*types.ActiveClusterSelectionPolicy{
 		nil,
 		{},
 		&testdata.ActiveClusterSelectionPolicyWithClusterAttribute,
+		&testdata.ActiveClusterSelectionPolicyRegionSticky,
+		&testdata.ActiveClusterSelectionPolicyExternalEntity,
 	} {
 		assert.Equal(t, item, ToActiveClusterSelectionPolicy(FromActiveClusterSelectionPolicy(item)))
 	}
-}*/
+}
 
 func TestClusterAttributeScopeConversion(t *testing.T) {
 	testCases := []*types.ClusterAttributeScope{

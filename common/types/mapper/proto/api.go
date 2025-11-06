@@ -4514,7 +4514,8 @@ func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *apiv1.FailoverDo
 	}
 	return &apiv1.FailoverDomainRequest{
 		DomainName:              t.DomainName,
-		DomainActiveClusterName: *t.DomainActiveClusterName,
+		DomainActiveClusterName: t.GetDomainActiveClusterName(),
+		ActiveClusters:          FromActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -4525,6 +4526,7 @@ func ToFailoverDomainRequest(t *apiv1.FailoverDomainRequest) *types.FailoverDoma
 	return &types.FailoverDomainRequest{
 		DomainName:              t.DomainName,
 		DomainActiveClusterName: common.StringPtr(t.DomainActiveClusterName),
+		ActiveClusters:          ToActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -5810,7 +5812,6 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 
 	var attributeScopes map[string]types.ClusterAttributeScope
 
-	// Start with ActiveClustersByClusterAttribute if it exists
 	if t.ActiveClustersByClusterAttribute != nil {
 		attributeScopes = make(map[string]types.ClusterAttributeScope)
 		for scopeType, scope := range t.ActiveClustersByClusterAttribute {
@@ -6753,7 +6754,12 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 		return nil
 	}
 	// TODO(active-active): Remove the switch statement once the strategy is removed
-	switch p.GetStrategy() {
+	if p.ActiveClusterSelectionStrategy == nil {
+		return &apiv1.ActiveClusterSelectionPolicy{
+			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
+		}
+	}
+	switch *p.ActiveClusterSelectionStrategy {
 	case types.ActiveClusterSelectionStrategyRegionSticky:
 		return &apiv1.ActiveClusterSelectionPolicy{
 			Strategy: apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY,

@@ -35,9 +35,11 @@ func TestNewExecutorsFixedNamespace(t *testing.T) {
 		newExecutor func(params executorclient.Params[*processor.ShardProcessor]) (ExecutorResult, error)
 	}{
 		{
-			name:        "TestNewExecutorWithFixedNamespace",
-			params:      createMockParams[*processor.ShardProcessor](ctrl, "shard-distributor-canary"),
-			newExecutor: NewExecutorWithFixedNamespace},
+			name:   "TestNewExecutorWithFixedNamespace",
+			params: createMockParams[*processor.ShardProcessor](ctrl, "shard-distributor-canary"),
+			newExecutor: func(params executorclient.Params[*processor.ShardProcessor]) (ExecutorResult, error) {
+				return NewExecutorWithFixedNamespace(params, "shard-distributor-canary")
+			}},
 		{
 			name:        "TestNewExecutorLocalPassthroughNamespace",
 			params:      createMockParams[*processor.ShardProcessor](ctrl, LocalPassthroughNamespace),
@@ -68,9 +70,11 @@ func TestNewExecutorsEphemeralNamespace(t *testing.T) {
 		newExecutor func(params executorclient.Params[*processorephemeral.ShardProcessor]) (ExecutorEphemeralResult, error)
 	}{
 		{
-			name:        "TestNewExecutorWithEphemeralNamespace",
-			params:      createMockParams[*processorephemeral.ShardProcessor](ctrl, "shard-distributor-canary-ephemeral"),
-			newExecutor: NewExecutorWithEphemeralNamespace},
+			name:   "TestNewExecutorWithEphemeralNamespace",
+			params: createMockParams[*processorephemeral.ShardProcessor](ctrl, "shard-distributor-canary-ephemeral"),
+			newExecutor: func(params executorclient.Params[*processorephemeral.ShardProcessor]) (ExecutorEphemeralResult, error) {
+				return NewExecutorWithEphemeralNamespace(params, "shard-distributor-canary-ephemeral")
+			}},
 		{
 			name:        "TestNewExecutorLocalPassthroughShadowNamespace",
 			params:      createMockParams[*processorephemeral.ShardProcessor](ctrl, LocalPassthroughShadowNamespace),
@@ -94,7 +98,7 @@ func TestNewExecutorExternalAssignmentNamespace(t *testing.T) {
 
 	params := createMockParams[*processorephemeral.ShardProcessor](ctrl, "test-external-assignment")
 
-	result, assigner, err := NewExecutorExternalAssignmentNamespace(params, mockShardDistributorClient)
+	result, assigner, err := NewExecutorExternalAssignmentNamespace(params, mockShardDistributorClient, "test-external-assignment")
 
 	require.NoError(t, err)
 	require.NotNil(t, result.Executor)
@@ -150,7 +154,7 @@ func TestNewExecutor_InvalidConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewExecutorWithFixedNamespace(tt.params)
+			_, err := NewExecutorWithFixedNamespace(tt.params, "shard-distributor-canary")
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errorString)
