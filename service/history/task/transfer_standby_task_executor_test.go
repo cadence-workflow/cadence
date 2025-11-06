@@ -910,6 +910,12 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessRecordWorkflowStartedTask(
 	s.NoError(err)
 	executionInfo := mutableState.GetExecutionInfo()
 	executionInfo.CronSchedule = "@every 5s"
+	executionInfo.ActiveClusterSelectionPolicy = &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-west",
+		},
+	}
 	startEvent, err := mutableState.GetStartEvent(context.Background())
 	s.NoError(err)
 	startEvent.WorkflowExecutionStartedEventAttributes.FirstDecisionTaskBackoffSeconds = common.Int32Ptr(5)
@@ -1013,7 +1019,13 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessUpsertWorkflowSearchAttrib
 
 	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
 	s.NoError(err)
-
+	executionInfo := mutableState.GetExecutionInfo()
+	executionInfo.ActiveClusterSelectionPolicy = &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-west",
+		},
+	}
 	now := time.Now()
 	transferTask := s.newTransferTaskFromInfo(&persistence.UpsertWorkflowSearchAttributesTask{
 		WorkflowIdentifier: persistence.WorkflowIdentifier{

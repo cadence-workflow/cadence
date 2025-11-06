@@ -455,6 +455,7 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 			updateTimestamp.UnixNano(),
 			searchAttr,
 			headers,
+			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
 		); err != nil {
 			return err
 		}
@@ -1015,6 +1016,7 @@ func (t *transferActiveTaskExecutor) processRecordWorkflowStartedOrUpsertHelper(
 			updateTimestamp.UnixNano(),
 			searchAttr,
 			headers,
+			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
 		)
 	}
 	return t.upsertWorkflowExecution(
@@ -1034,6 +1036,7 @@ func (t *transferActiveTaskExecutor) processRecordWorkflowStartedOrUpsertHelper(
 		updateTimestamp.UnixNano(),
 		searchAttr,
 		headers,
+		executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
 	)
 }
 

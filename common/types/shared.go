@@ -2762,6 +2762,20 @@ type ClusterAttribute struct {
 	Name  string `json:"name,omitempty" yaml:"name,omitempty"`
 }
 
+func (c *ClusterAttribute) GetScope() string {
+	if c == nil {
+		return ""
+	}
+	return c.Scope
+}
+
+func (c *ClusterAttribute) GetName() string {
+	if c == nil {
+		return ""
+	}
+	return c.Name
+}
+
 func (c *ClusterAttribute) Equals(other *ClusterAttribute) bool {
 	if c == nil && other == nil {
 		return true

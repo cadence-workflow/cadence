@@ -103,6 +103,8 @@ func (v *esVisibilityStore) RecordWorkflowExecutionStarted(
 		request.Memo.GetEncoding(),
 		request.IsCron,
 		request.NumClusters,
+		request.ClusterAttributeScope,
+		request.ClusterAttributeName,
 		request.SearchAttributes,
 		constants.RecordStarted,
 		0,                                  // will not be used
@@ -132,6 +134,8 @@ func (v *esVisibilityStore) RecordWorkflowExecutionClosed(
 		request.Memo.GetEncoding(),
 		request.IsCron,
 		request.NumClusters,
+		request.ClusterAttributeScope,
+		request.ClusterAttributeName,
 		request.SearchAttributes,
 		constants.RecordClosed,
 		request.CloseTimestamp.UnixNano(),
@@ -177,6 +181,8 @@ func (v *esVisibilityStore) UpsertWorkflowExecution(
 		request.Memo.GetEncoding(),
 		request.IsCron,
 		request.NumClusters,
+		request.ClusterAttributeScope,
+		request.ClusterAttributeName,
 		request.SearchAttributes,
 		constants.UpsertSearchAttributes,
 		0, // will not be used
@@ -816,6 +822,8 @@ func createVisibilityMessage(
 	encoding constants.EncodingType,
 	isCron bool,
 	NumClusters int16,
+	clusterAttributeScope string,
+	clusterAttributeName string,
 	searchAttributes map[string][]byte,
 	visibilityOperation constants.VisibilityOperation,
 	// specific to certain status
@@ -828,14 +836,16 @@ func createVisibilityMessage(
 	msgType := indexer.MessageTypeIndex
 
 	fields := map[string]*indexer.Field{
-		es.WorkflowType:  {Type: &es.FieldTypeString, StringData: common.StringPtr(workflowTypeName)},
-		es.StartTime:     {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(startTimeUnixNano)},
-		es.ExecutionTime: {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(executionTimeUnixNano)},
-		es.TaskList:      {Type: &es.FieldTypeString, StringData: common.StringPtr(taskList)},
-		es.IsCron:        {Type: &es.FieldTypeBool, BoolData: common.BoolPtr(isCron)},
-		es.NumClusters:   {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(int64(NumClusters))},
-		es.UpdateTime:    {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(updateTimeUnixNano)},
-		es.ShardID:       {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(shardID)},
+		es.WorkflowType:          {Type: &es.FieldTypeString, StringData: common.StringPtr(workflowTypeName)},
+		es.StartTime:             {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(startTimeUnixNano)},
+		es.ExecutionTime:         {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(executionTimeUnixNano)},
+		es.TaskList:              {Type: &es.FieldTypeString, StringData: common.StringPtr(taskList)},
+		es.IsCron:                {Type: &es.FieldTypeBool, BoolData: common.BoolPtr(isCron)},
+		es.NumClusters:           {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(int64(NumClusters))},
+		es.ClusterAttributeScope: {Type: &es.FieldTypeString, StringData: common.StringPtr(clusterAttributeScope)},
+		es.ClusterAttributeName:  {Type: &es.FieldTypeString, StringData: common.StringPtr(clusterAttributeName)},
+		es.UpdateTime:            {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(updateTimeUnixNano)},
+		es.ShardID:               {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(shardID)},
 	}
 
 	if len(memo) != 0 {

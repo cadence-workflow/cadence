@@ -322,6 +322,7 @@ func (t *transferStandbyTaskExecutor) processCloseExecution(
 			updateTimestamp.UnixNano(),
 			searchAttr,
 			headers,
+			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
 		)
 	}
 
@@ -555,6 +556,7 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 			updateTimestamp.UnixNano(),
 			searchAttr,
 			headers,
+			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
 		)
 	}
 	return t.upsertWorkflowExecution(
@@ -574,6 +576,7 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 		updateTimestamp.UnixNano(),
 		searchAttr,
 		headers,
+		executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
 	)
 
 }
