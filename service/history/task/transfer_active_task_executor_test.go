@@ -2243,21 +2243,21 @@ func createRecordWorkflowExecutionStartedRequest(
 		}
 	}
 	return &persistence.RecordWorkflowExecutionStartedRequest{
-		Domain:             domainName,
-		DomainUUID:         taskInfo.DomainID,
-		Execution:          workflowExecution,
-		WorkflowTypeName:   executionInfo.WorkflowTypeName,
-		StartTimestamp:     startEvent.GetTimestamp(),
-		ExecutionTimestamp: executionTimestamp,
-		WorkflowTimeout:    int64(executionInfo.WorkflowTimeout),
-		TaskID:             taskInfo.TaskID,
-		TaskList:           executionInfo.TaskList,
-		IsCron:             len(executionInfo.CronSchedule) > 0,
-		NumClusters:        numClusters,
+		Domain:                domainName,
+		DomainUUID:            taskInfo.DomainID,
+		Execution:             workflowExecution,
+		WorkflowTypeName:      executionInfo.WorkflowTypeName,
+		StartTimestamp:        startEvent.GetTimestamp(),
+		ExecutionTimestamp:    executionTimestamp,
+		WorkflowTimeout:       int64(executionInfo.WorkflowTimeout),
+		TaskID:                taskInfo.TaskID,
+		TaskList:              executionInfo.TaskList,
+		IsCron:                len(executionInfo.CronSchedule) > 0,
+		NumClusters:           numClusters,
 		ClusterAttributeScope: executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope(),
 		ClusterAttributeName:  executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName(),
-		UpdateTimestamp:    updateTime.UnixNano(),
-		SearchAttributes:   searchAttributes,
+		UpdateTimestamp:       updateTime.UnixNano(),
+		SearchAttributes:      searchAttributes,
 	}
 }
 
@@ -2294,23 +2294,23 @@ func createRecordWorkflowExecutionClosedRequest(
 		}
 	}
 	return &persistence.RecordWorkflowExecutionClosedRequest{
-		Domain:             domainName,
-		DomainUUID:         taskInfo.DomainID,
-		Execution:          workflowExecution,
-		HistoryLength:      mutableState.GetNextEventID() - 1,
-		WorkflowTypeName:   executionInfo.WorkflowTypeName,
-		StartTimestamp:     startEvent.GetTimestamp(),
-		ExecutionTimestamp: executionTimestamp,
-		TaskID:             taskInfo.TaskID,
-		TaskList:           executionInfo.TaskList,
-		IsCron:             len(executionInfo.CronSchedule) > 0,
-		NumClusters:        numClusters,
+		Domain:                domainName,
+		DomainUUID:            taskInfo.DomainID,
+		Execution:             workflowExecution,
+		HistoryLength:         mutableState.GetNextEventID() - 1,
+		WorkflowTypeName:      executionInfo.WorkflowTypeName,
+		StartTimestamp:        startEvent.GetTimestamp(),
+		ExecutionTimestamp:    executionTimestamp,
+		TaskID:                taskInfo.TaskID,
+		TaskList:              executionInfo.TaskList,
+		IsCron:                len(executionInfo.CronSchedule) > 0,
+		NumClusters:           numClusters,
 		ClusterAttributeScope: executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope(),
 		ClusterAttributeName:  executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName(),
-		UpdateTimestamp:    updateTime.UnixNano(),
-		CloseTimestamp:     *closeTimestamp,
-		RetentionSeconds:   int64(mutableState.GetDomainEntry().GetRetentionDays(taskInfo.GetWorkflowID()) * 24 * 3600),
-		SearchAttributes:   searchAttributes,
+		UpdateTimestamp:       updateTime.UnixNano(),
+		CloseTimestamp:        *closeTimestamp,
+		RetentionSeconds:      int64(mutableState.GetDomainEntry().GetRetentionDays(taskInfo.GetWorkflowID()) * 24 * 3600),
+		SearchAttributes:      searchAttributes,
 	}
 }
 
@@ -2456,21 +2456,21 @@ func createUpsertWorkflowSearchAttributesRequest(
 	}
 
 	return &persistence.UpsertWorkflowExecutionRequest{
-		Domain:             domainName,
-		DomainUUID:         taskInfo.DomainID,
-		Execution:          workflowExecution,
-		WorkflowTypeName:   executionInfo.WorkflowTypeName,
-		StartTimestamp:     startEvent.GetTimestamp(),
-		ExecutionTimestamp: executionTimestamp,
-		WorkflowTimeout:    int64(executionInfo.WorkflowTimeout),
-		TaskID:             taskInfo.TaskID,
-		TaskList:           executionInfo.TaskList,
-		IsCron:             len(executionInfo.CronSchedule) > 0,
-		NumClusters:        numClusters,
+		Domain:                domainName,
+		DomainUUID:            taskInfo.DomainID,
+		Execution:             workflowExecution,
+		WorkflowTypeName:      executionInfo.WorkflowTypeName,
+		StartTimestamp:        startEvent.GetTimestamp(),
+		ExecutionTimestamp:    executionTimestamp,
+		WorkflowTimeout:       int64(executionInfo.WorkflowTimeout),
+		TaskID:                taskInfo.TaskID,
+		TaskList:              executionInfo.TaskList,
+		IsCron:                len(executionInfo.CronSchedule) > 0,
+		NumClusters:           numClusters,
 		ClusterAttributeScope: executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope(),
 		ClusterAttributeName:  executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName(),
-		UpdateTimestamp:    updateTime.UnixNano(),
-		SearchAttributes:   searchAttributes,
+		UpdateTimestamp:       updateTime.UnixNano(),
+		SearchAttributes:      searchAttributes,
 	}
 }
 
