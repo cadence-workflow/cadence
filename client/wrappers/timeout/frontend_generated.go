@@ -126,6 +126,12 @@ func (c *frontendClient) ListDomains(ctx context.Context, lp1 *types.ListDomains
 	return c.client.ListDomains(ctx, lp1, p1...)
 }
 
+func (c *frontendClient) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest, p1 ...yarpc.CallOption) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.ListFailoverHistory(ctx, lp1, p1...)
+}
+
 func (c *frontendClient) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()

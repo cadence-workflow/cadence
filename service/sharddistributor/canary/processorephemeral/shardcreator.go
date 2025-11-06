@@ -26,7 +26,7 @@ type ShardCreator struct {
 
 	stopChan    chan struct{}
 	goRoutineWg sync.WaitGroup
-	namespace   string
+	namespaces  []string
 }
 
 // ShardCreatorParams contains the dependencies needed to create a ShardCreator
@@ -39,14 +39,14 @@ type ShardCreatorParams struct {
 }
 
 // NewShardCreator creates a new ShardCreator instance with the given parameters and namespace
-func NewShardCreator(params ShardCreatorParams, namespace string) *ShardCreator {
+func NewShardCreator(params ShardCreatorParams, namespaces []string) *ShardCreator {
 	return &ShardCreator{
 		logger:           params.Logger,
 		timeSource:       params.TimeSource,
 		shardDistributor: params.ShardDistributor,
 		stopChan:         make(chan struct{}),
 		goRoutineWg:      sync.WaitGroup{},
-		namespace:        namespace,
+		namespaces:       namespaces,
 	}
 }
 
@@ -61,10 +61,11 @@ func (s *ShardCreator) Start() {
 func (s *ShardCreator) Stop() {
 	close(s.stopChan)
 	s.goRoutineWg.Wait()
+	s.logger.Info("Shard creator stopped")
 }
 
 // ShardCreatorModule creates an fx module for the shard creator with the given namespace
-func ShardCreatorModule(namespace string) fx.Option {
+func ShardCreatorModule(namespace []string) fx.Option {
 	return fx.Module("shard-creator",
 		fx.Provide(func(params ShardCreatorParams) *ShardCreator {
 			return NewShardCreator(params, namespace)
@@ -89,16 +90,18 @@ func (s *ShardCreator) process(ctx context.Context) {
 			return
 		case <-ticker.Chan():
 			shardKey := uuid.New().String()
-			s.logger.Info("Creating shard", zap.String("shardKey", shardKey))
-			response, err := s.shardDistributor.GetShardOwner(ctx, &types.GetShardOwnerRequest{
-				ShardKey:  shardKey,
-				Namespace: s.namespace,
-			})
-			if err != nil {
-				s.logger.Error("create shard failed", zap.Error(err))
-				continue
+			for _, namespace := range s.namespaces {
+				s.logger.Info("Creating shard", zap.String("shardKey", shardKey), zap.String("namespace", namespace))
+				response, err := s.shardDistributor.GetShardOwner(ctx, &types.GetShardOwnerRequest{
+					ShardKey:  shardKey,
+					Namespace: namespace,
+				})
+				if err != nil {
+					s.logger.Error("create shard failed", zap.Error(err))
+					continue
+				}
+				s.logger.Info("shard created", zap.String("shardKey", shardKey), zap.String("shardOwner", response.Owner), zap.String("namespace", response.Namespace))
 			}
-			s.logger.Info("shard created", zap.String("shardKey", shardKey), zap.String("shardOwner", response.Owner))
 		}
 	}
 }

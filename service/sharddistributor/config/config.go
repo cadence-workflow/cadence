@@ -28,6 +28,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/types"
 )
 
 type (
@@ -48,7 +49,6 @@ type (
 
 	// ShardDistribution is a configuration for leader election running.
 	ShardDistribution struct {
-		Enabled     bool          `yaml:"enabled"`
 		LeaderStore Store         `yaml:"leaderStore"`
 		Election    Election      `yaml:"election"`
 		Namespaces  []Namespace   `yaml:"namespaces"`
@@ -86,6 +86,33 @@ const (
 	NamespaceTypeEphemeral = "ephemeral"
 )
 
+const (
+	MigrationModeINVALID                = "invalid"
+	MigrationModeLOCALPASSTHROUGH       = "local_pass"
+	MigrationModeLOCALPASSTHROUGHSHADOW = "local_pass_shadow"
+	MigrationModeDISTRIBUTEDPASSTHROUGH = "distributed_pass"
+	MigrationModeONBOARDED              = "onboarded"
+)
+
+// ConfigMode maps string migration mode values to types.MigrationMode
+var ConfigMode = map[string]types.MigrationMode{
+	MigrationModeINVALID:                types.MigrationModeINVALID,
+	MigrationModeLOCALPASSTHROUGH:       types.MigrationModeLOCALPASSTHROUGH,
+	MigrationModeLOCALPASSTHROUGHSHADOW: types.MigrationModeLOCALPASSTHROUGHSHADOW,
+	MigrationModeDISTRIBUTEDPASSTHROUGH: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
+	MigrationModeONBOARDED:              types.MigrationModeONBOARDED,
+}
+
+func (s *ShardDistribution) GetMigrationMode(namespace string) types.MigrationMode {
+	for _, ns := range s.Namespaces {
+		if ns.Name == namespace {
+			return ConfigMode[ns.Mode]
+		}
+	}
+	// TODO in the dynamic configuration I will setup a default value
+	return ConfigMode[MigrationModeONBOARDED]
+}
+
 // NewConfig returns new service config with default values
 func NewConfig(dc *dynamicconfig.Collection, hostName string) *Config {
 	return &Config{
@@ -105,7 +132,6 @@ func GetShardDistributionFromExternal(in config.ShardDistribution) ShardDistribu
 	}
 
 	return ShardDistribution{
-		Enabled:     in.Enabled,
 		LeaderStore: Store(in.LeaderStore),
 		Store:       Store(in.Store),
 		Election:    Election(in.Election),

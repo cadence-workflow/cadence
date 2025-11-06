@@ -32,6 +32,7 @@ var (
 	ShardDistributorGetShardOwnerResponse = types.GetShardOwnerResponse{
 		Owner:     "owner",
 		Namespace: "namespace",
+		Metadata:  map[string]string{"key-1": "value-1", "key-2": "value-2"},
 	}
 	ShardDistributorExecutorHeartbeatRequest = types.ExecutorHeartbeatRequest{
 		Namespace:  "namespace",
@@ -46,6 +47,10 @@ var (
 				Status:    types.ShardStatusINVALID,
 				ShardLoad: 0.75,
 			},
+		},
+		Metadata: map[string]string{
+			"key-1": "value-1",
+			"key-2": "value-2",
 		},
 	}
 	ShardDistributorExecutorHeartbeatResponse = types.ExecutorHeartbeatResponse{

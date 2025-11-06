@@ -520,16 +520,6 @@ func generateChecksum() checksum.Checksum {
 
 func generateActiveClusters() *types.ActiveClusters {
 	return &types.ActiveClusters{
-		ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-			"region1": {
-				ActiveClusterName: "cluster1",
-				FailoverVersion:   2,
-			},
-			"region2": {
-				ActiveClusterName: "cluster2",
-				FailoverVersion:   3,
-			},
-		},
 		AttributeScopes: map[string]types.ClusterAttributeScope{
 			"region": {
 				ClusterAttributes: map[string]types.ActiveClusterInfo{

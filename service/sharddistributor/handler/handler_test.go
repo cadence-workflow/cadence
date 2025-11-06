@@ -43,7 +43,6 @@ const (
 
 func TestGetShardOwner(t *testing.T) {
 	cfg := config.ShardDistribution{
-		Enabled: true,
 		Namespaces: []config.Namespace{
 			{
 				Name:     _testNamespaceFixed,
@@ -81,7 +80,7 @@ func TestGetShardOwner(t *testing.T) {
 				ShardKey:  "1",
 			},
 			setupMocks: func(mockStore *store.MockStore) {
-				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceFixed, "1").Return("", errors.New("lookup error"))
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceFixed, "1").Return(nil, errors.New("lookup error"))
 			},
 			expectedError:  true,
 			expectedErrMsg: "lookup error",
@@ -93,7 +92,10 @@ func TestGetShardOwner(t *testing.T) {
 				ShardKey:  "123",
 			},
 			setupMocks: func(mockStore *store.MockStore) {
-				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceFixed, "123").Return("owner1", nil)
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceFixed, "123").Return(&store.ShardOwner{
+					ExecutorID: "owner1",
+					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
+				}, nil)
 			},
 			expectedOwner: "owner1",
 			expectedError: false,
@@ -105,7 +107,7 @@ func TestGetShardOwner(t *testing.T) {
 				ShardKey:  "NON-EXISTING-SHARD",
 			},
 			setupMocks: func(mockStore *store.MockStore) {
-				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceFixed, "NON-EXISTING-SHARD").Return("", store.ErrShardNotFound)
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceFixed, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
 			},
 			expectedError:  true,
 			expectedErrMsg: "shard not found",
@@ -117,7 +119,10 @@ func TestGetShardOwner(t *testing.T) {
 				ShardKey:  "123",
 			},
 			setupMocks: func(mockStore *store.MockStore) {
-				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "123").Return("owner1", nil)
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "123").Return(&store.ShardOwner{
+					ExecutorID: "owner1",
+					Metadata:   map[string]string{},
+				}, nil)
 			},
 			expectedOwner: "owner1",
 			expectedError: false,
@@ -129,7 +134,7 @@ func TestGetShardOwner(t *testing.T) {
 				ShardKey:  "NON-EXISTING-SHARD",
 			},
 			setupMocks: func(mockStore *store.MockStore) {
-				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return("", store.ErrShardNotFound)
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
 					ShardAssignments: map[string]store.AssignedState{
 						"owner1": {
@@ -159,7 +164,7 @@ func TestGetShardOwner(t *testing.T) {
 				ShardKey:  "NON-EXISTING-SHARD",
 			},
 			setupMocks: func(mockStore *store.MockStore) {
-				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return("", store.ErrShardNotFound)
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(nil, errors.New("get state failure"))
 			},
 			expectedError:  true,
@@ -172,7 +177,7 @@ func TestGetShardOwner(t *testing.T) {
 				ShardKey:  "NON-EXISTING-SHARD",
 			},
 			setupMocks: func(mockStore *store.MockStore) {
-				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return("", store.ErrShardNotFound)
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
 					ShardAssignments: map[string]store.AssignedState{"owner1": {AssignedShards: map[string]*types.ShardAssignment{}}}}, nil)
 				mockStore.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD", "owner1").Return(errors.New("assign shard failure"))

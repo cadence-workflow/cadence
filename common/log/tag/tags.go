@@ -1185,6 +1185,13 @@ func ShardKey(shardKey string) Tag {
 	return newStringTag("shard-key", shardKey)
 }
 
+func ShardStatus(status string) Tag {
+	return newStringTag("shard-status", status)
+}
+func ShardLoad(load string) Tag {
+	return newStringTag("shard-load", load)
+}
+
 func ElectionDelay(t time.Duration) Tag {
 	return newDurationTag("election-delay", t)
 }

@@ -39,6 +39,7 @@ message GetShardOwnerRequest {
 message GetShardOwnerResponse {
   string owner = 1;
   string namespace = 2;
+  map<string, string> metadata = 3;
 }
 
 message NamespaceNotFoundError {

@@ -19,6 +19,14 @@ Uber has over 2000 use cases (Cadence domains) powered by Cadence. Here are some
 
 There are 20+ environments running Cadence where some of them hosts 400+ domains.
 
+![using.png](./logos/netapp-logo.jpg)
+
+### NetApp
+
+At [NetApp](https://www.netapp.com) we use Cadence as a key component of the Instaclustr platform’s control plane architecture. Our automated maintenance system relies on Cadence to orchestrate and schedule maintenance across tens of thousands of hosts in our managed fleet. By adopting Cadence we’ve been able to offer both our engineers and customers high-throughput, fault-tolerant execution of critical fleet operations.
+
+NetApp is the intelligent data infrastructure company, providing solutions to manage any data, for any application, anywhere it is needed. Through the [Instaclustr](https://www.instaclustr.com) platform we offer fully managed Cadence, including automated provisioning of supporting infrastructure such as Apache Cassandra, Apache Kafka, and OpenSearch.
+
 ## Evaluating / Early Adopters
 
 ## How to Add Your Organization

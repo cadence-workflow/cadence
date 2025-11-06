@@ -205,7 +205,7 @@ func (v *attrValidator) validateActivityScheduleAttributes(
 	domainID string,
 	targetDomainID string,
 	attributes *types.ScheduleActivityTaskDecisionAttributes,
-	wfTimeout int32,
+	executionInfo *persistence.WorkflowExecutionInfo,
 	metricsScope metrics.ScopeIdx,
 ) error {
 
@@ -220,10 +220,11 @@ func (v *attrValidator) validateActivityScheduleAttributes(
 		return &types.BadRequestError{Message: "ScheduleActivityTaskDecisionAttributes is not set on decision."}
 	}
 
-	defaultTaskListName := ""
-	if _, err := v.validatedTaskList(attributes.TaskList, defaultTaskListName, metricsScope, attributes.GetDomain()); err != nil {
+	taskList, err := v.validatedTaskList(attributes.TaskList, &types.TaskList{Name: executionInfo.TaskList, Kind: executionInfo.TaskListKind.Ptr()}, metricsScope, attributes.GetDomain())
+	if err != nil {
 		return err
 	}
+	attributes.TaskList = taskList
 
 	if attributes.GetActivityID() == "" {
 		return &types.BadRequestError{Message: "ActivityId is not set on decision."}
@@ -279,6 +280,7 @@ func (v *attrValidator) validateActivityScheduleAttributes(
 		attributes.GetStartToCloseTimeoutSeconds() < 0 || attributes.GetHeartbeatTimeoutSeconds() < 0 {
 		return &types.BadRequestError{Message: "A valid timeout may not be negative."}
 	}
+	wfTimeout := executionInfo.WorkflowTimeout
 
 	// ensure activity timeout never larger than workflow timeout
 	if attributes.GetScheduleToCloseTimeoutSeconds() > wfTimeout {
@@ -673,7 +675,7 @@ func (v *attrValidator) validateContinueAsNewWorkflowExecutionAttributes(
 	}
 
 	// Inherit Tasklist from previous execution if not provided on decision
-	taskList, err := v.validatedTaskList(attributes.TaskList, executionInfo.TaskList, metricsScope, domain)
+	taskList, err := v.validatedTaskList(attributes.TaskList, &types.TaskList{Name: executionInfo.TaskList, Kind: executionInfo.TaskListKind.Ptr()}, metricsScope, domain)
 	if err != nil {
 		return err
 	}
@@ -775,7 +777,7 @@ func (v *attrValidator) validateStartChildExecutionAttributes(
 	}
 
 	// Inherit tasklist from parent workflow execution if not provided on decision
-	taskList, err := v.validatedTaskList(attributes.TaskList, parentInfo.TaskList, metricsScope, attributes.GetDomain())
+	taskList, err := v.validatedTaskList(attributes.TaskList, &types.TaskList{Name: parentInfo.TaskList, Kind: parentInfo.TaskListKind.Ptr()}, metricsScope, attributes.GetDomain())
 	if err != nil {
 		return err
 	}
@@ -796,7 +798,7 @@ func (v *attrValidator) validateStartChildExecutionAttributes(
 
 func (v *attrValidator) validatedTaskList(
 	taskList *types.TaskList,
-	defaultVal string,
+	defaultVal *types.TaskList,
 	metricsScope metrics.ScopeIdx,
 	domain string,
 ) (*types.TaskList, error) {
@@ -806,11 +808,15 @@ func (v *attrValidator) validatedTaskList(
 	}
 
 	if taskList.GetName() == "" {
-		if defaultVal == "" {
+		if defaultVal.GetName() == "" {
 			return taskList, &types.BadRequestError{Message: "missing task list name"}
 		}
-		taskList.Name = defaultVal
+		taskList.Name = defaultVal.GetName()
+		taskList.Kind = defaultVal.Kind
 		return taskList, nil
+	}
+	if taskList.GetKind() == types.TaskListKindNormal && defaultVal.GetKind() == types.TaskListKindEphemeral {
+		taskList.Kind = defaultVal.Kind
 	}
 
 	name := taskList.GetName()

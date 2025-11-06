@@ -59,6 +59,10 @@ func TestIsServiceTransientError(t *testing.T) {
 			err:  context.DeadlineExceeded,
 			want: false,
 		},
+		"YARPCCanceled": {
+			err:  yarpcerrors.CancelledErrorf("connection closing"),
+			want: true,
+		},
 		"YARPCDeadlineExceeded": {
 			err:  yarpcerrors.DeadlineExceededErrorf("yarpc deadline exceeded"),
 			want: false,

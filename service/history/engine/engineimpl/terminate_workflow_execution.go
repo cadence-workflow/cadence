@@ -33,13 +33,6 @@ func (e *historyEngineImpl) TerminateWorkflowExecution(
 	ctx context.Context,
 	terminateRequest *types.HistoryTerminateWorkflowExecutionRequest,
 ) error {
-
-	domainEntry, err := e.getActiveDomainByID(terminateRequest.DomainUUID)
-	if err != nil {
-		return err
-	}
-	domainID := domainEntry.GetInfo().ID
-
 	request := terminateRequest.TerminateRequest
 	parentExecution := terminateRequest.ExternalWorkflowExecution
 	childWorkflowOnly := terminateRequest.GetChildWorkflowOnly()
@@ -50,6 +43,12 @@ func (e *historyEngineImpl) TerminateWorkflowExecution(
 	if request.GetFirstExecutionRunID() == "" {
 		workflowExecution.RunID = request.WorkflowExecution.RunID
 	}
+
+	domainEntry, err := e.getActiveDomainByWorkflow(ctx, terminateRequest.DomainUUID, workflowExecution.WorkflowID, workflowExecution.RunID)
+	if err != nil {
+		return err
+	}
+	domainID := domainEntry.GetInfo().ID
 
 	return workflow.UpdateCurrentWithActionFunc(
 		ctx,

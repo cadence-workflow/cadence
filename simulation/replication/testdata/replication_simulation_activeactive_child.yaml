@@ -1,0 +1,95 @@
+# This file is a replication simulation scenario spec.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario activeactive_child
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_child.yml
+# Tests that active-active allows workflows to be created in multiple clusters
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+domains:
+  test-domain-aa:
+    activeClusterName: cluster0
+    clusterAttributes:
+      region:
+        region0: cluster0
+        region1: cluster1
+
+operations:
+  # start workflow in cluster0
+  - op: start_workflow
+    at: 0s
+    workflowID: wf1
+    workflowType: child-activity-loop-workflow
+    cluster: cluster0
+    childWorkflowID: wf1-child
+    childWorkflowTimeout: 65s
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 65s
+    workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+
+  # start workflow in cluster1
+  - op: start_workflow
+    at: 0s
+    workflowID: wf2
+    workflowType: child-activity-loop-workflow
+    cluster: cluster1
+    childWorkflowID: wf2-child
+    childWorkflowTimeout: 65s
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 65s
+    workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
+
+  # validate that wf1 is started in cluster0 and completed in cluster1
+  - op: validate
+    at: 70s
+    workflowID: wf1-child
+    cluster: cluster0
+    domain: test-domain-aa
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0
+  - op: validate
+    at: 70s
+    workflowID: wf1
+    cluster: cluster0
+    domain: test-domain-aa
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0
+
+  # validate that wf2 is started and completed in cluster1
+  - op: validate
+    at: 70s
+    workflowID: wf2-child
+    cluster: cluster1
+    domain: test-domain-aa
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster1
+      completedByWorkersInCluster: cluster1
+  - op: validate
+    at: 70s
+    workflowID: wf2
+    cluster: cluster1
+    domain: test-domain-aa
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster1
+      completedByWorkersInCluster: cluster1

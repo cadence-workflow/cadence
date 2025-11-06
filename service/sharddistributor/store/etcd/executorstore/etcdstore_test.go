@@ -15,6 +15,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/executorstore/common"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/leaderstore"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/testhelper"
 )
@@ -36,6 +37,10 @@ func TestRecordHeartbeat(t *testing.T) {
 		ReportedShards: map[string]*types.ShardStatusReport{
 			"shard-TestRecordHeartbeat": {Status: types.ShardStatusREADY},
 		},
+		Metadata: map[string]string{
+			"key-1": "value-1",
+			"key-2": "value-2",
+		},
 	}
 
 	err := executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, req)
@@ -48,6 +53,8 @@ func TestRecordHeartbeat(t *testing.T) {
 	require.NoError(t, err)
 	reportedShardsKey, err := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorReportedShardsKey)
 	require.NoError(t, err)
+	metadataKey1 := etcdkeys.BuildMetadataKey(tc.EtcdPrefix, tc.Namespace, executorID, "key-1")
+	metadataKey2 := etcdkeys.BuildMetadataKey(tc.EtcdPrefix, tc.Namespace, executorID, "key-2")
 
 	resp, err := tc.Client.Get(ctx, heartbeatKey)
 	require.NoError(t, err)
@@ -57,17 +64,31 @@ func TestRecordHeartbeat(t *testing.T) {
 	resp, err = tc.Client.Get(ctx, stateKey)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), resp.Count, "State key should exist")
-	assert.Equal(t, stringStatus(types.ExecutorStatusACTIVE), string(resp.Kvs[0].Value))
+	decompressedState, err := common.Decompress(resp.Kvs[0].Value)
+	require.NoError(t, err)
+	assert.Equal(t, stringStatus(types.ExecutorStatusACTIVE), string(decompressedState))
 
 	resp, err = tc.Client.Get(ctx, reportedShardsKey)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), resp.Count, "Reported shards key should exist")
 
+	decompressedReportedShards, err := common.Decompress(resp.Kvs[0].Value)
+	require.NoError(t, err)
 	var reportedShards map[string]*types.ShardStatusReport
-	err = json.Unmarshal(resp.Kvs[0].Value, &reportedShards)
+	err = json.Unmarshal(decompressedReportedShards, &reportedShards)
 	require.NoError(t, err)
 	require.Len(t, reportedShards, 1)
 	assert.Equal(t, types.ShardStatusREADY, reportedShards["shard-TestRecordHeartbeat"].Status)
+
+	resp, err = tc.Client.Get(ctx, metadataKey1)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), resp.Count, "Metadata key 1 should exist")
+	assert.Equal(t, "value-1", string(resp.Kvs[0].Value))
+
+	resp, err = tc.Client.Get(ctx, metadataKey2)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), resp.Count, "Metadata key 2 should exist")
+	assert.Equal(t, "value-2", string(resp.Kvs[0].Value))
 }
 
 func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {

@@ -36,6 +36,7 @@ message HeartbeatRequest {
   string executor_id = 2;
   ExecutorStatus status = 3;
   map<string, ShardStatusReport> shard_status_reports = 4;
+  map<string, string> metadata = 5;
 }
 
 enum ExecutorStatus {

@@ -86,6 +86,9 @@ type StringPropertyFnWithDomainFilter func(domain string) string
 // StringPropertyFnWithTaskListInfoFilters is a wrapper to get string property from dynamic config with domainID as filter
 type StringPropertyFnWithTaskListInfoFilters func(domain string, taskList string, taskType int) string
 
+// StringPropertyFnWithNamespaceFilters is a wrapper to get string property from dynamic config with namespace as filter
+type StringPropertyFnWithNamespaceFilters func(namespace string) string
+
 // BoolPropertyFnWithDomainFilter is a wrapper to get bool property from dynamic config with domain as filter
 type BoolPropertyFnWithDomainFilter func(domain string) bool
 
@@ -112,6 +115,9 @@ type ListPropertyFn func(opts ...FilterOption) []interface{}
 
 // StringPropertyWithRatelimitKeyFilter is a wrapper to get strings (currently global ratelimiter modes) per global ratelimit key
 type StringPropertyWithRatelimitKeyFilter func(globalRatelimitKey string) string
+
+// StringPropertyWithNamespaceFilter is a wrapper to get strings per namespace
+type StringPropertyWithNamespaceFilter func(namespace string) string
 
 func (f IntPropertyFn) AsFloat64(opts ...FilterOption) func() float64 {
 	return func() float64 { return float64(f(opts...)) }

@@ -172,9 +172,11 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 	defer ticker.Stop()
 
 	// Perform an initial rebalance on startup.
-	err := p.rebalanceShards(ctx)
-	if err != nil {
-		p.logger.Error("initial rebalance failed", tag.Error(err))
+	if p.namespaceCfg.Mode == config.MigrationModeONBOARDED {
+		err := p.rebalanceShards(ctx)
+		if err != nil {
+			p.logger.Error("initial rebalance failed", tag.Error(err))
+		}
 	}
 
 	updateChan, err := p.shardStore.Subscribe(ctx, p.namespaceCfg.Name)
@@ -196,9 +198,17 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 			if latestRevision <= p.lastAppliedRevision {
 				continue
 			}
+			if p.namespaceCfg.Mode != config.MigrationModeONBOARDED {
+				p.logger.Info("Namespace not onboarded, rebalance not triggered", tag.ShardNamespace(p.namespaceCfg.Name))
+				break
+			}
 			p.logger.Info("State change detected, triggering rebalance.")
 			err = p.rebalanceShards(ctx)
 		case <-ticker.Chan():
+			if p.namespaceCfg.Mode != config.MigrationModeONBOARDED {
+				p.logger.Info("Namespace not onboarded, skipped periodic reconciliation", tag.ShardNamespace(p.namespaceCfg.Name))
+				break
+			}
 			p.logger.Info("Periodic reconciliation triggered, rebalancing.")
 			err = p.rebalanceShards(ctx)
 		}
@@ -220,17 +230,21 @@ func (p *namespaceProcessor) runCleanupLoop(ctx context.Context) {
 			return
 		case <-ticker.Chan():
 			p.logger.Info("Periodic heartbeat cleanup triggered.")
-			p.cleanupStaleExecutors(ctx)
-			p.cleanupStaleShardStats(ctx)
+			namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
+			if err != nil {
+				p.logger.Error("Failed to get state for cleanup", tag.Error(err))
+				continue
+			}
+			p.cleanupStaleExecutors(ctx, namespaceState)
+			p.cleanupStaleShardStats(ctx, namespaceState)
 		}
 	}
 }
 
 // cleanupStaleExecutors removes executors who have not reported a heartbeat recently.
-func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context) {
-	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
-	if err != nil {
-		p.logger.Error("Failed to get state for heartbeat cleanup", tag.Error(err))
+func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context, namespaceState *store.NamespaceState) {
+	if namespaceState == nil {
+		p.logger.Error("Namespace state missing for heartbeat cleanup")
 		return
 	}
 
@@ -255,10 +269,9 @@ func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context) {
 	}
 }
 
-func (p *namespaceProcessor) cleanupStaleShardStats(ctx context.Context) {
-	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
-	if err != nil {
-		p.logger.Error("Failed to get state for shard stats cleanup", tag.Error(err))
+func (p *namespaceProcessor) cleanupStaleShardStats(ctx context.Context, namespaceState *store.NamespaceState) {
+	if namespaceState == nil {
+		p.logger.Error("Namespace state missing for shard stats cleanup")
 		return
 	}
 
@@ -387,6 +400,15 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	if err != nil {
 		return fmt.Errorf("assign shards: %w", err)
 	}
+
+	totalActiveShards := 0
+	for _, assignedState := range namespaceState.ShardAssignments {
+		totalActiveShards += len(assignedState.AssignedShards)
+	}
+	metricsLoopScope.Tagged(
+		metrics.NamespaceTag(p.namespaceCfg.Name),
+		metrics.NamespaceTypeTag(p.namespaceCfg.Type),
+	).UpdateGauge(metrics.ShardDistributorActiveShards, float64(totalActiveShards))
 
 	return nil
 }

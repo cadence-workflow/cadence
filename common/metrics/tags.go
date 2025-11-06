@@ -347,6 +347,10 @@ func NamespaceTag(namespace string) Tag {
 	return metricWithUnknown("namespace", namespace)
 }
 
+func NamespaceTypeTag(namespaceType string) Tag {
+	return metricWithUnknown("namespace_type", namespaceType)
+}
+
 func TaskCategoryTag(category string) Tag {
 	return metricWithUnknown("task_category", category)
 }

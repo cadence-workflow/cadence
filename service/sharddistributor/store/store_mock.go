@@ -137,10 +137,10 @@ func (mr *MockStoreMockRecorder) GetHeartbeat(ctx, namespace, executorID any) *g
 }
 
 // GetShardOwner mocks base method.
-func (m *MockStore) GetShardOwner(ctx context.Context, namespace, shardID string) (string, error) {
+func (m *MockStore) GetShardOwner(ctx context.Context, namespace, shardID string) (*ShardOwner, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetShardOwner", ctx, namespace, shardID)
-	ret0, _ := ret[0].(string)
+	ret0, _ := ret[0].(*ShardOwner)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

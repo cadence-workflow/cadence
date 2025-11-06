@@ -149,6 +149,14 @@ func (h *versionCheckHandler) ListDomains(ctx context.Context, lp1 *types.ListDo
 	return h.frontendHandler.ListDomains(ctx, lp1)
 }
 
+func (h *versionCheckHandler) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.ListFailoverHistory(ctx, lp1)
+}
+
 func (h *versionCheckHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {
 	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
 	if err != nil {

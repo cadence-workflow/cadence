@@ -89,9 +89,9 @@ func (c *meteredStore) GetHeartbeat(ctx context.Context, namespace string, execu
 	return
 }
 
-func (c *meteredStore) GetShardOwner(ctx context.Context, namespace string, shardID string) (s1 string, err error) {
+func (c *meteredStore) GetShardOwner(ctx context.Context, namespace string, shardID string) (sp1 *store.ShardOwner, err error) {
 	op := func() error {
-		s1, err = c.wrapped.GetShardOwner(ctx, namespace, shardID)
+		sp1, err = c.wrapped.GetShardOwner(ctx, namespace, shardID)
 		return err
 	}
 

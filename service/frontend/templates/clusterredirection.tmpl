@@ -12,7 +12,7 @@ import (
 	frontendcfg "github.com/uber/cadence/service/frontend/config"
 )
 
-{{$nonForwardingAPIs := list "Health" "DeprecateDomain" "DeleteDomain" "DescribeDomain" "FailoverDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo" "DiagnoseWorkflowExecution"}}
+{{$nonForwardingAPIs := list "Health" "DeprecateDomain" "DeleteDomain" "DescribeDomain" "FailoverDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo" "DiagnoseWorkflowExecution" "ListFailoverHistory"}}
 {{$domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$startWFAPIs := list "StartWorkflowExecution" "StartWorkflowExecutionAsync" "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync"}}
 {{$nonstartWFAPIs := list "DescribeWorkflowExecutionRequest" "GetWorkflowExecutionHistory" "QueryWorkflowRequest" "RequestCancelWorkflowExecution" "ResetWorkflowExecution" "RestartWorkflowExecution" "SignalWorkflowExecution" "TerminateWorkflowExecution" }}
@@ -28,6 +28,7 @@ type (
 		redirectionPolicy  ClusterRedirectionPolicy
 		tokenSerializer    common.TaskTokenSerializer
 		domainCache        cache.DomainCache
+		config             *frontendcfg.Config
 		frontendHandler    api.Handler
 		callOptions        []yarpc.CallOption
 	}
@@ -53,6 +54,7 @@ func NewAPIHandler(
 		Resource:           resource,
 		currentClusterName: resource.GetClusterMetadata().GetCurrentClusterName(),
 		domainCache:        resource.GetDomainCache(),
+		config:             config,
 		redirectionPolicy:  dcRedirectionPolicy,
 		tokenSerializer:    common.NewJSONTaskTokenSerializer(),
 		frontendHandler:    wfHandler,
@@ -111,7 +113,15 @@ func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
 	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
 	var workflowExecution *types.WorkflowExecution
 	{{- if has $method.Name $startWFAPIs}}
+	if !handler.config.EnableActiveClusterSelectionPolicyInStartWorkflow(domainEntry.GetInfo().Name) {
+		{{(index $method.Params 1).Name}}.ActiveClusterSelectionPolicy = nil
+	}
 	actClSelPolicyForNewWF = {{(index $method.Params 1).Name}}.ActiveClusterSelectionPolicy
+	{{- if eq $method.Name "SignalWithStartWorkflowExecution"}}
+	workflowExecution = &types.WorkflowExecution{
+		WorkflowID: {{(index $method.Params 1).Name}}.GetWorkflowID(),
+	}
+	{{- end}}
 	{{- else if has $method.Name $nonstartWFAPIs}}
 	workflowExecution = {{(index $method.Params 1).Name}}.GetWorkflowExecution()
 	{{- end}}
