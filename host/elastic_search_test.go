@@ -170,9 +170,9 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow() {
 }
 
 func (s *ElasticSearchIntegrationSuite) TestListWorkflowByClusterAttribute() {
-	id := "es-integration-list-workflow-test"
-	wt := "es-integration-list-workflow-test-type"
-	tl := "es-integration-list-workflow-test-tasklist"
+	id := "es-active-active-integration-list-workflow-test"
+	wt := "es-active-active-integration-list-workflow-test-type"
+	tl := "es-active-active-integration-list-workflow-test-tasklist"
 	request := s.createActiveActiveStartWorkflowExecutionRequest(id, wt, tl, &types.ActiveClusterSelectionPolicy{
 		ClusterAttribute: &types.ClusterAttribute{
 			Scope: "region",
