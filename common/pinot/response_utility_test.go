@@ -36,7 +36,7 @@ import (
 )
 
 func TestConvertSearchResultToVisibilityRecord(t *testing.T) {
-	columnName := []string{"WorkflowID", "RunID", "WorkflowType", "DomainID", "StartTime", "ExecutionTime", "CloseTime", "CloseStatus", "HistoryLength", "TaskList", "IsCron", "NumClusters", "UpdateTime", "Attr"}
+	columnName := []string{"WorkflowID", "RunID", "WorkflowType", "DomainID", "StartTime", "ExecutionTime", "CloseTime", "CloseStatus", "HistoryLength", "TaskList", "IsCron", "NumClusters", "UpdateTime", "Attr", "ClusterAttributeScope", "ClusterAttributeName"}
 	closeStatus := types.WorkflowExecutionCloseStatusFailed
 
 	sampleRawMemo := &types.Memo{
@@ -63,19 +63,19 @@ func TestConvertSearchResultToVisibilityRecord(t *testing.T) {
 	}{
 		"Case1: nil result": {
 			inputColumnNames:         nil,
-			inputHit:                 []interface{}{"wfid", "rid", "wftype", "domainid", testEarliestTime, testEarliestTime, testLatestTime, -1, 1, "tsklst", true, 1, testEarliestTime, "{}"},
+			inputHit:                 []interface{}{"wfid", "rid", "wftype", "domainid", testEarliestTime, testEarliestTime, testLatestTime, -1, 1, "tsklst", true, 1, testEarliestTime, "{}", "region", "us-east"},
 			expectedVisibilityRecord: nil,
-			expectErr:                fmt.Errorf("length of hit (14) is not equal with length of columnNames(0)"),
+			expectErr:                fmt.Errorf("length of hit (16) is not equal with length of columnNames(0)"),
 		},
 		"Case2-1: marshal system key error case": {
 			inputColumnNames:         columnName,
-			inputHit:                 []interface{}{"wfid", "rid", "wftype", "domainid", testEarliestTime, testEarliestTime, testLatestTime, 1, 1, "tsklst", true, 1, testEarliestTime, make(chan int)},
+			inputHit:                 []interface{}{"wfid", "rid", "wftype", "domainid", testEarliestTime, testEarliestTime, testLatestTime, 1, 1, "tsklst", true, 1, testEarliestTime, make(chan int), "region", "us-east"},
 			expectedVisibilityRecord: nil,
 			expectErr:                fmt.Errorf("unable to marshal systemKeyMap"),
 		},
 		"Case2-2: unmarshal system key error case": {
 			inputColumnNames:         columnName,
-			inputHit:                 []interface{}{"wfid", "rid", "wftype", "domainid", testEarliestTime, testEarliestTime, testLatestTime, 1, "1", "tsklst", true, 1, testEarliestTime, `{"CustomStringField": "customA and customB or customC", "CustomDoubleField": 3.14}`},
+			inputHit:                 []interface{}{"wfid", "rid", "wftype", "domainid", testEarliestTime, testEarliestTime, testLatestTime, 1, "1", "tsklst", true, 1, testEarliestTime, `{"CustomStringField": "customA and customB or customC", "CustomDoubleField": 3.14}`, "region", "us-east"},
 			expectedVisibilityRecord: nil,
 			expectErr:                fmt.Errorf("unable to Unmarshal systemKeyMap: json: cannot unmarshal string into Go struct field VisibilityRecord.HistoryLength of type int64"),
 		},
@@ -105,7 +105,7 @@ func TestConvertSearchResultToVisibilityRecord(t *testing.T) {
 		},
 		"Case3-1: closed wf with everything except for an empty Attr": {
 			inputColumnNames: columnName,
-			inputHit:         []interface{}{"wfid", "rid", "wftype", "domainid", testEarliestTime, testEarliestTime, testLatestTime, -1, 1, "tsklst", true, 1, testEarliestTime, "{}"},
+			inputHit:         []interface{}{"wfid", "rid", "wftype", "domainid", testEarliestTime, testEarliestTime, testLatestTime, -1, 1, "tsklst", true, 1, testEarliestTime, "{}", "region", "us-east"},
 			expectedVisibilityRecord: &p.InternalVisibilityWorkflowExecutionInfo{
 				DomainID:         "domainid",
 				WorkflowType:     "wftype",
@@ -121,6 +121,8 @@ func TestConvertSearchResultToVisibilityRecord(t *testing.T) {
 				TaskList:         "tsklst",
 				IsCron:           true,
 				NumClusters:      1,
+				ClusterAttributeScope: "region",
+				ClusterAttributeName:  "us-east",
 				UpdateTime:       time.UnixMilli(testEarliestTime),
 				SearchAttributes: map[string]interface{}{},
 				ShardID:          0,
@@ -128,7 +130,7 @@ func TestConvertSearchResultToVisibilityRecord(t *testing.T) {
 		},
 		"Case3-2: closed wf with everything": {
 			inputColumnNames: columnName,
-			inputHit:         []interface{}{"wfid", "rid", "wftype", "domainid", testEarliestTime, testEarliestTime, testLatestTime, 1, 1, "tsklst", true, 1, testEarliestTime, `{"CustomStringField": "customA and customB or customC", "CustomDoubleField": 3.14}`},
+			inputHit:         []interface{}{"wfid", "rid", "wftype", "domainid", testEarliestTime, testEarliestTime, testLatestTime, 1, 1, "tsklst", true, 1, testEarliestTime, `{"CustomStringField": "customA and customB or customC", "CustomDoubleField": 3.14}`, "region", "us-east"},
 			expectedVisibilityRecord: &p.InternalVisibilityWorkflowExecutionInfo{
 				DomainID:         "domainid",
 				WorkflowType:     "wftype",
@@ -144,6 +146,8 @@ func TestConvertSearchResultToVisibilityRecord(t *testing.T) {
 				TaskList:         "tsklst",
 				IsCron:           true,
 				NumClusters:      1,
+				ClusterAttributeScope: "region",
+				ClusterAttributeName:  "us-east",
 				UpdateTime:       time.UnixMilli(testEarliestTime),
 				SearchAttributes: map[string]interface{}{"CustomStringField": "customA and customB or customC", "CustomDoubleField": 3.14},
 				ShardID:          0,
@@ -152,7 +156,7 @@ func TestConvertSearchResultToVisibilityRecord(t *testing.T) {
 		"Case4: open wf with everything": {
 			inputColumnNames: columnName,
 			inputHit: []interface{}{"wfid", "rid", "wftype", "domainid", testEarliestTime, testEarliestTime, -1, -1, -1,
-				"tsklst", true, 1, testEarliestTime, `{"CustomStringField": "customA and customB or customC", "CustomDoubleField": 3.14}`},
+				"tsklst", true, 1, testEarliestTime, `{"CustomStringField": "customA and customB or customC", "CustomDoubleField": 3.14}`, "region", "us-east"},
 			expectedVisibilityRecord: &p.InternalVisibilityWorkflowExecutionInfo{
 				DomainID:         "domainid",
 				WorkflowType:     "wftype",
@@ -165,6 +169,8 @@ func TestConvertSearchResultToVisibilityRecord(t *testing.T) {
 				TaskList:         "tsklst",
 				IsCron:           true,
 				NumClusters:      1,
+				ClusterAttributeScope: "region",
+				ClusterAttributeName:  "us-east",
 				UpdateTime:       time.UnixMilli(testEarliestTime),
 				SearchAttributes: map[string]interface{}{"CustomStringField": "customA and customB or customC", "CustomDoubleField": 3.14},
 				ShardID:          0,
@@ -175,7 +181,7 @@ func TestConvertSearchResultToVisibilityRecord(t *testing.T) {
 			inputColumnNames: columnName,
 			inputHit: []interface{}{"wfid", "rid", "wftype", "domainid", testEarliestTime, testEarliestTime, -1, -1, -1,
 				"tsklst", true, 1, testEarliestTime,
-				`{"Memo":"{\"Encoding\":\"thriftrw\",\"Data\":\"WQ0ACgsLAAAAAQAAAAkiU2VydmljZSIAAAANInNlcnZlck5hbWUxIgA=\"}"}`},
+				`{"Memo":"{\"Encoding\":\"thriftrw\",\"Data\":\"WQ0ACgsLAAAAAQAAAAkiU2VydmljZSIAAAANInNlcnZlck5hbWUxIgA=\"}"}`, "region", "us-east"},
 			expectedVisibilityRecord: &p.InternalVisibilityWorkflowExecutionInfo{
 				DomainID:         "domainid",
 				WorkflowType:     "wftype",
@@ -188,6 +194,8 @@ func TestConvertSearchResultToVisibilityRecord(t *testing.T) {
 				TaskList:         "tsklst",
 				IsCron:           true,
 				NumClusters:      1,
+				ClusterAttributeScope: "region",
+				ClusterAttributeName:  "us-east",
 				UpdateTime:       time.UnixMilli(testEarliestTime),
 				SearchAttributes: map[string]interface{}{"CustomStringField": "customA and customB or customC", "CustomDoubleField": 3.14},
 				ShardID:          0,
@@ -198,7 +206,7 @@ func TestConvertSearchResultToVisibilityRecord(t *testing.T) {
 			inputColumnNames: columnName,
 			inputHit: []interface{}{"wfid", "rid", "wftype", "domainid", testEarliestTime, testEarliestTime, -1, -1, -1,
 				"tsklst", true, 1, testEarliestTime,
-				`{"Memo":"{\"Encoding\":\"\",\"Data\":\"\"}"}`},
+				`{"Memo":"{\"Encoding\":\"\",\"Data\":\"\"}"}`, "region", "us-east"},
 			expectedVisibilityRecord: &p.InternalVisibilityWorkflowExecutionInfo{
 				DomainID:         "domainid",
 				WorkflowType:     "wftype",
@@ -211,6 +219,8 @@ func TestConvertSearchResultToVisibilityRecord(t *testing.T) {
 				TaskList:         "tsklst",
 				IsCron:           true,
 				NumClusters:      1,
+				ClusterAttributeScope: "region",
+				ClusterAttributeName:  "us-east",
 				UpdateTime:       time.UnixMilli(testEarliestTime),
 				SearchAttributes: map[string]interface{}{"CustomStringField": "customA and customB or customC", "CustomDoubleField": 3.14},
 				ShardID:          0,

@@ -45,3 +45,6 @@ system.minRetentionDays:
 history.EnableConsistentQueryByDomain:
 - value: true
   constraints: {}
+frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
+- value: true
+  constraints: {}
