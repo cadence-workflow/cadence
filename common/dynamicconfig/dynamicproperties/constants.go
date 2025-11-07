@@ -4699,7 +4699,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableActiveClusterSelectionPolicyInStartWorkflow: {
 		KeyName:      "frontend.enableActiveClusterSelectionPolicyInStartWorkflow",
 		Description:  "EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain",
-		DefaultValue: false,
+		DefaultValue: true,
 		Filters:      []Filter{DomainName},
 	},
 }
