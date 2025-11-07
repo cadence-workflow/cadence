@@ -6,10 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/yarpc/api/peer"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/yarpc/api/peer"
 
 	"github.com/uber/cadence/common/log"
 )
@@ -24,7 +23,7 @@ func (m *mockDNSHostResolver) LookupHost(ctx context.Context, host string) ([]st
 }
 
 type dummyPeerList struct {
-	updates []peer.ListUpdates
+	updates     []peer.ListUpdates
 	errToReturn error
 }
 
@@ -82,7 +81,7 @@ func TestDNSUpdater_Refresh(t *testing.T) {
 				"10.0.0.2:1234": {},
 				"10.0.0.3:1234": {},
 			},
-			wantChanged:  false,
+			wantChanged: false,
 			wantNewPeers: map[string]struct{}{
 				"10.0.0.2:1234": {},
 				"10.0.0.3:1234": {},
