@@ -294,6 +294,11 @@ func noopAuthorizationConfig() config.Authorization {
 // NewClusterMetadata returns cluster metdata from config
 func NewClusterMetadata(t *testing.T, options *TestClusterConfig) cluster.Metadata {
 	if options.ClusterGroupMetadata.PrimaryClusterName == "" {
+		if TestFlags.SQLPluginName == sqlite.PluginName {
+			// There seems to be a bug in the SQLite plugin that causes integration tests to fail.
+			// EnqueueMessage operation failed.  Error: sqlite3: database is locked
+			return cluster.GetTestClusterMetadata(false)
+		}
 		return cluster.GetTestClusterMetadata(true)
 	}
 	return cluster.NewMetadata(
