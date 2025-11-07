@@ -43,6 +43,7 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/persistence-tests/testcluster"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/environment"
 )
@@ -245,6 +246,12 @@ func (s *IntegrationBase) RegisterDomain(
 ) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	isGlobalDomain := true
+	if TestFlags.SQLPluginName == sqlite.PluginName {
+		// There seems to be a bug in the SQLite plugin that causes integration tests to fail.
+		// EnqueueMessage operation failed.  Error: sqlite3: database is locked
+		isGlobalDomain = false
+	}
 	return s.Engine.RegisterDomain(ctx, &types.RegisterDomainRequest{
 		Name:                                   domain,
 		Description:                            domain,
@@ -254,7 +261,7 @@ func (s *IntegrationBase) RegisterDomain(
 		VisibilityArchivalStatus:               &visibilityArchivalStatus,
 		VisibilityArchivalURI:                  visibilityArchivalURI,
 		ActiveClusters:                         activeClusters,
-		IsGlobalDomain:                         true,
+		IsGlobalDomain:                         isGlobalDomain,
 	})
 }
 
