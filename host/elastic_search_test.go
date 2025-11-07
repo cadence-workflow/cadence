@@ -170,6 +170,9 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow() {
 }
 
 func (s *ElasticSearchIntegrationSuite) TestListWorkflowByClusterAttribute() {
+	if TestFlags.SQLPluginName != "" {
+		s.T().Skipf("active-active is not supported for SQL plugin, skipping %v", s.T().Name())
+	}
 	id := "es-active-active-integration-list-workflow-test"
 	wt := "es-active-active-integration-list-workflow-test-type"
 	tl := "es-active-active-integration-list-workflow-test-tasklist"

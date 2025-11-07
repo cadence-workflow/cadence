@@ -43,6 +43,7 @@ import (
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/metrics"
@@ -292,8 +293,15 @@ func noopAuthorizationConfig() config.Authorization {
 
 // NewClusterMetadata returns cluster metdata from config
 func NewClusterMetadata(t *testing.T, options *TestClusterConfig) cluster.Metadata {
-	clusterMetadata := cluster.GetTestClusterMetadata(true)
-	return clusterMetadata
+	if options.ClusterGroupMetadata.PrimaryClusterName == "" {
+		return cluster.GetTestClusterMetadata(true)
+	}
+	return cluster.NewMetadata(
+		options.ClusterGroupMetadata,
+		func(domain string) bool { return false },
+		metrics.NewNoopMetricsClient(),
+		testlogger.New(t),
+	)
 }
 
 func NewPersistenceTestCluster(t *testing.T, clusterConfig *TestClusterConfig) testcluster.PersistenceTestCluster {
