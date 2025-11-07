@@ -293,15 +293,7 @@ func noopAuthorizationConfig() config.Authorization {
 
 // NewClusterMetadata returns cluster metdata from config
 func NewClusterMetadata(t *testing.T, options *TestClusterConfig) cluster.Metadata {
-	clusterMetadata := cluster.GetTestClusterMetadata(options.IsPrimaryCluster)
-	if !options.IsPrimaryCluster && options.ClusterGroupMetadata.PrimaryClusterName != "" { // xdc cluster metadata setup
-		clusterMetadata = cluster.NewMetadata(
-			options.ClusterGroupMetadata,
-			func(domain string) bool { return false },
-			metrics.NewNoopMetricsClient(),
-			testlogger.New(t),
-		)
-	}
+	clusterMetadata := cluster.GetTestClusterMetadata(true)
 	return clusterMetadata
 }
 
