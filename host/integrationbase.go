@@ -254,6 +254,7 @@ func (s *IntegrationBase) RegisterDomain(
 		VisibilityArchivalStatus:               &visibilityArchivalStatus,
 		VisibilityArchivalURI:                  visibilityArchivalURI,
 		ActiveClusters:                         activeClusters,
+		IsGlobalDomain:                         true,
 	})
 }
 
