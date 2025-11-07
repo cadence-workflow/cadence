@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -94,9 +95,7 @@ func newTransferTaskExecutorBase(
 func (t *transferTaskExecutorBase) pushActivity(
 	ctx context.Context,
 	task *persistence.ActivityTask,
-	taskList *types.TaskList,
-	activityScheduleToStartTimeout int32,
-	partitionConfig map[string]string,
+	pushActivityInfo *pushActivityToMatchingInfo,
 ) error {
 
 	ctx, cancel := context.WithTimeout(ctx, taskRPCCallTimeout)
@@ -111,9 +110,18 @@ func (t *transferTaskExecutorBase) pushActivity(
 		return err
 	}
 	if !shouldPush {
-		return nil
+		// The domain is an active-active domain and the task is pending
+		// For the first few minutes, we will retry the task and then discard it if it is still pending.
+		if t.shard.GetTimeSource().Now().Before(task.GetVisibilityTimestamp().Add(t.config.StandbyTaskMissingEventsDiscardDelay())) {
+			err = standbyTaskPostActionNoOp(ctx, task, pushActivityInfo, t.logger)
+			return err
+		}
+		return standbyTaskPostActionTaskDiscarded(ctx, task, pushActivityInfo, t.logger)
 	}
 
+	activityScheduleToStartTimeout := min(pushActivityInfo.activityScheduleToStartTimeout, constants.MaxTaskTimeout)
+	taskList := &pushActivityInfo.tasklist
+	partitionConfig := pushActivityInfo.partitionConfig
 	_, err = t.matchingClient.AddActivityTask(ctx, &types.AddActivityTaskRequest{
 		DomainUUID:       task.TargetDomainID,
 		SourceDomainUUID: task.DomainID,
@@ -132,9 +140,7 @@ func (t *transferTaskExecutorBase) pushActivity(
 func (t *transferTaskExecutorBase) pushDecision(
 	ctx context.Context,
 	task *persistence.DecisionTask,
-	tasklist *types.TaskList,
-	decisionScheduleToStartTimeout int32,
-	partitionConfig map[string]string,
+	pushDecisionInfo *pushDecisionToMatchingInfo,
 ) error {
 
 	ctx, cancel := context.WithTimeout(ctx, taskRPCCallTimeout)
@@ -149,9 +155,17 @@ func (t *transferTaskExecutorBase) pushDecision(
 		return err
 	}
 	if !shouldPush {
-		return nil
+		// The domain is an active-active domain and the task is pending
+		// For the first few minutes, we will retry the task and then discard it if it is still pending.
+		if t.shard.GetTimeSource().Now().Before(task.GetVisibilityTimestamp().Add(t.config.StandbyTaskMissingEventsDiscardDelay())) {
+			return standbyTaskPostActionNoOp(ctx, task, pushDecisionInfo, t.logger)
+		}
+		return standbyTaskPostActionTaskDiscarded(ctx, task, pushDecisionInfo, t.logger)
 	}
 
+	decisionScheduleToStartTimeout := min(pushDecisionInfo.decisionScheduleToStartTimeout, constants.MaxTaskTimeout)
+	tasklist := &pushDecisionInfo.tasklist
+	partitionConfig := pushDecisionInfo.partitionConfig
 	_, err = t.matchingClient.AddDecisionTask(ctx, &types.AddDecisionTaskRequest{
 		DomainUUID: task.DomainID,
 		Execution: &types.WorkflowExecution{

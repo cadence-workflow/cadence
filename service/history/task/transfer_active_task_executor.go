@@ -203,7 +203,7 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 
 	timeout := min(ai.ScheduleToStartTimeout, constants.MaxTaskTimeout)
 
-	taskList := &types.TaskList{
+	taskList := types.TaskList{
 		Name: ai.TaskList,
 		Kind: ai.TaskListKind.Ptr(),
 	}
@@ -219,7 +219,12 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 		return errWorkflowRateLimited
 	}
 
-	err = t.pushActivity(ctx, task, taskList, timeout, mutableState.GetExecutionInfo().PartitionConfig)
+	pushActivityInfo := &pushActivityToMatchingInfo{
+		activityScheduleToStartTimeout: timeout,
+		tasklist:                       taskList,
+		partitionConfig:                mutableState.GetExecutionInfo().PartitionConfig,
+	}
+	err = t.pushActivity(ctx, task, pushActivityInfo)
 	if err == nil {
 		scope := common.NewPerTaskListScope(domainName, taskList.Name, taskList.GetKind(), t.metricsClient, metrics.TransferActiveTaskActivityScope)
 		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, time.Since(task.GetVisibilityTimestamp()))
@@ -273,7 +278,7 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 	// that logic has a bug which timer task for that sticky decision is not generated
 	// the correct logic should check whether the decision task is a sticky decision
 	// task or not.
-	taskList := &types.TaskList{
+	taskList := types.TaskList{
 		Name: task.TaskList,
 		Kind: executionInfo.TaskListKind.Ptr(),
 	}
@@ -301,10 +306,14 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 		return errWorkflowRateLimited
 	}
 
-	err = t.pushDecision(ctx, task, taskList, decisionTimeout, mutableState.GetExecutionInfo().PartitionConfig)
+	err = t.pushDecision(ctx, task, &pushDecisionToMatchingInfo{
+		decisionScheduleToStartTimeout: decisionTimeout,
+		tasklist:                       taskList,
+		partitionConfig:                mutableState.GetExecutionInfo().PartitionConfig,
+	})
 	if _, ok := err.(*types.StickyWorkerUnavailableError); ok {
 		// sticky worker is unavailable, switch to non-sticky task list
-		taskList = &types.TaskList{
+		taskList = types.TaskList{
 			Name: mutableState.GetExecutionInfo().TaskList,
 		}
 
@@ -313,7 +322,11 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 		// There is no need to reset sticky, because if this task is picked by new worker, the new worker will reset
 		// the sticky queue to a new one. However, if worker is completely down, that schedule_to_start timeout task
 		// will re-create a new non-sticky task and reset sticky.
-		err = t.pushDecision(ctx, task, taskList, decisionTimeout, mutableState.GetExecutionInfo().PartitionConfig)
+		err = t.pushDecision(ctx, task, &pushDecisionToMatchingInfo{
+			decisionScheduleToStartTimeout: decisionTimeout,
+			tasklist:                       taskList,
+			partitionConfig:                mutableState.GetExecutionInfo().PartitionConfig,
+		})
 	}
 	if err == nil {
 		scope := common.NewPerTaskListScope(domainName, taskList.Name, taskList.GetKind(), t.metricsClient, metrics.TransferActiveTaskDecisionScope)
