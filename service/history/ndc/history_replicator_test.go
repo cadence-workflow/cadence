@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
@@ -82,6 +83,8 @@ func createTestHistoryReplicator(t *testing.T, domainID string) historyReplicato
 	// going into NewHistoryReplicator -> newTransactionManager()
 	clusterMetadata := cluster.Metadata{}
 	mockShard.EXPECT().GetClusterMetadata().Return(clusterMetadata).Times(2)
+	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
+	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).Times(2)
 	mockHistoryManager := persistence.NewMockHistoryManager(ctrl)
 	mockShard.EXPECT().GetHistoryManager().Return(mockHistoryManager).Times(3)
 
@@ -133,6 +136,8 @@ func TestNewHistoryReplicator_newBranchManager(t *testing.T) {
 
 	// going into NewHistoryReplicator -> newTransactionManager()
 	mockShard.EXPECT().GetClusterMetadata().Return(cluster.Metadata{}).Times(2)
+	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
+	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).Times(2)
 	mockHistoryManager := persistence.NewMockHistoryManager(ctrl)
 	mockShard.EXPECT().GetHistoryManager().Return(mockHistoryManager).Times(4)
 
@@ -184,6 +189,8 @@ func TestNewHistoryReplicator_newConflictResolver(t *testing.T) {
 
 	// going into NewHistoryReplicator -> newTransactionManager()
 	mockShard.EXPECT().GetClusterMetadata().Return(cluster.Metadata{}).Times(3)
+	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
+	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).Times(2)
 	mockHistoryManager := persistence.NewMockHistoryManager(ctrl)
 	mockShard.EXPECT().GetHistoryManager().Return(mockHistoryManager).Times(4)
 
@@ -238,6 +245,8 @@ func TestNewHistoryReplicator_newWorkflowResetter(t *testing.T) {
 
 	// going into NewHistoryReplicator -> newTransactionManager()
 	mockShard.EXPECT().GetClusterMetadata().Return(cluster.Metadata{}).Times(3)
+	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
+	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).Times(2)
 	mockHistoryManager := persistence.NewMockHistoryManager(ctrl)
 	mockShard.EXPECT().GetHistoryManager().Return(mockHistoryManager).Times(5)
 
@@ -299,6 +308,8 @@ func TestNewHistoryReplicator_newStateBuilder(t *testing.T) {
 
 	// going into NewHistoryReplicator -> newTransactionManager()
 	mockShard.EXPECT().GetClusterMetadata().Return(cluster.Metadata{}).Times(2)
+	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
+	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).Times(2)
 	mockHistoryManager := persistence.NewMockHistoryManager(ctrl)
 	mockShard.EXPECT().GetHistoryManager().Return(mockHistoryManager).Times(3)
 
@@ -349,6 +360,8 @@ func TestNewHistoryReplicator_newMutableState(t *testing.T) {
 
 	// going into NewHistoryReplicator -> newTransactionManager()
 	mockShard.EXPECT().GetClusterMetadata().Return(cluster.Metadata{}).Times(4)
+	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
+	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).Times(2)
 	mockHistoryManager := persistence.NewMockHistoryManager(ctrl)
 	mockShard.EXPECT().GetHistoryManager().Return(mockHistoryManager).Times(3)
 
