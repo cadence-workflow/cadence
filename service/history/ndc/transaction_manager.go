@@ -145,16 +145,16 @@ type (
 	}
 
 	transactionManagerImpl struct {
-		shard            shard.Context
-		executionCache   execution.Cache
-		clusterMetadata  cluster.Metadata
+		shard                shard.Context
+		executionCache       execution.Cache
+		clusterMetadata      cluster.Metadata
 		activeClusterManager activecluster.Manager
-		historyV2Manager persistence.HistoryManager
-		serializer       persistence.PayloadSerializer
-		metricsClient    metrics.Client
-		workflowResetter reset.WorkflowResetter
-		eventsReapplier  EventsReapplier
-		logger           log.Logger
+		historyV2Manager     persistence.HistoryManager
+		serializer           persistence.PayloadSerializer
+		metricsClient        metrics.Client
+		workflowResetter     reset.WorkflowResetter
+		eventsReapplier      EventsReapplier
+		logger               log.Logger
 
 		createManager transactionManagerForNewWorkflow
 		updateManager transactionManagerForExistingWorkflow
@@ -171,13 +171,13 @@ func newTransactionManager(
 ) *transactionManagerImpl {
 
 	transactionManager := &transactionManagerImpl{
-		shard:            shard,
-		executionCache:   executionCache,
-		clusterMetadata:  shard.GetClusterMetadata(),
+		shard:                shard,
+		executionCache:       executionCache,
+		clusterMetadata:      shard.GetClusterMetadata(),
 		activeClusterManager: shard.GetActiveClusterManager(),
-		historyV2Manager: shard.GetHistoryManager(),
-		serializer:       shard.GetService().GetPayloadSerializer(),
-		metricsClient:    shard.GetMetricsClient(),
+		historyV2Manager:     shard.GetHistoryManager(),
+		serializer:           shard.GetService().GetPayloadSerializer(),
+		metricsClient:        shard.GetMetricsClient(),
 		workflowResetter: reset.NewWorkflowResetter(
 			shard,
 			executionCache,
