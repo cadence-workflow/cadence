@@ -467,7 +467,11 @@ func (d *domainCLIImpl) FailoverDomain(c *cli.Context) error {
 		return commoncli.Problem("Error in creating context: ", err)
 	}
 
-	if !c.IsSet(FlagActiveClusterName) && !c.IsSet(FlagActiveClusters) {
+	if c.IsSet(FlagActiveClustersJSON) && c.IsSet(FlagActiveClusters) {
+		return commoncli.Problem("Cannot use both --active-clusters-json and --active-clusters flags.", nil)
+	}
+
+	if !c.IsSet(FlagActiveClusterName) && !c.IsSet(FlagActiveClusters) && !c.IsSet(FlagActiveClustersJSON) {
 		return commoncli.Problem("At least one of the flags --active-cluster-name or --active-clusters must be provided.", nil)
 	}
 
@@ -477,6 +481,14 @@ func (d *domainCLIImpl) FailoverDomain(c *cli.Context) error {
 	}
 	if c.IsSet(FlagActiveClusters) { // active-active domain failover
 		ac, err := parseActiveClustersByClusterAttribute(c.String(FlagActiveClusters))
+		if err != nil {
+			return err
+		}
+		failoverRequest.ActiveClusters = &ac
+	}
+
+	if c.IsSet(FlagActiveClustersJSON) {
+		ac, err := parseActiveClustersByClusterAttributeFromJSON(c.String(FlagActiveClustersJSON))
 		if err != nil {
 			return err
 		}
@@ -1074,6 +1086,14 @@ func clustersToStrings(clusters []*types.ClusterReplicationConfiguration) []stri
 		res = append(res, cluster.GetClusterName())
 	}
 	return res
+}
+
+func parseActiveClustersByClusterAttributeFromJSON(jsonStr string) (types.ActiveClusters, error) {
+	ac := types.ActiveClusters{}
+	if err := json.Unmarshal([]byte(jsonStr), &ac); err != nil {
+		return types.ActiveClusters{}, fmt.Errorf("couldn't parse the JSON: %w. Got %s", err, jsonStr)
+	}
+	return ac, nil
 }
 
 func parseActiveClustersByClusterAttribute(clusters string) (types.ActiveClusters, error) {
