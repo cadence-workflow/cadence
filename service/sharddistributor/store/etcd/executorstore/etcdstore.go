@@ -164,12 +164,12 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 		return fmt.Errorf("record heartbeat: %w", err)
 	}
 
-	s.updateShardStatisticsFromHeartbeat(ctx, namespace, executorID, request.ReportedShards)
+	s.recordShardStatistics(ctx, namespace, executorID, request.ReportedShards)
 
 	return nil
 }
 
-func (s *executorStoreImpl) updateShardStatisticsFromHeartbeat(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) {
+func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) {
 	if len(reported) == 0 {
 		return
 	}
@@ -223,7 +223,8 @@ func (s *executorStoreImpl) updateShardStatisticsFromHeartbeat(ctx context.Conte
 
 		var stats store.ShardStatistics
 		if len(statsResp.Kvs) > 0 {
-			if err := json.Unmarshal(statsResp.Kvs[0].Value, &stats); err != nil {
+			err := json.Unmarshal(statsResp.Kvs[0].Value, &stats)
+			if err != nil {
 				s.logger.Warn(
 					"failed to unmarshal shard statistics for heartbeat update",
 					tag.ShardNamespace(namespace),
@@ -251,7 +252,8 @@ func (s *executorStoreImpl) updateShardStatisticsFromHeartbeat(ctx context.Conte
 			continue
 		}
 
-		if _, err := s.client.Put(ctx, shardStatsKey, string(payload)); err != nil {
+		_, err = s.client.Put(ctx, shardStatsKey, string(payload))
+		if err != nil {
 			s.logger.Warn(
 				"failed to persist shard statistics from heartbeat",
 				tag.ShardNamespace(namespace),
@@ -826,7 +828,7 @@ func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, nam
 }
 
 func ewmaSmoothedLoad(prev, current float64, lastUpdate, now int64) float64 {
-	const tauSeconds = 30.0 // smaller = more responsive, larger = smoother, slower
+	const tauSeconds = 30.0 // smaller = more responsive, larger = smoother
 	if lastUpdate <= 0 || tauSeconds <= 0 {
 		return current
 	}
