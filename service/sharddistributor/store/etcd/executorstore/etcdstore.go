@@ -214,7 +214,7 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 
 		var stats store.ShardStatistics
 		if len(statsResp.Kvs) > 0 {
-			err := json.Unmarshal(statsResp.Kvs[0].Value, &stats)
+			err := common.DecompressAndUnmarshal(statsResp.Kvs[0].Value, &stats)
 			if err != nil {
 				s.logger.Warn(
 					"failed to unmarshal shard statistics for heartbeat update",
