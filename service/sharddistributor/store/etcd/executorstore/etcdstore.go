@@ -47,15 +47,6 @@ type shardStatisticsUpdate struct {
 	desiredLastMove int64 // intended LastMoveTime for this update
 }
 
-// shardMetricsUpdate tracks the etcd key, revision, and metrics used to update a shard
-// after the main transaction in AssignShards for exec state.
-type shardMetricsUpdate struct {
-	key             string
-	shardID         string
-	stats           store.ShardStatistics
-	desiredLastMove int64 // intended LastMoveTime for this update
-}
-
 // ExecutorStoreParams defines the dependencies for the etcd store, for use with fx.
 type ExecutorStoreParams struct {
 	fx.In
