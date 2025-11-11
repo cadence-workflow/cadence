@@ -95,6 +95,7 @@ type (
 		// persistence clients
 
 		MetadataMgr     *mocks.MetadataManager
+		DomainAuditMgr  *persistence.MockDomainAuditManager
 		TaskMgr         *mocks.TaskManager
 		VisibilityMgr   *mocks.VisibilityManager
 		ShardMgr        *mocks.ShardManager
@@ -145,6 +146,7 @@ func NewTest(
 	clientBean.EXPECT().GetRemoteFrontendClient(gomock.Any()).Return(remoteFrontendClient, nil).AnyTimes()
 
 	metadataMgr := &mocks.MetadataManager{}
+	domainAuditMgr := persistence.NewMockDomainAuditManager(controller)
 	taskMgr := &mocks.TaskManager{}
 	visibilityMgr := &mocks.VisibilityManager{}
 	shardMgr := &mocks.ShardManager{}
@@ -155,6 +157,7 @@ func NewTest(
 	domainReplicationQueue.EXPECT().Stop().AnyTimes()
 	persistenceBean := persistenceClient.NewMockBean(controller)
 	persistenceBean.EXPECT().GetDomainManager().Return(metadataMgr).AnyTimes()
+	persistenceBean.EXPECT().GetDomainAuditManager().Return(domainAuditMgr).AnyTimes()
 	persistenceBean.EXPECT().GetTaskManager().Return(taskMgr).AnyTimes()
 	persistenceBean.EXPECT().GetVisibilityManager().Return(visibilityMgr).AnyTimes()
 	persistenceBean.EXPECT().GetHistoryManager().Return(historyMgr).AnyTimes()
@@ -206,6 +209,7 @@ func NewTest(
 		// persistence clients
 
 		MetadataMgr:     metadataMgr,
+		DomainAuditMgr:  domainAuditMgr,
 		TaskMgr:         taskMgr,
 		VisibilityMgr:   visibilityMgr,
 		ShardMgr:        shardMgr,
@@ -380,6 +384,11 @@ func (s *Test) GetClientBean() client.Bean {
 // GetMetadataManager for testing
 func (s *Test) GetDomainManager() persistence.DomainManager {
 	return s.MetadataMgr
+}
+
+// GetDomainAuditManager for testing
+func (s *Test) GetDomainAuditManager() persistence.DomainAuditManager {
+	return s.DomainAuditMgr
 }
 
 // GetTaskManager for testing

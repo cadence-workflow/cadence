@@ -194,6 +194,20 @@ func (mr *MockResourceMockRecorder) GetDispatcher() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDispatcher", reflect.TypeOf((*MockResource)(nil).GetDispatcher))
 }
 
+// GetDomainAuditManager mocks base method.
+func (m *MockResource) GetDomainAuditManager() persistence.DomainAuditManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDomainAuditManager")
+	ret0, _ := ret[0].(persistence.DomainAuditManager)
+	return ret0
+}
+
+// GetDomainAuditManager indicates an expected call of GetDomainAuditManager.
+func (mr *MockResourceMockRecorder) GetDomainAuditManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainAuditManager", reflect.TypeOf((*MockResource)(nil).GetDomainAuditManager))
+}
+
 // GetDomainCache mocks base method.
 func (m *MockResource) GetDomainCache() cache.DomainCache {
 	m.ctrl.T.Helper()

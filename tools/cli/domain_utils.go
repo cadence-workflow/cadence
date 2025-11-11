@@ -278,11 +278,10 @@ var (
 	}
 
 	listFailoverHistoryFlags = []cli.Flag{
-		&cli.IntFlag{
-			Name:    FlagPageSize,
-			Aliases: []string{"ps"},
-			Usage:   "Page size for pagination (default: 5)",
-			Value:   5,
+		&cli.BoolFlag{
+			Name:    FlagAll,
+			Aliases: []string{"a"},
+			Usage:   "List all failover history events",
 		},
 		&cli.BoolFlag{
 			Name:    FlagPrintJSON,
@@ -396,6 +395,7 @@ func initializeDomainHandler(
 		domainConfig,
 		logger,
 		domainManager,
+		nil, // domainAuditManager not needed for CLI tools
 		clusterMetadata,
 		initializeDomainReplicator(logger),
 		archivalMetadata,

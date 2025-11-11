@@ -94,6 +94,14 @@ type (
 		GetMetadata(ctx context.Context) (*GetMetadataResponse, error)
 	}
 
+	// DomainAuditStore is a lower level of DomainAuditManager
+	DomainAuditStore interface {
+		Closeable
+		GetName() string
+		CreateDomainAuditLog(ctx context.Context, request *InternalCreateDomainAuditLogRequest) (*CreateDomainAuditLogResponse, error)
+		GetDomainAuditLogs(ctx context.Context, request *GetDomainAuditLogsRequest) (*InternalGetDomainAuditLogsResponse, error)
+	}
+
 	// ExecutionStore is used to manage workflow executions for Persistence layer
 	ExecutionStore interface {
 		Closeable
@@ -863,6 +871,42 @@ type (
 	InternalListDomainsResponse struct {
 		Domains       []*InternalGetDomainResponse
 		NextPageToken []byte
+	}
+
+	DomainAuditOperationType int
+
+	// InternalCreateDomainAuditLogRequest is used to create a domain audit log entry
+	InternalCreateDomainAuditLogRequest struct {
+		DomainID        string
+		EventID         string
+		StateBefore     *DataBlob
+		StateAfter      *DataBlob
+		OperationType   DomainAuditOperationType
+		CreatedTime     time.Time
+		LastUpdatedTime time.Time
+		Identity        string
+		IdentityType    string
+		Comment         string
+	}
+
+	// InternalGetDomainAuditLogsResponse is the response for GetDomainAuditLogs
+	InternalGetDomainAuditLogsResponse struct {
+		AuditLogs     []*InternalDomainAuditLog
+		NextPageToken []byte
+	}
+
+	// InternalDomainAuditLog represents a single internal domain audit log entry
+	InternalDomainAuditLog struct {
+		EventID         string
+		DomainID        string
+		StateBefore     *DataBlob
+		StateAfter      *DataBlob
+		OperationType   DomainAuditOperationType
+		CreatedTime     time.Time
+		LastUpdatedTime time.Time
+		Identity        string
+		IdentityType    string
+		Comment         string
 	}
 
 	// InternalShardInfo describes a shard

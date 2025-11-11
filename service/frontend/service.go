@@ -134,6 +134,7 @@ func (s *Service) Start() {
 		s.config.DomainConfig,
 		s.GetLogger(),
 		s.GetDomainManager(),
+		s.GetDomainAuditManager(),
 		s.GetClusterMetadata(),
 		domain.NewDomainReplicator(s.GetDomainReplicationQueue(), s.GetLogger()),
 		s.GetArchivalMetadata(),

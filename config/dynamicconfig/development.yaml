@@ -22,6 +22,9 @@ history.EnableConsistentQueryByDomain:
 history.useNewInitialFailoverVersion:
 - value: true
   constraints: {}
+frontend.enableDomainAuditLogging:
+- value: true
+  constraints: {}
 history.enableStrongIdempotency:
 - value: true
   constraints: {}

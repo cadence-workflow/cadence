@@ -110,6 +110,11 @@ func (f *Factory) NewDomainStore() (p.DomainStore, error) {
 	return newMetadataPersistenceV2(conn, f.clusterName, f.logger, f.parser)
 }
 
+// NewDomainAuditStore returns a domain audit store
+func (f *Factory) NewDomainAuditStore() (p.DomainAuditStore, error) {
+	return nil, nil
+}
+
 // NewExecutionStore returns an ExecutionStore for a given shardID
 func (f *Factory) NewExecutionStore(shardID int) (p.ExecutionStore, error) {
 	conn, err := f.dbConn.get()

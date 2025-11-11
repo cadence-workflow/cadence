@@ -626,6 +626,11 @@ func (h *Impl) GetDomainManager() persistence.DomainManager {
 	return h.persistenceBean.GetDomainManager()
 }
 
+// GetDomainAuditManager return domain audit manager
+func (h *Impl) GetDomainAuditManager() persistence.DomainAuditManager {
+	return h.persistenceBean.GetDomainAuditManager()
+}
+
 // GetTaskManager return task manager
 func (h *Impl) GetTaskManager() persistence.TaskManager {
 	return h.persistenceBean.GetTaskManager()

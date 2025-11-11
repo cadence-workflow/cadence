@@ -668,12 +668,11 @@ type ActiveClusterInfoRow struct {
 }
 
 type FailoverHistoryRow struct {
-	EventID      string    `header:"Event ID"`
-	CreatedTime  time.Time `header:"Created Time"`
-	FailoverType string    `header:"Failover Type"`
-	FromCluster  string    `header:"From Cluster"`
-	ToCluster    string    `header:"To Cluster"`
-	Attribute    string    `header:"Cluster Attribute"`
+	EventID     string    `header:"Event ID"`
+	CreatedTime time.Time `header:"Created Time"`
+	FromCluster string    `header:"From Cluster"`
+	ToCluster   string    `header:"To Cluster"`
+	Attribute   string    `header:"Cluster Attribute"`
 }
 
 type DomainRow struct {
@@ -775,9 +774,8 @@ func newBadBinaryRows(bb *types.BadBinaries) []BadBinaryRow {
 
 func newFailoverHistoryRow(event *types.FailoverEvent) FailoverHistoryRow {
 	row := FailoverHistoryRow{
-		EventID:      event.GetID(),
-		CreatedTime:  time.Unix(0, event.GetCreatedTime()),
-		FailoverType: failoverTypeToString(event.GetFailoverType()),
+		EventID:     event.GetID(),
+		CreatedTime: time.Unix(0, event.GetCreatedTime()),
 	}
 
 	// Extract cluster failover information
@@ -797,17 +795,6 @@ func newFailoverHistoryRow(event *types.FailoverEvent) FailoverHistoryRow {
 	}
 
 	return row
-}
-
-func failoverTypeToString(ft types.FailoverType) string {
-	switch ft {
-	case types.FailoverTypeForce:
-		return "FORCE"
-	case types.FailoverTypeGraceful:
-		return "GRACEFUL"
-	default:
-		return "UNKNOWN"
-	}
 }
 
 func domainTableOptions(c *cli.Context) RenderOptions {
@@ -979,31 +966,50 @@ func (d *domainCLIImpl) ListFailoverHistory(c *cli.Context) error {
 	}
 
 	domainID := describeResp.DomainInfo.GetUUID()
-	pageSize := c.Int(FlagPageSize)
+
+	limit := 10
+	if c.Bool(FlagAll) {
+		limit = -1
+	}
+
 	printJSON := c.Bool(FlagPrintJSON)
+	allResponses := &types.ListFailoverHistoryResponse{}
 
-	request := &types.ListFailoverHistoryRequest{
-		Filters: &types.ListFailoverHistoryRequestFilters{
-			DomainID: domainID,
-		},
-		Pagination: &types.PaginationOptions{
-			PageSize: common.Int32Ptr(int32(pageSize)),
-		},
-	}
+	var nextPageToken []byte
 
-	ctx, cancel, err = newContext(c)
-	defer cancel()
-	if err != nil {
-		return commoncli.Problem("Error in creating context: ", err)
-	}
+	for {
+		request := &types.ListFailoverHistoryRequest{
+			Filters: &types.ListFailoverHistoryRequestFilters{
+				DomainID: domainID,
+			},
+			Pagination: &types.PaginationOptions{
+				PageSize:      common.Int32Ptr(int32(10)),
+				NextPageToken: nextPageToken,
+			},
+		}
 
-	resp, err := d.frontendClient.ListFailoverHistory(ctx, request)
-	if err != nil {
-		return commoncli.Problem("Failed to list failover history.", err)
+		ctx, cancel, err = newContext(c)
+		if err != nil {
+			return commoncli.Problem("Error in creating context: ", err)
+		}
+
+		resp, err := d.frontendClient.ListFailoverHistory(ctx, request)
+		cancel()
+		if err != nil {
+			return commoncli.Problem("Failed to list failover history.", err)
+		}
+		allResponses.FailoverEvents = append(allResponses.FailoverEvents, resp.FailoverEvents...)
+		nextPageToken = resp.NextPageToken
+		if len(nextPageToken) == 0 || nextPageToken == nil {
+			break
+		}
+		if limit > 0 && len(allResponses.FailoverEvents) >= int(limit) {
+			break
+		}
 	}
 
 	if printJSON {
-		output, err := json.Marshal(resp)
+		output, err := json.Marshal(allResponses)
 		if err != nil {
 			return commoncli.Problem("Failed to encode failover history into JSON.", err)
 		}
@@ -1012,8 +1018,8 @@ func (d *domainCLIImpl) ListFailoverHistory(c *cli.Context) error {
 	}
 
 	// Convert failover events to rows for display
-	rows := make([]FailoverHistoryRow, 0, len(resp.GetFailoverEvents()))
-	for _, event := range resp.GetFailoverEvents() {
+	rows := make([]FailoverHistoryRow, 0, len(allResponses.GetFailoverEvents()))
+	for _, event := range allResponses.GetFailoverEvents() {
 		rows = append(rows, newFailoverHistoryRow(event))
 	}
 

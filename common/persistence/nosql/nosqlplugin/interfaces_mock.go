@@ -431,6 +431,20 @@ func (mr *MockDBMockRecorder) InsertDomain(ctx, row any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDomain", reflect.TypeOf((*MockDB)(nil).InsertDomain), ctx, row)
 }
 
+// InsertDomainAuditLog mocks base method.
+func (m *MockDB) InsertDomainAuditLog(ctx context.Context, row *DomainAuditLogRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertDomainAuditLog", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertDomainAuditLog indicates an expected call of InsertDomainAuditLog.
+func (mr *MockDBMockRecorder) InsertDomainAuditLog(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDomainAuditLog", reflect.TypeOf((*MockDB)(nil).InsertDomainAuditLog), ctx, row)
+}
+
 // InsertIntoHistoryTreeAndNode mocks base method.
 func (m *MockDB) InsertIntoHistoryTreeAndNode(ctx context.Context, treeRow *HistoryTreeRow, nodeRow *HistoryNodeRow) error {
 	m.ctrl.T.Helper()
@@ -849,6 +863,22 @@ func (m *MockDB) SelectDomain(ctx context.Context, domainID, domainName *string)
 func (mr *MockDBMockRecorder) SelectDomain(ctx, domainID, domainName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectDomain", reflect.TypeOf((*MockDB)(nil).SelectDomain), ctx, domainID, domainName)
+}
+
+// SelectDomainAuditLogs mocks base method.
+func (m *MockDB) SelectDomainAuditLogs(ctx context.Context, filter *DomainAuditLogFilter) ([]*DomainAuditLogRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectDomainAuditLogs", ctx, filter)
+	ret0, _ := ret[0].([]*DomainAuditLogRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectDomainAuditLogs indicates an expected call of SelectDomainAuditLogs.
+func (mr *MockDBMockRecorder) SelectDomainAuditLogs(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectDomainAuditLogs", reflect.TypeOf((*MockDB)(nil).SelectDomainAuditLogs), ctx, filter)
 }
 
 // SelectDomainMetadata mocks base method.
@@ -1546,6 +1576,20 @@ func (mr *MocktableCRUDMockRecorder) InsertDomain(ctx, row any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDomain", reflect.TypeOf((*MocktableCRUD)(nil).InsertDomain), ctx, row)
 }
 
+// InsertDomainAuditLog mocks base method.
+func (m *MocktableCRUD) InsertDomainAuditLog(ctx context.Context, row *DomainAuditLogRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertDomainAuditLog", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertDomainAuditLog indicates an expected call of InsertDomainAuditLog.
+func (mr *MocktableCRUDMockRecorder) InsertDomainAuditLog(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDomainAuditLog", reflect.TypeOf((*MocktableCRUD)(nil).InsertDomainAuditLog), ctx, row)
+}
+
 // InsertIntoHistoryTreeAndNode mocks base method.
 func (m *MocktableCRUD) InsertIntoHistoryTreeAndNode(ctx context.Context, treeRow *HistoryTreeRow, nodeRow *HistoryNodeRow) error {
 	m.ctrl.T.Helper()
@@ -1894,6 +1938,22 @@ func (m *MocktableCRUD) SelectDomain(ctx context.Context, domainID, domainName *
 func (mr *MocktableCRUDMockRecorder) SelectDomain(ctx, domainID, domainName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectDomain", reflect.TypeOf((*MocktableCRUD)(nil).SelectDomain), ctx, domainID, domainName)
+}
+
+// SelectDomainAuditLogs mocks base method.
+func (m *MocktableCRUD) SelectDomainAuditLogs(ctx context.Context, filter *DomainAuditLogFilter) ([]*DomainAuditLogRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectDomainAuditLogs", ctx, filter)
+	ret0, _ := ret[0].([]*DomainAuditLogRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectDomainAuditLogs indicates an expected call of SelectDomainAuditLogs.
+func (mr *MocktableCRUDMockRecorder) SelectDomainAuditLogs(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectDomainAuditLogs", reflect.TypeOf((*MocktableCRUD)(nil).SelectDomainAuditLogs), ctx, filter)
 }
 
 // SelectDomainMetadata mocks base method.
@@ -3590,4 +3650,58 @@ func (m *MockConfigStoreCRUD) SelectLatestConfig(ctx context.Context, rowType in
 func (mr *MockConfigStoreCRUDMockRecorder) SelectLatestConfig(ctx, rowType any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectLatestConfig", reflect.TypeOf((*MockConfigStoreCRUD)(nil).SelectLatestConfig), ctx, rowType)
+}
+
+// MockDomainAuditLogCRUD is a mock of DomainAuditLogCRUD interface.
+type MockDomainAuditLogCRUD struct {
+	ctrl     *gomock.Controller
+	recorder *MockDomainAuditLogCRUDMockRecorder
+	isgomock struct{}
+}
+
+// MockDomainAuditLogCRUDMockRecorder is the mock recorder for MockDomainAuditLogCRUD.
+type MockDomainAuditLogCRUDMockRecorder struct {
+	mock *MockDomainAuditLogCRUD
+}
+
+// NewMockDomainAuditLogCRUD creates a new mock instance.
+func NewMockDomainAuditLogCRUD(ctrl *gomock.Controller) *MockDomainAuditLogCRUD {
+	mock := &MockDomainAuditLogCRUD{ctrl: ctrl}
+	mock.recorder = &MockDomainAuditLogCRUDMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockDomainAuditLogCRUD) EXPECT() *MockDomainAuditLogCRUDMockRecorder {
+	return m.recorder
+}
+
+// InsertDomainAuditLog mocks base method.
+func (m *MockDomainAuditLogCRUD) InsertDomainAuditLog(ctx context.Context, row *DomainAuditLogRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertDomainAuditLog", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertDomainAuditLog indicates an expected call of InsertDomainAuditLog.
+func (mr *MockDomainAuditLogCRUDMockRecorder) InsertDomainAuditLog(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDomainAuditLog", reflect.TypeOf((*MockDomainAuditLogCRUD)(nil).InsertDomainAuditLog), ctx, row)
+}
+
+// SelectDomainAuditLogs mocks base method.
+func (m *MockDomainAuditLogCRUD) SelectDomainAuditLogs(ctx context.Context, filter *DomainAuditLogFilter) ([]*DomainAuditLogRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectDomainAuditLogs", ctx, filter)
+	ret0, _ := ret[0].([]*DomainAuditLogRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectDomainAuditLogs indicates an expected call of SelectDomainAuditLogs.
+func (mr *MockDomainAuditLogCRUDMockRecorder) SelectDomainAuditLogs(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectDomainAuditLogs", reflect.TypeOf((*MockDomainAuditLogCRUD)(nil).SelectDomainAuditLogs), ctx, filter)
 }

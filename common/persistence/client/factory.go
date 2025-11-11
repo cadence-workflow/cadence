@@ -64,6 +64,8 @@ type (
 		NewHistoryManager() (p.HistoryManager, error)
 		// NewDomainManager returns a new metadata manager
 		NewDomainManager() (p.DomainManager, error)
+		// NewDomainAuditManager returns a new domain audit manager
+		NewDomainAuditManager() (p.DomainAuditManager, error)
 		// NewExecutionManager returns a new execution manager for a given shardID
 		NewExecutionManager(shardID int) (p.ExecutionManager, error)
 		// NewVisibilityManager returns a new visibility manager
@@ -86,6 +88,8 @@ type (
 		NewHistoryStore() (p.HistoryStore, error)
 		// NewDomainStore returns a new metadata store
 		NewDomainStore() (p.DomainStore, error)
+		// NewDomainAuditStore returns a new domain audit store
+		NewDomainAuditStore() (p.DomainAuditStore, error)
 		// NewExecutionStore returns an execution store for given shardID
 		NewExecutionStore(shardID int) (p.ExecutionStore, error)
 		// NewVisibilityStore returns a new visibility store,
@@ -243,6 +247,23 @@ func (f *factoryImpl) NewDomainManager() (p.DomainManager, error) {
 	if f.metricsClient != nil {
 		result = metered.NewDomainManager(result, f.metricsClient, f.logger, f.config)
 	}
+	return result, nil
+}
+
+// NewDomainAuditManager returns a new domain audit manager
+func (f *factoryImpl) NewDomainAuditManager() (p.DomainAuditManager, error) {
+	var err error
+	var store p.DomainAuditStore
+
+	ds := f.datastores[storeTypeMetadata]
+	store, err = ds.factory.NewDomainAuditStore()
+	if err != nil {
+		return nil, err
+	}
+	if store == nil {
+		return nil, nil
+	}
+	result := p.NewDomainAuditManagerImpl(store, f.logger, p.NewPayloadSerializer(), f.dc)
 	return result, nil
 }
 

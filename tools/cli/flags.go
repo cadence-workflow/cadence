@@ -100,6 +100,7 @@ const (
 	FlagForce                          = "force"
 	FlagPageID                         = "page_id"
 	FlagPageSize                       = "pagesize"
+	FlagLimit                          = "limit"
 	FlagEarliestTime                   = "earliest_time"
 	FlagLatestTime                     = "latest_time"
 	FlagPrintEventVersion              = "print_event_version"
