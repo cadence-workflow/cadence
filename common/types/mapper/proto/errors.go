@@ -112,24 +112,33 @@ func ToError(err error) error {
 	case yarpcerrors.CodeNotFound:
 		switch details := getErrorDetails(err).(type) {
 		case *apiv1.EntityNotExistsError:
+			if details != nil {
+				return &types.EntityNotExistsError{
+					Message:        status.Message(),
+					CurrentCluster: details.CurrentCluster,
+					ActiveCluster:  details.ActiveCluster,
+					ActiveClusters: details.ActiveClusters,
+				}
+			}
 			return &types.EntityNotExistsError{
-				Message:        status.Message(),
-				CurrentCluster: details.CurrentCluster,
-				ActiveCluster:  details.ActiveCluster,
-				ActiveClusters: details.ActiveClusters,
+				Message: status.Message(),
 			}
 		case *apiv1.WorkflowExecutionAlreadyCompletedError:
 			return &types.WorkflowExecutionAlreadyCompletedError{
 				Message: status.Message(),
 			}
 		case *sharddistributorv1.NamespaceNotFoundError:
-			return &types.NamespaceNotFoundError{
-				Namespace: details.Namespace,
+			if details != nil {
+				return &types.NamespaceNotFoundError{
+					Namespace: details.Namespace,
+				}
 			}
 		case *sharddistributorv1.ShardNotFoundError:
-			return &types.ShardNotFoundError{
-				Namespace: details.Namespace,
-				ShardKey:  details.ShardKey,
+			if details != nil {
+				return &types.ShardNotFoundError{
+					Namespace: details.Namespace,
+					ShardKey:  details.ShardKey,
+				}
 			}
 		}
 	case yarpcerrors.CodeInvalidArgument:
@@ -146,31 +155,39 @@ func ToError(err error) error {
 	case yarpcerrors.CodeAborted:
 		switch details := getErrorDetails(err).(type) {
 		case *sharedv1.ShardOwnershipLostError:
-			return &types.ShardOwnershipLostError{
-				Message: status.Message(),
-				Owner:   details.Owner,
+			if details != nil {
+				return &types.ShardOwnershipLostError{
+					Message: status.Message(),
+					Owner:   details.Owner,
+				}
 			}
 		case *sharedv1.TaskListNotOwnedByHostError:
-			return &cadence_errors.TaskListNotOwnedByHostError{
-				OwnedByIdentity: details.OwnedByIdentity,
-				MyIdentity:      details.MyIdentity,
-				TasklistName:    details.TaskListName,
+			if details != nil {
+				return &cadence_errors.TaskListNotOwnedByHostError{
+					OwnedByIdentity: details.OwnedByIdentity,
+					MyIdentity:      details.MyIdentity,
+					TasklistName:    details.TaskListName,
+				}
 			}
 		case *sharedv1.CurrentBranchChangedError:
-			return &types.CurrentBranchChangedError{
-				Message:            status.Message(),
-				CurrentBranchToken: details.CurrentBranchToken,
+			if details != nil {
+				return &types.CurrentBranchChangedError{
+					Message:            status.Message(),
+					CurrentBranchToken: details.CurrentBranchToken,
+				}
 			}
 		case *sharedv1.RetryTaskV2Error:
-			return &types.RetryTaskV2Error{
-				Message:           status.Message(),
-				DomainID:          details.DomainId,
-				WorkflowID:        ToWorkflowID(details.WorkflowExecution),
-				RunID:             ToRunID(details.WorkflowExecution),
-				StartEventID:      ToEventID(details.StartEvent),
-				StartEventVersion: ToEventVersion(details.StartEvent),
-				EndEventID:        ToEventID(details.EndEvent),
-				EndEventVersion:   ToEventVersion(details.EndEvent),
+			if details != nil {
+				return &types.RetryTaskV2Error{
+					Message:           status.Message(),
+					DomainID:          details.DomainId,
+					WorkflowID:        ToWorkflowID(details.WorkflowExecution),
+					RunID:             ToRunID(details.WorkflowExecution),
+					StartEventID:      ToEventID(details.StartEvent),
+					StartEventVersion: ToEventVersion(details.StartEvent),
+					EndEventID:        ToEventID(details.EndEvent),
+					EndEventVersion:   ToEventVersion(details.EndEvent),
+				}
 			}
 		}
 	case yarpcerrors.CodeAlreadyExists:
@@ -188,10 +205,12 @@ func ToError(err error) error {
 				Message: status.Message(),
 			}
 		case *apiv1.WorkflowExecutionAlreadyStartedError:
-			return &types.WorkflowExecutionAlreadyStartedError{
-				Message:        status.Message(),
-				StartRequestID: details.StartRequestId,
-				RunID:          details.RunId,
+			if details != nil {
+				return &types.WorkflowExecutionAlreadyStartedError{
+					Message:        status.Message(),
+					StartRequestID: details.StartRequestId,
+					RunID:          details.RunId,
+				}
 			}
 		}
 	case yarpcerrors.CodeDataLoss:
@@ -201,22 +220,28 @@ func ToError(err error) error {
 	case yarpcerrors.CodeFailedPrecondition:
 		switch details := getErrorDetails(err).(type) {
 		case *apiv1.ClientVersionNotSupportedError:
-			return &types.ClientVersionNotSupportedError{
-				FeatureVersion:    details.FeatureVersion,
-				ClientImpl:        details.ClientImpl,
-				SupportedVersions: details.SupportedVersions,
+			if details != nil {
+				return &types.ClientVersionNotSupportedError{
+					FeatureVersion:    details.FeatureVersion,
+					ClientImpl:        details.ClientImpl,
+					SupportedVersions: details.SupportedVersions,
+				}
 			}
 		case *apiv1.FeatureNotEnabledError:
-			return &types.FeatureNotEnabledError{
-				FeatureFlag: details.FeatureFlag,
+			if details != nil {
+				return &types.FeatureNotEnabledError{
+					FeatureFlag: details.FeatureFlag,
+				}
 			}
 		case *apiv1.DomainNotActiveError:
-			return &types.DomainNotActiveError{
-				Message:        status.Message(),
-				DomainName:     details.Domain,
-				CurrentCluster: details.CurrentCluster,
-				ActiveCluster:  details.ActiveCluster,
-				ActiveClusters: details.ActiveClusters,
+			if details != nil {
+				return &types.DomainNotActiveError{
+					Message:        status.Message(),
+					DomainName:     details.Domain,
+					CurrentCluster: details.CurrentCluster,
+					ActiveCluster:  details.ActiveCluster,
+					ActiveClusters: details.ActiveClusters,
+				}
 			}
 		}
 	case yarpcerrors.CodeResourceExhausted:
@@ -226,9 +251,11 @@ func ToError(err error) error {
 				Message: status.Message(),
 			}
 		case *apiv1.ServiceBusyError:
-			return &types.ServiceBusyError{
-				Message: status.Message(),
-				Reason:  details.Reason,
+			if details != nil {
+				return &types.ServiceBusyError{
+					Message: status.Message(),
+					Reason:  details.Reason,
+				}
 			}
 		}
 	case yarpcerrors.CodeUnavailable:
