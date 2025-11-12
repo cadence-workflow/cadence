@@ -1791,3 +1791,496 @@ func TestVirtualQueue_MergeWithLastSlice(t *testing.T) {
 		})
 	}
 }
+
+func TestVirtualQueue_InsertSingleTask(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupMocks     func(ctrl *gomock.Controller) ([]VirtualSlice, task.Task, task.Processor, task.Rescheduler, Monitor, clock.TimeSource)
+		expectedResult bool
+	}{
+		{
+			name: "Successfully insert task into first slice",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, task.Task, task.Processor, task.Rescheduler, Monitor, clock.TimeSource) {
+				mockSlice1 := NewMockVirtualSlice(ctrl)
+				mockSlice2 := NewMockVirtualSlice(ctrl)
+				mockTask := task.NewMockTask(ctrl)
+				mockProcessor := task.NewMockProcessor(ctrl)
+				mockRescheduler := task.NewMockRescheduler(ctrl)
+				mockMonitor := NewMockMonitor(ctrl)
+				mockTimeSource := clock.NewMockedTimeSource()
+
+				mockSlice1.EXPECT().InsertTask(mockTask).Return(true)
+				mockSlice1.EXPECT().GetPendingTaskCount().Return(5)
+				mockMonitor.EXPECT().SetSlicePendingTaskCount(mockSlice1, 5)
+
+				mockTask.EXPECT().GetDomainID().Return("test-domain").AnyTimes()
+				mockTask.EXPECT().GetWorkflowID().Return("test-workflow").AnyTimes()
+				mockTask.EXPECT().GetRunID().Return("test-run").AnyTimes()
+				mockTask.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(mockTimeSource.Now().Add(-time.Second), 1))
+				mockTask.EXPECT().GetVisibilityTimestamp().Return(mockTimeSource.Now().Add(-time.Second))
+				mockTask.EXPECT().SetInitialSubmitTime(gomock.Any())
+				mockProcessor.EXPECT().TrySubmit(mockTask).Return(true, nil)
+
+				return []VirtualSlice{mockSlice1, mockSlice2}, mockTask, mockProcessor, mockRescheduler, mockMonitor, mockTimeSource
+			},
+			expectedResult: true,
+		},
+		{
+			name: "Successfully insert task into second slice",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, task.Task, task.Processor, task.Rescheduler, Monitor, clock.TimeSource) {
+				mockSlice1 := NewMockVirtualSlice(ctrl)
+				mockSlice2 := NewMockVirtualSlice(ctrl)
+				mockTask := task.NewMockTask(ctrl)
+				mockProcessor := task.NewMockProcessor(ctrl)
+				mockRescheduler := task.NewMockRescheduler(ctrl)
+				mockMonitor := NewMockMonitor(ctrl)
+				mockTimeSource := clock.NewMockedTimeSource()
+
+				mockSlice1.EXPECT().InsertTask(mockTask).Return(false)
+				mockSlice2.EXPECT().InsertTask(mockTask).Return(true)
+				mockSlice2.EXPECT().GetPendingTaskCount().Return(3)
+				mockMonitor.EXPECT().SetSlicePendingTaskCount(mockSlice2, 3)
+
+				mockTask.EXPECT().GetDomainID().Return("test-domain").AnyTimes()
+				mockTask.EXPECT().GetWorkflowID().Return("test-workflow").AnyTimes()
+				mockTask.EXPECT().GetRunID().Return("test-run").AnyTimes()
+				mockTask.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(mockTimeSource.Now().Add(-time.Second), 1))
+				mockTask.EXPECT().GetVisibilityTimestamp().Return(mockTimeSource.Now().Add(-time.Second))
+				mockTask.EXPECT().SetInitialSubmitTime(gomock.Any())
+				mockProcessor.EXPECT().TrySubmit(mockTask).Return(true, nil)
+
+				return []VirtualSlice{mockSlice1, mockSlice2}, mockTask, mockProcessor, mockRescheduler, mockMonitor, mockTimeSource
+			},
+			expectedResult: true,
+		},
+		{
+			name: "No slice accepts the task",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, task.Task, task.Processor, task.Rescheduler, Monitor, clock.TimeSource) {
+				mockSlice1 := NewMockVirtualSlice(ctrl)
+				mockSlice2 := NewMockVirtualSlice(ctrl)
+				mockTask := task.NewMockTask(ctrl)
+				mockProcessor := task.NewMockProcessor(ctrl)
+				mockRescheduler := task.NewMockRescheduler(ctrl)
+				mockMonitor := NewMockMonitor(ctrl)
+				mockTimeSource := clock.NewMockedTimeSource()
+
+				mockSlice1.EXPECT().InsertTask(mockTask).Return(false)
+				mockSlice2.EXPECT().InsertTask(mockTask).Return(false)
+
+				return []VirtualSlice{mockSlice1, mockSlice2}, mockTask, mockProcessor, mockRescheduler, mockMonitor, mockTimeSource
+			},
+			expectedResult: false,
+		},
+		{
+			name: "Insert task with submission error",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, task.Task, task.Processor, task.Rescheduler, Monitor, clock.TimeSource) {
+				mockSlice1 := NewMockVirtualSlice(ctrl)
+				mockTask := task.NewMockTask(ctrl)
+				mockProcessor := task.NewMockProcessor(ctrl)
+				mockRescheduler := task.NewMockRescheduler(ctrl)
+				mockMonitor := NewMockMonitor(ctrl)
+				mockTimeSource := clock.NewMockedTimeSource()
+
+				mockSlice1.EXPECT().InsertTask(mockTask).Return(true)
+				mockSlice1.EXPECT().GetPendingTaskCount().Return(1)
+				mockMonitor.EXPECT().SetSlicePendingTaskCount(mockSlice1, 1)
+
+				mockTask.EXPECT().GetDomainID().Return("test-domain").AnyTimes()
+				mockTask.EXPECT().GetWorkflowID().Return("test-workflow").AnyTimes()
+				mockTask.EXPECT().GetRunID().Return("test-run").AnyTimes()
+				mockTask.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(mockTimeSource.Now().Add(-time.Second), 1))
+				mockTask.EXPECT().GetVisibilityTimestamp().Return(mockTimeSource.Now().Add(-time.Second))
+				mockTask.EXPECT().SetInitialSubmitTime(gomock.Any())
+				mockProcessor.EXPECT().TrySubmit(mockTask).Return(true, assert.AnError)
+
+				return []VirtualSlice{mockSlice1}, mockTask, mockProcessor, mockRescheduler, mockMonitor, mockTimeSource
+			},
+			expectedResult: true,
+		},
+		{
+			name: "Insert task with empty slice list",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, task.Task, task.Processor, task.Rescheduler, Monitor, clock.TimeSource) {
+				mockTask := task.NewMockTask(ctrl)
+				mockProcessor := task.NewMockProcessor(ctrl)
+				mockRescheduler := task.NewMockRescheduler(ctrl)
+				mockMonitor := NewMockMonitor(ctrl)
+				mockTimeSource := clock.NewMockedTimeSource()
+
+				return []VirtualSlice{}, mockTask, mockProcessor, mockRescheduler, mockMonitor, mockTimeSource
+			},
+			expectedResult: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			slices, mockTask, mockProcessor, mockRescheduler, mockMonitor, mockTimeSource := tt.setupMocks(ctrl)
+			mockLogger := testlogger.New(t)
+			mockMetricsScope := metrics.NoopScope
+			mockRateLimiter := quotas.NewMockLimiter(ctrl)
+
+			queue := NewVirtualQueue(
+				mockProcessor,
+				mockRescheduler,
+				mockLogger,
+				mockMetricsScope,
+				mockTimeSource,
+				mockRateLimiter,
+				mockMonitor,
+				slices,
+				&VirtualQueueOptions{
+					PageSize:                             dynamicproperties.GetIntPropertyFn(10),
+					MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+					PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+					PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
+				},
+			)
+
+			result := queue.InsertSingleTask(mockTask)
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
+
+func TestVirtualQueue_ResetProgress(t *testing.T) {
+	tests := []struct {
+		name                   string
+		setupMocks             func(ctrl *gomock.Controller) ([]VirtualSlice, Monitor, persistence.HistoryTaskKey)
+		expectedSliceToReadIdx *int
+	}{
+		{
+			name: "Reset progress on all slices before sliceToRead",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, Monitor, persistence.HistoryTaskKey) {
+				mockSlice1 := NewMockVirtualSlice(ctrl)
+				mockSlice2 := NewMockVirtualSlice(ctrl)
+				mockSlice3 := NewMockVirtualSlice(ctrl)
+				mockMonitor := NewMockMonitor(ctrl)
+				resetKey := persistence.NewHistoryTaskKey(time.Now(), 5)
+
+				mockSlice1.EXPECT().ResetProgress(resetKey)
+				mockSlice1.EXPECT().GetPendingTaskCount().Return(2)
+				mockMonitor.EXPECT().SetSlicePendingTaskCount(mockSlice1, 2)
+				mockSlice1.EXPECT().HasMoreTasks().Return(false)
+
+				mockSlice2.EXPECT().ResetProgress(resetKey)
+				mockSlice2.EXPECT().GetPendingTaskCount().Return(3)
+				mockMonitor.EXPECT().SetSlicePendingTaskCount(mockSlice2, 3)
+				mockSlice2.EXPECT().HasMoreTasks().Return(true)
+
+				return []VirtualSlice{mockSlice1, mockSlice2, mockSlice3}, mockMonitor, resetKey
+			},
+			expectedSliceToReadIdx: common.Ptr(1),
+		},
+		{
+			name: "Reset progress with no sliceToRead set",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, Monitor, persistence.HistoryTaskKey) {
+				mockSlice1 := NewMockVirtualSlice(ctrl)
+				mockSlice2 := NewMockVirtualSlice(ctrl)
+				mockMonitor := NewMockMonitor(ctrl)
+				resetKey := persistence.NewHistoryTaskKey(time.Now(), 10)
+
+				mockSlice1.EXPECT().ResetProgress(resetKey)
+				mockSlice1.EXPECT().GetPendingTaskCount().Return(0)
+				mockMonitor.EXPECT().SetSlicePendingTaskCount(mockSlice1, 0)
+				mockSlice1.EXPECT().HasMoreTasks().Return(false)
+
+				mockSlice2.EXPECT().ResetProgress(resetKey)
+				mockSlice2.EXPECT().GetPendingTaskCount().Return(1)
+				mockMonitor.EXPECT().SetSlicePendingTaskCount(mockSlice2, 1)
+				mockSlice2.EXPECT().HasMoreTasks().Return(true)
+
+				return []VirtualSlice{mockSlice1, mockSlice2}, mockMonitor, resetKey
+			},
+			expectedSliceToReadIdx: common.Ptr(1),
+		},
+		{
+			name: "Reset progress with no slices having more tasks",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, Monitor, persistence.HistoryTaskKey) {
+				mockSlice1 := NewMockVirtualSlice(ctrl)
+				mockSlice2 := NewMockVirtualSlice(ctrl)
+				mockMonitor := NewMockMonitor(ctrl)
+				resetKey := persistence.NewHistoryTaskKey(time.Now(), 15)
+
+				mockSlice1.EXPECT().ResetProgress(resetKey)
+				mockSlice1.EXPECT().GetPendingTaskCount().Return(0)
+				mockMonitor.EXPECT().SetSlicePendingTaskCount(mockSlice1, 0)
+				mockSlice1.EXPECT().HasMoreTasks().Return(false)
+
+				mockSlice2.EXPECT().ResetProgress(resetKey)
+				mockSlice2.EXPECT().GetPendingTaskCount().Return(0)
+				mockMonitor.EXPECT().SetSlicePendingTaskCount(mockSlice2, 0)
+				mockSlice2.EXPECT().HasMoreTasks().Return(false)
+
+				return []VirtualSlice{mockSlice1, mockSlice2}, mockMonitor, resetKey
+			},
+			expectedSliceToReadIdx: nil,
+		},
+		{
+			name: "Reset progress with empty slice list",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, Monitor, persistence.HistoryTaskKey) {
+				mockMonitor := NewMockMonitor(ctrl)
+				resetKey := persistence.NewHistoryTaskKey(time.Now(), 20)
+
+				return []VirtualSlice{}, mockMonitor, resetKey
+			},
+			expectedSliceToReadIdx: nil,
+		},
+		{
+			name: "Reset progress stops at first slice when it's sliceToRead",
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, Monitor, persistence.HistoryTaskKey) {
+				mockSlice1 := NewMockVirtualSlice(ctrl)
+				mockSlice2 := NewMockVirtualSlice(ctrl)
+				mockMonitor := NewMockMonitor(ctrl)
+				resetKey := persistence.NewHistoryTaskKey(time.Now(), 25)
+
+				mockSlice1.EXPECT().ResetProgress(resetKey)
+				mockSlice1.EXPECT().GetPendingTaskCount().Return(4)
+				mockMonitor.EXPECT().SetSlicePendingTaskCount(mockSlice1, 4)
+				mockSlice1.EXPECT().HasMoreTasks().Return(true)
+
+				return []VirtualSlice{mockSlice1, mockSlice2}, mockMonitor, resetKey
+			},
+			expectedSliceToReadIdx: common.Ptr(0),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			slices, mockMonitor, resetKey := tt.setupMocks(ctrl)
+			mockProcessor := task.NewMockProcessor(ctrl)
+			mockRescheduler := task.NewMockRescheduler(ctrl)
+			mockLogger := testlogger.New(t)
+			mockMetricsScope := metrics.NoopScope
+			mockTimeSource := clock.NewMockedTimeSource()
+			mockRateLimiter := quotas.NewMockLimiter(ctrl)
+
+			queue := NewVirtualQueue(
+				mockProcessor,
+				mockRescheduler,
+				mockLogger,
+				mockMetricsScope,
+				mockTimeSource,
+				mockRateLimiter,
+				mockMonitor,
+				slices,
+				&VirtualQueueOptions{
+					PageSize:                             dynamicproperties.GetIntPropertyFn(10),
+					MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+					PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+					PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
+				},
+			)
+
+			queueImpl := queue.(*virtualQueueImpl)
+
+			if len(slices) > 0 && tt.name != "Reset progress with no sliceToRead set" && tt.name != "Reset progress with empty slice list" {
+				if tt.name == "Reset progress stops at first slice when it's sliceToRead" {
+					queueImpl.sliceToRead = queueImpl.virtualSlices.Front()
+				} else {
+					queueImpl.sliceToRead = queueImpl.virtualSlices.Front().Next()
+				}
+			} else if tt.name == "Reset progress with no sliceToRead set" {
+				queueImpl.sliceToRead = nil
+			}
+
+			queue.ResetProgress(resetKey)
+
+			if tt.expectedSliceToReadIdx == nil {
+				assert.Nil(t, queueImpl.sliceToRead, "sliceToRead should be nil")
+			} else {
+				assert.NotNil(t, queueImpl.sliceToRead, "sliceToRead should not be nil")
+				if queueImpl.sliceToRead != nil {
+					expectedSlice := slices[*tt.expectedSliceToReadIdx]
+					assert.Equal(t, expectedSlice, queueImpl.sliceToRead.Value.(VirtualSlice))
+				}
+			}
+		})
+	}
+}
+
+func TestVirtualQueue_SubmitOrRescheduleTask(t *testing.T) {
+	tests := []struct {
+		name       string
+		setupMocks func(ctrl *gomock.Controller) (task.Task, task.Processor, task.Rescheduler, metrics.Scope, clock.TimeSource, time.Time)
+		expectErr  bool
+	}{
+		{
+			name: "Submit corrupted task - should ack and return nil",
+			setupMocks: func(ctrl *gomock.Controller) (task.Task, task.Processor, task.Rescheduler, metrics.Scope, clock.TimeSource, time.Time) {
+				mockTask := task.NewMockTask(ctrl)
+				mockProcessor := task.NewMockProcessor(ctrl)
+				mockRescheduler := task.NewMockRescheduler(ctrl)
+				mockMetricsScope := metrics.NoopScope
+				mockTimeSource := clock.NewMockedTimeSource()
+				now := mockTimeSource.Now()
+
+				mockTask.EXPECT().GetDomainID().Return("").AnyTimes()
+				mockTask.EXPECT().GetWorkflowID().Return("").AnyTimes()
+				mockTask.EXPECT().GetRunID().Return("").AnyTimes()
+				mockTask.EXPECT().Ack()
+
+				return mockTask, mockProcessor, mockRescheduler, mockMetricsScope, mockTimeSource, now
+			},
+			expectErr: false,
+		},
+		{
+			name: "Reschedule future task",
+			setupMocks: func(ctrl *gomock.Controller) (task.Task, task.Processor, task.Rescheduler, metrics.Scope, clock.TimeSource, time.Time) {
+				mockTask := task.NewMockTask(ctrl)
+				mockProcessor := task.NewMockProcessor(ctrl)
+				mockRescheduler := task.NewMockRescheduler(ctrl)
+				mockMetricsScope := metrics.NoopScope
+				mockTimeSource := clock.NewMockedTimeSource()
+				now := mockTimeSource.Now()
+				futureTime := now.Add(time.Hour)
+
+				mockTask.EXPECT().GetDomainID().Return("test-domain").AnyTimes()
+				mockTask.EXPECT().GetWorkflowID().Return("test-workflow").AnyTimes()
+				mockTask.EXPECT().GetRunID().Return("test-run").AnyTimes()
+				mockTask.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(futureTime, 1))
+				mockRescheduler.EXPECT().RescheduleTask(mockTask, futureTime)
+
+				return mockTask, mockProcessor, mockRescheduler, mockMetricsScope, mockTimeSource, now
+			},
+			expectErr: false,
+		},
+		{
+			name: "Successfully submit task",
+			setupMocks: func(ctrl *gomock.Controller) (task.Task, task.Processor, task.Rescheduler, metrics.Scope, clock.TimeSource, time.Time) {
+				mockTask := task.NewMockTask(ctrl)
+				mockProcessor := task.NewMockProcessor(ctrl)
+				mockRescheduler := task.NewMockRescheduler(ctrl)
+				mockMetricsScope := metrics.NoopScope
+				mockTimeSource := clock.NewMockedTimeSource()
+				now := mockTimeSource.Now()
+				pastTime := now.Add(-time.Hour)
+
+				mockTask.EXPECT().GetDomainID().Return("test-domain").AnyTimes()
+				mockTask.EXPECT().GetWorkflowID().Return("test-workflow").AnyTimes()
+				mockTask.EXPECT().GetRunID().Return("test-run").AnyTimes()
+				mockTask.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(pastTime, 1))
+				mockTask.EXPECT().GetVisibilityTimestamp().Return(pastTime)
+				mockTask.EXPECT().SetInitialSubmitTime(now)
+				mockProcessor.EXPECT().TrySubmit(mockTask).Return(true, nil)
+
+				return mockTask, mockProcessor, mockRescheduler, mockMetricsScope, mockTimeSource, now
+			},
+			expectErr: false,
+		},
+		{
+			name: "Submit task with processor error",
+			setupMocks: func(ctrl *gomock.Controller) (task.Task, task.Processor, task.Rescheduler, metrics.Scope, clock.TimeSource, time.Time) {
+				mockTask := task.NewMockTask(ctrl)
+				mockProcessor := task.NewMockProcessor(ctrl)
+				mockRescheduler := task.NewMockRescheduler(ctrl)
+				mockMetricsScope := metrics.NoopScope
+				mockTimeSource := clock.NewMockedTimeSource()
+				now := mockTimeSource.Now()
+				pastTime := now.Add(-time.Hour)
+
+				mockTask.EXPECT().GetDomainID().Return("test-domain").AnyTimes()
+				mockTask.EXPECT().GetWorkflowID().Return("test-workflow").AnyTimes()
+				mockTask.EXPECT().GetRunID().Return("test-run").AnyTimes()
+				mockTask.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(pastTime, 1))
+				mockTask.EXPECT().GetVisibilityTimestamp().Return(pastTime)
+				mockTask.EXPECT().SetInitialSubmitTime(now)
+				mockProcessor.EXPECT().TrySubmit(mockTask).Return(true, assert.AnError)
+
+				return mockTask, mockProcessor, mockRescheduler, mockMetricsScope, mockTimeSource, now
+			},
+			expectErr: true,
+		},
+		{
+			name: "Task submission throttled - should reschedule",
+			setupMocks: func(ctrl *gomock.Controller) (task.Task, task.Processor, task.Rescheduler, metrics.Scope, clock.TimeSource, time.Time) {
+				mockTask := task.NewMockTask(ctrl)
+				mockProcessor := task.NewMockProcessor(ctrl)
+				mockRescheduler := task.NewMockRescheduler(ctrl)
+				mockMetricsScope := metrics.NoopScope
+				mockTimeSource := clock.NewMockedTimeSource()
+				now := mockTimeSource.Now()
+				pastTime := now.Add(-time.Hour)
+
+				mockTask.EXPECT().GetDomainID().Return("test-domain").AnyTimes()
+				mockTask.EXPECT().GetWorkflowID().Return("test-workflow").AnyTimes()
+				mockTask.EXPECT().GetRunID().Return("test-run").AnyTimes()
+				mockTask.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(pastTime, 1))
+				mockTask.EXPECT().GetVisibilityTimestamp().Return(pastTime)
+				mockTask.EXPECT().SetInitialSubmitTime(now)
+				mockProcessor.EXPECT().TrySubmit(mockTask).Return(false, nil)
+				mockRescheduler.EXPECT().RescheduleTask(mockTask, now.Add(taskSchedulerThrottleBackoffInterval))
+
+				return mockTask, mockProcessor, mockRescheduler, mockMetricsScope, mockTimeSource, now
+			},
+			expectErr: false,
+		},
+		{
+			name: "Task submission throttled with error - should reschedule and return error",
+			setupMocks: func(ctrl *gomock.Controller) (task.Task, task.Processor, task.Rescheduler, metrics.Scope, clock.TimeSource, time.Time) {
+				mockTask := task.NewMockTask(ctrl)
+				mockProcessor := task.NewMockProcessor(ctrl)
+				mockRescheduler := task.NewMockRescheduler(ctrl)
+				mockMetricsScope := metrics.NoopScope
+				mockTimeSource := clock.NewMockedTimeSource()
+				now := mockTimeSource.Now()
+				pastTime := now.Add(-time.Hour)
+
+				mockTask.EXPECT().GetDomainID().Return("test-domain").AnyTimes()
+				mockTask.EXPECT().GetWorkflowID().Return("test-workflow").AnyTimes()
+				mockTask.EXPECT().GetRunID().Return("test-run").AnyTimes()
+				mockTask.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(pastTime, 1))
+				mockTask.EXPECT().GetVisibilityTimestamp().Return(pastTime)
+				mockTask.EXPECT().SetInitialSubmitTime(now)
+				mockProcessor.EXPECT().TrySubmit(mockTask).Return(false, assert.AnError)
+				mockRescheduler.EXPECT().RescheduleTask(mockTask, now.Add(taskSchedulerThrottleBackoffInterval))
+
+				return mockTask, mockProcessor, mockRescheduler, mockMetricsScope, mockTimeSource, now
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockTask, mockProcessor, mockRescheduler, mockMetricsScope, mockTimeSource, now := tt.setupMocks(ctrl)
+			mockLogger := testlogger.New(t)
+			mockRateLimiter := quotas.NewMockLimiter(ctrl)
+			mockMonitor := NewMockMonitor(ctrl)
+
+			queue := NewVirtualQueue(
+				mockProcessor,
+				mockRescheduler,
+				mockLogger,
+				mockMetricsScope,
+				mockTimeSource,
+				mockRateLimiter,
+				mockMonitor,
+				[]VirtualSlice{},
+				&VirtualQueueOptions{
+					PageSize:                             dynamicproperties.GetIntPropertyFn(10),
+					MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+					PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+					PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
+				},
+			)
+
+			queueImpl := queue.(*virtualQueueImpl)
+			err := queueImpl.submitOrRescheduleTask(now, mockTask)
+
+			if tt.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

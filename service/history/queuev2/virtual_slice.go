@@ -118,19 +118,12 @@ func (s *virtualSliceImpl) Clear() {
 }
 
 func (s *virtualSliceImpl) InsertTask(task task.Task) bool {
-	r := s.state.Range
-	key := task.GetTaskKey()
-
-	if key.Compare(r.InclusiveMinTaskKey) < 0 || key.Compare(r.ExclusiveMaxTaskKey) >= 0 {
-		return false
+	if s.state.Contains(task) {
+		s.pendingTaskTracker.AddTask(task)
+		return true
 	}
 
-	if !s.state.Predicate.Check(task) {
-		return false
-	}
-
-	s.pendingTaskTracker.AddTask(task)
-	return true
+	return false
 }
 
 func (s *virtualSliceImpl) GetTasks(ctx context.Context, pageSize int) ([]task.Task, error) {
@@ -213,6 +206,12 @@ func (s *virtualSliceImpl) UpdateAndGetState() VirtualSliceState {
 // we want to cancel all the tasks after the given key and reset the progress to the given key,
 // so that in the next poll, we will read the tasks from the DB starting from the given key.
 func (s *virtualSliceImpl) ResetProgress(key persistence.HistoryTaskKey) {
+
+	// the given key is after the current slice, no need to reset
+	if key.Compare(s.state.Range.ExclusiveMaxTaskKey) >= 0 {
+		return
+	}
+
 	taskMap := s.pendingTaskTracker.GetTasks()
 	for _, task := range taskMap {
 		if task.GetTaskKey().Compare(key) >= 0 {
@@ -237,17 +236,18 @@ func (s *virtualSliceImpl) ResetProgress(key persistence.HistoryTaskKey) {
 	for i, progress := range s.progress {
 		// progress contains sorted non-overlapping ranges. If we found a range that contains the given key, we can reset
 		// this range's progress to the given key and merge the remaining ranges into it.
-		if progress.NextTaskKey.Compare(key) > 0 {
+		if progress.ExclusiveMaxTaskKey.Compare(key) > 0 {
 			maxTaskKey := s.progress[len(s.progress)-1].Range.ExclusiveMaxTaskKey
 			s.progress[i] = &GetTaskProgress{
 				Range: Range{
-					InclusiveMinTaskKey: key,
+					InclusiveMinTaskKey: persistence.MinHistoryTaskKey(key, progress.InclusiveMinTaskKey),
 					ExclusiveMaxTaskKey: maxTaskKey,
 				},
 				NextPageToken: nil,
-				NextTaskKey:   key,
+				NextTaskKey:   persistence.MinHistoryTaskKey(key, progress.NextTaskKey),
 			}
 
+			s.state.Range.InclusiveMinTaskKey = persistence.MinHistoryTaskKey(key, s.state.Range.InclusiveMinTaskKey)
 			s.progress = s.progress[:i+1]
 			break
 		}

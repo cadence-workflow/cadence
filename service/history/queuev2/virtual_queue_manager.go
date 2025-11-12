@@ -227,14 +227,13 @@ func (m *virtualQueueManagerImpl) InsertSingleTask(t task.Task) bool {
 	m.Lock()
 	defer m.Unlock()
 
-	inserted := false
 	for _, vq := range m.virtualQueues {
 		if vq.InsertSingleTask(t) {
-			inserted = true
+			return true
 		}
 	}
 
-	return inserted
+	return false
 }
 
 func (m *virtualQueueManagerImpl) ResetProgress(key persistence.HistoryTaskKey) {

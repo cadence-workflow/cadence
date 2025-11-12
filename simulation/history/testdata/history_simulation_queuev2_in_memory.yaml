@@ -1,0 +1,17 @@
+enablearchival: false
+clusterno: 0
+messagingclientconfig:
+  usemock: true
+historyconfig:
+  numhistoryshards: 4
+  numhistoryhosts: 1
+matchingconfig:
+  nummatchinghosts: 1
+workerconfig:
+  enableasyncwfconsumer: false
+  enablearchiver: false
+  enablereplicator: false
+  enableindexer: false
+dynamicclientconfig:
+  filepath: "dynamicconfig/queuev2_in_memory.yaml"
+  pollInterval: "10s"
