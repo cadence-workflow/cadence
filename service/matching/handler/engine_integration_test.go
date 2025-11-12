@@ -26,7 +26,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/uber/cadence/client/matching"
 	"net/http"
 	"strings"
 	"sync"
@@ -41,6 +40,7 @@ import (
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
