@@ -305,7 +305,7 @@ func TestScheduledQueue_NotifyNewTask_FieldCombinations(t *testing.T) {
 			}
 
 			if tt.expectInMemory {
-				mockVirtualQueueManager.EXPECT().InsertSingleTaskToRootQueue(gomock.Any()).Return(true)
+				mockVirtualQueueManager.EXPECT().InsertSingleTask(gomock.Any()).Return(true)
 			}
 			if tt.expectDBRead {
 				mockVirtualQueueManager.EXPECT().ResetProgress(gomock.Any())
@@ -420,7 +420,7 @@ func TestScheduledQueue_NotifyNewTask_InsertionScenarios(t *testing.T) {
 			}
 
 			for _, result := range tt.insertionResults {
-				mockVirtualQueueManager.EXPECT().InsertSingleTaskToRootQueue(gomock.Any()).Return(result).Times(1)
+				mockVirtualQueueManager.EXPECT().InsertSingleTask(gomock.Any()).Return(result).Times(1)
 			}
 
 			if tt.expectedTasksToReadFromDB > 0 {
@@ -534,7 +534,7 @@ func TestScheduledQueue_NotifyNewTask_TimestampCalculation(t *testing.T) {
 			}
 
 			if tt.allInsertionsFail {
-				mockVirtualQueueManager.EXPECT().InsertSingleTaskToRootQueue(gomock.Any()).Return(false).Times(len(tasks))
+				mockVirtualQueueManager.EXPECT().InsertSingleTask(gomock.Any()).Return(false).Times(len(tasks))
 				expectedKey := persistence.NewHistoryTaskKey(tt.expectedEarliest, 0)
 				mockVirtualQueueManager.EXPECT().ResetProgress(expectedKey).Times(1)
 			}
@@ -622,7 +622,7 @@ func TestScheduledQueue_NotifyNewTask_MultipleTaskTypes(t *testing.T) {
 		},
 	}
 
-	mockVirtualQueueManager.EXPECT().InsertSingleTaskToRootQueue(gomock.Any()).Return(false).Times(4)
+	mockVirtualQueueManager.EXPECT().InsertSingleTask(gomock.Any()).Return(false).Times(4)
 
 	expectedKey := persistence.NewHistoryTaskKey(baseTime.Add(30*time.Minute), 0)
 	mockVirtualQueueManager.EXPECT().ResetProgress(expectedKey).Times(1)
