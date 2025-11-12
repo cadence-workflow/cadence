@@ -232,22 +232,22 @@ func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, t
 	)
 
 	logger.Info("Task list manager state changed", tag.LifeCycleStarting)
-	mgr, err := tasklist.NewManager(
-		e.domainCache,
-		e.logger,
-		e.metricsClient,
-		e.taskManager,
-		e.clusterMetadata,
-		e.isolationState,
-		e.matchingClient,
-		e.removeTaskListManager,
-		taskList,
-		taskListKind,
-		e.config,
-		e.timeSource,
-		e.timeSource.Now(),
-		e.historyService,
-	)
+	params := tasklist.ManagerParams{
+		DomainCache:     e.domainCache,
+		Logger:          e.logger,
+		MetricsClient:   e.metricsClient,
+		TaskManager:     e.taskManager,
+		ClusterMetadata: e.clusterMetadata,
+		IsolationState:  e.isolationState,
+		MatchingClient:  e.matchingClient,
+		CloseCallback:   e.removeTaskListManager,
+		TaskList:        taskList,
+		TaskListKind:    taskListKind,
+		Cfg:             e.config,
+		TimeSource:      e.timeSource,
+		CreateTime:      e.timeSource.Now(),
+		HistoryService:  e.historyService}
+	mgr, err := tasklist.NewManager(params)
 	if err != nil {
 		e.taskListsLock.Unlock()
 		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))

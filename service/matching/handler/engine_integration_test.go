@@ -216,8 +216,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 	tlKind := types.TaskListKindNormal
 	tlm, err := s.matchingEngine.getTaskListManager(taskListID, tlKind)
 	s.Require().NoError(err)
-
-	tlm2, err := tasklist.NewManager(
+	params := tasklist.ManagerParams{
 		s.matchingEngine.domainCache,
 		s.matchingEngine.logger,
 		s.matchingEngine.metricsClient,
@@ -231,7 +230,9 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 		s.matchingEngine.config,
 		s.matchingEngine.timeSource,
 		s.matchingEngine.timeSource.Now(),
-		s.matchingEngine.historyService)
+		s.matchingEngine.historyService,
+	}
+	tlm2, err := tasklist.NewManager(params)
 	s.Require().NoError(err)
 
 	// try to unload a different tlm instance with the same taskListID
