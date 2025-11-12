@@ -468,11 +468,11 @@ func (d *domainCLIImpl) FailoverDomain(c *cli.Context) error {
 	}
 
 	if c.IsSet(FlagActiveClustersJSON) && c.IsSet(FlagActiveClusters) {
-		return commoncli.Problem("Cannot use both --active-clusters-json and --active-clusters flags.", nil)
+		return commoncli.Problem("Cannot use both --active_clusters_json and --active_clusters flags.", nil)
 	}
 
 	if !c.IsSet(FlagActiveClusterName) && !c.IsSet(FlagActiveClusters) && !c.IsSet(FlagActiveClustersJSON) {
-		return commoncli.Problem("At least one of the flags --active-cluster-name or --active-clusters must be provided.", nil)
+		return commoncli.Problem("At least one of the flags --active_cluster, --active_clusters or --active_clusters_json must be provided.", nil)
 	}
 
 	if c.IsSet(FlagActiveClusterName) { // active-passive domain failover

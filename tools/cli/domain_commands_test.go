@@ -474,7 +474,7 @@ func TestParseActiveClustersByClusterAttributeFromJSON(t *testing.T) {
 	testCases := map[string]struct {
 		jsonStr       string
 		expected      types.ActiveClusters
-		expectedError error
+		expectedError bool
 	}{
 		"valid JSON": {
 			jsonStr: `{"attributeScopes":{"region-us-east1":{"clusterAttributes":{"new-york":{"activeClusterName":"cluster-0-us-east-1","failoverVersion":0}}}}}`,
@@ -486,13 +486,21 @@ func TestParseActiveClustersByClusterAttributeFromJSON(t *testing.T) {
 				},
 			},
 		},
+		"making nerds upset with brackets": {
+			jsonStr:       `{"`,
+			expectedError: true,
+		},
 	}
 
 	for name, td := range testCases {
 		t.Run(name, func(t *testing.T) {
 			activeClusters, err := parseActiveClustersByClusterAttributeFromJSON(td.jsonStr)
 			assert.Equal(t, td.expected, activeClusters)
-			assert.Equal(t, td.expectedError, err)
+			if td.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
