@@ -26,6 +26,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/uber/cadence/client/matching"
 	"net/http"
 	"strings"
 	"sync"
@@ -67,6 +68,7 @@ type (
 		suite.Suite
 		controller             *gomock.Controller
 		mockHistoryClient      *history.MockClient
+		mockMatchingClient     *matching.MockClient
 		mockDomainCache        *cache.MockDomainCache
 		mockMembershipResolver *membership.MockResolver
 		mockIsolationStore     *dynamicconfig.MockClient
@@ -125,6 +127,7 @@ func (s *matchingEngineSuite) SetupTest() {
 	s.mockExecutionManager = &mocks.ExecutionManager{}
 	s.controller = gomock.NewController(s.T())
 	s.mockHistoryClient = history.NewMockClient(s.controller)
+	s.mockMatchingClient = matching.NewMockClient(s.controller)
 	s.mockTimeSource = clock.NewMockedTimeSourceAt(time.Now())
 	s.taskManager = tasklist.NewTestTaskManager(s.T(), s.logger, s.mockTimeSource)
 	s.mockDomainCache = cache.NewMockDomainCache(s.controller)
@@ -174,7 +177,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		taskMgr,
 		cluster.GetTestClusterMetadata(true),
 		s.mockHistoryClient,
-		nil,
+		s.mockMatchingClient,
 		config,
 		s.logger,
 		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
