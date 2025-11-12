@@ -24,8 +24,6 @@ package handler
 
 import (
 	"errors"
-	"github.com/uber/cadence/client/matching"
-	"github.com/uber/cadence/common/isolationgroup"
 	"sync"
 	"testing"
 	"time"
@@ -35,12 +33,14 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	cadence_errors "github.com/uber/cadence/common/errors"
+	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
