@@ -1574,8 +1574,6 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Success_FailOver() {
 
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(getDomainResp, nil)
 	s.mockMetadataMgr.On("UpdateDomain", mock.Anything, mock.Anything).Return(nil)
-	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("disabled"), false, dynamicproperties.GetBoolPropertyFn(false), "disabled", "some random URI"))
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("disabled"), false, dynamicproperties.GetBoolPropertyFn(false), "disabled", "some random URI"))
 	s.mockProducer.On("Publish", mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockResource.RemoteFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).
 		Return(describeDomainResponseServer, nil).AnyTimes()
@@ -1976,6 +1974,7 @@ func (s *workflowHandlerSuite) TestRestartWorkflowExecution() {
 		{
 			name: "When domain cache returns error it should propagate the error",
 			setupMocks: func() {
+				s.mockDomainCache.EXPECT().GetDomainByID(s.testDomainID).Return(nil, errors.New("domain cache error")).AnyTimes()
 				s.mockDomainCache.EXPECT().GetDomainID(s.testDomain).Return("", errors.New("domain cache error"))
 			},
 			request: &types.RestartWorkflowExecutionRequest{
@@ -2314,7 +2313,9 @@ func (s *workflowHandlerSuite) getWorkflowExecutionHistory(nextEventID int64, tr
 		),
 	)
 	ctx := context.Background()
+	domainEntry := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: s.testDomainID, Name: s.testDomain}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
 	s.mockDomainCache.EXPECT().GetDomainID(gomock.Any()).Return(s.testDomainID, nil).AnyTimes()
+	s.mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(domainEntry, nil).AnyTimes()
 	s.mockVersionChecker.EXPECT().SupportsRawHistoryQuery(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	blob, _ := wh.GetPayloadSerializer().SerializeBatchEvents(historyEvents, constants.EncodingTypeThriftRW)
 	s.mockHistoryV2Mgr.On("ReadRawHistoryBranch", mock.Anything, mock.Anything).Return(&persistence.ReadRawHistoryBranchResponse{

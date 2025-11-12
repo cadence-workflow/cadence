@@ -44,6 +44,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -327,9 +328,15 @@ func TestRegisterDomain(t *testing.T) {
 			request: &types.RegisterDomainRequest{
 				Name:           "active-active-domain",
 				IsGlobalDomain: true,
-				ActiveClustersByRegion: map[string]string{
-					cluster.TestRegion1: cluster.TestCurrentClusterName,
-					cluster.TestRegion2: "invalid-cluster",
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+								cluster.TestRegion2: {ActiveClusterName: "invalid-cluster"},
+							},
+						},
+					},
 				},
 				Clusters: []*types.ClusterReplicationConfiguration{
 					{ClusterName: cluster.TestCurrentClusterName},
@@ -349,9 +356,15 @@ func TestRegisterDomain(t *testing.T) {
 			request: &types.RegisterDomainRequest{
 				Name:           "active-active-domain",
 				IsGlobalDomain: true,
-				ActiveClustersByRegion: map[string]string{
-					cluster.TestRegion1: cluster.TestCurrentClusterName,
-					cluster.TestRegion2: cluster.TestAlternativeClusterName,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+								cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+							},
+						},
+					},
 				},
 				Clusters: []*types.ClusterReplicationConfiguration{
 					{ClusterName: cluster.TestCurrentClusterName},
@@ -371,9 +384,15 @@ func TestRegisterDomain(t *testing.T) {
 				Name:              "active-active-domain",
 				IsGlobalDomain:    true,
 				ActiveClusterName: cluster.TestCurrentClusterName,
-				ActiveClustersByRegion: map[string]string{
-					cluster.TestRegion1: cluster.TestCurrentClusterName,
-					cluster.TestRegion2: cluster.TestAlternativeClusterName,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+								cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+							},
+						},
+					},
 				},
 				Clusters: []*types.ClusterReplicationConfiguration{
 					{ClusterName: cluster.TestCurrentClusterName},
@@ -394,9 +413,15 @@ func TestRegisterDomain(t *testing.T) {
 			request: &types.RegisterDomainRequest{
 				Name:           "active-active-domain",
 				IsGlobalDomain: true,
-				ActiveClustersByRegion: map[string]string{
-					cluster.TestRegion1: cluster.TestCurrentClusterName,
-					cluster.TestRegion2: cluster.TestAlternativeClusterName,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+								cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+							},
+						},
+					},
 				},
 				Clusters: []*types.ClusterReplicationConfiguration{
 					{ClusterName: cluster.TestCurrentClusterName},
@@ -1414,22 +1439,46 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
 				timeSource.Advance(time.Hour)
-				domainManager.EXPECT().UpdateDomain(ctx, &persistence.UpdateDomainRequest{
-					Info:                    domainResponse.Info,
-					Config:                  domainResponse.Config,
-					ReplicationConfig:       domainResponse.ReplicationConfig,
+
+				failoverData, _ := json.Marshal([]FailoverEvent{{
+					EventTime:    timeSource.Now(),
+					FromCluster:  cluster.TestCurrentClusterName,
+					ToCluster:    cluster.TestAlternativeClusterName,
+					FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String(),
+				}})
+
+				expectedUpdateRequest := &persistence.UpdateDomainRequest{
+					Info: &persistence.DomainInfo{
+						Name:        constants.TestDomainName,
+						ID:          constants.TestDomainID,
+						Status:      persistence.DomainStatusRegistered,
+						Description: domainResponse.Info.Description,
+						OwnerEmail:  domainResponse.Info.OwnerEmail,
+						Data: map[string]string{
+							"FailoverHistory": string(failoverData),
+						},
+					},
+					Config: domainResponse.Config,
+					ReplicationConfig: &persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestAlternativeClusterName,
+						Clusters: []*persistence.ClusterReplicationConfig{
+							{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName},
+						},
+					},
 					PreviousFailoverVersion: commonconstants.InitialPreviousFailoverVersion,
 					ConfigVersion:           domainResponse.ConfigVersion,
 					FailoverVersion:         cluster.TestAlternativeClusterInitialFailoverVersion,
 					LastUpdatedTime:         timeSource.Now().UnixNano(),
-				}).Return(nil).Times(1)
+				}
+
+				domainManager.EXPECT().UpdateDomain(ctx, expectedUpdateRequest).Return(nil).Times(1)
 				domainReplicator.EXPECT().
 					HandleTransmissionTask(
 						ctx,
 						types.DomainOperationUpdate,
-						domainResponse.Info,
+						expectedUpdateRequest.Info,
 						domainResponse.Config,
-						domainResponse.ReplicationConfig,
+						expectedUpdateRequest.ReplicationConfig,
 						domainResponse.ConfigVersion,
 						cluster.TestAlternativeClusterInitialFailoverVersion,
 						commonconstants.InitialPreviousFailoverVersion,
@@ -1509,23 +1558,42 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
 				timeSource.Advance(time.Hour)
-				domainManager.EXPECT().UpdateDomain(ctx, &persistence.UpdateDomainRequest{
-					Info:                    domainResponse.Info,
-					Config:                  domainResponse.Config,
-					ReplicationConfig:       domainResponse.ReplicationConfig,
+
+				data, _ := json.Marshal([]FailoverEvent{{EventTime: timeSource.Now(), FromCluster: cluster.TestAlternativeClusterName, ToCluster: cluster.TestCurrentClusterName, FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeGrace).String()}})
+
+				expectedUpdateRequest := &persistence.UpdateDomainRequest{
+					Info: &persistence.DomainInfo{
+						Name:        constants.TestDomainName,
+						ID:          constants.TestDomainID,
+						Status:      persistence.DomainStatusRegistered,
+						Description: domainResponse.Info.Description,
+						OwnerEmail:  domainResponse.Info.OwnerEmail,
+						Data: map[string]string{
+							commonconstants.DomainDataKeyForFailoverHistory: string(data),
+						},
+					},
+					Config: domainResponse.Config,
+					ReplicationConfig: &persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestCurrentClusterName,
+						Clusters: []*persistence.ClusterReplicationConfig{
+							{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName},
+						},
+					},
 					PreviousFailoverVersion: 1,
 					ConfigVersion:           domainResponse.ConfigVersion,
 					FailoverVersion:         10,
 					FailoverEndTime:         common.Ptr(timeSource.Now().Add(time.Duration(10) * time.Second).UnixNano()),
 					LastUpdatedTime:         timeSource.Now().UnixNano(),
-				}).Return(nil).Times(1)
+				}
+
+				domainManager.EXPECT().UpdateDomain(ctx, expectedUpdateRequest).Return(nil).Times(1)
 				domainReplicator.EXPECT().
 					HandleTransmissionTask(
 						ctx,
 						types.DomainOperationUpdate,
-						domainResponse.Info,
+						expectedUpdateRequest.Info,
 						domainResponse.Config,
-						domainResponse.ReplicationConfig,
+						expectedUpdateRequest.ReplicationConfig,
 						domainResponse.ConfigVersion,
 						int64(10),
 						int64(1),
@@ -1606,21 +1674,39 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
 				timeSource.Advance(time.Hour)
-				domainManager.EXPECT().UpdateDomain(ctx, &persistence.UpdateDomainRequest{
-					Info:                    domainResponse.Info,
-					Config:                  domainResponse.Config,
+
+				expectedUpdateRequest := &persistence.UpdateDomainRequest{
+					Info: &persistence.DomainInfo{
+						Name:        constants.TestDomainName,
+						ID:          constants.TestDomainID,
+						Status:      persistence.DomainStatusRegistered,
+						Description: domainResponse.Info.Description,
+						OwnerEmail:  domainResponse.Info.OwnerEmail,
+						Data:        nil,
+					},
+					Config: &persistence.DomainConfig{
+						Retention:                1,
+						EmitMetric:               false,
+						HistoryArchivalStatus:    types.ArchivalStatusDisabled,
+						VisibilityArchivalStatus: types.ArchivalStatusDisabled,
+						BadBinaries:              types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
+						IsolationGroups:          types.IsolationGroupConfiguration{},
+						AsyncWorkflowConfig:      types.AsyncWorkflowConfiguration{Enabled: true},
+					},
 					ReplicationConfig:       domainResponse.ReplicationConfig,
 					PreviousFailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion,
 					ConfigVersion:           domainResponse.ConfigVersion + 1,
 					FailoverVersion:         cluster.TestCurrentClusterInitialFailoverVersion,
 					LastUpdatedTime:         timeSource.Now().UnixNano(),
-				}).Return(nil).Times(1)
+				}
+
+				domainManager.EXPECT().UpdateDomain(ctx, expectedUpdateRequest).Return(nil).Times(1)
 				domainReplicator.EXPECT().
 					HandleTransmissionTask(
 						ctx,
 						types.DomainOperationUpdate,
-						domainResponse.Info,
-						domainResponse.Config,
+						expectedUpdateRequest.Info,
+						expectedUpdateRequest.Config,
 						domainResponse.ReplicationConfig,
 						domainResponse.ConfigVersion+1,
 						cluster.TestCurrentClusterInitialFailoverVersion,
@@ -1670,14 +1756,18 @@ func TestHandler_UpdateDomain(t *testing.T) {
 							{ClusterName: cluster.TestAlternativeClusterName},
 						},
 						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								cluster.TestRegion1: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-								},
-								cluster.TestRegion2: {
-									ActiveClusterName: cluster.TestAlternativeClusterName,
-									FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: cluster.TestAlternativeClusterName,
+											FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+										},
+									},
 								},
 							},
 						},
@@ -1713,8 +1803,17 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
 				timeSource.Advance(time.Hour)
-				domainManager.EXPECT().UpdateDomain(ctx, &persistence.UpdateDomainRequest{
-					Info:   domainResponse.Info,
+
+				var data map[string]string
+				expectedUpdateRequest := &persistence.UpdateDomainRequest{
+					Info: &persistence.DomainInfo{
+						Name:        constants.TestDomainName,
+						ID:          constants.TestDomainID,
+						Status:      persistence.DomainStatusRegistered,
+						Description: domainResponse.Info.Description,
+						OwnerEmail:  domainResponse.Info.OwnerEmail,
+						Data:        data,
+					},
 					Config: domainResponse.Config,
 					ReplicationConfig: &persistence.DomainReplicationConfig{
 						ActiveClusterName: cluster.TestCurrentClusterName,
@@ -1723,33 +1822,39 @@ func TestHandler_UpdateDomain(t *testing.T) {
 							{ClusterName: cluster.TestAlternativeClusterName},
 						},
 						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								cluster.TestRegion1: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-								},
-								cluster.TestRegion2: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									// previously it was alternative cluster with failover version 1.
-									// failover version should be the next failover version of the new cluster
-									FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											// previously it was alternative cluster with failover version 1.
+											// failover version should be the next failover version of the new cluster
+											FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+										},
+									},
 								},
 							},
 						},
 					},
 					PreviousFailoverVersion: -1, // this is not applicable to active-active domain
-					ConfigVersion:           domainResponse.ConfigVersion,
+					ConfigVersion:           domainResponse.ConfigVersion + 1,
 					FailoverVersion:         cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement, // this is incremented to indicate there was a change in replication config
 					LastUpdatedTime:         timeSource.Now().UnixNano(),
-				}).Return(nil).Times(1)
+				}
+
+				domainManager.EXPECT().UpdateDomain(ctx, expectedUpdateRequest).Return(nil).Times(1)
 				domainReplicator.EXPECT().
 					HandleTransmissionTask(
 						ctx,
 						types.DomainOperationUpdate,
-						domainResponse.Info,
+						expectedUpdateRequest.Info,
 						domainResponse.Config,
-						domainResponse.ReplicationConfig,
-						domainResponse.ConfigVersion,
+						expectedUpdateRequest.ReplicationConfig,
+						domainResponse.ConfigVersion+1,
 						cluster.TestCurrentClusterInitialFailoverVersion+cluster.TestFailoverVersionIncrement,
 						int64(-1), // previous failover version is not applicable to active-active domain
 						domainResponse.IsGlobalDomain,
@@ -1758,48 +1863,23 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			request: &types.UpdateDomainRequest{
 				Name: constants.TestDomainName,
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-						},
-						cluster.TestRegion2: { // failover region2 to region1
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   123123123123, // this number will be ignored and replaced with appropriate failover version
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+								},
+								cluster.TestRegion2: { // failover region2 to region1
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   123123123123, // this number will be ignored and replaced with appropriate failover version
+								},
+							},
 						},
 					},
 				},
 			},
 			response: func(timeSource clock.MockedTimeSource) *types.UpdateDomainResponse {
-				data, _ := json.Marshal([]FailoverEvent{{
-					EventTime:    timeSource.Now(),
-					FromCluster:  cluster.TestCurrentClusterName,
-					FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String(),
-					FromActiveClusters: types.ActiveClusters{
-						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-							cluster.TestRegion1: {
-								ActiveClusterName: cluster.TestCurrentClusterName,
-								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-							},
-							cluster.TestRegion2: {
-								ActiveClusterName: cluster.TestAlternativeClusterName,
-								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
-							},
-						},
-					},
-					ToActiveClusters: types.ActiveClusters{
-						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-							cluster.TestRegion1: {
-								ActiveClusterName: cluster.TestCurrentClusterName,
-								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-							},
-							cluster.TestRegion2: {
-								ActiveClusterName: cluster.TestCurrentClusterName,
-								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
-							},
-						},
-					},
-				}})
 				return &types.UpdateDomainResponse{
 					IsGlobalDomain:  true,
 					FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
@@ -1807,7 +1887,6 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						Name:   constants.TestDomainName,
 						UUID:   constants.TestDomainID,
 						Status: common.Ptr(types.DomainStatusRegistered),
-						Data:   map[string]string{commonconstants.DomainDataKeyForFailoverHistory: string(data)},
 					},
 					Configuration: &types.DomainConfiguration{
 						WorkflowExecutionRetentionPeriodInDays: 1,
@@ -1825,14 +1904,18 @@ func TestHandler_UpdateDomain(t *testing.T) {
 							{ClusterName: cluster.TestAlternativeClusterName},
 						},
 						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								cluster.TestRegion1: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-								},
-								cluster.TestRegion2: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+										},
+									},
 								},
 							},
 						},
@@ -1883,8 +1966,17 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
 				timeSource.Advance(time.Hour)
-				domainManager.EXPECT().UpdateDomain(ctx, &persistence.UpdateDomainRequest{
-					Info:   domainResponse.Info,
+
+				var data map[string]string
+				expectedUpdateRequest := &persistence.UpdateDomainRequest{
+					Info: &persistence.DomainInfo{
+						Name:        constants.TestDomainName,
+						ID:          constants.TestDomainID,
+						Status:      persistence.DomainStatusRegistered,
+						Description: domainResponse.Info.Description,
+						OwnerEmail:  domainResponse.Info.OwnerEmail,
+						Data:        data,
+					},
 					Config: domainResponse.Config,
 					ReplicationConfig: &persistence.DomainReplicationConfig{
 						Clusters: []*persistence.ClusterReplicationConfig{
@@ -1893,31 +1985,37 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						},
 						ActiveClusterName: cluster.TestCurrentClusterName, // should be left as is
 						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								cluster.TestRegion1: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
-								},
-								cluster.TestRegion2: {
-									ActiveClusterName: cluster.TestAlternativeClusterName,
-									FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: cluster.TestAlternativeClusterName,
+											FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+										},
+									},
 								},
 							},
 						},
 					},
 					PreviousFailoverVersion: -1, // this is not applicable to active-active domain
-					ConfigVersion:           domainResponse.ConfigVersion,
+					ConfigVersion:           domainResponse.ConfigVersion + 1,
 					FailoverVersion:         cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement, // this is incremented to indicate there was a change in replication config
 					LastUpdatedTime:         timeSource.Now().UnixNano(),
-				}).Return(nil).Times(1)
+				}
+
+				domainManager.EXPECT().UpdateDomain(ctx, expectedUpdateRequest).Return(nil).Times(1)
 				domainReplicator.EXPECT().
 					HandleTransmissionTask(
 						ctx,
 						types.DomainOperationUpdate,
-						domainResponse.Info,
+						expectedUpdateRequest.Info,
 						domainResponse.Config,
-						domainResponse.ReplicationConfig,
-						domainResponse.ConfigVersion,
+						expectedUpdateRequest.ReplicationConfig,
+						domainResponse.ConfigVersion+1,
 						cluster.TestCurrentClusterInitialFailoverVersion+3*cluster.TestFailoverVersionIncrement,
 						int64(-1), // previous failover version is not applicable to active-active domain
 						domainResponse.IsGlobalDomain,
@@ -1926,37 +2024,23 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			request: &types.UpdateDomainRequest{
 				Name: constants.TestDomainName,
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-						},
-						cluster.TestRegion2: {
-							ActiveClusterName: cluster.TestAlternativeClusterName,
-							FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+								},
+								cluster.TestRegion2: {
+									ActiveClusterName: cluster.TestAlternativeClusterName,
+									FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+								},
+							},
 						},
 					},
 				},
 			},
 			response: func(timeSource clock.MockedTimeSource) *types.UpdateDomainResponse {
-				data, _ := json.Marshal([]FailoverEvent{{
-					EventTime:    timeSource.Now(),
-					FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String(),
-					FromCluster:  cluster.TestCurrentClusterName,
-					ToActiveClusters: types.ActiveClusters{
-						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-							cluster.TestRegion1: {
-								ActiveClusterName: cluster.TestCurrentClusterName,
-								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
-							},
-							cluster.TestRegion2: {
-								ActiveClusterName: cluster.TestAlternativeClusterName,
-								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
-							},
-						},
-					},
-				}})
-
 				return &types.UpdateDomainResponse{
 					IsGlobalDomain:  true,
 					FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
@@ -1964,7 +2048,6 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						Name:   constants.TestDomainName,
 						UUID:   constants.TestDomainID,
 						Status: common.Ptr(types.DomainStatusRegistered),
-						Data:   map[string]string{commonconstants.DomainDataKeyForFailoverHistory: string(data)},
 					},
 					Configuration: &types.DomainConfiguration{
 						WorkflowExecutionRetentionPeriodInDays: 1,
@@ -1982,14 +2065,18 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						},
 						ActiveClusterName: cluster.TestCurrentClusterName,
 						ActiveClusters: &types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								cluster.TestRegion1: {
-									ActiveClusterName: cluster.TestCurrentClusterName,
-									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + 3*cluster.TestFailoverVersionIncrement,
-								},
-								cluster.TestRegion2: {
-									ActiveClusterName: cluster.TestAlternativeClusterName,
-									FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: cluster.TestAlternativeClusterName,
+											FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+										},
+									},
 								},
 							},
 						},
@@ -1998,7 +2085,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			},
 		},
 		{
-			name: "Success case - local domain force failover",
+			name: "Error case - local domain force failover - shoudl not be able to failover a local domain",
 			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.UpdateDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, timeSource clock.MockedTimeSource, _ *MockReplicator) {
 				domainResponse := &persistence.GetDomainResponse{
 					ReplicationConfig: &persistence.DomainReplicationConfig{
@@ -2027,17 +2114,6 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
 				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
 					Return(domainResponse, nil).Times(1)
-				archivalConfig := archiver.NewArchivalConfig(
-					commonconstants.ArchivalDisabled,
-					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
-					false,
-					dynamicproperties.GetBoolPropertyFn(false),
-					commonconstants.ArchivalDisabled,
-					"")
-				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
-				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
-				timeSource.Advance(time.Hour)
-				domainManager.EXPECT().UpdateDomain(ctx, gomock.Any()).Return(nil).Times(1)
 			},
 			request: &types.UpdateDomainRequest{
 				Name:              constants.TestDomainName,
@@ -2069,6 +2145,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					},
 				}
 			},
+			err: errLocalDomainsCannotFailover,
 		},
 		{
 			name: "Error case - GetMetadata error",
@@ -2205,7 +2282,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			},
 		},
 		{
-			name: "Error case - handleGracefulFailover error",
+			name: "Error case - handleGracefulFailover error in the case of a global domain - it should return an error to the user",
 			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.UpdateDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, _ clock.MockedTimeSource, _ *MockReplicator) {
 				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
 				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
@@ -2215,6 +2292,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						},
 						ReplicationConfig: &persistence.DomainReplicationConfig{},
 						Config:            &persistence.DomainConfig{},
+						IsGlobalDomain:    true,
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
@@ -2230,7 +2308,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				Name:                     constants.TestDomainName,
 				FailoverTimeoutInSeconds: common.Int32Ptr(1),
 			},
-			err: errInvalidGracefulFailover,
+			err: errInvalidFailoverNoChangeDetected,
 		},
 		{
 			name: "Error case - validateDomainConfig error",
@@ -2240,6 +2318,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					Return(&persistence.GetDomainResponse{
 						ReplicationConfig: &persistence.DomainReplicationConfig{},
 						Config:            &persistence.DomainConfig{},
+						IsGlobalDomain:    true,
 						Info: &persistence.DomainInfo{
 							Name: constants.TestDomainName,
 						},
@@ -2368,6 +2447,167 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			err: errors.New("update-domain-error"),
 		},
 		{
+			name: "Success case - active-active domain failover with explicit ActiveClusterName uses correct cluster for failover version",
+			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.UpdateDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, timeSource clock.MockedTimeSource, domainReplicator *MockReplicator) {
+				domainResponse := &persistence.GetDomainResponse{
+					ReplicationConfig: &persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestCurrentClusterName,
+						Clusters: []*persistence.ClusterReplicationConfig{
+							{ClusterName: cluster.TestCurrentClusterName},
+							{ClusterName: cluster.TestAlternativeClusterName},
+						},
+						ActiveClusters: &types.ActiveClusters{
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: cluster.TestAlternativeClusterName,
+											FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+										},
+									},
+								},
+							},
+						},
+					},
+					Config: &persistence.DomainConfig{
+						Retention:                1,
+						EmitMetric:               true,
+						HistoryArchivalStatus:    types.ArchivalStatusDisabled,
+						VisibilityArchivalStatus: types.ArchivalStatusDisabled,
+						BadBinaries:              types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
+						IsolationGroups:          types.IsolationGroupConfiguration{},
+						AsyncWorkflowConfig:      types.AsyncWorkflowConfiguration{Enabled: true},
+					},
+					Info: &persistence.DomainInfo{
+						Name:   constants.TestDomainName,
+						ID:     constants.TestDomainID,
+						Status: persistence.DomainStatusRegistered,
+					},
+					IsGlobalDomain:  true,
+					LastUpdatedTime: timeSource.Now().UnixNano(),
+					FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion,
+				}
+				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
+				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
+					Return(domainResponse, nil).Times(1)
+				archivalConfig := archiver.NewArchivalConfig(
+					commonconstants.ArchivalDisabled,
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					false,
+					dynamicproperties.GetBoolPropertyFn(false),
+					commonconstants.ArchivalDisabled,
+					"")
+				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
+				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
+				timeSource.Advance(time.Hour)
+
+				var data map[string]string
+				expectedUpdateRequest := &persistence.UpdateDomainRequest{
+					Info: &persistence.DomainInfo{
+						Name:        constants.TestDomainName,
+						ID:          constants.TestDomainID,
+						Status:      persistence.DomainStatusRegistered,
+						Description: domainResponse.Info.Description,
+						OwnerEmail:  domainResponse.Info.OwnerEmail,
+						Data:        data,
+					},
+					Config: domainResponse.Config,
+					ReplicationConfig: &persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestAlternativeClusterName,
+						Clusters: []*persistence.ClusterReplicationConfig{
+							{ClusterName: cluster.TestCurrentClusterName},
+							{ClusterName: cluster.TestAlternativeClusterName},
+						},
+						ActiveClusters: &types.ActiveClusters{
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: cluster.TestAlternativeClusterName,
+											FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+										},
+									},
+								},
+							},
+						},
+					},
+					PreviousFailoverVersion: -1,
+					ConfigVersion:           domainResponse.ConfigVersion,
+					FailoverVersion:         cluster.TestAlternativeClusterInitialFailoverVersion,
+					LastUpdatedTime:         timeSource.Now().UnixNano(),
+				}
+
+				domainManager.EXPECT().UpdateDomain(ctx, expectedUpdateRequest).Return(nil).Times(1)
+				domainReplicator.EXPECT().
+					HandleTransmissionTask(
+						ctx,
+						types.DomainOperationUpdate,
+						expectedUpdateRequest.Info,
+						domainResponse.Config,
+						expectedUpdateRequest.ReplicationConfig,
+						domainResponse.ConfigVersion,
+						cluster.TestAlternativeClusterInitialFailoverVersion,
+						int64(-1),
+						domainResponse.IsGlobalDomain,
+					).Return(nil).Times(1)
+			},
+			request: &types.UpdateDomainRequest{
+				Name:              constants.TestDomainName,
+				ActiveClusterName: common.Ptr(cluster.TestAlternativeClusterName),
+			},
+			response: func(timeSource clock.MockedTimeSource) *types.UpdateDomainResponse {
+				return &types.UpdateDomainResponse{
+					IsGlobalDomain:  true,
+					FailoverVersion: cluster.TestAlternativeClusterInitialFailoverVersion,
+					DomainInfo: &types.DomainInfo{
+						Name:   constants.TestDomainName,
+						UUID:   constants.TestDomainID,
+						Status: common.Ptr(types.DomainStatusRegistered),
+					},
+					Configuration: &types.DomainConfiguration{
+						WorkflowExecutionRetentionPeriodInDays: 1,
+						EmitMetric:                             true,
+						HistoryArchivalStatus:                  common.Ptr(types.ArchivalStatusDisabled),
+						VisibilityArchivalStatus:               common.Ptr(types.ArchivalStatusDisabled),
+						BadBinaries:                            &types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
+						IsolationGroups:                        &types.IsolationGroupConfiguration{},
+						AsyncWorkflowConfig:                    &types.AsyncWorkflowConfiguration{Enabled: true},
+					},
+					ReplicationConfiguration: &types.DomainReplicationConfiguration{
+						ActiveClusterName: cluster.TestAlternativeClusterName,
+						Clusters: []*types.ClusterReplicationConfiguration{
+							{ClusterName: cluster.TestCurrentClusterName},
+							{ClusterName: cluster.TestAlternativeClusterName},
+						},
+						ActiveClusters: &types.ActiveClusters{
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+										},
+										cluster.TestRegion2: {
+											ActiveClusterName: cluster.TestAlternativeClusterName,
+											FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+			},
+		},
+		{
 			name: "Error case - HandleTransmissionTask error",
 			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.UpdateDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, timeSource clock.MockedTimeSource, domainReplicator *MockReplicator) {
 				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
@@ -2428,7 +2668,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			}
 
 			clusterMetadata := cluster.GetTestClusterMetadata(true)
-			mockTimeSource := clock.NewMockedTimeSource()
+			mockTimeSource := clock.NewMockedTimeSourceAt(time.Unix(1761769472, 0))
 
 			handler := handlerImpl{
 				domainManager:       mockDomainManager,
@@ -2767,14 +3007,18 @@ func TestUpdateReplicationConfig(t *testing.T) {
 		return &persistence.DomainReplicationConfig{
 			Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					cluster.TestRegion1: {
-						ActiveClusterName: cluster.TestCurrentClusterName,
-						FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-					},
-					cluster.TestRegion2: {
-						ActiveClusterName: cluster.TestAlternativeClusterName,
-						FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							cluster.TestRegion1: {
+								ActiveClusterName: cluster.TestCurrentClusterName,
+								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+							},
+							cluster.TestRegion2: {
+								ActiveClusterName: cluster.TestAlternativeClusterName,
+								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							},
+						},
 					},
 				},
 			},
@@ -2827,59 +3071,18 @@ func TestUpdateReplicationConfig(t *testing.T) {
 			activeClusterUpdated: true,
 		},
 		{
-			name: "active-active domain - ActiveClustersByRegion is nil",
-			request: &types.UpdateDomainRequest{
-				ActiveClusters: &types.ActiveClusters{
-					// nil map in the request should be ignored
-					ActiveClustersByRegion: nil,
-				},
-			},
-			currentReplicationConfig: activeActiveCfg(),
-			updatedReplicationConfig: activeActiveCfg(),
-			clusterUpdated:           false,
-			activeClusterUpdated:     false,
-		},
-		{
-			name: "active-active domain - update cluster of region1",
-			request: &types.UpdateDomainRequest{
-				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							// changing this from current cluster to alternative cluster
-							ActiveClusterName: cluster.TestAlternativeClusterName,
-							FailoverVersion:   99999, // this will be ignored
-						},
-					},
-				},
-			},
-			currentReplicationConfig: activeActiveCfg(),
-			updatedReplicationConfig: &persistence.DomainReplicationConfig{
-				Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
-				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							ActiveClusterName: cluster.TestAlternativeClusterName,
-							FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
-						},
-						cluster.TestRegion2: {
-							ActiveClusterName: cluster.TestAlternativeClusterName,
-							FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
-						},
-					},
-				},
-			},
-			clusterUpdated:       false,
-			activeClusterUpdated: true,
-		},
-		{
 			name: "active-active domain - update cluster of region2",
 			request: &types.UpdateDomainRequest{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion2: {
-							// changing this from alternative cluster to current cluster
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   99999, // this will be ignored
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion2: {
+									// changing this from alternative cluster to current cluster
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   99999, // this will be ignored
+								},
+							},
 						},
 					},
 				},
@@ -2888,28 +3091,36 @@ func TestUpdateReplicationConfig(t *testing.T) {
 			updatedReplicationConfig: &persistence.DomainReplicationConfig{
 				Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-						},
-						cluster.TestRegion2: {
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+								},
+								cluster.TestRegion2: {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion + cluster.TestFailoverVersionIncrement,
+								},
+							},
 						},
 					},
 				},
 			},
-			clusterUpdated:       false,
+			clusterUpdated:       true,
 			activeClusterUpdated: true,
 		},
 		{
 			name: "active-active domain - add a new cluster in a new region",
 			request: &types.UpdateDomainRequest{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"region3": {
-							ActiveClusterName: cluster.TestCurrentClusterName,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region3": {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+								},
+							},
 						},
 					},
 				},
@@ -2918,23 +3129,27 @@ func TestUpdateReplicationConfig(t *testing.T) {
 			updatedReplicationConfig: &persistence.DomainReplicationConfig{
 				Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
-						},
-						cluster.TestRegion2: {
-							ActiveClusterName: cluster.TestAlternativeClusterName,
-							FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
-						},
-						"region3": {
-							ActiveClusterName: cluster.TestCurrentClusterName,
-							FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								cluster.TestRegion1: {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+								},
+								cluster.TestRegion2: {
+									ActiveClusterName: cluster.TestAlternativeClusterName,
+									FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+								},
+								"region3": {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+								},
+							},
 						},
 					},
 				},
 			},
-			clusterUpdated:       false,
+			clusterUpdated:       true,
 			activeClusterUpdated: true,
 		},
 	}
@@ -2955,9 +3170,9 @@ func TestUpdateReplicationConfig(t *testing.T) {
 			)
 
 			assert.NoError(t, err)
-			assert.Equal(t, tc.clusterUpdated, clusterUpdated)
-			assert.Equal(t, tc.activeClusterUpdated, activeClusterUpdated)
-			assert.Equal(t, tc.updatedReplicationConfig, updatedReplicationConfig)
+			assert.Equal(t, tc.clusterUpdated, clusterUpdated, "cluster-updated field was %v when it was expected to be %v", clusterUpdated, tc.clusterUpdated)
+			assert.Equal(t, tc.activeClusterUpdated, activeClusterUpdated, "active-cluster-updated field was %v when it was expected to be %v", activeClusterUpdated, tc.activeClusterUpdated)
+			assert.Equal(t, tc.updatedReplicationConfig, updatedReplicationConfig, "replication-config-updated was flagged as %v when it was expected to be %v", updatedReplicationConfig, tc.updatedReplicationConfig)
 		})
 	}
 }
@@ -3149,19 +3364,9 @@ func TestUpdateFailoverHistory(t *testing.T) {
 				return &persistence.DomainInfo{Data: map[string]string{commonconstants.DomainDataKeyForFailoverHistory: string(failoverHistoryJSON)}}
 			},
 			newFailoverEvent: FailoverEvent{
-				EventTime:   now,
-				FromCluster: fromCluster,
-				ToCluster:   "",
-				ToActiveClusters: types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						cluster.TestRegion1: {
-							ActiveClusterName: "fromCluster1",
-						},
-						cluster.TestRegion2: {
-							ActiveClusterName: "fromCluster2",
-						},
-					},
-				},
+				EventTime:    now,
+				FromCluster:  fromCluster,
+				ToCluster:    "",
 				FailoverType: failoverType.String(),
 			},
 			response: func() string {
@@ -3169,19 +3374,9 @@ func TestUpdateFailoverHistory(t *testing.T) {
 				failoverHistory := []FailoverEvent{{EventTime: eventTime, FromCluster: "fromCluster1", ToCluster: "toCluster1", FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeGrace).String()}}
 				failoverHistory = append([]FailoverEvent{
 					{
-						EventTime:   now,
-						FromCluster: fromCluster,
-						ToCluster:   "",
-						ToActiveClusters: types.ActiveClusters{
-							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-								cluster.TestRegion1: {
-									ActiveClusterName: "fromCluster1",
-								},
-								cluster.TestRegion2: {
-									ActiveClusterName: "fromCluster2",
-								},
-							},
-						},
+						EventTime:    now,
+						FromCluster:  fromCluster,
+						ToCluster:    "",
 						FailoverType: failoverType.String(),
 					}}, failoverHistory...)
 				jsonResp, _ := json.Marshal(failoverHistory)
@@ -3227,7 +3422,7 @@ func TestUpdateFailoverHistory(t *testing.T) {
 			}
 
 			domainInfo := tc.domainInfo()
-			err := updateFailoverHistory(domainInfo, cfg, tc.newFailoverEvent)
+			err := updateFailoverHistoryInDomainData(domainInfo, cfg, tc.newFailoverEvent)
 
 			if tc.err != nil {
 				assert.Equal(t, tc.err, err)
@@ -3245,6 +3440,12 @@ func TestHandler_FailoverDomain(t *testing.T) {
 	ctx := context.Background()
 	maxLength := 1
 
+	clusterA := "cluster-a"
+	clusterAInitialFailoverVersion := int64(1)
+
+	clusterB := "cluster-b"
+	clusterBInitialFailoverVersion := int64(2)
+
 	testCases := []struct {
 		name      string
 		setupMock func(
@@ -3259,13 +3460,13 @@ func TestHandler_FailoverDomain(t *testing.T) {
 		err      error
 	}{
 		{
-			name: "Success case - global domain force failover via replication config",
+			name: "Success case - active/passive domain - global domain force failover - failing over from cluster A to cluster B",
 			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.FailoverDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, timeSource clock.MockedTimeSource, domainReplicator *MockReplicator) {
 				domainResponse := &persistence.GetDomainResponse{
 					ReplicationConfig: &persistence.DomainReplicationConfig{
-						ActiveClusterName: cluster.TestCurrentClusterName,
+						ActiveClusterName: clusterA,
 						Clusters: []*persistence.ClusterReplicationConfig{
-							{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
+							{ClusterName: clusterA}, {ClusterName: clusterB}},
 					},
 					Config: &persistence.DomainConfig{
 						Retention:                1,
@@ -3283,43 +3484,85 @@ func TestHandler_FailoverDomain(t *testing.T) {
 					},
 					IsGlobalDomain:  true,
 					LastUpdatedTime: timeSource.Now().UnixNano(),
-					FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion,
+					FailoverVersion: clusterAInitialFailoverVersion,
 				}
-				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
+				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{
+					NotificationVersion: 15,
+				}, nil).Times(1)
 				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetDomainName()}).
 					Return(domainResponse, nil).Times(1)
 				timeSource.Advance(time.Hour)
-				domainManager.EXPECT().UpdateDomain(ctx, &persistence.UpdateDomainRequest{
-					Info:                    domainResponse.Info,
-					Config:                  domainResponse.Config,
-					ReplicationConfig:       domainResponse.ReplicationConfig,
-					PreviousFailoverVersion: commonconstants.InitialPreviousFailoverVersion,
-					ConfigVersion:           domainResponse.ConfigVersion,
-					FailoverVersion:         cluster.TestAlternativeClusterInitialFailoverVersion,
-					LastUpdatedTime:         timeSource.Now().UnixNano(),
-				}).Return(nil).Times(1)
+
+				failoverHistoryJSON, _ := json.Marshal([]FailoverEvent{
+					{EventTime: timeSource.Now(),
+						FromCluster:  clusterA,
+						ToCluster:    clusterB,
+						FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String()},
+				})
+
+				updateExpectation := &persistence.UpdateDomainRequest{
+					Info: &persistence.DomainInfo{
+						ID:     constants.TestDomainID,
+						Name:   constants.TestDomainName,
+						Status: persistence.DomainStatusRegistered,
+						Data: map[string]string{
+							commonconstants.DomainDataKeyForFailoverHistory: string(failoverHistoryJSON),
+						},
+					},
+					Config: domainResponse.Config,
+					ReplicationConfig: &persistence.DomainReplicationConfig{
+						ActiveClusterName: clusterB,
+						Clusters: []*persistence.ClusterReplicationConfig{
+							{ClusterName: clusterA}, {ClusterName: clusterB}},
+					},
+					PreviousFailoverVersion:     commonconstants.InitialPreviousFailoverVersion,
+					ConfigVersion:               domainResponse.ConfigVersion,
+					FailoverVersion:             2,
+					LastUpdatedTime:             timeSource.Now().UnixNano(),
+					FailoverNotificationVersion: 15,
+					NotificationVersion:         15,
+				}
+
+				domainManager.EXPECT().UpdateDomain(ctx, updateExpectation).Return(nil).Times(1)
+
 				domainReplicator.EXPECT().
 					HandleTransmissionTask(
 						ctx,
 						types.DomainOperationUpdate,
-						domainResponse.Info,
+						&persistence.DomainInfo{
+							Name:   constants.TestDomainName,
+							ID:     constants.TestDomainID,
+							Status: persistence.DomainStatusRegistered,
+							Data: map[string]string{
+								commonconstants.DomainDataKeyForFailoverHistory: string(failoverHistoryJSON),
+							},
+						},
 						domainResponse.Config,
-						domainResponse.ReplicationConfig,
+						&persistence.DomainReplicationConfig{
+							ActiveClusterName: clusterB,
+							Clusters: []*persistence.ClusterReplicationConfig{
+								{ClusterName: clusterA}, {ClusterName: clusterB}},
+						},
 						domainResponse.ConfigVersion,
-						cluster.TestAlternativeClusterInitialFailoverVersion,
+						clusterBInitialFailoverVersion,
 						commonconstants.InitialPreviousFailoverVersion,
-						domainResponse.IsGlobalDomain,
+						true,
 					).Return(nil).Times(1)
 			},
 			request: &types.FailoverDomainRequest{
 				DomainName:              constants.TestDomainName,
-				DomainActiveClusterName: common.Ptr(cluster.TestAlternativeClusterName),
+				DomainActiveClusterName: common.Ptr(clusterB),
 			},
 			response: func(timeSource clock.MockedTimeSource) *types.FailoverDomainResponse {
-				data, _ := json.Marshal([]FailoverEvent{{EventTime: timeSource.Now(), FromCluster: cluster.TestCurrentClusterName, ToCluster: cluster.TestAlternativeClusterName, FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String()}})
+				data, _ := json.Marshal([]FailoverEvent{
+					{EventTime: timeSource.Now(),
+						FromCluster:  clusterA,
+						ToCluster:    clusterB,
+						FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String()},
+				})
 				return &types.FailoverDomainResponse{
 					IsGlobalDomain:  true,
-					FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion/cluster.TestFailoverVersionIncrement*cluster.TestFailoverVersionIncrement + cluster.TestAlternativeClusterInitialFailoverVersion,
+					FailoverVersion: clusterBInitialFailoverVersion,
 					DomainInfo: &types.DomainInfo{
 						Name:   constants.TestDomainName,
 						UUID:   constants.TestDomainID,
@@ -3336,9 +3579,9 @@ func TestHandler_FailoverDomain(t *testing.T) {
 						AsyncWorkflowConfig:                    &types.AsyncWorkflowConfiguration{Enabled: true},
 					},
 					ReplicationConfiguration: &types.DomainReplicationConfiguration{
-						ActiveClusterName: cluster.TestAlternativeClusterName,
+						ActiveClusterName: clusterB,
 						Clusters: []*types.ClusterReplicationConfiguration{
-							{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName},
+							{ClusterName: clusterA}, {ClusterName: clusterB},
 						},
 					},
 				}
@@ -3414,8 +3657,28 @@ func TestHandler_FailoverDomain(t *testing.T) {
 				FailoverHistoryMaxSize: dynamicproperties.GetIntPropertyFilteredByDomain(5),
 			}
 
-			clusterMetadata := cluster.GetTestClusterMetadata(true)
-			mockTimeSource := clock.NewMockedTimeSource()
+			clusterMetadata := cluster.NewMetadata(
+				config.ClusterGroupMetadata{
+					FailoverVersionIncrement: 100,
+					PrimaryClusterName:       clusterA,
+					CurrentClusterName:       clusterA,
+					ClusterGroup: map[string]config.ClusterInformation{
+						clusterA: {
+							Enabled:                true,
+							InitialFailoverVersion: clusterAInitialFailoverVersion,
+						},
+						clusterB: {
+							Enabled:                true,
+							InitialFailoverVersion: clusterBInitialFailoverVersion,
+						},
+					},
+				},
+				func(d string) bool { return false },
+				metrics.NewNoopMetricsClient(),
+				log.NewNoop(),
+			)
+
+			mockTimeSource := clock.NewMockedTimeSourceAt(time.Unix(1730419200, 0))
 
 			handler := handlerImpl{
 				domainManager:       mockDomainManager,
@@ -3440,6 +3703,677 @@ func TestHandler_FailoverDomain(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, response)
 				assert.Equal(t, tc.response(mockTimeSource), response)
+			}
+		})
+	}
+}
+
+func TestBuildActiveActiveClustersFromUpdateRequest(t *testing.T) {
+
+	testsCases := map[string]struct {
+		updateRequest          *types.UpdateDomainRequest
+		config                 *persistence.DomainReplicationConfig
+		domainName             string
+		handler                *handlerImpl
+		expectedActiveClusters *types.ActiveClusters
+		expectedIsChanged      bool
+	}{
+		"Success case - ActiveClusters - failover event - where there's existing cluster attributes and we expect them to be incremented": {
+			updateRequest: &types.UpdateDomainRequest{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"location": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"nyc": {
+									ActiveClusterName: "clusterC", // this is expected to be a failvoer to cluster C from the existing A
+								},
+							},
+						},
+					},
+				},
+			},
+			config: &persistence.DomainReplicationConfig{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"location": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"nyc": {
+									ActiveClusterName: "clusterA",
+									FailoverVersion:   100,
+								},
+								"morocco": {
+									ActiveClusterName: "clusterB",
+									FailoverVersion:   1,
+								},
+								"tokyo": {
+									ActiveClusterName: "clusterC",
+									FailoverVersion:   2,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedActiveClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"location": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"nyc": {
+								ActiveClusterName: "clusterC",
+								FailoverVersion:   102,
+							},
+							"morocco": {
+								ActiveClusterName: "clusterB",
+								FailoverVersion:   1,
+							},
+							"tokyo": {
+								ActiveClusterName: "clusterC",
+								FailoverVersion:   2,
+							},
+						},
+					},
+				},
+			},
+			expectedIsChanged: true,
+		},
+		"Success case - ActiveClusters - where there is the introduction of cluster attributes for the first time - we should see that these results are reflected": {
+			updateRequest: &types.UpdateDomainRequest{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"location": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"nyc": {
+									ActiveClusterName: "clusterA",
+									// failover version can be absent
+								},
+								"morocco": {
+									ActiveClusterName: "clusterB",
+									// failover version can be absent
+								},
+								"tokyo": {
+									ActiveClusterName: "clusterC",
+									// failover version can be absent
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedActiveClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"location": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"nyc": {
+								ActiveClusterName: "clusterA",
+								FailoverVersion:   0,
+							},
+							"morocco": {
+								ActiveClusterName: "clusterB",
+								FailoverVersion:   1,
+							},
+							"tokyo": {
+								ActiveClusterName: "clusterC",
+								FailoverVersion:   2,
+							},
+						},
+					},
+				},
+			},
+			expectedIsChanged: true,
+		},
+		"Success case - ActiveClusters - where there existing cluster attributes. These should be merged": {
+			updateRequest: &types.UpdateDomainRequest{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"location": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"nyc": {
+									ActiveClusterName: "clusterA",
+									// failover version can be absent
+								},
+							},
+						},
+					},
+				},
+			},
+			config: &persistence.DomainReplicationConfig{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"location": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"tokyo": {
+									ActiveClusterName: "clusterC",
+									FailoverVersion:   2,
+								},
+								"morocco": {
+									ActiveClusterName: "clusterB",
+									FailoverVersion:   1,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedActiveClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"location": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"nyc": {
+								ActiveClusterName: "clusterA",
+								FailoverVersion:   0,
+							},
+							"tokyo": {
+								ActiveClusterName: "clusterC",
+								FailoverVersion:   2,
+							},
+							"morocco": {
+								ActiveClusterName: "clusterB",
+								FailoverVersion:   1,
+							},
+						},
+					},
+				},
+			},
+			expectedIsChanged: true,
+		},
+		"Success case - AttributeScopes is nil": {
+			updateRequest: &types.UpdateDomainRequest{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: nil,
+				},
+			},
+			expectedActiveClusters: nil,
+			expectedIsChanged:      false,
+		},
+	}
+
+	for name, tc := range testsCases {
+		t.Run(name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockDomainManager := persistence.NewMockDomainManager(ctrl)
+
+			metadata := cluster.NewMetadata(
+				config.ClusterGroupMetadata{
+					FailoverVersionIncrement: 100,
+					ClusterGroup: map[string]config.ClusterInformation{
+						"clusterA": {
+							InitialFailoverVersion: 0,
+						},
+						"clusterB": {
+							InitialFailoverVersion: 1,
+						},
+						"clusterC": {
+							InitialFailoverVersion: 2,
+						},
+						"clusterD": {
+							InitialFailoverVersion: 3,
+						},
+					},
+				},
+				func(d string) bool { return false },
+				metrics.NewNoopMetricsClient(),
+				log.NewNoop(),
+			)
+
+			mockTimeSource := clock.NewMockedTimeSource()
+			handler := handlerImpl{
+				domainManager:    mockDomainManager,
+				clusterMetadata:  metadata,
+				archiverProvider: provider.NewArchiverProvider(nil, nil),
+				timeSource:       mockTimeSource,
+				logger:           log.NewNoop(),
+			}
+
+			activeClusters, isChanged := handler.buildActiveActiveClusterScopesFromUpdateRequest(tc.updateRequest, tc.config, tc.domainName)
+			assert.Equal(t, tc.expectedActiveClusters, activeClusters)
+			assert.Equal(t, tc.expectedIsChanged, isChanged)
+		})
+	}
+}
+
+func TestActiveClustersFromRegisterRequest(t *testing.T) {
+	tests := []struct {
+		name            string
+		request         *types.RegisterDomainRequest
+		expectedResult  *types.ActiveClusters
+		expectedErr     error
+		clusterMetadata func() cluster.Metadata
+	}{
+		{
+			name: "local domain returns nil",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: false,
+			},
+			expectedResult: nil,
+			expectedErr:    nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "global domain with no active cluster data returns nil",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+			},
+			expectedResult: nil,
+			expectedErr:    nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "new AttributeScopes with valid clusters",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"datacenter": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"dc1": {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+								},
+								"dc2": {
+									ActiveClusterName: cluster.TestAlternativeClusterName,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"datacenter": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"dc1": {
+								ActiveClusterName: cluster.TestCurrentClusterName,
+								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+							},
+							"dc2": {
+								ActiveClusterName: cluster.TestAlternativeClusterName,
+								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							},
+						},
+					},
+				},
+			},
+			expectedErr: nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "new AttributeScopes with invalid cluster",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {
+									ActiveClusterName: "invalid-cluster",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: nil,
+			expectedErr:    &types.BadRequestError{},
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "multiple scopes with multiple attributes",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+								},
+								"us-east": {
+									ActiveClusterName: cluster.TestAlternativeClusterName,
+								},
+							},
+						},
+						"datacenter": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"dc1": {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: cluster.TestCurrentClusterName,
+								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+							},
+							"us-east": {
+								ActiveClusterName: cluster.TestAlternativeClusterName,
+								FailoverVersion:   cluster.TestAlternativeClusterInitialFailoverVersion,
+							},
+						},
+					},
+					"datacenter": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"dc1": {
+								ActiveClusterName: cluster.TestCurrentClusterName,
+								FailoverVersion:   cluster.TestCurrentClusterInitialFailoverVersion,
+							},
+						},
+					},
+				},
+			},
+			expectedErr: nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "empty ActiveClusters with non-nil AttributeScopes",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{},
+				},
+			},
+			expectedResult: nil,
+			expectedErr:    nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.GetTestClusterMetadata(true)
+			},
+		},
+		{
+			name: "custom cluster metadata with different failover versions",
+			request: &types.RegisterDomainRequest{
+				Name:           "test-domain",
+				IsGlobalDomain: true,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region1": {ActiveClusterName: "clusterA"},
+								"region2": {ActiveClusterName: "clusterB"},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region1": {
+								ActiveClusterName: "clusterA",
+								FailoverVersion:   10,
+							},
+							"region2": {
+								ActiveClusterName: "clusterB",
+								FailoverVersion:   20,
+							},
+						},
+					},
+				},
+			},
+			expectedErr: nil,
+			clusterMetadata: func() cluster.Metadata {
+				return cluster.NewMetadata(
+					config.ClusterGroupMetadata{
+						FailoverVersionIncrement: 100,
+						PrimaryClusterName:       "clusterA",
+						CurrentClusterName:       "clusterA",
+						ClusterGroup: map[string]config.ClusterInformation{
+							"clusterA": {
+								Enabled:                true,
+								InitialFailoverVersion: 10,
+							},
+							"clusterB": {
+								Enabled:                true,
+								InitialFailoverVersion: 20,
+							},
+						},
+					},
+					func(d string) bool { return false },
+					metrics.NewNoopMetricsClient(),
+					log.NewNoop(),
+				)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := &handlerImpl{
+				clusterMetadata: tc.clusterMetadata(),
+				logger:          log.NewNoop(),
+			}
+
+			result, err := handler.activeClustersFromRegisterRequest(tc.request)
+
+			if tc.expectedErr != nil {
+				assert.Error(t, err)
+				assert.IsType(t, tc.expectedErr, err)
+				if badReqErr, ok := tc.expectedErr.(*types.BadRequestError); ok {
+					resultErr, ok := err.(*types.BadRequestError)
+					assert.True(t, ok)
+					if badReqErr.Message != "" {
+						assert.Equal(t, badReqErr.Message, resultErr.Message)
+					}
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedResult, result)
+			}
+		})
+	}
+}
+
+func TestValidateDomainReplicationConfigForFailover(t *testing.T) {
+	tests := []struct {
+		name                 string
+		replicationConfig    *persistence.DomainReplicationConfig
+		isGlobalDomain       bool
+		configurationChanged bool
+		activeClusterChanged bool
+		isPrimaryCluster     bool
+		expectedErr          error
+	}{
+		{
+			name: "global domain with valid config on primary cluster - no changes",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestCurrentClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: false,
+			activeClusterChanged: false,
+			isPrimaryCluster:     true,
+			expectedErr:          nil,
+		},
+		{
+			name: "global domain config change only on primary cluster",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestCurrentClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: true,
+			activeClusterChanged: false,
+			isPrimaryCluster:     true,
+			expectedErr:          nil,
+		},
+		{
+			name: "global domain active cluster change only on primary cluster",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestAlternativeClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: false,
+			activeClusterChanged: true,
+			isPrimaryCluster:     true,
+			expectedErr:          nil,
+		},
+		{
+			name: "global domain config change on non-primary cluster should fail",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestCurrentClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: true,
+			activeClusterChanged: false,
+			isPrimaryCluster:     false,
+			expectedErr:          errNotPrimaryCluster,
+		},
+		{
+			name: "global active-passive domain cannot change both config and active cluster",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestAlternativeClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: true,
+			activeClusterChanged: true,
+			isPrimaryCluster:     true,
+			expectedErr:          errCannotDoDomainFailoverAndUpdate,
+		},
+		{
+			name: "global active-active domain can change both config and active cluster",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestAlternativeClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region1": {ActiveClusterName: cluster.TestCurrentClusterName},
+								"region2": {ActiveClusterName: cluster.TestAlternativeClusterName},
+							},
+						},
+					},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: true,
+			activeClusterChanged: true,
+			isPrimaryCluster:     true,
+			expectedErr:          nil,
+		},
+		{
+			name: "global active-active domain with AttributeScopes can change both",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestAlternativeClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"datacenter": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"dc1": {ActiveClusterName: cluster.TestCurrentClusterName},
+								"dc2": {ActiveClusterName: cluster.TestAlternativeClusterName},
+							},
+						},
+					},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: true,
+			activeClusterChanged: true,
+			isPrimaryCluster:     true,
+			expectedErr:          nil,
+		},
+		{
+			name: "global domain with invalid cluster name",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: "invalid-cluster",
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: "invalid-cluster"},
+				},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: false,
+			activeClusterChanged: false,
+			isPrimaryCluster:     true,
+			expectedErr:          &types.BadRequestError{},
+		},
+		{
+			name: "global domain with no clusters should fail",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestCurrentClusterName,
+				Clusters:          []*persistence.ClusterReplicationConfig{},
+			},
+			isGlobalDomain:       true,
+			configurationChanged: false,
+			activeClusterChanged: false,
+			isPrimaryCluster:     true,
+			expectedErr:          &types.BadRequestError{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clusterMetadata := cluster.GetTestClusterMetadata(tc.isPrimaryCluster)
+			handler := &handlerImpl{
+				clusterMetadata:     clusterMetadata,
+				domainAttrValidator: newAttrValidator(clusterMetadata, 1),
+				logger:              log.NewNoop(),
+			}
+
+			err := handler.validateDomainReplicationConfigForFailover(
+				tc.replicationConfig,
+				tc.configurationChanged,
+				tc.activeClusterChanged,
+			)
+
+			if tc.expectedErr != nil {
+				assert.Error(t, err)
+				assert.IsType(t, tc.expectedErr, err)
+				if tc.expectedErr == errNotPrimaryCluster {
+					assert.Equal(t, errNotPrimaryCluster, err)
+				} else if tc.expectedErr == errCannotDoDomainFailoverAndUpdate {
+					assert.Equal(t, errCannotDoDomainFailoverAndUpdate, err)
+				}
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

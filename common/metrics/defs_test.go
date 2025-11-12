@@ -159,13 +159,13 @@ func TestOperationIndexesAreUnique(t *testing.T) {
 func TestMetricsAreUnique(t *testing.T) {
 	// Duplicate indexes is arguably fine, but there doesn't seem to be any benefit in allowing it.
 	t.Run("indexes", func(t *testing.T) {
-		seen := make(map[MetricIdx]bool)
+		seen := make(map[MetricIdx]string)
 		for _, serviceMetrics := range MetricDefs {
-			for idx := range serviceMetrics {
-				if seen[idx] {
-					t.Error("duplicate metric index:", idx, "with name:", serviceMetrics[idx].metricName)
+			for idx, met := range serviceMetrics {
+				if prev, ok := seen[idx]; ok {
+					t.Errorf("duplicate metric index %d, with names %q and %q", idx, met.metricName.String(), prev)
 				}
-				seen[idx] = true
+				seen[idx] = met.metricName.String()
 			}
 		}
 	})

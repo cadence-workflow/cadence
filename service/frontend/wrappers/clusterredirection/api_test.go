@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/resource"
@@ -910,13 +911,50 @@ func (s *clusterRedirectionHandlerSuite) TestSignalWithStartWorkflowExecution() 
 	req := &types.SignalWithStartWorkflowExecutionRequest{
 		Domain: s.domainName,
 		ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-			StickyRegion:                   "region-a",
+			ClusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "region-a",
+			},
 		},
 	}
 
-	s.mockResource.ActiveClusterMgr.EXPECT().CurrentRegion().Return("region-a").Times(1)
-	s.mockClusterRedirectionPolicy.EXPECT().Redirect(ctx, s.domainCacheEntry, nil, req.ActiveClusterSelectionPolicy, apiName, types.QueryConsistencyLevelEventual, gomock.Any()).
+	s.mockClusterRedirectionPolicy.EXPECT().Redirect(ctx, s.domainCacheEntry, &types.WorkflowExecution{}, nil, apiName, types.QueryConsistencyLevelEventual, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, domainCacheEntry *cache.DomainCacheEntry, wfExec *types.WorkflowExecution, selPlcy *types.ActiveClusterSelectionPolicy, apiName string, consistencyLevel types.QueryConsistencyLevel, callFn func(targetDC string) error) error {
+			// validate callFn logic
+			req2 := &types.SignalWithStartWorkflowExecutionRequest{
+				Domain: s.domainName,
+			}
+			s.mockFrontendHandler.EXPECT().SignalWithStartWorkflowExecution(ctx, req2).Return(&types.StartWorkflowExecutionResponse{}, nil).Times(1)
+			err := callFn(s.currentClusterName)
+			s.Nil(err)
+			s.mockRemoteFrontendClient.EXPECT().SignalWithStartWorkflowExecution(ctx, req2, s.handler.callOptions).Return(&types.StartWorkflowExecutionResponse{}, nil).Times(1)
+			err = callFn(s.alternativeClusterName)
+			s.Nil(err)
+			return nil
+		}).
+		Times(1)
+
+	resp, err := s.handler.SignalWithStartWorkflowExecution(ctx, req)
+	s.Nil(err)
+	s.Equal(&types.StartWorkflowExecutionResponse{}, resp)
+}
+
+func (s *clusterRedirectionHandlerSuite) TestSignalWithStartWorkflowExecutionWithActiveClusterSelectionPolicy() {
+	s.handler.config.EnableActiveClusterSelectionPolicyInStartWorkflow = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
+	apiName := "SignalWithStartWorkflowExecution"
+
+	ctx := context.Background()
+	req := &types.SignalWithStartWorkflowExecutionRequest{
+		Domain: s.domainName,
+		ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
+			ClusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "region-a",
+			},
+		},
+	}
+
+	s.mockClusterRedirectionPolicy.EXPECT().Redirect(ctx, s.domainCacheEntry, &types.WorkflowExecution{}, req.ActiveClusterSelectionPolicy, apiName, types.QueryConsistencyLevelEventual, gomock.Any()).
 		DoAndReturn(func(ctx context.Context, domainCacheEntry *cache.DomainCacheEntry, wfExec *types.WorkflowExecution, selPlcy *types.ActiveClusterSelectionPolicy, apiName string, consistencyLevel types.QueryConsistencyLevel, callFn func(targetDC string) error) error {
 			// validate callFn logic
 			s.mockFrontendHandler.EXPECT().SignalWithStartWorkflowExecution(ctx, req).Return(&types.StartWorkflowExecutionResponse{}, nil).Times(1)
@@ -970,12 +1008,49 @@ func (s *clusterRedirectionHandlerSuite) TestStartWorkflowExecution() {
 	req := &types.StartWorkflowExecutionRequest{
 		Domain: s.domainName,
 		ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-			StickyRegion:                   "region-b",
+			ClusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "region-b",
+			},
 		},
 	}
 
-	s.mockResource.ActiveClusterMgr.EXPECT().CurrentRegion().Return("region-a").Times(1)
+	s.mockClusterRedirectionPolicy.EXPECT().Redirect(ctx, s.domainCacheEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, domainCacheEntry *cache.DomainCacheEntry, wfExec *types.WorkflowExecution, selPlcy *types.ActiveClusterSelectionPolicy, apiName string, consistencyLevel types.QueryConsistencyLevel, callFn func(targetDC string) error) error {
+			// validate callFn logic
+			req2 := &types.StartWorkflowExecutionRequest{
+				Domain: s.domainName,
+			}
+			s.mockFrontendHandler.EXPECT().StartWorkflowExecution(ctx, req2).Return(&types.StartWorkflowExecutionResponse{}, nil).Times(1)
+			err := callFn(s.currentClusterName)
+			s.Nil(err)
+			s.mockRemoteFrontendClient.EXPECT().StartWorkflowExecution(ctx, req2, s.handler.callOptions).Return(&types.StartWorkflowExecutionResponse{}, nil).Times(1)
+			err = callFn(s.alternativeClusterName)
+			s.Nil(err)
+			return nil
+		}).
+		Times(1)
+
+	resp, err := s.handler.StartWorkflowExecution(ctx, req)
+	s.Nil(err)
+	s.Equal(&types.StartWorkflowExecutionResponse{}, resp)
+}
+
+func (s *clusterRedirectionHandlerSuite) TestStartWorkflowExecutionWithActiveClusterSelectionPolicy() {
+	s.handler.config.EnableActiveClusterSelectionPolicyInStartWorkflow = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
+	apiName := "StartWorkflowExecution"
+
+	ctx := context.Background()
+	req := &types.StartWorkflowExecutionRequest{
+		Domain: s.domainName,
+		ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
+			ClusterAttribute: &types.ClusterAttribute{
+				Scope: "region",
+				Name:  "region-b",
+			},
+		},
+	}
+
 	s.mockClusterRedirectionPolicy.EXPECT().Redirect(ctx, s.domainCacheEntry, nil, req.ActiveClusterSelectionPolicy, apiName, types.QueryConsistencyLevelEventual, gomock.Any()).
 		DoAndReturn(func(ctx context.Context, domainCacheEntry *cache.DomainCacheEntry, wfExec *types.WorkflowExecution, selPlcy *types.ActiveClusterSelectionPolicy, apiName string, consistencyLevel types.QueryConsistencyLevel, callFn func(targetDC string) error) error {
 			// validate callFn logic

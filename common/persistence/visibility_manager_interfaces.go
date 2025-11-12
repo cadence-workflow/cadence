@@ -49,44 +49,48 @@ type (
 	// RecordWorkflowExecutionStartedRequest is used to add a record of a newly
 	// started execution
 	RecordWorkflowExecutionStartedRequest struct {
-		DomainUUID         string
-		Domain             string // not persisted, used as config filter key
-		Execution          types.WorkflowExecution
-		WorkflowTypeName   string
-		StartTimestamp     int64
-		ExecutionTimestamp int64
-		WorkflowTimeout    int64 // not persisted, used for cassandra ttl
-		TaskID             int64 // not persisted, used as condition update version for ES
-		Memo               *types.Memo
-		TaskList           string
-		IsCron             bool
-		NumClusters        int16
-		UpdateTimestamp    int64 // unit is unix nano, consistent with start/execution timestamp, same in other requests
-		SearchAttributes   map[string][]byte
-		ShardID            int16
+		DomainUUID            string
+		Domain                string // not persisted, used as config filter key
+		Execution             types.WorkflowExecution
+		WorkflowTypeName      string
+		StartTimestamp        int64
+		ExecutionTimestamp    int64
+		WorkflowTimeout       int64 // not persisted, used for cassandra ttl
+		TaskID                int64 // not persisted, used as condition update version for ES
+		Memo                  *types.Memo
+		TaskList              string
+		IsCron                bool
+		NumClusters           int16
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		UpdateTimestamp       int64 // unit is unix nano, consistent with start/execution timestamp, same in other requests
+		SearchAttributes      map[string][]byte
+		ShardID               int16
 	}
 
 	// RecordWorkflowExecutionClosedRequest is used to add a record of a newly
 	// closed execution
 	RecordWorkflowExecutionClosedRequest struct {
-		DomainUUID         string
-		Domain             string // not persisted, used as config filter key
-		Execution          types.WorkflowExecution
-		WorkflowTypeName   string
-		StartTimestamp     int64
-		ExecutionTimestamp int64
-		CloseTimestamp     int64
-		Status             types.WorkflowExecutionCloseStatus
-		HistoryLength      int64
-		RetentionSeconds   int64
-		TaskID             int64 // not persisted, used as condition update version for ES
-		Memo               *types.Memo
-		TaskList           string
-		IsCron             bool
-		NumClusters        int16
-		UpdateTimestamp    int64
-		SearchAttributes   map[string][]byte
-		ShardID            int16
+		DomainUUID            string
+		Domain                string // not persisted, used as config filter key
+		Execution             types.WorkflowExecution
+		WorkflowTypeName      string
+		StartTimestamp        int64
+		ExecutionTimestamp    int64
+		CloseTimestamp        int64
+		Status                types.WorkflowExecutionCloseStatus
+		HistoryLength         int64
+		RetentionSeconds      int64
+		TaskID                int64 // not persisted, used as condition update version for ES
+		Memo                  *types.Memo
+		TaskList              string
+		IsCron                bool
+		NumClusters           int16
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		UpdateTimestamp       int64
+		SearchAttributes      map[string][]byte
+		ShardID               int16
 	}
 
 	// RecordWorkflowExecutionUninitializedRequest is used to add a record of a newly uninitialized execution
@@ -101,21 +105,23 @@ type (
 
 	// UpsertWorkflowExecutionRequest is used to upsert workflow execution
 	UpsertWorkflowExecutionRequest struct {
-		DomainUUID         string
-		Domain             string // not persisted, used as config filter key
-		Execution          types.WorkflowExecution
-		WorkflowTypeName   string
-		StartTimestamp     int64
-		ExecutionTimestamp int64
-		WorkflowTimeout    int64 // not persisted, used for cassandra ttl
-		TaskID             int64 // not persisted, used as condition update version for ES
-		Memo               *types.Memo
-		TaskList           string
-		IsCron             bool
-		NumClusters        int16
-		UpdateTimestamp    int64
-		SearchAttributes   map[string][]byte
-		ShardID            int64
+		DomainUUID            string
+		Domain                string // not persisted, used as config filter key
+		Execution             types.WorkflowExecution
+		WorkflowTypeName      string
+		StartTimestamp        int64
+		ExecutionTimestamp    int64
+		WorkflowTimeout       int64 // not persisted, used for cassandra ttl
+		TaskID                int64 // not persisted, used as condition update version for ES
+		Memo                  *types.Memo
+		TaskList              string
+		IsCron                bool
+		NumClusters           int16
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		UpdateTimestamp       int64
+		SearchAttributes      map[string][]byte
+		ShardID               int64
 	}
 
 	// ListWorkflowExecutionsRequest is used to list executions in a domain

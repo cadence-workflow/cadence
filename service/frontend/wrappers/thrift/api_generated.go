@@ -86,6 +86,11 @@ func (g APIHandler) ListDomains(ctx context.Context, ListRequest *shared.ListDom
 	return thrift.FromListDomainsResponse(response), thrift.FromError(err)
 }
 
+func (g APIHandler) ListFailoverHistory(ctx context.Context, ListRequest *shared.ListFailoverHistoryRequest) (lp1 *shared.ListFailoverHistoryResponse, err error) {
+	response, err := g.h.ListFailoverHistory(ctx, thrift.ToListFailoverHistoryRequest(ListRequest))
+	return thrift.FromListFailoverHistoryResponse(response), thrift.FromError(err)
+}
+
 func (g APIHandler) ListOpenWorkflowExecutions(ctx context.Context, ListRequest *shared.ListOpenWorkflowExecutionsRequest) (lp1 *shared.ListOpenWorkflowExecutionsResponse, err error) {
 	response, err := g.h.ListOpenWorkflowExecutions(ctx, thrift.ToListOpenWorkflowExecutionsRequest(ListRequest))
 	return thrift.FromListOpenWorkflowExecutionsResponse(response), thrift.FromError(err)

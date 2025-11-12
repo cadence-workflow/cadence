@@ -57,6 +57,8 @@ func ParseFilter(filterName string) Filter {
 		return WorkflowType
 	case "ratelimitKey":
 		return RatelimitKey
+	case "namespace":
+		return Namespace
 	default:
 		return UnknownFilter
 	}
@@ -73,6 +75,7 @@ var filters = []string{
 	"workflowID",
 	"workflowType",
 	"ratelimitKey",
+	"namespace",
 }
 
 const (
@@ -95,6 +98,8 @@ const (
 	WorkflowType
 	// RatelimitKey is the global ratelimit key (not a local key name)
 	RatelimitKey
+	// Namespace is the entity of independent shard distribution mechanism
+	Namespace
 
 	// LastFilterTypeForTest must be the last one in this const group for testing purpose
 	LastFilterTypeForTest
@@ -163,6 +168,13 @@ func WorkflowTypeFilter(name string) FilterOption {
 func RatelimitKeyFilter(key string) FilterOption {
 	return func(filterMap map[Filter]interface{}) {
 		filterMap[RatelimitKey] = key
+	}
+}
+
+// NamespaceFilter filters by namespace
+func NamespaceFilter(namespace string) FilterOption {
+	return func(filterMap map[Filter]interface{}) {
+		filterMap[Namespace] = namespace
 	}
 }
 

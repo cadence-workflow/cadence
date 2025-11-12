@@ -391,6 +391,34 @@ func (b *BadBinaries) ByteSize() uint64 {
 	return size
 }
 
+// DeepCopy returns a deep copy of BadBinaries
+func (b *BadBinaries) DeepCopy() BadBinaries {
+	if b == nil {
+		return BadBinaries{}
+	}
+	result := BadBinaries{}
+	if b.Binaries != nil {
+		result.Binaries = make(map[string]*BadBinaryInfo, len(b.Binaries))
+		for k, v := range b.Binaries {
+			if v != nil {
+				copyV := &BadBinaryInfo{
+					Reason:   v.Reason,
+					Operator: v.Operator,
+				}
+				if v.CreatedTimeNano != nil {
+					createdTime := *v.CreatedTimeNano
+					copyV.CreatedTimeNano = &createdTime
+				}
+				result.Binaries[k] = copyV
+			} else {
+				// Preserve nil entries in the map
+				result.Binaries[k] = nil
+			}
+		}
+	}
+	return result
+}
+
 // BadBinaryInfo is an internal type (TBD...)
 type BadBinaryInfo struct {
 	Reason          string `json:"reason,omitempty"`
@@ -1751,8 +1779,20 @@ func (v *DescribeDomainResponse) GetFailoverInfo() (o *FailoverInfo) {
 
 // FailoverDomainRequest is an internal type (TBD...)
 type FailoverDomainRequest struct {
-	DomainName              string  `json:"domainName,omitempty"`
-	DomainActiveClusterName *string `json:"domainActiveClusterName,omitempty"`
+	DomainName              string          `json:"domainName,omitempty"`
+	DomainActiveClusterName *string         `json:"domainActiveClusterName,omitempty"`
+	ActiveClusters          *ActiveClusters `json:"activeClusters,omitempty"`
+}
+
+func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {
+	if v == nil {
+		return nil
+	}
+	return &UpdateDomainRequest{
+		Name:              v.DomainName,
+		ActiveClusterName: v.DomainActiveClusterName,
+		ActiveClusters:    v.ActiveClusters,
+	}
 }
 
 // GetDomainName is an internal getter (TBD...)
@@ -1824,6 +1864,173 @@ func (v *FailoverDomainResponse) GetFailoverVersion() (o int64) {
 func (v *FailoverDomainResponse) GetIsGlobalDomain() (o bool) {
 	if v != nil {
 		return v.IsGlobalDomain
+	}
+	return
+}
+
+// ListFailoverHistoryRequest is an internal type (TBD...)
+type ListFailoverHistoryRequest struct {
+	Filters    *ListFailoverHistoryRequestFilters `json:"filters,omitempty"`
+	Pagination *PaginationOptions                 `json:"pagination,omitempty"`
+}
+
+// GetFilters is an internal getter (TBD...)
+func (v *ListFailoverHistoryRequest) GetFilters() (o *ListFailoverHistoryRequestFilters) {
+	if v != nil && v.Filters != nil {
+		return v.Filters
+	}
+	return
+}
+
+// GetPagination is an internal getter (TBD...)
+func (v *ListFailoverHistoryRequest) GetPagination() (o *PaginationOptions) {
+	if v != nil && v.Pagination != nil {
+		return v.Pagination
+	}
+	return
+}
+
+// ListFailoverHistoryRequestFilters is an internal type (TBD...)
+type ListFailoverHistoryRequestFilters struct {
+	DomainID string `json:"domainId,omitempty"`
+}
+
+// GetDomainID is an internal getter (TBD...)
+func (v *ListFailoverHistoryRequestFilters) GetDomainID() (o string) {
+	if v != nil {
+		return v.DomainID
+	}
+	return
+}
+
+// ListFailoverHistoryResponse is an internal type (TBD...)
+type ListFailoverHistoryResponse struct {
+	FailoverEvents []*FailoverEvent `json:"failoverEvents,omitempty"`
+	NextPageToken  []byte           `json:"nextPageToken,omitempty"`
+}
+
+// GetFailoverEvents is an internal getter (TBD...)
+func (v *ListFailoverHistoryResponse) GetFailoverEvents() (o []*FailoverEvent) {
+	if v != nil && v.FailoverEvents != nil {
+		return v.FailoverEvents
+	}
+	return
+}
+
+// GetNextPageToken is an internal getter (TBD...)
+func (v *ListFailoverHistoryResponse) GetNextPageToken() (o []byte) {
+	if v != nil && v.NextPageToken != nil {
+		return v.NextPageToken
+	}
+	return
+}
+
+// PaginationOptions is an internal type (TBD...)
+type PaginationOptions struct {
+	PageSize      *int32 `json:"pageSize,omitempty"`
+	NextPageToken []byte `json:"nextPageToken,omitempty"`
+}
+
+// GetPageSize is an internal getter (TBD...)
+func (v *PaginationOptions) GetPageSize() (o int32) {
+	if v != nil && v.PageSize != nil {
+		return *v.PageSize
+	}
+	return
+}
+
+// GetNextPageToken is an internal getter (TBD...)
+func (v *PaginationOptions) GetNextPageToken() (o []byte) {
+	if v != nil && v.NextPageToken != nil {
+		return v.NextPageToken
+	}
+	return
+}
+
+// FailoverEvent is an internal type (TBD...)
+type FailoverEvent struct {
+	ID               *string            `json:"id,omitempty"`
+	CreatedTime      *int64             `json:"createdTime,omitempty"`
+	FailoverType     *FailoverType      `json:"failoverType,omitempty"`
+	ClusterFailovers []*ClusterFailover `json:"clusterFailovers,omitempty"`
+}
+
+// GetID is an internal getter (TBD...)
+func (v *FailoverEvent) GetID() (o string) {
+	if v != nil && v.ID != nil {
+		return *v.ID
+	}
+	return
+}
+
+// GetCreatedTime is an internal getter (TBD...)
+func (v *FailoverEvent) GetCreatedTime() (o int64) {
+	if v != nil && v.CreatedTime != nil {
+		return *v.CreatedTime
+	}
+	return
+}
+
+// GetFailoverType is an internal getter (TBD...)
+func (v *FailoverEvent) GetFailoverType() (o FailoverType) {
+	if v != nil && v.FailoverType != nil {
+		return *v.FailoverType
+	}
+	return
+}
+
+// GetClusterFailovers is an internal getter (TBD...)
+func (v *FailoverEvent) GetClusterFailovers() (o []*ClusterFailover) {
+	if v != nil && v.ClusterFailovers != nil {
+		return v.ClusterFailovers
+	}
+	return
+}
+
+// FailoverType is an internal type (TBD...)
+type FailoverType int32
+
+// this should line up with the IDL values in common.proto
+// ie FailoverType_FAILOVER_TYPE_FORCE = 1
+// ie FailoverType_FAILOVER_TYPE_GRACEFUL = 2
+const (
+	FailoverTypeInvalid  = FailoverType(0)
+	FailoverTypeForce    = FailoverType(1)
+	FailoverTypeGraceful = FailoverType(2)
+)
+
+// Ptr is a helper routine that returns a pointer to given FailoverType value.
+func (e FailoverType) Ptr() *FailoverType {
+	return &e
+}
+
+// ClusterFailover is an internal type (TBD...)
+type ClusterFailover struct {
+	FromCluster      *ActiveClusterInfo `json:"fromCluster,omitempty"`
+	ToCluster        *ActiveClusterInfo `json:"toCluster,omitempty"`
+	ClusterAttribute *ClusterAttribute  `json:"clusterAttribute,omitempty"`
+}
+
+// GetFromCluster is an internal getter (TBD...)
+func (v *ClusterFailover) GetFromCluster() (o *ActiveClusterInfo) {
+	if v != nil && v.FromCluster != nil {
+		return v.FromCluster
+	}
+	return
+}
+
+// GetToCluster is an internal getter (TBD...)
+func (v *ClusterFailover) GetToCluster() (o *ActiveClusterInfo) {
+	if v != nil && v.ToCluster != nil {
+		return v.ToCluster
+	}
+	return
+}
+
+// GetClusterAttribute is an internal getter (TBD...)
+func (v *ClusterFailover) GetClusterAttribute() (o *ClusterAttribute) {
+	if v != nil && v.ClusterAttribute != nil {
+		return v.ClusterAttribute
 	}
 	return
 }
@@ -2260,17 +2467,20 @@ type DomainReplicationConfiguration struct {
 	ActiveClusters    *ActiveClusters                    `json:"activeClusters,omitempty"`
 }
 
-func (v *DomainReplicationConfiguration) IsActiveActiveDomain() bool {
+func (v *DomainReplicationConfiguration) IsActiveActive() bool {
 	if v == nil || v.ActiveClusters == nil {
 		return false
 	}
-	if v.ActiveClusters.AttributeScopes != nil && len(v.ActiveClusters.AttributeScopes) > 0 {
-		return true
+
+	// Check to see if a ClusterAttribute has been configured for this domain.
+	if len(v.ActiveClusters.AttributeScopes) > 0 {
+		for _, scope := range v.ActiveClusters.AttributeScopes {
+			if len(scope.ClusterAttributes) > 0 {
+				return true
+			}
+		}
 	}
-	// todo (david.porter) remove this once we have fully migrated to AttributeScopes
-	if v.ActiveClusters.ActiveClustersByRegion != nil && len(v.ActiveClusters.ActiveClustersByRegion) > 0 {
-		return true
-	}
+
 	return false
 }
 
@@ -2326,23 +2536,52 @@ func (v *DomainReplicationConfiguration) ByteSize() uint64 {
 //
 // TODO(c-warren): Rename to ClusterAttributes
 type ActiveClusters struct {
-	// TODO(c-warren): Remove once refactor to ClusterAttribute is complete
-	ActiveClustersByRegion map[string]ActiveClusterInfo `json:"activeClustersByRegion,omitempty" yaml:"activeClustersByRegion,omitempty"`
 	// ClusterAttributes
 	// Keyed by a scope type (e.g region, datacenter, city, etc.).
 	// The value is a ClusterAttributeScope - a map of unique names (e.g seattle, san_francisco, etc.) to an ActiveClusterInfo.
 	AttributeScopes map[string]ClusterAttributeScope `json:"attributeScopes,omitempty" yaml:"attributeScopes,omitempty"`
 }
 
-// DefaultAttributeScopeType is the default scope type for backward compatibility with ActiveClustersByRegion
-const DefaultAttributeScopeType = "region"
+type ClusterAttributeNotFoundError struct {
+	ScopeType     string
+	AttributeName string
+}
 
-// TODO(c-warren): Remove once refactor to ClusterAttribute is complete
-func (v *ActiveClusters) GetActiveClustersByRegion() map[string]ActiveClusterInfo {
-	if v != nil && v.ActiveClustersByRegion != nil {
-		return v.ActiveClustersByRegion
+func (e *ClusterAttributeNotFoundError) Error() string {
+	return fmt.Sprintf("cluster attribute %s not found in scope %s", e.AttributeName, e.ScopeType)
+}
+
+// UndefinedFailoverVersion is used to indicate that a failover version that is not defined.
+// Failover versions are valid for Int64 >= 0
+// and, but implication, 0 is a valid failover version. To distinguish between it and an undefined
+// failover version, we use a negative value.
+// todo (david.porter) move this to constants package and give it a type
+const UndefinedFailoverVersion = int64(-1)
+
+// GetFailoverVersionForAttribute returns the failover version for a given attribute.
+// if a value is not found it returns -1 and an error
+func (v *ActiveClusters) GetFailoverVersionForAttribute(scopeType, attributeName string) (int64, error) {
+	if v == nil {
+		return UndefinedFailoverVersion, &ClusterAttributeNotFoundError{
+			ScopeType:     scopeType,
+			AttributeName: attributeName,
+		}
 	}
-	return nil
+	scope, ok := v.AttributeScopes[scopeType]
+	if !ok {
+		return UndefinedFailoverVersion, &ClusterAttributeNotFoundError{
+			ScopeType:     scopeType,
+			AttributeName: attributeName,
+		}
+	}
+	info, ok := scope.ClusterAttributes[attributeName]
+	if !ok {
+		return UndefinedFailoverVersion, &ClusterAttributeNotFoundError{
+			ScopeType:     scopeType,
+			AttributeName: attributeName,
+		}
+	}
+	return info.FailoverVersion, nil
 }
 
 func (v *ActiveClusters) GetAttributeScopes() map[string]ClusterAttributeScope {
@@ -2361,7 +2600,6 @@ var (
 // GetActiveClusterByClusterAttribute retrieves the ActiveClusterInfo for a given cluster attribute.
 // An attribute is a scope, name pair (e.g. region, dca or city, tokyo).
 // Returns ActiveCluster and FailoverVersion if found, otherwise returns an error.
-// TODO(active-active): Replace existing calls to d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region] with this method.
 func (v *ActiveClusters) GetActiveClusterByClusterAttribute(scopeType, attributeName string) (ActiveClusterInfo, error) {
 	if v == nil {
 		return ActiveClusterInfo{}, ErrDomainNotActiveActive
@@ -2379,30 +2617,8 @@ func (v *ActiveClusters) GetActiveClusterByClusterAttribute(scopeType, attribute
 	return scope.GetActiveClusterByClusterAttribute(attributeName)
 }
 
-// GetActiveClusterByRegion is a convenience method to handle backwards compatibility during the move to AttributeScopes.
-// TODO(active-active): Remove once AttributeScopes is fully migrated and migrate to GetActiveClusterByClusterAttribute
-// TODO(active-active): Replace existing calls to d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region] with this method.
-func (v *ActiveClusters) GetActiveClusterByRegion(region string) (ActiveClusterInfo, error) {
-	if v == nil || region == "" {
-		// This shouldn't happen as we've validated in GetActiveClusterByClusterAttribute
-		return ActiveClusterInfo{}, ErrDomainNotActiveActive
-	}
-
-	// If ActiveClustersByRegion exists check it first and return the result
-	if v.ActiveClustersByRegion != nil {
-		if info, ok := v.ActiveClustersByRegion[region]; ok {
-			return info, nil
-		}
-	}
-
-	// Otherwise attempt to use AttributeScopes
-	return v.GetActiveClusterByClusterAttribute(DefaultAttributeScopeType, region)
-}
-
 // GetAllClusters returns a sorted, deduplicated list of all attribute names from both
-// the new format (AttributeScopes) and old format (ActiveClustersByRegion).
 // For the "region" scope, these are region names; for other scopes, these are the attribute names.
-// TODO(active-active): Replace existing calls to iterating over d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion with this method.
 func (v *ActiveClusters) GetAllClusters() []string {
 	if v == nil {
 		return []string{}
@@ -2420,13 +2636,6 @@ func (v *ActiveClusters) GetAllClusters() []string {
 		}
 	}
 
-	// Collect region names from old format
-	if v.ActiveClustersByRegion != nil {
-		for region := range v.ActiveClustersByRegion {
-			attributeNames[region] = struct{}{}
-		}
-	}
-
 	// Convert to sorted slice
 	result := make([]string, 0, len(attributeNames))
 	for name := range attributeNames {
@@ -2441,7 +2650,6 @@ func (v *ActiveClusters) GetAllClusters() []string {
 
 // SetClusterForClusterAttribute sets the ActiveClusterInfo for a given cluster attribute.
 // If the receiver is nil, this method is a no-op.
-// TODO(active-active): Replace existing calls to v.ActiveClustersByRegion[region] = info with this method.
 func (v *ActiveClusters) SetClusterForClusterAttribute(scopeType, attributeName string, info ActiveClusterInfo) error {
 	if v == nil {
 		return ErrDomainNotActiveActive
@@ -2468,22 +2676,6 @@ func (v *ActiveClusters) SetClusterForClusterAttribute(scopeType, attributeName 
 	return nil
 }
 
-// SetClusterForRegion sets the ActiveClusterInfo for a given region in both the new and old formats.
-// This will dual-write until we have fully migrated to AttributeScopes.
-// TODO(active-active): Replace existing calls to v.ActiveClustersByRegion[region] = info with this method.
-func (v *ActiveClusters) SetClusterForRegion(region string, info ActiveClusterInfo) error {
-	if v == nil {
-		return ErrDomainNotActiveActive
-	}
-
-	if v.ActiveClustersByRegion == nil {
-		v.ActiveClustersByRegion = make(map[string]ActiveClusterInfo)
-	}
-	v.ActiveClustersByRegion[region] = info
-
-	return v.SetClusterForClusterAttribute(DefaultAttributeScopeType, region, info)
-}
-
 // ByteSize returns the approximate memory used in bytes
 func (v *ActiveClusters) ByteSize() uint64 {
 	if v == nil {
@@ -2491,13 +2683,6 @@ func (v *ActiveClusters) ByteSize() uint64 {
 	}
 
 	size := uint64(unsafe.Sizeof(*v))
-	for k, val := range v.ActiveClustersByRegion {
-		// ByteSize implementation must match the logic in the reflection-based calculator used in the tests from common/types/test_util.go.
-		// reflection-based calculator purposely ignores Go's internal map bucket/storage and treats each map element as
-		// key: dynamic payload only (e.g., len(string)), no string header
-		// value: dynamic payload only (e.g., for a struct, just its fields' dynamic payload), no struct header, no inline ints/bools
-		size += uint64(len(k)) + val.ByteSize() - uint64(unsafe.Sizeof(val))
-	}
 
 	for k, scope := range v.AttributeScopes {
 		size += uint64(len(k)) + scope.ByteSize() - uint64(unsafe.Sizeof(scope))
@@ -2543,7 +2728,7 @@ func (v *ClusterAttributeScope) ByteSize() uint64 {
 // ActiveClusterInfo defines failover information for a ClusterAttribute.
 type ActiveClusterInfo struct {
 	ActiveClusterName string `json:"activeClusterName,omitempty" yaml:"activeClusterName,omitempty"`
-	FailoverVersion   int64  `json:"failoverVersion,omitempty" yaml:"failoverVersion,omitempty"`
+	FailoverVersion   int64  `json:"failoverVersion" yaml:"failoverVersion"`
 }
 
 // ByteSize returns the approximate memory used in bytes
@@ -2555,18 +2740,40 @@ func (v *ActiveClusters) DeepCopy() *ActiveClusters {
 	if v == nil {
 		return nil
 	}
-	activeClustersByRegion := make(map[string]ActiveClusterInfo)
-	for region, activeClusterInfo := range v.ActiveClustersByRegion {
-		activeClustersByRegion[region] = activeClusterInfo
+	result := &ActiveClusters{}
+	if v.AttributeScopes != nil {
+		result.AttributeScopes = make(map[string]ClusterAttributeScope, len(v.AttributeScopes))
+		for scopeType, scope := range v.AttributeScopes {
+			copiedScope := ClusterAttributeScope{}
+			if scope.ClusterAttributes != nil {
+				copiedScope.ClusterAttributes = make(map[string]ActiveClusterInfo, len(scope.ClusterAttributes))
+				for attrName, attrInfo := range scope.ClusterAttributes {
+					copiedScope.ClusterAttributes[attrName] = attrInfo
+				}
+			}
+			result.AttributeScopes[scopeType] = copiedScope
+		}
 	}
-	return &ActiveClusters{
-		ActiveClustersByRegion: activeClustersByRegion,
-	}
+	return result
 }
 
 type ClusterAttribute struct {
 	Scope string `json:"scope,omitempty" yaml:"scope,omitempty"`
 	Name  string `json:"name,omitempty" yaml:"name,omitempty"`
+}
+
+func (c *ClusterAttribute) GetScope() string {
+	if c == nil {
+		return ""
+	}
+	return c.Scope
+}
+
+func (c *ClusterAttribute) GetName() string {
+	if c == nil {
+		return ""
+	}
+	return c.Name
 }
 
 func (c *ClusterAttribute) Equals(other *ClusterAttribute) bool {
@@ -2598,6 +2805,13 @@ type ActiveClusterSelectionPolicy struct {
 	ClusterAttribute *ClusterAttribute `json:"clusterAttribute,omitempty" yaml:"clusterAttribute,omitempty"`
 }
 
+func (p *ActiveClusterSelectionPolicy) GetClusterAttribute() *ClusterAttribute {
+	if p == nil {
+		return nil
+	}
+	return p.ClusterAttribute
+}
+
 func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolicy) bool {
 	if p == nil && other == nil {
 		return true
@@ -2606,17 +2820,7 @@ func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolic
 		return false
 	}
 
-	return p.GetStrategy() == other.GetStrategy() &&
-		p.StickyRegion == other.StickyRegion &&
-		p.ExternalEntityType == other.ExternalEntityType &&
-		p.ExternalEntityKey == other.ExternalEntityKey && p.ClusterAttribute.Equals(other.ClusterAttribute)
-}
-
-func (p *ActiveClusterSelectionPolicy) GetStrategy() ActiveClusterSelectionStrategy {
-	if p == nil || p.ActiveClusterSelectionStrategy == nil {
-		return ActiveClusterSelectionStrategyRegionSticky
-	}
-	return *p.ActiveClusterSelectionStrategy
+	return p.ClusterAttribute.Equals(other.ClusterAttribute)
 }
 
 func (e ActiveClusterSelectionStrategy) Ptr() *ActiveClusterSelectionStrategy {
@@ -5399,7 +5603,6 @@ type RegisterDomainRequest struct {
 	EmitMetric                             *bool                              `json:"emitMetric,omitempty"`
 	Clusters                               []*ClusterReplicationConfiguration `json:"clusters,omitempty"`
 	ActiveClusterName                      string                             `json:"activeClusterName,omitempty"`
-	ActiveClustersByRegion                 map[string]string                  `json:"activeClustersByRegion,omitempty"`
 	ActiveClusters                         *ActiveClusters                    `json:"activeClusters,omitempty"`
 	Data                                   map[string]string                  `json:"data,omitempty"`
 	SecurityToken                          string                             `json:"securityToken,omitempty"`
@@ -5455,14 +5658,6 @@ func (v *RegisterDomainRequest) GetEmitMetric() (o bool) {
 func (v *RegisterDomainRequest) GetActiveClusterName() (o string) {
 	if v != nil {
 		return v.ActiveClusterName
-	}
-	return
-}
-
-// GetActiveClustersByRegion is an internal getter (TBD...)
-func (v *RegisterDomainRequest) GetActiveClustersByRegion() (o map[string]string) {
-	if v != nil {
-		return v.ActiveClustersByRegion
 	}
 	return
 }
@@ -7827,6 +8022,22 @@ type UpdateDomainRequest struct {
 	FailoverTimeoutInSeconds               *int32                             `json:"failoverTimeoutInSeconds,omitempty"`
 }
 
+// IsAFailoverRequest identifies if any part of the request is a failover request
+// and if so, will return true
+// this includes:
+//
+// - an active cluster change  (force failver)
+// - any failvoer timeout values (for graceful failover)
+// - or a change to one of the domain's cluster-attribute fields (active-active failover)
+//
+// this is not a validation function
+// and doesn't attempt to give valid or coherent combinations
+func (v *UpdateDomainRequest) IsAFailoverRequest() bool {
+	return v.ActiveClusterName != nil ||
+		(v.FailoverTimeoutInSeconds != nil && *v.FailoverTimeoutInSeconds > 0) ||
+		(v.ActiveClusters != nil && len(v.ActiveClusters.AttributeScopes) > 0)
+}
+
 // GetName is an internal getter (TBD...)
 func (v *UpdateDomainRequest) GetName() (o string) {
 	if v != nil {
@@ -7866,6 +8077,19 @@ type UpdateDomainResponse struct {
 	ReplicationConfiguration *DomainReplicationConfiguration `json:"replicationConfiguration,omitempty"`
 	FailoverVersion          int64                           `json:"failoverVersion,omitempty"`
 	IsGlobalDomain           bool                            `json:"isGlobalDomain,omitempty"`
+}
+
+func (v *UpdateDomainResponse) ToFailoverDomainResponse() *FailoverDomainResponse {
+	if v == nil {
+		return nil
+	}
+	return &FailoverDomainResponse{
+		DomainInfo:               v.DomainInfo,
+		Configuration:            v.Configuration,
+		ReplicationConfiguration: v.ReplicationConfiguration,
+		FailoverVersion:          v.FailoverVersion,
+		IsGlobalDomain:           v.IsGlobalDomain,
+	}
 }
 
 // GetDomainInfo is an internal getter (TBD...)

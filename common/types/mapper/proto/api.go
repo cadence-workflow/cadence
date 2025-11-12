@@ -270,7 +270,7 @@ func FromArchivalStatus(t *types.ArchivalStatus) apiv1.ArchivalStatus {
 	case types.ArchivalStatusEnabled:
 		return apiv1.ArchivalStatus_ARCHIVAL_STATUS_ENABLED
 	}
-	panic("unexpected enum value")
+	return apiv1.ArchivalStatus_ARCHIVAL_STATUS_INVALID
 }
 
 func ToArchivalStatus(t apiv1.ArchivalStatus) *types.ArchivalStatus {
@@ -282,7 +282,7 @@ func ToArchivalStatus(t apiv1.ArchivalStatus) *types.ArchivalStatus {
 	case apiv1.ArchivalStatus_ARCHIVAL_STATUS_ENABLED:
 		return types.ArchivalStatusEnabled.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromBadBinaries(t *types.BadBinaries) *apiv1.BadBinaries {
@@ -335,7 +335,7 @@ func FromCancelExternalWorkflowExecutionFailedCause(t *types.CancelExternalWorkf
 	case types.CancelExternalWorkflowExecutionFailedCauseWorkflowAlreadyCompleted:
 		return apiv1.CancelExternalWorkflowExecutionFailedCause_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_COMPLETED
 	}
-	panic("unexpected enum value")
+	return apiv1.CancelExternalWorkflowExecutionFailedCause_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID
 }
 
 func ToCancelExternalWorkflowExecutionFailedCause(t apiv1.CancelExternalWorkflowExecutionFailedCause) *types.CancelExternalWorkflowExecutionFailedCause {
@@ -347,7 +347,7 @@ func ToCancelExternalWorkflowExecutionFailedCause(t apiv1.CancelExternalWorkflow
 	case apiv1.CancelExternalWorkflowExecutionFailedCause_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_COMPLETED:
 		return types.CancelExternalWorkflowExecutionFailedCauseWorkflowAlreadyCompleted.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromCancelTimerDecisionAttributes(t *types.CancelTimerDecisionAttributes) *apiv1.CancelTimerDecisionAttributes {
@@ -474,7 +474,7 @@ func FromChildWorkflowExecutionFailedCause(t *types.ChildWorkflowExecutionFailed
 	case types.ChildWorkflowExecutionFailedCauseWorkflowAlreadyRunning:
 		return apiv1.ChildWorkflowExecutionFailedCause_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_RUNNING
 	}
-	panic("unexpected enum value")
+	return apiv1.ChildWorkflowExecutionFailedCause_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID
 }
 
 func ToChildWorkflowExecutionFailedCause(t apiv1.ChildWorkflowExecutionFailedCause) *types.ChildWorkflowExecutionFailedCause {
@@ -484,7 +484,7 @@ func ToChildWorkflowExecutionFailedCause(t apiv1.ChildWorkflowExecutionFailedCau
 	case apiv1.ChildWorkflowExecutionFailedCause_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_RUNNING:
 		return types.ChildWorkflowExecutionFailedCauseWorkflowAlreadyRunning.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromChildWorkflowExecutionFailedEventAttributes(t *types.ChildWorkflowExecutionFailedEventAttributes) *apiv1.ChildWorkflowExecutionFailedEventAttributes {
@@ -644,7 +644,7 @@ func FromContinueAsNewInitiator(t *types.ContinueAsNewInitiator) apiv1.ContinueA
 	case types.ContinueAsNewInitiatorCronSchedule:
 		return apiv1.ContinueAsNewInitiator_CONTINUE_AS_NEW_INITIATOR_CRON_SCHEDULE
 	}
-	panic("unexpected enum value")
+	return apiv1.ContinueAsNewInitiator_CONTINUE_AS_NEW_INITIATOR_INVALID
 }
 
 func ToContinueAsNewInitiator(t apiv1.ContinueAsNewInitiator) *types.ContinueAsNewInitiator {
@@ -658,7 +658,7 @@ func ToContinueAsNewInitiator(t apiv1.ContinueAsNewInitiator) *types.ContinueAsN
 	case apiv1.ContinueAsNewInitiator_CONTINUE_AS_NEW_INITIATOR_CRON_SCHEDULE:
 		return types.ContinueAsNewInitiatorCronSchedule.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromContinueAsNewWorkflowExecutionDecisionAttributes(t *types.ContinueAsNewWorkflowExecutionDecisionAttributes) *apiv1.ContinueAsNewWorkflowExecutionDecisionAttributes {
@@ -848,7 +848,7 @@ func FromDecisionTaskFailedCause(t *types.DecisionTaskFailedCause) apiv1.Decisio
 	case types.DecisionTaskFailedCauseBadSearchAttributes:
 		return apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_BAD_SEARCH_ATTRIBUTES
 	}
-	panic("unexpected enum value")
+	return apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_INVALID
 }
 
 func ToDecisionTaskFailedCause(t apiv1.DecisionTaskFailedCause) *types.DecisionTaskFailedCause {
@@ -902,7 +902,7 @@ func ToDecisionTaskFailedCause(t apiv1.DecisionTaskFailedCause) *types.DecisionT
 	case apiv1.DecisionTaskFailedCause_DECISION_TASK_FAILED_CAUSE_BAD_SEARCH_ATTRIBUTES:
 		return types.DecisionTaskFailedCauseBadSearchAttributes.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromDecisionTaskFailedEventAttributes(t *types.DecisionTaskFailedEventAttributes) *apiv1.DecisionTaskFailedEventAttributes {
@@ -1070,6 +1070,7 @@ func FromDescribeDomainRequest(t *types.DescribeDomainRequest) *apiv1.DescribeDo
 	if t.Name != nil {
 		return &apiv1.DescribeDomainRequest{DescribeBy: &apiv1.DescribeDomainRequest_Name{Name: *t.Name}}
 	}
+	// TODO: Remove this panic and decide on an error behaviour
 	panic("neither oneof field is set for DescribeDomainRequest")
 }
 
@@ -1083,6 +1084,7 @@ func ToDescribeDomainRequest(t *apiv1.DescribeDomainRequest) *types.DescribeDoma
 	case *apiv1.DescribeDomainRequest_Name:
 		return &types.DescribeDomainRequest{Name: common.StringPtr(describeBy.Name)}
 	}
+	// TODO: Remove this panic and decide on an error behaviour
 	panic("neither oneof field is set for DescribeDomainRequest")
 }
 
@@ -1351,7 +1353,7 @@ func FromDomainStatus(t *types.DomainStatus) apiv1.DomainStatus {
 	case types.DomainStatusDeleted:
 		return apiv1.DomainStatus_DOMAIN_STATUS_DELETED
 	}
-	panic("unexpected enum value")
+	return apiv1.DomainStatus_DOMAIN_STATUS_INVALID
 }
 
 func ToDomainStatus(t apiv1.DomainStatus) *types.DomainStatus {
@@ -1365,7 +1367,7 @@ func ToDomainStatus(t apiv1.DomainStatus) *types.DomainStatus {
 	case apiv1.DomainStatus_DOMAIN_STATUS_DELETED:
 		return types.DomainStatusDeleted.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromEncodingType(t *types.EncodingType) apiv1.EncodingType {
@@ -1378,7 +1380,7 @@ func FromEncodingType(t *types.EncodingType) apiv1.EncodingType {
 	case types.EncodingTypeJSON:
 		return apiv1.EncodingType_ENCODING_TYPE_JSON
 	}
-	panic("unexpected enum value")
+	return apiv1.EncodingType_ENCODING_TYPE_INVALID
 }
 
 func ToEncodingType(t apiv1.EncodingType) *types.EncodingType {
@@ -1390,9 +1392,9 @@ func ToEncodingType(t apiv1.EncodingType) *types.EncodingType {
 	case apiv1.EncodingType_ENCODING_TYPE_JSON:
 		return types.EncodingTypeJSON.Ptr()
 	case apiv1.EncodingType_ENCODING_TYPE_PROTO3:
-		panic("not supported yet")
+		return nil
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromEventFilterType(t *types.HistoryEventFilterType) apiv1.EventFilterType {
@@ -1405,7 +1407,7 @@ func FromEventFilterType(t *types.HistoryEventFilterType) apiv1.EventFilterType 
 	case types.HistoryEventFilterTypeCloseEvent:
 		return apiv1.EventFilterType_EVENT_FILTER_TYPE_CLOSE_EVENT
 	}
-	panic("unexpected enum value")
+	return apiv1.EventFilterType_EVENT_FILTER_TYPE_INVALID
 }
 
 func ToEventFilterType(t apiv1.EventFilterType) *types.HistoryEventFilterType {
@@ -1417,7 +1419,7 @@ func ToEventFilterType(t apiv1.EventFilterType) *types.HistoryEventFilterType {
 	case apiv1.EventFilterType_EVENT_FILTER_TYPE_CLOSE_EVENT:
 		return types.HistoryEventFilterTypeCloseEvent.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromExternalWorkflowExecutionCancelRequestedEventAttributes(t *types.ExternalWorkflowExecutionCancelRequestedEventAttributes) *apiv1.ExternalWorkflowExecutionCancelRequestedEventAttributes {
@@ -1648,13 +1650,13 @@ func FromIndexedValueType(t types.IndexedValueType) apiv1.IndexedValueType {
 	case types.IndexedValueTypeDatetime:
 		return apiv1.IndexedValueType_INDEXED_VALUE_TYPE_DATETIME
 	}
-	panic("unexpected enum value")
+	return apiv1.IndexedValueType_INDEXED_VALUE_TYPE_INVALID
 }
 
 func ToIndexedValueType(t apiv1.IndexedValueType) types.IndexedValueType {
 	switch t {
 	case apiv1.IndexedValueType_INDEXED_VALUE_TYPE_INVALID:
-		panic("received IndexedValueType_INDEXED_VALUE_TYPE_INVALID")
+		return types.IndexedValueTypeString
 	case apiv1.IndexedValueType_INDEXED_VALUE_TYPE_STRING:
 		return types.IndexedValueTypeString
 	case apiv1.IndexedValueType_INDEXED_VALUE_TYPE_KEYWORD:
@@ -1668,7 +1670,7 @@ func ToIndexedValueType(t apiv1.IndexedValueType) types.IndexedValueType {
 	case apiv1.IndexedValueType_INDEXED_VALUE_TYPE_DATETIME:
 		return types.IndexedValueTypeDatetime
 	}
-	panic("unexpected enum value")
+	return types.IndexedValueTypeString
 }
 
 func FromListArchivedWorkflowExecutionsRequest(t *types.ListArchivedWorkflowExecutionsRequest) *apiv1.ListArchivedWorkflowExecutionsRequest {
@@ -1995,7 +1997,7 @@ func FromParentClosePolicy(t *types.ParentClosePolicy) apiv1.ParentClosePolicy {
 	case types.ParentClosePolicyTerminate:
 		return apiv1.ParentClosePolicy_PARENT_CLOSE_POLICY_TERMINATE
 	}
-	panic("unexpected enum value")
+	return apiv1.ParentClosePolicy_PARENT_CLOSE_POLICY_INVALID
 }
 
 func ToParentClosePolicy(t apiv1.ParentClosePolicy) *types.ParentClosePolicy {
@@ -2009,7 +2011,7 @@ func ToParentClosePolicy(t apiv1.ParentClosePolicy) *types.ParentClosePolicy {
 	case apiv1.ParentClosePolicy_PARENT_CLOSE_POLICY_TERMINATE:
 		return types.ParentClosePolicyTerminate.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromPendingActivityInfo(t *types.PendingActivityInfo) *apiv1.PendingActivityInfo {
@@ -2069,7 +2071,7 @@ func FromPendingActivityState(t *types.PendingActivityState) apiv1.PendingActivi
 	case types.PendingActivityStateCancelRequested:
 		return apiv1.PendingActivityState_PENDING_ACTIVITY_STATE_CANCEL_REQUESTED
 	}
-	panic("unexpected enum value")
+	return apiv1.PendingActivityState_PENDING_ACTIVITY_STATE_INVALID
 }
 
 func ToPendingActivityState(t apiv1.PendingActivityState) *types.PendingActivityState {
@@ -2083,7 +2085,7 @@ func ToPendingActivityState(t apiv1.PendingActivityState) *types.PendingActivity
 	case apiv1.PendingActivityState_PENDING_ACTIVITY_STATE_CANCEL_REQUESTED:
 		return types.PendingActivityStateCancelRequested.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromPendingChildExecutionInfo(t *types.PendingChildExecutionInfo) *apiv1.PendingChildExecutionInfo {
@@ -2151,7 +2153,7 @@ func FromPendingDecisionState(t *types.PendingDecisionState) apiv1.PendingDecisi
 	case types.PendingDecisionStateStarted:
 		return apiv1.PendingDecisionState_PENDING_DECISION_STATE_STARTED
 	}
-	panic("unexpected enum value")
+	return apiv1.PendingDecisionState_PENDING_DECISION_STATE_INVALID
 }
 
 func ToPendingDecisionState(t apiv1.PendingDecisionState) *types.PendingDecisionState {
@@ -2163,7 +2165,7 @@ func ToPendingDecisionState(t apiv1.PendingDecisionState) *types.PendingDecision
 	case apiv1.PendingDecisionState_PENDING_DECISION_STATE_STARTED:
 		return types.PendingDecisionStateStarted.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromPollForActivityTaskRequest(t *types.PollForActivityTaskRequest) *apiv1.PollForActivityTaskRequest {
@@ -2346,7 +2348,7 @@ func FromQueryConsistencyLevel(t *types.QueryConsistencyLevel) apiv1.QueryConsis
 	case types.QueryConsistencyLevelStrong:
 		return apiv1.QueryConsistencyLevel_QUERY_CONSISTENCY_LEVEL_STRONG
 	}
-	panic("unexpected enum value")
+	return apiv1.QueryConsistencyLevel_QUERY_CONSISTENCY_LEVEL_INVALID
 }
 
 func ToQueryConsistencyLevel(t apiv1.QueryConsistencyLevel) *types.QueryConsistencyLevel {
@@ -2358,7 +2360,7 @@ func ToQueryConsistencyLevel(t apiv1.QueryConsistencyLevel) *types.QueryConsiste
 	case apiv1.QueryConsistencyLevel_QUERY_CONSISTENCY_LEVEL_STRONG:
 		return types.QueryConsistencyLevelStrong.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromQueryRejectCondition(t *types.QueryRejectCondition) apiv1.QueryRejectCondition {
@@ -2371,7 +2373,7 @@ func FromQueryRejectCondition(t *types.QueryRejectCondition) apiv1.QueryRejectCo
 	case types.QueryRejectConditionNotCompletedCleanly:
 		return apiv1.QueryRejectCondition_QUERY_REJECT_CONDITION_NOT_COMPLETED_CLEANLY
 	}
-	panic("unexpected enum value")
+	return apiv1.QueryRejectCondition_QUERY_REJECT_CONDITION_INVALID
 }
 
 func ToQueryRejectCondition(t apiv1.QueryRejectCondition) *types.QueryRejectCondition {
@@ -2383,7 +2385,7 @@ func ToQueryRejectCondition(t apiv1.QueryRejectCondition) *types.QueryRejectCond
 	case apiv1.QueryRejectCondition_QUERY_REJECT_CONDITION_NOT_COMPLETED_CLEANLY:
 		return types.QueryRejectConditionNotCompletedCleanly.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromQueryRejected(t *types.QueryRejected) *apiv1.QueryRejected {
@@ -2414,7 +2416,7 @@ func FromQueryResultType(t *types.QueryResultType) apiv1.QueryResultType {
 	case types.QueryResultTypeFailed:
 		return apiv1.QueryResultType_QUERY_RESULT_TYPE_FAILED
 	}
-	panic("unexpected enum value")
+	return apiv1.QueryResultType_QUERY_RESULT_TYPE_INVALID
 }
 
 func ToQueryResultType(t apiv1.QueryResultType) *types.QueryResultType {
@@ -2426,7 +2428,7 @@ func ToQueryResultType(t apiv1.QueryResultType) *types.QueryResultType {
 	case apiv1.QueryResultType_QUERY_RESULT_TYPE_FAILED:
 		return types.QueryResultTypeFailed.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromQueryWorkflowRequest(t *types.QueryWorkflowRequest) *apiv1.QueryWorkflowRequest {
@@ -2593,7 +2595,6 @@ func FromRegisterDomainRequest(t *types.RegisterDomainRequest) *apiv1.RegisterDo
 		WorkflowExecutionRetentionPeriod: daysToDuration(&t.WorkflowExecutionRetentionPeriodInDays),
 		Clusters:                         FromClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                t.ActiveClusterName,
-		ActiveClustersByRegion:           t.ActiveClustersByRegion,
 		ActiveClusters:                   FromActiveClusters(t.ActiveClusters),
 		Data:                             t.Data,
 		SecurityToken:                    t.SecurityToken,
@@ -2617,7 +2618,6 @@ func ToRegisterDomainRequest(t *apiv1.RegisterDomainRequest) *types.RegisterDoma
 		EmitMetric:                             common.BoolPtr(true), // this is a legacy field that doesn't exist in proto and probably can be removed
 		Clusters:                               ToClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      t.ActiveClusterName,
-		ActiveClustersByRegion:                 t.ActiveClustersByRegion,
 		ActiveClusters:                         ToActiveClusters(t.ActiveClusters),
 		Data:                                   t.Data,
 		SecurityToken:                          t.SecurityToken,
@@ -3175,7 +3175,7 @@ func FromQueryTaskCompletedType(t *types.QueryTaskCompletedType) apiv1.QueryResu
 	case types.QueryTaskCompletedTypeFailed:
 		return apiv1.QueryResultType_QUERY_RESULT_TYPE_FAILED
 	}
-	panic("unexpected enum value")
+	return apiv1.QueryResultType_QUERY_RESULT_TYPE_INVALID
 }
 
 func ToQueryTaskCompletedType(t apiv1.QueryResultType) *types.QueryTaskCompletedType {
@@ -3187,7 +3187,7 @@ func ToQueryTaskCompletedType(t apiv1.QueryResultType) *types.QueryTaskCompleted
 	case apiv1.QueryResultType_QUERY_RESULT_TYPE_FAILED:
 		return types.QueryTaskCompletedTypeFailed.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromRetryPolicy(t *types.RetryPolicy) *apiv1.RetryPolicy {
@@ -3378,7 +3378,7 @@ func FromSignalExternalWorkflowExecutionFailedCause(t *types.SignalExternalWorkf
 	case types.SignalExternalWorkflowExecutionFailedCauseWorkflowAlreadyCompleted:
 		return apiv1.SignalExternalWorkflowExecutionFailedCause_SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_COMPLETED
 	}
-	panic("unexpected enum value")
+	return apiv1.SignalExternalWorkflowExecutionFailedCause_SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_INVALID
 }
 
 func ToSignalExternalWorkflowExecutionFailedCause(t apiv1.SignalExternalWorkflowExecutionFailedCause) *types.SignalExternalWorkflowExecutionFailedCause {
@@ -3390,7 +3390,7 @@ func ToSignalExternalWorkflowExecutionFailedCause(t apiv1.SignalExternalWorkflow
 	case apiv1.SignalExternalWorkflowExecutionFailedCause_SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_COMPLETED:
 		return types.SignalExternalWorkflowExecutionFailedCauseWorkflowAlreadyCompleted.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromSignalExternalWorkflowExecutionFailedEventAttributes(t *types.SignalExternalWorkflowExecutionFailedEventAttributes) *apiv1.SignalExternalWorkflowExecutionFailedEventAttributes {
@@ -4014,7 +4014,7 @@ func FromTaskListKind(t *types.TaskListKind) apiv1.TaskListKind {
 	case types.TaskListKindEphemeral:
 		return apiv1.TaskListKind_TASK_LIST_KIND_EPHEMERAL
 	}
-	panic("unexpected enum value")
+	return apiv1.TaskListKind_TASK_LIST_KIND_INVALID
 }
 
 func ToTaskListKind(t apiv1.TaskListKind) *types.TaskListKind {
@@ -4028,7 +4028,7 @@ func ToTaskListKind(t apiv1.TaskListKind) *types.TaskListKind {
 	case apiv1.TaskListKind_TASK_LIST_KIND_EPHEMERAL:
 		return types.TaskListKindEphemeral.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromTaskListMetadata(t *types.TaskListMetadata) *apiv1.TaskListMetadata {
@@ -4125,7 +4125,7 @@ func FromTaskListType(t *types.TaskListType) apiv1.TaskListType {
 	case types.TaskListTypeActivity:
 		return apiv1.TaskListType_TASK_LIST_TYPE_ACTIVITY
 	}
-	panic("unexpected enum value")
+	return apiv1.TaskListType_TASK_LIST_TYPE_INVALID
 }
 
 func ToTaskListType(t apiv1.TaskListType) *types.TaskListType {
@@ -4137,7 +4137,7 @@ func ToTaskListType(t apiv1.TaskListType) *types.TaskListType {
 	case apiv1.TaskListType_TASK_LIST_TYPE_ACTIVITY:
 		return types.TaskListTypeActivity.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromTerminateWorkflowExecutionRequest(t *types.TerminateWorkflowExecutionRequest) *apiv1.TerminateWorkflowExecutionRequest {
@@ -4182,7 +4182,7 @@ func FromTimeoutType(t *types.TimeoutType) apiv1.TimeoutType {
 	case types.TimeoutTypeHeartbeat:
 		return apiv1.TimeoutType_TIMEOUT_TYPE_HEARTBEAT
 	}
-	panic("unexpected enum value")
+	return apiv1.TimeoutType_TIMEOUT_TYPE_INVALID
 }
 
 func ToTimeoutType(t apiv1.TimeoutType) *types.TimeoutType {
@@ -4198,7 +4198,7 @@ func ToTimeoutType(t apiv1.TimeoutType) *types.TimeoutType {
 	case apiv1.TimeoutType_TIMEOUT_TYPE_HEARTBEAT:
 		return types.TimeoutTypeHeartbeat.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromDecisionTaskTimedOutCause(t *types.DecisionTaskTimedOutCause) apiv1.DecisionTaskTimedOutCause {
@@ -4211,7 +4211,7 @@ func FromDecisionTaskTimedOutCause(t *types.DecisionTaskTimedOutCause) apiv1.Dec
 	case types.DecisionTaskTimedOutCauseReset:
 		return apiv1.DecisionTaskTimedOutCause_DECISION_TASK_TIMED_OUT_CAUSE_RESET
 	}
-	panic("unexpected enum value")
+	return apiv1.DecisionTaskTimedOutCause_DECISION_TASK_TIMED_OUT_CAUSE_INVALID
 }
 
 func ToDecisionTaskTimedOutCause(t apiv1.DecisionTaskTimedOutCause) *types.DecisionTaskTimedOutCause {
@@ -4223,7 +4223,7 @@ func ToDecisionTaskTimedOutCause(t apiv1.DecisionTaskTimedOutCause) *types.Decis
 	case apiv1.DecisionTaskTimedOutCause_DECISION_TASK_TIMED_OUT_CAUSE_RESET:
 		return types.DecisionTaskTimedOutCauseReset.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromTimerCanceledEventAttributes(t *types.TimerCanceledEventAttributes) *apiv1.TimerCanceledEventAttributes {
@@ -4514,7 +4514,8 @@ func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *apiv1.FailoverDo
 	}
 	return &apiv1.FailoverDomainRequest{
 		DomainName:              t.DomainName,
-		DomainActiveClusterName: *t.DomainActiveClusterName,
+		DomainActiveClusterName: t.GetDomainActiveClusterName(),
+		ActiveClusters:          FromActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -4525,6 +4526,7 @@ func ToFailoverDomainRequest(t *apiv1.FailoverDomainRequest) *types.FailoverDoma
 	return &types.FailoverDomainRequest{
 		DomainName:              t.DomainName,
 		DomainActiveClusterName: common.StringPtr(t.DomainActiveClusterName),
+		ActiveClusters:          ToActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -4597,6 +4599,231 @@ func ToFailoverDomainResponse(t *apiv1.FailoverDomainResponse) *types.FailoverDo
 		},
 		FailoverVersion: t.Domain.FailoverVersion,
 		IsGlobalDomain:  t.Domain.IsGlobalDomain,
+	}
+}
+
+func FromListFailoverHistoryRequest(t *types.ListFailoverHistoryRequest) *apiv1.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListFailoverHistoryRequest{
+		Filters:    FromListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: FromPaginationOptions(t.Pagination),
+	}
+}
+
+func ToListFailoverHistoryRequest(t *apiv1.ListFailoverHistoryRequest) *types.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryRequest{
+		Filters:    ToListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: ToPaginationOptions(t.Pagination),
+	}
+}
+
+func ToListFailoverHistoryResponse(t *apiv1.ListFailoverHistoryResponse) *types.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryResponse{
+		FailoverEvents: ToFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+func FromListFailoverHistoryResponse(t *types.ListFailoverHistoryResponse) *apiv1.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListFailoverHistoryResponse{
+		FailoverEvents: FromFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+func FromListFailoverHistoryRequestFilters(t *types.ListFailoverHistoryRequestFilters) *apiv1.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListFailoverHistoryRequestFilters{
+		DomainId: t.DomainID,
+	}
+}
+
+func ToListFailoverHistoryRequestFilters(t *apiv1.ListFailoverHistoryRequestFilters) *types.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryRequestFilters{
+		DomainID: t.DomainId,
+	}
+}
+
+func FromPaginationOptions(t *types.PaginationOptions) *apiv1.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	pageSize := int32(0)
+	if t.PageSize != nil {
+		pageSize = *t.PageSize
+	}
+	return &apiv1.PaginationOptions{
+		PageSize:      pageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+func ToPaginationOptions(t *apiv1.PaginationOptions) *types.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	var pageSize *int32
+	if t.PageSize != 0 {
+		pageSize = common.Int32Ptr(t.PageSize)
+	}
+	return &types.PaginationOptions{
+		PageSize:      pageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+func FromFailoverEvent(t *types.FailoverEvent) *apiv1.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.FailoverEvent{
+		Id:               t.GetID(),
+		CreatedTime:      unixNanoToTime(t.CreatedTime),
+		FailoverType:     FromFailoverType(t.FailoverType),
+		ClusterFailovers: FromClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+func ToFailoverEvent(t *apiv1.FailoverEvent) *types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	var id *string
+	if t.Id != "" {
+		id = common.StringPtr(t.Id)
+	}
+	return &types.FailoverEvent{
+		ID:               id,
+		CreatedTime:      timeToUnixNano(t.CreatedTime),
+		FailoverType:     ToFailoverType(t.FailoverType),
+		ClusterFailovers: ToClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+func FromFailoverEventArray(t []*types.FailoverEvent) []*apiv1.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*apiv1.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = FromFailoverEvent(t[i])
+	}
+	return v
+}
+
+func ToFailoverEventArray(t []*apiv1.FailoverEvent) []*types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = ToFailoverEvent(t[i])
+	}
+	return v
+}
+
+func FromClusterFailover(t *types.ClusterFailover) *apiv1.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ClusterFailover{
+		FromCluster:      FromActiveClusterInfo(t.FromCluster),
+		ToCluster:        FromActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: FromClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+func ToClusterFailover(t *apiv1.ClusterFailover) *types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &types.ClusterFailover{
+		FromCluster:      ToActiveClusterInfo(t.FromCluster),
+		ToCluster:        ToActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: ToClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+func FromClusterFailoverArray(t []*types.ClusterFailover) []*apiv1.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*apiv1.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = FromClusterFailover(t[i])
+	}
+	return v
+}
+
+func ToClusterFailoverArray(t []*apiv1.ClusterFailover) []*types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = ToClusterFailover(t[i])
+	}
+	return v
+}
+
+func FromActiveClusterInfo(t *types.ActiveClusterInfo) *apiv1.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ActiveClusterInfo{
+		ActiveClusterName: t.ActiveClusterName,
+		FailoverVersion:   t.FailoverVersion,
+	}
+}
+
+func ToActiveClusterInfo(t *apiv1.ActiveClusterInfo) *types.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &types.ActiveClusterInfo{
+		ActiveClusterName: t.ActiveClusterName,
+		FailoverVersion:   t.FailoverVersion,
+	}
+}
+
+func FromFailoverType(t *types.FailoverType) apiv1.FailoverType {
+	if t == nil {
+		return apiv1.FailoverType_FAILOVER_TYPE_INVALID
+	}
+	switch *t {
+	case types.FailoverTypeForce:
+		return apiv1.FailoverType_FAILOVER_TYPE_FORCE
+	case types.FailoverTypeGraceful:
+		return apiv1.FailoverType_FAILOVER_TYPE_GRACEFUL
+	}
+	return apiv1.FailoverType_FAILOVER_TYPE_INVALID
+}
+
+func ToFailoverType(t apiv1.FailoverType) *types.FailoverType {
+	switch t {
+	case apiv1.FailoverType_FAILOVER_TYPE_FORCE:
+		return types.FailoverTypeForce.Ptr()
+	case apiv1.FailoverType_FAILOVER_TYPE_GRACEFUL:
+		return types.FailoverTypeGraceful.Ptr()
+	default:
+		// For FAILOVER_TYPE_INVALID and unknown values, return nil
+		return nil
 	}
 }
 
@@ -4786,7 +5013,7 @@ func FromWorkflowExecutionCloseStatus(t *types.WorkflowExecutionCloseStatus) api
 	case types.WorkflowExecutionCloseStatusTimedOut:
 		return apiv1.WorkflowExecutionCloseStatus_WORKFLOW_EXECUTION_CLOSE_STATUS_TIMED_OUT
 	}
-	panic("unexpected enum value")
+	return apiv1.WorkflowExecutionCloseStatus_WORKFLOW_EXECUTION_CLOSE_STATUS_INVALID
 }
 
 func ToWorkflowExecutionCloseStatus(t apiv1.WorkflowExecutionCloseStatus) *types.WorkflowExecutionCloseStatus {
@@ -4806,7 +5033,7 @@ func ToWorkflowExecutionCloseStatus(t apiv1.WorkflowExecutionCloseStatus) *types
 	case apiv1.WorkflowExecutionCloseStatus_WORKFLOW_EXECUTION_CLOSE_STATUS_TIMED_OUT:
 		return types.WorkflowExecutionCloseStatusTimedOut.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromWorkflowExecutionCompletedEventAttributes(t *types.WorkflowExecutionCompletedEventAttributes) *apiv1.WorkflowExecutionCompletedEventAttributes {
@@ -5220,7 +5447,7 @@ func FromWorkflowIDReusePolicy(t *types.WorkflowIDReusePolicy) apiv1.WorkflowIdR
 	case types.WorkflowIDReusePolicyTerminateIfRunning:
 		return apiv1.WorkflowIdReusePolicy_WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING
 	}
-	panic("unexpected enum value")
+	return apiv1.WorkflowIdReusePolicy_WORKFLOW_ID_REUSE_POLICY_INVALID
 }
 
 func ToWorkflowIDReusePolicy(t apiv1.WorkflowIdReusePolicy) *types.WorkflowIDReusePolicy {
@@ -5236,7 +5463,7 @@ func ToWorkflowIDReusePolicy(t apiv1.WorkflowIdReusePolicy) *types.WorkflowIDReu
 	case apiv1.WorkflowIdReusePolicy_WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING:
 		return types.WorkflowIDReusePolicyTerminateIfRunning.Ptr()
 	}
-	panic("unexpected enum value")
+	return nil
 }
 
 func FromWorkflowQuery(t *types.WorkflowQuery) *apiv1.WorkflowQuery {
@@ -5564,18 +5791,8 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 		return nil
 	}
 
-	var regionToCluster map[string]*apiv1.ActiveClusterInfo
-	if len(t.ActiveClustersByRegion) > 0 {
-		regionToCluster = make(map[string]*apiv1.ActiveClusterInfo)
-		for region, cluster := range t.ActiveClustersByRegion {
-			regionToCluster[region] = &apiv1.ActiveClusterInfo{
-				ActiveClusterName: cluster.ActiveClusterName,
-				FailoverVersion:   cluster.FailoverVersion,
-			}
-		}
-	}
-
 	var activeClustersByClusterAttribute map[string]*apiv1.ClusterAttributeScope
+
 	if t.AttributeScopes != nil {
 		activeClustersByClusterAttribute = make(map[string]*apiv1.ClusterAttributeScope)
 		for scopeType, scope := range t.AttributeScopes {
@@ -5584,7 +5801,6 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 	}
 
 	return &apiv1.ActiveClusters{
-		RegionToCluster:                  regionToCluster,
 		ActiveClustersByClusterAttribute: activeClustersByClusterAttribute,
 	}
 }
@@ -5594,18 +5810,8 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 		return nil
 	}
 
-	var activeClustersByRegion map[string]types.ActiveClusterInfo
-	if len(t.RegionToCluster) > 0 {
-		activeClustersByRegion = make(map[string]types.ActiveClusterInfo)
-		for region, cluster := range t.RegionToCluster {
-			activeClustersByRegion[region] = types.ActiveClusterInfo{
-				ActiveClusterName: cluster.ActiveClusterName,
-				FailoverVersion:   cluster.FailoverVersion,
-			}
-		}
-	}
-
 	var attributeScopes map[string]types.ClusterAttributeScope
+
 	if t.ActiveClustersByClusterAttribute != nil {
 		attributeScopes = make(map[string]types.ClusterAttributeScope)
 		for scopeType, scope := range t.ActiveClustersByClusterAttribute {
@@ -5616,8 +5822,7 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 	}
 
 	return &types.ActiveClusters{
-		ActiveClustersByRegion: activeClustersByRegion,
-		AttributeScopes:        attributeScopes,
+		AttributeScopes: attributeScopes,
 	}
 }
 
@@ -6549,7 +6754,12 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 		return nil
 	}
 	// TODO(active-active): Remove the switch statement once the strategy is removed
-	switch p.GetStrategy() {
+	if p.ActiveClusterSelectionStrategy == nil {
+		return &apiv1.ActiveClusterSelectionPolicy{
+			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
+		}
+	}
+	switch *p.ActiveClusterSelectionStrategy {
 	case types.ActiveClusterSelectionStrategyRegionSticky:
 		return &apiv1.ActiveClusterSelectionPolicy{
 			Strategy: apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY,

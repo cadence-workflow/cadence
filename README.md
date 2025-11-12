@@ -1,7 +1,7 @@
 # Cadence
 [![Build Status](https://github.com/cadence-workflow/cadence/actions/workflows/ci-checks.yml/badge.svg)](https://github.com/cadence-workflow/cadence/actions/workflows/ci-checks.yml)
 [![Coverage](https://codecov.io/gh/cadence-workflow/cadence/graph/badge.svg?token=7SD244ImNF)](https://codecov.io/gh/cadence-workflow/cadence)
-[![Slack Status](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](http://t.uber.com/cadence-slack)
+[![Slack Status](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://communityinviter.com/apps/cloud-native/cncf)
 [![Github release](https://img.shields.io/github/v/release/cadence-workflow/cadence.svg)](https://github.com/cadence-workflow/cadence/releases)
 [![License](https://img.shields.io/github/license/cadence-workflow/cadence.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 
@@ -86,7 +86,7 @@ The easiest way to get the schema tool is via homebrew.
 
 We'd love your help in making Cadence great. Please review our [contribution guide](CONTRIBUTING.md).
 
-If you'd like to propose a new feature, first join the [Slack channel](http://t.uber.com/cadence-slack) to start a discussion.
+If you'd like to propose a new feature, first join the [CNCF Slack workspace](https://communityinviter.com/apps/cloud-native/cncf) in the **#cadence-users** channel to start a discussion.
 
 Please visit our [documentation](https://cadenceworkflow.io/docs/operation-guide/) site for production/cluster setup.
 
@@ -103,7 +103,7 @@ Visit [cadenceworkflow.io](https://cadenceworkflow.io) to learn more about Caden
   * Best for reporting bugs and feature requests
 * [StackOverflow](https://stackoverflow.com/questions/tagged/cadence-workflow)
   * Best for Q&A and general discusion
-* [Slack](http://t.uber.com/cadence-slack)
+* [Slack](https://communityinviter.com/apps/cloud-native/cncf) - Join **#cadence-users** channel on CNCF Slack
   * Best for contributing/development discussion
 
 

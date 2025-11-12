@@ -68,7 +68,7 @@ func testMutableStateBuilder(t *testing.T) *mutableStateBuilder {
 	mockShard.Resource.MatchingClient.EXPECT().AddActivityTask(gomock.Any(), gomock.Any()).Return(&types.AddActivityTaskResponse{}, nil).AnyTimes()
 	mockShard.Resource.DomainCache.EXPECT().GetDomainID(constants.TestDomainName).Return(constants.TestDomainID, nil).AnyTimes()
 	mockShard.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(&cache.DomainCacheEntry{}, nil).AnyTimes()
-	return newMutableStateBuilder(mockShard, logger, constants.TestLocalDomainEntry)
+	return newMutableStateBuilder(mockShard, logger, constants.TestLocalDomainEntry, constants.TestLocalDomainEntry.GetFailoverVersion())
 }
 
 func Test__AddActivityTaskScheduledEvent(t *testing.T) {
@@ -159,61 +159,6 @@ func Test__AddActivityTaskScheduledEvent(t *testing.T) {
 				ActivityType:                  activityType,
 				Domain:                        constants.TestDomainName,
 				TaskList:                      &types.TaskList{Name: "taskList", Kind: types.TaskListKindEphemeral.Ptr()},
-				Input:                         []byte("input"),
-				ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
-				ScheduleToStartTimeoutSeconds: common.Int32Ptr(2),
-				StartToCloseTimeoutSeconds:    common.Int32Ptr(3),
-				HeartbeatTimeoutSeconds:       common.Int32Ptr(4),
-				RetryPolicy:                   retryPolicy,
-				Header:                        header,
-				RequestLocalDispatch:          false,
-			},
-			expectedAttributes: &types.ActivityTaskScheduledEventAttributes{
-				ActivityID:                    "activityID",
-				ActivityType:                  activityType,
-				Domain:                        &constants.TestDomainName,
-				TaskList:                      &types.TaskList{Name: "taskList", Kind: types.TaskListKindEphemeral.Ptr()},
-				Input:                         []byte("input"),
-				ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
-				ScheduleToStartTimeoutSeconds: common.Int32Ptr(2),
-				StartToCloseTimeoutSeconds:    common.Int32Ptr(3),
-				HeartbeatTimeoutSeconds:       common.Int32Ptr(4),
-				DecisionTaskCompletedEventID:  0,
-				RetryPolicy:                   retryPolicy,
-				Header:                        header,
-			},
-			expectedInfo: &persistence.ActivityInfo{
-				Version:                commonconstants.EmptyVersion,
-				ScheduleID:             1,
-				ScheduledEventBatchID:  0,
-				ScheduledTime:          currentTime,
-				StartedID:              commonconstants.EmptyEventID,
-				DomainID:               constants.TestDomainID,
-				ActivityID:             "activityID",
-				ScheduleToCloseTimeout: 1,
-				ScheduleToStartTimeout: 2,
-				StartToCloseTimeout:    3,
-				HeartbeatTimeout:       4,
-				CancelRequestID:        commonconstants.EmptyEventID,
-				TaskList:               "taskList",
-				TaskListKind:           types.TaskListKindEphemeral,
-				HasRetryPolicy:         true,
-				InitialInterval:        retryPolicy.InitialIntervalInSeconds,
-				BackoffCoefficient:     retryPolicy.BackoffCoefficient,
-				MaximumInterval:        retryPolicy.MaximumIntervalInSeconds,
-				ExpirationTime:         currentTime.Add(time.Duration(retryPolicy.ExpirationIntervalInSeconds) * time.Second),
-				MaximumAttempts:        retryPolicy.MaximumAttempts,
-				NonRetriableErrors:     retryPolicy.NonRetriableErrorReasons,
-			},
-		},
-		{
-			name:             "success - ephemeral workflow dispatches activities as ephemeral",
-			workflowTaskList: &types.TaskList{Name: "taskList", Kind: types.TaskListKindEphemeral.Ptr()},
-			attr: &types.ScheduleActivityTaskDecisionAttributes{
-				ActivityID:                    "activityID",
-				ActivityType:                  activityType,
-				Domain:                        constants.TestDomainName,
-				TaskList:                      &types.TaskList{Name: "taskList", Kind: types.TaskListKindNormal.Ptr()},
 				Input:                         []byte("input"),
 				ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
 				ScheduleToStartTimeoutSeconds: common.Int32Ptr(2),

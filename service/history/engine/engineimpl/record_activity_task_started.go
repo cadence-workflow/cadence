@@ -40,7 +40,7 @@ func (e *historyEngineImpl) RecordActivityTaskStarted(
 	request *types.RecordActivityTaskStartedRequest,
 ) (*types.RecordActivityTaskStartedResponse, error) {
 
-	domainEntry, err := e.getActiveDomainByID(request.DomainUUID)
+	domainEntry, err := e.getActiveDomainByWorkflow(ctx, request.DomainUUID, request.WorkflowExecution.WorkflowID, request.WorkflowExecution.RunID)
 	if err != nil {
 		return nil, err
 	}

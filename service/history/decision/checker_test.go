@@ -550,28 +550,36 @@ func (s *attrValidatorSuite) TestValidateTaskListName() {
 		kind := types.TaskListKindNormal
 		return &types.TaskList{Name: name, Kind: &kind}
 	}
+	ephemeralTasklist := func(name string) *types.TaskList {
+		kind := types.TaskListKindEphemeral
+		return &types.TaskList{Name: name, Kind: &kind}
+	}
 
 	testCases := []struct {
-		defaultVal  string
+		defaultVal  *types.TaskList
 		input       *types.TaskList
 		output      *types.TaskList
 		isOutputErr bool
 	}{
-		{"tl-1", nil, &types.TaskList{Name: "tl-1"}, false},
-		{"", taskList("tl-1"), taskList("tl-1"), false},
-		{"tl-1", taskList("tl-1"), taskList("tl-1"), false},
-		{"", taskList("/tl-1"), taskList("/tl-1"), false},
-		{"", taskList("/__cadence_sys"), taskList("/__cadence_sys"), false},
-		{"", nil, &types.TaskList{}, true},
-		{"", taskList(""), taskList(""), true},
-		{"", taskList(commonconstants.ReservedTaskListPrefix), taskList(commonconstants.ReservedTaskListPrefix), true},
-		{"tl-1", taskList(commonconstants.ReservedTaskListPrefix), taskList(commonconstants.ReservedTaskListPrefix), true},
-		{"", taskList(commonconstants.ReservedTaskListPrefix + "tl-1"), taskList(commonconstants.ReservedTaskListPrefix + "tl-1"), true},
-		{"tl-1", taskList(commonconstants.ReservedTaskListPrefix + "tl-1"), taskList(commonconstants.ReservedTaskListPrefix + "tl-1"), true},
+		{taskList("tl-1"), nil, taskList("tl-1"), false},
+		{taskList(""), taskList("tl-1"), taskList("tl-1"), false},
+		{taskList("tl-1"), taskList("tl-1"), taskList("tl-1"), false},
+		{taskList(""), taskList("/tl-1"), taskList("/tl-1"), false},
+		{ephemeralTasklist("tl-1"), nil, ephemeralTasklist("tl-1"), false},
+		{ephemeralTasklist("tl-1"), taskList("tl-1"), ephemeralTasklist("tl-1"), false},
+		{ephemeralTasklist("tl-1"), taskList("tl-2"), ephemeralTasklist("tl-2"), false},
+		{ephemeralTasklist("tl-1"), taskList(""), ephemeralTasklist("tl-1"), false},
+		{taskList(""), taskList("/__cadence_sys"), taskList("/__cadence_sys"), false},
+		{taskList(""), nil, &types.TaskList{}, true},
+		{taskList(""), taskList(""), taskList(""), true},
+		{taskList(""), taskList(commonconstants.ReservedTaskListPrefix), taskList(commonconstants.ReservedTaskListPrefix), true},
+		{taskList("tl-1"), taskList(commonconstants.ReservedTaskListPrefix), taskList(commonconstants.ReservedTaskListPrefix), true},
+		{taskList(""), taskList(commonconstants.ReservedTaskListPrefix + "tl-1"), taskList(commonconstants.ReservedTaskListPrefix + "tl-1"), true},
+		{taskList("tl-1"), taskList(commonconstants.ReservedTaskListPrefix + "tl-1"), taskList(commonconstants.ReservedTaskListPrefix + "tl-1"), true},
 	}
 
 	for _, tc := range testCases {
-		key := tc.defaultVal + "#"
+		key := tc.defaultVal.Name + "," + tc.defaultVal.Kind.String() + "#"
 		if tc.input != nil {
 			key += tc.input.GetName()
 		} else {
@@ -629,6 +637,9 @@ func (s *attrValidatorSuite) TestValidateActivityScheduleAttributes_NoRetryPolic
 		nil,
 		cluster.TestCurrentClusterName,
 	)
+	executionInfo := &persistence.WorkflowExecutionInfo{
+		WorkflowTimeout: wfTimeout,
+	}
 	s.mockDomainCache.EXPECT().GetDomainByID(s.testDomainID).Return(domainEntry, nil).Times(1)
 	s.mockDomainCache.EXPECT().GetDomainByID(s.testTargetDomainID).Return(targetDomainEntry, nil).Times(1)
 
@@ -636,7 +647,7 @@ func (s *attrValidatorSuite) TestValidateActivityScheduleAttributes_NoRetryPolic
 		s.testDomainID,
 		s.testTargetDomainID,
 		attributes,
-		wfTimeout,
+		executionInfo,
 		metrics.HistoryRespondDecisionTaskCompletedScope,
 	)
 	s.Nil(err)
@@ -692,6 +703,9 @@ func (s *attrValidatorSuite) TestValidateActivityScheduleAttributes_WithRetryPol
 		nil,
 		cluster.TestCurrentClusterName,
 	)
+	executionInfo := &persistence.WorkflowExecutionInfo{
+		WorkflowTimeout: wfTimeout,
+	}
 	s.mockDomainCache.EXPECT().GetDomainByID(s.testDomainID).Return(domainEntry, nil).Times(1)
 	s.mockDomainCache.EXPECT().GetDomainByID(s.testTargetDomainID).Return(targetDomainEntry, nil).Times(1)
 
@@ -699,7 +713,7 @@ func (s *attrValidatorSuite) TestValidateActivityScheduleAttributes_WithRetryPol
 		s.testDomainID,
 		s.testTargetDomainID,
 		attributes,
-		wfTimeout,
+		executionInfo,
 		metrics.HistoryRespondDecisionTaskCompletedScope,
 	)
 	s.Nil(err)
@@ -753,6 +767,9 @@ func (s *attrValidatorSuite) TestValidateActivityScheduleAttributes_WithRetryPol
 		nil,
 		cluster.TestCurrentClusterName,
 	)
+	executionInfo := &persistence.WorkflowExecutionInfo{
+		WorkflowTimeout: wfTimeout,
+	}
 	s.mockDomainCache.EXPECT().GetDomainByID(s.testDomainID).Return(domainEntry, nil).Times(1)
 	s.mockDomainCache.EXPECT().GetDomainByID(s.testTargetDomainID).Return(targetDomainEntry, nil).Times(1)
 
@@ -760,7 +777,7 @@ func (s *attrValidatorSuite) TestValidateActivityScheduleAttributes_WithRetryPol
 		s.testDomainID,
 		s.testTargetDomainID,
 		attributes,
-		wfTimeout,
+		executionInfo,
 		metrics.HistoryRespondDecisionTaskCompletedScope,
 	)
 	s.Nil(err)

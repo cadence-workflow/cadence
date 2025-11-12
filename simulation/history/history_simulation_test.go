@@ -91,7 +91,7 @@ func (s *HistorySimulationSuite) SetupSuite() {
 	s.AdminClient = s.TestCluster.GetAdminClient()
 
 	s.DomainName = s.RandomizeStr("integration-test-domain")
-	s.Require().NoError(s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+	s.Require().NoError(s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
 	time.Sleep(2 * time.Second)
 

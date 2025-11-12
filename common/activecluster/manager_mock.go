@@ -42,20 +42,6 @@ func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 	return m.recorder
 }
 
-// CurrentRegion mocks base method.
-func (m *MockManager) CurrentRegion() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CurrentRegion")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// CurrentRegion indicates an expected call of CurrentRegion.
-func (mr *MockManagerMockRecorder) CurrentRegion() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentRegion", reflect.TypeOf((*MockManager)(nil).CurrentRegion))
-}
-
 // GetActiveClusterInfoByClusterAttribute mocks base method.
 func (m *MockManager) GetActiveClusterInfoByClusterAttribute(ctx context.Context, domainID string, clusterAttribute *types.ClusterAttribute) (*types.ActiveClusterInfo, error) {
 	m.ctrl.T.Helper()
@@ -86,32 +72,33 @@ func (mr *MockManagerMockRecorder) GetActiveClusterInfoByWorkflow(ctx, domainID,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterInfoByWorkflow", reflect.TypeOf((*MockManager)(nil).GetActiveClusterInfoByWorkflow), ctx, domainID, wfID, rID)
 }
 
-// LookupNewWorkflow mocks base method.
-func (m *MockManager) LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (*LookupResult, error) {
+// GetActiveClusterSelectionPolicyForCurrentWorkflow mocks base method.
+func (m *MockManager) GetActiveClusterSelectionPolicyForCurrentWorkflow(ctx context.Context, domainID, wfID string) (*types.ActiveClusterSelectionPolicy, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupNewWorkflow", ctx, domainID, policy)
-	ret0, _ := ret[0].(*LookupResult)
+	ret := m.ctrl.Call(m, "GetActiveClusterSelectionPolicyForCurrentWorkflow", ctx, domainID, wfID)
+	ret0, _ := ret[0].(*types.ActiveClusterSelectionPolicy)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetActiveClusterSelectionPolicyForCurrentWorkflow indicates an expected call of GetActiveClusterSelectionPolicyForCurrentWorkflow.
+func (mr *MockManagerMockRecorder) GetActiveClusterSelectionPolicyForCurrentWorkflow(ctx, domainID, wfID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterSelectionPolicyForCurrentWorkflow", reflect.TypeOf((*MockManager)(nil).GetActiveClusterSelectionPolicyForCurrentWorkflow), ctx, domainID, wfID)
+}
+
+// GetActiveClusterSelectionPolicyForWorkflow mocks base method.
+func (m *MockManager) GetActiveClusterSelectionPolicyForWorkflow(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveClusterSelectionPolicyForWorkflow", ctx, domainID, wfID, rID)
+	ret0, _ := ret[0].(*types.ActiveClusterSelectionPolicy)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// LookupNewWorkflow indicates an expected call of LookupNewWorkflow.
-func (mr *MockManagerMockRecorder) LookupNewWorkflow(ctx, domainID, policy any) *gomock.Call {
+// GetActiveClusterSelectionPolicyForWorkflow indicates an expected call of GetActiveClusterSelectionPolicyForWorkflow.
+func (mr *MockManagerMockRecorder) GetActiveClusterSelectionPolicyForWorkflow(ctx, domainID, wfID, rID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupNewWorkflow", reflect.TypeOf((*MockManager)(nil).LookupNewWorkflow), ctx, domainID, policy)
-}
-
-// LookupWorkflow mocks base method.
-func (m *MockManager) LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (*LookupResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupWorkflow", ctx, domainID, wfID, rID)
-	ret0, _ := ret[0].(*LookupResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// LookupWorkflow indicates an expected call of LookupWorkflow.
-func (mr *MockManagerMockRecorder) LookupWorkflow(ctx, domainID, wfID, rID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupWorkflow", reflect.TypeOf((*MockManager)(nil).LookupWorkflow), ctx, domainID, wfID, rID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterSelectionPolicyForWorkflow", reflect.TypeOf((*MockManager)(nil).GetActiveClusterSelectionPolicyForWorkflow), ctx, domainID, wfID, rID)
 }

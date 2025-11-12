@@ -34,18 +34,12 @@ import (
 
 // Module provides metrics client for fx application.
 var Module = fx.Module("metricsfx",
-	fx.Provide(func(c config.Config) metrics.HistogramMigration {
-		return c.Histograms
-	}),
 	fx.Provide(buildClient))
 
 // ModuleForExternalScope provides metrics client for fx application when tally.Scope is created outside.
 var ModuleForExternalScope = fx.Module("metricsfx",
 	fx.Provide(func(params serviceIdxParams) metrics.ServiceIdx {
 		return service.GetMetricsServiceIdx(params.ServiceFullName, params.Logger)
-	}),
-	fx.Provide(func(c config.Config) metrics.HistogramMigration {
-		return c.Histograms
 	}),
 	fx.Provide(buildClientFromTally))
 

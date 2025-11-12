@@ -11,7 +11,7 @@ if ! gomod="$(go list -mod=readonly -f '{{ .Module }}' "$1")"; then
     exit 1
 fi
 
-if ! toolmod="$(cd internal/tools; go list -mod=readonly -f '{{ .Module }}' "$1")"; then
+if ! toolmod="$(cd internal/tools; GOTOOLCHAIN=auto go list -mod=readonly -f '{{ .Module }}' "$1")"; then
     >&2 echo 'Error checking tools go.mod, cd to internal/tools to modify it.'
     exit 1
 fi

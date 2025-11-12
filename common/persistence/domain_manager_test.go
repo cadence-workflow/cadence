@@ -92,14 +92,18 @@ func testFixtureDomainReplicationConfigWithActiveClusters() *DomainReplicationCo
 			},
 		},
 		ActiveClusters: &types.ActiveClusters{
-			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"region-1": {
-					ActiveClusterName: "cluster-1",
-					FailoverVersion:   1,
-				},
-				"region-2": {
-					ActiveClusterName: "cluster-2",
-					FailoverVersion:   2,
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"region-1": {
+							ActiveClusterName: "cluster-1",
+							FailoverVersion:   1,
+						},
+						"region-2": {
+							ActiveClusterName: "cluster-2",
+							FailoverVersion:   2,
+						},
+					},
 				},
 			},
 		},
@@ -130,7 +134,7 @@ func testFixtureDomainReplicationConfigInternalWithActiveClusters() *InternalDom
 				ClusterName: "cluster-2",
 			},
 		},
-		ActiveClustersConfig: &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("active-clusters-config")},
+		ActiveClustersConfig: &DataBlob{Encoding: constants.EncodingTypeThriftRWSnappy, Data: []byte("active-clusters-config")},
 	}
 }
 
@@ -166,7 +170,7 @@ func TestCreateDomain(t *testing.T) {
 					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, constants.EncodingTypeThriftRW).
 					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
 				mockSerializer.EXPECT().
-					SerializeActiveClusters(nil, constants.EncodingTypeThriftRW).
+					SerializeActiveClusters(nil, constants.EncodingTypeThriftRWSnappy).
 					Return(nil, nil).Times(1)
 
 				expectedReq := &InternalCreateDomainRequest{
@@ -221,8 +225,8 @@ func TestCreateDomain(t *testing.T) {
 					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, constants.EncodingTypeThriftRW).
 					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
 				mockSerializer.EXPECT().
-					SerializeActiveClusters(testFixtureDomainReplicationConfigWithActiveClusters().ActiveClusters, constants.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("active-clusters-config")}, nil).Times(1)
+					SerializeActiveClusters(testFixtureDomainReplicationConfigWithActiveClusters().ActiveClusters, constants.EncodingTypeThriftRWSnappy).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRWSnappy, Data: []byte("active-clusters-config")}, nil).Times(1)
 
 				expectedReq := &InternalCreateDomainRequest{
 					Info: testFixtureDomainInfo(),
@@ -504,7 +508,7 @@ func TestUpdateDomain(t *testing.T) {
 					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, constants.EncodingTypeThriftRW).
 					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
 				mockSerializer.EXPECT().
-					SerializeActiveClusters(nil, constants.EncodingTypeThriftRW).
+					SerializeActiveClusters(nil, constants.EncodingTypeThriftRWSnappy).
 					Return(nil, nil).Times(1)
 				mockStore.EXPECT().
 					UpdateDomain(gomock.Any(), &InternalUpdateDomainRequest{
@@ -558,8 +562,8 @@ func TestUpdateDomain(t *testing.T) {
 					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, constants.EncodingTypeThriftRW).
 					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
 				mockSerializer.EXPECT().
-					SerializeActiveClusters(testFixtureDomainReplicationConfigWithActiveClusters().ActiveClusters, constants.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("active-clusters-config")}, nil).Times(1)
+					SerializeActiveClusters(testFixtureDomainReplicationConfigWithActiveClusters().ActiveClusters, constants.EncodingTypeThriftRWSnappy).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRWSnappy, Data: []byte("active-clusters-config")}, nil).Times(1)
 				mockStore.EXPECT().
 					UpdateDomain(gomock.Any(), &InternalUpdateDomainRequest{
 						Info: testFixtureDomainInfo(),

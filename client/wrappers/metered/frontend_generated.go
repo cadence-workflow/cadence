@@ -358,6 +358,28 @@ func (c *frontendClient) ListDomains(ctx context.Context, lp1 *types.ListDomains
 	return lp2, err
 }
 
+func (c *frontendClient) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest, p1 ...yarpc.CallOption) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.FrontendClientListFailoverHistoryScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.FrontendClientListFailoverHistoryScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	lp2, err = c.client.ListFailoverHistory(ctx, lp1, p1...)
+	sw.Stop()
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return lp2, err
+}
+
 func (c *frontendClient) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {
 	retryCount := getRetryCountFromContext(ctx)
 

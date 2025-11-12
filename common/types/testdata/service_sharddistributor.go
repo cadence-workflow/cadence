@@ -32,6 +32,7 @@ var (
 	ShardDistributorGetShardOwnerResponse = types.GetShardOwnerResponse{
 		Owner:     "owner",
 		Namespace: "namespace",
+		Metadata:  map[string]string{"key-1": "value-1", "key-2": "value-2"},
 	}
 	ShardDistributorExecutorHeartbeatRequest = types.ExecutorHeartbeatRequest{
 		Namespace:  "namespace",
@@ -47,6 +48,10 @@ var (
 				ShardLoad: 0.75,
 			},
 		},
+		Metadata: map[string]string{
+			"key-1": "value-1",
+			"key-2": "value-2",
+		},
 	}
 	ShardDistributorExecutorHeartbeatResponse = types.ExecutorHeartbeatResponse{
 		ShardAssignments: map[string]*types.ShardAssignment{
@@ -55,6 +60,23 @@ var (
 			},
 			"shard-key-2": {
 				Status: types.AssignmentStatusINVALID,
+			},
+		},
+	}
+	ShardDistributorWatchNamespaceStateRequest = types.WatchNamespaceStateRequest{
+		Namespace: "namespace",
+	}
+	ShardDistributorWatchNamespaceStateResponse = types.WatchNamespaceStateResponse{
+		Executors: []*types.ExecutorShardAssignment{
+			{
+				ExecutorID:     "executor-1",
+				AssignedShards: []*types.Shard{&types.Shard{ShardKey: "shard-1"}, &types.Shard{ShardKey: "shard-2"}},
+				Metadata:       map[string]string{"key-1": "value-1"},
+			},
+			{
+				ExecutorID:     "executor-2",
+				AssignedShards: []*types.Shard{&types.Shard{ShardKey: "shard-3"}},
+				Metadata:       map[string]string{"key-2": "value-2"},
 			},
 		},
 	}

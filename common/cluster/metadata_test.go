@@ -87,6 +87,16 @@ func TestMetadataBehaviour(t *testing.T) {
 			currentVersion:  102,
 			expectedOut:     200,
 		},
+		"Ensuring the behaviour of getNextFailoverVersion can handle negative numbers 1": {
+			failoverCluster: clusterName1,
+			currentVersion:  -1,
+			expectedOut:     0,
+		},
+		"Ensuring the behaviour of getNextFailoverVersion can handle negative numbers 2": {
+			failoverCluster: clusterName2,
+			currentVersion:  -1,
+			expectedOut:     2,
+		},
 	}
 
 	for name, td := range tests {
@@ -966,17 +976,14 @@ func TestGetters(t *testing.T) {
 			ClusterGroup: map[string]config.ClusterInformation{
 				"cluster0": {
 					InitialFailoverVersion: 1,
-					Region:                 "us-west",
 					Enabled:                true,
 				},
 				"cluster1": {
 					InitialFailoverVersion: 3,
-					Region:                 "us-east",
 					Enabled:                true,
 				},
 				"cluster2": {
 					InitialFailoverVersion: 5,
-					Region:                 "us-east",
 					Enabled:                false,
 				},
 			},
@@ -991,7 +998,6 @@ func TestGetters(t *testing.T) {
 
 	assert.True(t, m.IsPrimaryCluster())
 	assert.Equal(t, "cluster0", m.GetCurrentClusterName())
-	assert.Equal(t, "us-west", m.GetCurrentRegion())
 
 	// do existence checks
 	assert.Equal(t, []string{"cluster0", "cluster1", "cluster2"}, keysOfClusterInfoMap(m.GetAllClusterInfo()))

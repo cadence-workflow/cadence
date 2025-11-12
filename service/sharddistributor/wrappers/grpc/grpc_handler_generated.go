@@ -8,6 +8,7 @@ import (
 	"context"
 
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/proto"
 	"github.com/uber/cadence/service/sharddistributor/handler"
 )
@@ -23,4 +24,21 @@ func NewGRPCHandler(h handler.Handler) GRPCHandler {
 func (g GRPCHandler) GetShardOwner(ctx context.Context, request *sharddistributorv1.GetShardOwnerRequest) (*sharddistributorv1.GetShardOwnerResponse, error) {
 	response, err := g.h.GetShardOwner(ctx, proto.ToShardDistributorGetShardOwnerRequest(request))
 	return proto.FromShardDistributorGetShardOwnerResponse(response), proto.FromError(err)
+}
+
+func (g GRPCHandler) WatchNamespaceState(request *sharddistributorv1.WatchNamespaceStateRequest, server sharddistributorv1.ShardDistributorAPIServiceWatchNamespaceStateYARPCServer) error {
+	err := g.h.WatchNamespaceState(proto.ToShardDistributorWatchNamespaceStateRequest(request), &watchnamespacestateServer{server: server})
+	return err
+}
+
+type watchnamespacestateServer struct {
+	server sharddistributorv1.ShardDistributorAPIServiceWatchNamespaceStateYARPCServer
+}
+
+func (s *watchnamespacestateServer) Context() context.Context {
+	return s.server.Context()
+}
+
+func (s *watchnamespacestateServer) Send(response *types.WatchNamespaceStateResponse) error {
+	return s.server.Send(proto.FromShardDistributorWatchNamespaceStateResponse(response))
 }

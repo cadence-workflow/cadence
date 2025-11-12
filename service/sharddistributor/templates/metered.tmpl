@@ -36,7 +36,12 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
     {{- else}}
         defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 
-        {{- $namespace := printf "%s.GetNamespace()" (index $method.Params 1).Name }}
+        {{- $namespace := "" }}
+        {{- range $method.Params }}
+            {{- if contains "Request" .Type  }}
+                {{- $namespace = printf "%s.GetNamespace()" .Name }}
+            {{- end }}
+        {{- end }}
 
         scope := h.metricsClient.Scope({{ printf "metrics.ShardDistributor%sScope" $method.Name }})
         scope = scope.Tagged(metrics.NamespaceTag({{ $namespace }}))

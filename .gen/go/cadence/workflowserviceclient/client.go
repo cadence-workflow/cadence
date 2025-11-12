@@ -106,6 +106,12 @@ type Interface interface {
 		opts ...yarpc.CallOption,
 	) (*shared.ListDomainsResponse, error)
 
+	ListFailoverHistory(
+		ctx context.Context,
+		ListRequest *shared.ListFailoverHistoryRequest,
+		opts ...yarpc.CallOption,
+	) (*shared.ListFailoverHistoryResponse, error)
+
 	ListOpenWorkflowExecutions(
 		ctx context.Context,
 		ListRequest *shared.ListOpenWorkflowExecutionsRequest,
@@ -737,6 +743,34 @@ func (c client) ListDomains(
 	}
 
 	success, err = cadence.WorkflowService_ListDomains_Helper.UnwrapResponse(&result)
+	return
+}
+
+func (c client) ListFailoverHistory(
+	ctx context.Context,
+	_ListRequest *shared.ListFailoverHistoryRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.ListFailoverHistoryResponse, err error) {
+
+	var result cadence.WorkflowService_ListFailoverHistory_Result
+	args := cadence.WorkflowService_ListFailoverHistory_Helper.Args(_ListRequest)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = cadence.WorkflowService_ListFailoverHistory_Helper.UnwrapResponse(&result)
 	return
 }
 

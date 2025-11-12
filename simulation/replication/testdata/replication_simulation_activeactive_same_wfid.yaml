@@ -15,9 +15,11 @@ primaryCluster: "cluster0"
 
 domains:
   test-domain-aa:
-    activeClustersByRegion:
-      region0: cluster0
-      region1: cluster1
+    activeClusterName: cluster0
+    clusterAttributes:
+      region:
+        region0: cluster0
+        region1: cluster1
 
 operations:
   # start workflow in cluster0

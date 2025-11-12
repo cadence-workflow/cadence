@@ -126,6 +126,8 @@ func (s *ESVisibilitySuite) TestRecordWorkflowExecutionStarted() {
 	request.TaskID = int64(111)
 	request.IsCron = true
 	request.NumClusters = 2
+	request.ClusterAttributeScope = "region"
+	request.ClusterAttributeName = "us-east-1"
 	memoBytes := []byte(`test bytes`)
 	request.Memo = p.NewDataBlob(memoBytes, constants.EncodingTypeThriftRW)
 	request.ShardID = 1234
@@ -143,6 +145,8 @@ func (s *ESVisibilitySuite) TestRecordWorkflowExecutionStarted() {
 		s.Equal(string(constants.EncodingTypeThriftRW), fields[es.Encoding].GetStringData())
 		s.Equal(request.IsCron, fields[es.IsCron].GetBoolData())
 		s.Equal((int64)(request.NumClusters), fields[es.NumClusters].GetIntData())
+		s.Equal(request.ClusterAttributeScope, fields[es.ClusterAttributeScope].GetStringData())
+		s.Equal(request.ClusterAttributeName, fields[es.ClusterAttributeName].GetStringData())
 		s.Equal(indexer.VisibilityOperationRecordStarted, *input.VisibilityOperation)
 		s.Equal((int64)(request.ShardID), fields[es.ShardID].GetIntData())
 		return true

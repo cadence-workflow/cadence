@@ -74,8 +74,7 @@ func Module(serviceName string) fx.Option {
 				return z.With(zap.String("service", service.ShardDistributor)), l.WithTags(tag.Service(service.ShardDistributor))
 			}),
 
-			fx.Provide(etcd.NewStore),
-			fx.Provide(etcd.NewLeaderStore),
+			etcd.Module,
 
 			rpcfx.Module,
 			sharddistributorfx.Module)

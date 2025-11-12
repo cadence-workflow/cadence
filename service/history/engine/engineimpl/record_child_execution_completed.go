@@ -38,7 +38,7 @@ func (e *historyEngineImpl) RecordChildExecutionCompleted(
 	completionRequest *types.RecordChildExecutionCompletedRequest,
 ) error {
 
-	domainEntry, err := e.getActiveDomainByID(completionRequest.DomainUUID)
+	domainEntry, err := e.getActiveDomainByWorkflow(ctx, completionRequest.DomainUUID, completionRequest.WorkflowExecution.GetWorkflowID(), completionRequest.WorkflowExecution.GetRunID())
 	if err != nil {
 		return err
 	}

@@ -149,7 +149,6 @@ shardDistributorClient:
   hostPort: "localhost:7943"
 
 shardDistribution:
-  enabled: true
   election:
     leaderPeriod: 60s
     maxRandomDelay: 1s
@@ -157,8 +156,22 @@ shardDistribution:
   namespaces:
     - name: shard-distributor-canary
       type: fixed
+      mode: onboarded
       shardNum: 32
     - name: shard-distributor-canary-ephemeral
+      mode: onboarded
+      type: ephemeral
+    - name: test-local-passthrough
+      type: fixed
+      mode: local_pass
+    - name: test-local-passthrough-shadow
+      type: ephemeral
+      mode: local_pass_shadow
+    - name: test-distributed-passthrough
+      type: fixed
+      mode: distributed_pass
+    - name: test-external-assignment
+      mode: distributed_pass
       type: ephemeral
   leaderStore:
     storageParams:

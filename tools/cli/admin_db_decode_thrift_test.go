@@ -104,7 +104,7 @@ func TestThriftDecodeHelper(t *testing.T) {
 		},
 		{
 			desc:      "Active clusters config",
-			input:     "590d000a0b0c0000000100000007726567696f6e300b000a00000008636c7573746572310a001400000000000000020000",
+			input:     "0x590d000b0b0c00000001000000086c6f636174696f6e0d000a0b0c00000001000000066c6f6e646f6e0b000a00000008636c7573746572320a00140000000000000002000000",
 			encoding:  "hex",
 			wantObjFn: generateTestActiveClustersConfig,
 		},
@@ -271,10 +271,14 @@ func generateTestActiveClusterSelectionPolicy(t *testing.T) codec.ThriftObject {
 func generateTestActiveClustersConfig(t *testing.T) codec.ThriftObject {
 	t.Helper()
 	return &shared.ActiveClusters{
-		ActiveClustersByRegion: map[string]*shared.ActiveClusterInfo{
-			"region0": {
-				ActiveClusterName: common.StringPtr("cluster1"),
-				FailoverVersion:   common.Int64Ptr(2),
+		ActiveClustersByClusterAttribute: map[string]*shared.ClusterAttributeScope{
+			"location": &shared.ClusterAttributeScope{
+				ClusterAttributes: map[string]*shared.ActiveClusterInfo{
+					"london": {
+						ActiveClusterName: common.Ptr("cluster2"),
+						FailoverVersion:   common.Int64Ptr(2),
+					},
+				},
 			},
 		},
 	}

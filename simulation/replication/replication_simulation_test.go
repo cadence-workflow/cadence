@@ -102,8 +102,6 @@ func TestReplicationSimulation(t *testing.T) {
 			err = queryWorkflow(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationSignalWithStartWorkflow:
 			err = signalWithStartWorkflow(t, op, simCfg, sim)
-		case simTypes.ReplicationSimulationOperationMigrateDomainToActiveActive:
-			err = migrateDomainToActiveActive(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationValidateWorkflowReplication:
 			err = validateWorkflowReplication(t, op, simCfg)
 		default:
@@ -142,6 +140,16 @@ func startWorkflow(
 		return fmt.Errorf("workflow execution start to close timeout must be specified and should be greater than workflow duration")
 	}
 
+	input := mustJSON(t, &simTypes.WorkflowInput{
+		Duration:             op.WorkflowDuration,
+		ActivityCount:        op.ActivityCount,
+		ChildWorkflowID:      op.ChildWorkflowID,
+		ChildWorkflowTimeout: op.ChildWorkflowTimeout,
+	})
+	workflowIDReusePolicy := types.WorkflowIDReusePolicyAllowDuplicate.Ptr()
+	if op.WorkflowIDReusePolicy != nil {
+		workflowIDReusePolicy = op.WorkflowIDReusePolicy
+	}
 	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).StartWorkflowExecution(ctx,
 		&types.StartWorkflowExecutionRequest{
 			RequestID:                           uuid.New(),
@@ -151,8 +159,8 @@ func startWorkflow(
 			TaskList:                            &types.TaskList{Name: simTypes.TasklistName},
 			ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32((op.WorkflowExecutionStartToCloseTimeout).Seconds())),
 			TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(5),
-			Input:                               mustJSON(t, &simTypes.WorkflowInput{Duration: op.WorkflowDuration, ActivityCount: op.ActivityCount}),
-			WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			Input:                               input,
+			WorkflowIDReusePolicy:               workflowIDReusePolicy,
 			DelayStartSeconds:                   common.Int32Ptr(op.DelayStartSeconds),
 			CronSchedule:                        op.CronSchedule,
 			ActiveClusterSelectionPolicy:        op.ActiveClusterSelectionPolicy,
@@ -238,6 +246,8 @@ func resetWorkflow(
 	return nil
 }
 
+// changeActiveClusters modifies the active clusters for a domain
+// It can be used to change the active cluster for a domain or a sub-set of the AttributeScopes for the domain
 func changeActiveClusters(
 	t *testing.T,
 	op *simTypes.Operation,
@@ -252,81 +262,32 @@ func changeActiveClusters(
 		return fmt.Errorf("failed to describe domain %s: %w", op.Domain, err)
 	}
 
-	if !simCfg.IsActiveActiveDomain(op.Domain) {
+	updateDomainRequest := &types.UpdateDomainRequest{
+		Name:                     op.Domain,
+		ActiveClusters:           &types.ActiveClusters{},
+		FailoverTimeoutInSeconds: op.FailoverTimeout,
+	}
+
+	if op.NewActiveCluster != "" {
 		fromCluster := descResp.ReplicationConfiguration.ActiveClusterName
 		toCluster := op.NewActiveCluster
 		simTypes.Logf(t, "Changing active clusters for domain %s from %s to %s", op.Domain, fromCluster, toCluster)
-
-		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		_, err = simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster).UpdateDomain(ctx,
-			&types.UpdateDomainRequest{
-				Name:                     op.Domain,
-				ActiveClusterName:        &toCluster,
-				FailoverTimeoutInSeconds: op.FailoverTimeout,
-			})
-		if err != nil {
-			return fmt.Errorf("failed to update ActiveClusterName, err: %w", err)
-		}
-
-		simTypes.Logf(t, "Failed over from %s to %s", fromCluster, toCluster)
-	} else {
-
-		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-
-		activeClustersByRegion := make(map[string]types.ActiveClusterInfo)
-		for region, cluster := range op.NewActiveClustersByRegion {
-			activeClustersByRegion[region] = types.ActiveClusterInfo{
-				ActiveClusterName: cluster,
-				FailoverVersion:   -1, // doesn't matter. API handler will override it
-			}
-		}
-		ac := &types.ActiveClusters{
-			ActiveClustersByRegion: activeClustersByRegion,
-		}
-		simTypes.Logf(t, "Changing active clusters by region for domain %s from %+v to %+v", op.Domain, descResp.ReplicationConfiguration.ActiveClusters, ac)
-		_, err = simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster).UpdateDomain(ctx,
-			&types.UpdateDomainRequest{
-				Name:           op.Domain,
-				ActiveClusters: ac,
-			})
-		if err != nil {
-			return fmt.Errorf("failed to update ActiveClusters, err: %w", err)
-		}
-
-		simTypes.Logf(t, "Failed over from %+v to %+v", descResp.ReplicationConfiguration.ActiveClusters, ac)
+		updateDomainRequest.ActiveClusterName = &toCluster
 	}
-	return nil
-}
 
-func migrateDomainToActiveActive(t *testing.T, op *simTypes.Operation, simCfg *simTypes.ReplicationSimulationConfig) error {
-	t.Helper()
+	if !op.NewClusterAttributes.IsEmpty() {
+		updateDomainRequest.ActiveClusters.AttributeScopes = op.NewClusterAttributes.ToAttributeScopes()
+		simTypes.Logf(t, "Changing cluster attributes for domain %s from %+v to %+v", op.Domain, descResp.ReplicationConfiguration.ActiveClusters, updateDomainRequest.ActiveClusters)
+	}
 
-	simTypes.Logf(t, "Migrating domain %s to active-active", op.Domain)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-
-	frontendCl := simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster)
-	ac := &types.ActiveClusters{
-		ActiveClustersByRegion: make(map[string]types.ActiveClusterInfo),
-	}
-	for region, cluster := range op.NewActiveClustersByRegion {
-		ac.ActiveClustersByRegion[region] = types.ActiveClusterInfo{
-			ActiveClusterName: cluster,
-			FailoverVersion:   -1, // doesn't matter. API handler will override it
-		}
-	}
-	_, err := frontendCl.UpdateDomain(ctx, &types.UpdateDomainRequest{
-		Name:           op.Domain,
-		ActiveClusters: ac,
-	})
+	_, err = simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster).UpdateDomain(ctx, updateDomainRequest)
 	if err != nil {
-		return fmt.Errorf("failed to update domain %s to active-active: %w", op.Domain, err)
+		return fmt.Errorf("failed to update ActiveClusters, err: %w", err)
 	}
 
-	simTypes.Logf(t, "Migrated domain %s to active-active", op.Domain)
+	simTypes.Logf(t, "Completed change to ActiveClusters")
 	return nil
 }
 
@@ -393,11 +354,15 @@ func signalWithStartWorkflow(
 
 	frontendCl := simCfg.MustGetFrontendClient(t, op.Cluster)
 
+	workflowIDReusePolicy := types.WorkflowIDReusePolicyAllowDuplicate.Ptr()
+	if op.WorkflowIDReusePolicy != nil {
+		workflowIDReusePolicy = op.WorkflowIDReusePolicy
+	}
 	signalResp, err := frontendCl.SignalWithStartWorkflowExecution(ctx, &types.SignalWithStartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
 		Domain:                              op.Domain,
 		WorkflowID:                          op.WorkflowID,
-		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+		WorkflowIDReusePolicy:               workflowIDReusePolicy,
 		WorkflowType:                        &types.WorkflowType{Name: op.WorkflowType},
 		SignalName:                          op.SignalName,
 		SignalInput:                         mustJSON(t, op.SignalInput),

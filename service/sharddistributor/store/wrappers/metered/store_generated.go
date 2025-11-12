@@ -69,6 +69,16 @@ func (c *meteredStore) DeleteExecutors(ctx context.Context, namespace string, ex
 	return
 }
 
+func (c *meteredStore) DeleteShardStats(ctx context.Context, namespace string, shardIDs []string, guard store.GuardFunc) (err error) {
+	op := func() error {
+		err = c.wrapped.DeleteShardStats(ctx, namespace, shardIDs, guard)
+		return err
+	}
+
+	err = c.call(metrics.ShardDistributorStoreDeleteShardStatsScope, op, metrics.NamespaceTag(namespace))
+	return
+}
+
 func (c *meteredStore) GetHeartbeat(ctx context.Context, namespace string, executorID string) (hp1 *store.HeartbeatState, ap1 *store.AssignedState, err error) {
 	op := func() error {
 		hp1, ap1, err = c.wrapped.GetHeartbeat(ctx, namespace, executorID)
@@ -79,9 +89,9 @@ func (c *meteredStore) GetHeartbeat(ctx context.Context, namespace string, execu
 	return
 }
 
-func (c *meteredStore) GetShardOwner(ctx context.Context, namespace string, shardID string) (s1 string, err error) {
+func (c *meteredStore) GetShardOwner(ctx context.Context, namespace string, shardID string) (sp1 *store.ShardOwner, err error) {
 	op := func() error {
-		s1, err = c.wrapped.GetShardOwner(ctx, namespace, shardID)
+		sp1, err = c.wrapped.GetShardOwner(ctx, namespace, shardID)
 		return err
 	}
 
@@ -116,5 +126,15 @@ func (c *meteredStore) Subscribe(ctx context.Context, namespace string) (ch1 <-c
 	}
 
 	err = c.call(metrics.ShardDistributorStoreSubscribeScope, op, metrics.NamespaceTag(namespace))
+	return
+}
+
+func (c *meteredStore) SubscribeToAssignmentChanges(ctx context.Context, namespace string) (ch1 <-chan map[*store.ShardOwner][]string, f1 func(), err error) {
+	op := func() error {
+		ch1, f1, err = c.wrapped.SubscribeToAssignmentChanges(ctx, namespace)
+		return err
+	}
+
+	err = c.call(metrics.ShardDistributorStoreSubscribeToAssignmentChangesScope, op, metrics.NamespaceTag(namespace))
 	return
 }

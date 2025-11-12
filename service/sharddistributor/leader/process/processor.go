@@ -172,9 +172,11 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 	defer ticker.Stop()
 
 	// Perform an initial rebalance on startup.
-	err := p.rebalanceShards(ctx)
-	if err != nil {
-		p.logger.Error("initial rebalance failed", tag.Error(err))
+	if p.namespaceCfg.Mode == config.MigrationModeONBOARDED {
+		err := p.rebalanceShards(ctx)
+		if err != nil {
+			p.logger.Error("initial rebalance failed", tag.Error(err))
+		}
 	}
 
 	updateChan, err := p.shardStore.Subscribe(ctx, p.namespaceCfg.Name)
@@ -196,9 +198,17 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 			if latestRevision <= p.lastAppliedRevision {
 				continue
 			}
+			if p.namespaceCfg.Mode != config.MigrationModeONBOARDED {
+				p.logger.Info("Namespace not onboarded, rebalance not triggered", tag.ShardNamespace(p.namespaceCfg.Name))
+				break
+			}
 			p.logger.Info("State change detected, triggering rebalance.")
 			err = p.rebalanceShards(ctx)
 		case <-ticker.Chan():
+			if p.namespaceCfg.Mode != config.MigrationModeONBOARDED {
+				p.logger.Info("Namespace not onboarded, skipped periodic reconciliation", tag.ShardNamespace(p.namespaceCfg.Name))
+				break
+			}
 			p.logger.Info("Periodic reconciliation triggered, rebalancing.")
 			err = p.rebalanceShards(ctx)
 		}
@@ -220,16 +230,21 @@ func (p *namespaceProcessor) runCleanupLoop(ctx context.Context) {
 			return
 		case <-ticker.Chan():
 			p.logger.Info("Periodic heartbeat cleanup triggered.")
-			p.cleanupStaleExecutors(ctx)
+			namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
+			if err != nil {
+				p.logger.Error("Failed to get state for cleanup", tag.Error(err))
+				continue
+			}
+			p.cleanupStaleExecutors(ctx, namespaceState)
+			p.cleanupStaleShardStats(ctx, namespaceState)
 		}
 	}
 }
 
 // cleanupStaleExecutors removes executors who have not reported a heartbeat recently.
-func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context) {
-	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
-	if err != nil {
-		p.logger.Error("Failed to get state for heartbeat cleanup", tag.Error(err))
+func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context, namespaceState *store.NamespaceState) {
+	if namespaceState == nil {
+		p.logger.Error("Namespace state missing for heartbeat cleanup")
 		return
 	}
 
@@ -251,6 +266,73 @@ func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context) {
 	// Use the leader guard for the delete operation.
 	if err := p.shardStore.DeleteExecutors(ctx, p.namespaceCfg.Name, expiredExecutors, p.election.Guard()); err != nil {
 		p.logger.Error("Failed to delete stale executors", tag.Error(err))
+	}
+}
+
+func (p *namespaceProcessor) cleanupStaleShardStats(ctx context.Context, namespaceState *store.NamespaceState) {
+	if namespaceState == nil {
+		p.logger.Error("Namespace state missing for shard stats cleanup")
+		return
+	}
+
+	activeShards := make(map[string]struct{})
+	now := p.timeSource.Now().Unix()
+	shardStatsTTL := int64(p.cfg.HeartbeatTTL.Seconds())
+
+	// 1. build set of active executors
+
+	// add all assigned shards from executors that are ACTIVE and not stale
+	for executorID, assignedState := range namespaceState.ShardAssignments {
+		executor, exists := namespaceState.Executors[executorID]
+		if !exists {
+			continue
+		}
+
+		isActive := executor.Status == types.ExecutorStatusACTIVE
+		isNotStale := (now - executor.LastHeartbeat) <= shardStatsTTL
+		if isActive && isNotStale {
+			for shardID := range assignedState.AssignedShards {
+				activeShards[shardID] = struct{}{}
+			}
+		}
+	}
+
+	// add all shards in ReportedShards where the status is not DONE
+	for _, heartbeatState := range namespaceState.Executors {
+		for shardID, shardStatusReport := range heartbeatState.ReportedShards {
+			if shardStatusReport.Status != types.ShardStatusDONE {
+				activeShards[shardID] = struct{}{}
+			}
+		}
+	}
+
+	// 2. build set of stale shard stats
+
+	// append all shard stats that are not in the active shards set
+	var staleShardStats []string
+	for shardID, stats := range namespaceState.ShardStats {
+		if _, ok := activeShards[shardID]; ok {
+			continue
+		}
+		recentUpdate := stats.LastUpdateTime > 0 && (now-stats.LastUpdateTime) <= shardStatsTTL
+		recentMove := stats.LastMoveTime > 0 && (now-stats.LastMoveTime) <= shardStatsTTL
+		if recentUpdate || recentMove {
+			// Preserve stats that have been updated recently to allow cooldown/load history to
+			// survive executor churn. These shards are likely awaiting reassignment,
+			// so we don't want to delete them.
+			continue
+		}
+		staleShardStats = append(staleShardStats, shardID)
+	}
+
+	if len(staleShardStats) == 0 {
+		return
+	}
+
+	p.logger.Info("Removing stale shard stats")
+	// Use the leader guard for the delete operation.
+	if err := p.shardStore.DeleteShardStats(ctx, p.namespaceCfg.Name, staleShardStats, p.election.Guard()); err != nil {
+		p.logger.Error("Failed to delete stale shard stats", tag.Error(err))
 	}
 }
 
@@ -282,6 +364,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	}
 
 	if namespaceState.GlobalRevision <= p.lastAppliedRevision {
+		p.logger.Debug("No changes detected. Skipping rebalance.")
 		return nil
 	}
 	p.lastAppliedRevision = namespaceState.GlobalRevision
@@ -303,6 +386,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	distributionChanged = distributionChanged || p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
 
 	if !distributionChanged {
+		p.logger.Debug("No changes to distribution detected. Skipping rebalance.")
 		return nil
 	}
 
@@ -311,12 +395,20 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	p.logger.Info("Applying new shard distribution.")
 	// Use the leader guard for the assign operation.
 	err = p.shardStore.AssignShards(ctx, p.namespaceCfg.Name, store.AssignShardsRequest{
-		NewState:       namespaceState,
-		ShardsToDelete: deletedShards,
+		NewState: namespaceState,
 	}, p.election.Guard())
 	if err != nil {
 		return fmt.Errorf("assign shards: %w", err)
 	}
+
+	totalActiveShards := 0
+	for _, assignedState := range namespaceState.ShardAssignments {
+		totalActiveShards += len(assignedState.AssignedShards)
+	}
+	metricsLoopScope.Tagged(
+		metrics.NamespaceTag(p.namespaceCfg.Name),
+		metrics.NamespaceTypeTag(p.namespaceCfg.Type),
+	).UpdateGauge(metrics.ShardDistributorActiveShards, float64(totalActiveShards))
 
 	return nil
 }
@@ -329,7 +421,6 @@ func (p *namespaceProcessor) findDeletedShards(namespaceState *store.NamespaceSt
 			if shardState.Status == types.ShardStatusDONE {
 				deletedShards[shardID] = store.ShardState{
 					ExecutorID: executorID,
-					Revision:   namespaceState.Shards[shardID].Revision,
 				}
 			}
 		}
@@ -385,23 +476,21 @@ func (*namespaceProcessor) updateAssignments(shardsToReassign []string, activeEx
 }
 
 func (p *namespaceProcessor) addAssignmentsToNamespaceState(namespaceState *store.NamespaceState, currentAssignments map[string][]string) {
-	if namespaceState.Shards == nil {
-		namespaceState.Shards = make(map[string]store.ShardState)
-	}
-
 	newState := make(map[string]store.AssignedState)
 	for executorID, shards := range currentAssignments {
 		assignedShardsMap := make(map[string]*types.ShardAssignment)
 		for _, shardID := range shards {
 			assignedShardsMap[shardID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
-			namespaceState.Shards[shardID] = store.ShardState{
-				ExecutorID: executorID,
-				Revision:   namespaceState.Shards[shardID].Revision,
-			}
 		}
+		modRevision := int64(0) // Should be 0 if we have not seen it yet
+		if namespaceAssignments, ok := namespaceState.ShardAssignments[executorID]; ok {
+			modRevision = namespaceAssignments.ModRevision
+		}
+
 		newState[executorID] = store.AssignedState{
 			AssignedShards: assignedShardsMap,
 			LastUpdated:    p.timeSource.Now().Unix(),
+			ModRevision:    modRevision,
 		}
 	}
 
@@ -477,12 +566,14 @@ func getShards(cfg config.Namespace, namespaceState *store.NamespaceState, delet
 		return makeShards(cfg.ShardNum)
 	} else if cfg.Type == config.NamespaceTypeEphemeral {
 		shards := make([]string, 0)
-		for shardID := range namespaceState.Shards {
-			// If the shard is deleted, we don't include it in the shards.
-			if _, ok := deletedShards[shardID]; !ok {
-				shards = append(shards, shardID)
+		for _, state := range namespaceState.ShardAssignments {
+			for shardID := range state.AssignedShards {
+				if _, ok := deletedShards[shardID]; !ok {
+					shards = append(shards, shardID)
+				}
 			}
 		}
+
 		return shards
 	}
 	return nil

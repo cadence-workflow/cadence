@@ -29,6 +29,9 @@ service ShardDistributorAPI {
 
   // GetShardOwner returns the owner of a specific shard
   rpc GetShardOwner(GetShardOwnerRequest) returns (GetShardOwnerResponse);
+
+  // WatchNamespaceState streams updates about executors and their assigned shards for a namespace
+  rpc WatchNamespaceState(WatchNamespaceStateRequest) returns (stream WatchNamespaceStateResponse);
 }
 
 message GetShardOwnerRequest {
@@ -39,6 +42,7 @@ message GetShardOwnerRequest {
 message GetShardOwnerResponse {
   string owner = 1;
   string namespace = 2;
+  map<string, string> metadata = 3;
 }
 
 message NamespaceNotFoundError {
@@ -48,4 +52,23 @@ message NamespaceNotFoundError {
 message ShardNotFoundError {
   string namespace = 1;
   string shard_key = 2;
+}
+
+message WatchNamespaceStateRequest {
+  string namespace = 1;
+}
+
+message WatchNamespaceStateResponse {
+  // Executor information with assigned shards
+  repeated ExecutorInfo executors = 1;
+}
+
+message ExecutorInfo {
+  string executor_id = 1;
+  map<string, string> metadata = 2;
+  repeated Shard shards = 3;
+}
+
+message Shard {
+  string shard_key = 1;
 }
