@@ -1187,27 +1187,39 @@ func ContextWithIsolationGroup(ctx context.Context, isolationGroup string) conte
 	return context.WithValue(ctx, isolationGroupCtxKey{}, isolationGroup)
 }
 
-func validateParams(s interface{}) (err error) {
-	structType := reflect.TypeOf(s)
-	if structType.Kind() != reflect.Struct {
-		return errors.New("input param should be a struct")
+func validateParams(p ManagerParams) (err error) {
+	if p.DomainCache == nil {
+		return errors.New("ManagerParams.DomainCache is required")
 	}
-	structVal := reflect.ValueOf(s)
-	fieldNum := structVal.NumField()
-
-	for i := 0; i < fieldNum; i++ {
-		field := structVal.Field(i)
-		fieldName := structType.Field(i).Name
-
-		// IsZero panics if the value is invalid.
-		// Most functions and methods never return an invalid Value.
-		isSet := field.IsValid() && !field.IsZero()
-
-		// it is fine to accept empty string or 0 value
-		if !isSet && field.Kind() != reflect.String && field.Kind() != reflect.Int32 {
-			err = fmt.Errorf("%v%s in not set kind:%v;", err, fieldName, field.Kind())
-		}
-
+	if p.Logger == nil {
+		return errors.New("ManagerParams.Logger is required")
 	}
-	return err
+	if p.MetricsClient == nil {
+		return errors.New("ManagerParams.MetricsClient is required")
+	}
+	if p.TaskManager == nil {
+		return errors.New("ManagerParams.TaskManager is required")
+	}
+	if p.IsolationState == nil {
+		return errors.New("ManagerParams.IsolationState is required")
+	}
+	if p.MatchingClient == nil {
+		return errors.New("ManagerParams.MatchingClient is required")
+	}
+	if p.CloseCallback == nil {
+		return errors.New("ManagerParams.CloseCallback is required")
+	}
+	if p.TaskList == nil {
+		return errors.New("ManagerParams.TaskList is required")
+	}
+	if p.Cfg == nil {
+		return errors.New("ManagerParams.Cfg is required")
+	}
+	if p.TimeSource == nil {
+		return errors.New("ManagerParams.TimeSource is required")
+	}
+	if p.HistoryService == nil {
+		return errors.New("ManagerParams.HistoryService is required")
+	}
+	return nil
 }
