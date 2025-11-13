@@ -2617,7 +2617,7 @@ func ToRegisterDomainRequest(t *apiv1.RegisterDomainRequest) *types.RegisterDoma
 	}
 	days := durationToDays(t.WorkflowExecutionRetentionPeriod)
 	if days == nil {
-		return nil
+		days = common.Int32Ptr(3) // default to 3 days if not set
 	}
 	return &types.RegisterDomainRequest{
 		Name:                                   t.Name,
