@@ -4,7 +4,7 @@ import (
 	"sync/atomic"
 
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/executorclient"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type shardProcessorImpl struct {

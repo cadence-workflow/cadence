@@ -17,7 +17,7 @@ import (
 	gomock "go.uber.org/mock/gomock"
 
 	types "github.com/uber/cadence/common/types"
-	executorclient "github.com/uber/cadence/service/sharddistributor/executorclient"
+	executorclient "github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 // MockManager is a mock of Manager interface.
