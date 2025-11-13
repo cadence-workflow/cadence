@@ -42,6 +42,9 @@ type (
 		GetDomainManager() persistence.DomainManager
 		SetDomainManager(persistence.DomainManager)
 
+		GetDomainAuditManager() persistence.DomainAuditManager
+		SetDomainAuditManager(persistence.DomainAuditManager)
+
 		GetTaskManager() persistence.TaskManager
 		SetTaskManager(persistence.TaskManager)
 
@@ -67,6 +70,7 @@ type (
 	// BeanImpl stores persistence managers
 	BeanImpl struct {
 		domainManager                 persistence.DomainManager
+		domainAuditManager            persistence.DomainAuditManager
 		taskManager                   persistence.TaskManager
 		visibilityManager             persistence.VisibilityManager
 		domainReplicationQueueManager persistence.QueueManager
@@ -105,6 +109,11 @@ func NewBeanFromFactory(
 		return nil, err
 	}
 
+	domainAuditMgr, err := factory.NewDomainAuditManager()
+	if err != nil {
+		return nil, err
+	}
+
 	taskMgr, err := factory.NewTaskManager()
 	if err != nil {
 		return nil, err
@@ -137,6 +146,7 @@ func NewBeanFromFactory(
 
 	return NewBean(
 		metadataMgr,
+		domainAuditMgr,
 		taskMgr,
 		visibilityMgr,
 		domainReplicationQueue,
@@ -150,6 +160,7 @@ func NewBeanFromFactory(
 // NewBean create a new store bean
 func NewBean(
 	domainManager persistence.DomainManager,
+	domainAuditManager persistence.DomainAuditManager,
 	taskManager persistence.TaskManager,
 	visibilityManager persistence.VisibilityManager,
 	domainReplicationQueueManager persistence.QueueManager,
@@ -160,6 +171,7 @@ func NewBean(
 ) *BeanImpl {
 	return &BeanImpl{
 		domainManager:                 domainManager,
+		domainAuditManager:            domainAuditManager,
 		taskManager:                   taskManager,
 		visibilityManager:             visibilityManager,
 		domainReplicationQueueManager: domainReplicationQueueManager,
@@ -190,6 +202,26 @@ func (s *BeanImpl) SetDomainManager(
 	defer s.Unlock()
 
 	s.domainManager = domainManager
+}
+
+// GetDomainAuditManager get DomainAuditManager
+func (s *BeanImpl) GetDomainAuditManager() persistence.DomainAuditManager {
+
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.domainAuditManager
+}
+
+// SetDomainAuditManager set DomainAuditManager
+func (s *BeanImpl) SetDomainAuditManager(
+	domainAuditManager persistence.DomainAuditManager,
+) {
+
+	s.Lock()
+	defer s.Unlock()
+
+	s.domainAuditManager = domainAuditManager
 }
 
 // GetTaskManager get TaskManager
@@ -361,6 +393,9 @@ func (s *BeanImpl) Close() {
 	defer s.Unlock()
 
 	s.domainManager.Close()
+	if s.domainAuditManager != nil {
+		s.domainAuditManager.Close()
+	}
 	s.taskManager.Close()
 	if s.visibilityManager != nil {
 		// visibilityManager can be nil

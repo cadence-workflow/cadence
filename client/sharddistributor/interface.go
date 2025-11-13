@@ -34,9 +34,16 @@ import (
 //go:generate gowrap gen -g -p . -i Client -t ../templates/retry.tmpl -o ../wrappers/retryable/sharddistributor_generated.go -v client=ShardDistributor
 //go:generate gowrap gen -g -p . -i Client -t ../templates/metered.tmpl -o ../wrappers/metered/sharddistributor_generated.go -v client=ShardDistributor
 //go:generate gowrap gen -g -p . -i Client -t ../templates/errorinjectors.tmpl -o ../wrappers/errorinjectors/sharddistributor_generated.go -v client=ShardDistributor
-//go:generate gowrap gen -g -p . -i Client -t ../templates/grpc.tmpl -o ../wrappers/grpc/sharddistributor_generated.go -v client=ShardDistributor -v package=apiv1 -v path=github.com/uber/cadence/proto/internal/uber/cadence/sharddistributor/v1 -v prefix=ShardDistributor
+//go:generate gowrap gen -g -p . -i Client -t ../templates/grpc.tmpl -o ../wrappers/grpc/sharddistributor_generated.go -v client=ShardDistributor -v package=sharddistributorv1 -v path=github.com/uber/cadence/.gen/proto/sharddistributor/v1 -v prefix=ShardDistributor
 //go:generate gowrap gen -g -p . -i Client -t ../templates/timeout.tmpl -o ../wrappers/timeout/sharddistributor_generated.go -v client=ShardDistributor
 
 type Client interface {
 	GetShardOwner(context.Context, *types.GetShardOwnerRequest, ...yarpc.CallOption) (*types.GetShardOwnerResponse, error)
+	WatchNamespaceState(context.Context, *types.WatchNamespaceStateRequest, ...yarpc.CallOption) (WatchNamespaceStateClient, error)
+}
+
+type WatchNamespaceStateClient interface {
+	Context() context.Context
+	Recv(...yarpc.StreamOption) (*types.WatchNamespaceStateResponse, error)
+	CloseSend(...yarpc.StreamOption) error
 }

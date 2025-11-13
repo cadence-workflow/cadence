@@ -24,6 +24,7 @@
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist TaskMatcher
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist Forwarder
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist TaskCompleter
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist ShardProcessor
 
 package tasklist
 
@@ -32,6 +33,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -88,5 +90,11 @@ type (
 
 	TaskCompleter interface {
 		CompleteTaskIfStarted(ctx context.Context, task *InternalTask) error
+	}
+
+	ShardProcessor interface {
+		Manager
+		GetShardReport() executorclient.ShardReport
+		SetShardStatus(types.ShardStatus)
 	}
 )

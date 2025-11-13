@@ -38,6 +38,7 @@ import (
 type beanmocks struct {
 	mockCtrl           *gomock.Controller
 	domainManager      *persistence.MockDomainManager
+	domainAuditManager *persistence.MockDomainAuditManager
 	taskManager        *persistence.MockTaskManager
 	visibilityManager  *persistence.MockVisibilityManager
 	replicationManager *persistence.MockQueueManager
@@ -51,6 +52,7 @@ func beanSetup(t *testing.T) (f *MockFactory, m beanmocks, defaultMocks func()) 
 	m = beanmocks{
 		mockCtrl:           ctrl,
 		domainManager:      persistence.NewMockDomainManager(ctrl),
+		domainAuditManager: persistence.NewMockDomainAuditManager(ctrl),
 		taskManager:        persistence.NewMockTaskManager(ctrl),
 		visibilityManager:  persistence.NewMockVisibilityManager(ctrl),
 		replicationManager: persistence.NewMockQueueManager(ctrl),
@@ -62,6 +64,7 @@ func beanSetup(t *testing.T) (f *MockFactory, m beanmocks, defaultMocks func()) 
 	defaultMocks = func() {
 		// allow any of them to be called once or never, individual tests will set earlier mocks as needed
 		f.EXPECT().NewDomainManager().Return(m.domainManager, nil).MaxTimes(1)
+		f.EXPECT().NewDomainAuditManager().Return(m.domainAuditManager, nil).MaxTimes(1)
 		f.EXPECT().NewTaskManager().Return(m.taskManager, nil).MaxTimes(1)
 		f.EXPECT().NewVisibilityManager(gomock.Any(), gomock.Any()).Return(m.visibilityManager, nil).MaxTimes(1)
 		f.EXPECT().NewDomainReplicationQueueManager().Return(m.replicationManager, nil).MaxTimes(1)
@@ -157,6 +160,7 @@ func TestBeanCoverage(t *testing.T) {
 		// these need to be concurrency-safe, so run them concurrently
 		var g errgroup.Group
 		g.Go(errgroupAssertEqual(t, m.domainManager, impl.GetDomainManager))
+		g.Go(errgroupAssertEqual(t, m.domainAuditManager, impl.GetDomainAuditManager))
 		g.Go(errgroupAssertEqual(t, m.taskManager, impl.GetTaskManager))
 		g.Go(errgroupAssertEqual(t, m.visibilityManager, impl.GetVisibilityManager))
 		g.Go(errgroupAssertEqual(t, m.replicationManager, impl.GetDomainReplicationQueueManager))
@@ -178,6 +182,7 @@ func TestBeanCoverage(t *testing.T) {
 		var g errgroup.Group
 
 		g.Go(errgroupAssertSets(t, m2.domainManager, impl.SetDomainManager, impl.GetDomainManager))
+		g.Go(errgroupAssertSets(t, m2.domainAuditManager, impl.SetDomainAuditManager, impl.GetDomainAuditManager))
 		g.Go(errgroupAssertSets(t, m2.taskManager, impl.SetTaskManager, impl.GetTaskManager))
 		g.Go(errgroupAssertSets(t, m2.visibilityManager, impl.SetVisibilityManager, impl.GetVisibilityManager))
 		g.Go(errgroupAssertSets(t, m2.replicationManager, impl.SetDomainReplicationQueueManager, impl.GetDomainReplicationQueueManager))
@@ -248,6 +253,7 @@ func TestBeanCoverage(t *testing.T) {
 
 		// expect everything to close
 		m.domainManager.EXPECT().Close().Return().Times(1)
+		m.domainAuditManager.EXPECT().Close().Return().Times(1)
 		m.taskManager.EXPECT().Close().Return().Times(1)
 		m.visibilityManager.EXPECT().Close().Return().Times(1)
 		m.replicationManager.EXPECT().Close().Return().Times(1)

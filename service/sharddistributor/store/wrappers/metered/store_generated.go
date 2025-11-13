@@ -128,3 +128,13 @@ func (c *meteredStore) Subscribe(ctx context.Context, namespace string) (ch1 <-c
 	err = c.call(metrics.ShardDistributorStoreSubscribeScope, op, metrics.NamespaceTag(namespace))
 	return
 }
+
+func (c *meteredStore) SubscribeToAssignmentChanges(ctx context.Context, namespace string) (ch1 <-chan map[*store.ShardOwner][]string, f1 func(), err error) {
+	op := func() error {
+		ch1, f1, err = c.wrapped.SubscribeToAssignmentChanges(ctx, namespace)
+		return err
+	}
+
+	err = c.call(metrics.ShardDistributorStoreSubscribeToAssignmentChangesScope, op, metrics.NamespaceTag(namespace))
+	return
+}

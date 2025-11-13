@@ -9,6 +9,8 @@ import (
 
 	"go.uber.org/yarpc"
 
+	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
+	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/proto"
 )
@@ -16,4 +18,32 @@ import (
 func (g sharddistributorClient) GetShardOwner(ctx context.Context, gp1 *types.GetShardOwnerRequest, p1 ...yarpc.CallOption) (gp2 *types.GetShardOwnerResponse, err error) {
 	response, err := g.c.GetShardOwner(ctx, proto.FromShardDistributorGetShardOwnerRequest(gp1), p1...)
 	return proto.ToShardDistributorGetShardOwnerResponse(response), proto.ToError(err)
+}
+
+func (g sharddistributorClient) WatchNamespaceState(ctx context.Context, wp1 *types.WatchNamespaceStateRequest, p1 ...yarpc.CallOption) (w1 sharddistributor.WatchNamespaceStateClient, err error) {
+	stream, err := g.c.WatchNamespaceState(ctx, proto.FromShardDistributorWatchNamespaceStateRequest(wp1), p1...)
+	if err != nil {
+		return nil, proto.ToError(err)
+	}
+	return &watchnamespacestateClient{stream: stream}, nil
+}
+
+type watchnamespacestateClient struct {
+	stream sharddistributorv1.ShardDistributorAPIServiceWatchNamespaceStateYARPCClient
+}
+
+func (c *watchnamespacestateClient) Context() context.Context {
+	return c.stream.Context()
+}
+
+func (c *watchnamespacestateClient) Recv(options ...yarpc.StreamOption) (*types.WatchNamespaceStateResponse, error) {
+	response, err := c.stream.Recv(options...)
+	if err != nil {
+		return nil, proto.ToError(err)
+	}
+	return proto.ToShardDistributorWatchNamespaceStateResponse(response), nil
+}
+
+func (c *watchnamespacestateClient) CloseSend(options ...yarpc.StreamOption) error {
+	return proto.ToError(c.stream.CloseSend(options...))
 }

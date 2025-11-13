@@ -11,7 +11,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
-	"github.com/uber/cadence/service/sharddistributor/executorclient"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestSShardAssigner_Lifecycle(t *testing.T) {

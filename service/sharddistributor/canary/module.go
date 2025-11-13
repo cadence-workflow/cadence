@@ -9,7 +9,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
 	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
 	"github.com/uber/cadence/service/sharddistributor/canary/sharddistributorclient"
-	"github.com/uber/cadence/service/sharddistributor/executorclient"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type NamespacesNames struct {

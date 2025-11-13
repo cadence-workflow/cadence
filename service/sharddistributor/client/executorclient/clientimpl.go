@@ -16,8 +16,8 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/executorclient/metricsconstants"
-	"github.com/uber/cadence/service/sharddistributor/executorclient/syncgeneric"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient/metricsconstants"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient/syncgeneric"
 )
 
 var (

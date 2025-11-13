@@ -9,7 +9,7 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
-	"github.com/uber/cadence/service/sharddistributor/executorclient"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestNewShardProcessorFactory(t *testing.T) {

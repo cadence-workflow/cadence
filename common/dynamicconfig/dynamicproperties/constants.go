@@ -1652,6 +1652,13 @@ const (
 	// Allowed filters: N/A
 	EnableQueryAttributeValidation
 
+	// EnableDomainAuditLogging enables audit logging for a domain to the domain audit log table
+	// Keyname: frontend.enableDomainAuditLogging
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	FrontendEnableDomainAuditLogging
+
 	// key for matching
 
 	// MatchingEnableSyncMatch is to enable sync match
@@ -4223,6 +4230,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "frontend.enableQueryAttributeValidation",
 		Description:  "EnableQueryAttributeValidation enables validation of queries' search attributes against the dynamic config whitelist",
 		DefaultValue: true,
+	},
+	FrontendEnableDomainAuditLogging: {
+		KeyName:      "frontend.enableDomainAuditLogging",
+		Description:  "FrontendEnableDomainAuditLogging enables audit logging for a domain to the domain audit log table",
+		DefaultValue: false,
 	},
 	MatchingEnableSyncMatch: {
 		KeyName:      "matching.enableSyncMatch",

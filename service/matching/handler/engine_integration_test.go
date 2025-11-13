@@ -40,6 +40,7 @@ import (
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
@@ -67,6 +68,7 @@ type (
 		suite.Suite
 		controller             *gomock.Controller
 		mockHistoryClient      *history.MockClient
+		mockMatchingClient     *matching.MockClient
 		mockDomainCache        *cache.MockDomainCache
 		mockMembershipResolver *membership.MockResolver
 		mockIsolationStore     *dynamicconfig.MockClient
@@ -125,6 +127,7 @@ func (s *matchingEngineSuite) SetupTest() {
 	s.mockExecutionManager = &mocks.ExecutionManager{}
 	s.controller = gomock.NewController(s.T())
 	s.mockHistoryClient = history.NewMockClient(s.controller)
+	s.mockMatchingClient = matching.NewMockClient(s.controller)
 	s.mockTimeSource = clock.NewMockedTimeSourceAt(time.Now())
 	s.taskManager = tasklist.NewTestTaskManager(s.T(), s.logger, s.mockTimeSource)
 	s.mockDomainCache = cache.NewMockDomainCache(s.controller)
@@ -174,7 +177,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		taskMgr,
 		cluster.GetTestClusterMetadata(true),
 		s.mockHistoryClient,
-		nil,
+		s.mockMatchingClient,
 		config,
 		s.logger,
 		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
@@ -216,8 +219,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 	tlKind := types.TaskListKindNormal
 	tlm, err := s.matchingEngine.getTaskListManager(taskListID, tlKind)
 	s.Require().NoError(err)
-
-	tlm2, err := tasklist.NewManager(
+	params := tasklist.ManagerParams{
 		s.matchingEngine.domainCache,
 		s.matchingEngine.logger,
 		s.matchingEngine.metricsClient,
@@ -231,7 +233,9 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 		s.matchingEngine.config,
 		s.matchingEngine.timeSource,
 		s.matchingEngine.timeSource.Now(),
-		s.matchingEngine.historyService)
+		s.matchingEngine.historyService,
+	}
+	tlm2, err := tasklist.NewManager(params)
 	s.Require().NoError(err)
 
 	// try to unload a different tlm instance with the same taskListID

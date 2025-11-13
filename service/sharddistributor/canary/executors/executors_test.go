@@ -15,7 +15,8 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
 	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
-	"github.com/uber/cadence/service/sharddistributor/executorclient"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 // mockLifecycle is a simple mock implementation of fx.Lifecycle for testing
@@ -124,8 +125,8 @@ func TestNewExecutor_InvalidConfig(t *testing.T) {
 				MetricsScope:          tally.NoopScope,
 				Logger:                log.NewNoop(),
 				ShardProcessorFactory: mockShardProcessorFactory,
-				Config: executorclient.Config{
-					Namespaces: []executorclient.NamespaceConfig{},
+				Config: clientcommon.Config{
+					Namespaces: []clientcommon.NamespaceConfig{},
 				},
 				TimeSource: clock.NewMockedTimeSource(),
 			},
@@ -137,8 +138,8 @@ func TestNewExecutor_InvalidConfig(t *testing.T) {
 				MetricsScope:          tally.NoopScope,
 				Logger:                log.NewNoop(),
 				ShardProcessorFactory: mockShardProcessorFactory,
-				Config: executorclient.Config{
-					Namespaces: []executorclient.NamespaceConfig{
+				Config: clientcommon.Config{
+					Namespaces: []clientcommon.NamespaceConfig{
 						{
 							Namespace:         "wrong-namespace",
 							HeartBeatInterval: 5 * time.Second,
@@ -219,8 +220,8 @@ func createMockParams[SP executorclient.ShardProcessor](
 		MetricsScope:          tally.NoopScope,
 		Logger:                log.NewNoop(),
 		ShardProcessorFactory: mockShardProcessorFactory,
-		Config: executorclient.Config{
-			Namespaces: []executorclient.NamespaceConfig{
+		Config: clientcommon.Config{
+			Namespaces: []clientcommon.NamespaceConfig{
 				{
 					Namespace:         namespace,
 					HeartBeatInterval: 5 * time.Second,

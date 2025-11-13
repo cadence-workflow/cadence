@@ -69,7 +69,8 @@ type Config struct {
 	GlobalRatelimiterUpdateInterval dynamicproperties.DurationPropertyFn
 
 	// isolation configuration
-	EnableTasklistIsolation dynamicproperties.BoolPropertyFnWithDomainFilter
+	EnableTasklistIsolation  dynamicproperties.BoolPropertyFnWithDomainFilter
+	EnableDomainAuditLogging dynamicproperties.BoolPropertyFn
 
 	// id length limits
 	MaxIDLengthWarnLimit  dynamicproperties.IntPropertyFn
@@ -188,13 +189,15 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		EmitSignalNameMetricsTag:                          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.FrontendEmitSignalNameMetricsTag),
 		Lockdown:                                          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.Lockdown),
 		EnableTasklistIsolation:                           dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
+		EnableDomainAuditLogging:                          dc.GetBoolProperty(dynamicproperties.FrontendEnableDomainAuditLogging),
 		DomainConfig: domain.Config{
-			MaxBadBinaryCount:      dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxBadBinaries),
-			MinRetentionDays:       dc.GetIntProperty(dynamicproperties.MinRetentionDays),
-			MaxRetentionDays:       dc.GetIntProperty(dynamicproperties.MaxRetentionDays),
-			FailoverCoolDown:       dc.GetDurationPropertyFilteredByDomain(dynamicproperties.FrontendFailoverCoolDown),
-			RequiredDomainDataKeys: dc.GetMapProperty(dynamicproperties.RequiredDomainDataKeys),
-			FailoverHistoryMaxSize: dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendFailoverHistoryMaxSize),
+			MaxBadBinaryCount:        dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxBadBinaries),
+			MinRetentionDays:         dc.GetIntProperty(dynamicproperties.MinRetentionDays),
+			MaxRetentionDays:         dc.GetIntProperty(dynamicproperties.MaxRetentionDays),
+			FailoverCoolDown:         dc.GetDurationPropertyFilteredByDomain(dynamicproperties.FrontendFailoverCoolDown),
+			RequiredDomainDataKeys:   dc.GetMapProperty(dynamicproperties.RequiredDomainDataKeys),
+			FailoverHistoryMaxSize:   dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendFailoverHistoryMaxSize),
+			EnableDomainAuditLogging: dc.GetBoolProperty(dynamicproperties.FrontendEnableDomainAuditLogging),
 		},
 		HostName: hostName,
 	}

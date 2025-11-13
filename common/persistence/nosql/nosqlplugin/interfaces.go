@@ -71,6 +71,7 @@ type (
 		TaskCRUD
 		WorkflowCRUD
 		ConfigStoreCRUD
+		DomainAuditLogCRUD
 	}
 
 	// ClientErrorChecker checks for common nosql errors on client
@@ -525,5 +526,26 @@ type (
 		InsertConfig(ctx context.Context, row *persistence.InternalConfigStoreEntry) error
 		// SelectLatestConfig returns the config entry of the row_type with the largest(latest) version value
 		SelectLatestConfig(ctx context.Context, rowType int) (*persistence.InternalConfigStoreEntry, error)
+	}
+
+	/***
+	* DomainAuditLogCRUD is for domain audit log storage system
+	*
+	* Recommendation: use one table
+	*
+	* Significant columns:
+	* domain_audit_log: partition key(domainID, operationType), range key(createdTime DESC, eventID ASC)
+	*
+	* Note: This table is used for audit trail of domain changes, storing the before/after state
+	* of domains along with metadata about who made the change and when.
+	 */
+	DomainAuditLogCRUD interface {
+		// InsertDomainAuditLog inserts a new audit log entry for a domain operation
+		// Return error if there is any failure
+		InsertDomainAuditLog(ctx context.Context, row *DomainAuditLogRow) error
+
+		// SelectDomainAuditLogs returns audit log entries for a domain and operation type
+		// Returns paginated results ordered by created_time DESC, event_id ASC
+		SelectDomainAuditLogs(ctx context.Context, filter *DomainAuditLogFilter) ([]*DomainAuditLogRow, []byte, error)
 	}
 )

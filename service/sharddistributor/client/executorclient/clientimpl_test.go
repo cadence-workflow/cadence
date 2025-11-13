@@ -16,7 +16,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/executorclient/syncgeneric"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient/syncgeneric"
 )
 
 func TestHeartBeartLoop(t *testing.T) {

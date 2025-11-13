@@ -29,7 +29,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/pborman/uuid"
+	guuid "github.com/google/uuid"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
@@ -94,6 +94,7 @@ type (
 	// handlerImpl is the domain operation handler implementation
 	handlerImpl struct {
 		domainManager       persistence.DomainManager
+		domainAuditManager  persistence.DomainAuditManager
 		clusterMetadata     cluster.Metadata
 		domainReplicator    Replicator
 		domainAttrValidator *AttrValidatorImpl
@@ -106,12 +107,13 @@ type (
 
 	// Config is the domain config for domain handler
 	Config struct {
-		MinRetentionDays       dynamicproperties.IntPropertyFn
-		MaxRetentionDays       dynamicproperties.IntPropertyFn
-		RequiredDomainDataKeys dynamicproperties.MapPropertyFn
-		MaxBadBinaryCount      dynamicproperties.IntPropertyFnWithDomainFilter
-		FailoverCoolDown       dynamicproperties.DurationPropertyFnWithDomainFilter
-		FailoverHistoryMaxSize dynamicproperties.IntPropertyFnWithDomainFilter
+		MinRetentionDays         dynamicproperties.IntPropertyFn
+		MaxRetentionDays         dynamicproperties.IntPropertyFn
+		RequiredDomainDataKeys   dynamicproperties.MapPropertyFn
+		MaxBadBinaryCount        dynamicproperties.IntPropertyFnWithDomainFilter
+		FailoverCoolDown         dynamicproperties.DurationPropertyFnWithDomainFilter
+		FailoverHistoryMaxSize   dynamicproperties.IntPropertyFnWithDomainFilter
+		EnableDomainAuditLogging dynamicproperties.BoolPropertyFn
 	}
 
 	// FailoverEvent is the failover information to be stored for each failover event in domain data
@@ -137,6 +139,7 @@ func NewHandler(
 	config Config,
 	logger log.Logger,
 	domainManager persistence.DomainManager,
+	domainAuditManager persistence.DomainAuditManager,
 	clusterMetadata cluster.Metadata,
 	domainReplicator Replicator,
 	archivalMetadata archiver.ArchivalMetadata,
@@ -146,6 +149,7 @@ func NewHandler(
 	return &handlerImpl{
 		logger:              logger,
 		domainManager:       domainManager,
+		domainAuditManager:  domainAuditManager,
 		clusterMetadata:     clusterMetadata,
 		domainReplicator:    domainReplicator,
 		domainAttrValidator: newAttrValidator(clusterMetadata, int32(config.MinRetentionDays())),
@@ -241,8 +245,13 @@ func (d *handlerImpl) RegisterDomain(
 		}
 	}
 
+	eventID, err := guuid.NewV7()
+	if err != nil {
+		return err
+	}
+
 	info := &persistence.DomainInfo{
-		ID:          uuid.New(),
+		ID:          eventID.String(),
 		Name:        registerRequest.GetName(),
 		Status:      persistence.DomainStatusRegistered,
 		OwnerEmail:  registerRequest.GetOwnerEmail(),
@@ -329,6 +338,22 @@ func (d *handlerImpl) RegisterDomain(
 		tag.WorkflowDomainName(registerRequest.GetName()),
 		tag.WorkflowDomainID(domainResponse.ID),
 	)
+
+	// Construct GetDomainResponse for audit log
+	domainStateAfterCreate := &persistence.GetDomainResponse{
+		Info:              domainRequest.Info,
+		Config:            domainRequest.Config,
+		ReplicationConfig: domainRequest.ReplicationConfig,
+		IsGlobalDomain:    domainRequest.IsGlobalDomain,
+		ConfigVersion:     domainRequest.ConfigVersion,
+		FailoverVersion:   domainRequest.FailoverVersion,
+		LastUpdatedTime:   domainRequest.LastUpdatedTime,
+	}
+
+	err = d.updateDomainAuditLog(ctx, nil, domainStateAfterCreate, persistence.DomainAuditOperationTypeCreate, "domain created")
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -631,11 +656,62 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 	}
 	response.DomainInfo, response.Configuration, response.ReplicationConfiguration = d.createResponse(intendedDomainState.Info, intendedDomainState.Config, intendedDomainState.ReplicationConfig)
 
+	err = d.updateDomainAuditLog(ctx, currentState, intendedDomainState, persistence.DomainAuditOperationTypeFailover, "domain failover")
+	if err != nil {
+		return nil, err
+	}
+
 	d.logger.Info("faiover request succeeded",
 		tag.WorkflowDomainName(intendedDomainState.Info.Name),
 		tag.WorkflowDomainID(intendedDomainState.Info.ID),
 	)
 	return response, nil
+}
+
+func (d *handlerImpl) updateDomainAuditLog(ctx context.Context,
+	currentState *persistence.GetDomainResponse,
+	intendedDomainState *persistence.GetDomainResponse,
+	operationType persistence.DomainAuditOperationType,
+	comment string,
+) error {
+
+	if d.domainAuditManager == nil {
+		return nil
+	}
+
+	if !d.config.EnableDomainAuditLogging() {
+		return nil
+	}
+
+	// Must be a UUID v7, since we need a time value as well
+	eventID, err := guuid.NewV7()
+	if err != nil {
+		return err
+	}
+	// the creation time is used in the database as a partition but passed around
+	// embedded in the eventUUID for ergonomics. This means that users wishing
+	// to get an audit entry by ID do not need to know the creation time in advance
+	// since it's embedded in the sorting-values of the UUID.
+	creationTime := time.Unix(eventID.Time().UnixTime())
+
+	_, err = d.domainAuditManager.CreateDomainAuditLog(ctx, &persistence.CreateDomainAuditLogRequest{
+		DomainID:      intendedDomainState.GetInfo().GetID(),
+		EventID:       eventID.String(),
+		CreatedTime:   creationTime,
+		StateBefore:   currentState,
+		StateAfter:    intendedDomainState,
+		OperationType: operationType,
+		Comment:       comment,
+	})
+	if err != nil {
+		d.logger.Error("Failed to create domain audit log",
+			tag.WorkflowDomainID(intendedDomainState.GetInfo().GetID()),
+			tag.Error(err),
+		)
+		// Log the error but don't fail the operation - audit logging is best effort
+		// to avoid breaking critical domain operations
+	}
+	return nil
 }
 
 // updateGlobalDomainConfiguration handles the update of a global domain configuration
@@ -773,6 +849,26 @@ func (d *handlerImpl) updateGlobalDomainConfiguration(ctx context.Context,
 	}
 	response.DomainInfo, response.Configuration, response.ReplicationConfiguration = d.createResponse(info, config, replicationConfig)
 
+	// Construct GetDomainResponse for audit log with the final updated values
+	domainStateAfterUpdate := &persistence.GetDomainResponse{
+		Info:                        info,
+		Config:                      config,
+		ReplicationConfig:           replicationConfig,
+		IsGlobalDomain:              isGlobalDomain,
+		ConfigVersion:               configVersion,
+		FailoverVersion:             failoverVersion,
+		FailoverNotificationVersion: intendedDomainState.FailoverNotificationVersion,
+		PreviousFailoverVersion:     intendedDomainState.PreviousFailoverVersion,
+		FailoverEndTime:             intendedDomainState.FailoverEndTime,
+		LastUpdatedTime:             now.UnixNano(),
+		NotificationVersion:         notificationVersion,
+	}
+
+	err = d.updateDomainAuditLog(ctx, currentDomainState, domainStateAfterUpdate, persistence.DomainAuditOperationTypeUpdate, "domain updated")
+	if err != nil {
+		return nil, err
+	}
+
 	d.logger.Info("Update domain succeeded",
 		tag.WorkflowDomainName(info.Name),
 		tag.WorkflowDomainID(info.ID),
@@ -876,6 +972,11 @@ func (d *handlerImpl) updateLocalDomain(ctx context.Context,
 		if err != nil {
 			return nil, err
 		}
+
+		err = d.updateDomainAuditLog(ctx, currentState, intendedDomainState, persistence.DomainAuditOperationTypeUpdate, "domain updated")
+		if err != nil {
+			return nil, err
+		}
 	}
 	response := &types.UpdateDomainResponse{
 		IsGlobalDomain:  false,
@@ -958,6 +1059,11 @@ func (d *handlerImpl) DeleteDomain(
 		}
 	}
 
+	err = d.updateDomainAuditLog(ctx, getResponse, nil, persistence.DomainAuditOperationTypeDelete, "domain deleted")
+	if err != nil {
+		return err
+	}
+
 	d.logger.Info("Delete domain succeeded",
 		tag.WorkflowDomainName(getResponse.Info.Name),
 		tag.WorkflowDomainID(getResponse.Info.ID),
@@ -1030,6 +1136,14 @@ func (d *handlerImpl) DeprecateDomain(
 		tag.WorkflowDomainName(getResponse.Info.Name),
 		tag.WorkflowDomainID(getResponse.Info.ID),
 	)
+
+	domainStateAfterDeprecate := &persistence.GetDomainResponse{
+		Info: getResponse.Info,
+	}
+	err = d.updateDomainAuditLog(ctx, getResponse, domainStateAfterDeprecate, persistence.DomainAuditOperationTypeDeprecate, "domain deprecated")
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1204,16 +1318,6 @@ func (d *handlerImpl) UpdateAsyncWorkflowConfiguraton(
 	}
 
 	if currentDomainConfig.IsGlobalDomain {
-		// One might reasonably wonder what value there is in replication of isolation-group information - info which is
-		// regional and therefore of no value to the other region?
-		// Probably not a lot, in and of itself, however, the isolation-group information is stored
-		// in the domain configuration fields in the domain tables. Access and updates to those records is
-		// done through a replicated mechanism with explicit versioning and conflict resolution.
-		// Therefore, in order to avoid making an already complex mechanisim much more difficult to understand,
-		// the data is replicated in the same way so as to try and make things less confusing when both codepaths
-		// are updating the table:
-		// - versions like the confiugration version are updated in the same manner
-		// - the last-updated timestamps are updated in the same manner
 		if err := d.domainReplicator.HandleTransmissionTask(
 			ctx,
 			types.DomainOperationUpdate,
@@ -1227,6 +1331,11 @@ func (d *handlerImpl) UpdateAsyncWorkflowConfiguraton(
 		); err != nil {
 			return err
 		}
+	}
+
+	err = d.updateDomainAuditLog(ctx, currentDomainConfig, currentDomainConfig, persistence.DomainAuditOperationTypeUpdate, "async workflow queue config update")
+	if err != nil {
+		return err
 	}
 
 	d.logger.Info("async workflow queue config update succeeded",

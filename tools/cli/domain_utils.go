@@ -275,14 +275,18 @@ var (
 			Aliases: []string{"acs"},
 			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
 		},
+		&cli.StringFlag{
+			Name:    FlagActiveClustersJSON,
+			Aliases: []string{"acs-json"},
+			Usage:   `Active clusters by cluster attribute in JSON format. Eg {"attributeScopes":{"region-us-east1":{"clusterAttributes":{"new-york":{"activeClusterName":"cluster1"}}}}}`,
+		},
 	}
 
 	listFailoverHistoryFlags = []cli.Flag{
-		&cli.IntFlag{
-			Name:    FlagPageSize,
-			Aliases: []string{"ps"},
-			Usage:   "Page size for pagination (default: 5)",
-			Value:   5,
+		&cli.BoolFlag{
+			Name:    FlagAll,
+			Aliases: []string{"a"},
+			Usage:   "List all failover history events",
 		},
 		&cli.BoolFlag{
 			Name:    FlagPrintJSON,
@@ -396,6 +400,7 @@ func initializeDomainHandler(
 		domainConfig,
 		logger,
 		domainManager,
+		nil, // domainAuditManager not needed for CLI tools
 		clusterMetadata,
 		initializeDomainReplicator(logger),
 		archivalMetadata,

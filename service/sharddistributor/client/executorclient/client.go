@@ -16,7 +16,8 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/executorclient/metricsconstants"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient/metricsconstants"
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go . ShardProcessorFactory,ShardProcessor,Executor
@@ -60,7 +61,7 @@ type Params[SP ShardProcessor] struct {
 	MetricsScope          tally.Scope
 	Logger                log.Logger
 	ShardProcessorFactory ShardProcessorFactory[SP]
-	Config                Config
+	Config                clientcommon.Config
 	TimeSource            clock.TimeSource
 	Metadata              ExecutorMetadata `optional:"true"`
 }
@@ -97,7 +98,7 @@ func NewExecutor[SP ShardProcessor](params Params[SP]) (Executor[SP], error) {
 	return newExecutorWithConfig(params, namespaceConfig)
 }
 
-func newExecutorWithConfig[SP ShardProcessor](params Params[SP], namespaceConfig *NamespaceConfig) (Executor[SP], error) {
+func newExecutorWithConfig[SP ShardProcessor](params Params[SP], namespaceConfig *clientcommon.NamespaceConfig) (Executor[SP], error) {
 	shardDistributorClient, err := createShardDistributorExecutorClient(params.YarpcClient, params.MetricsScope, params.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("create shard distributor executor client: %w", err)

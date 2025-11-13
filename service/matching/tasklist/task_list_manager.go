@@ -86,6 +86,23 @@ type (
 	identityCtxKey       struct{}
 	isolationGroupCtxKey struct{}
 
+	ManagerParams struct {
+		DomainCache     cache.DomainCache
+		Logger          log.Logger
+		MetricsClient   metrics.Client
+		TaskManager     persistence.TaskManager
+		ClusterMetadata cluster.Metadata
+		IsolationState  isolationgroup.State
+		MatchingClient  matching.Client
+		CloseCallback   func(Manager)
+		TaskList        *Identifier
+		TaskListKind    types.TaskListKind
+		Cfg             *config.Config
+		TimeSource      clock.TimeSource
+		CreateTime      time.Time
+		HistoryService  history.Client
+	}
+
 	AddTaskParams struct {
 		TaskInfo                 *persistence.TaskInfo
 		Source                   types.TaskSource
@@ -143,91 +160,80 @@ const (
 
 var errRemoteSyncMatchFailed = &types.RemoteSyncMatchedError{Message: "remote sync match failed"}
 
-func NewManager(
-	domainCache cache.DomainCache,
-	logger log.Logger,
-	metricsClient metrics.Client,
-	taskManager persistence.TaskManager,
-	clusterMetadata cluster.Metadata,
-	isolationState isolationgroup.State,
-	matchingClient matching.Client,
-	closeCallback func(Manager),
-	taskList *Identifier,
-	taskListKind types.TaskListKind,
-	cfg *config.Config,
-	timeSource clock.TimeSource,
-	createTime time.Time,
-	historyService history.Client,
-) (Manager, error) {
-	domainName, err := domainCache.GetDomainName(taskList.GetDomainID())
+func NewManager(p ManagerParams) (Manager, error) {
+	err := validateParams(p)
+	if err != nil {
+		return nil, err
+	}
+	domainName, err := p.DomainCache.GetDomainName(p.TaskList.GetDomainID())
 	if err != nil {
 		return nil, err
 	}
 
-	taskListConfig := newTaskListConfig(taskList, cfg, domainName)
+	taskListConfig := newTaskListConfig(p.TaskList, p.Cfg, domainName)
 
-	scope := common.NewPerTaskListScope(domainName, taskList.GetName(), taskListKind, metricsClient, metrics.MatchingTaskListMgrScope).
-		Tagged(getTaskListTypeTag(taskList.GetType()))
-	db := newTaskListDB(taskManager, taskList.GetDomainID(), domainName, taskList.GetName(), taskList.GetType(), int(taskListKind), logger)
+	scope := common.NewPerTaskListScope(domainName, p.TaskList.GetName(), p.TaskListKind, p.MetricsClient, metrics.MatchingTaskListMgrScope).
+		Tagged(getTaskListTypeTag(p.TaskList.GetType()))
+	db := newTaskListDB(p.TaskManager, p.TaskList.GetDomainID(), domainName, p.TaskList.GetName(), p.TaskList.GetType(), int(p.TaskListKind), p.Logger)
 	var isolationGroups []string
-	if taskListKind != types.TaskListKindSticky && taskListConfig.EnableTasklistIsolation() {
-		isolationGroups = slices.Clone(cfg.AllIsolationGroups())
+	if p.TaskListKind != types.TaskListKindSticky && taskListConfig.EnableTasklistIsolation() {
+		isolationGroups = slices.Clone(p.Cfg.AllIsolationGroups())
 		slices.Sort(isolationGroups)
 	}
 
 	tlMgr := &taskListManagerImpl{
-		createTime:      createTime,
+		createTime:      p.CreateTime,
 		enableIsolation: taskListConfig.EnableTasklistIsolation(),
-		domainCache:     domainCache,
-		clusterMetadata: clusterMetadata,
-		isolationState:  isolationState,
+		domainCache:     p.DomainCache,
+		clusterMetadata: p.ClusterMetadata,
+		isolationState:  p.IsolationState,
 		isolationGroups: isolationGroups,
-		taskListID:      taskList,
-		taskListKind:    taskListKind,
-		logger:          logger.WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskList.GetType())),
+		taskListID:      p.TaskList,
+		taskListKind:    p.TaskListKind,
+		logger:          p.Logger.WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(p.TaskList.GetName()), tag.WorkflowTaskListType(p.TaskList.GetType())),
 		db:              db,
-		taskAckManager:  messaging.NewAckManager(logger),
+		taskAckManager:  messaging.NewAckManager(p.Logger),
 		taskGC:          newTaskGC(db, taskListConfig),
 		config:          taskListConfig,
-		matchingClient:  matchingClient,
+		matchingClient:  p.MatchingClient,
 		domainName:      domainName,
 		scope:           scope,
-		timeSource:      timeSource,
-		closeCallback:   closeCallback,
+		timeSource:      p.TimeSource,
+		closeCallback:   p.CloseCallback,
 		throttleRetry: backoff.NewThrottleRetry(
 			backoff.WithRetryPolicy(persistenceOperationRetryPolicy),
 			backoff.WithRetryableError(persistence.IsTransientError),
 		),
-		historyService: historyService,
+		historyService: p.HistoryService,
 	}
 
 	tlMgr.pollers = poller.NewPollerManager(func() {
 		scope.UpdateGauge(metrics.PollerPerTaskListCounter,
 			float64(tlMgr.pollers.GetCount()))
-	}, timeSource)
+	}, p.TimeSource)
 
 	livenessInterval := taskListConfig.IdleTasklistCheckInterval()
-	tlMgr.liveness = liveness.NewLiveness(timeSource, livenessInterval, func() {
+	tlMgr.liveness = liveness.NewLiveness(p.TimeSource, livenessInterval, func() {
 		tlMgr.logger.Info("Task list manager stopping because no recent events", tag.Dynamic("interval", livenessInterval))
 		tlMgr.Stop()
 	})
 
 	baseEvent := event.E{
-		TaskListName: taskList.GetName(),
-		TaskListKind: &taskListKind,
-		TaskListType: taskList.GetType(),
+		TaskListName: p.TaskList.GetName(),
+		TaskListKind: &p.TaskListKind,
+		TaskListType: p.TaskList.GetType(),
 	}
 
-	tlMgr.qpsTracker = stats.NewEmaFixedWindowQPSTracker(timeSource, 0.5, taskListConfig.QPSTrackerInterval(), baseEvent)
-	if taskList.IsRoot() && taskListKind == types.TaskListKindNormal {
-		adaptiveScalerScope := common.NewPerTaskListScope(domainName, taskList.GetName(), taskListKind, metricsClient, metrics.MatchingAdaptiveScalerScope).
-			Tagged(getTaskListTypeTag(taskList.GetType()))
-		tlMgr.adaptiveScaler = NewAdaptiveScaler(taskList, tlMgr, taskListConfig, timeSource, tlMgr.logger, adaptiveScalerScope, matchingClient, baseEvent)
+	tlMgr.qpsTracker = stats.NewEmaFixedWindowQPSTracker(p.TimeSource, 0.5, taskListConfig.QPSTrackerInterval(), baseEvent)
+	if p.TaskList.IsRoot() && p.TaskListKind == types.TaskListKindNormal {
+		adaptiveScalerScope := common.NewPerTaskListScope(domainName, p.TaskList.GetName(), p.TaskListKind, p.MetricsClient, metrics.MatchingAdaptiveScalerScope).
+			Tagged(getTaskListTypeTag(p.TaskList.GetType()))
+		tlMgr.adaptiveScaler = NewAdaptiveScaler(p.TaskList, tlMgr, taskListConfig, p.TimeSource, tlMgr.logger, adaptiveScalerScope, p.MatchingClient, baseEvent)
 	}
 
 	var fwdr Forwarder
-	if tlMgr.isFowardingAllowed(taskList, taskListKind) {
-		fwdr = newForwarder(&taskListConfig.ForwarderConfig, taskList, taskListKind, matchingClient, scope)
+	if tlMgr.isFowardingAllowed(p.TaskList, p.TaskListKind) {
+		fwdr = newForwarder(&taskListConfig.ForwarderConfig, p.TaskList, p.TaskListKind, p.MatchingClient, scope)
 	}
 	numReadPartitionsFn := func() int {
 		if taskListConfig.EnableGetNumberOfPartitionsFromCache() {
@@ -240,8 +246,8 @@ func NewManager(
 		}
 		return taskListConfig.NumReadPartitions()
 	}
-	tlMgr.limiter = newTaskListLimiter(timeSource, tlMgr.scope, taskListConfig, numReadPartitionsFn)
-	tlMgr.matcher = newTaskMatcher(taskListConfig, fwdr, tlMgr.scope, isolationGroups, tlMgr.logger, taskList, taskListKind, tlMgr.limiter).(*taskMatcherImpl)
+	tlMgr.limiter = newTaskListLimiter(p.TimeSource, tlMgr.scope, taskListConfig, numReadPartitionsFn)
+	tlMgr.matcher = newTaskMatcher(taskListConfig, fwdr, tlMgr.scope, isolationGroups, tlMgr.logger, p.TaskList, p.TaskListKind, tlMgr.limiter).(*taskMatcherImpl)
 	tlMgr.taskWriter = newTaskWriter(tlMgr)
 	tlMgr.taskReader = newTaskReader(tlMgr, isolationGroups)
 	tlMgr.taskCompleter = newTaskCompleter(tlMgr, historyServiceOperationRetryPolicy)
@@ -1179,4 +1185,41 @@ func IsolationGroupFromContext(ctx context.Context) string {
 
 func ContextWithIsolationGroup(ctx context.Context, isolationGroup string) context.Context {
 	return context.WithValue(ctx, isolationGroupCtxKey{}, isolationGroup)
+}
+
+func validateParams(p ManagerParams) (err error) {
+	if p.DomainCache == nil {
+		return errors.New("ManagerParams.DomainCache is required")
+	}
+	if p.Logger == nil {
+		return errors.New("ManagerParams.Logger is required")
+	}
+	if p.MetricsClient == nil {
+		return errors.New("ManagerParams.MetricsClient is required")
+	}
+	if p.TaskManager == nil {
+		return errors.New("ManagerParams.TaskManager is required")
+	}
+	if p.IsolationState == nil {
+		return errors.New("ManagerParams.IsolationState is required")
+	}
+	if p.MatchingClient == nil {
+		return errors.New("ManagerParams.MatchingClient is required")
+	}
+	if p.CloseCallback == nil {
+		return errors.New("ManagerParams.CloseCallback is required")
+	}
+	if p.TaskList == nil {
+		return errors.New("ManagerParams.TaskList is required")
+	}
+	if p.Cfg == nil {
+		return errors.New("ManagerParams.Cfg is required")
+	}
+	if p.TimeSource == nil {
+		return errors.New("ManagerParams.TimeSource is required")
+	}
+	if p.HistoryService == nil {
+		return errors.New("ManagerParams.HistoryService is required")
+	}
+	return nil
 }

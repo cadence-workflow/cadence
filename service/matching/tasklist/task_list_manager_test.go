@@ -88,8 +88,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 	deps.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).Times(1)
 	config := config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "hostname", getIsolationgroupsHelper)
 	mockHistoryService := history.NewMockClient(ctrl)
-
-	tlm, err := NewManager(
+	params := ManagerParams{
 		deps.mockDomainCache,
 		logger,
 		metricsClient,
@@ -104,7 +103,8 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 		deps.mockTimeSource,
 		deps.mockTimeSource.Now(),
 		mockHistoryService,
-	)
+	}
+	tlm, err := NewManager(params)
 	require.NoError(t, err)
 	return tlm.(*taskListManagerImpl), deps
 }
@@ -231,6 +231,8 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 	mockDomainCache := cache.NewMockDomainCache(controller)
 	mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 	mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
+	mockMatchingClient := matching.NewMockClient(controller)
+	mockMatchingClient.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	mockHistoryService := history.NewMockClient(controller)
 	tl := "tl"
 	dID := "domain"
@@ -238,14 +240,14 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 	if err != nil {
 		panic(err)
 	}
-	tlMgr, err := NewManager(
+	params := ManagerParams{
 		mockDomainCache,
 		logger,
 		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
 		tm,
 		cluster.GetTestClusterMetadata(true),
 		mockIsolationState,
-		nil,
+		mockMatchingClient,
 		func(Manager) {},
 		tlID,
 		types.TaskListKindNormal,
@@ -253,7 +255,8 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 		timeSource,
 		timeSource.Now(),
 		mockHistoryService,
-	)
+	}
+	tlMgr, err := NewManager(params)
 	if err != nil {
 		logger.Fatal("error when createTestTaskListManager", tag.Error(err))
 	}
@@ -883,14 +886,14 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	cfg := defaultTestConfig()
 	cfg.RangeSize = rangeSize
 	cfg.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
-	tlMgr, err := NewManager(
+	params := ManagerParams{
 		mockDomainCache,
 		logger,
 		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
 		tm,
 		cluster.GetTestClusterMetadata(true),
 		mockIsolationState,
-		nil,
+		matching.NewMockClient(controller),
 		func(Manager) {},
 		taskListID,
 		types.TaskListKindNormal,
@@ -898,7 +901,8 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		timeSource,
 		timeSource.Now(),
 		mockHistoryService,
-	)
+	}
+	tlMgr, err := NewManager(params)
 	assert.NoError(t, err)
 	tlm := tlMgr.(*taskListManagerImpl)
 	err = tlm.Start()
@@ -954,14 +958,14 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	tlm.taskAckManager.SetReadLevel(int64(expectedBufSize))
 
 	// complete rangeSize events
-	tlMgr, err = NewManager(
+	newParams := ManagerParams{
 		mockDomainCache,
 		logger,
 		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
 		tm,
 		cluster.GetTestClusterMetadata(true),
 		mockIsolationState,
-		nil,
+		matching.NewMockClient(controller),
 		func(Manager) {},
 		taskListID,
 		types.TaskListKindNormal,
@@ -969,7 +973,8 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		timeSource,
 		timeSource.Now(),
 		mockHistoryService,
-	)
+	}
+	tlMgr, err = NewManager(newParams)
 	assert.NoError(t, err)
 	tlm = tlMgr.(*taskListManagerImpl)
 	err = tlm.Start()
@@ -1013,14 +1018,14 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 	cfg.RangeSize = rangeSize
 	cfg.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
 
-	tlMgr, err := NewManager(
+	params := ManagerParams{
 		mockDomainCache,
 		logger,
 		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
 		tm,
 		cluster.GetTestClusterMetadata(true),
 		mockIsolationState,
-		nil,
+		matching.NewMockClient(controller),
 		func(Manager) {},
 		taskListID,
 		types.TaskListKindNormal,
@@ -1028,7 +1033,8 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 		timeSource,
 		timeSource.Now(),
 		mockHistoryService,
-	)
+	}
+	tlMgr, err := NewManager(params)
 	require.NoError(t, err)
 	tlm := tlMgr.(*taskListManagerImpl)
 
@@ -1160,14 +1166,14 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 			// set idle timer check to a really small value to assert that we don't accidentally drop tasks while blocking
 			// on enqueuing a task to task buffer
 			cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(20 * time.Millisecond)
-			tlMgr, err := NewManager(
+			params := ManagerParams{
 				mockDomainCache,
 				logger,
 				metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
 				tm,
 				cluster.GetTestClusterMetadata(true),
 				mockIsolationState,
-				nil,
+				matching.NewMockClient(controller),
 				func(Manager) {},
 				taskListID,
 				types.TaskListKindNormal,
@@ -1175,7 +1181,8 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 				timeSource,
 				timeSource.Now(),
 				mockHistoryService,
-			)
+			}
+			tlMgr, err := NewManager(params)
 			assert.NoError(t, err)
 			tlm := tlMgr.(*taskListManagerImpl)
 			err = tlm.Start()
