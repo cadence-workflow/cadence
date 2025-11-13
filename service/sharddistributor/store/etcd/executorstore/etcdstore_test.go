@@ -209,7 +209,7 @@ func TestRecordHeartbeatShardStatisticsThrottlesWrites(t *testing.T) {
 			shardID: {Status: types.ShardStatusREADY, ShardLoad: baseLoad},
 		},
 	}))
-	statsAfterFirst := getShardStats(t, executorStore, ctx, tc.Namespace, shardID)
+	statsAfterFirst := getShardStats(ctx, t, executorStore, tc.Namespace, shardID)
 	require.NotNil(t, statsAfterFirst)
 
 	// Advance time by less than the persist interval and provide a small delta: should skip the write.
@@ -221,7 +221,7 @@ func TestRecordHeartbeatShardStatisticsThrottlesWrites(t *testing.T) {
 			shardID: {Status: types.ShardStatusREADY, ShardLoad: baseLoad + smallDelta},
 		},
 	}))
-	statsAfterSkip := getShardStats(t, executorStore, ctx, tc.Namespace, shardID)
+	statsAfterSkip := getShardStats(ctx, t, executorStore, tc.Namespace, shardID)
 	require.NotNil(t, statsAfterSkip)
 	assert.Equal(t, statsAfterFirst.LastUpdateTime, statsAfterSkip.LastUpdateTime, "small recent deltas should not trigger a persist")
 
@@ -234,7 +234,7 @@ func TestRecordHeartbeatShardStatisticsThrottlesWrites(t *testing.T) {
 			shardID: {Status: types.ShardStatusREADY, ShardLoad: baseLoad + smallDelta/2},
 		},
 	}))
-	statsAfterForce := getShardStats(t, executorStore, ctx, tc.Namespace, shardID)
+	statsAfterForce := getShardStats(ctx, t, executorStore, tc.Namespace, shardID)
 	require.NotNil(t, statsAfterForce)
 	assert.Greater(t, statsAfterForce.LastUpdateTime, statsAfterSkip.LastUpdateTime, "stale stats must be refreshed even if delta is small")
 }
@@ -770,7 +770,7 @@ func createStoreWithTimeSource(t *testing.T, tc *testhelper.StoreTestCluster, ts
 	return store
 }
 
-func getShardStats(t *testing.T, s store.Store, ctx context.Context, namespace, shardID string) *store.ShardStatistics {
+func getShardStats(ctx context.Context, t *testing.T, s store.Store, namespace, shardID string) *store.ShardStatistics {
 	t.Helper()
 	nsState, err := s.GetState(ctx, namespace)
 	require.NoError(t, err)
