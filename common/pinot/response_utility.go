@@ -51,20 +51,22 @@ func buildMap(hit []interface{}, columnNames []string) map[string]interface{} {
 // this is different from InternalVisibilityWorkflowExecutionInfo
 // use this to deserialize the systemKeyMap from Pinot response
 type VisibilityRecord struct {
-	WorkflowID    string
-	RunID         string
-	WorkflowType  string
-	DomainID      string
-	StartTime     int64
-	ExecutionTime int64
-	CloseTime     int64
-	CloseStatus   int
-	HistoryLength int64
-	TaskList      string
-	IsCron        bool
-	NumClusters   int16
-	UpdateTime    int64
-	ShardID       int16
+	WorkflowID            string
+	RunID                 string
+	WorkflowType          string
+	DomainID              string
+	StartTime             int64
+	ExecutionTime         int64
+	CloseTime             int64
+	CloseStatus           int
+	HistoryLength         int64
+	TaskList              string
+	IsCron                bool
+	NumClusters           int16
+	ClusterAttributeScope string
+	ClusterAttributeName  string
+	UpdateTime            int64
+	ShardID               int16
 }
 
 func ConvertSearchResultToVisibilityRecord(hit []interface{}, columnNames []string) (*p.InternalVisibilityWorkflowExecutionInfo, error) {
@@ -113,19 +115,21 @@ func ConvertSearchResultToVisibilityRecord(hit []interface{}, columnNames []stri
 	}
 
 	record := &p.InternalVisibilityWorkflowExecutionInfo{
-		DomainID:         source.DomainID,
-		WorkflowType:     source.WorkflowType,
-		WorkflowID:       source.WorkflowID,
-		RunID:            source.RunID,
-		TypeName:         source.WorkflowType,
-		StartTime:        time.UnixMilli(source.StartTime), // be careful: source.StartTime is in milliseconds
-		ExecutionTime:    time.UnixMilli(source.ExecutionTime),
-		TaskList:         source.TaskList,
-		IsCron:           source.IsCron,
-		NumClusters:      source.NumClusters,
-		ShardID:          source.ShardID,
-		SearchAttributes: attributeMap,
-		Memo:             memo,
+		DomainID:              source.DomainID,
+		WorkflowType:          source.WorkflowType,
+		WorkflowID:            source.WorkflowID,
+		RunID:                 source.RunID,
+		TypeName:              source.WorkflowType,
+		StartTime:             time.UnixMilli(source.StartTime), // be careful: source.StartTime is in milliseconds
+		ExecutionTime:         time.UnixMilli(source.ExecutionTime),
+		TaskList:              source.TaskList,
+		IsCron:                source.IsCron,
+		NumClusters:           source.NumClusters,
+		ClusterAttributeScope: source.ClusterAttributeScope,
+		ClusterAttributeName:  source.ClusterAttributeName,
+		ShardID:               source.ShardID,
+		SearchAttributes:      attributeMap,
+		Memo:                  memo,
 	}
 	if source.UpdateTime > 0 {
 		record.UpdateTime = time.UnixMilli(source.UpdateTime)

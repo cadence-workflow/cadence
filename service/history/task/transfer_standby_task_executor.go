@@ -322,6 +322,7 @@ func (t *transferStandbyTaskExecutor) processCloseExecution(
 			updateTimestamp.UnixNano(),
 			searchAttr,
 			headers,
+			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
 		)
 	}
 
@@ -555,6 +556,7 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 			updateTimestamp.UnixNano(),
 			searchAttr,
 			headers,
+			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
 		)
 	}
 	return t.upsertWorkflowExecution(
@@ -574,6 +576,7 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 		updateTimestamp.UnixNano(),
 		searchAttr,
 		headers,
+		executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
 	)
 
 }
@@ -635,15 +638,10 @@ func (t *transferStandbyTaskExecutor) pushActivity(
 		return nil
 	}
 
-	pushActivityInfo := postActionInfo.(*pushActivityToMatchingInfo)
-	timeout := min(pushActivityInfo.activityScheduleToStartTimeout, constants.MaxTaskTimeout)
-	taskList := &pushActivityInfo.tasklist
 	return t.transferTaskExecutorBase.pushActivity(
 		ctx,
 		task.(*persistence.ActivityTask),
-		taskList,
-		timeout,
-		pushActivityInfo.partitionConfig,
+		postActionInfo.(*pushActivityToMatchingInfo),
 	)
 }
 
@@ -658,14 +656,10 @@ func (t *transferStandbyTaskExecutor) pushDecision(
 		return nil
 	}
 
-	pushDecisionInfo := postActionInfo.(*pushDecisionToMatchingInfo)
-	timeout := min(pushDecisionInfo.decisionScheduleToStartTimeout, constants.MaxTaskTimeout)
 	return t.transferTaskExecutorBase.pushDecision(
 		ctx,
 		task.(*persistence.DecisionTask),
-		&pushDecisionInfo.tasklist,
-		timeout,
-		pushDecisionInfo.partitionConfig,
+		postActionInfo.(*pushDecisionToMatchingInfo),
 	)
 }
 

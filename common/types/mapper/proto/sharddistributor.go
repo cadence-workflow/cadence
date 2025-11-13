@@ -279,3 +279,82 @@ func toMigrationMode(modeSD types.MigrationMode) sharddistributorv1.MigrationMod
 	}
 	return mode
 }
+
+// FromShardDistributorWatchNamespaceStateRequest converts a types.WatchNamespaceStateRequest to a sharddistributor.WatchNamespaceStateRequest
+func FromShardDistributorWatchNamespaceStateRequest(t *types.WatchNamespaceStateRequest) *sharddistributorv1.WatchNamespaceStateRequest {
+	if t == nil {
+		return nil
+	}
+	return &sharddistributorv1.WatchNamespaceStateRequest{
+		Namespace: t.GetNamespace(),
+	}
+}
+
+// ToShardDistributorWatchNamespaceStateRequest converts a sharddistributor.WatchNamespaceStateRequest to a types.WatchNamespaceStateRequest
+func ToShardDistributorWatchNamespaceStateRequest(t *sharddistributorv1.WatchNamespaceStateRequest) *types.WatchNamespaceStateRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.WatchNamespaceStateRequest{
+		Namespace: t.GetNamespace(),
+	}
+}
+
+// FromShardDistributorWatchNamespaceStateResponse converts a types.WatchNamespaceStateResponse to a sharddistributor.WatchNamespaceStateResponse
+func FromShardDistributorWatchNamespaceStateResponse(t *types.WatchNamespaceStateResponse) *sharddistributorv1.WatchNamespaceStateResponse {
+	if t == nil {
+		return nil
+	}
+
+	var executors []*sharddistributorv1.ExecutorInfo
+
+	for _, executor := range t.GetExecutors() {
+		// Convert the Shards
+		shards := make([]*sharddistributorv1.Shard, 0, len(executor.GetAssignedShards()))
+		for _, shard := range executor.GetAssignedShards() {
+			shards = append(shards, &sharddistributorv1.Shard{
+				ShardKey: shard.GetShardKey(),
+			})
+		}
+		executors = append(executors, &sharddistributorv1.ExecutorInfo{
+			ExecutorId: executor.GetExecutorID(),
+			Metadata:   executor.GetMetadata(),
+			Shards:     shards,
+		})
+	}
+
+	return &sharddistributorv1.WatchNamespaceStateResponse{
+		Executors: executors,
+	}
+}
+
+// ToShardDistributorWatchNamespaceStateResponse converts a sharddistributor.WatchNamespaceStateResponse to a types.WatchNamespaceStateResponse
+func ToShardDistributorWatchNamespaceStateResponse(t *sharddistributorv1.WatchNamespaceStateResponse) *types.WatchNamespaceStateResponse {
+	if t == nil {
+		return nil
+	}
+
+	var executors []*types.ExecutorShardAssignment
+	if t.GetExecutors() != nil {
+		executors = make([]*types.ExecutorShardAssignment, 0, len(t.GetExecutors()))
+		for _, executor := range t.GetExecutors() {
+			// Convert the Shards
+			shards := make([]*types.Shard, 0, len(executor.GetShards()))
+			for _, shard := range executor.GetShards() {
+				shards = append(shards, &types.Shard{
+					ShardKey: shard.GetShardKey(),
+				})
+			}
+
+			executors = append(executors, &types.ExecutorShardAssignment{
+				ExecutorID:     executor.GetExecutorId(),
+				Metadata:       executor.GetMetadata(),
+				AssignedShards: shards,
+			})
+		}
+	}
+
+	return &types.WatchNamespaceStateResponse{
+		Executors: executors,
+	}
+}

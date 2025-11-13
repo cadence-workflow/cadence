@@ -54,3 +54,15 @@ func TestToShardDistributorExecutorHeartbeatResponse(t *testing.T) {
 		assert.Equal(t, item, ToShardDistributorExecutorHeartbeatResponse(FromShardDistributorExecutorHeartbeatResponse(item)))
 	}
 }
+
+func TestFromShardDistributorWatchNamespaceStateRequest(t *testing.T) {
+	for _, item := range []*types.WatchNamespaceStateRequest{nil, {}, &testdata.ShardDistributorWatchNamespaceStateRequest} {
+		assert.Equal(t, item, ToShardDistributorWatchNamespaceStateRequest(FromShardDistributorWatchNamespaceStateRequest(item)))
+	}
+}
+
+func TestFromShardDistributorWatchNamespaceStateResponse(t *testing.T) {
+	for _, item := range []*types.WatchNamespaceStateResponse{nil, {}, &testdata.ShardDistributorWatchNamespaceStateResponse} {
+		assert.Equal(t, item, ToShardDistributorWatchNamespaceStateResponse(FromShardDistributorWatchNamespaceStateResponse(item)))
+	}
+}

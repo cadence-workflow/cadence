@@ -140,3 +140,7 @@ func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string
 		Namespace: namespace,
 	}, nil
 }
+
+func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequest, server WatchNamespaceStateServer) error {
+	return fmt.Errorf("not implemented")
+}

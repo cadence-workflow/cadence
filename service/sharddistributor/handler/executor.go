@@ -23,10 +23,11 @@ const (
 )
 
 type executor struct {
-	logger               log.Logger
-	timeSource           clock.TimeSource
-	storage              store.Store
-	shardDistributionCfg config.ShardDistribution
+	logger                 log.Logger
+	timeSource             clock.TimeSource
+	storage                store.Store
+	shardDistributionCfg   config.ShardDistribution
+	migrationConfiguration *config.MigrationConfig
 }
 
 func NewExecutorHandler(
@@ -34,12 +35,14 @@ func NewExecutorHandler(
 	storage store.Store,
 	timeSource clock.TimeSource,
 	shardDistributionCfg config.ShardDistribution,
+	migrationConfig *config.MigrationConfig,
 ) Executor {
 	return &executor{
-		logger:               logger,
-		timeSource:           timeSource,
-		storage:              storage,
-		shardDistributionCfg: shardDistributionCfg,
+		logger:                 logger,
+		timeSource:             timeSource,
+		storage:                storage,
+		shardDistributionCfg:   shardDistributionCfg,
+		migrationConfiguration: migrationConfig,
 	}
 }
 
@@ -51,7 +54,7 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 	}
 
 	now := h.timeSource.Now().UTC()
-	mode := h.shardDistributionCfg.GetMigrationMode(request.Namespace)
+	mode := h.migrationConfiguration.GetMigrationMode(request.Namespace)
 
 	switch mode {
 	case types.MigrationModeINVALID:

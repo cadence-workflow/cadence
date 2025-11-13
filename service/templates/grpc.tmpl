@@ -7,6 +7,7 @@ import (
 	"go.uber.org/yarpc"
 
 	{{$package}} "{{$packagePath}}"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/proto"
 )
 
@@ -27,6 +28,30 @@ func New{{$Decorator}}(h {{.Interface.Type}}) {{$Decorator}} {
 {{if not (has $method.Name $denylist)}}
 {{$Request := printf "%sRequest" $method.Name}}
 {{$Response := printf "%sResponse" $method.Name}}
+{{- $isStreaming := false}}
+{{- range $method.Params}}
+	{{- if contains "Server" .Type}}
+		{{- $isStreaming = true}}
+	{{- end}}
+{{- end}}
+{{- if $isStreaming}}
+func (g {{$Decorator}}) {{$method.Name}}(request *{{$package}}.{{$Request}}, server {{$package}}.{{$prefix}}APIService{{$method.Name}}YARPCServer) error {
+	err := g.h.{{$method.Name}}(proto.To{{$prefix}}{{$Request}}(request), &{{lower $method.Name}}Server{server: server})
+	return err
+}
+
+type {{lower $method.Name}}Server struct {
+	server {{$package}}.{{$prefix}}APIService{{$method.Name}}YARPCServer
+}
+
+func (s *{{lower $method.Name}}Server) Context() context.Context {
+	return s.server.Context()
+}
+
+func (s *{{lower $method.Name}}Server) Send(response *types.{{$Response}}) error {
+	return s.server.Send(proto.From{{$prefix}}{{$Response}}(response))
+}
+{{- else}}
 func (g {{$Decorator}}) {{$method.Name}}(ctx context.Context, request *{{$package}}.{{$Request}}) (*{{$package}}.{{$Response}}, error) {
 	{{- if eq (len $method.Params) 1}}
 	{{- if eq (len $method.Results) 1}}
@@ -48,5 +73,6 @@ func (g {{$Decorator}}) {{$method.Name}}(ctx context.Context, request *{{$packag
 	return proto.From{{$prefix}}{{$Response}}(response), proto.FromError(err)
 	{{- end}}
 }
+{{- end}}
 {{end}}
 {{end}}

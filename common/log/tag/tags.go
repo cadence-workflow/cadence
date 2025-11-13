@@ -1236,3 +1236,8 @@ func VirtualQueueID(id int64) Tag {
 func AlertType(alertType int) Tag {
 	return newInt("alert-type", alertType)
 }
+
+// CacheID returns a tag for cache identifier
+func CacheID(cacheID string) Tag {
+	return newStringTag("cache-id", cacheID)
+}

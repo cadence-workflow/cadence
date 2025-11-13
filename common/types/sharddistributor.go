@@ -226,3 +226,63 @@ const (
 	MigrationModeDISTRIBUTEDPASSTHROUGH MigrationMode = 3
 	MigrationModeONBOARDED              MigrationMode = 4
 )
+
+type WatchNamespaceStateRequest struct {
+	Namespace string
+}
+
+func (v *WatchNamespaceStateRequest) GetNamespace() (o string) {
+	if v != nil {
+		return v.Namespace
+	}
+	return
+}
+
+type WatchNamespaceStateResponse struct {
+	Executors []*ExecutorShardAssignment
+}
+
+func (v *WatchNamespaceStateResponse) GetExecutors() (o []*ExecutorShardAssignment) {
+	if v != nil {
+		return v.Executors
+	}
+	return
+}
+
+type ExecutorShardAssignment struct {
+	ExecutorID     string
+	AssignedShards []*Shard
+	Metadata       map[string]string
+}
+
+func (v *ExecutorShardAssignment) GetExecutorID() (o string) {
+	if v != nil {
+		return v.ExecutorID
+	}
+	return
+}
+
+func (v *ExecutorShardAssignment) GetAssignedShards() (o []*Shard) {
+	if v != nil {
+		return v.AssignedShards
+	}
+	return
+}
+
+func (v *ExecutorShardAssignment) GetMetadata() (o map[string]string) {
+	if v != nil {
+		return v.Metadata
+	}
+	return
+}
+
+type Shard struct {
+	ShardKey string
+}
+
+func (v *Shard) GetShardKey() (o string) {
+	if v != nil {
+		return v.ShardKey
+	}
+	return
+}

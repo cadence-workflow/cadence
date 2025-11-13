@@ -42,6 +42,32 @@ type managedProcessor[SP ShardProcessor] struct {
 	state     atomic.Int32
 }
 
+type syncExecutorMetadata struct {
+	sync.RWMutex
+
+	data map[string]string
+}
+
+func (m *syncExecutorMetadata) Set(metadata map[string]string) {
+	m.Lock()
+	defer m.Unlock()
+
+	m.data = metadata
+}
+
+func (m *syncExecutorMetadata) Get() map[string]string {
+	m.RLock()
+	defer m.RUnlock()
+
+	// Copy the map
+	result := make(map[string]string, len(m.data))
+	for k, v := range m.data {
+		result[k] = v
+	}
+
+	return result
+}
+
 func (mp *managedProcessor[SP]) setState(state processorState) {
 	mp.state.Store(int32(state))
 }
@@ -74,6 +100,7 @@ type executorImpl[SP ShardProcessor] struct {
 	assignmentMutex        sync.Mutex
 	metrics                tally.Scope
 	migrationMode          atomic.Int32
+	metadata               syncExecutorMetadata
 }
 
 func (e *executorImpl[SP]) setMigrationMode(mode types.MigrationMode) {
@@ -250,6 +277,7 @@ func (e *executorImpl[SP]) heartbeat(ctx context.Context) (shardAssignments map[
 		ExecutorID:         e.executorID,
 		Status:             types.ExecutorStatusACTIVE,
 		ShardStatusReports: shardStatusReports,
+		Metadata:           e.metadata.Get(),
 	}
 
 	// Send the request
@@ -392,4 +420,12 @@ func getJitteredHeartbeatDuration(interval time.Duration, jitterMax time.Duratio
 	randomJitterNanos := rand.Int63n(jitterMaxNanos)
 	jitter := time.Duration(randomJitterNanos)
 	return interval - jitter
+}
+
+func (e *executorImpl[SP]) SetMetadata(metadata map[string]string) {
+	e.metadata.Set(metadata)
+}
+
+func (e *executorImpl[SP]) GetMetadata() map[string]string {
+	return e.metadata.Get()
 }

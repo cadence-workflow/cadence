@@ -71,6 +71,7 @@ const (
 	mode                      = "mode"
 	isRetry                   = "is_retry"
 	queryConsistencyLevel     = "query_consistency_level"
+	budgetManagerName         = "budget_manager_name"
 
 	// limiter-side tags
 	globalRatelimitKey            = "global_ratelimit_key"
@@ -378,4 +379,9 @@ func ActiveClusterSelectionStrategyTag(strategy string) Tag {
 // QueryConsistencyLevelTag returns a new query consistency level tag.
 func QueryConsistencyLevelTag(level string) Tag {
 	return metricWithUnknown(queryConsistencyLevel, level)
+}
+
+// BudgetManagerNameTag returns a new budget manager name tag.
+func BudgetManagerNameTag(name string) Tag {
+	return metricWithUnknown(budgetManagerName, name)
 }

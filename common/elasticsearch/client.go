@@ -283,18 +283,20 @@ func (c *ESClient) convertSearchResultToVisibilityRecord(hit *client.SearchHit) 
 	}
 
 	record := &p.InternalVisibilityWorkflowExecutionInfo{
-		DomainID:         source.DomainID,
-		WorkflowType:     source.WorkflowType,
-		WorkflowID:       source.WorkflowID,
-		RunID:            source.RunID,
-		TypeName:         source.WorkflowType,
-		StartTime:        time.Unix(0, source.StartTime),
-		ExecutionTime:    time.Unix(0, source.ExecutionTime),
-		Memo:             p.NewDataBlob(source.Memo, constants.EncodingType(source.Encoding)),
-		TaskList:         source.TaskList,
-		IsCron:           source.IsCron,
-		NumClusters:      source.NumClusters,
-		SearchAttributes: source.Attr,
+		DomainID:              source.DomainID,
+		WorkflowType:          source.WorkflowType,
+		WorkflowID:            source.WorkflowID,
+		RunID:                 source.RunID,
+		TypeName:              source.WorkflowType,
+		StartTime:             time.Unix(0, source.StartTime),
+		ExecutionTime:         time.Unix(0, source.ExecutionTime),
+		Memo:                  p.NewDataBlob(source.Memo, constants.EncodingType(source.Encoding)),
+		TaskList:              source.TaskList,
+		IsCron:                source.IsCron,
+		NumClusters:           source.NumClusters,
+		ClusterAttributeScope: source.ClusterAttributeScope,
+		ClusterAttributeName:  source.ClusterAttributeName,
+		SearchAttributes:      source.Attr,
 	}
 	if source.UpdateTime != 0 {
 		record.UpdateTime = time.Unix(0, source.UpdateTime)

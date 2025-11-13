@@ -3,6 +3,7 @@ package executorclient
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,6 +35,7 @@ func TestHeartBeartLoop(t *testing.T) {
 			ExecutorID:         "test-executor-id",
 			Status:             types.ExecutorStatusACTIVE,
 			ShardStatusReports: make(map[string]*types.ShardStatusReport),
+			Metadata:           make(map[string]string),
 		}, gomock.Any()).
 		Return(&types.ExecutorHeartbeatResponse{
 			ShardAssignments: map[string]*types.ShardAssignment{
@@ -112,6 +114,7 @@ func TestHeartbeat(t *testing.T) {
 				"test-shard-id1": {Status: types.ShardStatusREADY, ShardLoad: 0.123},
 				"test-shard-id2": {Status: types.ShardStatusREADY, ShardLoad: 0.456},
 			},
+			Metadata: make(map[string]string),
 		}, gomock.Any()).Return(&types.ExecutorHeartbeatResponse{
 		ShardAssignments: map[string]*types.ShardAssignment{
 			"test-shard-id1": {Status: types.AssignmentStatusREADY},
@@ -260,6 +263,7 @@ func TestHeartbeat_WithMigrationMode(t *testing.T) {
 			ExecutorID:         "test-executor-id",
 			Status:             types.ExecutorStatusACTIVE,
 			ShardStatusReports: map[string]*types.ShardStatusReport{},
+			Metadata:           make(map[string]string),
 		}, gomock.Any()).Return(&types.ExecutorHeartbeatResponse{
 		ShardAssignments: map[string]*types.ShardAssignment{
 			"test-shard-id1": {Status: types.AssignmentStatusREADY},
@@ -630,4 +634,115 @@ func TestGetShardProcess_NonOwnedShard_Fails(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExecutorMetadata_SetAndGet(t *testing.T) {
+	metadata := &syncExecutorMetadata{
+		data: make(map[string]string),
+	}
+
+	// Set some metadata
+	testData := map[string]string{
+		"key1": "value1",
+		"key2": "value2",
+	}
+	metadata.Set(testData)
+
+	// Get the metadata
+	result := metadata.Get()
+
+	assert.Equal(t, testData, result)
+}
+
+func TestExecutorMetadata_DefensiveCopy(t *testing.T) {
+	metadata := &syncExecutorMetadata{
+		data: map[string]string{
+			"key1": "value1",
+		},
+	}
+
+	// Get the metadata
+	result := metadata.Get()
+
+	// Modify the returned map
+	result["key1"] = "modified"
+	result["key2"] = "new"
+
+	// Original metadata should be unchanged
+	original := metadata.Get()
+	assert.Equal(t, "value1", original["key1"])
+	assert.NotContains(t, original, "key2")
+}
+
+func TestExecutorMetadata_ConcurrentAccess(t *testing.T) {
+	metadata := &syncExecutorMetadata{
+		data: make(map[string]string),
+	}
+
+	const numGoroutines = 100
+	const numOperations = 100
+
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines * 2)
+
+	// Concurrent writers
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			defer wg.Done()
+			for j := 0; j < numOperations; j++ {
+				metadata.Set(map[string]string{
+					fmt.Sprintf("key-%d", id): fmt.Sprintf("value-%d-%d", id, j),
+				})
+			}
+		}(i)
+	}
+
+	// Concurrent readers
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < numOperations; j++ {
+				_ = metadata.Get()
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	// Should not panic and should have some data
+	result := metadata.Get()
+	assert.NotNil(t, result)
+}
+
+func TestExecutorMetadata_NilHandling(t *testing.T) {
+	metadata := &syncExecutorMetadata{
+		data: nil,
+	}
+
+	// Get should return empty map, not nil
+	result := metadata.Get()
+	assert.NotNil(t, result)
+	assert.Empty(t, result)
+
+	// Set with nil should work
+	metadata.Set(nil)
+	result = metadata.Get()
+	assert.NotNil(t, result)
+	assert.Empty(t, result)
+}
+
+func TestExecutorMetadata_EmptyMap(t *testing.T) {
+	metadata := &syncExecutorMetadata{
+		data: make(map[string]string),
+	}
+
+	result := metadata.Get()
+	assert.NotNil(t, result)
+	assert.Empty(t, result)
+
+	// Set empty map
+	metadata.Set(map[string]string{})
+	result = metadata.Get()
+	assert.NotNil(t, result)
+	assert.Empty(t, result)
 }
