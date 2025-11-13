@@ -854,4 +854,3 @@ func (s *failoverWorkflowTestSuite) prepareTestActivityEnv() (*testsuite.TestAct
 
 	return s.activityEnv, mockResource
 }
-
