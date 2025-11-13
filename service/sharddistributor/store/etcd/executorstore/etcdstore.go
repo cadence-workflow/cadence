@@ -36,7 +36,14 @@ type executorStoreImpl struct {
 	logger     log.Logger
 	shardCache *shardcache.ShardToExecutorCache
 	timeSource clock.TimeSource
+	// Max interval (seconds) before we force a shard-stat persist.
+	maxStatsPersistIntervalSeconds int64
 }
+
+// Constants for gating shard statistics writes to reduce etcd load.
+const (
+	shardStatsEpsilon = 0.05
+)
 
 // shardStatisticsUpdate holds the staged statistics for a shard so we can write them
 // to etcd after the main AssignShards transaction commits.
@@ -90,11 +97,12 @@ func NewStore(p ExecutorStoreParams) (store.Store, error) {
 	}
 
 	store := &executorStoreImpl{
-		client:     etcdClient,
-		prefix:     etcdCfg.Prefix,
-		logger:     p.Logger,
-		shardCache: shardCache,
-		timeSource: timeSource,
+		client:                         etcdClient,
+		prefix:                         etcdCfg.Prefix,
+		logger:                         p.Logger,
+		shardCache:                     shardCache,
+		timeSource:                     timeSource,
+		maxStatsPersistIntervalSeconds: deriveStatsPersistInterval(p.Cfg.Process.HeartbeatTTL),
 	}
 
 	p.Lifecycle.Append(fx.StartStopHook(store.Start, store.Stop))
@@ -158,6 +166,15 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 	s.recordShardStatistics(ctx, namespace, executorID, request.ReportedShards)
 
 	return nil
+}
+
+func deriveStatsPersistInterval(heartbeatTTL time.Duration) int64 {
+	ttlSeconds := int64(heartbeatTTL.Seconds())
+	interval := ttlSeconds - 1
+	if interval < 1 {
+		interval = 1
+	}
+	return interval
 }
 
 func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) {
@@ -228,7 +245,28 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 		}
 
 		// Update smoothed load via EWMA.
-		stats.SmoothedLoad = ewmaSmoothedLoad(stats.SmoothedLoad, load, stats.LastUpdateTime, now)
+		prevSmoothed := stats.SmoothedLoad
+		prevUpdate := stats.LastUpdateTime
+		newSmoothed := ewmaSmoothedLoad(prevSmoothed, load, prevUpdate, now)
+
+		// Decide whether to persist this update. We always persist if this is the
+		// first observation (prevUpdate == 0). Otherwise, if the change is small
+		// and the previous persist is recent, skip the write to reduce etcd load.
+		shouldPersist := true
+		if prevUpdate > 0 {
+			age := now - prevUpdate
+			delta := math.Abs(newSmoothed - prevSmoothed)
+			if delta < shardStatsEpsilon && age < s.maxStatsPersistIntervalSeconds {
+				shouldPersist = false
+			}
+		}
+
+		if !shouldPersist {
+			// Skip persisting, proceed to next shard.
+			continue
+		}
+
+		stats.SmoothedLoad = newSmoothed
 		stats.LastUpdateTime = now
 
 		payload, err := json.Marshal(stats)
