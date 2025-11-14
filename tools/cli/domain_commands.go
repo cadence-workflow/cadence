@@ -461,6 +461,15 @@ func (d *domainCLIImpl) FailoverDomain(c *cli.Context) error {
 		DomainName: domainName,
 	}
 
+	if !c.IsSet(FlagReason) {
+		return commoncli.Problem(fmt.Sprintf("%s flag is required for domain failover.", FlagReason), nil)
+	}
+	failoverReason := strings.TrimSpace(c.String(FlagReason))
+	if failoverReason == "" {
+		return commoncli.Problem("Reason must be a non-empty string.", nil)
+	}
+	failoverRequest.Reason = failoverReason
+
 	ctx, cancel, err := newContext(c)
 	defer cancel()
 	if err != nil {

@@ -3685,6 +3685,7 @@ func TestHandler_FailoverDomain(t *testing.T) {
 			request: &types.FailoverDomainRequest{
 				DomainName:              constants.TestDomainName,
 				DomainActiveClusterName: common.Ptr(clusterB),
+				Reason:                  "Planned maintenance on cluster A",
 			},
 			response: func(timeSource clock.MockedTimeSource) *types.FailoverDomainResponse {
 				data, _ := json.Marshal([]FailoverEvent{
@@ -3730,6 +3731,7 @@ func TestHandler_FailoverDomain(t *testing.T) {
 			request: &types.FailoverDomainRequest{
 				DomainName:              constants.TestDomainName,
 				DomainActiveClusterName: common.Ptr(cluster.TestAlternativeClusterName),
+				Reason:                  "Testing domain not found error",
 			},
 			err: &types.EntityNotExistsError{Message: "Domain not found"},
 		},
@@ -3767,6 +3769,7 @@ func TestHandler_FailoverDomain(t *testing.T) {
 			request: &types.FailoverDomainRequest{
 				DomainName:              constants.TestDomainName,
 				DomainActiveClusterName: common.Ptr(cluster.TestCurrentClusterName),
+				Reason:                  "Testing update too frequent error",
 			},
 			err: errDomainUpdateTooFrequent,
 		},

@@ -378,6 +378,11 @@ func (v *requestValidatorImpl) ValidateFailoverDomainRequest(ctx context.Context
 		return &types.BadRequestError{Message: "DomainActiveClusterName or ActiveClusters must be provided to failover the domain"}
 	}
 
+	// Validate that a reason is provided
+	if failoverDomainRequest.GetReason() == "" {
+		return &types.BadRequestError{Message: "Reason must be provided for domain failover"}
+	}
+
 	// Security token is not required for failover request - reject the failover if the cluster is in lockdown
 	return checkFailOverPermission(v.config, failoverDomainRequest.GetDomainName())
 }
