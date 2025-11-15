@@ -181,17 +181,36 @@ func TestDomainReplicationTaskExecutor_Execute(t *testing.T) {
 
 				// Mock GetDomain to simulate domain fetch before update
 				mockDomainManager.EXPECT().
-					GetDomain(gomock.Any(), gomock.Any()).
+					GetDomain(gomock.Any(), &persistence.GetDomainRequest{Name: "existingDomainName"}).
 					Return(&persistence.GetDomainResponse{
 						Info:              &persistence.DomainInfo{ID: "existingDomainID", Name: "existingDomainName"},
 						Config:            &persistence.DomainConfig{},
 						ReplicationConfig: &persistence.DomainReplicationConfig{},
-					}, nil).AnyTimes()
+						ConfigVersion:     1,
+						FailoverVersion:   50,
+					}, nil).Times(1)
 
 				// Mock UpdateDomain to simulate a successful domain update
 				mockDomainManager.EXPECT().
 					UpdateDomain(gomock.Any(), gomock.Any()).
 					Return(nil).Times(1)
+
+				// Mock GetDomain after update for audit log
+				mockDomainManager.EXPECT().
+					GetDomain(gomock.Any(), &persistence.GetDomainRequest{ID: "existingDomainID"}).
+					Return(&persistence.GetDomainResponse{
+						Info:              &persistence.DomainInfo{ID: "existingDomainID", Name: "existingDomainName"},
+						Config:            &persistence.DomainConfig{},
+						ReplicationConfig: &persistence.DomainReplicationConfig{},
+						ConfigVersion:     2,
+						FailoverVersion:   100,
+					}, nil).Times(1)
+
+				// Expect audit log creation
+				mockAuditManager.EXPECT().
+					CreateDomainAuditLog(gomock.Any(), gomock.Any()).
+					Return(&persistence.CreateDomainAuditLogResponse{}, nil).
+					Times(1)
 			},
 			task: &types.DomainTaskAttributes{
 				DomainOperation: types.DomainOperationUpdate.Ptr(),
