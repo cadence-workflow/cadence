@@ -118,8 +118,10 @@ func NewHandler(
 
 	domainReplicationTaskExecutor := domain.NewReplicationTaskExecutor(
 		resource.GetDomainManager(),
+		resource.GetDomainAuditManager(),
 		resource.GetTimeSource(),
 		resource.GetLogger(),
+		dynamicproperties.GetBoolPropertyFn(false), // audit operations are not needed for DLQ operations
 	)
 
 	return &adminHandlerImpl{

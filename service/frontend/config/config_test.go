@@ -108,7 +108,7 @@ func TestNewConfig(t *testing.T) {
 		"GlobalRatelimiterKeyMode":                          {dynamicproperties.FrontendGlobalRatelimiterMode, "disabled"},
 		"GlobalRatelimiterUpdateInterval":                   {dynamicproperties.GlobalRatelimiterUpdateInterval, 3 * time.Second},
 		"PinotOptimizedQueryColumns":                        {dynamicproperties.PinotOptimizedQueryColumns, map[string]interface{}{"foo": "bar"}},
-		"EnableDomainAuditLogging":                          {dynamicproperties.FrontendEnableDomainAuditLogging, true},
+		"EnableDomainAuditLogging":                          {dynamicproperties.EnableDomainAuditLogging, true},
 	}
 	domainFields := map[string]configTestCase{
 		"MaxBadBinaryCount":        {dynamicproperties.FrontendMaxBadBinaries, 40},
@@ -117,7 +117,7 @@ func TestNewConfig(t *testing.T) {
 		"FailoverCoolDown":         {dynamicproperties.FrontendFailoverCoolDown, time.Duration(43)},
 		"RequiredDomainDataKeys":   {dynamicproperties.RequiredDomainDataKeys, map[string]interface{}{"bar": "baz"}},
 		"FailoverHistoryMaxSize":   {dynamicproperties.FrontendFailoverHistoryMaxSize, 44},
-		"EnableDomainAuditLogging": {dynamicproperties.FrontendEnableDomainAuditLogging, true},
+		"EnableDomainAuditLogging": {dynamicproperties.EnableDomainAuditLogging, true},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	logger := testlogger.New(t)
