@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/pborman/uuid"
 	"github.com/urfave/cli/v2"
 
@@ -784,29 +785,76 @@ func newBadBinaryRows(bb *types.BadBinaries) []BadBinaryRow {
 	return rows
 }
 
-func newFailoverHistoryRow(event *types.FailoverEvent) FailoverHistoryRow {
-	row := FailoverHistoryRow{
-		EventID:     event.GetID(),
-		CreatedTime: time.Unix(0, event.GetCreatedTime()),
-	}
+func renderFailoverHistoryTable(response *types.ListFailoverHistoryResponse) {
+	renderFailoverHistoryTableToWriter(os.Stdout, response)
+}
 
-	// Extract cluster failover information
-	// For simplicity, we'll show the first cluster failover
-	clusterFailovers := event.GetClusterFailovers()
-	if len(clusterFailovers) > 0 {
+func renderFailoverHistoryTableToWriter(writer interface{ Write([]byte) (int, error) }, response *types.ListFailoverHistoryResponse) {
+	// Create table with custom rendering for grouped failover events
+	table := tablewriter.NewWriter(writer)
+	table.SetHeader([]string{"Event ID", "Created Time", "From Cluster", "To Cluster", "Attribute"})
+	table.SetBorder(true)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetCenterSeparator("|")
+	table.SetColumnSeparator("|")
+	table.SetRowSeparator("-")
+
+	// Iterate through each failover event
+	for _, event := range response.GetFailoverEvents() {
+		eventID := event.GetID()
+		createdTime := time.Unix(0, event.GetCreatedTime()).Format(time.RFC3339)
+		clusterFailovers := event.GetClusterFailovers()
+
+		if len(clusterFailovers) == 0 {
+			// If no cluster failovers, show event info only
+			table.Append([]string{eventID, createdTime, "-", "-", "-"})
+			continue
+		}
+
+		// First cluster failover: show event details
 		firstFailover := clusterFailovers[0]
-		if fromCluster := firstFailover.GetFromCluster(); fromCluster != nil {
-			row.FromCluster = fromCluster.ActiveClusterName
+		fromCluster := ""
+		if fromInfo := firstFailover.GetFromCluster(); fromInfo != nil {
+			fromCluster = fromInfo.ActiveClusterName
 		}
-		if toCluster := firstFailover.GetToCluster(); toCluster != nil {
-			row.ToCluster = toCluster.ActiveClusterName
+		toCluster := ""
+		if toInfo := firstFailover.GetToCluster(); toInfo != nil {
+			toCluster = toInfo.ActiveClusterName
 		}
+		attribute := ""
 		if attr := firstFailover.GetClusterAttribute(); attr != nil {
-			row.Attribute = fmt.Sprintf("%s.%s", attr.Scope, attr.Name)
+			if attr.Scope != "" && attr.Name != "" {
+				attribute = fmt.Sprintf("%s.%s", attr.Scope, attr.Name)
+			}
+		}
+		table.Append([]string{eventID, createdTime, fromCluster, toCluster, attribute})
+
+		// Remaining cluster failovers: show as sub-rows with empty event details
+		for i := 1; i < len(clusterFailovers); i++ {
+			failover := clusterFailovers[i]
+			fromCluster := ""
+			if fromInfo := failover.GetFromCluster(); fromInfo != nil {
+				fromCluster = fromInfo.ActiveClusterName
+			}
+			toCluster := ""
+			if toInfo := failover.GetToCluster(); toInfo != nil {
+				toCluster = toInfo.ActiveClusterName
+			}
+			attribute := ""
+			if attr := failover.GetClusterAttribute(); attr != nil {
+				if attr.Scope != "" && attr.Name != "" {
+					attribute = fmt.Sprintf("%s.%s", attr.Scope, attr.Name)
+				}
+			}
+			// Sub-rows: empty event details, show cluster failover info
+			table.Append([]string{"", "", fromCluster, toCluster, attribute})
 		}
 	}
 
-	return row
+	table.Render()
 }
 
 func domainTableOptions(c *cli.Context) RenderOptions {
@@ -1029,23 +1077,13 @@ func (d *domainCLIImpl) ListFailoverHistory(c *cli.Context) error {
 		return nil
 	}
 
-	// Convert failover events to rows for display
-	rows := make([]FailoverHistoryRow, 0, len(allResponses.GetFailoverEvents()))
-	for _, event := range allResponses.GetFailoverEvents() {
-		rows = append(rows, newFailoverHistoryRow(event))
-	}
-
-	if len(rows) == 0 {
+	if len(allResponses.GetFailoverEvents()) == 0 {
 		fmt.Println("No failover history found for domain:", domainName)
 		return nil
 	}
 
-	return Render(c, rows, RenderOptions{
-		DefaultTemplate: templateTable,
-		Color:           true,
-		Border:          true,
-		PrintDateTime:   true,
-	})
+	renderFailoverHistoryTable(allResponses)
+	return nil
 }
 
 func (d *domainCLIImpl) describeDomain(
