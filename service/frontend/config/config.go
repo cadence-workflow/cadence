@@ -189,6 +189,7 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		EmitSignalNameMetricsTag:                          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.FrontendEmitSignalNameMetricsTag),
 		Lockdown:                                          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.Lockdown),
 		EnableTasklistIsolation:                           dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
+		EnableDomainAuditLogging:                          dc.GetBoolProperty(dynamicproperties.EnableDomainAuditLogging),
 		DomainConfig: domain.Config{
 			MaxBadBinaryCount:        dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxBadBinaries),
 			MinRetentionDays:         dc.GetIntProperty(dynamicproperties.MinRetentionDays),
