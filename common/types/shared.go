@@ -2731,6 +2731,13 @@ type ActiveClusterInfo struct {
 	FailoverVersion   int64  `json:"failoverVersion" yaml:"failoverVersion"`
 }
 
+func (v *ActiveClusterInfo) GetActiveClusterName() string {
+	if v == nil {
+		return ""
+	}
+	return v.ActiveClusterName
+}
+
 // ByteSize returns the approximate memory used in bytes
 func (v ActiveClusterInfo) ByteSize() uint64 {
 	return uint64(unsafe.Sizeof(v)) + uint64(len(v.ActiveClusterName))

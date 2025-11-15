@@ -792,17 +792,16 @@ func renderFailoverHistoryTable(response *types.ListFailoverHistoryResponse) {
 func renderFailoverHistoryTableToWriter(writer interface{ Write([]byte) (int, error) }, response *types.ListFailoverHistoryResponse) {
 	// Create table with custom rendering for grouped failover events
 	table := tablewriter.NewWriter(writer)
-	table.SetHeader([]string{"Event ID", "Created Time", "From Cluster", "To Cluster", "Attribute"})
 	table.SetBorder(true)
 	table.SetAutoWrapText(false)
 	table.SetAutoFormatHeaders(true)
+	table.SetAutoMergeCells(true)
 	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
 	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetCenterSeparator("|")
-	table.SetColumnSeparator("|")
-	table.SetRowSeparator("-")
 
-	// Iterate through each failover event
+	displayClusterAttributeCol := false
+	var columnsToRender [][]string
+
 	for _, event := range response.GetFailoverEvents() {
 		eventID := event.GetID()
 		createdTime := time.Unix(0, event.GetCreatedTime()).Format(time.RFC3339)
@@ -814,27 +813,7 @@ func renderFailoverHistoryTableToWriter(writer interface{ Write([]byte) (int, er
 			continue
 		}
 
-		// First cluster failover: show event details
-		firstFailover := clusterFailovers[0]
-		fromCluster := ""
-		if fromInfo := firstFailover.GetFromCluster(); fromInfo != nil {
-			fromCluster = fromInfo.ActiveClusterName
-		}
-		toCluster := ""
-		if toInfo := firstFailover.GetToCluster(); toInfo != nil {
-			toCluster = toInfo.ActiveClusterName
-		}
-		attribute := ""
-		if attr := firstFailover.GetClusterAttribute(); attr != nil {
-			if attr.Scope != "" && attr.Name != "" {
-				attribute = fmt.Sprintf("%s.%s", attr.Scope, attr.Name)
-			}
-		}
-		table.Append([]string{eventID, createdTime, fromCluster, toCluster, attribute})
-
-		// Remaining cluster failovers: show as sub-rows with empty event details
-		for i := 1; i < len(clusterFailovers); i++ {
-			failover := clusterFailovers[i]
+		for _, failover := range clusterFailovers {
 			fromCluster := ""
 			if fromInfo := failover.GetFromCluster(); fromInfo != nil {
 				fromCluster = fromInfo.ActiveClusterName
@@ -843,15 +822,28 @@ func renderFailoverHistoryTableToWriter(writer interface{ Write([]byte) (int, er
 			if toInfo := failover.GetToCluster(); toInfo != nil {
 				toCluster = toInfo.ActiveClusterName
 			}
+			domainFailover := fmt.Sprintf("%s -> %s", fromCluster, toCluster)
+
 			attribute := ""
 			if attr := failover.GetClusterAttribute(); attr != nil {
 				if attr.Scope != "" && attr.Name != "" {
 					attribute = fmt.Sprintf("%s.%s", attr.Scope, attr.Name)
+					displayClusterAttributeCol = true
 				}
 			}
-			// Sub-rows: empty event details, show cluster failover info
-			table.Append([]string{"", "", fromCluster, toCluster, attribute})
+			if displayClusterAttributeCol {
+				columnsToRender = append(columnsToRender, []string{eventID, createdTime, domainFailover, attribute})
+			} else {
+				columnsToRender = append(columnsToRender, []string{eventID, createdTime, domainFailover})
+			}
 		}
+	}
+	table.AppendBulk(columnsToRender)
+
+	if displayClusterAttributeCol {
+		table.SetHeader([]string{"Event ID", "Failover Timestamp", "Failover", "Cluster Attribute"})
+	} else {
+		table.SetHeader([]string{"Event ID", "Failover Timestamp", "Failover"})
 	}
 
 	table.Render()
