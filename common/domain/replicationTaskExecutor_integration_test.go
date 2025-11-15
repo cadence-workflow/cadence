@@ -69,7 +69,7 @@ func (s *domainReplicationTaskExecutorSuite) SetupTest() {
 		s.T().Fatalf("Failed to create domain audit manager: %v", err)
 	}
 
-	// Disable audit logging for integration tests as the audit manager may not be fully initialized
+	// Disable audit logging for integration tests as SQLite doesn't fully support the audit manager
 	enableAuditLogging := func(...dynamicproperties.FilterOption) bool { return false }
 
 	s.domainReplicator = NewReplicationTaskExecutor(
