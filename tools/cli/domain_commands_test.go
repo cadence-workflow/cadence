@@ -537,9 +537,10 @@ func TestRenderFailoverHistoryTable(t *testing.T) {
 			expectedOutput: []string{
 				"event-1",
 				"2023-11-14", // Just check date, not full timestamp with timezone
-				"cluster-a",
-				"cluster-b",
+				"cluster-a -> cluster-b",
 				"region.us-west",
+				"FAILOVER TIMESTAMP", // New column header (uppercase)
+				"CLUSTER ATTRIBUTE",  // Conditional column header (uppercase)
 			},
 		},
 		"single failover event with multiple cluster failovers": {
@@ -575,11 +576,9 @@ func TestRenderFailoverHistoryTable(t *testing.T) {
 			},
 			expectedOutput: []string{
 				"event-2",
-				"cluster-a",
-				"cluster-b",
+				"cluster-a -> cluster-b",
 				"region.us-west",
-				"cluster-c",
-				"cluster-d",
+				"cluster-c -> cluster-d",
 				"zone.az-1",
 			},
 		},
@@ -608,6 +607,7 @@ func TestRenderFailoverHistoryTable(t *testing.T) {
 			},
 			expectedOutput: []string{
 				"event-3",
+				" -> ",
 				"region.us-east",
 			},
 		},
@@ -633,8 +633,8 @@ func TestRenderFailoverHistoryTable(t *testing.T) {
 			},
 			expectedOutput: []string{
 				"event-4",
-				"cluster-x",
-				"cluster-y",
+				"cluster-x -> cluster-y",
+				"FAILOVER", // Should have 3-column table (no Cluster Attribute column, uppercase)
 			},
 		},
 		"failover event with empty ClusterAttribute scope and name": {
@@ -662,8 +662,7 @@ func TestRenderFailoverHistoryTable(t *testing.T) {
 			},
 			expectedOutput: []string{
 				"event-5",
-				"cluster-m",
-				"cluster-n",
+				"cluster-m -> cluster-n",
 			},
 		},
 		"failover event with no cluster failovers": {
@@ -702,6 +701,7 @@ func TestRenderFailoverHistoryTable(t *testing.T) {
 			},
 			expectedOutput: []string{
 				"event-7",
+				" -> ",
 				"region.us-central",
 			},
 		},
@@ -740,12 +740,10 @@ func TestRenderFailoverHistoryTable(t *testing.T) {
 			},
 			expectedOutput: []string{
 				"event-8",
-				"cluster-1",
-				"cluster-2",
+				"cluster-1 -> cluster-2",
 				"dc.dc1",
 				"event-9",
-				"cluster-3",
-				"cluster-4",
+				"cluster-3 -> cluster-4",
 				"dc.dc2",
 			},
 		},

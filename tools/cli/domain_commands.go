@@ -790,8 +790,8 @@ func renderFailoverHistoryTable(response *types.ListFailoverHistoryResponse) {
 }
 
 func renderFailoverHistoryTableToWriter(writer interface{ Write([]byte) (int, error) }, response *types.ListFailoverHistoryResponse) {
-	// Create table with custom rendering for grouped failover events
 	table := tablewriter.NewWriter(writer)
+	table.SetRowLine(true)
 	table.SetBorder(true)
 	table.SetAutoWrapText(false)
 	table.SetAutoFormatHeaders(true)
