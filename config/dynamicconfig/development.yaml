@@ -72,7 +72,7 @@ system.writeVisibilityStoreName:
 system.readVisibilityStoreName:
   - value: "db"
 system.domainAuditLogTTL:
-  - value: "1m"
+  - value: "15m"
 matching.enableClientAutoConfig:
 - value: true
 shardDistributor.MigrationMode:
