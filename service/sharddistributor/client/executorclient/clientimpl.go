@@ -156,12 +156,26 @@ func (e *executorImpl[SP]) GetShardProcess(ctx context.Context, shardID string) 
 	return shardProcess.processor, nil
 }
 
-func (e *executorImpl[SP]) AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment) {
+func (e *executorImpl[SP]) AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment) error {
 	e.assignmentMutex.Lock()
 	defer e.assignmentMutex.Unlock()
-
+	if e.getMigrationMode() == types.MigrationModeONBOARDED {
+		return fmt.Errorf("migration mode is onborded, no local assignemnt allowed")
+	}
 	e.logger.Info("Executing external shard assignment")
-	e.updateShardAssignment(ctx, shardAssignment)
+	e.addNewShards(ctx, shardAssignment)
+	return nil
+}
+
+func (e *executorImpl[SP]) RemoveShardsFromLocalLogic(shardIDs []string) error {
+	e.assignmentMutex.Lock()
+	defer e.assignmentMutex.Unlock()
+	if e.getMigrationMode() == types.MigrationModeONBOARDED {
+		return fmt.Errorf("migration mode is onborded, no local assignemnt allowed")
+	}
+	e.logger.Info("Executing external shard deletion assignment")
+	e.deleteShards(shardIDs)
+	return nil
 }
 
 func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
@@ -291,7 +305,9 @@ func (e *executorImpl[SP]) heartbeat(ctx context.Context) (shardAssignments map[
 	if previousMode != currentMode {
 		e.logger.Info("migration mode transition",
 			tag.Dynamic("previous", previousMode),
-			tag.Dynamic("current", currentMode))
+			tag.Dynamic("current", currentMode),
+			tag.ShardNamespace(e.namespace),
+			tag.ShardExecutor(e.executorID))
 		e.setMigrationMode(currentMode)
 	}
 
@@ -304,15 +320,11 @@ func (e *executorImpl[SP]) updateShardAssignment(ctx context.Context, shardAssig
 	// Stop shard processing for shards not assigned to this executor
 	e.managedProcessors.Range(func(shardID string, managedProcessor *managedProcessor[SP]) bool {
 		if assignment, ok := shardAssignments[shardID]; !ok || assignment.Status != types.AssignmentStatusREADY {
-			e.metrics.Counter(metricsconstants.ShardDistributorExecutorShardsStopped).Inc(1)
-
 			wg.Add(1)
-			go func() {
+			go func(shardID string) {
 				defer wg.Done()
-				managedProcessor.setState(processorStateStopping)
-				managedProcessor.processor.Stop()
-				e.managedProcessors.Delete(shardID)
-			}()
+				e.stopManagerProcessor(shardID)
+			}(shardID)
 		}
 		return true
 	})
@@ -320,29 +332,42 @@ func (e *executorImpl[SP]) updateShardAssignment(ctx context.Context, shardAssig
 	// Start shard processing for shards assigned to this executor
 	for shardID, assignment := range shardAssignments {
 		if assignment.Status == types.AssignmentStatusREADY {
-			if _, ok := e.managedProcessors.Load(shardID); !ok {
-				e.metrics.Counter(metricsconstants.ShardDistributorExecutorShardsStarted).Inc(1)
-
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					processor, err := e.shardProcessorFactory.NewShardProcessor(shardID)
-					if err != nil {
-						e.logger.Error("failed to create shard processor", tag.Error(err))
-						e.metrics.Counter(metricsconstants.ShardDistributorExecutorProcessorCreationFailures).Inc(1)
-						return
-					}
-					managedProcessor := newManagedProcessor(processor, processorStateStarting)
-					e.managedProcessors.Store(shardID, managedProcessor)
-
-					processor.Start(ctx)
-
-					managedProcessor.setState(processorStateStarted)
-				}()
-			}
+			wg.Add(1)
+			go func(shardID string) {
+				defer wg.Done()
+				e.addManagerProcessor(ctx, shardID)
+			}(shardID)
 		}
 	}
 
+	wg.Wait()
+}
+
+func (e *executorImpl[SP]) addNewShards(ctx context.Context, shardAssignments map[string]*types.ShardAssignment) {
+	wg := sync.WaitGroup{}
+
+	for shardID, assignment := range shardAssignments {
+		if assignment.Status == types.AssignmentStatusREADY {
+			wg.Add(1)
+			go func(shardID string) {
+				defer wg.Done()
+				e.addManagerProcessor(ctx, shardID)
+			}(shardID)
+		}
+	}
+
+	wg.Wait()
+}
+
+func (e *executorImpl[SP]) deleteShards(shardIDs []string) {
+	wg := sync.WaitGroup{}
+	for _, shardID := range shardIDs {
+		wg.Add(1)
+		go func(shardID string) {
+			defer wg.Done()
+			e.stopManagerProcessor(shardID)
+		}(shardID)
+	}
 	wg.Wait()
 }
 
@@ -350,23 +375,45 @@ func (e *executorImpl[SP]) stopShardProcessors() {
 	wg := sync.WaitGroup{}
 
 	e.managedProcessors.Range(func(shardID string, managedProcessor *managedProcessor[SP]) bool {
-		// If the processor is already stopping, skip it
-		if managedProcessor.getState() == processorStateStopping {
-			return true
-		}
-
 		wg.Add(1)
-		go func() {
+		go func(shardID string) {
 			defer wg.Done()
-
-			managedProcessor.setState(processorStateStopping)
-			managedProcessor.processor.Stop()
-			e.managedProcessors.Delete(shardID)
-		}()
+			e.stopManagerProcessor(shardID)
+		}(shardID)
 		return true
 	})
 
 	wg.Wait()
+}
+
+func (e *executorImpl[SP]) addManagerProcessor(ctx context.Context, shardID string) {
+	if _, ok := e.managedProcessors.Load(shardID); !ok {
+		e.metrics.Counter(metricsconstants.ShardDistributorExecutorShardsStarted).Inc(1)
+		processor, err := e.shardProcessorFactory.NewShardProcessor(shardID)
+		if err != nil {
+			e.logger.Error("failed to create shard processor", tag.Error(err))
+			e.metrics.Counter(metricsconstants.ShardDistributorExecutorProcessorCreationFailures).Inc(1)
+			return
+		}
+		managedProcessor := newManagedProcessor(processor, processorStateStarting)
+		e.managedProcessors.Store(shardID, managedProcessor)
+
+		processor.Start(ctx)
+
+		managedProcessor.setState(processorStateStarted)
+
+	}
+}
+func (e *executorImpl[SP]) stopManagerProcessor(shardID string) {
+	managedProcessor, ok := e.managedProcessors.Load(shardID)
+	// If the processor do not exist for the shard, or it is already stopping, skip it
+	if !ok || managedProcessor.getState() == processorStateStopping {
+		return
+	}
+	e.metrics.Counter(metricsconstants.ShardDistributorExecutorShardsStopped).Inc(1)
+	managedProcessor.setState(processorStateStopping)
+	managedProcessor.processor.Stop()
+	e.managedProcessors.Delete(shardID)
 }
 
 // compareAssignments compares the local assignments with the heartbeat response assignments

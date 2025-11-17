@@ -202,54 +202,180 @@ func TestHeartBeartLoop_ShardAssignmentChange(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestAssignShards(t *testing.T) {
+func TestAssignShardsFromLocalLogic(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	tests := []struct {
+		name   string
+		params map[string]*types.ShardAssignment
+		setup  func() *executorImpl[*MockShardProcessor]
+		assert func(err error, executor *executorImpl[*MockShardProcessor])
+	}{
+		{
+			name:   "AssignShardsFromLocalLogic fails if the namespace is onboarded",
+			params: map[string]*types.ShardAssignment{},
+			setup: func() *executorImpl[*MockShardProcessor] {
+				// Create the executor currently has shards 1 and 2 assigned to it
+				executor := &executorImpl[*MockShardProcessor]{
+					logger:  log.NewNoop(),
+					metrics: tally.NoopScope,
+				}
+				executor.setMigrationMode(types.MigrationModeONBOARDED)
+				return executor
+			},
+			assert: func(err error, executor *executorImpl[*MockShardProcessor]) {},
+		},
+		{
+			name: "AssignShardsFromLocalLogic succeed with only logs if it is not possible to create a new shard processor",
+			params: map[string]*types.ShardAssignment{
+				"test-shard-id2": {Status: types.AssignmentStatusREADY},
+				"test-shard-id3": {Status: types.AssignmentStatusREADY}},
+			setup: func() *executorImpl[*MockShardProcessor] {
+				shardProcessorMock1 := NewMockShardProcessor(ctrl)
+				shardProcessorMock2 := NewMockShardProcessor(ctrl)
+
+				shardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
+
+				// Setup mocks
+				shardProcessorFactory.EXPECT().NewShardProcessor(gomock.Any()).Return(nil, assert.AnError)
+
+				// Create the executor currently has shards 1 and 2 assigned to it
+				executor := &executorImpl[*MockShardProcessor]{
+					logger:                log.NewNoop(),
+					shardProcessorFactory: shardProcessorFactory,
+					metrics:               tally.NoopScope,
+				}
+				executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
+				executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
+
+				return executor
+			},
+			assert: func(err error, executor *executorImpl[*MockShardProcessor]) {
+				assert.NoError(t, err)
+			},
+		},
+		{
+			name: "AssignShardsFromLocalLogic succeed ",
+			params: map[string]*types.ShardAssignment{
+				"test-shard-id2": {Status: types.AssignmentStatusREADY},
+				"test-shard-id3": {Status: types.AssignmentStatusREADY}},
+			setup: func() *executorImpl[*MockShardProcessor] {
+				shardProcessorMock1 := NewMockShardProcessor(ctrl)
+				shardProcessorMock2 := NewMockShardProcessor(ctrl)
+				shardProcessorMock3 := NewMockShardProcessor(ctrl)
+
+				shardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
+
+				shardProcessorFactory.EXPECT().NewShardProcessor(gomock.Any()).Return(shardProcessorMock3, nil)
+
+				// Create the executor currently has shards 1 and 2 assigned to it
+				executor := &executorImpl[*MockShardProcessor]{
+					logger:                log.NewNoop(),
+					shardProcessorFactory: shardProcessorFactory,
+					metrics:               tally.NoopScope,
+				}
+
+				executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
+				executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
+
+				// With the new assignment, shardProcessorMock3 should be started
+				shardProcessorMock3.EXPECT().Start(gomock.Any())
+				shardProcessorMock1.EXPECT().GetShardReport().Return(ShardReport{Status: types.ShardStatusREADY})
+				shardProcessorMock2.EXPECT().GetShardReport().Return(ShardReport{Status: types.ShardStatusREADY})
+				shardProcessorMock3.EXPECT().GetShardReport().Return(ShardReport{Status: types.ShardStatusREADY})
+				return executor
+			},
+			assert: func(err error, executor *executorImpl[*MockShardProcessor]) {
+				// Assert that we now have the 3 shards in the assignment
+				processor1, err := executor.GetShardProcess(context.Background(), "test-shard-id1")
+				assert.NoError(t, err)
+				assert.Equal(t, types.ShardStatusREADY, processor1.GetShardReport().Status)
+
+				processor2, err := executor.GetShardProcess(context.Background(), "test-shard-id2")
+				assert.NoError(t, err)
+				assert.Equal(t, types.ShardStatusREADY, processor2.GetShardReport().Status)
+
+				processor3, err := executor.GetShardProcess(context.Background(), "test-shard-id3")
+				assert.NoError(t, err)
+				assert.Equal(t, types.ShardStatusREADY, processor3.GetShardReport().Status)
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			executor := test.setup()
+			err := executor.AssignShardsFromLocalLogic(context.Background(), test.params)
+			time.Sleep(10 * time.Millisecond) // Force the updateShardAssignment goroutines to run
+			test.assert(err, executor)
+		})
+	}
+}
+
+func TestRemoveShardsFromLocalLogic(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
-	// Setup mocks
-	shardProcessorMock1 := NewMockShardProcessor(ctrl)
-	shardProcessorMock2 := NewMockShardProcessor(ctrl)
-	shardProcessorMock3 := NewMockShardProcessor(ctrl)
+	tests := []struct {
+		name   string
+		params []string
+		setup  func() *executorImpl[*MockShardProcessor]
+		assert func(err error, executor *executorImpl[*MockShardProcessor])
+	}{
+		{
+			name:   "RemoveShardsFromLocalLogic fails if the namespace is onboarded",
+			params: []string{},
+			setup: func() *executorImpl[*MockShardProcessor] {
+				// Create the executor currently has shards 1 and 2 assigned to it
+				executor := &executorImpl[*MockShardProcessor]{
+					logger:  log.NewNoop(),
+					metrics: tally.NoopScope,
+				}
+				executor.setMigrationMode(types.MigrationModeONBOARDED)
+				return executor
+			},
+			assert: func(err error, executor *executorImpl[*MockShardProcessor]) {},
+		},
+		{
+			name: "RemoveShardsFromLocalLogic succeed ",
+			params: []string{
+				"test-shard-id2",
+				"test-shard-id3"},
+			setup: func() *executorImpl[*MockShardProcessor] {
+				shardProcessorMock1 := NewMockShardProcessor(ctrl)
+				shardProcessorMock2 := NewMockShardProcessor(ctrl)
+				// Create the executor currently has shards 1 and 2 assigned to it
+				executor := &executorImpl[*MockShardProcessor]{
+					logger:  log.NewNoop(),
+					metrics: tally.NoopScope,
+				}
 
-	shardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
-	shardProcessorFactory.EXPECT().NewShardProcessor(gomock.Any()).Return(shardProcessorMock3, nil)
+				executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
+				executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
 
-	// Create the executor currently has shards 1 and 2 assigned to it
-	executor := &executorImpl[*MockShardProcessor]{
-		logger:                log.NewNoop(),
-		shardProcessorFactory: shardProcessorFactory,
-		metrics:               tally.NoopScope,
+				// With the new assignment, shardProcessorMock2 should be stopped
+				shardProcessorMock2.EXPECT().Stop()
+				shardProcessorMock1.EXPECT().GetShardReport().Return(ShardReport{Status: types.ShardStatusREADY})
+				return executor
+			},
+			assert: func(err error, executor *executorImpl[*MockShardProcessor]) {
+				// Assert that we now have the 1 shard in the assignment
+				processor1, err := executor.GetShardProcess(context.Background(), "test-shard-id1")
+				assert.NoError(t, err)
+				assert.Equal(t, types.ShardStatusREADY, processor1.GetShardReport().Status)
+
+				// Check that we do not have shard "test-shard-id2" in the local cache
+				// we lookup directly since we don't want to trigger a heartbeat
+				_, ok := executor.managedProcessors.Load("test-shard-id2")
+				assert.False(t, ok)
+			},
+		},
 	}
-
-	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
-	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
-
-	// We expect to get a new assignment with shards 2 and 3 assigned to it
-	newAssignment := map[string]*types.ShardAssignment{
-		"test-shard-id2": {Status: types.AssignmentStatusREADY},
-		"test-shard-id3": {Status: types.AssignmentStatusREADY},
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			executor := test.setup()
+			err := executor.RemoveShardsFromLocalLogic(test.params)
+			time.Sleep(10 * time.Millisecond) // Force the updateShardAssignment goroutines to run
+			test.assert(err, executor)
+		})
 	}
-
-	// With the new assignment, shardProcessorMock1 should be stopped and shardProcessorMock3 should be started
-	shardProcessorMock1.EXPECT().Stop()
-	shardProcessorMock3.EXPECT().Start(gomock.Any())
-
-	// Update the shard assignment
-	executor.AssignShardsFromLocalLogic(context.Background(), newAssignment)
-	time.Sleep(10 * time.Millisecond) // Force the updateShardAssignment goroutines to run
-
-	// Assert that we now have the 2 shards in the assignment
-	processor2, err := executor.GetShardProcess(context.Background(), "test-shard-id2")
-	assert.NoError(t, err)
-	assert.Equal(t, shardProcessorMock2, processor2)
-
-	processor3, err := executor.GetShardProcess(context.Background(), "test-shard-id3")
-	assert.NoError(t, err)
-	assert.Equal(t, shardProcessorMock3, processor3)
-
-	// Check that we do not have shard "test-shard-id1" in the local cache
-	// we lookup directly since we don't want to trigger a heartbeat
-	_, ok := executor.managedProcessors.Load("test-shard-id1")
-	assert.False(t, ok)
 }
 
 func TestHeartbeat_WithMigrationMode(t *testing.T) {

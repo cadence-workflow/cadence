@@ -144,9 +144,11 @@ func (m *MockExecutor[SP]) EXPECT() *MockExecutorMockRecorder[SP] {
 }
 
 // AssignShardsFromLocalLogic mocks base method.
-func (m *MockExecutor[SP]) AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment) {
+func (m *MockExecutor[SP]) AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AssignShardsFromLocalLogic", ctx, shardAssignment)
+	ret := m.ctrl.Call(m, "AssignShardsFromLocalLogic", ctx, shardAssignment)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // AssignShardsFromLocalLogic indicates an expected call of AssignShardsFromLocalLogic.
@@ -182,6 +184,20 @@ func (m *MockExecutor[SP]) GetShardProcess(ctx context.Context, shardID string) 
 func (mr *MockExecutorMockRecorder[SP]) GetShardProcess(ctx, shardID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardProcess", reflect.TypeOf((*MockExecutor[SP])(nil).GetShardProcess), ctx, shardID)
+}
+
+// RemoveShardsFromLocalLogic mocks base method.
+func (m *MockExecutor[SP]) RemoveShardsFromLocalLogic(shardIDs []string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveShardsFromLocalLogic", shardIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveShardsFromLocalLogic indicates an expected call of RemoveShardsFromLocalLogic.
+func (mr *MockExecutorMockRecorder[SP]) RemoveShardsFromLocalLogic(shardIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveShardsFromLocalLogic", reflect.TypeOf((*MockExecutor[SP])(nil).RemoveShardsFromLocalLogic), shardIDs)
 }
 
 // SetMetadata mocks base method.

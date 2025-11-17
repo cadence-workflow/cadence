@@ -85,12 +85,6 @@ func NewExecutorsModule(params ExecutorsParams) {
 func Module(fixedNamespace, ephemeralNamespace, externalAssignmentNamespace string) fx.Option {
 	return fx.Module(
 		"Executors",
-		// Executors that are used for testing namespaces with the different modes of the migration
-		fx.Provide(
-			NewExecutorLocalPassthroughNamespace,
-			NewExecutorLocalPassthroughShadowNamespace,
-			NewExecutorDistributedPassthroughNamespace,
-		),
 		// Executor that is used for testing a namespace with fixed shards
 		fx.Provide(
 			func(params executorclient.Params[*processor.ShardProcessor]) (ExecutorResult, error) {

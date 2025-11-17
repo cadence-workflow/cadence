@@ -50,8 +50,10 @@ type Executor[SP ShardProcessor] interface {
 	// Get the current metadata of the executor
 	GetMetadata() map[string]string
 
-	// Used during the migration during local-passthrough and local-passthrough-shadow
-	AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment)
+	// AssignShardsFromLocalLogic is used for the migration during local-passthrough, local-passthrough-shadow, distributed-passthrough
+	AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment) error
+	// RemoveShardsFromLocalLogic is used for the migration during local-passthrough, local-passthrough-shadow, distributed-passthrough
+	RemoveShardsFromLocalLogic(shardIDs []string) error
 }
 
 type Params[SP ShardProcessor] struct {
