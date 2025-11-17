@@ -74,14 +74,14 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 	// If the state has changed we need to update heartbeat data.
 	// Otherwise, we want to do it with controlled frequency - at most every _heartbeatRefreshRate.
 	if previousHeartbeat != nil && request.Status == previousHeartbeat.Status && mode == types.MigrationModeONBOARDED {
-		lastHeartbeatTime := time.Unix(previousHeartbeat.LastHeartbeat, 0)
+		lastHeartbeatTime := previousHeartbeat.LastHeartbeat
 		if now.Sub(lastHeartbeatTime) < _heartbeatRefreshRate {
 			return _convertResponse(assignedShards, mode), nil
 		}
 	}
 
 	newHeartbeat := store.HeartbeatState{
-		LastHeartbeat:  now.Unix(),
+		LastHeartbeat:  now,
 		Status:         request.Status,
 		ReportedShards: request.ShardStatusReports,
 		Metadata:       request.GetMetadata(),
@@ -103,7 +103,7 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 func (h *executor) assignShardsInCurrentHeartbeat(ctx context.Context, request *types.ExecutorHeartbeatRequest) (*store.AssignedState, error) {
 	assignedShards := store.AssignedState{
 		AssignedShards: make(map[string]*types.ShardAssignment),
-		LastUpdated:    h.timeSource.Now().Unix(),
+		LastUpdated:    h.timeSource.Now().UTC(),
 		ModRevision:    int64(0),
 	}
 	err := h.storage.DeleteExecutors(ctx, request.GetNamespace(), []string{request.GetExecutorID()}, store.NopGuard())

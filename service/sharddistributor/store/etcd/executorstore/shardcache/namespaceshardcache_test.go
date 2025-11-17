@@ -12,15 +12,15 @@ import (
 
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/testhelper"
 )
 
 // setupExecutorWithShards creates an executor in etcd with assigned shards and metadata
 func setupExecutorWithShards(t *testing.T, testCluster *testhelper.StoreTestCluster, namespace, executorID string, shards []string, metadata map[string]string) {
 	// Create assigned state
-	assignedState := &store.AssignedState{
+	assignedState := &etcdtypes.AssignedState{
 		AssignedShards: make(map[string]*types.ShardAssignment),
 	}
 	for _, shardID := range shards {

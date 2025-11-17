@@ -3,7 +3,6 @@ package executorstore
 import (
 	"context"
 	"encoding/json"
-	"strconv"
 	"testing"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/executorstore/common"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/leaderstore"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/testhelper"
@@ -28,11 +28,11 @@ func TestRecordHeartbeat(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	nowTS := time.Now().Unix()
+	now := time.Now().UTC()
 
 	executorID := "executor-TestRecordHeartbeat"
 	req := store.HeartbeatState{
-		LastHeartbeat: nowTS,
+		LastHeartbeat: now,
 		Status:        types.ExecutorStatusACTIVE,
 		ReportedShards: map[string]*types.ShardStatusReport{
 			"shard-TestRecordHeartbeat": {Status: types.ShardStatusREADY},
@@ -59,7 +59,7 @@ func TestRecordHeartbeat(t *testing.T) {
 	resp, err := tc.Client.Get(ctx, heartbeatKey)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), resp.Count, "Heartbeat key should exist")
-	assert.Equal(t, strconv.FormatInt(nowTS, 10), string(resp.Kvs[0].Value))
+	assert.Equal(t, etcdtypes.FromTime(now), string(resp.Kvs[0].Value))
 
 	resp, err = tc.Client.Get(ctx, stateKey)
 	require.NoError(t, err)
@@ -97,12 +97,12 @@ func TestGetHeartbeat(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	nowTS := time.Now().Unix()
+	now := time.Now().UTC()
 
 	executorID := "executor-get"
 	req := store.HeartbeatState{
 		Status:        types.ExecutorStatusDRAINING,
-		LastHeartbeat: nowTS,
+		LastHeartbeat: now,
 	}
 
 	// 1. Record a heartbeat
@@ -130,7 +130,7 @@ func TestGetHeartbeat(t *testing.T) {
 
 	// 3. Verify the state
 	assert.Equal(t, types.ExecutorStatusDRAINING, hb.Status)
-	assert.Equal(t, nowTS, hb.LastHeartbeat)
+	assert.Equal(t, now, hb.LastHeartbeat)
 	require.NotNil(t, assignedFromDB.AssignedShards)
 	assert.Equal(t, assignState[executorID].AssignedShards, assignedFromDB.AssignedShards)
 
@@ -310,11 +310,11 @@ func TestGuardedOperations(t *testing.T) {
 	elector, err := leaderstore.NewLeaderStore(leaderstore.StoreParams{Client: tc.Client, Cfg: tc.LeaderCfg, Lifecycle: fxtest.NewLifecycle(t)})
 	require.NoError(t, err)
 	election1, err := elector.CreateElection(ctx, namespace)
-	require.NoError(t, err)
 	defer election1.Cleanup(ctx)
+	defer func() { _ = election1.Cleanup(ctx) }()
 	election2, err := elector.CreateElection(ctx, namespace)
-	require.NoError(t, err)
 	defer election2.Cleanup(ctx)
+	defer func() { _ = election2.Cleanup(ctx) }()
 
 	// 2. First node becomes leader
 	require.NoError(t, election1.Campaign(ctx, "host-1"))
@@ -541,10 +541,10 @@ func TestShardStatisticsPersistence(t *testing.T) {
 	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
 
 	// 2. Pre-create shard statistics as if coming from prior history
-	stats := store.ShardStatistics{SmoothedLoad: 12.5, LastUpdateTime: 1234, LastMoveTime: 5678}
+	stats := store.ShardStatistics{SmoothedLoad: 12.5, LastUpdateTime: time.Unix(1234, 0).UTC(), LastMoveTime: time.Unix(5678, 0).UTC()}
 	shardStatsKey, err := etcdkeys.BuildShardKey(tc.EtcdPrefix, tc.Namespace, shardID, etcdkeys.ShardStatisticsKey)
 	require.NoError(t, err)
-	payload, err := json.Marshal(stats)
+	payload, err := json.Marshal(etcdtypes.FromShardStatistics(&stats))
 	require.NoError(t, err)
 	_, err = tc.Client.Put(ctx, shardStatsKey, string(payload))
 	require.NoError(t, err)

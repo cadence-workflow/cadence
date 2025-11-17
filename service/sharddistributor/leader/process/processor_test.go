@@ -86,7 +86,7 @@ func TestRebalanceShards_InitialDistribution(t *testing.T) {
 	defer mocks.ctrl.Finish()
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
-	now := mocks.timeSource.Now().Unix()
+	now := mocks.timeSource.Now()
 	state := map[string]store.HeartbeatState{
 		"exec-1": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
 		"exec-2": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
@@ -112,7 +112,7 @@ func TestRebalanceShards_ExecutorRemoved(t *testing.T) {
 	defer mocks.ctrl.Finish()
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
-	now := mocks.timeSource.Now().Unix()
+	now := mocks.timeSource.Now()
 	heartbeats := map[string]store.HeartbeatState{
 		"exec-1": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
 		"exec-2": {Status: types.ExecutorStatusDRAINING, LastHeartbeat: now},
@@ -150,8 +150,8 @@ func TestRebalanceShards_ExecutorStale(t *testing.T) {
 
 	now := mocks.timeSource.Now()
 	heartbeats := map[string]store.HeartbeatState{
-		"exec-1": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now.Unix()},
-		"exec-2": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now.Add(-2 * time.Second).Unix()},
+		"exec-1": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		"exec-2": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now.Add(-2 * time.Second)},
 	}
 	assignments := map[string]store.AssignedState{
 		"exec-1": {
@@ -219,8 +219,8 @@ func TestCleanupStaleExecutors(t *testing.T) {
 	now := mocks.timeSource.Now()
 
 	heartbeats := map[string]store.HeartbeatState{
-		"exec-active": {LastHeartbeat: now.Unix()},
-		"exec-stale":  {LastHeartbeat: now.Add(-2 * time.Second).Unix()},
+		"exec-active": {LastHeartbeat: now},
+		"exec-stale":  {LastHeartbeat: now.Add(-2 * time.Second)},
 	}
 
 	namespaceState := &store.NamespaceState{Executors: heartbeats}
@@ -235,11 +235,11 @@ func TestCleanupStaleShardStats(t *testing.T) {
 		defer mocks.ctrl.Finish()
 		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
-		now := mocks.timeSource.Now()
+		now := mocks.timeSource.Now().UTC()
 
 		heartbeats := map[string]store.HeartbeatState{
-			"exec-active": {LastHeartbeat: now.Unix(), Status: types.ExecutorStatusACTIVE},
-			"exec-stale":  {LastHeartbeat: now.Add(-2 * time.Second).Unix()},
+			"exec-active": {LastHeartbeat: now, Status: types.ExecutorStatusACTIVE},
+			"exec-stale":  {LastHeartbeat: now.Add(-2 * time.Second)},
 		}
 
 		assignments := map[string]store.AssignedState{
@@ -257,9 +257,9 @@ func TestCleanupStaleShardStats(t *testing.T) {
 		}
 
 		shardStats := map[string]store.ShardStatistics{
-			"shard-1": {SmoothedLoad: 1.0, LastUpdateTime: now.Unix(), LastMoveTime: now.Unix()},
-			"shard-2": {SmoothedLoad: 2.0, LastUpdateTime: now.Unix(), LastMoveTime: now.Unix()},
-			"shard-3": {SmoothedLoad: 3.0, LastUpdateTime: now.Add(-2 * time.Second).Unix(), LastMoveTime: now.Add(-2 * time.Second).Unix()},
+			"shard-1": {SmoothedLoad: 1.0, LastUpdateTime: now, LastMoveTime: now},
+			"shard-2": {SmoothedLoad: 2.0, LastUpdateTime: now, LastMoveTime: now},
+			"shard-3": {SmoothedLoad: 3.0, LastUpdateTime: now.Add(-2 * time.Second), LastMoveTime: now.Add(-2 * time.Second)},
 		}
 
 		namespaceState := &store.NamespaceState{
@@ -279,14 +279,14 @@ func TestCleanupStaleShardStats(t *testing.T) {
 
 		now := mocks.timeSource.Now()
 
-		expiredExecutor := now.Add(-2 * time.Second).Unix()
+		expiredExecutor := now.Add(-2 * time.Second)
 		namespaceState := &store.NamespaceState{
 			Executors: map[string]store.HeartbeatState{
 				"exec-stale": {LastHeartbeat: expiredExecutor},
 			},
 			ShardAssignments: map[string]store.AssignedState{},
 			ShardStats: map[string]store.ShardStatistics{
-				"shard-1": {SmoothedLoad: 5.0, LastUpdateTime: now.Unix(), LastMoveTime: now.Unix()},
+				"shard-1": {SmoothedLoad: 5.0, LastUpdateTime: now, LastMoveTime: now},
 			},
 		}
 
@@ -307,7 +307,7 @@ func TestRebalance_StoreErrors(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), expectedErr.Error())
 
-	now := mocks.timeSource.Now().Unix()
+	now := mocks.timeSource.Now()
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
 		Executors:      map[string]store.HeartbeatState{"e": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now}},
 		GlobalRevision: 1,
@@ -391,7 +391,7 @@ func TestRebalanceShards_NoShardsToReassign(t *testing.T) {
 	defer mocks.ctrl.Finish()
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
-	now := mocks.timeSource.Now().Unix()
+	now := mocks.timeSource.Now()
 	heartbeats := map[string]store.HeartbeatState{
 		"exec-1": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
 	}
@@ -419,7 +419,7 @@ func TestRebalanceShards_WithUnassignedShards(t *testing.T) {
 	defer mocks.ctrl.Finish()
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
-	now := mocks.timeSource.Now().Unix()
+	now := mocks.timeSource.Now()
 	heartbeats := map[string]store.HeartbeatState{
 		"exec-1": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
 	}

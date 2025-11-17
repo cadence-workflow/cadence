@@ -251,11 +251,10 @@ func (p *namespaceProcessor) runShardStatsCleanupLoop(ctx context.Context) {
 // identifyStaleExecutors returns a list of executors who have not reported a heartbeat recently.
 func (p *namespaceProcessor) identifyStaleExecutors(namespaceState *store.NamespaceState) map[string]int64 {
 	expiredExecutors := make(map[string]int64)
-	now := p.timeSource.Now().Unix()
-	heartbeatTTL := int64(p.cfg.HeartbeatTTL.Seconds())
+	now := p.timeSource.Now().UTC()
 
 	for executorID, state := range namespaceState.Executors {
-		if (now - state.LastHeartbeat) > heartbeatTTL {
+		if now.Sub(state.LastHeartbeat) > p.cfg.HeartbeatTTL {
 			expiredExecutors[executorID] = namespaceState.ShardAssignments[executorID].ModRevision
 		}
 	}
@@ -266,8 +265,7 @@ func (p *namespaceProcessor) identifyStaleExecutors(namespaceState *store.Namesp
 // identifyStaleShardStats returns a list of shard statistics that are no longer relevant.
 func (p *namespaceProcessor) identifyStaleShardStats(namespaceState *store.NamespaceState) []string {
 	activeShards := make(map[string]struct{})
-	now := p.timeSource.Now().Unix()
-	shardStatsTTL := int64(p.cfg.HeartbeatTTL.Seconds())
+	now := p.timeSource.Now().UTC()
 
 	// 1. build set of active executors
 
@@ -279,7 +277,7 @@ func (p *namespaceProcessor) identifyStaleShardStats(namespaceState *store.Names
 		}
 
 		isActive := executor.Status == types.ExecutorStatusACTIVE
-		isNotStale := (now - executor.LastHeartbeat) <= shardStatsTTL
+		isNotStale := now.Sub(executor.LastHeartbeat) <= p.cfg.HeartbeatTTL
 		if isActive && isNotStale {
 			for shardID := range assignedState.AssignedShards {
 				activeShards[shardID] = struct{}{}
@@ -304,8 +302,8 @@ func (p *namespaceProcessor) identifyStaleShardStats(namespaceState *store.Names
 		if _, ok := activeShards[shardID]; ok {
 			continue
 		}
-		recentUpdate := stats.LastUpdateTime > 0 && (now-stats.LastUpdateTime) <= shardStatsTTL
-		recentMove := stats.LastMoveTime > 0 && (now-stats.LastMoveTime) <= shardStatsTTL
+		recentUpdate := !stats.LastUpdateTime.IsZero() && now.Sub(stats.LastUpdateTime) <= p.cfg.HeartbeatTTL
+		recentMove := !stats.LastMoveTime.IsZero() && now.Sub(stats.LastMoveTime) <= p.cfg.HeartbeatTTL
 		if recentUpdate || recentMove {
 			// Preserve stats that have been updated recently to allow cooldown/load history to
 			// survive executor churn. These shards are likely awaiting reassignment,
@@ -488,7 +486,7 @@ func (p *namespaceProcessor) addAssignmentsToNamespaceState(namespaceState *stor
 
 		newState[executorID] = store.AssignedState{
 			AssignedShards: assignedShardsMap,
-			LastUpdated:    p.timeSource.Now().Unix(),
+			LastUpdated:    p.timeSource.Now().UTC(),
 			ModRevision:    modRevision,
 		}
 	}

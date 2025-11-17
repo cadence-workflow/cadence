@@ -24,10 +24,10 @@ const (
 
 func TestMeteredStore_GetHeartbeat(t *testing.T) {
 	heartbeatRes := &store.HeartbeatState{
-		LastHeartbeat: time.Now().Unix(),
+		LastHeartbeat: time.Now().UTC(),
 	}
 	assignedState := &store.AssignedState{
-		LastUpdated: time.Now().Unix(),
+		LastUpdated: time.Now().UTC(),
 	}
 
 	tests := []struct {

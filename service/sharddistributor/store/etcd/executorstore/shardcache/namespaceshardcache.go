@@ -12,6 +12,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/executorstore/common"
 )
 
@@ -175,7 +176,7 @@ func (n *namespaceShardToExecutor) refreshExecutorState(ctx context.Context) err
 		case etcdkeys.ExecutorAssignedStateKey:
 			shardOwner := getOrCreateShardOwner(shardOwners, executorID)
 
-			var assignedState store.AssignedState
+			var assignedState etcdtypes.AssignedState
 			err = common.DecompressAndUnmarshal(kv.Value, &assignedState)
 			if err != nil {
 				return fmt.Errorf("parse assigned state: %w", err)
