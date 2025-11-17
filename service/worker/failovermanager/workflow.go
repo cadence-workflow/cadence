@@ -107,6 +107,8 @@ type (
 		DrillWaitTime time.Duration
 		// GracefulFailoverTimeoutInSeconds
 		GracefulFailoverTimeoutInSeconds *int32
+		// Reason explains why the failover is being performed
+		Reason string
 	}
 
 	// FailoverResult is workflow result
@@ -129,6 +131,7 @@ type (
 		Domains                          []string
 		TargetCluster                    string
 		GracefulFailoverTimeoutInSeconds *int32
+		Reason                           string
 	}
 
 	// FailoverActivityResult result for failover activity
@@ -263,6 +266,7 @@ func failoverDomainsByBatch(
 			Domains:                          domains[i*batchSize : min((i+1)*batchSize, totalNumOfDomains)],
 			TargetCluster:                    targetCluster,
 			GracefulFailoverTimeoutInSeconds: params.GracefulFailoverTimeoutInSeconds,
+			Reason:                           params.Reason,
 		}
 		var actResult FailoverActivityResult
 		err := workflow.ExecuteActivity(ao, FailoverActivity, failoverActivityParams).Get(ctx, &actResult)
@@ -473,15 +477,28 @@ func FailoverActivity(ctx context.Context, params *FailoverActivityParams) (*Fai
 			failedDomains = append(failedDomains, domain)
 			continue
 		}
-		updateRequest := &types.UpdateDomainRequest{
-			Name:              domain,
-			ActiveClusterName: common.StringPtr(params.TargetCluster),
-		}
-		if params.GracefulFailoverTimeoutInSeconds != nil {
-			updateRequest.FailoverTimeoutInSeconds = params.GracefulFailoverTimeoutInSeconds
+		
+		var err error
+		// Use FailoverDomain API if reason is provided to properly track it
+		// Otherwise use UpdateDomain for backward compatibility and graceful failover support
+		if params.Reason != "" {
+			failoverRequest := &types.FailoverDomainRequest{
+				DomainName:              domain,
+				DomainActiveClusterName: common.StringPtr(params.TargetCluster),
+				Reason:                  common.StringPtr(params.Reason),
+			}
+			_, err = frontendClient.FailoverDomain(ctx, failoverRequest)
+		} else {
+			updateRequest := &types.UpdateDomainRequest{
+				Name:              domain,
+				ActiveClusterName: common.StringPtr(params.TargetCluster),
+			}
+			if params.GracefulFailoverTimeoutInSeconds != nil {
+				updateRequest.FailoverTimeoutInSeconds = params.GracefulFailoverTimeoutInSeconds
+			}
+			_, err = frontendClient.UpdateDomain(ctx, updateRequest)
 		}
 
-		_, err := frontendClient.UpdateDomain(ctx, updateRequest)
 		if err != nil {
 			failedDomains = append(failedDomains, domain)
 		} else {
