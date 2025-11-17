@@ -60,6 +60,7 @@ type startParams struct {
 	domains                        []string
 	drillWaitTime                  int
 	cron                           string
+	reason                         string
 }
 
 // AdminFailoverStart start failover workflow
@@ -82,6 +83,7 @@ func AdminFailoverStart(c *cli.Context) error {
 		domains:                        c.StringSlice(FlagFailoverDomains),
 		drillWaitTime:                  c.Int(FlagFailoverDrillWaitTime),
 		cron:                           c.String(FlagCronSchedule),
+		reason:                         c.String(FlagFailoverReason),
 	}
 	return failoverStart(c, params)
 }
@@ -372,6 +374,7 @@ func failoverStart(c *cli.Context, params *startParams) error {
 		Domains:                          domains,
 		DrillWaitTime:                    drillWaitTime,
 		GracefulFailoverTimeoutInSeconds: gracefulFailoverTimeoutInSeconds,
+		Reason:                           params.reason,
 	}
 	input, err := json.Marshal(foParams)
 	if err != nil {

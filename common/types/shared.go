@@ -1782,6 +1782,7 @@ type FailoverDomainRequest struct {
 	DomainName              string          `json:"domainName,omitempty"`
 	DomainActiveClusterName *string         `json:"domainActiveClusterName,omitempty"`
 	ActiveClusters          *ActiveClusters `json:"activeClusters,omitempty"`
+	Reason                  *string         `json:"reason,omitempty"`
 }
 
 func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {
