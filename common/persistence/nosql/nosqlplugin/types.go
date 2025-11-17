@@ -265,6 +265,7 @@ type (
 		Identity            string
 		IdentityType        string
 		Comment             string
+		TTLSeconds          int64 // TTL for the audit log entry in seconds
 	}
 
 	// DomainAuditLogFilter contains the filter criteria for querying domain audit logs

@@ -112,6 +112,18 @@ func (m *domainAuditManagerImpl) CreateDomainAuditLog(
 		stateAfterBlob = blob
 	}
 
+	// Get domain name for dynamic config
+	domainName := ""
+	if request.StateAfter != nil && request.StateAfter.Info != nil {
+		domainName = request.StateAfter.Info.Name
+	} else if request.StateBefore != nil && request.StateBefore.Info != nil {
+		domainName = request.StateBefore.Info.Name
+	}
+
+	// Get TTL from dynamic config
+	ttlDuration := m.dc.DomainAuditLogTTL(domainName)
+	ttlSeconds := int64(ttlDuration.Seconds())
+
 	return m.persistence.CreateDomainAuditLog(ctx, &InternalCreateDomainAuditLogRequest{
 		DomainID:        request.DomainID,
 		EventID:         request.EventID,
@@ -123,6 +135,7 @@ func (m *domainAuditManagerImpl) CreateDomainAuditLog(
 		Identity:        request.Identity,
 		IdentityType:    request.IdentityType,
 		Comment:         request.Comment,
+		TTLSeconds:      ttlSeconds,
 	})
 }
 

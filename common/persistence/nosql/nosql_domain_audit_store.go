@@ -69,6 +69,7 @@ func (m *nosqlDomainAuditStore) CreateDomainAuditLog(
 		Identity:            request.Identity,
 		IdentityType:        request.IdentityType,
 		Comment:             request.Comment,
+		TTLSeconds:          request.TTLSeconds,
 	}
 
 	err := m.db.InsertDomainAuditLog(ctx, row)

@@ -2968,6 +2968,13 @@ const (
 	// Allowed filters: domainName, taskListName, taskListType
 	TaskIsolationPollerWindow
 
+	// DomainAuditLogTTL is the TTL for domain audit log entries
+	// KeyName: system.domainAuditLogTTL
+	// Value type: Duration
+	// Default value: 365 days (1 year)
+	// Allowed filters: DomainName
+	DomainAuditLogTTL
+
 	// LastDurationKey must be the last one in this const group
 	LastDurationKey
 )
@@ -5502,6 +5509,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "TaskIsolationDuration is the time period for which we attempt to respect tasklist isolation before allowing any poller to process the task",
 		DefaultValue: time.Second * 2,
+	},
+	DomainAuditLogTTL: {
+		KeyName:      "system.domainAuditLogTTL",
+		Filters:      []Filter{DomainName},
+		Description:  "DomainAuditLogTTL is the TTL for domain audit log entries",
+		DefaultValue: time.Hour * 24 * 365, // 1 year
 	},
 }
 

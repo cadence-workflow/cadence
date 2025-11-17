@@ -32,7 +32,7 @@ const (
 	templateInsertDomainAuditLogQuery = `INSERT INTO domain_audit_log (` +
 		`domain_id, event_id, state_before, state_before_encoding, state_after, state_after_encoding, ` +
 		`operation_type, created_time, last_updated_time, identity, identity_type, comment) ` +
-		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?`
 
 	templateSelectDomainAuditLogsQuery = `SELECT ` +
 		`event_id, domain_id, state_before, state_before_encoding, state_after, state_after_encoding, ` +
@@ -57,6 +57,7 @@ func (db *CDB) InsertDomainAuditLog(ctx context.Context, row *nosqlplugin.Domain
 		row.Identity,
 		row.IdentityType,
 		row.Comment,
+		row.TTLSeconds,
 	).WithContext(ctx)
 
 	err := query.Exec()

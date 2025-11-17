@@ -887,6 +887,7 @@ type (
 		Identity        string
 		IdentityType    string
 		Comment         string
+		TTLSeconds      int64 // TTL for the audit log entry in seconds
 	}
 
 	// InternalGetDomainAuditLogsResponse is the response for GetDomainAuditLogs
