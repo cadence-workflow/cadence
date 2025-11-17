@@ -36,7 +36,7 @@ type (
 		ReadNoSQLHistoryTaskFromDataBlob         dynamicproperties.BoolPropertyFn
 		ReadNoSQLShardFromDataBlob               dynamicproperties.BoolPropertyFn
 		SerializationEncoding                    dynamicproperties.StringPropertyFn
-		DomainAuditLogTTL                        dynamicproperties.DurationPropertyFnWithDomainFilter
+		DomainAuditLogTTL                        dynamicproperties.DurationPropertyFnWithDomainIDFilter
 	}
 )
 
@@ -51,6 +51,6 @@ func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration
 		ReadNoSQLHistoryTaskFromDataBlob:         dc.GetBoolProperty(dynamicproperties.ReadNoSQLHistoryTaskFromDataBlob),
 		ReadNoSQLShardFromDataBlob:               dc.GetBoolProperty(dynamicproperties.ReadNoSQLShardFromDataBlob),
 		SerializationEncoding:                    dc.GetStringProperty(dynamicproperties.SerializationEncoding),
-		DomainAuditLogTTL:                        dc.GetDurationPropertyFilteredByDomain(dynamicproperties.DomainAuditLogTTL),
+		DomainAuditLogTTL:                        dc.GetDurationPropertyFilteredByDomainID(dynamicproperties.DomainAuditLogTTL),
 	}
 }

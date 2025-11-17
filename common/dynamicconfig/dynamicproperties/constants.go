@@ -2972,7 +2972,7 @@ const (
 	// KeyName: system.domainAuditLogTTL
 	// Value type: Duration
 	// Default value: 365 days (1 year)
-	// Allowed filters: DomainName
+	// Allowed filters: DomainID
 	DomainAuditLogTTL
 
 	// LastDurationKey must be the last one in this const group
@@ -5512,7 +5512,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	},
 	DomainAuditLogTTL: {
 		KeyName:      "system.domainAuditLogTTL",
-		Filters:      []Filter{DomainName},
+		Filters:      []Filter{DomainID},
 		Description:  "DomainAuditLogTTL is the TTL for domain audit log entries",
 		DefaultValue: time.Hour * 24 * 365, // 1 year
 	},
