@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/pborman/uuid"
 	"github.com/urfave/cli/v2"
 
@@ -784,29 +785,68 @@ func newBadBinaryRows(bb *types.BadBinaries) []BadBinaryRow {
 	return rows
 }
 
-func newFailoverHistoryRow(event *types.FailoverEvent) FailoverHistoryRow {
-	row := FailoverHistoryRow{
-		EventID:     event.GetID(),
-		CreatedTime: time.Unix(0, event.GetCreatedTime()),
+func renderFailoverHistoryTable(response *types.ListFailoverHistoryResponse) {
+	renderFailoverHistoryTableToWriter(os.Stdout, response)
+}
+
+func renderFailoverHistoryTableToWriter(writer interface{ Write([]byte) (int, error) }, response *types.ListFailoverHistoryResponse) {
+	table := tablewriter.NewWriter(writer)
+	table.SetRowLine(true)
+	table.SetBorder(true)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+	table.SetAutoMergeCells(true)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+
+	displayClusterAttributeCol := false
+	var columnsToRender [][]string
+
+	for _, event := range response.GetFailoverEvents() {
+		eventID := event.GetID()
+		createdTime := time.Unix(0, event.GetCreatedTime()).Format(time.RFC3339)
+		clusterFailovers := event.GetClusterFailovers()
+
+		if len(clusterFailovers) == 0 {
+			// If no cluster failovers, show event info only
+			table.Append([]string{eventID, createdTime, "-", "-", "-"})
+			continue
+		}
+
+		for _, failover := range clusterFailovers {
+			fromCluster := ""
+			if fromInfo := failover.GetFromCluster(); fromInfo != nil {
+				fromCluster = fromInfo.ActiveClusterName
+			}
+			toCluster := ""
+			if toInfo := failover.GetToCluster(); toInfo != nil {
+				toCluster = toInfo.ActiveClusterName
+			}
+			domainFailover := fmt.Sprintf("%s -> %s", fromCluster, toCluster)
+
+			attribute := ""
+			if attr := failover.GetClusterAttribute(); attr != nil {
+				if attr.Scope != "" && attr.Name != "" {
+					attribute = fmt.Sprintf("%s.%s", attr.Scope, attr.Name)
+					displayClusterAttributeCol = true
+				}
+			}
+			if displayClusterAttributeCol {
+				columnsToRender = append(columnsToRender, []string{eventID, createdTime, domainFailover, attribute})
+			} else {
+				columnsToRender = append(columnsToRender, []string{eventID, createdTime, domainFailover})
+			}
+		}
+	}
+	table.AppendBulk(columnsToRender)
+
+	if displayClusterAttributeCol {
+		table.SetHeader([]string{"Event ID", "Failover Timestamp", "Failover", "Cluster Attribute"})
+	} else {
+		table.SetHeader([]string{"Event ID", "Failover Timestamp", "Failover"})
 	}
 
-	// Extract cluster failover information
-	// For simplicity, we'll show the first cluster failover
-	clusterFailovers := event.GetClusterFailovers()
-	if len(clusterFailovers) > 0 {
-		firstFailover := clusterFailovers[0]
-		if fromCluster := firstFailover.GetFromCluster(); fromCluster != nil {
-			row.FromCluster = fromCluster.ActiveClusterName
-		}
-		if toCluster := firstFailover.GetToCluster(); toCluster != nil {
-			row.ToCluster = toCluster.ActiveClusterName
-		}
-		if attr := firstFailover.GetClusterAttribute(); attr != nil {
-			row.Attribute = fmt.Sprintf("%s.%s", attr.Scope, attr.Name)
-		}
-	}
-
-	return row
+	table.Render()
 }
 
 func domainTableOptions(c *cli.Context) RenderOptions {
@@ -1029,23 +1069,13 @@ func (d *domainCLIImpl) ListFailoverHistory(c *cli.Context) error {
 		return nil
 	}
 
-	// Convert failover events to rows for display
-	rows := make([]FailoverHistoryRow, 0, len(allResponses.GetFailoverEvents()))
-	for _, event := range allResponses.GetFailoverEvents() {
-		rows = append(rows, newFailoverHistoryRow(event))
-	}
-
-	if len(rows) == 0 {
+	if len(allResponses.GetFailoverEvents()) == 0 {
 		fmt.Println("No failover history found for domain:", domainName)
 		return nil
 	}
 
-	return Render(c, rows, RenderOptions{
-		DefaultTemplate: templateTable,
-		Color:           true,
-		Border:          true,
-		PrintDateTime:   true,
-	})
+	renderFailoverHistoryTable(allResponses)
+	return nil
 }
 
 func (d *domainCLIImpl) describeDomain(

@@ -24,6 +24,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -500,6 +501,262 @@ func TestParseActiveClustersByClusterAttributeFromJSON(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestRenderFailoverHistoryTable(t *testing.T) {
+	testCases := map[string]struct {
+		response       *types.ListFailoverHistoryResponse
+		expectedOutput []string // Substrings that should be present in output
+	}{
+		"single failover event with one cluster failover": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-1"),
+						CreatedTime: common.Int64Ptr(1700000000000000000), // 2023-11-14T22:13:20Z
+						FailoverType: func() *types.FailoverType {
+							t := types.FailoverTypeGraceful
+							return &t
+						}(),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: "cluster-a"},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: "cluster-b"},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "region",
+									Name:  "us-west",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-1",
+				"2023-11-14", // Just check date, not full timestamp with timezone
+				"cluster-a -> cluster-b",
+				"region.us-west",
+				"FAILOVER TIMESTAMP", // New column header (uppercase)
+				"CLUSTER ATTRIBUTE",  // Conditional column header (uppercase)
+			},
+		},
+		"single failover event with multiple cluster failovers": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-2"),
+						CreatedTime: common.Int64Ptr(1700000000000000000),
+						FailoverType: func() *types.FailoverType {
+							t := types.FailoverTypeForce
+							return &t
+						}(),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: "cluster-a"},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: "cluster-b"},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "region",
+									Name:  "us-west",
+								},
+							},
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: "cluster-c"},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: "cluster-d"},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "zone",
+									Name:  "az-1",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-2",
+				"cluster-a -> cluster-b",
+				"region.us-west",
+				"cluster-c -> cluster-d",
+				"zone.az-1",
+			},
+		},
+		"failover event with nil ActiveClusterName": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-3"),
+						CreatedTime: common.Int64Ptr(1700000000000000000),
+						FailoverType: func() *types.FailoverType {
+							t := types.FailoverTypeGraceful
+							return &t
+						}(),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: ""},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: ""},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "region",
+									Name:  "us-east",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-3",
+				" -> ",
+				"region.us-east",
+			},
+		},
+		"failover event with nil ClusterAttribute": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-4"),
+						CreatedTime: common.Int64Ptr(1700000000000000000),
+						FailoverType: func() *types.FailoverType {
+							t := types.FailoverTypeForce
+							return &t
+						}(),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster:      &types.ActiveClusterInfo{ActiveClusterName: "cluster-x"},
+								ToCluster:        &types.ActiveClusterInfo{ActiveClusterName: "cluster-y"},
+								ClusterAttribute: nil,
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-4",
+				"cluster-x -> cluster-y",
+				"FAILOVER", // Should have 3-column table (no Cluster Attribute column, uppercase)
+			},
+		},
+		"failover event with empty ClusterAttribute scope and name": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-5"),
+						CreatedTime: common.Int64Ptr(1700000000000000000),
+						FailoverType: func() *types.FailoverType {
+							t := types.FailoverTypeGraceful
+							return &t
+						}(),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: "cluster-m"},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: "cluster-n"},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "",
+									Name:  "",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-5",
+				"cluster-m -> cluster-n",
+			},
+		},
+		"failover event with no cluster failovers": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:               common.StringPtr("event-6"),
+						CreatedTime:      common.Int64Ptr(1700000000000000000),
+						ClusterFailovers: []*types.ClusterFailover{},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-6",
+				"2023-11-14", // Just check date, not full timestamp with timezone
+			},
+		},
+		"failover event with nil FromCluster and ToCluster": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-7"),
+						CreatedTime: common.Int64Ptr(1700000000000000000),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: nil,
+								ToCluster:   nil,
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "region",
+									Name:  "us-central",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-7",
+				" -> ",
+				"region.us-central",
+			},
+		},
+		"multiple failover events": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-8"),
+						CreatedTime: common.Int64Ptr(1700000000000000000),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: "cluster-1"},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: "cluster-2"},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "dc",
+									Name:  "dc1",
+								},
+							},
+						},
+					},
+					{
+						ID:          common.StringPtr("event-9"),
+						CreatedTime: common.Int64Ptr(1700001000000000000),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: "cluster-3"},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: "cluster-4"},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "dc",
+									Name:  "dc2",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-8",
+				"cluster-1 -> cluster-2",
+				"dc.dc1",
+				"event-9",
+				"cluster-3 -> cluster-4",
+				"dc.dc2",
+			},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			var output strings.Builder
+			renderFailoverHistoryTableToWriter(&output, tc.response)
+
+			result := output.String()
+			for _, expected := range tc.expectedOutput {
+				assert.Contains(t, result, expected, "output should contain '%s'", expected)
 			}
 		})
 	}

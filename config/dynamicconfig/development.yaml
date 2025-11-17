@@ -22,7 +22,7 @@ history.EnableConsistentQueryByDomain:
 history.useNewInitialFailoverVersion:
 - value: true
   constraints: {}
-frontend.enableDomainAuditLogging:
+system.enableDomainAuditLogging:
 - value: true
   constraints: {}
 history.enableStrongIdempotency:

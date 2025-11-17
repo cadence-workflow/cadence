@@ -1636,6 +1636,12 @@ const (
 	// Default value: false
 	// Allowed filters: N/A
 	EnableConnectionRetainingDirectChooser
+	// EnableDomainAuditLogging enables audit logging for a domain to the domain audit log table
+	// KeyName: system.enableDomainAuditLogging
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableDomainAuditLogging
 
 	// key for frontend
 
@@ -1663,13 +1669,6 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableQueryAttributeValidation
-
-	// EnableDomainAuditLogging enables audit logging for a domain to the domain audit log table
-	// Keyname: frontend.enableDomainAuditLogging
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: N/A
-	FrontendEnableDomainAuditLogging
 
 	// key for matching
 
@@ -4224,6 +4223,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableGracefulFailover is whether enabling graceful failover",
 		DefaultValue: true,
 	},
+	EnableDomainAuditLogging: {
+		KeyName:      "system.enableDomainAuditLogging",
+		Description:  "EnableDomainAuditLogging enables audit logging for a domain to the domain audit log table",
+		DefaultValue: false,
+	},
 	DisallowQuery: {
 		KeyName:      "system.disallowQuery",
 		Filters:      []Filter{DomainName},
@@ -4271,11 +4275,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "frontend.enableQueryAttributeValidation",
 		Description:  "EnableQueryAttributeValidation enables validation of queries' search attributes against the dynamic config whitelist",
 		DefaultValue: true,
-	},
-	FrontendEnableDomainAuditLogging: {
-		KeyName:      "frontend.enableDomainAuditLogging",
-		Description:  "FrontendEnableDomainAuditLogging enables audit logging for a domain to the domain audit log table",
-		DefaultValue: false,
 	},
 	MatchingEnableSyncMatch: {
 		KeyName:      "matching.enableSyncMatch",
