@@ -477,7 +477,7 @@ func FailoverActivity(ctx context.Context, params *FailoverActivityParams) (*Fai
 			failedDomains = append(failedDomains, domain)
 			continue
 		}
-		
+
 		var err error
 		// Use FailoverDomain API if reason is provided to properly track it
 		// Otherwise use UpdateDomain for backward compatibility and graceful failover support
