@@ -47,12 +47,9 @@ func TestRecordHeartbeat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify directly in etcd
-	heartbeatKey, err := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorHeartbeatKey)
-	require.NoError(t, err)
-	stateKey, err := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorStatusKey)
-	require.NoError(t, err)
-	reportedShardsKey, err := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorReportedShardsKey)
-	require.NoError(t, err)
+	heartbeatKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorHeartbeatKey)
+	stateKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorStatusKey)
+	reportedShardsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorReportedShardsKey)
 	metadataKey1 := etcdkeys.BuildMetadataKey(tc.EtcdPrefix, tc.Namespace, executorID, "key-1")
 	metadataKey2 := etcdkeys.BuildMetadataKey(tc.EtcdPrefix, tc.Namespace, executorID, "key-2")
 
@@ -359,8 +356,7 @@ func TestSubscribe(t *testing.T) {
 	require.NoError(t, err)
 
 	// Manually put a heartbeat update, which is an insignificant change
-	heartbeatKey, err := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "heartbeat")
-	require.NoError(t, err)
+	heartbeatKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "heartbeat")
 	_, err = tc.Client.Put(ctx, heartbeatKey, "timestamp")
 	require.NoError(t, err)
 
@@ -372,8 +368,7 @@ func TestSubscribe(t *testing.T) {
 	}
 
 	// Now update the reported shards, which IS a significant change
-	reportedShardsKey, err := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "reported_shards")
-	require.NoError(t, err)
+	reportedShardsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "reported_shards")
 	_, err = tc.Client.Put(ctx, reportedShardsKey, `{"shard-1":{"status":"running"}}`)
 	require.NoError(t, err)
 
@@ -460,7 +455,7 @@ func TestParseExecutorKey_Errors(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "does not have expected prefix")
 
-	key := etcdkeys.BuildExecutorPrefix(tc.EtcdPrefix, tc.Namespace) + "too/many/parts"
+	key := etcdkeys.BuildExecutorsPrefix(tc.EtcdPrefix, tc.Namespace) + "too/many/parts"
 	_, _, err = etcdkeys.ParseExecutorKey(tc.EtcdPrefix, tc.Namespace, key)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected key format")
@@ -542,8 +537,7 @@ func TestShardStatisticsPersistence(t *testing.T) {
 
 	// 2. Pre-create shard statistics as if coming from prior history
 	stats := store.ShardStatistics{SmoothedLoad: 12.5, LastUpdateTime: time.Unix(1234, 0).UTC(), LastMoveTime: time.Unix(5678, 0).UTC()}
-	shardStatsKey, err := etcdkeys.BuildShardKey(tc.EtcdPrefix, tc.Namespace, shardID, etcdkeys.ShardStatisticsKey)
-	require.NoError(t, err)
+	shardStatsKey := etcdkeys.BuildShardKey(tc.EtcdPrefix, tc.Namespace, shardID, etcdkeys.ShardStatisticsKey)
 	payload, err := json.Marshal(etcdtypes.FromShardStatistics(&stats))
 	require.NoError(t, err)
 	_, err = tc.Client.Put(ctx, shardStatsKey, string(payload))
