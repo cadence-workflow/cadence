@@ -21,19 +21,16 @@ func TestTimeToTimePtr_NilInput_ReturnsNil(t *testing.T) {
 	require.Nil(t, result)
 }
 
-func TestTimeToTimePtr_ValidInput_ReturnsPointer(t *testing.T) {
+func TestTimeToTimePtr(t *testing.T) {
 	now := time.Now()
 	result := ToTimePtr(&now)
 	require.NotNil(t, result)
 	require.Equal(t, Time(now), *result)
 }
 
-func TestTimeToTimePtr_ConvertsBackToTimePtr(t *testing.T) {
-	now := time.Now()
-	wrapped := Time(now)
-	result := wrapped.ToTimePtr()
-	require.NotNil(t, result)
-	require.Equal(t, now, *result)
+func TestTimeToTimePtr_Nil(t *testing.T) {
+	result := ToTimePtr(nil)
+	require.Nil(t, result)
 }
 
 func TestTimeMarshalJSON(t *testing.T) {

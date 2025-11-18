@@ -22,8 +22,11 @@ func (t Time) ToTime() time.Time {
 }
 
 // ToTimePtr converts Time back to *time.Time.
-func (t Time) ToTimePtr() *time.Time {
-	tt := time.Time(t)
+func (t *Time) ToTimePtr() *time.Time {
+	if t == nil {
+		return nil
+	}
+	tt := time.Time(*t)
 	return &tt
 }
 
