@@ -129,7 +129,7 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 
 	// Build all operations including metadata
 	ops := []clientv3.Op{
-		clientv3.OpPut(heartbeatKey, etcdtypes.FromTime(request.LastHeartbeat)),
+		clientv3.OpPut(heartbeatKey, etcdtypes.FormatTime(request.LastHeartbeat)),
 		clientv3.OpPut(stateKey, string(jsonState)),
 		clientv3.OpPut(reportedShardsKey, string(reportedShardsData)),
 	}
@@ -175,7 +175,7 @@ func (s *executorStoreImpl) GetHeartbeat(ctx context.Context, namespace string, 
 		found = true // We found at least one valid key part for the executor.
 		switch keyType {
 		case etcdkeys.ExecutorHeartbeatKey:
-			heartbeatState.LastHeartbeat, err = etcdtypes.ToTime(value)
+			heartbeatState.LastHeartbeat, err = etcdtypes.ParseTime(value)
 			if err != nil {
 				return nil, nil, fmt.Errorf("parse heartbeat timestamp: %w", err)
 			}
@@ -227,7 +227,7 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 
 		switch keyType {
 		case etcdkeys.ExecutorHeartbeatKey:
-			heartbeat.LastHeartbeat, err = etcdtypes.ToTime(value)
+			heartbeat.LastHeartbeat, err = etcdtypes.ParseTime(value)
 			if err != nil {
 				return nil, fmt.Errorf("parse heartbeat timestamp: %w", err)
 			}

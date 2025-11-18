@@ -50,8 +50,8 @@ var validExecutorKeyTypes = map[ExecutorKeyType]struct{}{
 	ExecutorMetadataKey:       {},
 }
 
-// isValidExecutorKeyType checks if the provided key type is valid.
-func isValidExecutorKeyType(keyType ExecutorKeyType) bool {
+// IsValidExecutorKeyType checks if the provided key type is valid.
+func IsValidExecutorKeyType(keyType ExecutorKeyType) bool {
 	_, exist := validExecutorKeyTypes[keyType]
 	return exist
 }
@@ -85,7 +85,7 @@ func ParseExecutorKey(prefix, namespace, key string) (executorID string, keyType
 	if len(parts) != 2 {
 		return "", "", fmt.Errorf("unexpected key format: %s", key)
 	}
-	if !isValidExecutorKeyType(ExecutorKeyType(parts[1])) {
+	if !IsValidExecutorKeyType(ExecutorKeyType(parts[1])) {
 		return "", "", fmt.Errorf("invalid executor key type: %s", parts[1])
 	}
 	return parts[0], ExecutorKeyType(parts[1]), nil

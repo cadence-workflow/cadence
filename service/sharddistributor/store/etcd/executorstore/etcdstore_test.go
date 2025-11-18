@@ -56,7 +56,7 @@ func TestRecordHeartbeat(t *testing.T) {
 	resp, err := tc.Client.Get(ctx, heartbeatKey)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), resp.Count, "Heartbeat key should exist")
-	assert.Equal(t, etcdtypes.FromTime(now), string(resp.Kvs[0].Value))
+	assert.Equal(t, etcdtypes.FormatTime(now), string(resp.Kvs[0].Value))
 
 	resp, err = tc.Client.Get(ctx, stateKey)
 	require.NoError(t, err)

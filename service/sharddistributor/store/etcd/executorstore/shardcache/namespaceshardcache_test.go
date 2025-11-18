@@ -42,7 +42,8 @@ func setupExecutorWithShards(t *testing.T, testCluster *testhelper.StoreTestClus
 // verifyShardOwner checks that a shard has the expected owner and metadata
 func verifyShardOwner(t *testing.T, cache *namespaceShardToExecutor, shardID, expectedExecutorID string, expectedMetadata map[string]string) {
 	owner, err := cache.GetShardOwner(context.Background(), shardID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	require.NotNil(t, owner)
 	assert.Equal(t, expectedExecutorID, owner.ExecutorID)
 	for key, expectedValue := range expectedMetadata {
 		assert.Equal(t, expectedValue, owner.Metadata[key])

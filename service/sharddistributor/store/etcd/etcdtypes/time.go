@@ -7,15 +7,30 @@ import "time"
 // Convert to UTC before storing/parsing to ensure consistency.
 type Time time.Time
 
+// ToTimePtr converts *time.Time to *Time.
+func ToTimePtr(t *time.Time) *Time {
+	if t == nil {
+		return nil
+	}
+	tt := Time(*t)
+	return &tt
+}
+
 // ToTime converts Time back to time.Time.
 func (t Time) ToTime() time.Time {
 	return time.Time(t)
 }
 
+// ToTimePtr converts Time back to *time.Time.
+func (t Time) ToTimePtr() *time.Time {
+	tt := time.Time(t)
+	return &tt
+}
+
 // MarshalJSON implements the json.Marshaler interface.
 // It encodes the time in time.RFC3339Nano format.
 func (t Time) MarshalJSON() ([]byte, error) {
-	s := time.Time(t).UTC().Format(time.RFC3339Nano)
+	s := FormatTime(time.Time(t))
 	return []byte(`"` + s + `"`), nil
 }
 
@@ -26,25 +41,25 @@ func (t *Time) UnmarshalJSON(data []byte) error {
 	if len(str) >= 2 && str[0] == '"' && str[len(str)-1] == '"' {
 		str = str[1 : len(str)-1]
 	}
-	parsed, err := time.Parse(time.RFC3339Nano, str)
+	parsed, err := ParseTime(str)
 	if err != nil {
 		return err
 	}
-	*t = Time(parsed.UTC())
+	*t = Time(parsed)
 	return nil
 }
 
-// ToTime parses a string in time.RFC3339Nano format and returns a time.Time in UTC.
-func ToTime(s string) (time.Time, error) {
-	parsed, err := time.Parse(time.RFC3339Nano, s)
+// ParseTime parses a string in time.RFC3339Nano format and returns a time.Time in UTC.
+func ParseTime(s string) (time.Time, error) {
+	parsed, err := time.ParseInLocation(time.RFC3339Nano, s, time.UTC)
 	if err != nil {
 		return time.Time{}, err
 	}
 	return parsed.UTC(), nil
 }
 
-// FromTime converts time.Time to UTC and
+// FormatTime converts time.Time to UTC and
 // formats time.Time to a string in time.RFC3339Nano format.
-func FromTime(t time.Time) string {
+func FormatTime(t time.Time) string {
 	return t.UTC().Format(time.RFC3339Nano)
 }
