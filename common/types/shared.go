@@ -1782,16 +1782,25 @@ type FailoverDomainRequest struct {
 	DomainName              string          `json:"domainName,omitempty"`
 	DomainActiveClusterName *string         `json:"domainActiveClusterName,omitempty"`
 	ActiveClusters          *ActiveClusters `json:"activeClusters,omitempty"`
+	Reason                  string          `json:"reason,omitempty"`
 }
 
 func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {
 	if v == nil {
 		return nil
 	}
+	// Include failover reason in domain data if provided
+	var data map[string]string
+	if v.Reason != "" {
+		data = map[string]string{
+			"FailoverReason": v.Reason,
+		}
+	}
 	return &UpdateDomainRequest{
 		Name:              v.DomainName,
 		ActiveClusterName: v.DomainActiveClusterName,
 		ActiveClusters:    v.ActiveClusters,
+		Data:              data,
 	}
 }
 
@@ -1815,6 +1824,14 @@ func (v *FailoverDomainRequest) GetDomainActiveClusterName() (o string) {
 func (v *FailoverDomainRequest) GetDomain() (o string) {
 	if v != nil {
 		return v.DomainName
+	}
+	return
+}
+
+// GetReason is an internal getter (TBD...)
+func (v *FailoverDomainRequest) GetReason() (o string) {
+	if v != nil {
+		return v.Reason
 	}
 	return
 }

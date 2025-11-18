@@ -656,7 +656,15 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 	}
 	response.DomainInfo, response.Configuration, response.ReplicationConfiguration = d.createResponse(intendedDomainState.Info, intendedDomainState.Config, intendedDomainState.ReplicationConfig)
 
-	err = d.updateDomainAuditLog(ctx, currentState, intendedDomainState, persistence.DomainAuditOperationTypeFailover, "domain failover")
+	// Extract failover reason from update request data
+	failoverMessage := "domain failover"
+	if updateRequest.Data != nil {
+		if reason, ok := updateRequest.Data["FailoverReason"]; ok && reason != "" {
+			failoverMessage = fmt.Sprintf("domain failover: %s", reason)
+		}
+	}
+
+	err = d.updateDomainAuditLog(ctx, currentState, intendedDomainState, persistence.DomainAuditOperationTypeFailover, failoverMessage)
 	if err != nil {
 		return nil, err
 	}
