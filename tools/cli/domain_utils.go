@@ -284,7 +284,6 @@ var (
 			Name:    FlagFailoverReason,
 			Aliases: []string{"r"},
 			Usage:   "Reason for failover (for tracking and transparency)",
-			Value:   "default maintenance",
 		},
 	}
 

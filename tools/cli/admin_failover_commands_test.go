@@ -84,7 +84,7 @@ func TestAdminFailoverStart(t *testing.T) {
 					WorkflowID:                          failovermanager.FailoverWorkflowID,
 					WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
 					TaskList:                            &types.TaskList{Name: failovermanager.TaskListName},
-					Input:                               []byte(`{"TargetCluster":"cluster2","SourceCluster":"cluster1","BatchFailoverSize":10,"BatchFailoverWaitTimeInSeconds":120,"Domains":["domain1","domain2"],"DrillWaitTime":0,"GracefulFailoverTimeoutInSeconds":300,"Reason":"default maintenance"}`),
+					Input:                               []byte(`{"TargetCluster":"cluster2","SourceCluster":"cluster1","BatchFailoverSize":10,"BatchFailoverWaitTimeInSeconds":120,"Domains":["domain1","domain2"],"DrillWaitTime":0,"GracefulFailoverTimeoutInSeconds":300}`),
 					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(600), // == failoverWFTimeout
 					TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(defaultDecisionTimeoutInSeconds),
 					Memo: mustGetWorkflowMemo(t, map[string]interface{}{
@@ -165,7 +165,7 @@ func TestAdminFailoverStart(t *testing.T) {
 					WorkflowID:                          failovermanager.DrillWorkflowID,
 					WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
 					TaskList:                            &types.TaskList{Name: failovermanager.TaskListName},
-					Input:                               []byte(`{"TargetCluster":"cluster2","SourceCluster":"cluster1","BatchFailoverSize":10,"BatchFailoverWaitTimeInSeconds":120,"Domains":["domain1","domain2"],"DrillWaitTime":30000000000,"GracefulFailoverTimeoutInSeconds":300,"Reason":"default maintenance"}`),
+					Input:                               []byte(`{"TargetCluster":"cluster2","SourceCluster":"cluster1","BatchFailoverSize":10,"BatchFailoverWaitTimeInSeconds":120,"Domains":["domain1","domain2"],"DrillWaitTime":30000000000,"GracefulFailoverTimeoutInSeconds":300}`),
 					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(600), // == failoverWFTimeout
 					TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(defaultDecisionTimeoutInSeconds),
 					Memo: mustGetWorkflowMemo(t, map[string]interface{}{
