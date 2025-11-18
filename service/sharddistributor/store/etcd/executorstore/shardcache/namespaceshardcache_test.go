@@ -29,8 +29,7 @@ func setupExecutorWithShards(t *testing.T, testCluster *testhelper.StoreTestClus
 	assignedStateJSON, err := json.Marshal(assignedState)
 	require.NoError(t, err)
 
-	executorAssignedStateKey, err := etcdkeys.BuildExecutorKey(testCluster.EtcdPrefix, namespace, executorID, etcdkeys.ExecutorAssignedStateKey)
-	require.NoError(t, err)
+	executorAssignedStateKey := etcdkeys.BuildExecutorKey(testCluster.EtcdPrefix, namespace, executorID, etcdkeys.ExecutorAssignedStateKey)
 	testCluster.Client.Put(context.Background(), executorAssignedStateKey, string(assignedStateJSON))
 
 	// Add metadata

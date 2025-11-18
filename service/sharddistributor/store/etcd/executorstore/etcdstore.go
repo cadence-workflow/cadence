@@ -113,9 +113,9 @@ func (s *executorStoreImpl) Stop() {
 // --- HeartbeatStore Implementation ---
 
 func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, executorID string, request store.HeartbeatState) error {
-	heartbeatETCDKey := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, etcdkeys.ExecutorHeartbeatKey)
-	stateETCDKey := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, etcdkeys.ExecutorStatusKey)
-	reportedShardsETCDKey := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, etcdkeys.ExecutorReportedShardsKey)
+	heartbeatKey := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, etcdkeys.ExecutorHeartbeatKey)
+	stateKey := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, etcdkeys.ExecutorStatusKey)
+	reportedShardsKey := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, etcdkeys.ExecutorReportedShardsKey)
 
 	reportedShardsData, err := json.Marshal(request.ReportedShards)
 	if err != nil {
@@ -129,9 +129,9 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 
 	// Build all operations including metadata
 	ops := []clientv3.Op{
-		clientv3.OpPut(heartbeatETCDKey, etcdtypes.FromTime(request.LastHeartbeat)),
-		clientv3.OpPut(stateETCDKey, string(jsonState)),
-		clientv3.OpPut(reportedShardsETCDKey, string(reportedShardsData)),
+		clientv3.OpPut(heartbeatKey, etcdtypes.FromTime(request.LastHeartbeat)),
+		clientv3.OpPut(stateKey, string(jsonState)),
+		clientv3.OpPut(reportedShardsKey, string(reportedShardsData)),
 	}
 	for key, value := range request.Metadata {
 		metadataKey := etcdkeys.BuildMetadataKey(s.prefix, namespace, executorID, key)
@@ -337,20 +337,14 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 	// 1. Prepare operations to delete stale executors and add comparisons to ensure they haven't been modified
 	for executorID, expectedModRevision := range request.ExecutorsToDelete {
 		// Build the assigned state key to check for concurrent modifications
-		executorStateKey, err := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, etcdkeys.ExecutorAssignedStateKey)
-		if err != nil {
-			return fmt.Errorf("build executor assigned state key for comparison: %w", err)
-		}
+		executorStateKey := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, etcdkeys.ExecutorAssignedStateKey)
 
 		// Add a comparison to ensure the executor's assigned state hasn't changed
 		// This prevents deleting an executor that just received a shard assignment
 		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(executorStateKey), "=", expectedModRevision))
 
 		// Delete all keys for this executor
-		executorPrefix, err := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, "")
-		if err != nil {
-			return fmt.Errorf("build executor prefix key for deletion: %w", err)
-		}
+		executorPrefix := etcdkeys.BuildExecutorIDPrefix(s.prefix, namespace, executorID)
 		ops = append(ops, clientv3.OpDelete(executorPrefix, clientv3.WithPrefix()))
 	}
 
