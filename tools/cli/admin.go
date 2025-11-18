@@ -1109,12 +1109,6 @@ func newAdminFailoverCommands() []*cli.Command {
 					Usage: "Optional cron schedule on failover drill. Please specify failover drill wait time " +
 						"if this field is specific",
 				},
-				&cli.StringFlag{
-					Name:    FlagFailoverReason,
-					Aliases: []string{"r"},
-					Usage:   "Reason for failover (for tracking and transparency)",
-					Value:   "default maintenance",
-				},
 			},
 			Action: AdminFailoverStart,
 		},
