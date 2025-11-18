@@ -182,6 +182,7 @@ func TestRecordHeartbeatSkipsShardStatisticsWithNilReport(t *testing.T) {
 func TestRecordHeartbeatShardStatisticsThrottlesWrites(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	tc.LeaderCfg.Process.HeartbeatTTL = 10 * time.Second
+	tc.LeaderCfg.Process.ShardStatsTTL = 10 * time.Second
 	mockTS := clock.NewMockedTimeSourceAt(time.Unix(1000, 0))
 	executorStore := createStoreWithTimeSource(t, tc, mockTS)
 	esImpl, ok := executorStore.(*executorStoreImpl)

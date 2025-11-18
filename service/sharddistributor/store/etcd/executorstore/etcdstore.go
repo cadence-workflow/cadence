@@ -96,13 +96,18 @@ func NewStore(p ExecutorStoreParams) (store.Store, error) {
 		timeSource = clock.NewRealTimeSource()
 	}
 
+	shardStatsTTL := p.Cfg.Process.ShardStatsTTL
+	if shardStatsTTL <= 0 {
+		shardStatsTTL = config.DefaultShardStatsTTL
+	}
+
 	store := &executorStoreImpl{
 		client:                         etcdClient,
 		prefix:                         etcdCfg.Prefix,
 		logger:                         p.Logger,
 		shardCache:                     shardCache,
 		timeSource:                     timeSource,
-		maxStatsPersistIntervalSeconds: deriveStatsPersistInterval(p.Cfg.Process.HeartbeatTTL),
+		maxStatsPersistIntervalSeconds: deriveStatsPersistInterval(shardStatsTTL),
 	}
 
 	p.Lifecycle.Append(fx.StartStopHook(store.Start, store.Stop))
@@ -168,13 +173,12 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 	return nil
 }
 
-func deriveStatsPersistInterval(heartbeatTTL time.Duration) int64 {
-	ttlSeconds := int64(heartbeatTTL.Seconds())
-	interval := ttlSeconds - 1
-	if interval < 1 {
-		interval = 1
+func deriveStatsPersistInterval(shardStatsTTL time.Duration) int64 {
+	ttlSeconds := int64(shardStatsTTL.Seconds())
+	if ttlSeconds <= 1 {
+		return 1
 	}
-	return interval
+	return ttlSeconds - 1
 }
 
 func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) {
