@@ -42,8 +42,15 @@ type Handler interface {
 	Health(context.Context) (*types.HealthStatus, error)
 
 	GetShardOwner(context.Context, *types.GetShardOwnerRequest) (*types.GetShardOwnerResponse, error)
+
+	WatchNamespaceState(*types.WatchNamespaceStateRequest, WatchNamespaceStateServer) error
 }
 
 type Executor interface {
 	Heartbeat(context.Context, *types.ExecutorHeartbeatRequest) (*types.ExecutorHeartbeatResponse, error)
+}
+
+type WatchNamespaceStateServer interface {
+	Context() context.Context
+	Send(*types.WatchNamespaceStateResponse) error
 }

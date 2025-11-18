@@ -530,6 +530,8 @@ const (
 	FrontendClientUpdateDomainScope
 	// FrontendClientFailoverDomainScope tracks RPC calls to frontend service
 	FrontendClientFailoverDomainScope
+	// FrontendClientListFailoverHistoryScope tracks RPC calls to frontend service
+	FrontendClientListFailoverHistoryScope
 	// FrontendClientListWorkflowExecutionsScope tracks RPC calls to frontend service
 	FrontendClientListWorkflowExecutionsScope
 	// FrontendClientScanWorkflowExecutionsScope tracks RPC calls to frontend service
@@ -632,6 +634,8 @@ const (
 	DCRedirectionDeprecateDomainScope
 	// DCRedirectionFailoverDomainScope tracks RPC calls for dc redirection
 	DCRedirectionFailoverDomainScope
+	// DCRedirectionListFailoverHistoryScope tracks RPC calls for dc redirection
+	DCRedirectionListFailoverHistoryScope
 	// DCRedirectionDescribeDomainScope tracks RPC calls for dc redirection
 	DCRedirectionDescribeDomainScope
 	// DCRedirectionDescribeTaskListScope tracks RPC calls for dc redirection
@@ -1055,6 +1059,8 @@ const (
 	FrontendDeprecateDomainScope
 	// FrontendFailoverDomainScope is the metric scope for frontend.FailoverDomain
 	FrontendFailoverDomainScope
+	// FrontendListFailoverHistoryScope is the metric scope for frontend.ListFailoverHistory
+	FrontendListFailoverHistoryScope
 	// FrontendQueryWorkflowScope is the metric scope for frontend.QueryWorkflow
 	FrontendQueryWorkflowScope
 	// FrontendDescribeWorkflowExecutionScope is the metric scope for frontend.DescribeWorkflowExecution
@@ -1462,6 +1468,7 @@ const (
 const (
 	// ShardDistributorGetShardOwnerScope tracks GetShardOwner API calls received by service
 	ShardDistributorGetShardOwnerScope = iota + NumWorkerScopes
+	ShardDistributorWatchNamespaceStateScope
 	ShardDistributorHeartbeatScope
 	ShardDistributorAssignLoopScope
 
@@ -1469,6 +1476,7 @@ const (
 	ShardDistributorStoreAssignShardScope
 	ShardDistributorStoreAssignShardsScope
 	ShardDistributorStoreDeleteExecutorsScope
+	ShardDistributorStoreDeleteShardStatsScope
 	ShardDistributorStoreGetHeartbeatScope
 	ShardDistributorStoreGetStateScope
 	ShardDistributorStoreRecordHeartbeatScope
@@ -1684,6 +1692,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendClientTerminateWorkflowExecutionScope:            {operation: "FrontendClientTerminateWorkflowExecution", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientUpdateDomainScope:                          {operation: "FrontendClientUpdateDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientFailoverDomainScope:                        {operation: "FrontendClientFailoverDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientListFailoverHistoryScope:                   {operation: "FrontendClientListFailoverHistory", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientListWorkflowExecutionsScope:                {operation: "FrontendClientListWorkflowExecutions", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientScanWorkflowExecutionsScope:                {operation: "FrontendClientScanWorkflowExecutions", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientCountWorkflowExecutionsScope:               {operation: "FrontendClientCountWorkflowExecutions", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
@@ -1737,6 +1746,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		DCRedirectionDeleteDomainScope:                          {operation: "DCRedirectionDeleteDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDeprecateDomainScope:                       {operation: "DCRedirectionDeprecateDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionFailoverDomainScope:                        {operation: "DCRedirectionFailoverDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionListFailoverHistoryScope:                   {operation: "DCRedirectionListFailoverHistory", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDescribeDomainScope:                        {operation: "DCRedirectionDescribeDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDescribeTaskListScope:                      {operation: "DCRedirectionDescribeTaskList", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDescribeWorkflowExecutionScope:             {operation: "DCRedirectionDescribeWorkflowExecution", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
@@ -1943,6 +1953,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendDeleteDomainScope:                          {operation: "DeleteDomain"},
 		FrontendDeprecateDomainScope:                       {operation: "DeprecateDomain"},
 		FrontendFailoverDomainScope:                        {operation: "FailoverDomain"},
+		FrontendListFailoverHistoryScope:                   {operation: "ListFailoverHistory"},
 		FrontendQueryWorkflowScope:                         {operation: "QueryWorkflow"},
 		FrontendDescribeWorkflowExecutionScope:             {operation: "DescribeWorkflowExecution"},
 		FrontendDiagnoseWorkflowExecutionScope:             {operation: "DiagnoseWorkflowExecution"},
@@ -2142,18 +2153,20 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		DiagnosticsWorkflowScope:               {operation: "DiagnosticsWorkflow"},
 	},
 	ShardDistributor: {
-		ShardDistributorGetShardOwnerScope:        {operation: "GetShardOwner"},
-		ShardDistributorHeartbeatScope:            {operation: "ExecutorHeartbeat"},
-		ShardDistributorAssignLoopScope:           {operation: "ShardAssignLoop"},
-		ShardDistributorExecutorScope:             {operation: "Executor"},
-		ShardDistributorStoreGetShardOwnerScope:   {operation: "StoreGetShardOwner"},
-		ShardDistributorStoreAssignShardScope:     {operation: "StoreAssignShard"},
-		ShardDistributorStoreAssignShardsScope:    {operation: "StoreAssignShards"},
-		ShardDistributorStoreDeleteExecutorsScope: {operation: "StoreDeleteExecutors"},
-		ShardDistributorStoreGetHeartbeatScope:    {operation: "StoreGetHeartbeat"},
-		ShardDistributorStoreGetStateScope:        {operation: "StoreGetState"},
-		ShardDistributorStoreRecordHeartbeatScope: {operation: "StoreRecordHeartbeat"},
-		ShardDistributorStoreSubscribeScope:       {operation: "StoreSubscribe"},
+		ShardDistributorGetShardOwnerScope:         {operation: "GetShardOwner"},
+		ShardDistributorWatchNamespaceStateScope:   {operation: "WatchNamespaceState"},
+		ShardDistributorHeartbeatScope:             {operation: "ExecutorHeartbeat"},
+		ShardDistributorAssignLoopScope:            {operation: "ShardAssignLoop"},
+		ShardDistributorExecutorScope:              {operation: "Executor"},
+		ShardDistributorStoreGetShardOwnerScope:    {operation: "StoreGetShardOwner"},
+		ShardDistributorStoreAssignShardScope:      {operation: "StoreAssignShard"},
+		ShardDistributorStoreAssignShardsScope:     {operation: "StoreAssignShards"},
+		ShardDistributorStoreDeleteExecutorsScope:  {operation: "StoreDeleteExecutors"},
+		ShardDistributorStoreDeleteShardStatsScope: {operation: "StoreDeleteShardStats"},
+		ShardDistributorStoreGetHeartbeatScope:     {operation: "StoreGetHeartbeat"},
+		ShardDistributorStoreGetStateScope:         {operation: "StoreGetState"},
+		ShardDistributorStoreRecordHeartbeatScope:  {operation: "StoreRecordHeartbeat"},
+		ShardDistributorStoreSubscribeScope:        {operation: "StoreSubscribe"},
 	},
 }
 
@@ -2430,6 +2443,16 @@ const (
 
 	// WorkflowExecutionHistoryAccess tracks the access to the workflow history
 	WorkflowExecutionHistoryAccess
+
+	// Budget manager metrics
+	BudgetManagerCapacityBytes
+	BudgetManagerCapacityCount
+	BudgetManagerUsedBytes
+	BudgetManagerUsedCount
+	BudgetManagerSoftThreshold
+	BudgetManagerActiveCacheCount
+	BudgetManagerHardCapExceeded
+	BudgetManagerSoftCapExceeded
 
 	NumCommonMetrics // Needs to be last on this list for iota numbering
 )
@@ -2930,6 +2953,8 @@ const (
 	ShardDistributorAssignLoopSuccess
 	ShardDistributorAssignLoopFail
 
+	ShardDistributorActiveShards
+
 	ShardDistributorStoreExecutorNotFound
 	ShardDistributorStoreFailuresPerNamespace
 	ShardDistributorStoreRequestsPerNamespace
@@ -3224,6 +3249,16 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		RingResolverError: {metricName: "ring_resolver_error", metricType: Counter},
 
 		WorkflowExecutionHistoryAccess: {metricName: "workflow_execution_history_access", metricType: Gauge},
+
+		// Budget manager metrics
+		BudgetManagerCapacityBytes:    {metricName: "budget_manager_capacity_bytes", metricType: Gauge},
+		BudgetManagerCapacityCount:    {metricName: "budget_manager_capacity_count", metricType: Gauge},
+		BudgetManagerUsedBytes:        {metricName: "budget_manager_used_bytes", metricType: Gauge},
+		BudgetManagerUsedCount:        {metricName: "budget_manager_used_count", metricType: Gauge},
+		BudgetManagerSoftThreshold:    {metricName: "budget_manager_soft_threshold", metricType: Gauge},
+		BudgetManagerActiveCacheCount: {metricName: "budget_manager_active_cache_count", metricType: Gauge},
+		BudgetManagerHardCapExceeded:  {metricName: "budget_manager_hard_cap_exceeded", metricType: Counter},
+		BudgetManagerSoftCapExceeded:  {metricName: "budget_manager_soft_cap_exceeded", metricType: Counter},
 	},
 	History: {
 		TaskRequests:                     {metricName: "task_requests", metricType: Counter},
@@ -3701,6 +3736,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ShardDistributorAssignLoopAttempts:              {metricName: "shard_distrubutor_shard_assign_attempt", metricType: Counter},
 		ShardDistributorAssignLoopSuccess:               {metricName: "shard_distrubutor_shard_assign_success", metricType: Counter},
 		ShardDistributorAssignLoopFail:                  {metricName: "shard_distrubutor_shard_assign_fail", metricType: Counter},
+
+		ShardDistributorActiveShards: {metricName: "shard_distributor_active_shards", metricType: Gauge},
 
 		ShardDistributorStoreExecutorNotFound:             {metricName: "shard_distributor_store_executor_not_found", metricType: Counter},
 		ShardDistributorStoreFailuresPerNamespace:         {metricName: "shard_distributor_store_failures_per_namespace", metricType: Counter},

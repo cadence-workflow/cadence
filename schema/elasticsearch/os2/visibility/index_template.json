@@ -100,6 +100,12 @@
       "TaskList": {
         "type": "keyword"
       },
+      "ClusterAttributeScope": {
+        "type": "keyword"
+      },
+      "ClusterAttributeName": {
+        "type": "keyword"
+      },
       "UpdateTime": {
         "type": "long"
       },

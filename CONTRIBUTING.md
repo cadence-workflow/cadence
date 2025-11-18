@@ -113,7 +113,7 @@ Once you have done all above, try running the local binaries:
 
 Then you will be able to run a basic local Cadence server for development.
 
-  * If you use SQLite, then run `./cadence server start --zone sqlite start`, which load , which will load `config/development.yaml` + `config/development_sqlite.yaml` as config
+  * If you use SQLite, then run `./cadence-server --zone sqlite start`, which load , which will load `config/development.yaml` + `config/development_sqlite.yaml` as config
   * If you use `cassandra.yml`, then run `./cadence-server start`, which will load `config/development.yaml` as config
   * If you use `mysql.yml` then run `./cadence-server --zone mysql start`, which will load `config/development.yaml` + `config/development_mysql.yaml` as config
   * If you use `postgres.yml` then run `./cadence-server --zone postgres start` , which will load `config/development.yaml` + `config/development_postgres.yaml` as config
@@ -128,7 +128,7 @@ Then register a domain:
 ```
 
 ### Sample Repo
-The sample code is available in the [Sample repo]https://github.com/cadence-workflow/cadence-samples
+The sample code is available in the [Sample repo](https://github.com/cadence-workflow/cadence-samples)
 
 Then run a helloworld from [Go Client Sample](https://github.com/cadence-workflow/cadence-samples) or [Java Client Sample](https://github.com/cadence-workflow/cadence-java-samples)
 

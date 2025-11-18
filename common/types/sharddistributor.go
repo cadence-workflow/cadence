@@ -24,7 +24,7 @@ package types
 
 import "fmt"
 
-//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus -json -output sharddistributor_statuses_enumer_generated.go
+//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus,MigrationMode -json -output sharddistributor_statuses_enumer_generated.go
 
 type GetShardOwnerRequest struct {
 	ShardKey  string
@@ -48,6 +48,7 @@ func (v *GetShardOwnerRequest) GetNamespace() (o string) {
 type GetShardOwnerResponse struct {
 	Owner     string
 	Namespace string
+	Metadata  map[string]string
 }
 
 func (v *GetShardOwnerResponse) GetOwner() (o string) {
@@ -60,6 +61,13 @@ func (v *GetShardOwnerResponse) GetOwner() (o string) {
 func (v *GetShardOwnerResponse) GetNamespace() (o string) {
 	if v != nil {
 		return v.Namespace
+	}
+	return
+}
+
+func (v *GetShardOwnerResponse) GetMetadata() (o map[string]string) {
+	if v != nil {
+		return v.Metadata
 	}
 	return
 }
@@ -92,6 +100,7 @@ type ExecutorHeartbeatRequest struct {
 	ExecutorID         string
 	Status             ExecutorStatus
 	ShardStatusReports map[string]*ShardStatusReport
+	Metadata           map[string]string
 }
 
 func (v *ExecutorHeartbeatRequest) GetNamespace() (o string) {
@@ -118,6 +127,13 @@ func (v *ExecutorHeartbeatRequest) GetStatus() (o ExecutorStatus) {
 func (v *ExecutorHeartbeatRequest) GetShardStatusReports() (o map[string]*ShardStatusReport) {
 	if v != nil {
 		return v.ShardStatusReports
+	}
+	return
+}
+
+func (v *ExecutorHeartbeatRequest) GetMetadata() (o map[string]string) {
+	if v != nil {
+		return v.Metadata
 	}
 	return
 }
@@ -204,9 +220,69 @@ const (
 type MigrationMode int32
 
 const (
-	MigrationModeINVALID                = 0
-	MigrationModeLOCALPASSTHROUGH       = 1
-	MigrationModeLOCALPASSTHROUGHSHADOW = 2
-	MigrationModeDISTRIBUTEDPASSTHROUGH = 3
-	MigrationModeONBOARDED              = 4
+	MigrationModeINVALID                MigrationMode = 0
+	MigrationModeLOCALPASSTHROUGH       MigrationMode = 1
+	MigrationModeLOCALPASSTHROUGHSHADOW MigrationMode = 2
+	MigrationModeDISTRIBUTEDPASSTHROUGH MigrationMode = 3
+	MigrationModeONBOARDED              MigrationMode = 4
 )
+
+type WatchNamespaceStateRequest struct {
+	Namespace string
+}
+
+func (v *WatchNamespaceStateRequest) GetNamespace() (o string) {
+	if v != nil {
+		return v.Namespace
+	}
+	return
+}
+
+type WatchNamespaceStateResponse struct {
+	Executors []*ExecutorShardAssignment
+}
+
+func (v *WatchNamespaceStateResponse) GetExecutors() (o []*ExecutorShardAssignment) {
+	if v != nil {
+		return v.Executors
+	}
+	return
+}
+
+type ExecutorShardAssignment struct {
+	ExecutorID     string
+	AssignedShards []*Shard
+	Metadata       map[string]string
+}
+
+func (v *ExecutorShardAssignment) GetExecutorID() (o string) {
+	if v != nil {
+		return v.ExecutorID
+	}
+	return
+}
+
+func (v *ExecutorShardAssignment) GetAssignedShards() (o []*Shard) {
+	if v != nil {
+		return v.AssignedShards
+	}
+	return
+}
+
+func (v *ExecutorShardAssignment) GetMetadata() (o map[string]string) {
+	if v != nil {
+		return v.Metadata
+	}
+	return
+}
+
+type Shard struct {
+	ShardKey string
+}
+
+func (v *Shard) GetShardKey() (o string) {
+	if v != nil {
+		return v.ShardKey
+	}
+	return
+}

@@ -218,6 +218,10 @@ func (h *apiHandler) ListDomains(ctx context.Context, lp1 *types.ListDomainsRequ
 	return h.wrapped.ListDomains(ctx, lp1)
 }
 
+func (h *apiHandler) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	return h.wrapped.ListFailoverHistory(ctx, lp1)
+}
+
 func (h *apiHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {
 	if lp1 == nil {
 		err = validate.ErrRequestNotSet

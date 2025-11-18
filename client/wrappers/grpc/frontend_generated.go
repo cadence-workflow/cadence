@@ -89,6 +89,11 @@ func (g frontendClient) ListDomains(ctx context.Context, lp1 *types.ListDomainsR
 	return proto.ToListDomainsResponse(response), proto.ToError(err)
 }
 
+func (g frontendClient) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest, p1 ...yarpc.CallOption) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	response, err := g.c.ListFailoverHistory(ctx, proto.FromListFailoverHistoryRequest(lp1), p1...)
+	return proto.ToListFailoverHistoryResponse(response), proto.ToError(err)
+}
+
 func (g frontendClient) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {
 	response, err := g.c.ListOpenWorkflowExecutions(ctx, proto.FromListOpenWorkflowExecutionsRequest(lp1), p1...)
 	return proto.ToListOpenWorkflowExecutionsResponse(response), proto.ToError(err)

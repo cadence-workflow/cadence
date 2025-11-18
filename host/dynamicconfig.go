@@ -33,21 +33,22 @@ import (
 var (
 	// Override values for dynamic configs
 	staticOverrides = map[dynamicproperties.Key]interface{}{
-		dynamicproperties.FrontendUserRPS:                               3000,
-		dynamicproperties.FrontendVisibilityListMaxQPS:                  200,
-		dynamicproperties.FrontendESIndexMaxResultWindow:                defaultTestValueOfESIndexMaxResultWindow,
-		dynamicproperties.MatchingNumTasklistWritePartitions:            3,
-		dynamicproperties.MatchingNumTasklistReadPartitions:             3,
-		dynamicproperties.TimerProcessorHistoryArchivalSizeLimit:        5 * 1024,
-		dynamicproperties.ReplicationTaskProcessorErrorRetryMaxAttempts: 1,
-		dynamicproperties.WriteVisibilityStoreName:                      constants.AdvancedVisibilityModeOff,
-		dynamicproperties.DecisionHeartbeatTimeout:                      5 * time.Second,
-		dynamicproperties.ReplicationTaskFetcherAggregationInterval:     200 * time.Millisecond,
-		dynamicproperties.ReplicationTaskFetcherErrorRetryWait:          50 * time.Millisecond,
-		dynamicproperties.ReplicationTaskProcessorErrorRetryWait:        time.Millisecond,
-		dynamicproperties.EnableConsistentQueryByDomain:                 true,
-		dynamicproperties.MinRetentionDays:                              0,
-		dynamicproperties.WorkflowDeletionJitterRange:                   1,
+		dynamicproperties.FrontendUserRPS:                                   3000,
+		dynamicproperties.FrontendVisibilityListMaxQPS:                      200,
+		dynamicproperties.FrontendESIndexMaxResultWindow:                    defaultTestValueOfESIndexMaxResultWindow,
+		dynamicproperties.MatchingNumTasklistWritePartitions:                3,
+		dynamicproperties.MatchingNumTasklistReadPartitions:                 3,
+		dynamicproperties.TimerProcessorHistoryArchivalSizeLimit:            5 * 1024,
+		dynamicproperties.ReplicationTaskProcessorErrorRetryMaxAttempts:     1,
+		dynamicproperties.WriteVisibilityStoreName:                          constants.AdvancedVisibilityModeOff,
+		dynamicproperties.DecisionHeartbeatTimeout:                          5 * time.Second,
+		dynamicproperties.ReplicationTaskFetcherAggregationInterval:         200 * time.Millisecond,
+		dynamicproperties.ReplicationTaskFetcherErrorRetryWait:              50 * time.Millisecond,
+		dynamicproperties.ReplicationTaskProcessorErrorRetryWait:            time.Millisecond,
+		dynamicproperties.EnableConsistentQueryByDomain:                     true,
+		dynamicproperties.MinRetentionDays:                                  0,
+		dynamicproperties.WorkflowDeletionJitterRange:                       1,
+		dynamicproperties.EnableActiveClusterSelectionPolicyInStartWorkflow: true,
 	}
 )
 

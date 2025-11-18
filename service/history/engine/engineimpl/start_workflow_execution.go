@@ -51,8 +51,7 @@ func (e *historyEngineImpl) StartWorkflowExecution(
 	ctx context.Context,
 	startRequest *types.HistoryStartWorkflowExecutionRequest,
 ) (resp *types.StartWorkflowExecutionResponse, retError error) {
-
-	domainEntry, err := e.getActiveDomainByID(startRequest.DomainUUID)
+	domainEntry, err := e.shard.GetDomainCache().GetDomainByID(startRequest.DomainUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -72,12 +71,11 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	metricsScope metrics.ScopeIdx,
 	signalWithStartArg *signalWithStartArg,
 ) (resp *types.StartWorkflowExecutionResponse, retError error) {
-
 	if domainEntry.GetInfo().Status != persistence.DomainStatusRegistered {
 		return nil, errDomainDeprecated
 	}
-
 	request := startRequest.StartRequest
+
 	err := e.validateStartWorkflowExecutionRequest(request, metricsScope)
 	if err != nil {
 		return nil, err
@@ -336,8 +334,7 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 	ctx context.Context,
 	signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest,
 ) (retResp *types.StartWorkflowExecutionResponse, retError error) {
-
-	domainEntry, err := e.getActiveDomainByID(signalWithStartRequest.DomainUUID)
+	domainEntry, err := e.shard.GetDomainCache().GetDomainByID(signalWithStartRequest.DomainUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -522,7 +519,7 @@ func getStartRequest(
 
 func shouldTerminateAndStart(startRequest *types.HistoryStartWorkflowExecutionRequest, state int) bool {
 	return startRequest.StartRequest.GetWorkflowIDReusePolicy() == types.WorkflowIDReusePolicyTerminateIfRunning &&
-		(state == persistence.WorkflowStateRunning || state == persistence.WorkflowStateCreated)
+		persistence.IsWorkflowRunning(state)
 }
 
 func (e *historyEngineImpl) validateStartWorkflowExecutionRequest(request *types.StartWorkflowExecutionRequest, metricsScope metrics.ScopeIdx) error {
@@ -622,6 +619,26 @@ func (e *historyEngineImpl) terminateAndStartWorkflow(
 	signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest,
 ) (*types.StartWorkflowExecutionResponse, error) {
 	runningMutableState := runningWFCtx.GetMutableState()
+	var err error
+	if signalWithStartRequest != nil {
+		startRequest, err = getStartRequest(domainID, signalWithStartRequest.SignalWithStartRequest, signalWithStartRequest.PartitionConfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	activeCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(runningMutableState.GetCurrentVersion())
+	if err != nil {
+		return nil, err
+	}
+	if activeCluster != e.currentClusterName {
+		if runningMutableState.GetExecutionInfo().ActiveClusterSelectionPolicy.Equals(startRequest.StartRequest.ActiveClusterSelectionPolicy) {
+			return nil, e.newDomainNotActiveError(domainEntry, runningMutableState.GetCurrentVersion())
+		}
+		// TODO(active-active): This is a short-term fix to handle this special case, because we don't have a way to terminate the existing workflow in a different cluster and start a new workflow in the current cluster
+		// atomically in one transaction. We'll review this when we have time to implement a better solution.
+		return nil, &types.BadRequestError{Message: "Cannot terminate the existing workflow and start a new workflow because it is active in a different cluster with a different active cluster selection policy."}
+	}
 UpdateWorkflowLoop:
 	for attempt := 0; attempt < workflow.ConditionalRetryCount; attempt++ {
 		if !runningMutableState.IsWorkflowExecutionRunning() {
@@ -648,14 +665,6 @@ UpdateWorkflowLoop:
 				continue UpdateWorkflowLoop
 			}
 			return nil, err
-		}
-
-		var err error
-		if signalWithStartRequest != nil {
-			startRequest, err = getStartRequest(domainID, signalWithStartRequest.SignalWithStartRequest, signalWithStartRequest.PartitionConfig)
-			if err != nil {
-				return nil, err
-			}
 		}
 
 		// new mutable state
@@ -856,6 +865,9 @@ func (e *historyEngineImpl) createMutableState(
 			// unexpected error
 			return nil, err
 		}
+	}
+	if activeClusterInfo.ActiveClusterName != e.currentClusterName {
+		return nil, e.newDomainNotActiveError(domainEntry, activeClusterInfo.FailoverVersion)
 	}
 
 	newMutableState := execution.NewMutableStateBuilderWithVersionHistories(

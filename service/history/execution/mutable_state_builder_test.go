@@ -3655,11 +3655,11 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1, event2}
 			},
 			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
-				assert.Equal(t, 0, logs.FilterMessage("Duplicate activity task event found").Len())
+				assert.Equal(t, 0, logs.FilterMessage("Duplicate event found").Len())
 			},
 		},
 		{
-			name: "started event duplicated",
+			name: "activity started event duplicated",
 			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
 				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskStarted)
 				event1.ActivityTaskStartedEventAttributes = &types.ActivityTaskStartedEventAttributes{
@@ -3675,11 +3675,11 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
 			},
 			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
-				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
 			},
 		},
 		{
-			name: "completed event duplicated",
+			name: "activty completed event duplicated",
 			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
 				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskCompleted)
 				event1.ActivityTaskCompletedEventAttributes = &types.ActivityTaskCompletedEventAttributes{
@@ -3693,11 +3693,11 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
 			},
 			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
-				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
 			},
 		},
 		{
-			name: "canceled event duplicated",
+			name: "activity canceled event duplicated",
 			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
 				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskCanceled)
 				event1.ActivityTaskCanceledEventAttributes = &types.ActivityTaskCanceledEventAttributes{
@@ -3711,11 +3711,11 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
 			},
 			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
-				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
 			},
 		},
 		{
-			name: "failed event duplicated",
+			name: "activity failed event duplicated",
 			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
 				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskFailed)
 				event1.ActivityTaskFailedEventAttributes = &types.ActivityTaskFailedEventAttributes{
@@ -3729,11 +3729,11 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
 			},
 			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
-				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
 			},
 		},
 		{
-			name: "timed out event duplicated",
+			name: "activity timed out event duplicated",
 			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
 				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskTimedOut)
 				event1.ActivityTaskTimedOutEventAttributes = &types.ActivityTaskTimedOutEventAttributes{
@@ -3747,7 +3747,105 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
 			},
 			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
-				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "child workflow started event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionStarted)
+				event1.ChildWorkflowExecutionStartedEventAttributes = &types.ChildWorkflowExecutionStartedEventAttributes{
+					InitiatedEventID: 1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionStarted)
+				event2.ChildWorkflowExecutionStartedEventAttributes = &types.ChildWorkflowExecutionStartedEventAttributes{
+					InitiatedEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "child workflow completed event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCompleted)
+				event1.ChildWorkflowExecutionCompletedEventAttributes = &types.ChildWorkflowExecutionCompletedEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCompleted)
+				event2.ChildWorkflowExecutionCompletedEventAttributes = &types.ChildWorkflowExecutionCompletedEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "child workflow failed event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionFailed)
+				event1.ChildWorkflowExecutionFailedEventAttributes = &types.ChildWorkflowExecutionFailedEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionFailed)
+				event2.ChildWorkflowExecutionFailedEventAttributes = &types.ChildWorkflowExecutionFailedEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "child workflow timed out event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionTimedOut)
+				event1.ChildWorkflowExecutionTimedOutEventAttributes = &types.ChildWorkflowExecutionTimedOutEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionTimedOut)
+				event2.ChildWorkflowExecutionTimedOutEventAttributes = &types.ChildWorkflowExecutionTimedOutEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "child workflow canceled event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCanceled)
+				event1.ChildWorkflowExecutionCanceledEventAttributes = &types.ChildWorkflowExecutionCanceledEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCanceled)
+				event2.ChildWorkflowExecutionCanceledEventAttributes = &types.ChildWorkflowExecutionCanceledEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
 			},
 		},
 		{
@@ -3830,8 +3928,28 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				event3.ActivityTaskTimedOutEventAttributes = &types.ActivityTaskTimedOutEventAttributes{
 					ScheduledEventID: 1,
 				}
+				event4 := msb.CreateNewHistoryEvent(types.EventTypeStartChildWorkflowExecutionInitiated)
+				event4.StartChildWorkflowExecutionInitiatedEventAttributes = &types.StartChildWorkflowExecutionInitiatedEventAttributes{}
+				event5 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionStarted)
+				event5.ChildWorkflowExecutionStartedEventAttributes = &types.ChildWorkflowExecutionStartedEventAttributes{
+					InitiatedEventID: 4,
+				}
+				event6 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionStarted)
+				event6.ChildWorkflowExecutionStartedEventAttributes = &types.ChildWorkflowExecutionStartedEventAttributes{
+					InitiatedEventID: 4,
+				}
+				event7 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCompleted)
+				event7.ChildWorkflowExecutionCompletedEventAttributes = &types.ChildWorkflowExecutionCompletedEventAttributes{
+					InitiatedEventID: 4,
+					StartedEventID:   5,
+				}
+				event8 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCompleted)
+				event8.ChildWorkflowExecutionCompletedEventAttributes = &types.ChildWorkflowExecutionCompletedEventAttributes{
+					InitiatedEventID: 4,
+					StartedEventID:   5,
+				}
 
-				return []*types.HistoryEvent{event2, event1, event3}, []*types.HistoryEvent{event1, event2}
+				return []*types.HistoryEvent{event2, event1, event3, event4, event5, event6, event7, event8}, []*types.HistoryEvent{event1, event4, event5, event2, event7}
 			},
 		},
 	}
@@ -3913,16 +4031,6 @@ func TestLoad_ActiveActive(t *testing.T) {
 		true,
 		&persistence.DomainReplicationConfig{
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region0": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   100,
-					},
-					"region1": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   200,
-					},
-				},
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"cityID": {
 						ClusterAttributes: map[string]types.ActiveClusterInfo{
@@ -3938,6 +4046,14 @@ func TestLoad_ActiveActive(t *testing.T) {
 					},
 					"regionID": {
 						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region0": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+							"region1": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   200,
+							},
 							"us-west": {
 								ActiveClusterName: "cluster0",
 								FailoverVersion:   100,
@@ -4093,14 +4209,18 @@ func TestStartTransaction(t *testing.T) {
 		true,
 		&persistence.DomainReplicationConfig{
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region0": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   100,
-					},
-					"region1": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   200,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region0": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+							"region1": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   200,
+							},
+						},
 					},
 				},
 			},

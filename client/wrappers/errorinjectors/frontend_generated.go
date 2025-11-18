@@ -340,6 +340,26 @@ func (c *frontendClient) ListDomains(ctx context.Context, lp1 *types.ListDomains
 	return
 }
 
+func (c *frontendClient) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest, p1 ...yarpc.CallOption) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		lp2, err = c.client.ListFailoverHistory(ctx, lp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationListFailoverHistory,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *frontendClient) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool

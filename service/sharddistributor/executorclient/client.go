@@ -21,6 +21,8 @@ import (
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go . ShardProcessorFactory,ShardProcessor,Executor
 
+type ExecutorMetadata map[string]string
+
 type ShardReport struct {
 	ShardLoad float64
 	Status    types.ShardStatus
@@ -40,7 +42,13 @@ type Executor[SP ShardProcessor] interface {
 	Start(ctx context.Context)
 	Stop()
 
-	GetShardProcess(shardID string) (SP, error)
+	GetShardProcess(ctx context.Context, shardID string) (SP, error)
+
+	// Set metadata for the executor
+	SetMetadata(metadata map[string]string)
+	// Get the current metadata of the executor
+	GetMetadata() map[string]string
+
 	// Used during the migration during local-passthrough and local-passthrough-shadow
 	AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment)
 }
@@ -54,6 +62,7 @@ type Params[SP ShardProcessor] struct {
 	ShardProcessorFactory ShardProcessorFactory[SP]
 	Config                Config
 	TimeSource            clock.TimeSource
+	Metadata              ExecutorMetadata `optional:"true"`
 }
 
 // NewExecutorWithNamespace creates an executor for a specific namespace
@@ -102,7 +111,7 @@ func newExecutorWithConfig[SP ShardProcessor](params Params[SP], namespaceConfig
 		"namespace":              namespaceConfig.Namespace,
 	})
 
-	return &executorImpl[SP]{
+	executor := &executorImpl[SP]{
 		logger:                 params.Logger,
 		shardDistributorClient: shardDistributorClient,
 		shardProcessorFactory:  params.ShardProcessorFactory,
@@ -112,7 +121,13 @@ func newExecutorWithConfig[SP ShardProcessor](params Params[SP], namespaceConfig
 		timeSource:             params.TimeSource,
 		stopC:                  make(chan struct{}),
 		metrics:                metricsScope,
-	}, nil
+		metadata: syncExecutorMetadata{
+			data: params.Metadata,
+		},
+	}
+	executor.setMigrationMode(namespaceConfig.GetMigrationMode())
+
+	return executor, nil
 }
 
 func createShardDistributorExecutorClient(yarpcClient sharddistributorv1.ShardDistributorExecutorAPIYARPCClient, metricsScope tally.Scope, logger log.Logger) (sharddistributorexecutor.Client, error) {

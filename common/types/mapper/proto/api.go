@@ -2595,7 +2595,6 @@ func FromRegisterDomainRequest(t *types.RegisterDomainRequest) *apiv1.RegisterDo
 		WorkflowExecutionRetentionPeriod: daysToDuration(&t.WorkflowExecutionRetentionPeriodInDays),
 		Clusters:                         FromClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                t.ActiveClusterName,
-		ActiveClustersByRegion:           t.ActiveClustersByRegion,
 		ActiveClusters:                   FromActiveClusters(t.ActiveClusters),
 		Data:                             t.Data,
 		SecurityToken:                    t.SecurityToken,
@@ -2619,7 +2618,6 @@ func ToRegisterDomainRequest(t *apiv1.RegisterDomainRequest) *types.RegisterDoma
 		EmitMetric:                             common.BoolPtr(true), // this is a legacy field that doesn't exist in proto and probably can be removed
 		Clusters:                               ToClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      t.ActiveClusterName,
-		ActiveClustersByRegion:                 t.ActiveClustersByRegion,
 		ActiveClusters:                         ToActiveClusters(t.ActiveClusters),
 		Data:                                   t.Data,
 		SecurityToken:                          t.SecurityToken,
@@ -4516,7 +4514,8 @@ func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *apiv1.FailoverDo
 	}
 	return &apiv1.FailoverDomainRequest{
 		DomainName:              t.DomainName,
-		DomainActiveClusterName: *t.DomainActiveClusterName,
+		DomainActiveClusterName: t.GetDomainActiveClusterName(),
+		ActiveClusters:          FromActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -4527,6 +4526,7 @@ func ToFailoverDomainRequest(t *apiv1.FailoverDomainRequest) *types.FailoverDoma
 	return &types.FailoverDomainRequest{
 		DomainName:              t.DomainName,
 		DomainActiveClusterName: common.StringPtr(t.DomainActiveClusterName),
+		ActiveClusters:          ToActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -4599,6 +4599,231 @@ func ToFailoverDomainResponse(t *apiv1.FailoverDomainResponse) *types.FailoverDo
 		},
 		FailoverVersion: t.Domain.FailoverVersion,
 		IsGlobalDomain:  t.Domain.IsGlobalDomain,
+	}
+}
+
+func FromListFailoverHistoryRequest(t *types.ListFailoverHistoryRequest) *apiv1.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListFailoverHistoryRequest{
+		Filters:    FromListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: FromPaginationOptions(t.Pagination),
+	}
+}
+
+func ToListFailoverHistoryRequest(t *apiv1.ListFailoverHistoryRequest) *types.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryRequest{
+		Filters:    ToListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: ToPaginationOptions(t.Pagination),
+	}
+}
+
+func ToListFailoverHistoryResponse(t *apiv1.ListFailoverHistoryResponse) *types.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryResponse{
+		FailoverEvents: ToFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+func FromListFailoverHistoryResponse(t *types.ListFailoverHistoryResponse) *apiv1.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListFailoverHistoryResponse{
+		FailoverEvents: FromFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+func FromListFailoverHistoryRequestFilters(t *types.ListFailoverHistoryRequestFilters) *apiv1.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListFailoverHistoryRequestFilters{
+		DomainId: t.DomainID,
+	}
+}
+
+func ToListFailoverHistoryRequestFilters(t *apiv1.ListFailoverHistoryRequestFilters) *types.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryRequestFilters{
+		DomainID: t.DomainId,
+	}
+}
+
+func FromPaginationOptions(t *types.PaginationOptions) *apiv1.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	pageSize := int32(0)
+	if t.PageSize != nil {
+		pageSize = *t.PageSize
+	}
+	return &apiv1.PaginationOptions{
+		PageSize:      pageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+func ToPaginationOptions(t *apiv1.PaginationOptions) *types.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	var pageSize *int32
+	if t.PageSize != 0 {
+		pageSize = common.Int32Ptr(t.PageSize)
+	}
+	return &types.PaginationOptions{
+		PageSize:      pageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+func FromFailoverEvent(t *types.FailoverEvent) *apiv1.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.FailoverEvent{
+		Id:               t.GetID(),
+		CreatedTime:      unixNanoToTime(t.CreatedTime),
+		FailoverType:     FromFailoverType(t.FailoverType),
+		ClusterFailovers: FromClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+func ToFailoverEvent(t *apiv1.FailoverEvent) *types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	var id *string
+	if t.Id != "" {
+		id = common.StringPtr(t.Id)
+	}
+	return &types.FailoverEvent{
+		ID:               id,
+		CreatedTime:      timeToUnixNano(t.CreatedTime),
+		FailoverType:     ToFailoverType(t.FailoverType),
+		ClusterFailovers: ToClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+func FromFailoverEventArray(t []*types.FailoverEvent) []*apiv1.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*apiv1.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = FromFailoverEvent(t[i])
+	}
+	return v
+}
+
+func ToFailoverEventArray(t []*apiv1.FailoverEvent) []*types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = ToFailoverEvent(t[i])
+	}
+	return v
+}
+
+func FromClusterFailover(t *types.ClusterFailover) *apiv1.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ClusterFailover{
+		FromCluster:      FromActiveClusterInfo(t.FromCluster),
+		ToCluster:        FromActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: FromClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+func ToClusterFailover(t *apiv1.ClusterFailover) *types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &types.ClusterFailover{
+		FromCluster:      ToActiveClusterInfo(t.FromCluster),
+		ToCluster:        ToActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: ToClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+func FromClusterFailoverArray(t []*types.ClusterFailover) []*apiv1.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*apiv1.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = FromClusterFailover(t[i])
+	}
+	return v
+}
+
+func ToClusterFailoverArray(t []*apiv1.ClusterFailover) []*types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = ToClusterFailover(t[i])
+	}
+	return v
+}
+
+func FromActiveClusterInfo(t *types.ActiveClusterInfo) *apiv1.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ActiveClusterInfo{
+		ActiveClusterName: t.ActiveClusterName,
+		FailoverVersion:   t.FailoverVersion,
+	}
+}
+
+func ToActiveClusterInfo(t *apiv1.ActiveClusterInfo) *types.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &types.ActiveClusterInfo{
+		ActiveClusterName: t.ActiveClusterName,
+		FailoverVersion:   t.FailoverVersion,
+	}
+}
+
+func FromFailoverType(t *types.FailoverType) apiv1.FailoverType {
+	if t == nil {
+		return apiv1.FailoverType_FAILOVER_TYPE_INVALID
+	}
+	switch *t {
+	case types.FailoverTypeForce:
+		return apiv1.FailoverType_FAILOVER_TYPE_FORCE
+	case types.FailoverTypeGraceful:
+		return apiv1.FailoverType_FAILOVER_TYPE_GRACEFUL
+	}
+	return apiv1.FailoverType_FAILOVER_TYPE_INVALID
+}
+
+func ToFailoverType(t apiv1.FailoverType) *types.FailoverType {
+	switch t {
+	case apiv1.FailoverType_FAILOVER_TYPE_FORCE:
+		return types.FailoverTypeForce.Ptr()
+	case apiv1.FailoverType_FAILOVER_TYPE_GRACEFUL:
+		return types.FailoverTypeGraceful.Ptr()
+	default:
+		// For FAILOVER_TYPE_INVALID and unknown values, return nil
+		return nil
 	}
 }
 
@@ -5566,18 +5791,8 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 		return nil
 	}
 
-	var regionToCluster map[string]*apiv1.ActiveClusterInfo
-	if len(t.ActiveClustersByRegion) > 0 {
-		regionToCluster = make(map[string]*apiv1.ActiveClusterInfo)
-		for region, cluster := range t.ActiveClustersByRegion {
-			regionToCluster[region] = &apiv1.ActiveClusterInfo{
-				ActiveClusterName: cluster.ActiveClusterName,
-				FailoverVersion:   cluster.FailoverVersion,
-			}
-		}
-	}
-
 	var activeClustersByClusterAttribute map[string]*apiv1.ClusterAttributeScope
+
 	if t.AttributeScopes != nil {
 		activeClustersByClusterAttribute = make(map[string]*apiv1.ClusterAttributeScope)
 		for scopeType, scope := range t.AttributeScopes {
@@ -5586,7 +5801,6 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 	}
 
 	return &apiv1.ActiveClusters{
-		RegionToCluster:                  regionToCluster,
 		ActiveClustersByClusterAttribute: activeClustersByClusterAttribute,
 	}
 }
@@ -5596,18 +5810,8 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 		return nil
 	}
 
-	var activeClustersByRegion map[string]types.ActiveClusterInfo
-	if len(t.RegionToCluster) > 0 {
-		activeClustersByRegion = make(map[string]types.ActiveClusterInfo)
-		for region, cluster := range t.RegionToCluster {
-			activeClustersByRegion[region] = types.ActiveClusterInfo{
-				ActiveClusterName: cluster.ActiveClusterName,
-				FailoverVersion:   cluster.FailoverVersion,
-			}
-		}
-	}
-
 	var attributeScopes map[string]types.ClusterAttributeScope
+
 	if t.ActiveClustersByClusterAttribute != nil {
 		attributeScopes = make(map[string]types.ClusterAttributeScope)
 		for scopeType, scope := range t.ActiveClustersByClusterAttribute {
@@ -5618,8 +5822,7 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 	}
 
 	return &types.ActiveClusters{
-		ActiveClustersByRegion: activeClustersByRegion,
-		AttributeScopes:        attributeScopes,
+		AttributeScopes: attributeScopes,
 	}
 }
 
@@ -6551,7 +6754,12 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 		return nil
 	}
 	// TODO(active-active): Remove the switch statement once the strategy is removed
-	switch p.GetStrategy() {
+	if p.ActiveClusterSelectionStrategy == nil {
+		return &apiv1.ActiveClusterSelectionPolicy{
+			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
+		}
+	}
+	switch *p.ActiveClusterSelectionStrategy {
 	case types.ActiveClusterSelectionStrategyRegionSticky:
 		return &apiv1.ActiveClusterSelectionPolicy{
 			Strategy: apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY,

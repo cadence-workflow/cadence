@@ -35,13 +35,6 @@ func (e *historyEngineImpl) RequestCancelWorkflowExecution(
 	ctx context.Context,
 	req *types.HistoryRequestCancelWorkflowExecutionRequest,
 ) error {
-
-	domainEntry, err := e.getActiveDomainByID(req.DomainUUID)
-	if err != nil {
-		return err
-	}
-	domainID := domainEntry.GetInfo().ID
-
 	request := req.CancelRequest
 	parentExecution := req.ExternalWorkflowExecution
 	childWorkflowOnly := req.GetChildWorkflowOnly()
@@ -52,6 +45,12 @@ func (e *historyEngineImpl) RequestCancelWorkflowExecution(
 	if request.GetFirstExecutionRunID() == "" {
 		workflowExecution.RunID = request.WorkflowExecution.RunID
 	}
+
+	domainEntry, err := e.getActiveDomainByWorkflow(ctx, req.DomainUUID, workflowExecution.WorkflowID, workflowExecution.RunID)
+	if err != nil {
+		return err
+	}
+	domainID := domainEntry.GetInfo().ID
 
 	return workflow.UpdateCurrentWithActionFunc(ctx, e.logger, e.executionCache, e.executionManager, domainID, e.shard.GetDomainCache(), workflowExecution, e.timeSource.Now(),
 		func(wfContext execution.Context, mutableState execution.MutableState) (*workflow.UpdateAction, error) {

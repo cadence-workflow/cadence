@@ -42,7 +42,7 @@ func TestShardCreator_Lifecycle(t *testing.T) {
 		ShardDistributor: mockShardDistributor,
 	}
 
-	creator := NewShardCreator(params, namespace)
+	creator := NewShardCreator(params, []string{namespace})
 	creator.Start()
 
 	// Wait for the goroutine to start

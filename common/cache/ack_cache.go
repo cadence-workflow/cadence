@@ -95,7 +95,9 @@ type BoundedAckCache[T AckCacheItem] struct {
 	lastAck  int64
 	currSize uint64
 
-	logger log.Logger
+	logger        log.Logger
+	budgetManager Manager
+	cacheID       string
 }
 
 // NewBoundedAckCache creates a new bounded ack cache with the specified capacity limits.
@@ -104,20 +106,28 @@ type BoundedAckCache[T AckCacheItem] struct {
 //   - maxCount: maximum number of items (dynamic property)
 //   - maxSize: maximum total byte size (dynamic property)
 //   - logger: optional logger for diagnostics (can be nil)
+//   - budgetManager: optional budget manager for host-level capacity tracking (can be nil)
+//   - cacheID: cache identifier for budget manager (required if budgetManager is provided)
 //
 // The cache will reject new items when either limit would be exceeded.
+// If a budget manager is provided, Put and Ack operations will automatically
+// reserve and release capacity through the budget manager.
 func NewBoundedAckCache[T AckCacheItem](
 	maxCount dynamicproperties.IntPropertyFn,
 	maxSize dynamicproperties.IntPropertyFn,
 	logger log.Logger,
+	budgetManager Manager,
+	cacheID string,
 ) AckCache[T] {
 	initialCount := maxCount()
 	return &BoundedAckCache[T]{
-		maxCount: maxCount,
-		maxSize:  maxSize,
-		order:    make(sequenceHeap[T], 0, initialCount),
-		cache:    make(map[int64]T, initialCount),
-		logger:   logger,
+		maxCount:      maxCount,
+		maxSize:       maxSize,
+		order:         make(sequenceHeap[T], 0, initialCount),
+		cache:         make(map[int64]T, initialCount),
+		logger:        logger,
+		budgetManager: budgetManager,
+		cacheID:       cacheID,
 	}
 }
 
@@ -145,12 +155,13 @@ func (c *BoundedAckCache[T]) Put(item T, size uint64) error {
 		return ErrAckCacheFull
 	}
 
-	// Add to both heap and map
-	c.cache[sequenceID] = item
-	heap.Push(&c.order, heapItem[T]{sequenceID: sequenceID, size: size})
-	c.currSize += size
+	if c.budgetManager != nil {
+		return c.budgetManager.ReserveWithCallback(c.cacheID, size, 1, func() error {
+			return c.putInternal(item, sequenceID, size)
+		})
+	}
 
-	return nil
+	return c.putInternal(item, sequenceID, size)
 }
 
 // Get retrieves an item by sequence ID.
@@ -166,20 +177,21 @@ func (c *BoundedAckCache[T]) Ack(level int64) (uint64, int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var freedSize uint64
-	var removedCount int
-
-	// Remove all items from heap with sequence ID <= level
-	for c.order.Len() > 0 && c.order.Peek().sequenceID <= level {
-		item := heap.Pop(&c.order).(heapItem[T])
-		delete(c.cache, item.sequenceID)
-		c.currSize -= item.size
-		freedSize += item.size
-		removedCount++
+	if c.budgetManager != nil {
+		var freedSize uint64
+		var removedCount int64
+		err := c.budgetManager.ReleaseWithCallback(c.cacheID, func() (uint64, int64, error) {
+			freedSize, removedCount = c.ackInternal(level)
+			return freedSize, removedCount, nil
+		})
+		if err != nil {
+			return 0, 0
+		}
+		return freedSize, int(removedCount)
 	}
 
-	c.lastAck = level
-	return freedSize, removedCount
+	freedSize, removedCount := c.ackInternal(level)
+	return freedSize, int(removedCount)
 }
 
 // Size returns current total byte size.
@@ -196,6 +208,31 @@ func (c *BoundedAckCache[T]) Count() int {
 	defer c.mu.Unlock()
 
 	return len(c.order)
+}
+
+// putInternal adds an item to the cache. Caller must hold the lock.
+func (c *BoundedAckCache[T]) putInternal(item T, sequenceID int64, size uint64) error {
+	c.cache[sequenceID] = item
+	heap.Push(&c.order, heapItem[T]{sequenceID: sequenceID, size: size})
+	c.currSize += size
+	return nil
+}
+
+// ackInternal removes all items with sequence ID <= level. Caller must hold the lock.
+func (c *BoundedAckCache[T]) ackInternal(level int64) (uint64, int64) {
+	var freedSize uint64
+	var removedCount int64
+
+	for c.order.Len() > 0 && c.order.Peek().sequenceID <= level {
+		item := heap.Pop(&c.order).(heapItem[T])
+		delete(c.cache, item.sequenceID)
+		c.currSize -= item.size
+		freedSize += item.size
+		removedCount++
+	}
+
+	c.lastAck = level
+	return freedSize, removedCount
 }
 
 // heapItem represents an item in the sequence heap

@@ -96,6 +96,15 @@ func (s *transactionManagerSuite) SetupTest() {
 	s.logger = s.mockShard.GetLogger()
 	s.domainEntry = constants.TestGlobalDomainEntry
 
+	// Setup mock for GetActiveClusterInfoByClusterAttribute to avoid errors
+	mockActiveClusterManager := s.mockShard.Resource.ActiveClusterMgr
+	mockActiveClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(
+		gomock.Any(), gomock.Any(), gomock.Any(),
+	).Return(&types.ActiveClusterInfo{
+		ActiveClusterName: s.mockShard.GetClusterMetadata().GetCurrentClusterName(),
+		FailoverVersion:   int64(0),
+	}, nil).AnyTimes()
+
 	s.transactionManager = newTransactionManager(s.mockShard, execution.NewCache(s.mockShard), s.mockEventsReapplier, s.logger)
 	s.transactionManager.createManager = s.mockCreateManager
 	s.transactionManager.updateManager = s.mockUpdateManager

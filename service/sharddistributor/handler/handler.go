@@ -79,10 +79,6 @@ func (h *handlerImpl) Health(ctx context.Context) (*types.HealthStatus, error) {
 func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShardOwnerRequest) (resp *types.GetShardOwnerResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
 
-	if !h.shardDistributionCfg.Enabled {
-		return nil, fmt.Errorf("shard distributor disabled")
-	}
-
 	namespaceIdx := slices.IndexFunc(h.shardDistributionCfg.Namespaces, func(namespace config.Namespace) bool {
 		return namespace.Name == request.Namespace
 	})
@@ -92,7 +88,7 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 		}
 	}
 
-	executorID, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
+	shardOwner, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
 	if errors.Is(err, store.ErrShardNotFound) {
 		if h.shardDistributionCfg.Namespaces[namespaceIdx].Type == config.NamespaceTypeEphemeral {
 			return h.assignEphemeralShard(ctx, request.Namespace, request.ShardKey)
@@ -108,7 +104,8 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 	}
 
 	resp = &types.GetShardOwnerResponse{
-		Owner:     executorID,
+		Owner:     shardOwner.ExecutorID,
+		Metadata:  shardOwner.Metadata,
 		Namespace: request.Namespace,
 	}
 
@@ -200,4 +197,8 @@ func pickLeastLoadedExecutor(state *store.NamespaceState) (executorID string, ag
 	}
 
 	return chosenID, chosenAggregatedLoad, chosenAssignedCount, nil
+}
+
+func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequest, server WatchNamespaceStateServer) error {
+	return fmt.Errorf("not implemented")
 }

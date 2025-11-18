@@ -270,6 +270,26 @@ var (
 			Aliases: []string{"ac"},
 			Usage:   "Active cluster name",
 		},
+		&cli.StringSliceFlag{
+			Name:    FlagActiveClusters,
+			Aliases: []string{"acs"},
+			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
+		},
+	}
+
+	listFailoverHistoryFlags = []cli.Flag{
+		&cli.IntFlag{
+			Name:    FlagPageSize,
+			Aliases: []string{"ps"},
+			Usage:   "Page size for pagination (default: 5)",
+			Value:   5,
+		},
+		&cli.BoolFlag{
+			Name:    FlagPrintJSON,
+			Aliases: []string{"pjson"},
+			Usage:   "Print in raw JSON format",
+		},
+		getFormatFlag(),
 	}
 
 	adminDomainCommonFlags = getDBFlags()

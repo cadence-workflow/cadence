@@ -245,15 +245,7 @@ func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
 		e.pendingActivityWarningSent = true
 	}
 
-	taskList := &types.TaskList{
-		Name: attributes.TaskList.Name,
-		Kind: attributes.TaskList.Kind,
-	}
-	if taskList.GetKind() == types.TaskListKindNormal && e.executionInfo.TaskListKind == types.TaskListKindEphemeral {
-		taskList.Kind = types.TaskListKindEphemeral.Ptr()
-	}
-
-	event := e.hBuilder.AddActivityTaskScheduledEvent(decisionCompletedEventID, attributes, taskList)
+	event := e.hBuilder.AddActivityTaskScheduledEvent(decisionCompletedEventID, attributes)
 
 	// Write the event to cache only on active cluster for processing on activity started or retried
 	e.eventsCache.PutEvent(

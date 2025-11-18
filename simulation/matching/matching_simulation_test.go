@@ -183,9 +183,9 @@ func (s *MatchingSimulationSuite) SetupSuite() {
 	s.AdminClient = s.TestCluster.GetAdminClient()
 
 	s.DomainName = s.RandomizeStr("integration-test-domain")
-	s.Require().NoError(s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+	s.Require().NoError(s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 	s.SecondaryDomainName = s.RandomizeStr("unused-test-domain")
-	s.Require().NoError(s.RegisterDomain(s.SecondaryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+	s.Require().NoError(s.RegisterDomain(s.SecondaryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
 	time.Sleep(2 * time.Second)
 }

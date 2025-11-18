@@ -248,6 +248,13 @@ func (s *constantSuite) TestStringKey() {
 			Description:  "ReadVisibilityStoreName is key to identify which store to read visibility data from",
 			DefaultValue: "es",
 		},
+		"MigrationMode": {
+			Key:          MigrationMode,
+			KeyName:      "shardDistributor.migrationMode",
+			Filters:      []Filter{Namespace},
+			Description:  "MigrationMode is the mode the at represent the state of the migration to rely on shard distributor for the sharding mechanism",
+			DefaultValue: "onboarded",
+		},
 	}
 
 	for _, value := range testStringKeys {

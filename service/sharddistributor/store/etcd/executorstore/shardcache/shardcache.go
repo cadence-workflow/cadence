@@ -8,6 +8,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
 type NamespaceToShards map[string]*namespaceShardToExecutor
@@ -45,10 +46,10 @@ func (s *ShardToExecutorCache) Stop() {
 	s.wg.Wait()
 }
 
-func (s *ShardToExecutorCache) GetShardOwner(ctx context.Context, namespace, shardID string) (string, error) {
+func (s *ShardToExecutorCache) GetShardOwner(ctx context.Context, namespace, shardID string) (*store.ShardOwner, error) {
 	namespaceShardToExecutor, err := s.getNamespaceShardToExecutor(namespace)
 	if err != nil {
-		return "", fmt.Errorf("get namespace shard to executor: %w", err)
+		return nil, fmt.Errorf("get namespace shard to executor: %w", err)
 	}
 	return namespaceShardToExecutor.GetShardOwner(ctx, shardID)
 }

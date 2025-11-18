@@ -385,7 +385,7 @@ func shouldFailover(domain *types.DescribeDomainResponse, sourceCluster string) 
 	// TODO(active-active): Remove this check once failover drills are supported for
 	// active-active workflows
 	if domain.ReplicationConfiguration.ActiveClusters != nil &&
-		len(domain.ReplicationConfiguration.ActiveClusters.ActiveClustersByRegion) > 0 {
+		len(domain.ReplicationConfiguration.ActiveClusters.AttributeScopes) > 0 {
 		return false
 	}
 

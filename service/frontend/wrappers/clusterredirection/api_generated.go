@@ -28,6 +28,7 @@ type (
 		redirectionPolicy  ClusterRedirectionPolicy
 		tokenSerializer    common.TaskTokenSerializer
 		domainCache        cache.DomainCache
+		config             *frontendcfg.Config
 		frontendHandler    api.Handler
 		callOptions        []yarpc.CallOption
 	}
@@ -53,6 +54,7 @@ func NewAPIHandler(
 		Resource:           resource,
 		currentClusterName: resource.GetClusterMetadata().GetCurrentClusterName(),
 		domainCache:        resource.GetDomainCache(),
+		config:             config,
 		redirectionPolicy:  dcRedirectionPolicy,
 		tokenSerializer:    common.NewJSONTaskTokenSerializer(),
 		frontendHandler:    wfHandler,
@@ -380,6 +382,10 @@ func (handler *clusterRedirectionHandler) ListClosedWorkflowExecutions(ctx conte
 
 func (handler *clusterRedirectionHandler) ListDomains(ctx context.Context, lp1 *types.ListDomainsRequest) (lp2 *types.ListDomainsResponse, err error) {
 	return handler.frontendHandler.ListDomains(ctx, lp1)
+}
+
+func (handler *clusterRedirectionHandler) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	return handler.frontendHandler.ListFailoverHistory(ctx, lp1)
 }
 
 func (handler *clusterRedirectionHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {
@@ -1347,7 +1353,13 @@ func (handler *clusterRedirectionHandler) SignalWithStartWorkflowExecution(ctx c
 
 	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
 	var workflowExecution *types.WorkflowExecution
+	if !handler.config.EnableActiveClusterSelectionPolicyInStartWorkflow(domainEntry.GetInfo().Name) {
+		sp1.ActiveClusterSelectionPolicy = nil
+	}
 	actClSelPolicyForNewWF = sp1.ActiveClusterSelectionPolicy
+	workflowExecution = &types.WorkflowExecution{
+		WorkflowID: sp1.GetWorkflowID(),
+	}
 
 	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
@@ -1387,6 +1399,9 @@ func (handler *clusterRedirectionHandler) SignalWithStartWorkflowExecutionAsync(
 
 	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
 	var workflowExecution *types.WorkflowExecution
+	if !handler.config.EnableActiveClusterSelectionPolicyInStartWorkflow(domainEntry.GetInfo().Name) {
+		sp1.ActiveClusterSelectionPolicy = nil
+	}
 	actClSelPolicyForNewWF = sp1.ActiveClusterSelectionPolicy
 
 	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
@@ -1467,6 +1482,9 @@ func (handler *clusterRedirectionHandler) StartWorkflowExecution(ctx context.Con
 
 	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
 	var workflowExecution *types.WorkflowExecution
+	if !handler.config.EnableActiveClusterSelectionPolicyInStartWorkflow(domainEntry.GetInfo().Name) {
+		sp1.ActiveClusterSelectionPolicy = nil
+	}
 	actClSelPolicyForNewWF = sp1.ActiveClusterSelectionPolicy
 
 	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
@@ -1507,6 +1525,9 @@ func (handler *clusterRedirectionHandler) StartWorkflowExecutionAsync(ctx contex
 
 	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
 	var workflowExecution *types.WorkflowExecution
+	if !handler.config.EnableActiveClusterSelectionPolicyInStartWorkflow(domainEntry.GetInfo().Name) {
+		sp1.ActiveClusterSelectionPolicy = nil
+	}
 	actClSelPolicyForNewWF = sp1.ActiveClusterSelectionPolicy
 
 	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {

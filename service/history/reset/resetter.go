@@ -26,6 +26,7 @@ import (
 	"context"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/collection"
@@ -61,13 +62,14 @@ type (
 	}
 
 	workflowResetterImpl struct {
-		shard             shard.Context
-		domainCache       cache.DomainCache
-		clusterMetadata   cluster.Metadata
-		historyV2Mgr      persistence.HistoryManager
-		executionCache    execution.Cache
-		newStateRebuilder nDCStateRebuilderProvider
-		logger            log.Logger
+		shard                shard.Context
+		domainCache          cache.DomainCache
+		clusterMetadata      cluster.Metadata
+		activeClusterManager activecluster.Manager
+		historyV2Mgr         persistence.HistoryManager
+		executionCache       execution.Cache
+		newStateRebuilder    nDCStateRebuilderProvider
+		logger               log.Logger
 	}
 
 	nDCStateRebuilderProvider func() execution.StateRebuilder
@@ -82,11 +84,12 @@ func NewWorkflowResetter(
 	logger log.Logger,
 ) WorkflowResetter {
 	return &workflowResetterImpl{
-		shard:           shard,
-		domainCache:     shard.GetDomainCache(),
-		clusterMetadata: shard.GetClusterMetadata(),
-		historyV2Mgr:    shard.GetHistoryManager(),
-		executionCache:  executionCache,
+		shard:                shard,
+		domainCache:          shard.GetDomainCache(),
+		clusterMetadata:      shard.GetClusterMetadata(),
+		activeClusterManager: shard.GetActiveClusterManager(),
+		historyV2Mgr:         shard.GetHistoryManager(),
+		executionCache:       executionCache,
 		newStateRebuilder: func() execution.StateRebuilder {
 			return execution.NewStateRebuilder(shard, logger)
 		},
@@ -110,12 +113,12 @@ func (r *workflowResetterImpl) ResetWorkflow(
 	additionalReapplyEvents []*types.HistoryEvent,
 	skipSignalReapply bool,
 ) (retError error) {
-
-	domainEntry, err := r.domainCache.GetDomainByID(domainID)
+	activeClusterSelectionPolicy := currentWorkflow.GetMutableState().GetExecutionInfo().ActiveClusterSelectionPolicy
+	activeClusterInfo, err := r.activeClusterManager.GetActiveClusterInfoByClusterAttribute(ctx, domainID, activeClusterSelectionPolicy.GetClusterAttribute())
 	if err != nil {
 		return err
 	}
-	resetWorkflowVersion := domainEntry.GetFailoverVersion()
+	resetWorkflowVersion := activeClusterInfo.FailoverVersion
 
 	currentMutableState := currentWorkflow.GetMutableState()
 	currentWorkflowTerminated := false

@@ -1622,6 +1622,7 @@ func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *shared.FailoverD
 	return &shared.FailoverDomainRequest{
 		DomainName:              &t.DomainName,
 		DomainActiveClusterName: t.DomainActiveClusterName,
+		ActiveClusters:          FromActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -1633,6 +1634,7 @@ func ToFailoverDomainRequest(t *shared.FailoverDomainRequest) *types.FailoverDom
 	return &types.FailoverDomainRequest{
 		DomainName:              t.GetDomainName(),
 		DomainActiveClusterName: t.DomainActiveClusterName,
+		ActiveClusters:          ToActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -2146,17 +2148,6 @@ func FromActiveClusters(t *types.ActiveClusters) *shared.ActiveClusters {
 		return nil
 	}
 
-	var regionToCluster map[string]*shared.ActiveClusterInfo
-	if len(t.ActiveClustersByRegion) > 0 {
-		regionToCluster = make(map[string]*shared.ActiveClusterInfo)
-		for region, cluster := range t.ActiveClustersByRegion {
-			regionToCluster[region] = &shared.ActiveClusterInfo{
-				ActiveClusterName: &cluster.ActiveClusterName,
-				FailoverVersion:   &cluster.FailoverVersion,
-			}
-		}
-	}
-
 	var activeClustersByClusterAttribute map[string]*shared.ClusterAttributeScope
 	if t.AttributeScopes != nil {
 		activeClustersByClusterAttribute = make(map[string]*shared.ClusterAttributeScope)
@@ -2166,7 +2157,6 @@ func FromActiveClusters(t *types.ActiveClusters) *shared.ActiveClusters {
 	}
 
 	return &shared.ActiveClusters{
-		ActiveClustersByRegion:           regionToCluster,
 		ActiveClustersByClusterAttribute: activeClustersByClusterAttribute,
 	}
 }
@@ -2175,17 +2165,6 @@ func FromActiveClusters(t *types.ActiveClusters) *shared.ActiveClusters {
 func ToActiveClusters(t *shared.ActiveClusters) *types.ActiveClusters {
 	if t == nil {
 		return nil
-	}
-
-	var activeClustersByRegion map[string]types.ActiveClusterInfo
-	if len(t.ActiveClustersByRegion) > 0 {
-		activeClustersByRegion = make(map[string]types.ActiveClusterInfo)
-		for region, cluster := range t.ActiveClustersByRegion {
-			activeClustersByRegion[region] = types.ActiveClusterInfo{
-				ActiveClusterName: *cluster.ActiveClusterName,
-				FailoverVersion:   *cluster.FailoverVersion,
-			}
-		}
 	}
 
 	var attributeScopes map[string]types.ClusterAttributeScope
@@ -2199,8 +2178,7 @@ func ToActiveClusters(t *shared.ActiveClusters) *types.ActiveClusters {
 	}
 
 	return &types.ActiveClusters{
-		ActiveClustersByRegion: activeClustersByRegion,
-		AttributeScopes:        attributeScopes,
+		AttributeScopes: attributeScopes,
 	}
 }
 
@@ -3268,6 +3246,232 @@ func ToListDomainsResponse(t *shared.ListDomainsResponse) *types.ListDomainsResp
 	}
 }
 
+// ToListFailoverHistoryRequest converts thrift ListFailoverHistoryRequest type to internal
+func ToListFailoverHistoryRequest(t *shared.ListFailoverHistoryRequest) *types.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+
+	return &types.ListFailoverHistoryRequest{
+		Filters:    ToListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: ToPaginationOptions(t.Pagination),
+	}
+}
+
+// FromListFailoverHistoryRequest converts internal ListFailoverHistoryRequest type to thrift
+func FromListFailoverHistoryRequest(t *types.ListFailoverHistoryRequest) *shared.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+
+	return &shared.ListFailoverHistoryRequest{
+		Filters:    FromListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: FromPaginationOptions(t.Pagination),
+	}
+}
+
+// FromListFailoverHistoryResponse converts internal ListFailoverHistoryResponse type to thrift
+func FromListFailoverHistoryResponse(t *types.ListFailoverHistoryResponse) *shared.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &shared.ListFailoverHistoryResponse{
+		FailoverEvents: FromFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+// ToListFailoverHistoryResponse converts thrift ListFailoverHistoryResponse type to internal
+func ToListFailoverHistoryResponse(t *shared.ListFailoverHistoryResponse) *types.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryResponse{
+		FailoverEvents: ToFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+// ToListFailoverHistoryRequestFilters converts thrift ListFailoverHistoryRequestFilters type to internal
+func ToListFailoverHistoryRequestFilters(t *shared.ListFailoverHistoryRequestFilters) *types.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryRequestFilters{
+		DomainID: t.GetDomainID(),
+	}
+}
+
+// FromListFailoverHistoryRequestFilters converts internal ListFailoverHistoryRequestFilters type to thrift
+func FromListFailoverHistoryRequestFilters(t *types.ListFailoverHistoryRequestFilters) *shared.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &shared.ListFailoverHistoryRequestFilters{
+		DomainID: &t.DomainID,
+	}
+}
+
+// ToPaginationOptions converts thrift PaginationOptions type to internal
+func ToPaginationOptions(t *shared.PaginationOptions) *types.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	return &types.PaginationOptions{
+		PageSize:      t.PageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+// FromPaginationOptions converts internal PaginationOptions type to thrift
+func FromPaginationOptions(t *types.PaginationOptions) *shared.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	return &shared.PaginationOptions{
+		PageSize:      t.PageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+// ToFailoverEvent converts thrift FailoverEvent type to internal
+func ToFailoverEvent(t *shared.FailoverEvent) *types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	return &types.FailoverEvent{
+		ID:               t.ID,
+		CreatedTime:      t.CreatedTime,
+		FailoverType:     ToFailoverType(t.FailoverType),
+		ClusterFailovers: ToClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+// FromFailoverEvent converts internal FailoverEvent type to thrift
+func FromFailoverEvent(t *types.FailoverEvent) *shared.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	return &shared.FailoverEvent{
+		ID:               t.ID,
+		CreatedTime:      t.CreatedTime,
+		FailoverType:     FromFailoverType(t.FailoverType),
+		ClusterFailovers: FromClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+// ToFailoverEventArray converts thrift FailoverEvent array type to internal
+func ToFailoverEventArray(t []*shared.FailoverEvent) []*types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = ToFailoverEvent(t[i])
+	}
+	return v
+}
+
+// FromFailoverEventArray converts internal FailoverEvent array type to thrift
+func FromFailoverEventArray(t []*types.FailoverEvent) []*shared.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*shared.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = FromFailoverEvent(t[i])
+	}
+	return v
+}
+
+// ToFailoverType converts thrift FailoverType type to internal
+func ToFailoverType(t *shared.FailoverType) *types.FailoverType {
+	if t == nil {
+		return nil
+	}
+	v := types.FailoverType(*t)
+	return &v
+}
+
+// FromFailoverType converts internal FailoverType type to thrift
+func FromFailoverType(t *types.FailoverType) *shared.FailoverType {
+	if t == nil {
+		return nil
+	}
+	v := shared.FailoverType(*t)
+	return &v
+}
+
+// ToClusterFailover converts thrift ClusterFailover type to internal
+func ToClusterFailover(t *shared.ClusterFailover) *types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &types.ClusterFailover{
+		FromCluster:      ToActiveClusterInfo(t.FromCluster),
+		ToCluster:        ToActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: ToClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+// FromClusterFailover converts internal ClusterFailover type to thrift
+func FromClusterFailover(t *types.ClusterFailover) *shared.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &shared.ClusterFailover{
+		FromCluster:      FromActiveClusterInfo(t.FromCluster),
+		ToCluster:        FromActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: FromClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+// ToClusterFailoverArray converts thrift ClusterFailover array type to internal
+func ToClusterFailoverArray(t []*shared.ClusterFailover) []*types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = ToClusterFailover(t[i])
+	}
+	return v
+}
+
+// FromClusterFailoverArray converts internal ClusterFailover array type to thrift
+func FromClusterFailoverArray(t []*types.ClusterFailover) []*shared.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*shared.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = FromClusterFailover(t[i])
+	}
+	return v
+}
+
+// ToActiveClusterInfo converts thrift ActiveClusterInfo type to internal
+func ToActiveClusterInfo(t *shared.ActiveClusterInfo) *types.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &types.ActiveClusterInfo{
+		ActiveClusterName: t.GetActiveClusterName(),
+		FailoverVersion:   t.GetFailoverVersion(),
+	}
+}
+
+// FromActiveClusterInfo converts internal ActiveClusterInfo type to thrift
+func FromActiveClusterInfo(t *types.ActiveClusterInfo) *shared.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &shared.ActiveClusterInfo{
+		ActiveClusterName: &t.ActiveClusterName,
+		FailoverVersion:   &t.FailoverVersion,
+	}
+}
+
 // FromListOpenWorkflowExecutionsRequest converts internal ListOpenWorkflowExecutionsRequest type to thrift
 func FromListOpenWorkflowExecutionsRequest(t *types.ListOpenWorkflowExecutionsRequest) *shared.ListOpenWorkflowExecutionsRequest {
 	if t == nil {
@@ -4297,7 +4501,6 @@ func FromRegisterDomainRequest(t *types.RegisterDomainRequest) *shared.RegisterD
 		EmitMetric:                             t.EmitMetric,
 		Clusters:                               FromClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      &t.ActiveClusterName,
-		ActiveClustersByRegion:                 t.ActiveClustersByRegion,
 		ActiveClusters:                         FromActiveClusters(t.ActiveClusters),
 		Data:                                   t.Data,
 		SecurityToken:                          &t.SecurityToken,
@@ -4322,7 +4525,6 @@ func ToRegisterDomainRequest(t *shared.RegisterDomainRequest) *types.RegisterDom
 		EmitMetric:                             t.EmitMetric,
 		Clusters:                               ToClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      t.GetActiveClusterName(),
-		ActiveClustersByRegion:                 t.ActiveClustersByRegion,
 		ActiveClusters:                         ToActiveClusters(t.ActiveClusters),
 		Data:                                   t.Data,
 		SecurityToken:                          t.GetSecurityToken(),
@@ -6879,9 +7081,9 @@ func ToActiveClusterSelectionPolicy(t *shared.ActiveClusterSelectionPolicy) *typ
 	}
 	return &types.ActiveClusterSelectionPolicy{
 		ActiveClusterSelectionStrategy: ToActiveClusterSelectionStrategy(t.Strategy),
-		ExternalEntityType:             *t.ExternalEntityType,
-		ExternalEntityKey:              *t.ExternalEntityKey,
-		StickyRegion:                   *t.StickyRegion,
+		ExternalEntityType:             t.GetExternalEntityType(),
+		ExternalEntityKey:              t.GetExternalEntityKey(),
+		StickyRegion:                   t.GetStickyRegion(),
 		ClusterAttribute:               ToClusterAttribute(t.ClusterAttribute),
 	}
 }

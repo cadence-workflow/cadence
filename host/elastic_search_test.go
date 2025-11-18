@@ -169,6 +169,42 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow() {
 	s.testHelperForReadOnce(we.GetRunID(), query, false, false)
 }
 
+func (s *ElasticSearchIntegrationSuite) TestListWorkflowByClusterAttribute() {
+	if TestFlags.SQLPluginName != "" {
+		s.T().Skipf("active-active is not supported for SQL plugin, skipping %v", s.T().Name())
+	}
+	id := "es-active-active-integration-list-workflow-test"
+	wt := "es-active-active-integration-list-workflow-test-type"
+	tl := "es-active-active-integration-list-workflow-test-tasklist"
+	request := s.createActiveActiveStartWorkflowExecutionRequest(id, wt, tl, &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-east",
+		},
+	})
+
+	ctx, cancel := createContext()
+	defer cancel()
+	we, err := s.Engine.StartWorkflowExecution(ctx, request)
+	s.Nil(err)
+
+	descRequest := &types.DescribeWorkflowExecutionRequest{
+		Domain: s.ActiveActiveDomainName,
+		Execution: &types.WorkflowExecution{
+			WorkflowID: id,
+		},
+	}
+	ctx, cancel = createContext()
+	defer cancel()
+	descResp, err := s.Engine.DescribeWorkflowExecution(ctx, descRequest)
+	s.Nil(err)
+	s.Equal("region", descResp.WorkflowExecutionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope())
+	s.Equal("us-east", descResp.WorkflowExecutionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName())
+
+	query := `ClusterAttributeScope = "region" and ClusterAttributeName = "us-east"`
+	s.testHelperForReadOnceWithDomain(s.ActiveActiveDomainName, we.GetRunID(), query, false, false)
+}
+
 func (s *ElasticSearchIntegrationSuite) startWorkflow(
 	prefix string,
 	isCron bool,
@@ -932,6 +968,29 @@ func (s *ElasticSearchIntegrationSuite) createStartWorkflowExecutionRequest(id, 
 		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(100),
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(1),
 		Identity:                            identity,
+	}
+	return request
+}
+
+func (s *ElasticSearchIntegrationSuite) createActiveActiveStartWorkflowExecutionRequest(id, wt, tl string, policy *types.ActiveClusterSelectionPolicy) *types.StartWorkflowExecutionRequest {
+	identity := "worker1"
+	workflowType := &types.WorkflowType{}
+	workflowType.Name = wt
+
+	taskList := &types.TaskList{}
+	taskList.Name = tl
+
+	request := &types.StartWorkflowExecutionRequest{
+		RequestID:                           uuid.New(),
+		Domain:                              s.ActiveActiveDomainName,
+		WorkflowID:                          id,
+		WorkflowType:                        workflowType,
+		TaskList:                            taskList,
+		Input:                               nil,
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(100),
+		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(1),
+		Identity:                            identity,
+		ActiveClusterSelectionPolicy:        policy,
 	}
 	return request
 }

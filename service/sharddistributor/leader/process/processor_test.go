@@ -44,12 +44,13 @@ func setupProcessorTest(t *testing.T, namespaceType string) *testDependencies {
 			mockedClock,
 			config.ShardDistribution{
 				Process: config.LeaderProcess{
-					Period:       time.Second,
-					HeartbeatTTL: time.Second,
+					Period:        time.Second,
+					HeartbeatTTL:  time.Second,
+					ShardStatsTTL: 10 * time.Second,
 				},
 			},
 		),
-		cfg: config.Namespace{Name: "test-ns", ShardNum: 2, Type: namespaceType},
+		cfg: config.Namespace{Name: "test-ns", ShardNum: 2, Type: namespaceType, Mode: config.MigrationModeONBOARDED},
 	}
 }
 
@@ -178,11 +179,80 @@ func TestCleanupStaleExecutors(t *testing.T) {
 		"exec-stale":  {LastHeartbeat: now.Add(-2 * time.Second).Unix()},
 	}
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: heartbeats}, nil)
+	namespaceState := &store.NamespaceState{Executors: heartbeats}
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 	mocks.store.EXPECT().DeleteExecutors(gomock.Any(), mocks.cfg.Name, []string{"exec-stale"}, gomock.Any()).Return(nil)
 
-	processor.cleanupStaleExecutors(context.Background())
+	processor.cleanupStaleExecutors(context.Background(), namespaceState)
+}
+
+func TestCleanupStaleShardStats(t *testing.T) {
+	t.Run("stale shard stats are deleted", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+		now := mocks.timeSource.Now()
+
+		heartbeats := map[string]store.HeartbeatState{
+			"exec-active": {LastHeartbeat: now.Unix(), Status: types.ExecutorStatusACTIVE},
+			"exec-stale":  {LastHeartbeat: now.Add(-2 * time.Second).Unix()},
+		}
+
+		assignments := map[string]store.AssignedState{
+			"exec-active": {
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard-1": {Status: types.AssignmentStatusREADY},
+					"shard-2": {Status: types.AssignmentStatusREADY},
+				},
+			},
+			"exec-stale": {
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard-3": {Status: types.AssignmentStatusREADY},
+				},
+			},
+		}
+
+		shardStats := map[string]store.ShardStatistics{
+			"shard-1": {SmoothedLoad: 1.0, LastUpdateTime: now.Unix(), LastMoveTime: now.Unix()},
+			"shard-2": {SmoothedLoad: 2.0, LastUpdateTime: now.Unix(), LastMoveTime: now.Unix()},
+			"shard-3": {SmoothedLoad: 3.0, LastUpdateTime: now.Add(-11 * time.Second).Unix(), LastMoveTime: now.Add(-11 * time.Second).Unix()},
+		}
+
+		namespaceState := &store.NamespaceState{
+			Executors:        heartbeats,
+			ShardAssignments: assignments,
+			ShardStats:       shardStats,
+		}
+
+		mocks.election.EXPECT().Guard().Return(store.NopGuard())
+		mocks.store.EXPECT().DeleteShardStats(gomock.Any(), mocks.cfg.Name, []string{"shard-3"}, gomock.Any()).Return(nil)
+		processor.cleanupStaleShardStats(context.Background(), namespaceState)
+	})
+
+	t.Run("recent shard stats are preserved", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+		now := mocks.timeSource.Now()
+
+		expiredExecutor := now.Add(-2 * time.Second).Unix()
+		namespaceState := &store.NamespaceState{
+			Executors: map[string]store.HeartbeatState{
+				"exec-stale": {LastHeartbeat: expiredExecutor},
+			},
+			ShardAssignments: map[string]store.AssignedState{},
+			ShardStats: map[string]store.ShardStatistics{
+				"shard-1": {SmoothedLoad: 5.0, LastUpdateTime: now.Unix(), LastMoveTime: now.Unix()},
+			},
+		}
+
+		processor.cleanupStaleShardStats(context.Background(), namespaceState)
+
+		// No delete expected since stats are recent.
+	})
+
 }
 
 func TestRebalance_StoreErrors(t *testing.T) {
@@ -213,16 +283,13 @@ func TestCleanup_StoreErrors(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 	expectedErr := errors.New("store is down")
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(nil, expectedErr)
-	processor.cleanupStaleExecutors(context.Background())
-
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+	namespaceState := &store.NamespaceState{
 		Executors:      map[string]store.HeartbeatState{"stale": {LastHeartbeat: 0}},
 		GlobalRevision: 1,
-	}, nil)
+	}
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 	mocks.store.EXPECT().DeleteExecutors(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).Return(expectedErr)
-	processor.cleanupStaleExecutors(context.Background())
+	processor.cleanupStaleExecutors(context.Background(), namespaceState)
 }
 
 func TestRunLoop_SubscriptionError(t *testing.T) {
@@ -252,6 +319,31 @@ func TestRunLoop_ContextCancellation(t *testing.T) {
 	// Setup for the initial call to rebalanceShards and the subscription
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{GlobalRevision: 0}, nil)
 	mocks.store.EXPECT().Subscribe(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil)
+
+	processor.wg.Add(1)
+	// Run the process in a separate goroutine to avoid blocking the test
+	go processor.runProcess(ctx)
+
+	// Wait for the two loops (rebalance and cleanup) to create their tickers
+	mocks.timeSource.BlockUntil(2)
+
+	// Now, cancel the context to signal the loops to stop
+	cancel()
+
+	// Wait for the main process loop to exit gracefully
+	processor.wg.Wait()
+}
+
+func TestRunLoop_MigrationNotOnboarded(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+	mocks.cfg.Mode = config.MigrationModeDISTRIBUTEDPASSTHROUGH
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	mocks.store.EXPECT().Subscribe(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil)
+	// We explicitly verify that the state is not queried
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{GlobalRevision: 0}, nil).Times(0)
 
 	processor.wg.Add(1)
 	// Run the process in a separate goroutine to avoid blocking the test

@@ -293,7 +293,7 @@ type (
 )
 
 const (
-	FailoverTypeForce = iota + 1
+	FailoverTypeForce FailoverType = iota + 1
 	FailoverTypeGrace
 )
 

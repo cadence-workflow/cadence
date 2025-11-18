@@ -68,8 +68,6 @@ type ReplicationSimulationConfig struct {
 type ReplicationDomainConfig struct {
 	ActiveClusterName string `yaml:"activeClusterName"`
 
-	ActiveClustersByRegion map[string]string `yaml:"activeClustersByRegion"`
-
 	// ClusterAttributes specifies the Attributes for a domain and is passed to ActiveClusters in the RegisterDomainRequest
 	// It is a simplified expression for the AttributeScopes type
 	// The format should be expressed as follows:
@@ -93,10 +91,13 @@ type Operation struct {
 	WorkflowID                           string                              `yaml:"workflowID"`
 	WorkflowExecutionStartToCloseTimeout time.Duration                       `yaml:"workflowExecutionStartToCloseTimeout"`
 	WorkflowDuration                     time.Duration                       `yaml:"workflowDuration"`
+	ChildWorkflowID                      string                              `yaml:"childWorkflowID"`
+	ChildWorkflowTimeout                 time.Duration                       `yaml:"childWorkflowTimeout"`
 	ActivityCount                        int                                 `yaml:"activityCount"`
 	DelayStartSeconds                    int32                               `yaml:"delayStartSeconds"`
 	CronSchedule                         string                              `yaml:"cronSchedule"`
 	ActiveClusterSelectionPolicy         *types.ActiveClusterSelectionPolicy `yaml:"activeClusterSelectionPolicy"`
+	WorkflowIDReusePolicy                *types.WorkflowIDReusePolicy        `yaml:"workflowIDReusePolicy"`
 
 	Query            string `yaml:"query"`
 	ConsistencyLevel string `yaml:"consistencyLevel"`
@@ -108,8 +109,6 @@ type Operation struct {
 
 	Domain           string `yaml:"domain"`
 	NewActiveCluster string `yaml:"newActiveCluster"`
-	// TODO(active-active): Remove this once we have completely migrated to AttributeScopes
-	NewActiveClustersByRegion map[string]string `yaml:"newActiveClustersByRegion"`
 	// NewClusterAttributes specifies the AttributeScopes to change for the domain
 	// This can be a sub-set of the total AttributeScopes for the domain
 	NewClusterAttributes ClusterAttributesMap `yaml:"newClusterAttributes"`
@@ -194,7 +193,11 @@ func (s *ReplicationSimulationConfig) MustInitClientsFor(t *testing.T, clusterNa
 }
 
 func (s *ReplicationSimulationConfig) IsActiveActiveDomain(domainName string) bool {
-	return len(s.Domains[domainName].ActiveClustersByRegion) > 0
+	domainCfg, ok := s.Domains[domainName]
+	if !ok {
+		return false
+	}
+	return len(domainCfg.ClusterAttributes.attributeScopes) > 0
 }
 
 func (s *ReplicationSimulationConfig) MustRegisterDomain(
@@ -224,11 +227,6 @@ func (s *ReplicationSimulationConfig) MustRegisterDomain(
 	} else {
 		// ActiveClusterName is required for all global domains
 		require.Fail(t, "activeClusterName is required but missing for domain %s", domainName)
-	}
-
-	// TODO(active-active): Remove this once we have completely migrated to AttributeScopes
-	if len(domainCfg.ActiveClustersByRegion) > 0 {
-		req.ActiveClustersByRegion = domainCfg.ActiveClustersByRegion
 	}
 
 	if !domainCfg.ClusterAttributes.IsEmpty() {

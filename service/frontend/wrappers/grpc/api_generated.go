@@ -96,6 +96,11 @@ func (g APIHandler) ListDomains(ctx context.Context, request *apiv1.ListDomainsR
 	return proto.FromListDomainsResponse(response), proto.FromError(err)
 }
 
+func (g APIHandler) ListFailoverHistory(ctx context.Context, request *apiv1.ListFailoverHistoryRequest) (*apiv1.ListFailoverHistoryResponse, error) {
+	response, err := g.h.ListFailoverHistory(ctx, proto.ToListFailoverHistoryRequest(request))
+	return proto.FromListFailoverHistoryResponse(response), proto.FromError(err)
+}
+
 func (g APIHandler) ListOpenWorkflowExecutions(ctx context.Context, request *apiv1.ListOpenWorkflowExecutionsRequest) (*apiv1.ListOpenWorkflowExecutionsResponse, error) {
 	response, err := g.h.ListOpenWorkflowExecutions(ctx, proto.ToListOpenWorkflowExecutionsRequest(request))
 	return proto.FromListOpenWorkflowExecutionsResponse(response), proto.FromError(err)

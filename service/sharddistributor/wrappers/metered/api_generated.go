@@ -60,3 +60,22 @@ func (h *metricsHandler) Stop() {
 	h.handler.Stop()
 	return
 }
+
+func (h *metricsHandler) WatchNamespaceState(wp1 *types.WatchNamespaceStateRequest, w1 handler.WatchNamespaceStateServer) (err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+
+	scope := h.metricsClient.Scope(metrics.ShardDistributorWatchNamespaceStateScope)
+	scope = scope.Tagged(metrics.NamespaceTag(wp1.GetNamespace()))
+	scope.IncCounter(metrics.ShardDistributorRequests)
+	sw := scope.StartTimer(metrics.ShardDistributorLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tag.ShardNamespace(wp1.GetNamespace()))
+
+	err = h.handler.WatchNamespaceState(wp1, w1)
+
+	if err != nil {
+		handleErr(err, scope, logger)
+	}
+
+	return err
+}

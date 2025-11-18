@@ -50,7 +50,7 @@ func (e *historyEngineImpl) PollMutableState(ctx context.Context, request *types
 	})
 
 	if err != nil {
-		return nil, e.updateEntityNotExistsErrorOnPassiveCluster(err, request.GetDomainUUID())
+		return nil, e.updateEntityNotExistsErrorOnPassiveCluster(ctx, err, request.GetDomainUUID(), request.Execution)
 	}
 
 	return &types.PollMutableStateResponse{
@@ -123,23 +123,18 @@ func (e *historyEngineImpl) getMutableState(
 	return
 }
 
-func (e *historyEngineImpl) updateEntityNotExistsErrorOnPassiveCluster(err error, domainID string) error {
+func (e *historyEngineImpl) updateEntityNotExistsErrorOnPassiveCluster(ctx context.Context, err error, domainID string, execution *types.WorkflowExecution) error {
 	switch err.(type) {
 	case *types.EntityNotExistsError:
-		domainEntry, domainCacheErr := e.shard.GetDomainCache().GetDomainByID(domainID)
-		if domainCacheErr != nil {
-			return err // if could not access domain cache simply return original error
+		activeClusterInfo, activeClusterErr := e.activeClusterManager.GetActiveClusterInfoByWorkflow(ctx, domainID, execution.GetWorkflowID(), execution.GetRunID())
+		if activeClusterErr != nil {
+			return err // return original error if could not access active cluster manager
 		}
-
-		if !domainEntry.IsActiveIn(e.clusterMetadata.GetCurrentClusterName()) {
-			domainNotActiveErr := domainEntry.NewDomainNotActiveError(
-				e.clusterMetadata.GetCurrentClusterName(),
-				domainEntry.GetReplicationConfig().ActiveClusterName)
+		if activeClusterInfo.ActiveClusterName != e.clusterMetadata.GetCurrentClusterName() {
 			return &types.EntityNotExistsError{
 				Message:        "Workflow execution not found in non-active cluster",
-				ActiveCluster:  domainNotActiveErr.GetActiveCluster(),
-				CurrentCluster: domainNotActiveErr.GetCurrentCluster(),
-				ActiveClusters: domainNotActiveErr.GetActiveClusters(),
+				ActiveCluster:  activeClusterInfo.ActiveClusterName,
+				CurrentCluster: e.clusterMetadata.GetCurrentClusterName(),
 			}
 		}
 	}

@@ -51,6 +51,12 @@
       "NumClusters": {
         "type": "integer"
       },
+      "ClusterAttributeScope": {
+        "type": "keyword"
+      },
+      "ClusterAttributeName": {
+        "type": "keyword"
+      },
       "UpdateTime": {
         "type": "long"
       },

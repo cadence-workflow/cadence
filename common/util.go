@@ -327,6 +327,7 @@ func IsServiceTransientError(err error) bool {
 		// We only selectively retry the following yarpc errors client can safe retry with a backoff
 		if yarpcerrors.IsUnavailable(err) ||
 			yarpcerrors.IsUnknown(err) ||
+			yarpcerrors.IsCancelled(err) ||
 			yarpcerrors.IsInternal(err) {
 			return true
 		}
