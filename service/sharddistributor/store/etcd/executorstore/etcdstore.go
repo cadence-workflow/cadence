@@ -31,13 +31,12 @@ var (
 )
 
 type executorStoreImpl struct {
-	client     *clientv3.Client
-	prefix     string
-	logger     log.Logger
-	shardCache *shardcache.ShardToExecutorCache
-	timeSource clock.TimeSource
-	// Max interval (seconds) before we force a shard-stat persist.
-	maxStatsPersistIntervalSeconds int64
+	client                         *clientv3.Client
+	prefix                         string
+	logger                         log.Logger
+	shardCache                     *shardcache.ShardToExecutorCache
+	timeSource                     clock.TimeSource
+	maxStatsPersistIntervalSeconds int64 // Max interval (seconds) before we force a shard-stat persist.
 }
 
 // Constants for gating shard statistics writes to reduce etcd load.
@@ -175,10 +174,7 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 
 func deriveStatsPersistInterval(shardStatsTTL time.Duration) int64 {
 	ttlSeconds := int64(shardStatsTTL.Seconds())
-	if ttlSeconds <= 1 {
-		return 1
-	}
-	return ttlSeconds - 1
+	return max(1, ttlSeconds-1)
 }
 
 func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) {
