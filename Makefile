@@ -406,7 +406,7 @@ $(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive $(BIN)/nilaway | $(BUILD)
 		  exit 1; \
 		fi
 	$Q echo "nilaway check..."
-	$Q GOTOOLCHAIN=go1.24.0 $(BIN)/nilaway github.com/uber/cadence/common/types/mapper/... || true # todo (remove the || true) to block builds which break this
+	$Q GOTOOLCHAIN=go1.24.0 $(BIN)/nilaway -test=false github.com/uber/cadence/common/types/mapper/...
 	$Q touch $@
 
 $(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}

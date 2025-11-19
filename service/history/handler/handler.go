@@ -35,6 +35,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/cache"
 	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
@@ -72,19 +73,20 @@ type (
 	handlerImpl struct {
 		resource.Resource
 
-		shuttingDown            int32
-		controller              shard.Controller
-		tokenSerializer         common.TaskTokenSerializer
-		startWG                 sync.WaitGroup
-		config                  *config.Config
-		historyEventNotifier    events.Notifier
-		rateLimiter             quotas.Limiter
-		replicationTaskFetchers replication.TaskFetchers
-		queueTaskProcessor      task.Processor
-		failoverCoordinator     failover.Coordinator
-		workflowIDCache         workflowcache.WFCache
-		ratelimitAggregator     algorithm.RequestWeighted
-		queueFactories          []queue.Factory
+		shuttingDown             int32
+		controller               shard.Controller
+		tokenSerializer          common.TaskTokenSerializer
+		startWG                  sync.WaitGroup
+		config                   *config.Config
+		historyEventNotifier     events.Notifier
+		rateLimiter              quotas.Limiter
+		replicationTaskFetchers  replication.TaskFetchers
+		queueTaskProcessor       task.Processor
+		failoverCoordinator      failover.Coordinator
+		workflowIDCache          workflowcache.WFCache
+		ratelimitAggregator      algorithm.RequestWeighted
+		queueFactories           []queue.Factory
+		replicationBudgetManager cache.Manager
 	}
 )
 
@@ -135,10 +137,22 @@ func (h *handlerImpl) Start() {
 		h.config,
 	)
 
+	h.replicationBudgetManager = cache.NewBudgetManager(
+		"replication-budget-manager",
+		h.config.ReplicationBudgetManagerMaxSizeBytes,
+		h.config.ReplicationBudgetManagerMaxSizeCount,
+		cache.AdmissionOptimistic,
+		0,
+		h.GetMetricsClient().Scope(metrics.ReplicatorCacheManagerScope),
+		h.GetLogger(),
+		h.config.ReplicationBudgetManagerSoftCapThreshold,
+	)
+
 	h.controller = shard.NewShardController(
 		h.Resource,
 		h,
 		h.config,
+		h.replicationBudgetManager,
 	)
 
 	var taskProcessor task.Processor
@@ -200,6 +214,9 @@ func (h *handlerImpl) Start() {
 // Stop stops the handler
 func (h *handlerImpl) Stop() {
 	h.prepareToShutDown()
+	if h.replicationBudgetManager != nil {
+		h.replicationBudgetManager.Stop()
+	}
 	h.replicationTaskFetchers.Stop()
 	h.controller.Stop()
 	h.queueTaskProcessor.Stop()

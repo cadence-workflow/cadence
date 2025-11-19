@@ -123,7 +123,7 @@ func TestTaskStore(t *testing.T) {
 		ts.Put(&testHydratedTask12)
 		ts.Put(&testHydratedTask14)
 		for _, cluster := range testDomain.GetReplicationConfig().Clusters {
-			assert.Equal(t, 2, ts.clusters[cluster.ClusterName].Count())
+			assert.Equal(t, 3, ts.clusters[cluster.ClusterName].Count())
 		}
 	})
 
@@ -143,12 +143,87 @@ func TestTaskStore(t *testing.T) {
 	})
 }
 
+func TestTaskStoreWithBudgetManager(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Budget manager enforces capacity limits", func(t *testing.T) {
+		maxCount := 5
+
+		budgetManager := cache.NewBudgetManager(
+			"test-replication-cache",
+			dynamicproperties.GetIntPropertyFn(1000),
+			dynamicproperties.GetIntPropertyFn(maxCount),
+			cache.AdmissionOptimistic,
+			0,
+			metrics.NewNoopMetricsClient().Scope(metrics.ReplicatorCacheManagerScope),
+			testlogger.New(t),
+			dynamicproperties.GetFloatPropertyFn(1.0),
+		)
+		defer budgetManager.Stop()
+
+		ts := createTestTaskStoreWithBudgetManager(t, fakeDomainCache{testDomainID: testDomain}, nil, budgetManager, 1)
+
+		for i := int64(1); i <= 10; i++ {
+			task := &types.ReplicationTask{
+				SourceTaskID:            i,
+				HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{DomainID: testDomainID},
+			}
+			ts.Put(task)
+		}
+
+		totalCached := 0
+		for _, cluster := range testDomain.GetReplicationConfig().Clusters {
+			totalCached += ts.clusters[cluster.ClusterName].Count()
+		}
+		assert.Equal(t, int64(totalCached), budgetManager.UsedCount())
+		assert.Equal(t, int64(maxCount), budgetManager.UsedCount())
+	})
+
+	t.Run("Nil budget manager works without errors", func(t *testing.T) {
+		ts := createTestTaskStoreWithBudgetManager(t, fakeDomainCache{testDomainID: testDomain}, nil, nil, 2)
+
+		ts.Put(&testHydratedTask11)
+		task, err := ts.Get(ctx, testClusterA, &testTask11)
+		assert.NoError(t, err)
+		assert.Equal(t, &testHydratedTask11, task)
+	})
+
+	t.Run("Multiple shards get separate cache IDs", func(t *testing.T) {
+		budgetManager := cache.NewBudgetManager(
+			"test-replication-cache",
+			dynamicproperties.GetIntPropertyFn(2000),
+			dynamicproperties.GetIntPropertyFn(100),
+			cache.AdmissionOptimistic,
+			0,
+			metrics.NewNoopMetricsClient().Scope(metrics.ReplicatorCacheManagerScope),
+			testlogger.New(t),
+			dynamicproperties.GetFloatPropertyFn(1.0),
+		)
+		defer budgetManager.Stop()
+
+		ts1 := createTestTaskStoreWithBudgetManager(t, fakeDomainCache{testDomainID: testDomain}, nil, budgetManager, 1)
+		ts2 := createTestTaskStoreWithBudgetManager(t, fakeDomainCache{testDomainID: testDomain}, nil, budgetManager, 2)
+
+		ts1.Put(&testHydratedTask11)
+		ts2.Put(&testHydratedTask12)
+
+		for _, cluster := range testDomain.GetReplicationConfig().Clusters {
+			assert.Equal(t, 1, ts1.clusters[cluster.ClusterName].Count())
+			assert.Equal(t, 1, ts2.clusters[cluster.ClusterName].Count())
+		}
+	})
+}
+
 func createTestTaskStore(t *testing.T, domains domainCache, hydrator taskHydrator) *TaskStore {
+	return createTestTaskStoreWithBudgetManager(t, domains, hydrator, nil, 0)
+}
+
+func createTestTaskStoreWithBudgetManager(t *testing.T, domains domainCache, hydrator taskHydrator, budgetManager cache.Manager, shardID int) *TaskStore {
 	cfg := hconfig.Config{
-		ReplicatorCacheCapacity:         dynamicproperties.GetIntPropertyFn(2),
+		ReplicatorCacheCapacity:         dynamicproperties.GetIntPropertyFn(100),
 		ReplicationTaskGenerationQPS:    dynamicproperties.GetFloatPropertyFn(0),
 		ReplicatorReadTaskMaxRetryCount: dynamicproperties.GetIntPropertyFn(1),
-		ReplicatorCacheMaxSize:          dynamicproperties.GetIntPropertyFn(2000),
+		ReplicatorCacheMaxSize:          dynamicproperties.GetIntPropertyFn(20000),
 	}
 
 	clusterMetadata := cluster.NewMetadata(
@@ -167,7 +242,7 @@ func createTestTaskStore(t *testing.T, domains domainCache, hydrator taskHydrato
 		testlogger.New(t),
 	)
 
-	return NewTaskStore(&cfg, clusterMetadata, domains, metrics.NewNoopMetricsClient(), log.NewNoop(), hydrator)
+	return NewTaskStore(&cfg, clusterMetadata, domains, metrics.NewNoopMetricsClient(), log.NewNoop(), hydrator, budgetManager, shardID)
 }
 
 type fakeDomainCache map[string]*cache.DomainCacheEntry

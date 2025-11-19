@@ -185,7 +185,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 		MatchingConfig:                options.MatchingConfig,
 		WorkerConfig:                  options.WorkerConfig,
 		MockAdminClient:               options.MockAdminClient,
-		DomainReplicationTaskExecutor: domain.NewReplicationTaskExecutor(testBase.DomainManager, clock.NewRealTimeSource(), logger),
+		DomainReplicationTaskExecutor: domain.NewReplicationTaskExecutor(testBase.DomainManager, newNoopDomainAuditManager(), clock.NewRealTimeSource(), logger, dynamicproperties.GetBoolPropertyFn(false)),
 		AuthorizationConfig:           aConfig,
 		AsyncWFQueues:                 options.AsyncWFQueues,
 		TimeSource:                    options.TimeSource,
@@ -266,7 +266,7 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 		MatchingConfig:                options.MatchingConfig,
 		WorkerConfig:                  options.WorkerConfig,
 		MockAdminClient:               options.MockAdminClient,
-		DomainReplicationTaskExecutor: domain.NewReplicationTaskExecutor(testBase.DomainManager, clock.NewRealTimeSource(), logger),
+		DomainReplicationTaskExecutor: domain.NewReplicationTaskExecutor(testBase.DomainManager, newNoopDomainAuditManager(), clock.NewRealTimeSource(), logger, dynamicproperties.GetBoolPropertyFn(false)),
 		AuthorizationConfig:           aConfig,
 		PinotConfig:                   options.PinotConfig,
 		PinotClient:                   pinotClient,
@@ -352,6 +352,26 @@ func NewPersistenceTestCluster(t *testing.T, clusterConfig *TestClusterConfig) t
 		t.Fatal("not supported storage type" + TestFlags.PersistenceType)
 	}
 	return testCluster
+}
+
+func newNoopDomainAuditManager() persistence.DomainAuditManager {
+	return &noopDomainAuditManager{}
+}
+
+type noopDomainAuditManager struct{}
+
+func (n *noopDomainAuditManager) GetName() string {
+	return "noop"
+}
+
+func (n *noopDomainAuditManager) Close() {}
+
+func (n *noopDomainAuditManager) CreateDomainAuditLog(ctx context.Context, request *persistence.CreateDomainAuditLogRequest) (*persistence.CreateDomainAuditLogResponse, error) {
+	return &persistence.CreateDomainAuditLogResponse{}, nil
+}
+
+func (n *noopDomainAuditManager) GetDomainAuditLogs(ctx context.Context, request *persistence.GetDomainAuditLogsRequest) (*persistence.GetDomainAuditLogsResponse, error) {
+	return &persistence.GetDomainAuditLogsResponse{}, nil
 }
 
 func setupShards(testBase *persistencetests.TestBase, numHistoryShards int, logger log.Logger) {

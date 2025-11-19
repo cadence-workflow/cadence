@@ -85,6 +85,11 @@ func (f *Factory) NewDomainStore() (persistence.DomainStore, error) {
 	return newNoSQLDomainStore(f.cfg, f.clusterName, f.logger, f.metricsClient, f.dc)
 }
 
+// NewDomainAuditStore returns a domain audit store
+func (f *Factory) NewDomainAuditStore() (persistence.DomainAuditStore, error) {
+	return newNoSQLDomainAuditStore(f.cfg, f.logger, f.metricsClient, f.dc)
+}
+
 // NewExecutionStore returns an ExecutionStore for a given shardID
 func (f *Factory) NewExecutionStore(shardID int) (persistence.ExecutionStore, error) {
 	factory, err := f.executionStoreFactory()

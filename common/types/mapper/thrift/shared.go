@@ -6118,6 +6118,9 @@ func ToTaskListStatus(t *shared.TaskListStatus) *types.TaskListStatus {
 }
 
 func FromIsolationGroupMetrics(t *types.IsolationGroupMetrics) *shared.IsolationGroupMetrics {
+	if t == nil {
+		return nil
+	}
 	return &shared.IsolationGroupMetrics{
 		NewTasksPerSecond: &t.NewTasksPerSecond,
 		PollerCount:       &t.PollerCount,

@@ -16,7 +16,7 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/service/sharddistributor/executorclient"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 )
 
 func TestModule(t *testing.T) {
@@ -32,8 +32,8 @@ func TestModule(t *testing.T) {
 	mockClientConfigProvider := transporttest.NewMockClientConfigProvider(ctrl)
 	mockClientConfigProvider.EXPECT().ClientConfig("cadence-shard-distributor").Return(mockClientConfig).Times(2)
 
-	config := executorclient.Config{
-		Namespaces: []executorclient.NamespaceConfig{
+	config := clientcommon.Config{
+		Namespaces: []clientcommon.NamespaceConfig{
 			{Namespace: "shard-distributor-canary", HeartBeatInterval: 5 * time.Second, MigrationMode: "onboarded"},
 			{Namespace: "shard-distributor-canary-ephemeral", HeartBeatInterval: 5 * time.Second, MigrationMode: "onboarded"},
 			{Namespace: "test-local-passthrough", HeartBeatInterval: 1 * time.Second, MigrationMode: "local_pass"},

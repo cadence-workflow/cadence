@@ -51,7 +51,7 @@ import (
 )
 
 // newTestHandler creates a new instance of the handler with mocked dependencies for testing.
-func newTestHandler(domainManager persistence.DomainManager, primaryCluster bool, domainReplicator Replicator) Handler {
+func newTestHandler(t *testing.T, ctrl *gomock.Controller, domainManager *persistence.MockDomainManager, primaryCluster bool, domainReplicator Replicator) Handler {
 	mockDC := dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), log.NewNoop())
 	domainDefaults := &config.ArchivalDomainDefaults{
 		History: config.HistoryArchivalDomainDefaults{
@@ -65,17 +65,23 @@ func newTestHandler(domainManager persistence.DomainManager, primaryCluster bool
 	}
 	archivalMetadata := archiver.NewArchivalMetadata(mockDC, "Enabled", true, "Enabled", true, domainDefaults)
 	testConfig := Config{
-		MinRetentionDays:       dynamicproperties.GetIntPropertyFn(1),
-		MaxRetentionDays:       dynamicproperties.GetIntPropertyFn(5),
-		RequiredDomainDataKeys: nil,
-		MaxBadBinaryCount:      func(string) int { return 3 },
-		FailoverCoolDown:       func(string) time.Duration { return time.Second },
+		MinRetentionDays:         dynamicproperties.GetIntPropertyFn(1),
+		MaxRetentionDays:         dynamicproperties.GetIntPropertyFn(5),
+		RequiredDomainDataKeys:   nil,
+		MaxBadBinaryCount:        func(string) int { return 3 },
+		FailoverCoolDown:         func(string) time.Duration { return time.Second },
+		EnableDomainAuditLogging: dynamicproperties.GetBoolPropertyFn(true),
 	}
+
+	mockDomainAuditManager := persistence.NewMockDomainAuditManager(ctrl)
+	mockDomainAuditManager.EXPECT().CreateDomainAuditLog(gomock.Any(), gomock.Any()).Return(&persistence.CreateDomainAuditLogResponse{EventID: "test-event-id"}, nil).AnyTimes()
+	mockDomainAuditManager.EXPECT().Close().AnyTimes()
 
 	return NewHandler(
 		testConfig,
 		log.NewNoop(),
 		domainManager,
+		mockDomainAuditManager,
 		cluster.GetTestClusterMetadata(primaryCluster),
 		domainReplicator,
 		archivalMetadata,
@@ -446,7 +452,7 @@ func TestRegisterDomain(t *testing.T) {
 			mockDomainMgr := persistence.NewMockDomainManager(controller)
 			mockReplicator := NewMockReplicator(controller)
 
-			handler := newTestHandler(mockDomainMgr, tc.isPrimaryCluster, mockReplicator)
+			handler := newTestHandler(t, controller, mockDomainMgr, tc.isPrimaryCluster, mockReplicator)
 
 			tc.mockSetup(mockDomainMgr, mockReplicator, tc.request)
 
@@ -582,7 +588,7 @@ func TestListDomains(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDomainMgr := persistence.NewMockDomainManager(controller)
 		mockReplicator := NewMockReplicator(controller)
-		handler := newTestHandler(mockDomainMgr, true, mockReplicator)
+		handler := newTestHandler(t, controller, mockDomainMgr, true, mockReplicator)
 
 		t.Run(test.name, func(t *testing.T) {
 			test.setupMocks(mockDomainMgr)
@@ -606,7 +612,7 @@ func TestHandler_DescribeDomain(t *testing.T) {
 	mockDomainManager := persistence.NewMockDomainManager(controller)
 	mockReplicator := NewMockReplicator(controller)
 
-	handler := newTestHandler(mockDomainManager, true, mockReplicator)
+	handler := newTestHandler(t, controller, mockDomainManager, true, mockReplicator)
 
 	domainName := "test-domain"
 	domainID := "test-domain-id"
@@ -692,7 +698,8 @@ func TestHandler_DescribeDomain(t *testing.T) {
 
 	_, err = handler.DescribeDomain(context.Background(), describeRequest)
 
-	assert.Error(t, types.EntityNotExistsError{})
+	assert.Error(t, err)
+	assert.IsType(t, types.EntityNotExistsError{}, err)
 }
 
 func TestHandler_DeprecateDomain(t *testing.T) {
@@ -814,7 +821,7 @@ func TestHandler_DeprecateDomain(t *testing.T) {
 			mockDomainManager := persistence.NewMockDomainManager(controller)
 			mockReplicator := NewMockReplicator(controller)
 
-			handler := newTestHandler(mockDomainManager, tc.primaryCluster, mockReplicator)
+			handler := newTestHandler(t, controller, mockDomainManager, tc.primaryCluster, mockReplicator)
 			tc.setupMocks(mockDomainManager, mockReplicator)
 
 			err := handler.DeprecateDomain(context.Background(), &types.DeprecateDomainRequest{Name: tc.domainName})
@@ -1043,7 +1050,7 @@ func TestHandler_UpdateIsolationGroups(t *testing.T) {
 			mockDomainManager := persistence.NewMockDomainManager(controller)
 			mockReplicator := NewMockReplicator(controller)
 
-			handler := newTestHandler(mockDomainManager, tc.isPrimaryCluster, mockReplicator)
+			handler := newTestHandler(t, controller, mockDomainManager, tc.isPrimaryCluster, mockReplicator)
 			tc.setupMocks(mockDomainManager, mockReplicator)
 
 			err := handler.UpdateIsolationGroups(context.Background(), types.UpdateDomainIsolationGroupsRequest{
@@ -1369,7 +1376,7 @@ func TestHandler_UpdateAsyncWorkflowConfiguraton(t *testing.T) {
 
 			mockDomainManager := persistence.NewMockDomainManager(ctrl)
 			mockReplicator := NewMockReplicator(ctrl)
-			handler := newTestHandler(mockDomainManager, test.isPrimaryCluster, mockReplicator)
+			handler := newTestHandler(t, ctrl, mockDomainManager, test.isPrimaryCluster, mockReplicator)
 			test.setupMocks(mockDomainManager, mockReplicator)
 
 			err := handler.UpdateAsyncWorkflowConfiguraton(context.Background(), *test.request)
@@ -2657,14 +2664,16 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			mockDomainManager := persistence.NewMockDomainManager(ctrl)
 			mockReplicator := NewMockReplicator(ctrl)
 			mockArchivalMetadata := &archiver.MockArchivalMetadata{}
+			mockDomainAuditManager := persistence.NewMockDomainAuditManager(ctrl)
 
 			testConfig := Config{
-				MinRetentionDays:       dynamicproperties.GetIntPropertyFn(1),
-				MaxRetentionDays:       dynamicproperties.GetIntPropertyFn(5),
-				RequiredDomainDataKeys: nil,
-				MaxBadBinaryCount:      dynamicproperties.GetIntPropertyFilteredByDomain(maxLength),
-				FailoverCoolDown:       func(string) time.Duration { return time.Second },
-				FailoverHistoryMaxSize: dynamicproperties.GetIntPropertyFilteredByDomain(5),
+				MinRetentionDays:         dynamicproperties.GetIntPropertyFn(1),
+				MaxRetentionDays:         dynamicproperties.GetIntPropertyFn(5),
+				RequiredDomainDataKeys:   nil,
+				MaxBadBinaryCount:        dynamicproperties.GetIntPropertyFilteredByDomain(maxLength),
+				FailoverCoolDown:         func(string) time.Duration { return time.Second },
+				FailoverHistoryMaxSize:   dynamicproperties.GetIntPropertyFilteredByDomain(5),
+				EnableDomainAuditLogging: dynamicproperties.GetBoolPropertyFn(true),
 			}
 
 			clusterMetadata := cluster.GetTestClusterMetadata(true)
@@ -2680,7 +2689,14 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				timeSource:          mockTimeSource,
 				config:              testConfig,
 				logger:              log.NewNoop(),
+				domainAuditManager:  mockDomainAuditManager,
 			}
+
+			// For all tests in this suite, audit log succeeds
+			mockDomainAuditManager.EXPECT().
+				CreateDomainAuditLog(gomock.Any(), gomock.Any()).
+				Return(&persistence.CreateDomainAuditLogResponse{EventID: "test-event-id"}, nil).
+				AnyTimes()
 
 			tc.setupMock(mockDomainManager, tc.request, mockArchivalMetadata, mockTimeSource, mockReplicator)
 
@@ -2696,6 +2712,123 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandler_UpdateDomain_AuditLogFailureDoesNotPropagate(t *testing.T) {
+	// This test verifies that audit log write failures do not prevent domain updates from succeeding.
+	// Audit logging is best-effort only and should not block critical domain operations.
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDomainManager := persistence.NewMockDomainManager(ctrl)
+	mockReplicator := NewMockReplicator(ctrl)
+	mockArchivalMetadata := &archiver.MockArchivalMetadata{}
+	mockDomainAuditManager := persistence.NewMockDomainAuditManager(ctrl)
+
+	testConfig := Config{
+		MinRetentionDays:         dynamicproperties.GetIntPropertyFn(1),
+		MaxRetentionDays:         dynamicproperties.GetIntPropertyFn(5),
+		RequiredDomainDataKeys:   nil,
+		MaxBadBinaryCount:        dynamicproperties.GetIntPropertyFilteredByDomain(1),
+		FailoverCoolDown:         func(string) time.Duration { return time.Second },
+		FailoverHistoryMaxSize:   dynamicproperties.GetIntPropertyFilteredByDomain(5),
+		EnableDomainAuditLogging: dynamicproperties.GetBoolPropertyFn(true),
+	}
+
+	clusterMetadata := cluster.GetTestClusterMetadata(true)
+	mockTimeSource := clock.NewMockedTimeSourceAt(time.Unix(1761769472, 0))
+
+	handler := handlerImpl{
+		domainManager:       mockDomainManager,
+		clusterMetadata:     clusterMetadata,
+		domainReplicator:    mockReplicator,
+		domainAttrValidator: newAttrValidator(clusterMetadata, int32(testConfig.MinRetentionDays())),
+		archivalMetadata:    mockArchivalMetadata,
+		archiverProvider:    provider.NewArchiverProvider(nil, nil),
+		timeSource:          mockTimeSource,
+		config:              testConfig,
+		logger:              log.NewNoop(),
+		domainAuditManager:  mockDomainAuditManager,
+	}
+
+	domainResponse := &persistence.GetDomainResponse{
+		ReplicationConfig: &persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestCurrentClusterName,
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+		},
+		Config: &persistence.DomainConfig{
+			Retention:                1,
+			EmitMetric:               true,
+			HistoryArchivalStatus:    types.ArchivalStatusDisabled,
+			VisibilityArchivalStatus: types.ArchivalStatusDisabled,
+			BadBinaries:              types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
+			IsolationGroups:          types.IsolationGroupConfiguration{},
+			AsyncWorkflowConfig:      types.AsyncWorkflowConfiguration{Enabled: true},
+		},
+		Info: &persistence.DomainInfo{
+			Name:        constants.TestDomainName,
+			ID:          constants.TestDomainID,
+			Status:      persistence.DomainStatusRegistered,
+			Description: "original-description",
+		},
+		IsGlobalDomain:  true,
+		LastUpdatedTime: mockTimeSource.Now().UnixNano(),
+		FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion,
+	}
+
+	// Set up mocks
+	mockDomainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
+	mockDomainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: constants.TestDomainName}).
+		Return(domainResponse, nil).Times(1)
+
+	archivalConfig := archiver.NewArchivalConfig(
+		commonconstants.ArchivalDisabled,
+		dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+		false,
+		dynamicproperties.GetBoolPropertyFn(false),
+		commonconstants.ArchivalDisabled,
+		"")
+	mockArchivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
+	mockArchivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
+
+	mockTimeSource.Advance(time.Hour)
+
+	mockDomainManager.EXPECT().UpdateDomain(ctx, gomock.Any()).Return(nil).Times(1)
+	mockReplicator.EXPECT().
+		HandleTransmissionTask(
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+		).Return(nil).Times(1)
+
+	// Critical assertion: Set up audit log to FAIL
+	mockDomainAuditManager.EXPECT().
+		CreateDomainAuditLog(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("audit log database unavailable")).
+		Times(1)
+
+	// Execute the update
+	updateRequest := &types.UpdateDomainRequest{
+		Name:        constants.TestDomainName,
+		Description: common.Ptr("updated-description"),
+	}
+
+	response, err := handler.UpdateDomain(ctx, updateRequest)
+
+	// Assert: Domain update should succeed despite audit log failure
+	assert.NoError(t, err, "UpdateDomain should succeed even when audit log write fails")
+	assert.NotNil(t, response, "Response should not be nil")
+
+	// Verify the response contains the updated information
+	assert.Equal(t, true, response.IsGlobalDomain)
+	assert.Equal(t, cluster.TestCurrentClusterInitialFailoverVersion, response.FailoverVersion)
+	assert.Equal(t, constants.TestDomainName, response.DomainInfo.Name)
+	assert.Equal(t, constants.TestDomainID, response.DomainInfo.UUID)
+	assert.Equal(t, "updated-description", response.DomainInfo.Description)
+	assert.Equal(t, types.DomainStatusRegistered, *response.DomainInfo.Status)
 }
 
 func TestUpdateDomainInfo(t *testing.T) {
@@ -2752,7 +2885,7 @@ func TestUpdateDomainInfo(t *testing.T) {
 			mockDomainMgr := persistence.NewMockDomainManager(controller)
 			mockReplicator := NewMockReplicator(controller)
 
-			handler := newTestHandler(mockDomainMgr, true, mockReplicator)
+			handler := newTestHandler(t, controller, mockDomainMgr, true, mockReplicator)
 
 			updatedDomainInfo, changed := (*handlerImpl).updateDomainInfo(handler.(*handlerImpl), tc.request, domainInfo)
 
@@ -2873,7 +3006,7 @@ func TestUpdateDomainConfiguration(t *testing.T) {
 			mockDomainMgr := persistence.NewMockDomainManager(controller)
 			mockReplicator := NewMockReplicator(controller)
 
-			handler := newTestHandler(mockDomainMgr, true, mockReplicator)
+			handler := newTestHandler(t, controller, mockDomainMgr, true, mockReplicator)
 
 			cfg := &persistence.DomainConfig{
 				Retention:                1,
@@ -2962,7 +3095,7 @@ func TestUpdateDeleteBadBinary(t *testing.T) {
 			mockDomainMgr := persistence.NewMockDomainManager(controller)
 			mockReplicator := NewMockReplicator(controller)
 
-			handler := newTestHandler(mockDomainMgr, true, mockReplicator)
+			handler := newTestHandler(t, controller, mockDomainMgr, true, mockReplicator)
 
 			cfg := &persistence.DomainConfig{
 				Retention:                1,
@@ -3161,7 +3294,7 @@ func TestUpdateReplicationConfig(t *testing.T) {
 			mockDomainMgr := persistence.NewMockDomainManager(controller)
 			mockReplicator := NewMockReplicator(controller)
 
-			handler := newTestHandler(mockDomainMgr, true, mockReplicator).(*handlerImpl)
+			handler := newTestHandler(t, controller, mockDomainMgr, true, mockReplicator).(*handlerImpl)
 
 			updatedReplicationConfig, clusterUpdated, activeClusterUpdated, err := handler.updateReplicationConfig(
 				constants.TestDomainName,
@@ -3258,7 +3391,7 @@ func TestHandleGracefulFailover(t *testing.T) {
 			mockDomainMgr := persistence.NewMockDomainManager(controller)
 			mockReplicator := NewMockReplicator(controller)
 
-			handler := newTestHandler(mockDomainMgr, true, mockReplicator)
+			handler := newTestHandler(t, controller, mockDomainMgr, true, mockReplicator)
 
 			now := handler.(*handlerImpl).timeSource.Now()
 

@@ -1194,10 +1194,15 @@ func ToFailoverInfo(t *apiv1.FailoverInfo) *types.FailoverInfo {
 	if t == nil {
 		return nil
 	}
+	startTs := timeToUnixNano(t.GetFailoverStartTimestamp())
+	expireTs := timeToUnixNano(t.GetFailoverExpireTimestamp())
+	if startTs == nil || expireTs == nil {
+		return nil
+	}
 	return &types.FailoverInfo{
 		FailoverVersion:         t.GetFailoverVersion(),
-		FailoverStartTimestamp:  *timeToUnixNano(t.GetFailoverStartTimestamp()),
-		FailoverExpireTimestamp: *timeToUnixNano(t.GetFailoverExpireTimestamp()),
+		FailoverStartTimestamp:  *startTs,
+		FailoverExpireTimestamp: *expireTs,
 		CompletedShardCount:     t.GetCompletedShardCount(),
 		PendingShards:           t.GetPendingShards(),
 	}
@@ -2610,11 +2615,15 @@ func ToRegisterDomainRequest(t *apiv1.RegisterDomainRequest) *types.RegisterDoma
 	if t == nil {
 		return nil
 	}
+	days := durationToDays(t.WorkflowExecutionRetentionPeriod)
+	if days == nil {
+		days = common.Int32Ptr(3) // default to 3 days if not set
+	}
 	return &types.RegisterDomainRequest{
 		Name:                                   t.Name,
 		Description:                            t.Description,
 		OwnerEmail:                             t.OwnerEmail,
-		WorkflowExecutionRetentionPeriodInDays: *durationToDays(t.WorkflowExecutionRetentionPeriod),
+		WorkflowExecutionRetentionPeriodInDays: *days,
 		EmitMetric:                             common.BoolPtr(true), // this is a legacy field that doesn't exist in proto and probably can be removed
 		Clusters:                               ToClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      t.ActiveClusterName,
@@ -4102,6 +4111,9 @@ func ToTaskListStatus(t *apiv1.TaskListStatus) *types.TaskListStatus {
 }
 
 func FromIsolationGroupMetrics(t *types.IsolationGroupMetrics) *apiv1.IsolationGroupMetrics {
+	if t == nil {
+		return nil
+	}
 	return &apiv1.IsolationGroupMetrics{
 		NewTasksPerSecond: t.NewTasksPerSecond,
 		PollerCount:       t.PollerCount,
@@ -4109,6 +4121,9 @@ func FromIsolationGroupMetrics(t *types.IsolationGroupMetrics) *apiv1.IsolationG
 }
 
 func ToIsolationGroupMetrics(t *apiv1.IsolationGroupMetrics) *types.IsolationGroupMetrics {
+	if t == nil {
+		return nil
+	}
 	return &types.IsolationGroupMetrics{
 		NewTasksPerSecond: t.NewTasksPerSecond,
 		PollerCount:       t.PollerCount,

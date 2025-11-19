@@ -100,6 +100,7 @@ const (
 	FlagForce                          = "force"
 	FlagPageID                         = "page_id"
 	FlagPageSize                       = "pagesize"
+	FlagLimit                          = "limit"
 	FlagEarliestTime                   = "earliest_time"
 	FlagLatestTime                     = "latest_time"
 	FlagPrintEventVersion              = "print_event_version"
@@ -126,6 +127,7 @@ const (
 	FlagShowDetail                     = "show_detail"
 	FlagActiveClusterName              = "active_cluster"
 	FlagActiveClusters                 = "active_clusters"
+	FlagActiveClustersJSON             = "active_clusters_json"
 	FlagClusters                       = "clusters"
 	FlagIsGlobalDomain                 = "global_domain" // active-passive domain
 	FlagDomainData                     = "domain_data"

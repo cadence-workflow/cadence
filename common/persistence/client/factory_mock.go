@@ -69,6 +69,21 @@ func (mr *MockFactoryMockRecorder) NewConfigStoreManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewConfigStoreManager", reflect.TypeOf((*MockFactory)(nil).NewConfigStoreManager))
 }
 
+// NewDomainAuditManager mocks base method.
+func (m *MockFactory) NewDomainAuditManager() (persistence.DomainAuditManager, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewDomainAuditManager")
+	ret0, _ := ret[0].(persistence.DomainAuditManager)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewDomainAuditManager indicates an expected call of NewDomainAuditManager.
+func (mr *MockFactoryMockRecorder) NewDomainAuditManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewDomainAuditManager", reflect.TypeOf((*MockFactory)(nil).NewDomainAuditManager))
+}
+
 // NewDomainManager mocks base method.
 func (m *MockFactory) NewDomainManager() (persistence.DomainManager, error) {
 	m.ctrl.T.Helper()
@@ -223,6 +238,21 @@ func (m *MockDataStoreFactory) NewConfigStore() (persistence.ConfigStore, error)
 func (mr *MockDataStoreFactoryMockRecorder) NewConfigStore() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewConfigStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewConfigStore))
+}
+
+// NewDomainAuditStore mocks base method.
+func (m *MockDataStoreFactory) NewDomainAuditStore() (persistence.DomainAuditStore, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewDomainAuditStore")
+	ret0, _ := ret[0].(persistence.DomainAuditStore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewDomainAuditStore indicates an expected call of NewDomainAuditStore.
+func (mr *MockDataStoreFactoryMockRecorder) NewDomainAuditStore() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewDomainAuditStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewDomainAuditStore))
 }
 
 // NewDomainStore mocks base method.

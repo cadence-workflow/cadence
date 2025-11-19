@@ -1,0 +1,57 @@
+# This file is a replication simulation scenario spec for testing the budget manager.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulations can be run via ./simulation/replication/run.sh --scenario budget_manager
+#
+# Test replication with budget manager enabled
+# When workflows are running in a cluster with budget manager
+# And a failover occurs
+# Then tasks should be cached within budget limits
+# And workflows should continue to run and complete in the new cluster
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+
+domains:
+  test-domain:
+    activeClusterName: cluster0
+
+operations:
+  - op: start_workflow
+    at: 0s
+    workflowType: timer-activity-loop-workflow
+    workflowID: timer-activity-loop-workflow1
+    cluster: cluster0
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 65s
+    workflowDuration: 35s
+
+  - op: change_active_clusters # failover from cluster0 to cluster1
+    at: 20s
+    domain: test-domain
+    newActiveCluster: cluster1
+    # failoverTimeoutSec: 5 # unset means force failover. setting it means graceful failover request
+
+  - op: validate
+    at: 41s # with the current workflow implementation, it's possible that the workflow may finish right after the 40s mark
+    workflowID: timer-activity-loop-workflow1
+    cluster: cluster1
+    domain: test-domain
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster1
+
+  # Validate replication occurred by checking the workflow exists in both clusters
+  - op: validate_workflow_replication
+    at: 42s
+    workflowID: timer-activity-loop-workflow1
+    sourceCluster: cluster1
+    targetCluster: cluster0
+    domain: test-domain

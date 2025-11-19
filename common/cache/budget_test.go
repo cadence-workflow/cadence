@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
+	metricsmocks "github.com/uber/cadence/common/metrics/mocks"
 )
 
 func TestBudgetManager_ReserveForCache(t *testing.T) {
@@ -2229,4 +2231,41 @@ func BenchmarkBudgetManager_HighContention(b *testing.B) {
 			mgr.(*manager).ReleaseForCache("shared-cache", 100, 1)
 		}
 	})
+}
+
+func TestBudgetManager_DisabledManager_NoMetricsEmitted(t *testing.T) {
+	// Create a mock scope that will track all metric calls
+	mockScope := &metricsmocks.Scope{}
+	// Mock the Tagged call which returns itself
+	mockScope.On("Tagged", mock.Anything).Return(mockScope)
+
+	// Create manager with BOTH capacities disabled (set to 0)
+	mgr := NewBudgetManager(
+		"test-disabled-manager",
+		dynamicproperties.GetIntPropertyFn(0), // maxBytes = 0 (disabled)
+		dynamicproperties.GetIntPropertyFn(0), // maxCount = 0 (disabled)
+		AdmissionOptimistic,
+		0,
+		mockScope,
+		testlogger.New(t),
+		dynamicproperties.GetFloatPropertyFn(0.8),
+	)
+	defer mgr.Stop()
+
+	// Give time for any initial metrics to be emitted
+	time.Sleep(100 * time.Millisecond)
+
+	// Try to reserve capacity (should fail but shouldn't emit metrics)
+	err := mgr.(*manager).ReserveForCache("cache1", 100, 1)
+	assert.Error(t, err)
+
+	// Try to release capacity (should not emit metrics)
+	mgr.(*manager).ReleaseForCache("cache1", 100, 1)
+
+	// Wait a bit to ensure no async metrics are emitted
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify NO metrics were emitted (no calls to UpdateGauge or IncCounter)
+	mockScope.AssertNotCalled(t, "UpdateGauge")
+	mockScope.AssertNotCalled(t, "IncCounter")
 }

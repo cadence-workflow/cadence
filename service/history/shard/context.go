@@ -67,6 +67,7 @@ type (
 		GetMetricsClient() metrics.Client
 		GetTimeSource() clock.TimeSource
 		PreviousShardOwnerWasDifferent() bool
+		GetReplicationBudgetManager() cache.Manager
 
 		GetEngine() engine.Engine
 		SetEngine(engine.Engine)
@@ -114,19 +115,20 @@ type (
 	contextImpl struct {
 		resource.Resource
 
-		shardItem            *historyShardsItem
-		shardID              int
-		rangeID              int64
-		executionManager     persistence.ExecutionManager
-		activeClusterManager activecluster.Manager
-		eventsCache          events.Cache
-		closeCallback        func(int, *historyShardsItem)
-		closedAt             atomic.Pointer[time.Time]
-		config               *config.Config
-		persistenceConfig    *persistence.DynamicConfiguration
-		logger               log.Logger
-		throttledLogger      log.Logger
-		engine               engine.Engine
+		shardItem                *historyShardsItem
+		shardID                  int
+		rangeID                  int64
+		executionManager         persistence.ExecutionManager
+		activeClusterManager     activecluster.Manager
+		eventsCache              events.Cache
+		closeCallback            func(int, *historyShardsItem)
+		closedAt                 atomic.Pointer[time.Time]
+		config                   *config.Config
+		persistenceConfig        *persistence.DynamicConfiguration
+		logger                   log.Logger
+		throttledLogger          log.Logger
+		engine                   engine.Engine
+		replicationBudgetManager cache.Manager
 
 		sync.RWMutex
 		lastUpdated                  time.Time
@@ -1009,6 +1011,10 @@ func (s *contextImpl) GetThrottledLogger() log.Logger {
 	return s.throttledLogger
 }
 
+func (s *contextImpl) GetReplicationBudgetManager() cache.Manager {
+	return s.replicationBudgetManager
+}
+
 func (s *contextImpl) getRangeID() int64 {
 	return s.shardInfo.RangeID
 }
@@ -1621,6 +1627,7 @@ func acquireShard(
 		logger:                         shardItem.logger,
 		throttledLogger:                shardItem.throttledLogger,
 		previousShardOwnerWasDifferent: ownershipChanged,
+		replicationBudgetManager:       shardItem.replicationBudgetManager,
 	}
 
 	// TODO remove once migrated to global event cache

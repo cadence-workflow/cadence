@@ -1,4 +1,4 @@
-package executorclient
+package clientcommon
 
 import (
 	"fmt"

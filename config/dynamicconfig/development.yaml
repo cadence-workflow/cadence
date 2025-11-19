@@ -22,6 +22,9 @@ history.EnableConsistentQueryByDomain:
 history.useNewInitialFailoverVersion:
 - value: true
   constraints: {}
+system.enableDomainAuditLogging:
+- value: true
+  constraints: {}
 history.enableStrongIdempotency:
 - value: true
   constraints: {}
@@ -68,19 +71,21 @@ system.writeVisibilityStoreName:
   - value: "db"
 system.readVisibilityStoreName:
   - value: "db"
+system.domainAuditLogTTL:
+  - value: "15m"
 matching.enableClientAutoConfig:
 - value: true
-shardDistributor.MigrationMode:
+shardDistributor.migrationMode:
   - value: "onboarded"
   - value: "local_pass"
     constraints:
-    namespace: "test-local-passthrough"
+      namespace: "test-local-passthrough"
   - value: "local_pass_shadow"
     constraints:
-    namespace: "test-local-passthrough-shadow"
+      namespace: "test-local-passthrough-shadow"
   - value: "distributed_pass"
     constraints:
-    namespace: "test-distributed-passthrough"
+      namespace: "test-distributed-passthrough"
   - value: "distributed_pass"
     constraints:
-    namespace: "test-external-assignment"
+      namespace: "test-external-assignment"

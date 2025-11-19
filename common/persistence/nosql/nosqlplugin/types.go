@@ -251,6 +251,35 @@ type (
 		CurrentTimeStamp            time.Time
 	}
 
+	// DomainAuditLogRow defines the row struct for domain audit log
+	DomainAuditLogRow struct {
+		DomainID            string
+		EventID             string
+		StateBefore         []byte
+		StateBeforeEncoding string
+		StateAfter          []byte
+		StateAfterEncoding  string
+		OperationType       persistence.DomainAuditOperationType
+		CreatedTime         time.Time
+		LastUpdatedTime     time.Time
+		Identity            string
+		IdentityType        string
+		Comment             string
+		TTLSeconds          int64 // TTL for the audit log entry in seconds
+	}
+
+	// DomainAuditLogFilter contains the filter criteria for querying domain audit logs
+	DomainAuditLogFilter struct {
+		DomainID      string
+		OperationType persistence.DomainAuditOperationType
+		// MinCreatedTime is inclusive
+		MinCreatedTime *time.Time
+		// MaxCreatedTime is exclusive
+		MaxCreatedTime *time.Time
+		PageSize       int
+		NextPageToken  []byte
+	}
+
 	// SelectMessagesBetweenRequest is a request struct for SelectMessagesBetween
 	SelectMessagesBetweenRequest struct {
 		QueueType               persistence.QueueType

@@ -396,6 +396,20 @@ func (mr *MockContextMockRecorder) GetQueueState(category any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQueueState", reflect.TypeOf((*MockContext)(nil).GetQueueState), category)
 }
 
+// GetReplicationBudgetManager mocks base method.
+func (m *MockContext) GetReplicationBudgetManager() cache.Manager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetReplicationBudgetManager")
+	ret0, _ := ret[0].(cache.Manager)
+	return ret0
+}
+
+// GetReplicationBudgetManager indicates an expected call of GetReplicationBudgetManager.
+func (mr *MockContextMockRecorder) GetReplicationBudgetManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationBudgetManager", reflect.TypeOf((*MockContext)(nil).GetReplicationBudgetManager))
+}
+
 // GetService mocks base method.
 func (m *MockContext) GetService() resource.Resource {
 	m.ctrl.T.Helper()

@@ -781,6 +781,52 @@ func (s *failoverWorkflowTestSuite) TestGetOperator() {
 	s.Equal(operator, res.Operator)
 }
 
+func (s *failoverWorkflowTestSuite) TestShouldFailover_DeprecatedDomain() {
+	deprecatedDomain := &types.DescribeDomainResponse{
+		DomainInfo: &types.DomainInfo{
+			Name:   "test-deprecated-domain",
+			Status: types.DomainStatusDeprecated.Ptr(),
+			Data: map[string]string{
+				constants.DomainDataKeyForManagedFailover: "true",
+			},
+		},
+		IsGlobalDomain: true,
+		ReplicationConfiguration: &types.DomainReplicationConfiguration{
+			ActiveClusterName: "cluster1",
+			Clusters: []*types.ClusterReplicationConfiguration{
+				{ClusterName: "cluster1"},
+				{ClusterName: "cluster2"},
+			},
+		},
+	}
+
+	result := shouldFailover(deprecatedDomain, "cluster1")
+	s.False(result, "Deprecated domains should not be included in failover")
+}
+
+func (s *failoverWorkflowTestSuite) TestShouldFailover_DeletedDomain() {
+	deletedDomain := &types.DescribeDomainResponse{
+		DomainInfo: &types.DomainInfo{
+			Name:   "test-deleted-domain",
+			Status: types.DomainStatusDeleted.Ptr(),
+			Data: map[string]string{
+				constants.DomainDataKeyForManagedFailover: "true",
+			},
+		},
+		IsGlobalDomain: true,
+		ReplicationConfiguration: &types.DomainReplicationConfiguration{
+			ActiveClusterName: "cluster1",
+			Clusters: []*types.ClusterReplicationConfiguration{
+				{ClusterName: "cluster1"},
+				{ClusterName: "cluster2"},
+			},
+		},
+	}
+
+	result := shouldFailover(deletedDomain, "cluster1")
+	s.False(result, "Deleted domains should not be included in failover")
+}
+
 func (s *failoverWorkflowTestSuite) assertQueryState(env *testsuite.TestWorkflowEnvironment, expectedState string) {
 	queryResult, err := env.QueryWorkflow(QueryType)
 	s.NoError(err)

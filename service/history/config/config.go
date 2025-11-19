@@ -179,15 +179,18 @@ type Config struct {
 	DisableTransferFailoverQueue                         dynamicproperties.BoolPropertyFn
 
 	// ReplicatorQueueProcessor settings
-	ReplicatorTaskDeleteBatchSize          dynamicproperties.IntPropertyFn
-	ReplicatorReadTaskMaxRetryCount        dynamicproperties.IntPropertyFn
-	ReplicatorProcessorFetchTasksBatchSize dynamicproperties.IntPropertyFnWithShardIDFilter
-	ReplicatorProcessorMaxTaskBatchSize    dynamicproperties.IntPropertyFnWithShardIDFilter
-	ReplicatorProcessorMinTaskBatchSize    dynamicproperties.IntPropertyFnWithShardIDFilter
-	ReplicatorProcessorBatchSizeStepCount  dynamicproperties.IntPropertyFnWithShardIDFilter
-	ReplicatorUpperLatency                 dynamicproperties.DurationPropertyFn
-	ReplicatorCacheCapacity                dynamicproperties.IntPropertyFn
-	ReplicatorCacheMaxSize                 dynamicproperties.IntPropertyFn
+	ReplicatorTaskDeleteBatchSize            dynamicproperties.IntPropertyFn
+	ReplicatorReadTaskMaxRetryCount          dynamicproperties.IntPropertyFn
+	ReplicatorProcessorFetchTasksBatchSize   dynamicproperties.IntPropertyFnWithShardIDFilter
+	ReplicatorProcessorMaxTaskBatchSize      dynamicproperties.IntPropertyFnWithShardIDFilter
+	ReplicatorProcessorMinTaskBatchSize      dynamicproperties.IntPropertyFnWithShardIDFilter
+	ReplicatorProcessorBatchSizeStepCount    dynamicproperties.IntPropertyFnWithShardIDFilter
+	ReplicatorUpperLatency                   dynamicproperties.DurationPropertyFn
+	ReplicatorCacheCapacity                  dynamicproperties.IntPropertyFn
+	ReplicatorCacheMaxSize                   dynamicproperties.IntPropertyFn
+	ReplicationBudgetManagerMaxSizeBytes     dynamicproperties.IntPropertyFn
+	ReplicationBudgetManagerMaxSizeCount     dynamicproperties.IntPropertyFn
+	ReplicationBudgetManagerSoftCapThreshold dynamicproperties.FloatPropertyFn
 
 	// System Limits
 	MaximumBufferedEventsBatch dynamicproperties.IntPropertyFn
@@ -475,15 +478,18 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TransferProcessorVisibilityArchivalTimeLimit:         dc.GetDurationProperty(dynamicproperties.TransferProcessorVisibilityArchivalTimeLimit),
 		DisableTransferFailoverQueue:                         dc.GetBoolProperty(dynamicproperties.DisableTransferFailoverQueue),
 
-		ReplicatorTaskDeleteBatchSize:          dc.GetIntProperty(dynamicproperties.ReplicatorTaskDeleteBatchSize),
-		ReplicatorReadTaskMaxRetryCount:        dc.GetIntProperty(dynamicproperties.ReplicatorReadTaskMaxRetryCount),
-		ReplicatorProcessorFetchTasksBatchSize: dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicatorTaskBatchSize),
-		ReplicatorProcessorMaxTaskBatchSize:    dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicatorMaxTaskBatchSize),
-		ReplicatorProcessorMinTaskBatchSize:    dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicatorMinTaskBatchSize),
-		ReplicatorProcessorBatchSizeStepCount:  dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicatorTaskBatchStepCount),
-		ReplicatorUpperLatency:                 dc.GetDurationProperty(dynamicproperties.ReplicatorUpperLatency),
-		ReplicatorCacheCapacity:                dc.GetIntProperty(dynamicproperties.ReplicatorCacheCapacity),
-		ReplicatorCacheMaxSize:                 dc.GetIntProperty(dynamicproperties.ReplicatorCacheMaxSize),
+		ReplicatorTaskDeleteBatchSize:            dc.GetIntProperty(dynamicproperties.ReplicatorTaskDeleteBatchSize),
+		ReplicatorReadTaskMaxRetryCount:          dc.GetIntProperty(dynamicproperties.ReplicatorReadTaskMaxRetryCount),
+		ReplicatorProcessorFetchTasksBatchSize:   dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicatorTaskBatchSize),
+		ReplicatorProcessorMaxTaskBatchSize:      dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicatorMaxTaskBatchSize),
+		ReplicatorProcessorMinTaskBatchSize:      dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicatorMinTaskBatchSize),
+		ReplicatorProcessorBatchSizeStepCount:    dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicatorTaskBatchStepCount),
+		ReplicatorUpperLatency:                   dc.GetDurationProperty(dynamicproperties.ReplicatorUpperLatency),
+		ReplicatorCacheCapacity:                  dc.GetIntProperty(dynamicproperties.ReplicatorCacheCapacity),
+		ReplicatorCacheMaxSize:                   dc.GetIntProperty(dynamicproperties.ReplicatorCacheMaxSize),
+		ReplicationBudgetManagerMaxSizeBytes:     dc.GetIntProperty(dynamicproperties.ReplicationBudgetManagerMaxSizeBytes),
+		ReplicationBudgetManagerMaxSizeCount:     dc.GetIntProperty(dynamicproperties.ReplicationBudgetManagerMaxSizeCount),
+		ReplicationBudgetManagerSoftCapThreshold: dc.GetFloat64Property(dynamicproperties.ReplicationBudgetManagerSoftCapThreshold),
 
 		MaximumBufferedEventsBatch:      dc.GetIntProperty(dynamicproperties.MaximumBufferedEventsBatch),
 		MaximumSignalsPerExecution:      dc.GetIntPropertyFilteredByDomain(dynamicproperties.MaximumSignalsPerExecution),

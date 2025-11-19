@@ -18,7 +18,6 @@ use (
 	.
 	./cmd/server
 	./common/archiver/gcloud
-	./service/sharddistributor/store/etcd
 
 // DO NOT include, tools dependencies are intentionally separate.
 // ./internal/tools

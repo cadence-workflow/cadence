@@ -103,6 +103,7 @@ type Resource interface {
 
 	// persistence clients
 	GetDomainManager() persistence.DomainManager
+	GetDomainAuditManager() persistence.DomainAuditManager
 	GetTaskManager() persistence.TaskManager
 	GetVisibilityManager() persistence.VisibilityManager
 	GetShardManager() persistence.ShardManager
