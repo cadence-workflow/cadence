@@ -138,6 +138,10 @@ func TestGetShardOwner(t *testing.T) {
 			setupMocks: func(mockStore *store.MockStore) {
 				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+					Executors: map[string]store.HeartbeatState{
+						"owner1": {Status: types.ExecutorStatusACTIVE},
+						"owner2": {Status: types.ExecutorStatusACTIVE},
+					},
 					ShardAssignments: map[string]store.AssignedState{
 						"owner1": {
 							AssignedShards: map[string]*types.ShardAssignment{
@@ -181,7 +185,13 @@ func TestGetShardOwner(t *testing.T) {
 			setupMocks: func(mockStore *store.MockStore) {
 				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
-					ShardAssignments: map[string]store.AssignedState{"owner1": {AssignedShards: map[string]*types.ShardAssignment{}}}}, nil)
+					Executors: map[string]store.HeartbeatState{
+						"owner1": {Status: types.ExecutorStatusACTIVE},
+					},
+					ShardAssignments: map[string]store.AssignedState{
+						"owner1": {AssignedShards: map[string]*types.ShardAssignment{}},
+					},
+				}, nil)
 				mockStore.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD", "owner1").Return(errors.New("assign shard failure"))
 			},
 			expectedError:  true,
@@ -196,6 +206,10 @@ func TestGetShardOwner(t *testing.T) {
 			setupMocks: func(mockStore *store.MockStore) {
 				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "new-shard").Return(nil, store.ErrShardNotFound)
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+					Executors: map[string]store.HeartbeatState{
+						"owner1": {Status: types.ExecutorStatusACTIVE},
+						"owner2": {Status: types.ExecutorStatusACTIVE},
+					},
 					ShardAssignments: map[string]store.AssignedState{
 						"owner1": {
 							AssignedShards: map[string]*types.ShardAssignment{
@@ -222,6 +236,30 @@ func TestGetShardOwner(t *testing.T) {
 			},
 			expectedOwner: "owner2",
 			expectedError: false,
+		},
+		{
+			name: "ShardNotFound_Ephemeral_AllExecutorsDraining",
+			request: &types.GetShardOwnerRequest{
+				Namespace: _testNamespaceEphemeral,
+				ShardKey:  "new-shard",
+			},
+			setupMocks: func(mockStore *store.MockStore) {
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "new-shard").Return(nil, store.ErrShardNotFound)
+				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+					Executors: map[string]store.HeartbeatState{
+						"owner1": {Status: types.ExecutorStatusDRAINING},
+					},
+					ShardAssignments: map[string]store.AssignedState{
+						"owner1": {
+							AssignedShards: map[string]*types.ShardAssignment{
+								"shard1": {Status: types.AssignmentStatusREADY},
+							},
+						},
+					},
+				}, nil)
+			},
+			expectedError:  true,
+			expectedErrMsg: "no active executors",
 		},
 	}
 
@@ -266,6 +304,10 @@ func TestPickLeastLoadedExecutor(t *testing.T) {
 		{
 			name: "SelectsLeastLoaded",
 			state: &store.NamespaceState{
+				Executors: map[string]store.HeartbeatState{
+					"exec1": {Status: types.ExecutorStatusACTIVE},
+					"exec2": {Status: types.ExecutorStatusACTIVE},
+				},
 				ShardAssignments: map[string]store.AssignedState{
 					"exec1": {
 						AssignedShards: map[string]*types.ShardAssignment{
@@ -296,8 +338,55 @@ func TestPickLeastLoadedExecutor(t *testing.T) {
 			expectedError: false,
 		},
 		{
+			name: "SkipsNonActiveExecutors",
+			state: &store.NamespaceState{
+				Executors: map[string]store.HeartbeatState{
+					"exec1": {Status: types.ExecutorStatusDRAINING},
+					"exec2": {Status: types.ExecutorStatusACTIVE},
+				},
+				ShardAssignments: map[string]store.AssignedState{
+					"exec1": {
+						AssignedShards: map[string]*types.ShardAssignment{
+							"shard1": {},
+						},
+					},
+					"exec2": {
+						AssignedShards: map[string]*types.ShardAssignment{
+							"shard2": {},
+							"shard3": {},
+						},
+					},
+				},
+				ShardStats: map[string]store.ShardStatistics{
+					"shard1": {SmoothedLoad: 0.1},
+					"shard2": {SmoothedLoad: 1.0},
+					"shard3": {SmoothedLoad: 2.0},
+				},
+			},
+			expectedOwner: "exec2",
+			expectedLoad:  3.0,
+			expectedCount: 2,
+			expectedError: false,
+		},
+		{
 			name:          "SelectsLeastLoaded_NoExecutors",
 			state:         &store.NamespaceState{},
+			expectedError: true,
+		},
+		{
+			name: "SelectsLeastLoaded_NoActiveExecutors",
+			state: &store.NamespaceState{
+				Executors: map[string]store.HeartbeatState{
+					"exec1": {Status: types.ExecutorStatusDRAINING},
+				},
+				ShardAssignments: map[string]store.AssignedState{
+					"exec1": {
+						AssignedShards: map[string]*types.ShardAssignment{
+							"shard1": {},
+						},
+					},
+				},
+			},
 			expectedError: true,
 		},
 		{
