@@ -49,7 +49,7 @@ services:
     depends_on:
       - pinot-broker
   kafka:
-    image: docker.io/bitnamilegacy/kafka:3.7
+    image: docker.io/soldevelo/kafka:3.7
     restart: unless-stopped
     container_name: "kafka"
     ports:
