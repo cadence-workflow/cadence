@@ -67,6 +67,20 @@ func (mr *MockBeanMockRecorder) GetConfigStoreManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigStoreManager", reflect.TypeOf((*MockBean)(nil).GetConfigStoreManager))
 }
 
+// GetDomainAuditManager mocks base method.
+func (m *MockBean) GetDomainAuditManager() persistence.DomainAuditManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDomainAuditManager")
+	ret0, _ := ret[0].(persistence.DomainAuditManager)
+	return ret0
+}
+
+// GetDomainAuditManager indicates an expected call of GetDomainAuditManager.
+func (mr *MockBeanMockRecorder) GetDomainAuditManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainAuditManager", reflect.TypeOf((*MockBean)(nil).GetDomainAuditManager))
+}
+
 // GetDomainManager mocks base method.
 func (m *MockBean) GetDomainManager() persistence.DomainManager {
 	m.ctrl.T.Helper()
@@ -176,6 +190,18 @@ func (m *MockBean) SetConfigStoreManager(arg0 persistence.ConfigStoreManager) {
 func (mr *MockBeanMockRecorder) SetConfigStoreManager(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetConfigStoreManager", reflect.TypeOf((*MockBean)(nil).SetConfigStoreManager), arg0)
+}
+
+// SetDomainAuditManager mocks base method.
+func (m *MockBean) SetDomainAuditManager(arg0 persistence.DomainAuditManager) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetDomainAuditManager", arg0)
+}
+
+// SetDomainAuditManager indicates an expected call of SetDomainAuditManager.
+func (mr *MockBeanMockRecorder) SetDomainAuditManager(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDomainAuditManager", reflect.TypeOf((*MockBean)(nil).SetDomainAuditManager), arg0)
 }
 
 // SetDomainManager mocks base method.

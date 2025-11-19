@@ -62,3 +62,98 @@ func (mr *MockClientMockRecorder) GetShardOwner(arg0, arg1 any, arg2 ...any) *go
 	varargs := append([]any{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardOwner", reflect.TypeOf((*MockClient)(nil).GetShardOwner), varargs...)
 }
+
+// WatchNamespaceState mocks base method.
+func (m *MockClient) WatchNamespaceState(arg0 context.Context, arg1 *types.WatchNamespaceStateRequest, arg2 ...yarpc.CallOption) (WatchNamespaceStateClient, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "WatchNamespaceState", varargs...)
+	ret0, _ := ret[0].(WatchNamespaceStateClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WatchNamespaceState indicates an expected call of WatchNamespaceState.
+func (mr *MockClientMockRecorder) WatchNamespaceState(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchNamespaceState", reflect.TypeOf((*MockClient)(nil).WatchNamespaceState), varargs...)
+}
+
+// MockWatchNamespaceStateClient is a mock of WatchNamespaceStateClient interface.
+type MockWatchNamespaceStateClient struct {
+	ctrl     *gomock.Controller
+	recorder *MockWatchNamespaceStateClientMockRecorder
+	isgomock struct{}
+}
+
+// MockWatchNamespaceStateClientMockRecorder is the mock recorder for MockWatchNamespaceStateClient.
+type MockWatchNamespaceStateClientMockRecorder struct {
+	mock *MockWatchNamespaceStateClient
+}
+
+// NewMockWatchNamespaceStateClient creates a new mock instance.
+func NewMockWatchNamespaceStateClient(ctrl *gomock.Controller) *MockWatchNamespaceStateClient {
+	mock := &MockWatchNamespaceStateClient{ctrl: ctrl}
+	mock.recorder = &MockWatchNamespaceStateClientMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockWatchNamespaceStateClient) EXPECT() *MockWatchNamespaceStateClientMockRecorder {
+	return m.recorder
+}
+
+// CloseSend mocks base method.
+func (m *MockWatchNamespaceStateClient) CloseSend(arg0 ...yarpc.StreamOption) error {
+	m.ctrl.T.Helper()
+	varargs := []any{}
+	for _, a := range arg0 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "CloseSend", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CloseSend indicates an expected call of CloseSend.
+func (mr *MockWatchNamespaceStateClientMockRecorder) CloseSend(arg0 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseSend", reflect.TypeOf((*MockWatchNamespaceStateClient)(nil).CloseSend), arg0...)
+}
+
+// Context mocks base method.
+func (m *MockWatchNamespaceStateClient) Context() context.Context {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Context")
+	ret0, _ := ret[0].(context.Context)
+	return ret0
+}
+
+// Context indicates an expected call of Context.
+func (mr *MockWatchNamespaceStateClientMockRecorder) Context() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockWatchNamespaceStateClient)(nil).Context))
+}
+
+// Recv mocks base method.
+func (m *MockWatchNamespaceStateClient) Recv(arg0 ...yarpc.StreamOption) (*types.WatchNamespaceStateResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{}
+	for _, a := range arg0 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Recv", varargs...)
+	ret0, _ := ret[0].(*types.WatchNamespaceStateResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Recv indicates an expected call of Recv.
+func (mr *MockWatchNamespaceStateClientMockRecorder) Recv(arg0 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recv", reflect.TypeOf((*MockWatchNamespaceStateClient)(nil).Recv), arg0...)
+}

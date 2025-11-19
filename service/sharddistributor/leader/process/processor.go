@@ -3,6 +3,7 @@ package process
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math/rand"
 	"slices"
 	"sort"
@@ -146,23 +147,23 @@ func (p *namespaceProcessor) Terminate(ctx context.Context) error {
 	return nil
 }
 
-// runProcess launches and manages the independent processing loops.
+// runProcess launches and manages the processing loops.
 func (p *namespaceProcessor) runProcess(ctx context.Context) {
 	defer p.wg.Done()
 
 	var loopWg sync.WaitGroup
 	loopWg.Add(2) // We have two loops to manage.
 
-	// Launch the rebalancing process in its own goroutine.
+	// Launch the assignment and executor cleanup process in its own goroutine.
 	go func() {
 		defer loopWg.Done()
 		p.runRebalancingLoop(ctx)
 	}()
 
-	// Launch the heartbeat cleanup process in its own goroutine.
+	// Launch the shard stats cleanup process in its own goroutine.
 	go func() {
 		defer loopWg.Done()
-		p.runCleanupLoop(ctx)
+		p.runShardStatsCleanupLoop(ctx)
 	}()
 
 	// Wait for both loops to exit.
@@ -221,63 +222,52 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 	}
 }
 
-// runCleanupLoop periodically removes stale executors.
-func (p *namespaceProcessor) runCleanupLoop(ctx context.Context) {
+// runShardStatsCleanupLoop periodically removes stale shard statistics.
+func (p *namespaceProcessor) runShardStatsCleanupLoop(ctx context.Context) {
 	ticker := p.timeSource.NewTicker(p.cfg.HeartbeatTTL)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			p.logger.Info("Cleanup loop cancelled.")
+			p.logger.Info("Shard stats cleanup loop cancelled.")
 			return
 		case <-ticker.Chan():
-			p.logger.Info("Periodic heartbeat cleanup triggered.")
+			p.logger.Info("Periodic shard stats cleanup triggered.")
 			namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
 			if err != nil {
-				p.logger.Error("Failed to get state for cleanup", tag.Error(err))
+				p.logger.Error("Failed to get state for shard stats cleanup", tag.Error(err))
 				continue
 			}
-			p.cleanupStaleExecutors(ctx, namespaceState)
-			p.cleanupStaleShardStats(ctx, namespaceState)
+			staleShardStats := p.identifyStaleShardStats(namespaceState)
+			if len(staleShardStats) == 0 {
+				// No stale shard stats to delete
+				continue
+			}
+			if err := p.shardStore.DeleteShardStats(ctx, p.namespaceCfg.Name, staleShardStats, p.election.Guard()); err != nil {
+				p.logger.Error("Failed to delete stale shard stats", tag.Error(err))
+			}
 		}
 	}
 }
 
-// cleanupStaleExecutors removes executors who have not reported a heartbeat recently.
-func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context, namespaceState *store.NamespaceState) {
-	if namespaceState == nil {
-		p.logger.Error("Namespace state missing for heartbeat cleanup")
-		return
-	}
-
-	var expiredExecutors []string
+// identifyStaleExecutors returns a list of executors who have not reported a heartbeat recently.
+func (p *namespaceProcessor) identifyStaleExecutors(namespaceState *store.NamespaceState) map[string]int64 {
+	expiredExecutors := make(map[string]int64)
 	now := p.timeSource.Now().Unix()
 	heartbeatTTL := int64(p.cfg.HeartbeatTTL.Seconds())
 
 	for executorID, state := range namespaceState.Executors {
 		if (now - state.LastHeartbeat) > heartbeatTTL {
-			expiredExecutors = append(expiredExecutors, executorID)
+			expiredExecutors[executorID] = namespaceState.ShardAssignments[executorID].ModRevision
 		}
 	}
 
-	if len(expiredExecutors) == 0 {
-		return // Nothing to do.
-	}
-
-	p.logger.Info("Removing stale executors", tag.ShardExecutors(expiredExecutors))
-	// Use the leader guard for the delete operation.
-	if err := p.shardStore.DeleteExecutors(ctx, p.namespaceCfg.Name, expiredExecutors, p.election.Guard()); err != nil {
-		p.logger.Error("Failed to delete stale executors", tag.Error(err))
-	}
+	return expiredExecutors
 }
 
-func (p *namespaceProcessor) cleanupStaleShardStats(ctx context.Context, namespaceState *store.NamespaceState) {
-	if namespaceState == nil {
-		p.logger.Error("Namespace state missing for shard stats cleanup")
-		return
-	}
-
+// identifyStaleShardStats returns a list of shard statistics that are no longer relevant.
+func (p *namespaceProcessor) identifyStaleShardStats(namespaceState *store.NamespaceState) []string {
 	activeShards := make(map[string]struct{})
 	now := p.timeSource.Now().Unix()
 	shardStatsTTL := int64(p.cfg.ShardStatsTTL.Seconds())
@@ -328,15 +318,7 @@ func (p *namespaceProcessor) cleanupStaleShardStats(ctx context.Context, namespa
 		staleShardStats = append(staleShardStats, shardID)
 	}
 
-	if len(staleShardStats) == 0 {
-		return
-	}
-
-	p.logger.Info("Removing stale shard stats")
-	// Use the leader guard for the delete operation.
-	if err := p.shardStore.DeleteShardStats(ctx, p.namespaceCfg.Name, staleShardStats, p.election.Guard()); err != nil {
-		p.logger.Error("Failed to delete stale shard stats", tag.Error(err))
-	}
+	return staleShardStats
 }
 
 // rebalanceShards is the core logic for distributing shards among active executors.
@@ -372,22 +354,29 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	}
 	p.lastAppliedRevision = namespaceState.GlobalRevision
 
-	activeExecutors := p.getActiveExecutors(namespaceState)
+	// Identify stale executors that need to be removed
+	staleExecutors := p.identifyStaleExecutors(namespaceState)
+	if len(staleExecutors) > 0 {
+		p.logger.Info("Identified stale executors for removal", tag.ShardExecutors(slices.Collect(maps.Keys(staleExecutors))))
+	}
+
+	activeExecutors := p.getActiveExecutors(namespaceState, staleExecutors)
 	if len(activeExecutors) == 0 {
 		p.logger.Warn("No active executors found. Cannot assign shards.")
 		return nil
 	}
+	p.logger.Info("Active executors", tag.ShardExecutors(activeExecutors))
 
 	deletedShards := p.findDeletedShards(namespaceState)
-	shardsToReassign, currentAssignments := p.findShardsToReassign(activeExecutors, namespaceState, deletedShards)
+	shardsToReassign, currentAssignments := p.findShardsToReassign(activeExecutors, namespaceState, deletedShards, staleExecutors)
 
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumRebalancedShards, float64(len(shardsToReassign)))
 
-	// If there are deleted shards, we have removed them from the shard assignments, so the distribution has changed.
-	distributionChanged := len(deletedShards) > 0
-	distributionChanged = distributionChanged || assignShardsToEmptyExecutors(currentAssignments)
-	distributionChanged = distributionChanged || p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
+	// If there are deleted shards or stale executors, the distribution has changed.
+	assignedToEmptyExecutors := assignShardsToEmptyExecutors(currentAssignments)
+	updatedAssignments := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
 
+	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments
 	if !distributionChanged {
 		p.logger.Debug("No changes to distribution detected. Skipping rebalance.")
 		return nil
@@ -396,9 +385,10 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	p.addAssignmentsToNamespaceState(namespaceState, currentAssignments)
 
 	p.logger.Info("Applying new shard distribution.")
-	// Use the leader guard for the assign operation.
+	// Use the leader guard for the assign and delete operation.
 	err = p.shardStore.AssignShards(ctx, p.namespaceCfg.Name, store.AssignShardsRequest{
-		NewState: namespaceState,
+		NewState:          namespaceState,
+		ExecutorsToDelete: staleExecutors,
 	}, p.election.Guard())
 	if err != nil {
 		return fmt.Errorf("assign shards: %w", err)
@@ -431,7 +421,12 @@ func (p *namespaceProcessor) findDeletedShards(namespaceState *store.NamespaceSt
 	return deletedShards
 }
 
-func (p *namespaceProcessor) findShardsToReassign(activeExecutors []string, namespaceState *store.NamespaceState, deletedShards map[string]store.ShardState) ([]string, map[string][]string) {
+func (p *namespaceProcessor) findShardsToReassign(
+	activeExecutors []string,
+	namespaceState *store.NamespaceState,
+	deletedShards map[string]store.ShardState,
+	staleExecutors map[string]int64,
+) ([]string, map[string][]string) {
 	allShards := make(map[string]struct{})
 	for _, shardID := range getShards(p.namespaceCfg, namespaceState, deletedShards) {
 		allShards[shardID] = struct{}{}
@@ -446,12 +441,16 @@ func (p *namespaceProcessor) findShardsToReassign(activeExecutors []string, name
 
 	for executorID, state := range namespaceState.ShardAssignments {
 		isActive := namespaceState.Executors[executorID].Status == types.ExecutorStatusACTIVE
+		_, isStale := staleExecutors[executorID]
+
 		for shardID := range state.AssignedShards {
 			if _, ok := allShards[shardID]; ok {
 				delete(allShards, shardID)
-				if isActive {
+				// If executor is active AND not stale, keep the assignment
+				if isActive && !isStale {
 					currentAssignments[executorID] = append(currentAssignments[executorID], shardID)
 				} else {
+					// Otherwise, reassign the shard (executor is either inactive or stale)
 					shardsToReassign = append(shardsToReassign, shardID)
 				}
 			}
@@ -500,11 +499,14 @@ func (p *namespaceProcessor) addAssignmentsToNamespaceState(namespaceState *stor
 	namespaceState.ShardAssignments = newState
 }
 
-func (*namespaceProcessor) getActiveExecutors(namespaceState *store.NamespaceState) []string {
+func (*namespaceProcessor) getActiveExecutors(namespaceState *store.NamespaceState, staleExecutors map[string]int64) []string {
 	var activeExecutors []string
 	for id, state := range namespaceState.Executors {
+		// Executor must be ACTIVE and not stale
 		if state.Status == types.ExecutorStatusACTIVE {
-			activeExecutors = append(activeExecutors, id)
+			if _, ok := staleExecutors[id]; !ok {
+				activeExecutors = append(activeExecutors, id)
+			}
 		}
 	}
 

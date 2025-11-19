@@ -194,3 +194,19 @@ func (mr *MockStoreMockRecorder) Subscribe(ctx, namespace any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockStore)(nil).Subscribe), ctx, namespace)
 }
+
+// SubscribeToAssignmentChanges mocks base method.
+func (m *MockStore) SubscribeToAssignmentChanges(ctx context.Context, namespace string) (<-chan map[*ShardOwner][]string, func(), error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SubscribeToAssignmentChanges", ctx, namespace)
+	ret0, _ := ret[0].(<-chan map[*ShardOwner][]string)
+	ret1, _ := ret[1].(func())
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SubscribeToAssignmentChanges indicates an expected call of SubscribeToAssignmentChanges.
+func (mr *MockStoreMockRecorder) SubscribeToAssignmentChanges(ctx, namespace any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubscribeToAssignmentChanges", reflect.TypeOf((*MockStore)(nil).SubscribeToAssignmentChanges), ctx, namespace)
+}

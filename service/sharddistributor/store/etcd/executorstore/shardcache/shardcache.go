@@ -62,6 +62,16 @@ func (s *ShardToExecutorCache) GetExecutorModRevisionCmp(namespace string) ([]cl
 	return namespaceShardToExecutor.GetExecutorModRevisionCmp()
 }
 
+func (s *ShardToExecutorCache) Subscribe(ctx context.Context, namespace string) (<-chan map[*store.ShardOwner][]string, func(), error) {
+	namespaceShardToExecutor, err := s.getNamespaceShardToExecutor(namespace)
+	if err != nil {
+		return nil, nil, fmt.Errorf("get namespace shard to executor: %w", err)
+	}
+
+	ch, unSub := namespaceShardToExecutor.Subscribe(ctx)
+	return ch, unSub, nil
+}
+
 func (s *ShardToExecutorCache) getNamespaceShardToExecutor(namespace string) (*namespaceShardToExecutor, error) {
 	s.RLock()
 	namespaceShardToExecutor, ok := s.namespaceToShards[namespace]

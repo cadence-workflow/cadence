@@ -90,6 +90,7 @@ type (
 		DomainReplicationMaxRetryDuration   dynamicproperties.DurationPropertyFn
 		EnableESAnalyzer                    dynamicproperties.BoolPropertyFn
 		EnableAsyncWorkflowConsumption      dynamicproperties.BoolPropertyFn
+		EnableDomainAuditLogging            dynamicproperties.BoolPropertyFn
 		HostName                            string
 	}
 )
@@ -189,6 +190,7 @@ func NewConfig(params *resource.Params) *Config {
 		PersistenceMaxQPS:                   dc.GetIntProperty(dynamicproperties.WorkerPersistenceMaxQPS),
 		DomainReplicationMaxRetryDuration:   dc.GetDurationProperty(dynamicproperties.WorkerReplicationTaskMaxRetryDuration),
 		EnableAsyncWorkflowConsumption:      dc.GetBoolProperty(dynamicproperties.EnableAsyncWorkflowConsumption),
+		EnableDomainAuditLogging:            dc.GetBoolProperty(dynamicproperties.EnableDomainAuditLogging),
 		HostName:                            params.HostName,
 	}
 	advancedVisWritingMode := dc.GetStringProperty(
@@ -376,8 +378,10 @@ func (s *Service) startDiagnostics() {
 func (s *Service) startReplicator() {
 	domainReplicationTaskExecutor := domain.NewReplicationTaskExecutor(
 		s.Resource.GetDomainManager(),
+		s.Resource.GetDomainAuditManager(),
 		s.Resource.GetTimeSource(),
 		s.Resource.GetLogger(),
+		s.config.EnableDomainAuditLogging,
 	)
 	msgReplicator := replicator.NewReplicator(
 		s.GetClusterMetadata(),

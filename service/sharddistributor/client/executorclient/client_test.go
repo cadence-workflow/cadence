@@ -16,6 +16,7 @@ import (
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 )
 
 func TestModule(t *testing.T) {
@@ -36,8 +37,8 @@ func TestModule(t *testing.T) {
 	yarpcClient := sharddistributorv1.NewShardDistributorExecutorAPIYARPCClient(mockClientConfig)
 
 	// Example config
-	config := Config{
-		Namespaces: []NamespaceConfig{
+	config := clientcommon.Config{
+		Namespaces: []clientcommon.NamespaceConfig{
 			{
 				Namespace:         "test-namespace",
 				HeartBeatInterval: 5 * time.Second,
@@ -87,8 +88,8 @@ func TestModuleWithNamespace(t *testing.T) {
 	yarpcClient := sharddistributorv1.NewShardDistributorExecutorAPIYARPCClient(mockClientConfig)
 
 	// Multi-namespace config
-	config := Config{
-		Namespaces: []NamespaceConfig{
+	config := clientcommon.Config{
+		Namespaces: []clientcommon.NamespaceConfig{
 			{
 				Namespace:         "namespace1",
 				HeartBeatInterval: 5 * time.Second,

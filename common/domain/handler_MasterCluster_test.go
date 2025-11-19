@@ -60,6 +60,7 @@ type (
 		mockDomainReplicator   Replicator
 		archivalMetadata       archiver.ArchivalMetadata
 		mockArchiverProvider   *provider.MockArchiverProvider
+		mockDomainAuditManager persistence.DomainAuditManager
 
 		handler *handlerImpl
 	}
@@ -97,6 +98,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) SetupTest() {
 	s.domainManager = s.TestBase.DomainManager
 	s.mockProducer = &mocks.KafkaProducer{}
 	s.mockDomainReplicator = NewDomainReplicator(s.mockProducer, logger)
+	s.mockDomainAuditManager = persistence.NewMockDomainAuditManager(s.Controller)
 	s.archivalMetadata = archiver.NewArchivalMetadata(
 		dcCollection,
 		"",
@@ -107,15 +109,17 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) SetupTest() {
 	)
 	s.mockArchiverProvider = &provider.MockArchiverProvider{}
 	domainConfig := Config{
-		MinRetentionDays:       dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
-		MaxBadBinaryCount:      dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
-		FailoverCoolDown:       dynamicproperties.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
-		FailoverHistoryMaxSize: dynamicproperties.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
+		MinRetentionDays:         dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
+		MaxBadBinaryCount:        dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
+		FailoverCoolDown:         dynamicproperties.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
+		FailoverHistoryMaxSize:   dynamicproperties.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
+		EnableDomainAuditLogging: dynamicproperties.GetBoolPropertyFn(false),
 	}
 	s.handler = NewHandler(
 		domainConfig,
 		logger,
 		s.domainManager,
+		s.mockDomainAuditManager,
 		s.ClusterMetadata,
 		s.mockDomainReplicator,
 		s.archivalMetadata,
@@ -901,14 +905,16 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateGetDomai
 
 func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateDomain_CoolDown() {
 	domainConfig := Config{
-		MinRetentionDays:  dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
-		MaxBadBinaryCount: dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
-		FailoverCoolDown:  dynamicproperties.GetDurationPropertyFnFilteredByDomain(10000 * time.Second),
+		MinRetentionDays:         dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
+		MaxBadBinaryCount:        dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
+		FailoverCoolDown:         dynamicproperties.GetDurationPropertyFnFilteredByDomain(10000 * time.Second),
+		EnableDomainAuditLogging: dynamicproperties.GetBoolPropertyFn(false),
 	}
 	s.handler = NewHandler(
 		domainConfig,
 		s.Logger,
 		s.domainManager,
+		s.mockDomainAuditManager,
 		s.ClusterMetadata,
 		s.mockDomainReplicator,
 		s.archivalMetadata,

@@ -111,3 +111,7 @@ func TestSQLiteConfigPersistence(t *testing.T) {
 	s.TestBase.Setup()
 	suite.Run(t, s)
 }
+
+func TestSQLiteDomainAuditPersistence(t *testing.T) {
+	t.Skip("DomainAuditPersistence is only implemented for NoSQL/Cassandra in this PR")
+}

@@ -41,3 +41,14 @@ func (c *sharddistributorClient) GetShardOwner(ctx context.Context, gp1 *types.G
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
+
+func (c *sharddistributorClient) WatchNamespaceState(ctx context.Context, wp1 *types.WatchNamespaceStateRequest, p1 ...yarpc.CallOption) (w1 sharddistributor.WatchNamespaceStateClient, err error) {
+	var resp sharddistributor.WatchNamespaceStateClient
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.WatchNamespaceState(ctx, wp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}

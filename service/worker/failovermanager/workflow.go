@@ -381,9 +381,17 @@ func shouldFailover(domain *types.DescribeDomainResponse, sourceCluster string) 
 	if !domain.GetIsGlobalDomain() {
 		return false
 	}
+	// Skip deprecated and deleted domains
+	if domain.DomainInfo != nil && domain.DomainInfo.Status != nil {
+		status := *domain.DomainInfo.Status
+		if status == types.DomainStatusDeprecated || status == types.DomainStatusDeleted {
+			return false
+		}
+	}
 
 	// TODO(active-active): Remove this check once failover drills are supported for
 	// active-active workflows
+
 	if domain.ReplicationConfiguration.ActiveClusters != nil &&
 		len(domain.ReplicationConfiguration.ActiveClusters.AttributeScopes) > 0 {
 		return false

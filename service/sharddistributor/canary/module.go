@@ -9,7 +9,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
 	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
 	"github.com/uber/cadence/service/sharddistributor/canary/sharddistributorclient"
-	"github.com/uber/cadence/service/sharddistributor/executorclient"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type NamespacesNames struct {
@@ -48,6 +48,6 @@ func opts(names NamespacesNames) fx.Option {
 		// Instantiate executors for multiple namespaces
 		executors.Module(names.FixedNamespace, names.EphemeralNamespace, names.ExternalAssignmentNamespace),
 
-		processorephemeral.ShardCreatorModule([]string{names.EphemeralNamespace, names.ExternalAssignmentNamespace, "test-local-passthrough-shadow"}),
+		processorephemeral.ShardCreatorModule([]string{names.EphemeralNamespace}),
 	)
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/executorclient/metricsconstants"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient/metricsconstants"
 )
 
 // TODO: consider using gowrap to generate this code

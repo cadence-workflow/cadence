@@ -430,6 +430,10 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 	}, nil
 }
 
+func (s *executorStoreImpl) SubscribeToAssignmentChanges(ctx context.Context, namespace string) (<-chan map[*store.ShardOwner][]string, func(), error) {
+	return s.shardCache.Subscribe(ctx, namespace)
+}
+
 func (s *executorStoreImpl) Subscribe(ctx context.Context, namespace string) (<-chan int64, error) {
 	revisionChan := make(chan int64, 1)
 	watchPrefix := etcdkeys.BuildExecutorPrefix(s.prefix, namespace)
@@ -480,7 +484,27 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 		return fmt.Errorf("prepare shard statistics: %w", err)
 	}
 
-	// 1. Prepare operations to update executor states and shard ownership,
+	// 1. Prepare operations to delete stale executors and add comparisons to ensure they haven't been modified
+	for executorID, expectedModRevision := range request.ExecutorsToDelete {
+		// Build the assigned state key to check for concurrent modifications
+		executorStateKey, err := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, etcdkeys.ExecutorAssignedStateKey)
+		if err != nil {
+			return fmt.Errorf("build executor assigned state key for comparison: %w", err)
+		}
+
+		// Add a comparison to ensure the executor's assigned state hasn't changed
+		// This prevents deleting an executor that just received a shard assignment
+		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(executorStateKey), "=", expectedModRevision))
+
+		// Delete all keys for this executor
+		executorPrefix, err := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, "")
+		if err != nil {
+			return fmt.Errorf("build executor prefix key for deletion: %w", err)
+		}
+		ops = append(ops, clientv3.OpDelete(executorPrefix, clientv3.WithPrefix()))
+	}
+
+	// 2. Prepare operations to update executor states and shard ownership,
 	// and comparisons to check for concurrent modifications.
 	for executorID, state := range request.NewState.ShardAssignments {
 		// Update the executor's assigned_state key.
@@ -500,7 +524,7 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 		return nil
 	}
 
-	// 2. Apply the guard function to get the base transaction, which may already have an 'If' condition for leadership.
+	// 3. Apply the guard function to get the base transaction, which may already have an 'If' condition for leadership.
 	nativeTxn := s.client.Txn(ctx)
 	guardedTxn, err := guard(nativeTxn)
 	if err != nil {
@@ -511,7 +535,7 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 		return fmt.Errorf("guard function returned invalid transaction type")
 	}
 
-	// 3. Create a nested transaction operation. This allows us to add our own 'If' (comparisons)
+	// 4. Create a nested transaction operation. This allows us to add our own 'If' (comparisons)
 	// and 'Then' (ops) logic that will only execute if the outer guard's 'If' condition passes.
 	nestedTxnOp := clientv3.OpTxn(
 		comparisons, // Our IF conditions
@@ -519,14 +543,14 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 		nil,         // Our ELSE operations
 	)
 
-	// 4. Add the nested transaction to the guarded transaction's THEN clause and commit.
+	// 5. Add the nested transaction to the guarded transaction's THEN clause and commit.
 	etcdGuardedTxn = etcdGuardedTxn.Then(nestedTxnOp)
 	txnResp, err := etcdGuardedTxn.Commit()
 	if err != nil {
 		return fmt.Errorf("commit shard assignments transaction: %w", err)
 	}
 
-	// 5. Check the results of both the outer and nested transactions.
+	// 6. Check the results of both the outer and nested transactions.
 	if !txnResp.Succeeded {
 		// This means the guard's condition (e.g., leadership) failed.
 		return fmt.Errorf("%w: transaction failed, leadership may have changed", store.ErrVersionConflict)

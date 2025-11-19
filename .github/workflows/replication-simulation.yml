@@ -25,6 +25,7 @@ jobs:
           - activeactive_regional_failover_start_same_wfid
           - activeactive_regional_failover_start_same_wfid_2
           - activepassive_to_activeactive
+          - budget_manager
           - clusterredirection
           - default
 

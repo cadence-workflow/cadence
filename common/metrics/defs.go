@@ -894,6 +894,9 @@ const (
 	// ShardDistributorClientGetShardOwnerScope tracks GetShardOwner calls made by service to shard distributor
 	ShardDistributorClientGetShardOwnerScope
 
+	// ShardDistributorClientWatchNamespaceStateScope tracks WatchNamespaceState calls made by service to shard distributor
+	ShardDistributorClientWatchNamespaceStateScope
+
 	// ShardDistributorExecutorClientHeartbeatScope tracks Heartbeat calls made by executor to shard distributor
 	ShardDistributorExecutorClientHeartbeatScope
 
@@ -1481,6 +1484,7 @@ const (
 	ShardDistributorStoreGetStateScope
 	ShardDistributorStoreRecordHeartbeatScope
 	ShardDistributorStoreSubscribeScope
+	ShardDistributorStoreSubscribeToAssignmentChangesScope
 
 	// The scope for the shard distributor executor
 	ShardDistributorExecutorScope
@@ -1868,8 +1872,9 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		P2PRPCPeerChooserScope:       {operation: "P2PRPCPeerChooser"},
 		PartitionConfigProviderScope: {operation: "PartitionConfigProvider"},
 
-		ShardDistributorClientGetShardOwnerScope:     {operation: "ShardDistributorClientGetShardOwner"},
-		ShardDistributorExecutorClientHeartbeatScope: {operation: "ShardDistributorExecutorHeartbeat"},
+		ShardDistributorClientGetShardOwnerScope:       {operation: "ShardDistributorClientGetShardOwner"},
+		ShardDistributorClientWatchNamespaceStateScope: {operation: "ShardDistributorClientWatchNamespaceState"},
+		ShardDistributorExecutorClientHeartbeatScope:   {operation: "ShardDistributorExecutorHeartbeat"},
 
 		LoadBalancerScope: {operation: "RRLoadBalancer"},
 
@@ -2153,20 +2158,21 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		DiagnosticsWorkflowScope:               {operation: "DiagnosticsWorkflow"},
 	},
 	ShardDistributor: {
-		ShardDistributorGetShardOwnerScope:         {operation: "GetShardOwner"},
-		ShardDistributorWatchNamespaceStateScope:   {operation: "WatchNamespaceState"},
-		ShardDistributorHeartbeatScope:             {operation: "ExecutorHeartbeat"},
-		ShardDistributorAssignLoopScope:            {operation: "ShardAssignLoop"},
-		ShardDistributorExecutorScope:              {operation: "Executor"},
-		ShardDistributorStoreGetShardOwnerScope:    {operation: "StoreGetShardOwner"},
-		ShardDistributorStoreAssignShardScope:      {operation: "StoreAssignShard"},
-		ShardDistributorStoreAssignShardsScope:     {operation: "StoreAssignShards"},
-		ShardDistributorStoreDeleteExecutorsScope:  {operation: "StoreDeleteExecutors"},
-		ShardDistributorStoreDeleteShardStatsScope: {operation: "StoreDeleteShardStats"},
-		ShardDistributorStoreGetHeartbeatScope:     {operation: "StoreGetHeartbeat"},
-		ShardDistributorStoreGetStateScope:         {operation: "StoreGetState"},
-		ShardDistributorStoreRecordHeartbeatScope:  {operation: "StoreRecordHeartbeat"},
-		ShardDistributorStoreSubscribeScope:        {operation: "StoreSubscribe"},
+		ShardDistributorGetShardOwnerScope:                     {operation: "GetShardOwner"},
+		ShardDistributorWatchNamespaceStateScope:               {operation: "WatchNamespaceState"},
+		ShardDistributorHeartbeatScope:                         {operation: "ExecutorHeartbeat"},
+		ShardDistributorAssignLoopScope:                        {operation: "ShardAssignLoop"},
+		ShardDistributorExecutorScope:                          {operation: "Executor"},
+		ShardDistributorStoreGetShardOwnerScope:                {operation: "StoreGetShardOwner"},
+		ShardDistributorStoreAssignShardScope:                  {operation: "StoreAssignShard"},
+		ShardDistributorStoreAssignShardsScope:                 {operation: "StoreAssignShards"},
+		ShardDistributorStoreDeleteExecutorsScope:              {operation: "StoreDeleteExecutors"},
+		ShardDistributorStoreDeleteShardStatsScope:             {operation: "StoreDeleteShardStats"},
+		ShardDistributorStoreGetHeartbeatScope:                 {operation: "StoreGetHeartbeat"},
+		ShardDistributorStoreGetStateScope:                     {operation: "StoreGetState"},
+		ShardDistributorStoreRecordHeartbeatScope:              {operation: "StoreRecordHeartbeat"},
+		ShardDistributorStoreSubscribeScope:                    {operation: "StoreSubscribe"},
+		ShardDistributorStoreSubscribeToAssignmentChangesScope: {operation: "StoreSubscribeToAssignmentChanges"},
 	},
 }
 

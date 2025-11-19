@@ -5,7 +5,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/service/sharddistributor/executorclient"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 // ShardProcessorFactory is a generic factory for creating ShardProcessor instances.

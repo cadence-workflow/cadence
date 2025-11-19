@@ -25,10 +25,9 @@ package api
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/validate"
 )
@@ -221,8 +220,6 @@ func (wh *WorkflowHandler) FailoverDomain(ctx context.Context, failoverRequest *
 	return failoverResp, nil
 }
 
-// ListFailoverHistory is used to list the failover history for a domain.
-// this is not currently implemented
 func (wh *WorkflowHandler) ListFailoverHistory(ctx context.Context, request *types.ListFailoverHistoryRequest) (*types.ListFailoverHistoryResponse, error) {
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
@@ -233,91 +230,43 @@ func (wh *WorkflowHandler) ListFailoverHistory(ctx context.Context, request *typ
 
 	logger.Info("List failover history request received.")
 
-	// todo (active-active): implement this
-	return generateDummyFailoverHistory(request.GetPagination().GetNextPageToken()), nil
-}
+	domainAuditManager := wh.GetPersistenceBean().GetDomainAuditManager()
+	if domainAuditManager == nil {
+		return nil, &types.InternalServiceError{Message: "DomainAuditManager not available"}
+	}
 
-func generateDummyFailoverHistory(token []byte) *types.ListFailoverHistoryResponse {
+	filters := request.GetFilters()
+	if filters == nil || filters.DomainID == "" {
+		return nil, &types.BadRequestError{Message: "DomainID is required in filters"}
+	}
 
-	if string(token) == "next-plz" {
-		return &types.ListFailoverHistoryResponse{
-			FailoverEvents: []*types.FailoverEvent{
-				{
-					ID:           common.Ptr("uuid-last-failover-event-012345678901"),
-					CreatedTime:  common.Ptr(time.Now().Add(-7 * 24 * time.Hour).UnixNano()),
-					FailoverType: common.Ptr(types.FailoverTypeForce),
-					ClusterFailovers: []*types.ClusterFailover{
-						{
-							FromCluster: &types.ActiveClusterInfo{
-								ActiveClusterName: "cluster2",
-							},
-							ToCluster: &types.ActiveClusterInfo{
-								ActiveClusterName: "cluster1",
-							},
-						},
-					},
-				},
-			},
+	pageSize := 50
+	if request.GetPagination() != nil && request.GetPagination().PageSize != nil {
+		pageSize = int(*request.GetPagination().PageSize)
+	}
+
+	auditLogsResp, err := domainAuditManager.GetDomainAuditLogs(ctx, &persistence.GetDomainAuditLogsRequest{
+		DomainID:      filters.DomainID,
+		OperationType: persistence.DomainAuditOperationTypeFailover,
+		PageSize:      pageSize,
+		NextPageToken: request.GetPagination().GetNextPageToken(),
+	})
+
+	if err != nil {
+		logger.Error("Failed to get domain audit logs", tag.Error(err))
+		return nil, err
+	}
+
+	failoverEvents := make([]*types.FailoverEvent, 0, len(auditLogsResp.AuditLogs))
+	for _, auditLog := range auditLogsResp.AuditLogs {
+		event := auditLog.ToFailoverEvents()
+		if event != nil && event.ClusterFailovers != nil {
+			failoverEvents = append(failoverEvents, event)
 		}
 	}
 
 	return &types.ListFailoverHistoryResponse{
-		FailoverEvents: []*types.FailoverEvent{
-			{
-				ID:           common.Ptr("uuid-dummy-normal-failover-event-5925A5D194D7"),
-				CreatedTime:  common.Ptr(time.Now().Add(-2 * time.Hour).UnixNano()),
-				FailoverType: common.Ptr(types.FailoverTypeForce),
-				ClusterFailovers: []*types.ClusterFailover{
-					{
-						FromCluster: &types.ActiveClusterInfo{
-							ActiveClusterName: "cluster1",
-						},
-						ToCluster: &types.ActiveClusterInfo{
-							ActiveClusterName: "cluster2",
-						},
-					},
-				},
-			},
-			{
-				ID:           common.Ptr("uuid-dummy-normal-failover-event-012345678901"),
-				CreatedTime:  common.Ptr(time.Now().Add(-12 * time.Hour).UnixNano()),
-				FailoverType: common.Ptr(types.FailoverTypeForce),
-				ClusterFailovers: []*types.ClusterFailover{
-					{
-						FromCluster: &types.ActiveClusterInfo{
-							ActiveClusterName: "cluster2",
-						},
-						ToCluster: &types.ActiveClusterInfo{
-							ActiveClusterName: "cluster1",
-						},
-					},
-				},
-			},
-			func() *types.FailoverEvent {
-				var clusterFailovers []*types.ClusterFailover
-				for i := 0; i < 100; i++ {
-					clusterFailovers = append(clusterFailovers, &types.ClusterFailover{
-						ToCluster: &types.ActiveClusterInfo{
-							ActiveClusterName: "cluster1",
-						},
-						FromCluster: &types.ActiveClusterInfo{
-							ActiveClusterName: "cluster3",
-						},
-						ClusterAttribute: &types.ClusterAttribute{
-							Scope: "cityID",
-							Name:  fmt.Sprintf("%d", i),
-						},
-					})
-				}
-
-				return &types.FailoverEvent{
-					ID:               common.Ptr("uuid-dummy-cluster-attr-failover-event-012345678901"),
-					CreatedTime:      common.Ptr(time.Now().Add(-14 * time.Hour).UnixNano()),
-					FailoverType:     common.Ptr(types.FailoverTypeForce),
-					ClusterFailovers: clusterFailovers,
-				}
-			}(),
-		},
-		NextPageToken: []byte("next-plz"),
-	}
+		FailoverEvents: failoverEvents,
+		NextPageToken:  auditLogsResp.NextPageToken,
+	}, nil
 }

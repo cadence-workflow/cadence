@@ -89,8 +89,8 @@ func (s *ShardCreator) process(ctx context.Context) {
 		case <-s.stopChan:
 			return
 		case <-ticker.Chan():
-			shardKey := uuid.New().String()
 			for _, namespace := range s.namespaces {
+				shardKey := uuid.New().String()
 				s.logger.Info("Creating shard", zap.String("shardKey", shardKey), zap.String("namespace", namespace))
 				response, err := s.shardDistributor.GetShardOwner(ctx, &types.GetShardOwnerRequest{
 					ShardKey:  shardKey,

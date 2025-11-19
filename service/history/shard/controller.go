@@ -30,6 +30,7 @@ import (
 
 	workflow "github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
@@ -83,16 +84,17 @@ type (
 	controller struct {
 		resource.Resource
 
-		membershipUpdateCh chan *membership.ChangedEvent
-		engineFactory      EngineFactory
-		status             int32
-		shuttingDown       int32
-		shutdownWG         sync.WaitGroup
-		shutdownCh         chan struct{}
-		logger             log.Logger
-		throttledLogger    log.Logger
-		config             *config.Config
-		metricsScope       metrics.Scope
+		membershipUpdateCh       chan *membership.ChangedEvent
+		engineFactory            EngineFactory
+		status                   int32
+		shuttingDown             int32
+		shutdownWG               sync.WaitGroup
+		shutdownCh               chan struct{}
+		logger                   log.Logger
+		throttledLogger          log.Logger
+		config                   *config.Config
+		metricsScope             metrics.Scope
+		replicationBudgetManager cache.Manager
 
 		sync.RWMutex
 		historyShards   map[int]*historyShardsItem
@@ -104,11 +106,12 @@ type (
 	historyShardsItem struct {
 		resource.Resource
 
-		shardID         int
-		config          *config.Config
-		logger          log.Logger
-		throttledLogger log.Logger
-		engineFactory   EngineFactory
+		shardID                  int
+		config                   *config.Config
+		logger                   log.Logger
+		throttledLogger          log.Logger
+		engineFactory            EngineFactory
+		replicationBudgetManager cache.Manager
 
 		sync.RWMutex
 		status historyShardsItemStatus
@@ -127,19 +130,21 @@ func NewShardController(
 	resource resource.Resource,
 	factory EngineFactory,
 	config *config.Config,
+	replicationBudgetManager cache.Manager,
 ) Controller {
 	hostAddress := resource.GetHostInfo().GetAddress()
 	return &controller{
-		Resource:           resource,
-		status:             common.DaemonStatusInitialized,
-		membershipUpdateCh: make(chan *membership.ChangedEvent, 10),
-		engineFactory:      factory,
-		historyShards:      make(map[int]*historyShardsItem),
-		shutdownCh:         make(chan struct{}),
-		logger:             resource.GetLogger().WithTags(tag.ComponentShardController, tag.Address(hostAddress)),
-		throttledLogger:    resource.GetThrottledLogger().WithTags(tag.ComponentShardController, tag.Address(hostAddress)),
-		config:             config,
-		metricsScope:       resource.GetMetricsClient().Scope(metrics.HistoryShardControllerScope),
+		Resource:                 resource,
+		status:                   common.DaemonStatusInitialized,
+		membershipUpdateCh:       make(chan *membership.ChangedEvent, 10),
+		engineFactory:            factory,
+		historyShards:            make(map[int]*historyShardsItem),
+		shutdownCh:               make(chan struct{}),
+		logger:                   resource.GetLogger().WithTags(tag.ComponentShardController, tag.Address(hostAddress)),
+		throttledLogger:          resource.GetThrottledLogger().WithTags(tag.ComponentShardController, tag.Address(hostAddress)),
+		config:                   config,
+		metricsScope:             resource.GetMetricsClient().Scope(metrics.HistoryShardControllerScope),
+		replicationBudgetManager: replicationBudgetManager,
 	}
 }
 
@@ -148,17 +153,19 @@ func newHistoryShardsItem(
 	shardID int,
 	factory EngineFactory,
 	config *config.Config,
+	replicationBudgetManager cache.Manager,
 ) (*historyShardsItem, error) {
 
 	hostAddress := resource.GetHostInfo().GetAddress()
 	return &historyShardsItem{
-		Resource:        resource,
-		shardID:         shardID,
-		status:          historyShardsItemStatusInitialized,
-		engineFactory:   factory,
-		config:          config,
-		logger:          resource.GetLogger().WithTags(tag.ShardID(shardID), tag.Address(hostAddress)),
-		throttledLogger: resource.GetThrottledLogger().WithTags(tag.ShardID(shardID), tag.Address(hostAddress)),
+		Resource:                 resource,
+		shardID:                  shardID,
+		status:                   historyShardsItemStatusInitialized,
+		engineFactory:            factory,
+		config:                   config,
+		logger:                   resource.GetLogger().WithTags(tag.ShardID(shardID), tag.Address(hostAddress)),
+		throttledLogger:          resource.GetThrottledLogger().WithTags(tag.ShardID(shardID), tag.Address(hostAddress)),
+		replicationBudgetManager: replicationBudgetManager,
 	}, nil
 }
 
@@ -328,6 +335,7 @@ func (c *controller) getOrCreateHistoryShardItem(shardID int) (*historyShardsIte
 			shardID,
 			c.engineFactory,
 			c.config,
+			c.replicationBudgetManager,
 		)
 		if err != nil {
 			return nil, err

@@ -33,12 +33,14 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	cadence_errors "github.com/uber/cadence/common/errors"
+	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
@@ -103,6 +105,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			mockTimeSource := clock.NewMockedTimeSourceAt(time.Now())
 			taskManager := tasklist.NewTestTaskManager(t, logger, mockTimeSource)
 			mockHistoryClient := history.NewMockClient(ctrl)
+			mockMatchingClient := matching.NewMockClient(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 			resolverMock := membership.NewMockResolver(ctrl)
 			resolverMock.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).AnyTimes()
@@ -122,13 +125,13 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				taskManager,
 				cluster.GetTestClusterMetadata(true),
 				mockHistoryClient,
-				nil,
+				mockMatchingClient,
 				config,
 				logger,
 				metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
 				mockDomainCache,
 				resolverMock,
-				nil,
+				isolationgroup.NewMockState(ctrl),
 				mockTimeSource,
 			).(*matchingEngineImpl)
 

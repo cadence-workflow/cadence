@@ -274,6 +274,8 @@ func NewBudgetManager(
 		throttledLogger = log.NewThrottledLogger(logger, dynamicproperties.GetIntPropertyFn(1))
 	}
 
+	logger.Info("Budget manager started", tag.Name(name))
+
 	mgr := &manager{
 		name:                        name,
 		maxBytes:                    maxBytes,
@@ -316,6 +318,11 @@ func (m *manager) metricsLoop() {
 
 // updateMetrics emits current state metrics
 func (m *manager) updateMetrics() {
+	// Skip metrics if both capacity limits are disabled (set to 0)
+	if m.maxBytes() == 0 && m.maxCount() == 0 {
+		return
+	}
+
 	// Emit capacity metrics
 	capacityBytes := m.CapacityBytes()
 	// Only emit if not unlimited
@@ -342,6 +349,11 @@ func (m *manager) updateMetrics() {
 
 // emitHardCapExceeded logs when hard capacity limit is exceeded and increments counter
 func (m *manager) emitHardCapExceeded(cacheID, budgetType string, requested, available uint64) {
+	// Skip metrics if both capacity limits are disabled (set to 0)
+	if m.maxBytes() == 0 && m.maxCount() == 0 {
+		return
+	}
+
 	if m.scope != nil {
 		m.scope.IncCounter(metrics.BudgetManagerHardCapExceeded)
 	}
@@ -359,6 +371,11 @@ func (m *manager) emitHardCapExceeded(cacheID, budgetType string, requested, ava
 
 // emitSoftCapExceeded logs when soft cap is exceeded and increments counter
 func (m *manager) emitSoftCapExceeded(cacheID, budgetType string, requested, available uint64) {
+	// Skip metrics if both capacity limits are disabled (set to 0)
+	if m.maxBytes() == 0 && m.maxCount() == 0 {
+		return
+	}
+
 	if m.scope != nil {
 		m.scope.IncCounter(metrics.BudgetManagerSoftCapExceeded)
 	}
@@ -376,6 +393,11 @@ func (m *manager) emitSoftCapExceeded(cacheID, budgetType string, requested, ava
 
 // emitCapacityExceeded emits appropriate metrics based on the error type
 func (m *manager) emitCapacityExceeded(cacheID string, err error, requestedBytes uint64, requestedCount int64, capResult CapEnforcementResult) {
+	// Skip metrics if both capacity limits are disabled (set to 0)
+	if m.maxBytes() == 0 && m.maxCount() == 0 {
+		return
+	}
+
 	switch err {
 	case ErrBytesBudgetExceeded:
 		m.emitHardCapExceeded(cacheID, budgetTypeBytes, requestedBytes, capResult.AvailableBytes)
