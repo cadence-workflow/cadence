@@ -1148,19 +1148,20 @@ type describeWorkflowExecutionResponse struct {
 
 // workflowExecutionInfo has same fields as types.WorkflowExecutionInfo, but has datetime instead of raw time
 type workflowExecutionInfo struct {
-	Execution         *types.WorkflowExecution
-	Type              *types.WorkflowType
-	StartTime         *string // change from *int64
-	CloseTime         *string // change from *int64
-	CloseStatus       *types.WorkflowExecutionCloseStatus
-	HistoryLength     int64
-	ParentDomainID    *string
-	ParentExecution   *types.WorkflowExecution
-	Memo              *types.Memo
-	SearchAttributes  map[string]interface{}
-	AutoResetPoints   *types.ResetPoints
-	PartitionConfig   map[string]string
-	CronOverlapPolicy *types.CronOverlapPolicy
+	Execution                    *types.WorkflowExecution
+	Type                         *types.WorkflowType
+	StartTime                    *string // change from *int64
+	CloseTime                    *string // change from *int64
+	CloseStatus                  *types.WorkflowExecutionCloseStatus
+	HistoryLength                int64
+	ParentDomainID               *string
+	ParentExecution              *types.WorkflowExecution
+	Memo                         *types.Memo
+	SearchAttributes             map[string]interface{}
+	AutoResetPoints              *types.ResetPoints
+	PartitionConfig              map[string]string
+	CronOverlapPolicy            *types.CronOverlapPolicy
+	ActiveClusterSelectionPolicy *types.ActiveClusterSelectionPolicy
 }
 
 // pendingActivityInfo has same fields as types.PendingActivityInfo, but different field type for better display
@@ -1199,19 +1200,20 @@ func convertDescribeWorkflowExecutionResponse(resp *types.DescribeWorkflowExecut
 		return nil, fmt.Errorf("error converting search attributes: %w", err)
 	}
 	executionInfo := workflowExecutionInfo{
-		Execution:         info.Execution,
-		Type:              info.Type,
-		StartTime:         common.StringPtr(timestampToString(info.GetStartTime(), false)),
-		CloseTime:         common.StringPtr(timestampToString(info.GetCloseTime(), false)),
-		CloseStatus:       info.CloseStatus,
-		HistoryLength:     info.HistoryLength,
-		ParentDomainID:    info.ParentDomainID,
-		ParentExecution:   info.ParentExecution,
-		Memo:              info.Memo,
-		SearchAttributes:  searchattributes,
-		AutoResetPoints:   info.AutoResetPoints,
-		PartitionConfig:   info.PartitionConfig,
-		CronOverlapPolicy: info.CronOverlapPolicy,
+		Execution:                    info.Execution,
+		Type:                         info.Type,
+		StartTime:                    common.StringPtr(timestampToString(info.GetStartTime(), false)),
+		CloseTime:                    common.StringPtr(timestampToString(info.GetCloseTime(), false)),
+		CloseStatus:                  info.CloseStatus,
+		HistoryLength:                info.HistoryLength,
+		ParentDomainID:               info.ParentDomainID,
+		ParentExecution:              info.ParentExecution,
+		Memo:                         info.Memo,
+		SearchAttributes:             searchattributes,
+		AutoResetPoints:              info.AutoResetPoints,
+		PartitionConfig:              info.PartitionConfig,
+		CronOverlapPolicy:            info.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy: info.ActiveClusterSelectionPolicy,
 	}
 
 	var pendingActs []*pendingActivityInfo
