@@ -293,6 +293,6 @@ func TestWatchNamespaceState(t *testing.T) {
 
 		err := handler.WatchNamespaceState(&types.WatchNamespaceStateRequest{Namespace: "test-ns"}, mockServer)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "get initial state")
+		require.Contains(t, err.Error(), "failed to get namespace state: storage error")
 	})
 }
