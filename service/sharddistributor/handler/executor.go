@@ -59,10 +59,10 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 	switch mode {
 	case types.MigrationModeINVALID:
 		h.logger.Warn("Migration mode is invalid", tag.ShardNamespace(request.Namespace), tag.ShardExecutor(request.ExecutorID))
-		return nil, fmt.Errorf("migration mode is invalid")
+		return nil, fmt.Errorf("namigration mode is invalid")
 	case types.MigrationModeLOCALPASSTHROUGH:
 		h.logger.Warn("Migration mode is local passthrough, no calls to heartbeat allowed", tag.ShardNamespace(request.Namespace), tag.ShardExecutor(request.ExecutorID))
-		return nil, fmt.Errorf("migration mode is local passthrough")
+		return nil, types.BadRequestError{Message: "migration mode is local passthrough, no calls to heartbeat allowed"}
 	// From SD perspective the behaviour is the same
 	case types.MigrationModeLOCALPASSTHROUGHSHADOW, types.MigrationModeDISTRIBUTEDPASSTHROUGH:
 		assignedShards, err = h.assignShardsInCurrentHeartbeat(ctx, request)
@@ -88,7 +88,7 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 	}
 
 	if err := validateMetadata(newHeartbeat.Metadata); err != nil {
-		return nil, fmt.Errorf("validate metadata: %w", err)
+		return nil, types.BadRequestError{Message: fmt.Sprintf("invalid metadata: %s", err)}
 	}
 
 	err = h.storage.RecordHeartbeat(ctx, request.Namespace, request.ExecutorID, newHeartbeat)
