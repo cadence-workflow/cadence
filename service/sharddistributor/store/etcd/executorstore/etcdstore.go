@@ -891,5 +891,8 @@ func ewmaSmoothedLoad(prev, current float64, lastUpdate, now int64) float64 {
 	}
 	dt := max(now-lastUpdate, 0)
 	alpha := 1 - math.Exp(-float64(dt)/tauSeconds)
+	if math.IsNaN(prev) || math.IsInf(prev, 0) {
+		return current
+	}
 	return (1-alpha)*prev + alpha*current
 }

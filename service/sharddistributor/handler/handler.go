@@ -162,8 +162,11 @@ func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string
 // pickLeastLoadedExecutor returns the ACTIVE executor with the minimal aggregated smoothed load.
 // Ties are broken by fewer assigned shards.
 func pickLeastLoadedExecutor(state *store.NamespaceState) (executorID string, aggregatedLoad float64, assignedCount int, err error) {
-	if state == nil || len(state.ShardAssignments) == 0 {
-		return "", 0, 0, fmt.Errorf("namespace state is nil or has no executors")
+	if state == nil {
+		return "", 0, 0, fmt.Errorf("namespace state is nil")
+	}
+	if len(state.ShardAssignments) == 0 {
+		return "", 0, 0, fmt.Errorf("namespace state has no executors")
 	}
 
 	var chosenID string
