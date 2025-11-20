@@ -76,11 +76,14 @@ func NewProcessorFactory(
 	timeSource clock.TimeSource,
 	cfg config.ShardDistribution,
 ) Factory {
-	if cfg.Process.Period == 0 {
+	if cfg.Process.Period <= 0 {
 		cfg.Process.Period = _defaultPeriod
 	}
-	if cfg.Process.HeartbeatTTL == 0 {
+	if cfg.Process.HeartbeatTTL <= 0 {
 		cfg.Process.HeartbeatTTL = _defaultHearbeatTTL
+	}
+	if cfg.Process.ShardStatsTTL <= 0 {
+		cfg.Process.ShardStatsTTL = config.DefaultShardStatsTTL
 	}
 
 	return &processorFactory{
@@ -237,7 +240,7 @@ func (p *namespaceProcessor) runShardStatsCleanupLoop(ctx context.Context) {
 				continue
 			}
 			staleShardStats := p.identifyStaleShardStats(namespaceState)
-			if len(staleShardStats) > 0 {
+			if len(staleShardStats) == 0 {
 				// No stale shard stats to delete
 				continue
 			}
@@ -267,7 +270,7 @@ func (p *namespaceProcessor) identifyStaleExecutors(namespaceState *store.Namesp
 func (p *namespaceProcessor) identifyStaleShardStats(namespaceState *store.NamespaceState) []string {
 	activeShards := make(map[string]struct{})
 	now := p.timeSource.Now().Unix()
-	shardStatsTTL := int64(p.cfg.HeartbeatTTL.Seconds())
+	shardStatsTTL := int64(p.cfg.ShardStatsTTL.Seconds())
 
 	// 1. build set of active executors
 

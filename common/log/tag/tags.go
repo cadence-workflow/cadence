@@ -1185,9 +1185,18 @@ func ShardKey(shardKey string) Tag {
 	return newStringTag("shard-key", shardKey)
 }
 
+func AggregateLoad(load float64) Tag {
+	return newFloat64Tag("aggregated-load", load)
+}
+
+func AssignedCount(count int) Tag {
+	return newInt("assigned-count", count)
+}
+
 func ShardStatus(status string) Tag {
 	return newStringTag("shard-status", status)
 }
+
 func ShardLoad(load string) Tag {
 	return newStringTag("shard-load", load)
 }

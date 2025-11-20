@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -35,7 +36,14 @@ type executorStoreImpl struct {
 	logger     log.Logger
 	shardCache *shardcache.ShardToExecutorCache
 	timeSource clock.TimeSource
+	// Max interval (seconds) before we force a shard-stat persist.
+	maxStatsPersistIntervalSeconds int64
 }
+
+// Constants for gating shard statistics writes to reduce etcd load.
+const (
+	shardStatsEpsilon = 0.05
+)
 
 // shardStatisticsUpdate holds the staged statistics for a shard so we can write them
 // to etcd after the main AssignShards transaction commits.
@@ -88,12 +96,18 @@ func NewStore(p ExecutorStoreParams) (store.Store, error) {
 		timeSource = clock.NewRealTimeSource()
 	}
 
+	shardStatsTTL := p.Cfg.Process.ShardStatsTTL
+	if shardStatsTTL <= 0 {
+		shardStatsTTL = config.DefaultShardStatsTTL
+	}
+
 	store := &executorStoreImpl{
-		client:     etcdClient,
-		prefix:     etcdCfg.Prefix,
-		logger:     p.Logger,
-		shardCache: shardCache,
-		timeSource: timeSource,
+		client:                         etcdClient,
+		prefix:                         etcdCfg.Prefix,
+		logger:                         p.Logger,
+		shardCache:                     shardCache,
+		timeSource:                     timeSource,
+		maxStatsPersistIntervalSeconds: deriveStatsPersistInterval(shardStatsTTL),
 	}
 
 	p.Lifecycle.Append(fx.StartStopHook(store.Start, store.Stop))
@@ -153,7 +167,135 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 	if err != nil {
 		return fmt.Errorf("record heartbeat: %w", err)
 	}
+
+	s.recordShardStatistics(ctx, namespace, executorID, request.ReportedShards)
+
 	return nil
+}
+
+func deriveStatsPersistInterval(shardStatsTTL time.Duration) int64 {
+	ttlSeconds := int64(shardStatsTTL.Seconds())
+	if ttlSeconds <= 1 {
+		return 1
+	}
+	return ttlSeconds - 1
+}
+
+func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) {
+	if len(reported) == 0 {
+		return
+	}
+
+	now := s.timeSource.Now().Unix()
+
+	for shardID, report := range reported {
+		if report == nil {
+			s.logger.Warn("empty report; skipping EWMA update",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+			)
+			continue
+		}
+
+		load := report.ShardLoad
+		if math.IsNaN(load) || math.IsInf(load, 0) {
+			s.logger.Warn(
+				"invalid shard load reported; skipping EWMA update",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+			)
+			continue
+		}
+
+		shardStatsKey, err := etcdkeys.BuildShardKey(s.prefix, namespace, shardID, etcdkeys.ShardStatisticsKey)
+		if err != nil {
+			s.logger.Warn(
+				"failed to build shard statistics key from heartbeat",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+				tag.Error(err),
+			)
+			continue
+		}
+
+		statsResp, err := s.client.Get(ctx, shardStatsKey)
+		if err != nil {
+			s.logger.Warn(
+				"failed to read shard statistics for heartbeat update",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+				tag.Error(err),
+			)
+			continue
+		}
+
+		var stats store.ShardStatistics
+		if len(statsResp.Kvs) > 0 {
+			err := common.DecompressAndUnmarshal(statsResp.Kvs[0].Value, &stats)
+			if err != nil {
+				s.logger.Warn(
+					"failed to unmarshal shard statistics for heartbeat update",
+					tag.ShardNamespace(namespace),
+					tag.ShardExecutor(executorID),
+					tag.ShardKey(shardID),
+					tag.Error(err),
+				)
+				continue
+			}
+		}
+
+		// Update smoothed load via EWMA.
+		prevSmoothed := stats.SmoothedLoad
+		prevUpdate := stats.LastUpdateTime
+		newSmoothed := ewmaSmoothedLoad(prevSmoothed, load, prevUpdate, now)
+
+		// Decide whether to persist this update. We always persist if this is the
+		// first observation (prevUpdate == 0). Otherwise, if the change is small
+		// and the previous persist is recent, skip the write to reduce etcd load.
+		shouldPersist := true
+		if prevUpdate > 0 {
+			age := now - prevUpdate
+			delta := math.Abs(newSmoothed - prevSmoothed)
+			if delta < shardStatsEpsilon && age < s.maxStatsPersistIntervalSeconds {
+				shouldPersist = false
+			}
+		}
+
+		if !shouldPersist {
+			// Skip persisting, proceed to next shard.
+			continue
+		}
+
+		stats.SmoothedLoad = newSmoothed
+		stats.LastUpdateTime = now
+
+		payload, err := json.Marshal(stats)
+		if err != nil {
+			s.logger.Warn(
+				"failed to marshal shard statistics after heartbeat",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+				tag.Error(err),
+			)
+			continue
+		}
+
+		_, err = s.client.Put(ctx, shardStatsKey, string(payload))
+		if err != nil {
+			s.logger.Warn(
+				"failed to persist shard statistics from heartbeat",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+				tag.Error(err),
+			)
+		}
+	}
 }
 
 // GetHeartbeat retrieves the last known heartbeat state for a single executor.
@@ -740,4 +882,17 @@ func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, nam
 			)
 		}
 	}
+}
+
+func ewmaSmoothedLoad(prev, current float64, lastUpdate, now int64) float64 {
+	const tauSeconds = 30.0 // smaller = more responsive, larger = smoother
+	if lastUpdate <= 0 || tauSeconds <= 0 {
+		return current
+	}
+	dt := max(now-lastUpdate, 0)
+	alpha := 1 - math.Exp(-float64(dt)/tauSeconds)
+	if math.IsNaN(prev) || math.IsInf(prev, 0) {
+		return current
+	}
+	return (1-alpha)*prev + alpha*current
 }
