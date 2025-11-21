@@ -237,7 +237,7 @@ func (p *namespaceProcessor) runShardStatsCleanupLoop(ctx context.Context) {
 				continue
 			}
 			staleShardStats := p.identifyStaleShardStats(namespaceState)
-			if len(staleShardStats) > 0 {
+			if len(staleShardStats) == 0 {
 				// No stale shard stats to delete
 				continue
 			}

@@ -29,6 +29,8 @@ var (
 	_executorStatusRunningJSON = fmt.Sprintf(`"%s"`, types.ExecutorStatusACTIVE)
 )
 
+const deleteShardStatsBatchSize = 64
+
 type executorStoreImpl struct {
 	client     *clientv3.Client
 	prefix     string
@@ -625,11 +627,29 @@ func (s *executorStoreImpl) DeleteExecutors(ctx context.Context, namespace strin
 	return nil
 }
 
+// DeleteShardStats deletes shard statistics in batches to avoid hitting etcd transaction limits (128 ops).
+// If any batch fails (e.g. due to leadership loss), the operation returns immediately.
+// Partial deletions are acceptable as the periodic cleanup loop will retry remaining keys.
 func (s *executorStoreImpl) DeleteShardStats(ctx context.Context, namespace string, shardIDs []string, guard store.GuardFunc) error {
 	if len(shardIDs) == 0 {
 		return nil
 	}
-	var ops []clientv3.Op
+
+	for start := 0; start < len(shardIDs); start += deleteShardStatsBatchSize {
+		end := start + deleteShardStatsBatchSize
+		if end > len(shardIDs) {
+			end = len(shardIDs)
+		}
+
+		if err := s.deleteShardStatsBatch(ctx, namespace, shardIDs[start:end], guard); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *executorStoreImpl) deleteShardStatsBatch(ctx context.Context, namespace string, shardIDs []string, guard store.GuardFunc) error {
+	ops := make([]clientv3.Op, 0, len(shardIDs))
 	for _, shardID := range shardIDs {
 		shardStatsKey, err := etcdkeys.BuildShardKey(s.prefix, namespace, shardID, etcdkeys.ShardStatisticsKey)
 		if err != nil {
@@ -640,10 +660,10 @@ func (s *executorStoreImpl) DeleteShardStats(ctx context.Context, namespace stri
 
 	nativeTxn := s.client.Txn(ctx)
 	guardedTxn, err := guard(nativeTxn)
-
 	if err != nil {
 		return fmt.Errorf("apply transaction guard: %w", err)
 	}
+
 	etcdGuardedTxn, ok := guardedTxn.(clientv3.Txn)
 	if !ok {
 		return fmt.Errorf("guard function returned invalid transaction type")
