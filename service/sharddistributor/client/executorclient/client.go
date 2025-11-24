@@ -30,7 +30,7 @@ type ShardReport struct {
 }
 
 type ShardProcessor interface {
-	Start(ctx context.Context)
+	Start(ctx context.Context) error
 	Stop()
 	GetShardReport() ShardReport
 }

@@ -57,9 +57,11 @@ func (mr *MockShardProcessorMockRecorder) GetShardReport() *gomock.Call {
 }
 
 // Start mocks base method.
-func (m *MockShardProcessor) Start(ctx context.Context) {
+func (m *MockShardProcessor) Start(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start", ctx)
+	ret := m.ctrl.Call(m, "Start", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Start indicates an expected call of Start.
