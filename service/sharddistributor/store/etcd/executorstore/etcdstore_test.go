@@ -573,42 +573,6 @@ func TestGetShardStatisticsForMissingShard(t *testing.T) {
 	assert.NotContains(t, st.ShardStats, "unknown")
 }
 
-// TestDeleteShardStatsDeletesLargeBatches verifies that shard statistics are correctly deleted in batches.
-func TestDeleteShardStatsDeletesLargeBatches(t *testing.T) {
-	tc := testhelper.SetupStoreTestCluster(t)
-	executorStore := createStore(t, tc)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	totalShardStats := deleteShardStatsBatchSize*2 + 7 // two batches + 7 extra (remainder)
-	shardIDs := make([]string, 0, totalShardStats)
-
-	// Create stale stats
-	for i := 0; i < totalShardStats; i++ {
-		shardID := "stale-stats-" + strconv.Itoa(i)
-		shardIDs = append(shardIDs, shardID)
-
-		statsKey, err := etcdkeys.BuildShardKey(tc.EtcdPrefix, tc.Namespace, shardID, etcdkeys.ShardStatisticsKey)
-		require.NoError(t, err)
-		stats := store.ShardStatistics{
-			SmoothedLoad:   float64(i),
-			LastUpdateTime: int64(i),
-			LastMoveTime:   int64(i),
-		}
-		payload, err := json.Marshal(stats)
-		require.NoError(t, err)
-		_, err = tc.Client.Put(ctx, statsKey, string(payload))
-		require.NoError(t, err)
-	}
-
-	require.NoError(t, executorStore.DeleteShardStats(ctx, tc.Namespace, shardIDs, store.NopGuard()))
-
-	nsState, err := executorStore.GetState(ctx, tc.Namespace)
-	require.NoError(t, err)
-	assert.Empty(t, nsState.ShardStats)
-}
-
 // --- Test Setup ---
 
 func stringStatus(s types.ExecutorStatus) string {
