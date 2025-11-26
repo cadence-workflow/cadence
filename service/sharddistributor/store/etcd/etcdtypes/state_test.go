@@ -112,7 +112,7 @@ func TestAssignedState_FromAssignedState(t *testing.T) {
 }
 
 func TestAssignedState_JSONMarshalling(t *testing.T) {
-	const jsonStr = `{"assigned_shards":{"1":{"status":"READY"}},"last_updated":"2025-11-18T12:00:00.123456789Z","mod_revision":42}`
+	const jsonStr = `{"assigned_shards":{"1":{"status":"AssignmentStatusREADY"}},"last_updated":"2025-11-18T12:00:00.123456789Z","mod_revision":42}`
 
 	state := &AssignedState{
 		AssignedShards: map[string]*types.ShardAssignment{
