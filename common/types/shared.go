@@ -1782,6 +1782,7 @@ type FailoverDomainRequest struct {
 	DomainName              string          `json:"domainName,omitempty"`
 	DomainActiveClusterName *string         `json:"domainActiveClusterName,omitempty"`
 	ActiveClusters          *ActiveClusters `json:"activeClusters,omitempty"`
+	Reason                  *string         `json:"reason,omitempty"`
 }
 
 func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {
@@ -1792,6 +1793,7 @@ func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {
 		Name:              v.DomainName,
 		ActiveClusterName: v.DomainActiveClusterName,
 		ActiveClusters:    v.ActiveClusters,
+		FailoverReason:    v.Reason,
 	}
 }
 
@@ -8027,6 +8029,7 @@ type UpdateDomainRequest struct {
 	SecurityToken                          string                             `json:"securityToken,omitempty"`
 	DeleteBadBinary                        *string                            `json:"deleteBadBinary,omitempty"`
 	FailoverTimeoutInSeconds               *int32                             `json:"failoverTimeoutInSeconds,omitempty"`
+	FailoverReason                         *string                            `json:"failoverReason,omitempty"`
 }
 
 // IsAFailoverRequest identifies if any part of the request is a failover request

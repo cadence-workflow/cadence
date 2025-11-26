@@ -124,6 +124,7 @@ type (
 		FromCluster  string `json:"fromCluster,omitempty"`
 		ToCluster    string `json:"toCluster,omitempty"`
 		FailoverType string `json:"failoverType,omitempty"`
+		Reason       string `json:"reason,omitempty"`
 	}
 
 	// FailoverHistory is the history of failovers for a domain limited by the FailoverHistoryMaxSize config
@@ -614,6 +615,7 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 			failoverType,
 			&currentActiveCluster,
 			updateRequest.ActiveClusterName,
+			updateRequest.FailoverReason,
 		))
 		if err != nil {
 			d.logger.Warn("failed to update failover history", tag.Error(err))
@@ -1906,6 +1908,7 @@ func NewFailoverEvent(
 	failoverType constants.FailoverType,
 	fromCluster *string,
 	toCluster *string,
+	reason *string,
 ) FailoverEvent {
 	res := FailoverEvent{
 		EventTime:    eventTime,
@@ -1916,6 +1919,9 @@ func NewFailoverEvent(
 	}
 	if toCluster != nil {
 		res.ToCluster = *toCluster
+	}
+	if reason != nil {
+		res.Reason = *reason
 	}
 	return res
 }
