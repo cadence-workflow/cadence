@@ -114,7 +114,7 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 	// TODO: this should probably return another cluster name, not current
 	replicationTaskFetcher.EXPECT().GetSourceCluster().Return(constants.TestClusterMetadata.GetCurrentClusterName()).AnyTimes()
 	replicationTaskFetcher.EXPECT().GetRateLimiter().Return(quotas.NewDynamicRateLimiter(func() float64 { return 100 })).AnyTimes()
-	replicationTaskFetcher.EXPECT().GetRequestChan().Return(nil).AnyTimes()
+	replicationTaskFetcher.EXPECT().GetRequestChan(gomock.Any()).Return(nil).AnyTimes()
 	replicatonTaskFetchers.EXPECT().GetFetchers().Return([]replication.TaskFetcher{replicationTaskFetcher}).AnyTimes()
 
 	failoverCoordinator := failover.NewMockCoordinator(controller)

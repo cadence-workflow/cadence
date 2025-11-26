@@ -54,7 +54,7 @@ type (
 		common.Daemon
 
 		GetSourceCluster() string
-		GetRequestChan() chan<- *request
+		GetRequestChan(shardID int) chan<- *request
 		GetRateLimiter() quotas.Limiter
 	}
 
@@ -76,7 +76,7 @@ type (
 		remotePeer     admin.Client
 		rateLimiter    quotas.Limiter
 		timeSource     clock.TimeSource
-		requestChan    chan *request
+		requestChan    []chan *request
 		ctx            context.Context
 		cancelCtx      context.CancelFunc
 		wg             sync.WaitGroup
@@ -167,6 +167,12 @@ func newReplicationTaskFetcher(
 	metricsClient metrics.Client,
 ) TaskFetcher {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	requestChan := make([]chan *request, config.ReplicationTaskFetcherParallelism())
+	for i := 0; i < config.ReplicationTaskFetcherParallelism(); i++ {
+		requestChan[i] = make(chan *request, requestChanBufferSize)
+	}
+
 	fetcher := &taskFetcherImpl{
 		status:         common.DaemonStatusInitialized,
 		config:         config,
@@ -177,7 +183,7 @@ func newReplicationTaskFetcher(
 		sourceCluster:  sourceCluster,
 		rateLimiter:    quotas.NewDynamicRateLimiter(config.ReplicationTaskProcessorHostQPS.AsFloat64()),
 		timeSource:     clock.NewRealTimeSource(),
-		requestChan:    make(chan *request, requestChanBufferSize),
+		requestChan:    requestChan,
 		ctx:            ctx,
 		cancelCtx:      cancel,
 	}
@@ -191,11 +197,12 @@ func (f *taskFetcherImpl) Start() {
 		return
 	}
 
-	// NOTE: we have never run production service with ReplicationTaskFetcherParallelism larger than 1,
-	// the behavior is undefined if we do so. We should consider making this config a boolean.
+	// NOTE: ReplicationTaskFetcherParallelism > 1 is now supported. Each fetcher goroutine handles a subset of shards
+	// (distributed via shardID % parallelism) and runs its own fetch cycle independently.
 	for i := 0; i < f.config.ReplicationTaskFetcherParallelism(); i++ {
+		i := i
 		f.wg.Add(1)
-		go f.fetchTasks()
+		go f.fetchTasks(i)
 	}
 	f.logger.Info("Replication task fetcher started.", tag.Counter(f.config.ReplicationTaskFetcherParallelism()))
 }
@@ -215,13 +222,8 @@ func (f *taskFetcherImpl) Stop() {
 }
 
 // fetchTasks collects getReplicationTasks request from shards and send out aggregated request to source frontend.
-func (f *taskFetcherImpl) fetchTasks() {
-	startTime := f.timeSource.Now()
+func (f *taskFetcherImpl) fetchTasks(chanIdx int) {
 	defer f.wg.Done()
-	defer func() {
-		totalLatency := f.timeSource.Now().Sub(startTime)
-		f.metricsScope.ExponentialHistogram(metrics.ExponentialReplicationTaskFetchLatency, totalLatency)
-	}()
 
 	timer := f.timeSource.NewTimer(backoff.JitDuration(
 		f.config.ReplicationTaskFetcherAggregationInterval(),
@@ -232,7 +234,7 @@ func (f *taskFetcherImpl) fetchTasks() {
 	requestByShard := make(map[int32]*request)
 	for {
 		select {
-		case request := <-f.requestChan:
+		case request := <-f.requestChan[chanIdx]:
 			// Here we only add the request to map. We will wait until timer fires to send the request to remote.
 			if req, ok := requestByShard[request.token.GetShardID()]; ok && req != request {
 				// since this replication task fetcher is per host and replication task processor is per shard
@@ -268,6 +270,12 @@ func (f *taskFetcherImpl) fetchTasks() {
 }
 
 func (f *taskFetcherImpl) fetchAndDistributeTasks(requestByShard map[int32]*request) error {
+	startTime := f.timeSource.Now()
+	defer func() {
+		fetchLatency := f.timeSource.Now().Sub(startTime)
+		f.metricsScope.ExponentialHistogram(metrics.ExponentialReplicationTaskFetchLatency, fetchLatency)
+	}()
+
 	if len(requestByShard) == 0 {
 		// We don't receive tasks from previous fetch so processors are all sleeping.
 		f.logger.Debug("Skip fetching as no processor is asking for tasks.")
@@ -289,7 +297,7 @@ func (f *taskFetcherImpl) fetchAndDistributeTasks(requestByShard map[int32]*requ
 	for _, messages := range messagesByShard {
 		totalTasks += len(messages.ReplicationTasks)
 	}
-	f.metricsScope.UpdateGauge(metrics.ReplicationTasksFetchedSize, float64(totalTasks))
+	f.metricsScope.RecordHistogramValue(metrics.ReplicationTasksFetchedSize, float64(totalTasks))
 
 	f.logger.Debug("Successfully fetched replication tasks.", tag.Counter(len(messagesByShard)))
 	for shardID, tasks := range messagesByShard {
@@ -329,8 +337,10 @@ func (f *taskFetcherImpl) GetSourceCluster() string {
 }
 
 // GetRequestChan returns the request chan for the fetcher
-func (f *taskFetcherImpl) GetRequestChan() chan<- *request {
-	return f.requestChan
+func (f *taskFetcherImpl) GetRequestChan(shardID int) chan<- *request {
+	chanIdx := shardID % f.config.ReplicationTaskFetcherParallelism()
+
+	return f.requestChan[chanIdx]
 }
 
 // GetRateLimiter returns the host level rate limiter for the fetcher
