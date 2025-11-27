@@ -3134,3 +3134,65 @@ func TestMapQueryRejectConditionFromFlag(t *testing.T) {
 		})
 	}
 }
+
+func TestParseClusterAttributes(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		clusterAttributeScope  string
+		clusterAttributeName   string
+		expectedPolicy         *types.ActiveClusterSelectionPolicy
+		expectError            bool
+		expectedErrorSubstring string
+	}{
+		{
+			name:                  "both empty - should return nil",
+			clusterAttributeScope: "",
+			clusterAttributeName:  "",
+			expectedPolicy:        nil,
+			expectError:           false,
+		},
+		{
+			name:                  "both provided - should return valid policy",
+			clusterAttributeScope: "test-scope",
+			clusterAttributeName:  "test-name",
+			expectedPolicy: &types.ActiveClusterSelectionPolicy{
+				ClusterAttribute: &types.ClusterAttribute{
+					Scope: "test-scope",
+					Name:  "test-name",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:                   "empty scope with name provided - should error",
+			clusterAttributeScope:  "",
+			clusterAttributeName:   "test-name",
+			expectedPolicy:         nil,
+			expectError:            true,
+			expectedErrorSubstring: "invalid cluster attribute",
+		},
+		{
+			name:                   "scope provided with empty name - should error",
+			clusterAttributeScope:  "test-scope",
+			clusterAttributeName:   "",
+			expectedPolicy:         nil,
+			expectError:            true,
+			expectedErrorSubstring: "invalid cluster attribute",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseClusterAttributes(tc.clusterAttributeScope, tc.clusterAttributeName)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrorSubstring)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedPolicy, result)
+			}
+		})
+	}
+}

@@ -75,6 +75,8 @@ system.domainAuditLogTTL:
   - value: "15m"
 matching.enableClientAutoConfig:
 - value: true
+frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
+- value: true
 shardDistributor.migrationMode:
   - value: "onboarded"
   - value: "local_pass"
