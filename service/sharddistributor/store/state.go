@@ -15,17 +15,43 @@ type HeartbeatState struct {
 }
 
 type AssignedState struct {
-	// AssignedShards is the map of shard ID to shard assignment
+	// AssignedShards holds the current assignment of shards to this executor
+	// Key: ShardID
 	AssignedShards map[string]*types.ShardAssignment
 
-	// LastUpdated is the time we last updated this assignment
+	// ShardHandoverStats holds handover statistics of all shards experienced handovers to this executor
+	// Mostly all shards in AssignedShards will have corresponding entries here
+	// But if a shard was assigned but never had a handover (e.g., first assignment), it does not have an entry here
+	// Key: ShardID
+	ShardHandoverStats map[string]ShardHandoverStats
+
+	// LastUpdated is the time when this assignment state was last updated
+	// Used to calculate assignment distribution latency for newly assigned shards
 	LastUpdated time.Time
 	ModRevision int64
 }
 
+// ShardHandoverStats holds statistics related to the latest handover of a shard
+type ShardHandoverStats struct {
+	// PreviousExecutorLastHeartbeatTime is the last heartbeat time received
+	// from the previous executor before the shard was reassigned.
+	PreviousExecutorLastHeartbeatTime time.Time
+
+	// HandoverType indicates the type of handover that occurred during the last shard reassignment.
+	HandoverType types.HandoverType
+}
+
 type NamespaceState struct {
-	Executors        map[string]HeartbeatState
-	ShardStats       map[string]ShardStatistics
+	// Executors holds the heartbeat states of all executors in the namespace.
+	// Key: ExecutorID
+	Executors map[string]HeartbeatState
+
+	// ShardStats holds the statistics of all shards in the namespace.
+	// Key: ShardID
+	ShardStats map[string]ShardStatistics
+
+	// ShardAssignments holds the assignment states of all shards in the namespace.
+	// Key: ExecutorID
 	ShardAssignments map[string]AssignedState
 	GlobalRevision   int64
 }
