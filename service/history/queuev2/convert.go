@@ -2,10 +2,9 @@ package queuev2
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"time"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -113,7 +112,7 @@ func ToPersistencePredicate(predicate Predicate) *types.Predicate {
 	case *emptyPredicate:
 		return &types.Predicate{PredicateType: types.PredicateTypeEmpty, EmptyPredicateAttributes: &types.EmptyPredicateAttributes{}}
 	case *domainIDPredicate:
-		domainIDs := maps.Keys(p.domainIDs)
+		domainIDs := slices.Collect(maps.Keys(p.domainIDs))
 		slices.Sort(domainIDs)
 		return &types.Predicate{PredicateType: types.PredicateTypeDomainID, DomainIDPredicateAttributes: &types.DomainIDPredicateAttributes{DomainIDs: domainIDs, IsExclusive: &p.isExclusive}}
 	default:
