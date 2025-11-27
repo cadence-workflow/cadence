@@ -1479,6 +1479,7 @@ const (
 	ShardDistributorStoreAssignShardScope
 	ShardDistributorStoreAssignShardsScope
 	ShardDistributorStoreDeleteExecutorsScope
+	ShardDistributorStoreGetShardStatsScope
 	ShardDistributorStoreDeleteShardStatsScope
 	ShardDistributorStoreGetHeartbeatScope
 	ShardDistributorStoreGetExecutorScope
@@ -2168,6 +2169,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		ShardDistributorStoreAssignShardScope:                  {operation: "StoreAssignShard"},
 		ShardDistributorStoreAssignShardsScope:                 {operation: "StoreAssignShards"},
 		ShardDistributorStoreDeleteExecutorsScope:              {operation: "StoreDeleteExecutors"},
+		ShardDistributorStoreGetShardStatsScope:                {operation: "StoreGetShardStats"},
 		ShardDistributorStoreDeleteShardStatsScope:             {operation: "StoreDeleteShardStats"},
 		ShardDistributorStoreGetHeartbeatScope:                 {operation: "StoreGetHeartbeat"},
 		ShardDistributorStoreGetExecutorScope:                  {operation: "StoreGetExecutor"},
@@ -2970,6 +2972,13 @@ const (
 	ShardDistributorStoreRequestsPerNamespace
 	ShardDistributorStoreLatencyHistogramPerNamespace
 
+	// ShardDistributorShardAssignmentDistributionLatency measures the time taken between assignment of a shard
+	// and the time it is fully distributed to executors
+	ShardDistributorShardAssignmentDistributionLatency
+
+	// ShardDistributorShardHandoverLatency measures the time taken to hand over a shard from one executor to another
+	ShardDistributorShardHandoverLatency
+
 	NumShardDistributorMetrics
 )
 
@@ -3755,6 +3764,9 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ShardDistributorStoreFailuresPerNamespace:         {metricName: "shard_distributor_store_failures_per_namespace", metricType: Counter},
 		ShardDistributorStoreRequestsPerNamespace:         {metricName: "shard_distributor_store_requests_per_namespace", metricType: Counter},
 		ShardDistributorStoreLatencyHistogramPerNamespace: {metricName: "shard_distributor_store_latency_histogram_per_namespace", metricType: Histogram, buckets: ShardDistributorExecutorStoreLatencyBuckets},
+
+		ShardDistributorShardAssignmentDistributionLatency: {metricName: "shard_distributor_shard_assignment_distribution_latency", metricType: Histogram, buckets: Default1ms100s.buckets()},
+		ShardDistributorShardHandoverLatency:               {metricName: "shard_distributor_shard_handover_latency", metricType: Histogram, buckets: Default1ms100s.buckets()},
 	},
 }
 

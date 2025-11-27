@@ -9,10 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
+	metricmocks "github.com/uber/cadence/common/metrics/mocks"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -31,7 +34,7 @@ func TestHeartbeat(t *testing.T) {
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
 		shardDistributionCfg := config.ShardDistribution{}
 		migrationConfig := newMigrationConfig(t, []configEntry{})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig)
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig, metrics.NoopClient)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -56,7 +59,7 @@ func TestHeartbeat(t *testing.T) {
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
 		shardDistributionCfg := config.ShardDistribution{}
 		migrationConfig := newMigrationConfig(t, []configEntry{})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig)
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig, metrics.NoopClient)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -82,7 +85,7 @@ func TestHeartbeat(t *testing.T) {
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
 		shardDistributionCfg := config.ShardDistribution{}
 		migrationConfig := newMigrationConfig(t, []configEntry{})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig)
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig, metrics.NoopClient)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -115,7 +118,7 @@ func TestHeartbeat(t *testing.T) {
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
 		shardDistributionCfg := config.ShardDistribution{}
 		migrationConfig := newMigrationConfig(t, []configEntry{})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig)
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig, metrics.NoopClient)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -145,7 +148,7 @@ func TestHeartbeat(t *testing.T) {
 		mockTimeSource := clock.NewMockedTimeSource()
 		shardDistributionCfg := config.ShardDistribution{}
 		migrationConfig := newMigrationConfig(t, []configEntry{})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig)
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig, metrics.NoopClient)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -170,7 +173,7 @@ func TestHeartbeat(t *testing.T) {
 			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeINVALID}},
 		}
 		migrationConfig := newMigrationConfig(t, []configEntry{{dynamicproperties.MigrationMode, config.MigrationModeINVALID}})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig)
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig, metrics.NoopClient)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -199,7 +202,7 @@ func TestHeartbeat(t *testing.T) {
 			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGH}},
 		}
 		migrationConfig := newMigrationConfig(t, []configEntry{{dynamicproperties.MigrationMode, config.MigrationModeLOCALPASSTHROUGH}})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig)
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig, metrics.NoopClient)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -228,7 +231,7 @@ func TestHeartbeat(t *testing.T) {
 			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGHSHADOW}},
 		}
 		migrationConfig := newMigrationConfig(t, []configEntry{{dynamicproperties.MigrationMode, config.MigrationModeLOCALPASSTHROUGHSHADOW}})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig)
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig, metrics.NoopClient)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -269,6 +272,7 @@ func TestHeartbeat(t *testing.T) {
 				return nil
 			},
 		)
+
 		mockStore.EXPECT().RecordHeartbeat(gomock.Any(), namespace, executorID, gomock.AssignableToTypeOf(store.HeartbeatState{})).DoAndReturn(
 			func(_ context.Context, _ string, _ string, hb store.HeartbeatState) error {
 				// Validate status and reported shards, ignore exact timestamp
@@ -292,7 +296,7 @@ func TestHeartbeat(t *testing.T) {
 			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGHSHADOW}},
 		}
 		migrationConfig := newMigrationConfig(t, []configEntry{{dynamicproperties.MigrationMode, config.MigrationModeLOCALPASSTHROUGHSHADOW}})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig)
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig, metrics.NoopClient)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -335,7 +339,7 @@ func TestHeartbeat(t *testing.T) {
 			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGHSHADOW}},
 		}
 		migrationConfig := newMigrationConfig(t, []configEntry{{dynamicproperties.MigrationMode, config.MigrationModeLOCALPASSTHROUGHSHADOW}})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig)
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig, metrics.NoopClient)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -377,7 +381,7 @@ func TestHeartbeat(t *testing.T) {
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
 		shardDistributionCfg := config.ShardDistribution{}
 		migrationConfig := newMigrationConfig(t, []configEntry{})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig)
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig, metrics.NoopClient)
 
 		// Create metadata with more than max allowed keys
 		metadata := make(map[string]string)
@@ -408,7 +412,7 @@ func TestHeartbeat(t *testing.T) {
 			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGH}},
 		}
 		migrationConfig := newMigrationConfig(t, []configEntry{{dynamicproperties.MigrationMode, config.MigrationModeLOCALPASSTHROUGH}})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig)
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig, metrics.NoopClient)
 
 		req := &types.ExecutorHeartbeatRequest{
 			Namespace:  namespace,
@@ -556,17 +560,11 @@ func TestConvertResponse(t *testing.T) {
 		{
 			name: "Populated input",
 			input: &store.AssignedState{
-				AssignedShards: map[string]*types.ShardAssignment{
-					"shard-1": {Status: types.AssignmentStatusREADY},
-					"shard-2": {Status: types.AssignmentStatusREADY},
-				},
+				AssignedShards: makeReadyAssignedShards("shard-1", "shard-2"),
 			},
 			expectedResp: &types.ExecutorHeartbeatResponse{
-				ShardAssignments: map[string]*types.ShardAssignment{
-					"shard-1": {Status: types.AssignmentStatusREADY},
-					"shard-2": {Status: types.AssignmentStatusREADY},
-				},
-				MigrationMode: types.MigrationModeONBOARDED,
+				ShardAssignments: makeReadyAssignedShards("shard-1", "shard-2"),
+				MigrationMode:    types.MigrationModeONBOARDED,
 			},
 		},
 	}
@@ -605,4 +603,309 @@ func newMigrationConfig(t *testing.T, configEntries []configEntry) *config.Migra
 	dc := dynamicconfig.NewCollection(client, testlogger.New(t))
 	migrationConfig := config.NewMigrationConfig(dc)
 	return migrationConfig
+}
+
+func TestFilterNewlyAssignedShardIDs(t *testing.T) {
+	type testCase struct {
+		name     string
+		previous *store.HeartbeatState
+		assigned *store.AssignedState
+		expected []string
+	}
+	tests := []testCase{
+		{
+			name:     "nil previousHeartbeat returns all assigned",
+			previous: nil,
+			assigned: &store.AssignedState{
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard1": {},
+					"shard2": {},
+				},
+			},
+			expected: []string{"shard1", "shard2"},
+		},
+		{
+			name: "no new assigned shards",
+			previous: &store.HeartbeatState{
+				ReportedShards: map[string]*types.ShardStatusReport{
+					"shard1": {},
+					"shard2": {},
+				},
+			},
+			assigned: &store.AssignedState{
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard1": {},
+					"shard2": {},
+				},
+			},
+			expected: []string{},
+		},
+		{
+			name: "some new assigned shards",
+			previous: &store.HeartbeatState{
+				ReportedShards: map[string]*types.ShardStatusReport{
+					"shard1": {},
+				},
+			},
+			assigned: &store.AssignedState{
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard1": {},
+					"shard2": {},
+					"shard3": {},
+				},
+			},
+			expected: []string{"shard2", "shard3"},
+		},
+		{
+			name: "empty assigned returns empty",
+			previous: &store.HeartbeatState{
+				ReportedShards: map[string]*types.ShardStatusReport{
+					"shard1": {},
+				},
+			},
+			assigned: &store.AssignedState{
+				AssignedShards: map[string]*types.ShardAssignment{},
+			},
+			expected: []string{},
+		},
+		{
+			name: "nil assignedState returns nil",
+			previous: &store.HeartbeatState{
+				ReportedShards: map[string]*types.ShardStatusReport{
+					"shard1": {},
+				},
+			},
+			assigned: nil,
+			expected: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := filterNewlyAssignedShardIDs(tt.previous, tt.assigned)
+			require.ElementsMatch(t, tt.expected, result)
+		})
+	}
+}
+
+func TestEmitShardAssignmentMetrics(t *testing.T) {
+	heartbeatTime := time.Now().UTC()
+	namespace := "test-namespace"
+	shardID := "shard-1"
+	emptyHeartbeatState := &store.HeartbeatState{ReportedShards: map[string]*types.ShardStatusReport{}}
+
+	type expectHandoverMetric struct {
+		Latency      time.Duration
+		HandoverType types.HandoverType
+	}
+
+	type testCase struct {
+		name              string
+		previousHeartbeat *store.HeartbeatState
+		assignedState     *store.AssignedState
+
+		expectedDistributionLatency *time.Duration
+		expectedHandoverLatencies   []*expectHandoverMetric
+	}
+
+	testCases := []testCase{
+		{
+			name:                        "no new assigned shards",
+			previousHeartbeat:           &store.HeartbeatState{ReportedShards: map[string]*types.ShardStatusReport{shardID: {}}},
+			assignedState:               &store.AssignedState{AssignedShards: makeReadyAssignedShards(shardID)},
+			expectedDistributionLatency: nil,
+			expectedHandoverLatencies:   nil,
+		},
+		{
+			name:              "newly assigned shard with handover stats",
+			previousHeartbeat: emptyHeartbeatState,
+			assignedState: &store.AssignedState{
+				AssignedShards: makeReadyAssignedShards(shardID),
+				LastUpdated:    heartbeatTime.Add(-10 * time.Second),
+				ShardHandoverStats: map[string]store.ShardHandoverStats{
+					shardID: {
+						PreviousExecutorLastHeartbeatTime: heartbeatTime.Add(-20 * time.Second),
+						HandoverType:                      types.HandoverTypeGRACEFUL,
+					},
+				},
+			},
+			expectedDistributionLatency: common.Ptr(10 * time.Second),
+			expectedHandoverLatencies:   []*expectHandoverMetric{{Latency: 20 * time.Second, HandoverType: types.HandoverTypeGRACEFUL}},
+		},
+		{
+			name:              "one assigned shard with no handover stats",
+			previousHeartbeat: emptyHeartbeatState,
+			assignedState: &store.AssignedState{
+				AssignedShards:     makeReadyAssignedShards(shardID),
+				LastUpdated:        heartbeatTime.Add(-5 * time.Second),
+				ShardHandoverStats: map[string]store.ShardHandoverStats{},
+			},
+			expectedDistributionLatency: common.Ptr(5 * time.Second),
+			expectedHandoverLatencies:   nil,
+		},
+		{
+			name:              "one assigned shard with nil handover stats",
+			previousHeartbeat: emptyHeartbeatState,
+			assignedState: &store.AssignedState{
+				AssignedShards:     makeReadyAssignedShards(shardID),
+				LastUpdated:        heartbeatTime.Add(-5 * time.Second),
+				ShardHandoverStats: nil,
+			},
+			expectedDistributionLatency: common.Ptr(5 * time.Second),
+			expectedHandoverLatencies:   nil,
+		},
+		{
+			name:              "multiple newly assigned shards with handover stats",
+			previousHeartbeat: emptyHeartbeatState,
+			assignedState: &store.AssignedState{
+				AssignedShards: makeReadyAssignedShards("shard-1", "shard-2"),
+				LastUpdated:    heartbeatTime.Add(-15 * time.Second),
+				ShardHandoverStats: map[string]store.ShardHandoverStats{
+					"shard-1": {
+						PreviousExecutorLastHeartbeatTime: heartbeatTime.Add(-25 * time.Second),
+						HandoverType:                      types.HandoverTypeGRACEFUL,
+					},
+					"shard-2": {
+						PreviousExecutorLastHeartbeatTime: heartbeatTime.Add(-30 * time.Second),
+						HandoverType:                      types.HandoverTypeEMERGENCY,
+					},
+				},
+			},
+			expectedDistributionLatency: common.Ptr(15 * time.Second),
+			expectedHandoverLatencies: []*expectHandoverMetric{
+				{Latency: 30 * time.Second, HandoverType: types.HandoverTypeGRACEFUL},
+				{Latency: 25 * time.Second, HandoverType: types.HandoverTypeEMERGENCY},
+			},
+		},
+		{
+			name:              "multiple newly assigned shards with some handover stats",
+			previousHeartbeat: emptyHeartbeatState,
+			assignedState: &store.AssignedState{
+				AssignedShards: makeReadyAssignedShards("shard-1", "shard-2"),
+				LastUpdated:    heartbeatTime.Add(-15 * time.Second),
+				ShardHandoverStats: map[string]store.ShardHandoverStats{
+					"shard-1": {
+						PreviousExecutorLastHeartbeatTime: heartbeatTime.Add(-25 * time.Second),
+						HandoverType:                      types.HandoverTypeGRACEFUL,
+					},
+				},
+			},
+			expectedDistributionLatency: common.Ptr(15 * time.Second),
+			expectedHandoverLatencies:   []*expectHandoverMetric{{Latency: 25 * time.Second, HandoverType: types.HandoverTypeGRACEFUL}},
+		},
+		{
+			name:              "multiple newly assigned shards without handover stats",
+			previousHeartbeat: emptyHeartbeatState,
+			assignedState: &store.AssignedState{
+				AssignedShards: makeReadyAssignedShards("shard-1", "shard-2"),
+				LastUpdated:    heartbeatTime.Add(-15 * time.Second),
+			},
+			expectedDistributionLatency: common.Ptr(15 * time.Second),
+			expectedHandoverLatencies:   nil,
+		},
+		{
+			name:              "nil handover stats with new assigned shard",
+			previousHeartbeat: emptyHeartbeatState,
+			assignedState: &store.AssignedState{
+				AssignedShards:     makeReadyAssignedShards(shardID),
+				LastUpdated:        heartbeatTime.Add(-5 * time.Second),
+				ShardHandoverStats: nil,
+			},
+			expectedDistributionLatency: common.Ptr(5 * time.Second),
+			expectedHandoverLatencies:   nil,
+		},
+		{
+			name: "newly assigned shard with previous heartbeat containing reported shards",
+			previousHeartbeat: &store.HeartbeatState{
+				ReportedShards: map[string]*types.ShardStatusReport{
+					"shard-2": {},
+				},
+			},
+			assignedState: &store.AssignedState{
+				AssignedShards: makeReadyAssignedShards("shard-1", "shard-2"),
+				LastUpdated:    heartbeatTime.Add(-8 * time.Second),
+				ShardHandoverStats: map[string]store.ShardHandoverStats{
+					"shard-1": {
+						PreviousExecutorLastHeartbeatTime: heartbeatTime.Add(-18 * time.Second),
+						HandoverType:                      types.HandoverTypeGRACEFUL,
+					},
+				},
+			},
+			expectedDistributionLatency: common.Ptr(8 * time.Second),
+			expectedHandoverLatencies:   []*expectHandoverMetric{{Latency: 18 * time.Second, HandoverType: types.HandoverTypeGRACEFUL}},
+		},
+		{
+			name: "multiple new assigned shards, previous heartbeat contains some",
+			previousHeartbeat: &store.HeartbeatState{
+				ReportedShards: map[string]*types.ShardStatusReport{
+					"shard-2": {},
+				},
+			},
+			assignedState: &store.AssignedState{
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard-1": {Status: types.AssignmentStatusREADY},
+					"shard-2": {Status: types.AssignmentStatusREADY},
+					"shard-3": {Status: types.AssignmentStatusREADY},
+				},
+				LastUpdated: heartbeatTime.Add(-12 * time.Second),
+				ShardHandoverStats: map[string]store.ShardHandoverStats{
+					"shard-1": {
+						PreviousExecutorLastHeartbeatTime: heartbeatTime.Add(-22 * time.Second),
+						HandoverType:                      types.HandoverTypeGRACEFUL,
+					},
+					"shard-3": {
+						PreviousExecutorLastHeartbeatTime: heartbeatTime.Add(-30 * time.Second),
+						HandoverType:                      types.HandoverTypeEMERGENCY,
+					},
+				},
+			},
+			expectedDistributionLatency: common.Ptr(12 * time.Second),
+			expectedHandoverLatencies: []*expectHandoverMetric{
+				{Latency: 22 * time.Second, HandoverType: types.HandoverTypeGRACEFUL},
+				{Latency: 30 * time.Second, HandoverType: types.HandoverTypeEMERGENCY},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			metricsClient := &metricmocks.Client{}
+			metricsScope := &metricmocks.Scope{}
+
+			if tc.expectedDistributionLatency != nil {
+				metricsClient.On("Scope", metrics.ShardDistributorHeartbeatScope).Return(metricsScope).Once()
+				metricsScope.On("Tagged", metrics.NamespaceTag(namespace)).Return(metricsScope).Once()
+				metricsScope.On("RecordHistogramDuration", metrics.ShardDistributorShardAssignmentDistributionLatency, *tc.expectedDistributionLatency).Once()
+			}
+
+			if tc.expectedHandoverLatencies != nil {
+				for _, expected := range tc.expectedHandoverLatencies {
+					metricsScope.On("Tagged", metrics.HandoverTypeTag(expected.HandoverType.String())).Return(metricsScope)
+					metricsScope.On("RecordHistogramDuration", metrics.ShardDistributorShardHandoverLatency, expected.Latency).Once()
+				}
+			}
+
+			exec := &executor{metricsClient: metricsClient, logger: testlogger.New(t)}
+			exec.emitShardAssignmentMetrics(namespace, heartbeatTime, tc.previousHeartbeat, tc.assignedState)
+
+			metricsClient.AssertExpectations(t)
+			metricsScope.AssertExpectations(t)
+		})
+	}
+}
+
+// makeReadyAssignedShards is a helper function to create a map of shard assignments with READY status.
+func makeReadyAssignedShards(shardIDs ...string) map[string]*types.ShardAssignment {
+	return makeAssignedShards(types.AssignmentStatusREADY, shardIDs...)
+}
+
+// makeAssignedShards is a helper function to create a map of shard assignments with the given status.
+func makeAssignedShards(status types.AssignmentStatus, shardIDs ...string) map[string]*types.ShardAssignment {
+	assignedShards := make(map[string]*types.ShardAssignment)
+	for _, shardID := range shardIDs {
+		assignedShards[shardID] = &types.ShardAssignment{Status: status}
+	}
+	return assignedShards
 }
