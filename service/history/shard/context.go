@@ -1351,11 +1351,6 @@ func (s *contextImpl) allocateTimerIDsLocked(
 			ts = readCursorTS.Add(persistence.DBTimestampMinPrecision)
 		}
 		if ts.Before(now) {
-			s.logger.Warn("New timer generated is in the past",
-				tag.WorkflowDomainID(domainEntry.GetInfo().ID),
-				tag.WorkflowID(workflowID),
-				tag.Timestamp(ts),
-				tag.ValueShardAllocateTimerBeforeRead)
 			ts = now.Add(persistence.DBTimestampMinPrecision)
 		}
 		task.SetVisibilityTimestamp(ts)
