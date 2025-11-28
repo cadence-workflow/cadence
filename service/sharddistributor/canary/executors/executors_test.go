@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	"go.uber.org/fx"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/sharddistributor"
@@ -20,14 +19,6 @@ import (
 )
 
 // mockLifecycle is a simple mock implementation of fx.Lifecycle for testing
-type mockLifecycle struct {
-	hookCount int
-}
-
-func (m *mockLifecycle) Append(hook fx.Hook) {
-	m.hookCount++
-}
-
 func TestNewExecutorsFixedNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	tests := []struct {
@@ -159,52 +150,6 @@ func TestNewExecutor_InvalidConfig(t *testing.T) {
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errorString)
-		})
-	}
-}
-
-func TestNewExecutorsModule(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	// Create a mock lifecycle
-	tests := []struct {
-		name               string
-		params             ExecutorsParams
-		expectedInvocation int
-	}{
-		{
-			name: "multiple executors",
-			params: ExecutorsParams{
-				ExecutorsFixed: []executorclient.Executor[*processor.ShardProcessor]{
-					executorclient.NewMockExecutor[*processor.ShardProcessor](ctrl),
-					executorclient.NewMockExecutor[*processor.ShardProcessor](ctrl),
-				},
-				Executorsephemeral: []executorclient.Executor[*processorephemeral.ShardProcessor]{
-					executorclient.NewMockExecutor[*processorephemeral.ShardProcessor](ctrl),
-				},
-			},
-			expectedInvocation: 3,
-		},
-		{
-			name: "no executors",
-			params: ExecutorsParams{
-				ExecutorsFixed:     []executorclient.Executor[*processor.ShardProcessor]{},
-				Executorsephemeral: []executorclient.Executor[*processorephemeral.ShardProcessor]{},
-			},
-			expectedInvocation: 0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockLifecycle := &mockLifecycle{}
-			tt.params.Lc = mockLifecycle
-			// Call NewExecutorsModule - it should not panic or error
-			// The function doesn't return anything, so we just verify it executes successfully
-			require.NotPanics(t, func() {
-				NewExecutorsModule(tt.params)
-			})
-			// Verify that lifecycle hooks were registered for all executors
-			assert.Equal(t, tt.expectedInvocation, mockLifecycle.hookCount)
 		})
 	}
 }

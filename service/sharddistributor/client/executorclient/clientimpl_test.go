@@ -11,6 +11,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common/clock"
@@ -29,21 +30,33 @@ func TestHeartBeartLoop(t *testing.T) {
 	mockShardDistributorClient := sharddistributorexecutor.NewMockClient(ctrl)
 
 	// We expect nothing is assigned to the executor, and we assign two shards to it
-	mockShardDistributorClient.EXPECT().Heartbeat(gomock.Any(),
-		&types.ExecutorHeartbeatRequest{
-			Namespace:          "test-namespace",
-			ExecutorID:         "test-executor-id",
-			Status:             types.ExecutorStatusACTIVE,
-			ShardStatusReports: make(map[string]*types.ShardStatusReport),
-			Metadata:           make(map[string]string),
-		}, gomock.Any()).
-		Return(&types.ExecutorHeartbeatResponse{
-			ShardAssignments: map[string]*types.ShardAssignment{
-				"test-shard-id1": {Status: types.AssignmentStatusREADY},
-				"test-shard-id2": {Status: types.AssignmentStatusREADY},
-			},
-			MigrationMode: types.MigrationModeONBOARDED,
-		}, nil)
+	callCount := 0
+	mockShardDistributorClient.EXPECT().Heartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *types.ExecutorHeartbeatRequest, _ ...yarpc.CallOption) (*types.ExecutorHeartbeatResponse, error) {
+			callCount++
+			switch callCount {
+			case 1:
+				assert.Equal(t, "test-namespace", req.Namespace)
+				assert.Equal(t, "test-executor-id", req.ExecutorID)
+				assert.Equal(t, types.ExecutorStatusACTIVE, req.Status)
+				assert.Empty(t, req.ShardStatusReports)
+				assert.Empty(t, req.Metadata)
+				return &types.ExecutorHeartbeatResponse{
+					ShardAssignments: map[string]*types.ShardAssignment{
+						"test-shard-id1": {Status: types.AssignmentStatusREADY},
+						"test-shard-id2": {Status: types.AssignmentStatusREADY},
+					},
+					MigrationMode: types.MigrationModeONBOARDED,
+				}, nil
+			case 2:
+				assert.Equal(t, types.ExecutorStatusDRAINING, req.Status)
+				assert.Empty(t, req.ShardStatusReports)
+				return &types.ExecutorHeartbeatResponse{}, nil
+			default:
+				t.Fatalf("unexpected heartbeat call: %d", callCount)
+				return nil, nil
+			}
+		}).Times(2)
 
 	// The two shards are assigned to the executor, so we expect them to be created, started and stopped
 	mockShardProcessor1 := NewMockShardProcessor(ctrl)
@@ -477,13 +490,28 @@ func TestHeartbeatLoop_LocalPassthroughShadow_SkipsAssignment(t *testing.T) {
 	mockShardDistributorClient := sharddistributorexecutor.NewMockClient(ctrl)
 
 	// Heartbeat should be called but assignment should not be applied
+	callCount := 0
 	mockShardDistributorClient.EXPECT().Heartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(&types.ExecutorHeartbeatResponse{
-			ShardAssignments: map[string]*types.ShardAssignment{
-				"test-shard-id1": {Status: types.AssignmentStatusREADY},
-			},
-			MigrationMode: types.MigrationModeLOCALPASSTHROUGHSHADOW,
-		}, nil)
+		DoAndReturn(func(_ context.Context, req *types.ExecutorHeartbeatRequest, _ ...yarpc.CallOption) (*types.ExecutorHeartbeatResponse, error) {
+			callCount++
+			switch callCount {
+			case 1:
+				assert.Equal(t, types.ExecutorStatusACTIVE, req.Status)
+				return &types.ExecutorHeartbeatResponse{
+					ShardAssignments: map[string]*types.ShardAssignment{
+						"test-shard-id1": {Status: types.AssignmentStatusREADY},
+					},
+					MigrationMode: types.MigrationModeLOCALPASSTHROUGHSHADOW,
+				}, nil
+			case 2:
+				assert.Equal(t, types.ExecutorStatusDRAINING, req.Status)
+				assert.Empty(t, req.ShardStatusReports)
+				return &types.ExecutorHeartbeatResponse{}, nil
+			default:
+				t.Fatalf("unexpected heartbeat call count: %d", callCount)
+				return nil, nil
+			}
+		}).Times(2)
 
 	mockShardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
 	// No shard processor should be created
@@ -524,13 +552,28 @@ func TestHeartbeatLoop_DistributedPassthrough_AppliesAssignment(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockShardDistributorClient := sharddistributorexecutor.NewMockClient(ctrl)
 
+	callCount := 0
 	mockShardDistributorClient.EXPECT().Heartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(&types.ExecutorHeartbeatResponse{
-			ShardAssignments: map[string]*types.ShardAssignment{
-				"test-shard-id1": {Status: types.AssignmentStatusREADY},
-			},
-			MigrationMode: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
-		}, nil)
+		DoAndReturn(func(_ context.Context, req *types.ExecutorHeartbeatRequest, _ ...yarpc.CallOption) (*types.ExecutorHeartbeatResponse, error) {
+			callCount++
+			switch callCount {
+			case 1:
+				assert.Equal(t, types.ExecutorStatusACTIVE, req.Status)
+				return &types.ExecutorHeartbeatResponse{
+					ShardAssignments: map[string]*types.ShardAssignment{
+						"test-shard-id1": {Status: types.AssignmentStatusREADY},
+					},
+					MigrationMode: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
+				}, nil
+			case 2:
+				assert.Equal(t, types.ExecutorStatusDRAINING, req.Status)
+				assert.Empty(t, req.ShardStatusReports)
+				return &types.ExecutorHeartbeatResponse{}, nil
+			default:
+				t.Fatalf("unexpected heartbeat call count: %d", callCount)
+				return nil, nil
+			}
+		}).Times(2)
 
 	mockShardProcessor := NewMockShardProcessor(ctrl)
 	mockShardProcessor.EXPECT().Start(gomock.Any())
@@ -567,6 +610,24 @@ func TestHeartbeatLoop_DistributedPassthrough_AppliesAssignment(t *testing.T) {
 	processor, err := executor.GetShardProcess(context.Background(), "test-shard-id1")
 	assert.NoError(t, err)
 	assert.Equal(t, mockShardProcessor, processor)
+}
+
+func TestStopWithoutHeartbeatDoesNotSendDraining(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockShardDistributorClient := sharddistributorexecutor.NewMockClient(ctrl)
+
+	mockShardDistributorClient.EXPECT().Heartbeat(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	executor := &executorImpl[*MockShardProcessor]{
+		logger:                 log.NewNoop(),
+		shardDistributorClient: mockShardDistributorClient,
+		namespace:              "test-namespace",
+		executorID:             "test-executor-id",
+		metrics:                tally.NoopScope,
+		stopC:                  make(chan struct{}),
+	}
+
+	executor.Stop()
 }
 
 func TestCompareAssignments_Converged(t *testing.T) {

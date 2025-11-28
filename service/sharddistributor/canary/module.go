@@ -1,7 +1,10 @@
 package canary
 
 import (
+	"context"
+
 	"go.uber.org/fx"
+	"go.uber.org/yarpc"
 
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/service/sharddistributor/canary/executors"
@@ -49,5 +52,41 @@ func opts(names NamespacesNames) fx.Option {
 		executors.Module(names.FixedNamespace, names.EphemeralNamespace, names.ExternalAssignmentNamespace),
 
 		processorephemeral.ShardCreatorModule([]string{names.EphemeralNamespace}),
+
+		fx.Invoke(registerExecutorLifecycle),
 	)
+}
+
+type lifecycleParams struct {
+	fx.In
+	Lifecycle          fx.Lifecycle
+	Dispatcher         *yarpc.Dispatcher
+	FixedExecutors     []executorclient.Executor[*processor.ShardProcessor]          `group:"executor-fixed-proc"`
+	EphemeralExecutors []executorclient.Executor[*processorephemeral.ShardProcessor] `group:"executor-ephemeral-proc"`
+}
+
+func registerExecutorLifecycle(params lifecycleParams) {
+	params.Lifecycle.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			if err := params.Dispatcher.Start(); err != nil {
+				return err
+			}
+			for _, executor := range params.FixedExecutors {
+				executor.Start(ctx)
+			}
+			for _, executor := range params.EphemeralExecutors {
+				executor.Start(ctx)
+			}
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			for _, executor := range params.FixedExecutors {
+				executor.Stop()
+			}
+			for _, executor := range params.EphemeralExecutors {
+				executor.Stop()
+			}
+			return params.Dispatcher.Stop()
+		},
+	})
 }

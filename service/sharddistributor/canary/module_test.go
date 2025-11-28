@@ -5,9 +5,11 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/uber-go/tally"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
+	ubergomock "go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 	"go.uber.org/yarpc/api/transport/transporttest"
 	"go.uber.org/yarpc/transport/grpc"
@@ -16,7 +18,10 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/service/sharddistributor/canary/processor"
+	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestModule(t *testing.T) {
@@ -50,9 +55,69 @@ func TestModule(t *testing.T) {
 			fx.Annotate(clock.NewMockedTimeSource(), fx.As(new(clock.TimeSource))),
 			fx.Annotate(log.NewNoop(), fx.As(new(log.Logger))),
 			fx.Annotate(mockClientConfigProvider, fx.As(new(yarpc.ClientConfig))),
+			yarpc.Config{Name: "shard-distributor-canary-test"},
 			zaptest.NewLogger(t),
 			config,
 		),
+		fx.Provide(yarpc.NewDispatcher),
 		Module(NamespacesNames{FixedNamespace: "shard-distributor-canary", EphemeralNamespace: "shard-distributor-canary-ephemeral", ExternalAssignmentNamespace: "test-external-assignment", SharddistributorServiceName: "cadence-shard-distributor"}),
 	).RequireStart().RequireStop()
+}
+
+type mockLifecycle struct {
+	hookCount int
+}
+
+func (m *mockLifecycle) Append(hook fx.Hook) {
+	m.hookCount++
+}
+
+func TestRegisterExecutorLifecycle(t *testing.T) {
+	ctrl := ubergomock.NewController(t)
+	defer ctrl.Finish()
+
+	tests := []struct {
+		name              string
+		params            lifecycleParams
+		expectedHookCount int
+	}{
+		{
+			name: "multiple executors",
+			params: lifecycleParams{
+				Lifecycle: &mockLifecycle{},
+				Dispatcher: yarpc.NewDispatcher(yarpc.Config{
+					Name: "test-dispatcher",
+				}),
+				FixedExecutors: []executorclient.Executor[*processor.ShardProcessor]{
+					executorclient.NewMockExecutor[*processor.ShardProcessor](ctrl),
+					executorclient.NewMockExecutor[*processor.ShardProcessor](ctrl),
+				},
+				EphemeralExecutors: []executorclient.Executor[*processorephemeral.ShardProcessor]{
+					executorclient.NewMockExecutor[*processorephemeral.ShardProcessor](ctrl),
+				},
+			},
+			expectedHookCount: 1,
+		},
+		{
+			name: "no executors",
+			params: lifecycleParams{
+				Lifecycle: &mockLifecycle{},
+				Dispatcher: yarpc.NewDispatcher(yarpc.Config{
+					Name: "test-dispatcher",
+				}),
+				FixedExecutors:     []executorclient.Executor[*processor.ShardProcessor]{},
+				EphemeralExecutors: []executorclient.Executor[*processorephemeral.ShardProcessor]{},
+			},
+			expectedHookCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockLifecycle := tt.params.Lifecycle.(*mockLifecycle)
+
+			registerExecutorLifecycle(tt.params)
+			assert.Equal(t, tt.expectedHookCount, mockLifecycle.hookCount)
+		})
+	}
 }

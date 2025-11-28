@@ -73,11 +73,6 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string) fx.Option {
 		fx.Provide(zap.NewDevelopment),
 		fx.Provide(log.NewLogger),
 
-		// Start the YARPC dispatcher
-		fx.Invoke(func(lc fx.Lifecycle, dispatcher *yarpc.Dispatcher) {
-			lc.Append(fx.StartStopHook(dispatcher.Start, dispatcher.Stop))
-		}),
-
 		// Include the canary module
 		canary.Module(canary.NamespacesNames{FixedNamespace: fixedNamespace, EphemeralNamespace: ephemeralNamespace, ExternalAssignmentNamespace: executors.ExternalAssignmentNamespace, SharddistributorServiceName: shardDistributorServiceName}),
 	)

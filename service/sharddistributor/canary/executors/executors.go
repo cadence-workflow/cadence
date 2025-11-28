@@ -66,22 +66,6 @@ func NewExecutorExternalAssignmentNamespace(params executorclient.Params[*proces
 	return ExecutorEphemeralResult{Executor: executor}, assigner, err
 }
 
-type ExecutorsParams struct {
-	fx.In
-	Lc                 fx.Lifecycle
-	ExecutorsFixed     []executorclient.Executor[*processor.ShardProcessor]          `group:"executor-fixed-proc"`
-	Executorsephemeral []executorclient.Executor[*processorephemeral.ShardProcessor] `group:"executor-ephemeral-proc"`
-}
-
-func NewExecutorsModule(params ExecutorsParams) {
-	for _, e := range params.ExecutorsFixed {
-		params.Lc.Append(fx.StartStopHook(e.Start, e.Stop))
-	}
-	for _, e := range params.Executorsephemeral {
-		params.Lc.Append(fx.StartStopHook(e.Start, e.Stop))
-	}
-}
-
 func Module(fixedNamespace, ephemeralNamespace, externalAssignmentNamespace string) fx.Option {
 	return fx.Module(
 		"Executors",
@@ -104,6 +88,5 @@ func Module(fixedNamespace, ephemeralNamespace, externalAssignmentNamespace stri
 				lifecycle.Append(fx.StartStopHook(shardAssigner.Start, shardAssigner.Stop))
 			}),
 		),
-		fx.Invoke(NewExecutorsModule),
 	)
 }
