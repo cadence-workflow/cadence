@@ -289,6 +289,7 @@ func TestNotifyTasksFromWorkflowSnapshot(t *testing.T) {
 						},
 					},
 					PersistenceError: true,
+					ScheduleInMemory: true,
 				})
 				mockEngine.EXPECT().NotifyNewReplicationTasks(&hcommon.NotifyTaskInfo{
 					ExecutionInfo: &persistence.WorkflowExecutionInfo{
@@ -419,6 +420,7 @@ func TestNotifyTasksFromWorkflowMutation(t *testing.T) {
 						},
 					},
 					PersistenceError: true,
+					ScheduleInMemory: true,
 				})
 				mockEngine.EXPECT().NotifyNewReplicationTasks(&hcommon.NotifyTaskInfo{
 					ExecutionInfo: &persistence.WorkflowExecutionInfo{

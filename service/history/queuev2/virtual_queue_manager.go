@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/service/history/task"
 )
@@ -56,6 +57,10 @@ type (
 		// Add a new virtual slice to the root queue. This is used when new tasks are generated and max read level is updated.
 		// By default, all new tasks belong to the root queue, so we need to add a new virtual slice to the root queue.
 		AddNewVirtualSliceToRootQueue(VirtualSlice)
+		// Insert a single task to the current slice. Return false if the task's timestamp is out of range of the current slice.
+		InsertSingleTask(task.Task) bool
+		// ResetProgress resets the progress of the virtual queue to the given key. Pending tasks after the given key are cancelled.
+		ResetProgress(persistence.HistoryTaskKey)
 	}
 
 	virtualQueueManagerImpl struct {
@@ -216,6 +221,27 @@ func (m *virtualQueueManagerImpl) AddNewVirtualSliceToRootQueue(s VirtualSlice) 
 
 	m.virtualQueues[rootQueueID] = m.createVirtualQueueFn(rootQueueID, s)
 	m.virtualQueues[rootQueueID].Start()
+}
+
+func (m *virtualQueueManagerImpl) InsertSingleTask(t task.Task) bool {
+	m.Lock()
+	defer m.Unlock()
+
+	for _, vq := range m.virtualQueues {
+		if vq.InsertSingleTask(t) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (m *virtualQueueManagerImpl) ResetProgress(key persistence.HistoryTaskKey) {
+	m.Lock()
+	defer m.Unlock()
+	for _, vq := range m.virtualQueues {
+		vq.ResetProgress(key)
+	}
 }
 
 func (m *virtualQueueManagerImpl) appendOrMergeSlice(vq VirtualQueue, s VirtualSlice) {

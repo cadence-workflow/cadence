@@ -143,15 +143,42 @@ func (q *scheduledQueue) NotifyNewTask(clusterName string, info *hcommon.NotifyT
 		return
 	}
 
-	nextTime := info.Tasks[0].GetVisibilityTimestamp()
-	for i := 1; i < numTasks; i++ {
-		ts := info.Tasks[i].GetVisibilityTimestamp()
-		if ts.Before(nextTime) {
-			nextTime = ts
+	q.base.logger.Debug(
+		"New timer task notification received",
+		tag.Dynamic("numTasks", numTasks),
+		tag.Dynamic("scheduleInMemory", info.ScheduleInMemory),
+		tag.Dynamic("persistenceError", info.PersistenceError),
+		tag.Dynamic("shardId", q.base.shard.GetShardID()),
+	)
+
+	tasksToBeReadFromDB := make([]persistence.Task, 0)
+
+	if info.ScheduleInMemory && !info.PersistenceError {
+		for _, task := range info.Tasks {
+			ts := task.GetVisibilityTimestamp()
+			q.base.logger.Debug("Submitting task to an in-memory queue", tag.Dynamic("scheduledTime", ts), tag.Dynamic("shardId", q.base.shard.GetShardID()))
+
+			if !q.base.insertSingleTask(q.base.taskInitializer(task)) {
+				tasksToBeReadFromDB = append(tasksToBeReadFromDB, task)
+			}
+		}
+	} else {
+		tasksToBeReadFromDB = info.Tasks
+	}
+
+	var nextReadTime time.Time
+	for _, task := range tasksToBeReadFromDB {
+		ts := task.GetVisibilityTimestamp()
+		if nextReadTime.IsZero() || ts.Before(nextReadTime) {
+			nextReadTime = ts
 		}
 	}
 
-	q.notify(nextTime)
+	if !nextReadTime.IsZero() {
+		q.base.resetProgress(persistence.NewHistoryTaskKey(nextReadTime, 0))
+		q.notify(nextReadTime)
+	}
+
 	q.base.metricsScope.AddCounter(metrics.NewHistoryTaskCounter, int64(numTasks))
 }
 
