@@ -23,7 +23,8 @@ func TestModule(t *testing.T) {
 	// Create mocks
 	ctrl := gomock.NewController(t)
 	mockClientConfig := transporttest.NewMockClientConfig(ctrl)
-	outbound := grpc.NewTransport().NewOutbound(yarpctest.NewFakePeerList())
+	transport := grpc.NewTransport()
+	outbound := transport.NewOutbound(yarpctest.NewFakePeerList())
 
 	mockClientConfig.EXPECT().Caller().Return("test-executor").Times(2)
 	mockClientConfig.EXPECT().Service().Return("shard-distributor").Times(2)
@@ -43,6 +44,11 @@ func TestModule(t *testing.T) {
 		},
 	}
 
+	// Create a mock dispatcher
+	dispatcher := yarpc.NewDispatcher(yarpc.Config{
+		Name: "test-canary",
+	})
+
 	// Create a test app with the library, check that it starts and stops
 	fxtest.New(t,
 		fx.Supply(
@@ -52,6 +58,8 @@ func TestModule(t *testing.T) {
 			fx.Annotate(mockClientConfigProvider, fx.As(new(yarpc.ClientConfig))),
 			zaptest.NewLogger(t),
 			config,
+			transport,
+			dispatcher,
 		),
 		Module(NamespacesNames{FixedNamespace: "shard-distributor-canary", EphemeralNamespace: "shard-distributor-canary-ephemeral", ExternalAssignmentNamespace: "test-external-assignment", SharddistributorServiceName: "cadence-shard-distributor"}),
 	).RequireStart().RequireStop()

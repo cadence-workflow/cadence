@@ -9,9 +9,9 @@ import (
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/uber/cadence/client/sharddistributor"
+	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 )
 
 func TestShardCreator_Lifecycle(t *testing.T) {
@@ -21,40 +21,65 @@ func TestShardCreator_Lifecycle(t *testing.T) {
 	timeSource := clock.NewMockedTimeSource()
 	ctrl := gomock.NewController(t)
 
-	mockShardDistributor := sharddistributor.NewMockClient(ctrl)
 	namespace := "test-namespace"
 
-	// Set up expectation for GetShardOwner calls that return errors
-	mockShardDistributor.EXPECT().
-		GetShardOwner(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx interface{}, req *types.GetShardOwnerRequest, opts ...interface{}) (*types.GetShardOwnerResponse, error) {
-			// Verify the request contains the correct namespace even on error
-			assert.Equal(t, namespace, req.Namespace)
-			assert.NotEmpty(t, req.ShardKey)
+	mockSpectator := spectatorclient.NewMockSpectator(ctrl)
+	mockCanaryClient := NewMockShardDistributorExecutorCanaryAPIYARPCClient(ctrl)
 
-			return nil, assert.AnError // Using testify's AnError for consistency
+	// First call fails - no ping should happen
+	firstCall := mockSpectator.EXPECT().
+		GetShardOwner(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx interface{}, shardKey string) (*spectatorclient.ShardOwner, error) {
+			assert.NotEmpty(t, shardKey)
+			return nil, assert.AnError
+		})
+
+	// Second call succeeds - ping should happen
+	mockSpectator.EXPECT().
+		GetShardOwner(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx interface{}, shardKey string) (*spectatorclient.ShardOwner, error) {
+			assert.NotEmpty(t, shardKey)
+			return &spectatorclient.ShardOwner{
+				ExecutorID: "executor-1",
+			}, nil
 		}).
-		Times(2)
+		After(firstCall)
+
+	// Ping happens after successful GetShardOwner
+	mockCanaryClient.EXPECT().
+		Ping(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx interface{}, req *sharddistributorv1.PingRequest, opts ...interface{}) (*sharddistributorv1.PingResponse, error) {
+			assert.NotEmpty(t, req.ShardKey)
+			assert.Equal(t, namespace, req.Namespace)
+			return &sharddistributorv1.PingResponse{
+				OwnsShard:  true,
+				ExecutorId: "executor-1",
+			}, nil
+		})
+
+	spectators := map[string]spectatorclient.Spectator{
+		namespace: mockSpectator,
+	}
 
 	params := ShardCreatorParams{
-		Logger:           logger,
-		TimeSource:       timeSource,
-		ShardDistributor: mockShardDistributor,
+		Logger:       logger,
+		TimeSource:   timeSource,
+		Spectators:   spectators,
+		CanaryClient: mockCanaryClient,
 	}
 
 	creator := NewShardCreator(params, []string{namespace})
 	creator.Start()
 
-	// Wait for the goroutine to start
 	timeSource.BlockUntil(1)
 
-	// Trigger shard creation that will fail
+	// First cycle - GetShardOwner fails, no ping
 	timeSource.Advance(shardCreationInterval + 100*time.Millisecond)
-	time.Sleep(10 * time.Millisecond) // Allow processing
+	time.Sleep(10 * time.Millisecond)
 
-	// Trigger another shard creation to ensure processing continues after error
+	// Second cycle - GetShardOwner succeeds, ping happens
 	timeSource.Advance(shardCreationInterval + 100*time.Millisecond)
-	time.Sleep(10 * time.Millisecond) // Allow processing
+	time.Sleep(10 * time.Millisecond)
 
 	creator.Stop()
 }
