@@ -119,24 +119,24 @@ func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to get namespace state: %v", err)}
 	}
 
-	var executor string
+	var executorID string
 	minAssignedShards := math.MaxInt
 
 	for assignedExecutor, assignment := range state.ShardAssignments {
 		if len(assignment.AssignedShards) < minAssignedShards {
 			minAssignedShards = len(assignment.AssignedShards)
-			executor = assignedExecutor
+			executorID = assignedExecutor
 		}
 	}
 
 	// Assign the shard to the executor with the least assigned shards
-	err = h.storage.AssignShard(ctx, namespace, shardID, executor)
+	err = h.storage.AssignShard(ctx, namespace, shardID, executorID)
 	if err != nil {
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to assign ephemeral shard: %v", err)}
 	}
 
 	return &types.GetShardOwnerResponse{
-		Owner:     executor,
+		Owner:     executorID,
 		Namespace: namespace,
 	}, nil
 }

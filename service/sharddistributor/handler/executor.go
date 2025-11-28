@@ -9,6 +9,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -28,6 +29,7 @@ type executor struct {
 	storage                store.Store
 	shardDistributionCfg   config.ShardDistribution
 	migrationConfiguration *config.MigrationConfig
+	metricsClient          metrics.Client
 }
 
 func NewExecutorHandler(
@@ -36,6 +38,7 @@ func NewExecutorHandler(
 	timeSource clock.TimeSource,
 	shardDistributionCfg config.ShardDistribution,
 	migrationConfig *config.MigrationConfig,
+	metricsClient metrics.Client,
 ) Executor {
 	return &executor{
 		logger:                 logger,
@@ -43,6 +46,7 @@ func NewExecutorHandler(
 		storage:                storage,
 		shardDistributionCfg:   shardDistributionCfg,
 		migrationConfiguration: migrationConfig,
+		metricsClient:          metricsClient,
 	}
 }
 
@@ -53,8 +57,9 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to get heartbeat: %v", err)}
 	}
 
-	now := h.timeSource.Now().UTC()
+	heartbeatTime := h.timeSource.Now().UTC()
 	mode := h.migrationConfiguration.GetMigrationMode(request.Namespace)
+	shardAssignedInBackground := true
 
 	switch mode {
 	case types.MigrationModeINVALID:
@@ -68,19 +73,20 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 		if err != nil {
 			return nil, err
 		}
+		shardAssignedInBackground = false
 	}
 
 	// If the state has changed we need to update heartbeat data.
 	// Otherwise, we want to do it with controlled frequency - at most every _heartbeatRefreshRate.
 	if previousHeartbeat != nil && request.Status == previousHeartbeat.Status && mode == types.MigrationModeONBOARDED {
 		lastHeartbeatTime := previousHeartbeat.LastHeartbeat
-		if now.Sub(lastHeartbeatTime) < _heartbeatRefreshRate {
+		if heartbeatTime.Sub(lastHeartbeatTime) < _heartbeatRefreshRate {
 			return _convertResponse(assignedShards, mode), nil
 		}
 	}
 
 	newHeartbeat := store.HeartbeatState{
-		LastHeartbeat:  now,
+		LastHeartbeat:  heartbeatTime,
 		Status:         request.Status,
 		ReportedShards: request.ShardStatusReports,
 		Metadata:       request.GetMetadata(),
@@ -95,7 +101,56 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to record heartbeat: %v", err)}
 	}
 
+	// emit shard assignment metrics only if shards are assigned in the background
+	// shard assignment in heartbeat doesn't involve any assignment changes happening in the background
+	// thus there was no shard handover and no assignment distribution latency
+	// to measure, so don't need to emit metrics in that case
+	if shardAssignedInBackground {
+		// emits metrics in background to not block the heartbeat response
+		h.emitShardAssignmentMetrics(request.Namespace, heartbeatTime, previousHeartbeat, assignedShards)
+	}
+
 	return _convertResponse(assignedShards, mode), nil
+}
+
+// emitShardAssignmentMetrics emits the following metrics for newly assigned shards:
+// - ShardAssignmentDistributionLatency: time taken since the shard was assigned to heartbeat time
+// - ShardHandoverLatency: time taken since the previous executor's last heartbeat to heartbeat time
+func (h *executor) emitShardAssignmentMetrics(namespace string, heartbeatTime time.Time, previousHeartbeat *store.HeartbeatState, assignedState *store.AssignedState) {
+	// find newly assigned shards, if there are none, no handovers happened
+	newAssignedShardIDs := filterNewlyAssignedShardIDs(previousHeartbeat, assignedState)
+	if len(newAssignedShardIDs) == 0 {
+		// no handovers happened, nothing to do
+		return
+	}
+
+	metricsScope := h.metricsClient.Scope(metrics.ShardDistributorHeartbeatScope).
+		Tagged(metrics.NamespaceTag(namespace))
+
+	distributionLatency := heartbeatTime.Sub(assignedState.LastUpdated)
+	metricsScope.RecordHistogramDuration(metrics.ShardDistributorShardAssignmentDistributionLatency, distributionLatency)
+
+	// check if handover stats exist at all
+	isShardHandoverStatsExists := assignedState.ShardHandoverStats != nil
+
+	for _, shardID := range newAssignedShardIDs {
+		if !isShardHandoverStatsExists {
+			// no handover stats at all, means no handovers happened before
+			continue
+		}
+
+		handoverStats, ok := assignedState.ShardHandoverStats[shardID]
+		if !ok {
+			// no handover stats for this shard, means it was never handed over before
+			// so no handover latency metric to emit
+			continue
+		}
+
+		handoverLatency := heartbeatTime.Sub(handoverStats.PreviousExecutorLastHeartbeatTime)
+		metricsScope.Tagged(metrics.HandoverTypeTag(handoverStats.HandoverType.String())).
+			RecordHistogramDuration(metrics.ShardDistributorShardHandoverLatency, handoverLatency)
+
+	}
 }
 
 // assignShardsInCurrentHeartbeat is used during the migration phase to assign the shards to the executors according to what is reported during the heartbeat
@@ -154,4 +209,34 @@ func validateMetadata(metadata map[string]string) error {
 	}
 
 	return nil
+}
+
+func filterNewlyAssignedShardIDs(previousHeartbeat *store.HeartbeatState, assignedState *store.AssignedState) []string {
+	// if assignedState is nil, no shards are assigned
+	if assignedState == nil || len(assignedState.AssignedShards) == 0 {
+		return nil
+	}
+
+	// if previousHeartbeat is nil, all assigned shards are new
+	if previousHeartbeat == nil {
+		var newAssignedShardIDs = make([]string, len(assignedState.AssignedShards))
+
+		var i int
+		for assignedShardID := range assignedState.AssignedShards {
+			newAssignedShardIDs[i] = assignedShardID
+			i++
+		}
+
+		return newAssignedShardIDs
+	}
+
+	// find shards that are assigned now but were not reported in the previous heartbeat
+	var newAssignedShardIDs []string
+	for assignedShardID := range assignedState.AssignedShards {
+		if _, ok := previousHeartbeat.ReportedShards[assignedShardID]; !ok {
+			newAssignedShardIDs = append(newAssignedShardIDs, assignedShardID)
+		}
+	}
+
+	return newAssignedShardIDs
 }
