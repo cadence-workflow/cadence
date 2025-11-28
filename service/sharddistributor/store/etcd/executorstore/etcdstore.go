@@ -233,7 +233,13 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 	executorPrefix := etcdkeys.BuildExecutorsPrefix(s.prefix, namespace)
 	resp, err := s.client.Get(ctx, executorPrefix, clientv3.WithPrefix())
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, ctx.Err()
+		}
 		return nil, fmt.Errorf("get executor data: %w", err)
+	}
+	if ctxErr := ctx.Err(); errors.Is(ctxErr, context.Canceled) || errors.Is(ctxErr, context.DeadlineExceeded) {
+		return nil, ctxErr
 	}
 
 	for _, kv := range resp.Kvs {
@@ -276,7 +282,13 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 	shardsPrefix := etcdkeys.BuildShardsPrefix(s.prefix, namespace)
 	shardResp, err := s.client.Get(ctx, shardsPrefix, clientv3.WithPrefix())
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, ctx.Err()
+		}
 		return nil, fmt.Errorf("get shard data: %w", err)
+	}
+	if ctxErr := ctx.Err(); errors.Is(ctxErr, context.Canceled) || errors.Is(ctxErr, context.DeadlineExceeded) {
+		return nil, ctxErr
 	}
 	for _, kv := range shardResp.Kvs {
 		shardID, shardKeyType, err := etcdkeys.ParseShardKey(s.prefix, namespace, string(kv.Key))
