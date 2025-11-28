@@ -41,6 +41,7 @@ frontend.validSearchAttributes:
       Passed: 4
       ShardID: 2
       IsDeleted: 4
+      CronSchedule: 1
 system.minRetentionDays:
     - value: 0
 history.EnableConsistentQueryByDomain:
