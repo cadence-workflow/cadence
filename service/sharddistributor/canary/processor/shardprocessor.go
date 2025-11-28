@@ -49,10 +49,11 @@ func (p *ShardProcessor) GetShardReport() executorclient.ShardReport {
 }
 
 // Start implements executorclient.ShardProcessor.
-func (p *ShardProcessor) Start(ctx context.Context) {
+func (p *ShardProcessor) Start(ctx context.Context) error {
 	p.logger.Info("Starting shard processor", zap.String("shardID", p.shardID))
 	p.goRoutineWg.Add(1)
 	go p.process(ctx)
+	return nil
 }
 
 // Stop implements executorclient.ShardProcessor.

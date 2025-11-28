@@ -46,7 +46,7 @@ func paramsForTaskListManager(t *testing.T, taskListID *Identifier, taskListKind
 		clusterMetadata,
 		deps.mockIsolationState,
 		deps.mockMatchingClient,
-		func(Manager) {},
+		func(ShardProcessor) {},
 		taskListID,
 		taskListKind,
 		cfg,

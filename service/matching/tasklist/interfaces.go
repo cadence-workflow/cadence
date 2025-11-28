@@ -38,7 +38,7 @@ import (
 
 type (
 	Manager interface {
-		Start() error
+		Start(ctx context.Context) error
 		Stop()
 		// AddTask adds a task to the task list. This method will first attempt a synchronous
 		// match with a poller. When that fails, task will be written to database and later
