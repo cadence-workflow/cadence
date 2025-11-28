@@ -447,6 +447,10 @@ func (d *handlerImpl) UpdateDomain(
 	if err != nil {
 		return nil, err
 	}
+	// Check if domain is deprecated
+	if currentDomainState.Info != nil && currentDomainState.Info.Status == persistence.DomainStatusDeprecated {
+		return nil, errDomainDeprecated
+	}
 
 	isGlobalDomain := currentDomainState.IsGlobalDomain
 

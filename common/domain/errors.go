@@ -35,7 +35,7 @@ var (
 	errInvalidFailoverNoChangeDetected     = &types.BadRequestError{Message: "a failover was requested, but there was no change detected, the configuration was not updated"}
 	errActiveClusterNameRequired           = &types.BadRequestError{Message: "ActiveClusterName is required for all global domains."}
 	errLocalDomainsCannotFailover          = &types.BadRequestError{Message: "Local domains cannot perform failovers or change replication configuration"}
-
-	errInvalidRetentionPeriod = &types.BadRequestError{Message: "A valid retention period is not set on request."}
-	errInvalidArchivalConfig  = &types.BadRequestError{Message: "Invalid to enable archival without specifying a uri."}
+	errDomainDeprecated                    = &types.BadRequestError{Message: "Domain is deprecated."}
+	errInvalidRetentionPeriod              = &types.BadRequestError{Message: "A valid retention period is not set on request."}
+	errInvalidArchivalConfig               = &types.BadRequestError{Message: "Invalid to enable archival without specifying a uri."}
 )
