@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"math/rand"
 	"slices"
 	"sort"
@@ -375,8 +376,9 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	// If there are deleted shards or stale executors, the distribution has changed.
 	assignedToEmptyExecutors := assignShardsToEmptyExecutors(currentAssignments)
 	updatedAssignments := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
+	loadBalanceChange := p.loadBalance(currentAssignments, namespaceState, deletedShards)
 
-	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments
+	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments || loadBalanceChange
 	if !distributionChanged {
 		p.logger.Debug("No changes to distribution detected. Skipping rebalance.")
 		return nil
@@ -475,6 +477,123 @@ func (*namespaceProcessor) updateAssignments(shardsToReassign []string, activeEx
 		i++
 	}
 	return true
+}
+
+func (p *namespaceProcessor) loadBalance(
+	currentAssignments map[string][]string,
+	namespaceState *store.NamespaceState,
+	deletedShards map[string]store.ShardState) bool {
+
+	const moveBudgetProportionalityFactor = 0.01
+	const hysteresisUpperBand = 0.15
+	const hysteresisLowerBand = 0.05
+
+	shardsMoved := false
+	var executors []string
+	for executorID := range currentAssignments {
+		executors = append(executors, executorID)
+	}
+	allShards := make(map[string]struct{})
+	for _, shardID := range getShards(p.namespaceCfg, namespaceState, deletedShards) {
+		allShards[shardID] = struct{}{}
+	}
+
+	moveBudget := int(math.Floor(moveBudgetProportionalityFactor * float64(len(allShards))))
+
+	executorLoads := make(map[string]float64)
+	totalLoad := 0.0
+	for executorID, assignmentState := range namespaceState.ShardAssignments {
+		for shardID := range assignmentState.AssignedShards {
+			executorLoads[executorID] += namespaceState.ShardStats[shardID].SmoothedLoad
+			totalLoad += namespaceState.ShardStats[shardID].SmoothedLoad
+		}
+	}
+
+	meanLoad := totalLoad / float64(len(executorLoads))
+
+	sourceExecutors := make(map[string]struct{})
+	destinationExecutors := make(map[string]struct{})
+
+	for executorID, load := range executorLoads {
+		if load > meanLoad+hysteresisUpperBand || namespaceState.Executors[executorID].Status == types.ExecutorStatusDRAINING {
+			sourceExecutors[executorID] = struct{}{}
+		} else if load < meanLoad-hysteresisLowerBand && namespaceState.Executors[executorID].Status == types.ExecutorStatusACTIVE {
+			destinationExecutors[executorID] = struct{}{}
+		}
+	}
+
+	for sourceExecutor := range sourceExecutors {
+		if moveBudget <= 0 {
+			break
+		}
+		destExecutor := p.findBestDestination(destinationExecutors, executorLoads)
+		shardsToMove := p.findShardsToMove(namespaceState, sourceExecutor, destExecutor)
+
+		// move
+		p.moveShards(currentAssignments, sourceExecutor, destExecutor, shardsToMove)
+
+		p.updateLoad(namespaceState, sourceExecutor, destExecutor, executorLoads)
+
+		moveBudget -= len(shardsToMove)
+		if executorLoads[destExecutor] > meanLoad-hysteresisLowerBand {
+			delete(destinationExecutors, destExecutor)
+		}
+	}
+
+	return shardsMoved
+}
+
+func (p *namespaceProcessor) findBestDestination(destinationExecutors map[string]struct{}, executorLoads map[string]float64) string {
+	minLoad := math.MaxFloat64
+	minExecutor := ""
+	for executor := range destinationExecutors {
+		if executorLoads[executor] < minLoad {
+			minLoad = executorLoads[executor]
+			minExecutor = executor
+		}
+	}
+	return minExecutor
+}
+
+func (p *namespaceProcessor) findShardsToMove(namespaceState *store.NamespaceState, source string, destination string) []string {
+	largestLoad := 0.0
+	largestShard := ""
+	for shard := range namespaceState.ShardAssignments[source].AssignedShards {
+		if namespaceState.ShardStats[shard].SmoothedLoad > largestLoad {
+			largestLoad = namespaceState.ShardStats[shard].SmoothedLoad
+			largestShard = shard
+		}
+	}
+	if largestShard == "" {
+		return make([]string, 0)
+	}
+	return []string{largestShard}
+}
+
+func (p *namespaceProcessor) moveShards(currentAssignments map[string][]string, sourceExecutor string, destExecutor string, shardsToMove []string) {
+	for _, shard := range shardsToMove {
+		s := currentAssignments[sourceExecutor]
+		i := slices.Index(s, shard)
+
+		// Remove shard from source
+		s[i] = s[len(s)-1]
+		s = s[:len(s)-1]
+
+		// Add shard to destination
+		currentAssignments[destExecutor] = append(currentAssignments[destExecutor], shard)
+	}
+}
+
+func (p *namespaceProcessor) updateLoad(namespaceState *store.NamespaceState, source, destination string, executorLoads map[string]float64) {
+	executorLoads[source] = 0
+	for shard := range namespaceState.ShardAssignments[source].AssignedShards {
+		executorLoads[source] += namespaceState.ShardStats[shard].SmoothedLoad
+	}
+	executorLoads[destination] = 0
+	for shard := range namespaceState.ShardAssignments[destination].AssignedShards {
+		executorLoads[destination] += namespaceState.ShardStats[shard].SmoothedLoad
+	}
+
 }
 
 func (p *namespaceProcessor) addAssignmentsToNamespaceState(namespaceState *store.NamespaceState, currentAssignments map[string][]string) {
