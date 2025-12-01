@@ -12,7 +12,7 @@ const (
 	ShardDistributorExecutorHeartbeatOperationTagName = "ShardDistributorExecutorHeartbeat"
 
 	// Counter metrics
-	ShardDistributorExecutorAssignmentSkipped         = "shard_distributor_executor_assignment_skipped"
+	ShardDistributorExecutorHeartbeatSkipped          = "shard_distributor_executor_heartbeat_skipped"
 	ShardDistributorExecutorShardsStarted             = "shard_distributor_executor_shards_started"
 	ShardDistributorExecutorShardsStopped             = "shard_distributor_executor_shards_stopped"
 	ShardDistributorExecutorProcessorCreationFailures = "shard_distributor_executor_processor_creation_failures"

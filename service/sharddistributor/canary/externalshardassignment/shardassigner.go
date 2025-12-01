@@ -117,6 +117,18 @@ func (s *ShardAssigner) process(ctx context.Context) {
 
 			}
 
+			for shardID, processor := range s.shardProcessors {
+				shardReport := processor.GetShardReport()
+				if shardReport.Status == types.ShardStatusDONE {
+					err := s.executorclient.RemoveShardsFromLocalLogic([]string{shardID})
+					if err != nil {
+						s.logger.Error("Failed to remove shards", tag.Error(err))
+						continue
+					}
+					delete(s.shardProcessors, shardID)
+				}
+			}
+
 			// Simulate the assignment of new shards
 			newAssignedShard := uuid.New().String()
 			s.logger.Info("Assign a new shard from external source", tag.ShardKey(newAssignedShard))

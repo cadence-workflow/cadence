@@ -212,8 +212,8 @@ func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
 
 func (e *executorImpl[SP]) heartbeatAndUpdateAssignment(ctx context.Context) error {
 	if !e.assignmentMutex.TryLock() {
-		e.logger.Warn("already doing shard assignment, will skip this assignment")
-		e.metrics.Counter(metricsconstants.ShardDistributorExecutorAssignmentSkipped).Inc(1)
+		e.logger.Error("still doing assignment, skipping heartbeat")
+		e.metrics.Counter(metricsconstants.ShardDistributorExecutorHeartbeatSkipped).Inc(1)
 		return nil
 	}
 	defer e.assignmentMutex.Unlock()
