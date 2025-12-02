@@ -5,13 +5,14 @@ import (
 	"time"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
+	uber_gomock "go.uber.org/mock/gomock"
+
 	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
-	"go.uber.org/fx"
-	"go.uber.org/fx/fxtest"
-	uber_gomock "go.uber.org/mock/gomock"
 )
 
 func TestModule(t *testing.T) {
