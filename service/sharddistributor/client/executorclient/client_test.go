@@ -14,6 +14,7 @@ import (
 	"go.uber.org/yarpc/yarpctest"
 
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
+	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
@@ -21,20 +22,11 @@ import (
 
 func TestModule(t *testing.T) {
 	// Create mocks
-	ctrl := gomock.NewController(t)
 	uberCtrl := uber_gomock.NewController(t)
 	mockLogger := log.NewNoop()
 
 	mockShardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](uberCtrl)
-
-	// Create shard distributor yarpc client
-	outbound := grpc.NewTransport().NewOutbound(yarpctest.NewFakePeerList())
-
-	mockClientConfig := transporttest.NewMockClientConfig(ctrl)
-	mockClientConfig.EXPECT().Caller().Return("test-executor")
-	mockClientConfig.EXPECT().Service().Return("shard-distributor")
-	mockClientConfig.EXPECT().GetUnaryOutbound().Return(outbound)
-	yarpcClient := sharddistributorv1.NewShardDistributorExecutorAPIYARPCClient(mockClientConfig)
+	shardDistributorExecutorClient := sharddistributorexecutor.NewMockClient(uberCtrl)
 
 	// Example config
 	config := clientcommon.Config{
@@ -48,8 +40,10 @@ func TestModule(t *testing.T) {
 
 	// Create a test app with the library, check that it starts and stops
 	fxtest.New(t,
+		fx.Provide(func() sharddistributorexecutor.Client {
+			return shardDistributorExecutorClient
+		}),
 		fx.Supply(
-			fx.Annotate(yarpcClient, fx.As(new(sharddistributorv1.ShardDistributorExecutorAPIYARPCClient))),
 			fx.Annotate(tally.NoopScope, fx.As(new(tally.Scope))),
 			fx.Annotate(mockLogger, fx.As(new(log.Logger))),
 			fx.Annotate(mockShardProcessorFactory, fx.As(new(ShardProcessorFactory[*MockShardProcessor]))),
