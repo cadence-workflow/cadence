@@ -21,6 +21,7 @@ import (
 	frontend "github.com/uber/cadence/client/frontend"
 	history "github.com/uber/cadence/client/history"
 	matching "github.com/uber/cadence/client/matching"
+	sharddistributorexecutor "github.com/uber/cadence/client/sharddistributorexecutor"
 	activecluster "github.com/uber/cadence/common/activecluster"
 	archiver "github.com/uber/cadence/common/archiver"
 	provider "github.com/uber/cadence/common/archiver/provider"
@@ -615,6 +616,20 @@ func (m *MockResource) GetServiceName() string {
 func (mr *MockResourceMockRecorder) GetServiceName() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceName", reflect.TypeOf((*MockResource)(nil).GetServiceName))
+}
+
+// GetShardDistributorExecutorClient mocks base method.
+func (m *MockResource) GetShardDistributorExecutorClient() sharddistributorexecutor.Client {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetShardDistributorExecutorClient")
+	ret0, _ := ret[0].(sharddistributorexecutor.Client)
+	return ret0
+}
+
+// GetShardDistributorExecutorClient indicates an expected call of GetShardDistributorExecutorClient.
+func (mr *MockResourceMockRecorder) GetShardDistributorExecutorClient() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardDistributorExecutorClient", reflect.TypeOf((*MockResource)(nil).GetShardDistributorExecutorClient))
 }
 
 // GetShardManager mocks base method.

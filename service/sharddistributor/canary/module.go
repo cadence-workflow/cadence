@@ -9,6 +9,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
 	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
 	"github.com/uber/cadence/service/sharddistributor/canary/sharddistributorclient"
+	"github.com/uber/cadence/service/sharddistributor/canary/sharddistributorexecutorclient"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
@@ -30,6 +31,7 @@ func opts(names NamespacesNames) fx.Option {
 		fx.Provide(sharddistributorv1.NewFxShardDistributorAPIYARPCClient(names.SharddistributorServiceName)),
 
 		fx.Provide(sharddistributorclient.NewShardDistributorClient),
+		fx.Provide(sharddistributorexecutorclient.NewShardDistributorExecutorClient),
 
 		// Modules for the shard distributor canary
 		fx.Provide(
