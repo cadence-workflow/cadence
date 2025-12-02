@@ -495,7 +495,7 @@ func (p *namespaceProcessor) loadBalance(
 
 	allShards := getShards(p.namespaceCfg, namespaceState, deletedShards)
 
-	moveBudget := int(math.Floor(moveBudgetProportionalityFactor * float64(len(allShards))))
+	moveBudget := int(math.Ceil(moveBudgetProportionalityFactor * float64(len(allShards))))
 
 	executorLoads := make(map[string]float64)
 	totalLoad := 0.0
