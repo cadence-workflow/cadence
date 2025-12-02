@@ -30,7 +30,7 @@ type ShardReport struct {
 }
 
 type ShardProcessor interface {
-	Start(ctx context.Context)
+	Start(ctx context.Context) error
 	Stop()
 	GetShardReport() ShardReport
 }
@@ -44,6 +44,9 @@ type Executor[SP ShardProcessor] interface {
 	Stop()
 
 	GetShardProcess(ctx context.Context, shardID string) (SP, error)
+
+	// Get the namespace this executor is responsible for
+	GetNamespace() string
 
 	// Set metadata for the executor
 	SetMetadata(metadata map[string]string)

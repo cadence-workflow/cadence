@@ -715,7 +715,7 @@ integration_tests_etcd:
 
 	$Q echo "Running integration tests with etcd"
 	$Q mkdir -p $(BUILD)/$(INTEG_TEST_DIR)
-	$Q (ETCD_TEST_DIRS=$$(find . -name "*_test.go" -exec grep -l "testflags.RequireEtcd" {} \; | xargs -n1 dirname | sort | uniq); \
+	$Q (ETCD_TEST_DIRS=$$(find . -name "*_test.go" -exec grep -l "testhelper.SetupStoreTestCluster\|testflags.RequireEtcd" {} \; | xargs -n1 dirname | sort | uniq); \
 		echo "Found etcd test directories:"; \
 		echo "$$ETCD_TEST_DIRS"; \
 		echo "Using ETCD_ENDPOINTS='$(ETCD_ENDPOINTS)'"; \

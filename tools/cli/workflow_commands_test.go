@@ -426,31 +426,252 @@ func Test_GetWorkflowStatus(t *testing.T) {
 func Test_ConvertDescribeWorkflowExecutionResponse(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	serverFrontendClient := frontend.NewMockClient(mockCtrl)
-	mockResp := &types.DescribeWorkflowExecutionResponse{
-		WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
-			Execution: &types.WorkflowExecution{
-				WorkflowID: "test-workflow-id",
-				RunID:      "test-run-id",
-			},
-		},
-		PendingActivities: []*types.PendingActivityInfo{
-			{
-				ActivityID: "test-activity-id",
-				ActivityType: &types.ActivityType{
-					Name: "test-activity-type",
-				},
-				HeartbeatDetails:   []byte("test-heartbeat-details"),
-				LastFailureDetails: []byte("test-failure-details"),
-			},
-		},
-		PendingDecision: &types.PendingDecisionInfo{
-			State: nil,
-		},
-	}
 
-	resp, err := convertDescribeWorkflowExecutionResponse(mockResp, serverFrontendClient, nil)
-	assert.NoError(t, err)
-	assert.Equal(t, "test-workflow-id", resp.WorkflowExecutionInfo.Execution.WorkflowID)
+	t.Run("basic conversion", func(t *testing.T) {
+		mockResp := &types.DescribeWorkflowExecutionResponse{
+			WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+				Execution: &types.WorkflowExecution{
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+				},
+			},
+			PendingActivities: []*types.PendingActivityInfo{
+				{
+					ActivityID: "test-activity-id",
+					ActivityType: &types.ActivityType{
+						Name: "test-activity-type",
+					},
+					HeartbeatDetails:   []byte("test-heartbeat-details"),
+					LastFailureDetails: []byte("test-failure-details"),
+				},
+			},
+			PendingDecision: &types.PendingDecisionInfo{
+				State: nil,
+			},
+		}
+
+		resp, err := convertDescribeWorkflowExecutionResponse(mockResp, serverFrontendClient, nil)
+		assert.NoError(t, err)
+		assert.Equal(t, "test-workflow-id", resp.WorkflowExecutionInfo.Execution.WorkflowID)
+		assert.Equal(t, 1, len(resp.PendingActivities))
+		assert.NotNil(t, resp.PendingDecision)
+	})
+
+	t.Run("with execution configuration", func(t *testing.T) {
+		mockResp := &types.DescribeWorkflowExecutionResponse{
+			ExecutionConfiguration: &types.WorkflowExecutionConfiguration{
+				TaskList: &types.TaskList{Name: "test-task-list"},
+			},
+			WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+				Execution: &types.WorkflowExecution{
+					WorkflowID: "test-wf-id",
+					RunID:      "test-run-id",
+				},
+				Type: &types.WorkflowType{
+					Name: "test-workflow-type",
+				},
+				HistoryLength: 100,
+			},
+			PendingActivities: []*types.PendingActivityInfo{},
+			PendingChildren:   []*types.PendingChildExecutionInfo{},
+		}
+
+		resp, err := convertDescribeWorkflowExecutionResponse(mockResp, serverFrontendClient, nil)
+		assert.NoError(t, err)
+		assert.NotNil(t, resp.ExecutionConfiguration)
+		assert.Equal(t, "test-task-list", resp.ExecutionConfiguration.TaskList.Name)
+		assert.Equal(t, int64(100), resp.WorkflowExecutionInfo.HistoryLength)
+	})
+
+	t.Run("with pending activities and conversion of timestamps", func(t *testing.T) {
+		now := time.Now().UnixNano()
+		mockResp := &types.DescribeWorkflowExecutionResponse{
+			WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+				Execution: &types.WorkflowExecution{
+					WorkflowID: "test-wf",
+					RunID:      "test-run",
+				},
+				StartTime: common.Int64Ptr(now),
+				CloseTime: common.Int64Ptr(now + 1000),
+			},
+			PendingActivities: []*types.PendingActivityInfo{
+				{
+					ActivityID: "activity-1",
+					ActivityType: &types.ActivityType{
+						Name: "ActivityType1",
+					},
+					State:                  types.PendingActivityStateScheduled.Ptr(),
+					ScheduledTimestamp:     common.Int64Ptr(now),
+					LastStartedTimestamp:   common.Int64Ptr(now + 500),
+					LastHeartbeatTimestamp: common.Int64Ptr(now + 600),
+					ExpirationTimestamp:    common.Int64Ptr(now + 2000),
+					Attempt:                1,
+					MaximumAttempts:        3,
+					LastFailureReason:      common.StringPtr("test-failure"),
+					LastWorkerIdentity:     "worker-1",
+					ScheduleID:             1,
+				},
+				{
+					ActivityID: "activity-2",
+					ActivityType: &types.ActivityType{
+						Name: "ActivityType2",
+					},
+					HeartbeatDetails:   []byte("heartbeat-data"),
+					LastFailureDetails: []byte("failure-data"),
+				},
+			},
+		}
+
+		resp, err := convertDescribeWorkflowExecutionResponse(mockResp, serverFrontendClient, nil)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(resp.PendingActivities))
+
+		// Check first activity has timestamps converted
+		assert.NotNil(t, resp.PendingActivities[0].ScheduledTimestamp)
+		assert.NotNil(t, resp.PendingActivities[0].LastStartedTimestamp)
+		assert.NotNil(t, resp.PendingActivities[0].LastHeartbeatTimestamp)
+		assert.NotNil(t, resp.PendingActivities[0].ExpirationTimestamp)
+		assert.Equal(t, int32(1), resp.PendingActivities[0].Attempt)
+		assert.Equal(t, int32(3), resp.PendingActivities[0].MaximumAttempts)
+		assert.Equal(t, "test-failure", *resp.PendingActivities[0].LastFailureReason)
+
+		// Check second activity has byte fields converted
+		assert.NotNil(t, resp.PendingActivities[1].HeartbeatDetails)
+		assert.Equal(t, "heartbeat-data", *resp.PendingActivities[1].HeartbeatDetails)
+		assert.NotNil(t, resp.PendingActivities[1].LastFailureDetails)
+		assert.Equal(t, "failure-data", *resp.PendingActivities[1].LastFailureDetails)
+	})
+
+	t.Run("with pending decision and timestamps", func(t *testing.T) {
+		now := time.Now().UnixNano()
+		mockResp := &types.DescribeWorkflowExecutionResponse{
+			WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+				Execution: &types.WorkflowExecution{
+					WorkflowID: "test-wf",
+					RunID:      "test-run",
+				},
+			},
+			PendingDecision: &types.PendingDecisionInfo{
+				State:              types.PendingDecisionStateScheduled.Ptr(),
+				ScheduledTimestamp: common.Int64Ptr(now),
+				StartedTimestamp:   common.Int64Ptr(now + 100),
+				Attempt:            5,
+				ScheduleID:         42,
+			},
+		}
+
+		resp, err := convertDescribeWorkflowExecutionResponse(mockResp, serverFrontendClient, nil)
+		assert.NoError(t, err)
+		assert.NotNil(t, resp.PendingDecision)
+		assert.NotNil(t, resp.PendingDecision.ScheduledTimestamp)
+		assert.NotNil(t, resp.PendingDecision.StartedTimestamp)
+		assert.Equal(t, int64(5), resp.PendingDecision.Attempt)
+		assert.Equal(t, int64(42), resp.PendingDecision.ScheduleID)
+	})
+
+	t.Run("with pending children", func(t *testing.T) {
+		mockResp := &types.DescribeWorkflowExecutionResponse{
+			WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+				Execution: &types.WorkflowExecution{
+					WorkflowID: "parent-wf",
+					RunID:      "parent-run",
+				},
+			},
+			PendingChildren: []*types.PendingChildExecutionInfo{
+				{
+					WorkflowID:        "child-wf-1",
+					RunID:             "child-run-1",
+					WorkflowTypeName:  "ChildWorkflowType",
+					InitiatedID:       10,
+					ParentClosePolicy: types.ParentClosePolicyTerminate.Ptr(),
+				},
+				{
+					WorkflowID:        "child-wf-2",
+					RunID:             "child-run-2",
+					WorkflowTypeName:  "ChildWorkflowType2",
+					InitiatedID:       20,
+					ParentClosePolicy: types.ParentClosePolicyAbandon.Ptr(),
+				},
+			},
+		}
+
+		resp, err := convertDescribeWorkflowExecutionResponse(mockResp, serverFrontendClient, nil)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(resp.PendingChildren))
+		assert.Equal(t, "child-wf-1", resp.PendingChildren[0].WorkflowID)
+		assert.Equal(t, "child-wf-2", resp.PendingChildren[1].WorkflowID)
+	})
+
+	t.Run("with workflow execution info fields", func(t *testing.T) {
+		now := time.Now().UnixNano()
+		mockResp := &types.DescribeWorkflowExecutionResponse{
+			WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+				Execution: &types.WorkflowExecution{
+					WorkflowID: "wf-id",
+					RunID:      "run-id",
+				},
+				Type: &types.WorkflowType{
+					Name: "WorkflowType",
+				},
+				StartTime:      common.Int64Ptr(now),
+				CloseTime:      common.Int64Ptr(now + 1000),
+				CloseStatus:    types.WorkflowExecutionCloseStatusCompleted.Ptr(),
+				HistoryLength:  50,
+				ParentDomainID: common.StringPtr("parent-domain"),
+				ParentExecution: &types.WorkflowExecution{
+					WorkflowID: "parent-wf",
+					RunID:      "parent-run",
+				},
+				Memo: &types.Memo{
+					Fields: map[string][]byte{
+						"key1": []byte("value1"),
+					},
+				},
+				PartitionConfig: map[string]string{
+					"config1": "value1",
+				},
+				CronOverlapPolicy: types.CronOverlapPolicySkipped.Ptr(),
+				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
+					ClusterAttribute: &types.ClusterAttribute{
+						Scope: "region",
+						Name:  "us-west-1",
+					},
+				},
+			},
+		}
+
+		resp, err := convertDescribeWorkflowExecutionResponse(mockResp, serverFrontendClient, nil)
+		assert.NoError(t, err)
+		assert.NotNil(t, resp.WorkflowExecutionInfo.StartTime)
+		assert.NotNil(t, resp.WorkflowExecutionInfo.CloseTime)
+		assert.Equal(t, types.WorkflowExecutionCloseStatusCompleted, *resp.WorkflowExecutionInfo.CloseStatus)
+		assert.Equal(t, int64(50), resp.WorkflowExecutionInfo.HistoryLength)
+		assert.NotNil(t, resp.WorkflowExecutionInfo.ParentDomainID)
+		assert.NotNil(t, resp.WorkflowExecutionInfo.ParentExecution)
+		assert.NotNil(t, resp.WorkflowExecutionInfo.Memo)
+		assert.Equal(t, map[string]string{"config1": "value1"}, resp.WorkflowExecutionInfo.PartitionConfig)
+		assert.Equal(t, types.CronOverlapPolicySkipped, *resp.WorkflowExecutionInfo.CronOverlapPolicy)
+		assert.NotNil(t, resp.WorkflowExecutionInfo.ActiveClusterSelectionPolicy)
+		assert.NotNil(t, resp.WorkflowExecutionInfo.ActiveClusterSelectionPolicy.ClusterAttribute)
+		assert.Equal(t, "region", resp.WorkflowExecutionInfo.ActiveClusterSelectionPolicy.ClusterAttribute.Scope)
+		assert.Equal(t, "us-west-1", resp.WorkflowExecutionInfo.ActiveClusterSelectionPolicy.ClusterAttribute.Name)
+	})
+
+	t.Run("with no pending activities or decision", func(t *testing.T) {
+		mockResp := &types.DescribeWorkflowExecutionResponse{
+			WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+				Execution: &types.WorkflowExecution{
+					WorkflowID: "wf-id",
+					RunID:      "run-id",
+				},
+			},
+		}
+
+		resp, err := convertDescribeWorkflowExecutionResponse(mockResp, serverFrontendClient, nil)
+		assert.NoError(t, err)
+		assert.Nil(t, resp.PendingDecision)
+		assert.Equal(t, 0, len(resp.PendingActivities))
+	})
 }
 
 func Test_PrintRunStatus(t *testing.T) {
@@ -2909,6 +3130,68 @@ func TestMapQueryRejectConditionFromFlag(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestParseClusterAttributes(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		clusterAttributeScope  string
+		clusterAttributeName   string
+		expectedPolicy         *types.ActiveClusterSelectionPolicy
+		expectError            bool
+		expectedErrorSubstring string
+	}{
+		{
+			name:                  "both empty - should return nil",
+			clusterAttributeScope: "",
+			clusterAttributeName:  "",
+			expectedPolicy:        nil,
+			expectError:           false,
+		},
+		{
+			name:                  "both provided - should return valid policy",
+			clusterAttributeScope: "test-scope",
+			clusterAttributeName:  "test-name",
+			expectedPolicy: &types.ActiveClusterSelectionPolicy{
+				ClusterAttribute: &types.ClusterAttribute{
+					Scope: "test-scope",
+					Name:  "test-name",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:                   "empty scope with name provided - should error",
+			clusterAttributeScope:  "",
+			clusterAttributeName:   "test-name",
+			expectedPolicy:         nil,
+			expectError:            true,
+			expectedErrorSubstring: "invalid cluster attribute",
+		},
+		{
+			name:                   "scope provided with empty name - should error",
+			clusterAttributeScope:  "test-scope",
+			clusterAttributeName:   "",
+			expectedPolicy:         nil,
+			expectError:            true,
+			expectedErrorSubstring: "invalid cluster attribute",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseClusterAttributes(tc.clusterAttributeScope, tc.clusterAttributeName)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrorSubstring)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedPolicy, result)
 			}
 		})
 	}

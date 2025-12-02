@@ -120,6 +120,21 @@ func (mr *MockStoreMockRecorder) DeleteShardStats(ctx, namespace, shardIDs, guar
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteShardStats", reflect.TypeOf((*MockStore)(nil).DeleteShardStats), ctx, namespace, shardIDs, guard)
 }
 
+// GetExecutor mocks base method.
+func (m *MockStore) GetExecutor(ctx context.Context, namespace, executorID string) (*ShardOwner, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExecutor", ctx, namespace, executorID)
+	ret0, _ := ret[0].(*ShardOwner)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExecutor indicates an expected call of GetExecutor.
+func (mr *MockStoreMockRecorder) GetExecutor(ctx, namespace, executorID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutor", reflect.TypeOf((*MockStore)(nil).GetExecutor), ctx, namespace, executorID)
+}
+
 // GetHeartbeat mocks base method.
 func (m *MockStore) GetHeartbeat(ctx context.Context, namespace, executorID string) (*HeartbeatState, *AssignedState, error) {
 	m.ctrl.T.Helper()

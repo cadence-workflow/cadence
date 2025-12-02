@@ -20,10 +20,11 @@ import (
 )
 
 type StoreTestCluster struct {
-	EtcdPrefix string
-	Namespace  string
-	LeaderCfg  shardDistributorCfg.ShardDistribution
-	Client     *clientv3.Client
+	EtcdPrefix  string
+	Namespace   string
+	LeaderCfg   shardDistributorCfg.ShardDistribution
+	Client      *clientv3.Client
+	Compression string
 }
 
 func SetupStoreTestCluster(t *testing.T) *StoreTestCluster {
@@ -45,6 +46,7 @@ func SetupStoreTestCluster(t *testing.T) *StoreTestCluster {
 		"dialTimeout": "5s",
 		"prefix":      etcdPrefix,
 		"electionTTL": "5s", // Needed for leader config part
+		"compression": "snappy",
 	}
 
 	yamlCfg, err := yaml.Marshal(etcdConfigRaw)

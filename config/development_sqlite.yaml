@@ -5,14 +5,14 @@ persistence:
     sqlite-default:
       sql:
         pluginName: "sqlite"
-        maxConns: 20
-        maxIdleConns: 20
-        maxConnLifetime: "1h"
+        maxConns: 1
+        maxIdleConns: 1
+        maxConnLifetime: "128h"
         databaseName: "cadence.db"
     sqlite-visibility:
       sql:
         pluginName: "sqlite"
-        maxConns: 20
-        maxIdleConns: 20
-        maxConnLifetime: "1h"
+        maxConns: 1
+        maxIdleConns: 1
+        maxConnLifetime: "128h"
         databaseName: "cadence_visibility.db"

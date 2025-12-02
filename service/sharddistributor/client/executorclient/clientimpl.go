@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/uber/cadence/client/sharddistributorexecutor"
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -34,7 +34,7 @@ const (
 )
 
 const (
-	heartbeatJitterMax = 100 * time.Millisecond
+	heartbeatJitterCoeff = 0.1 // 10% jitter
 )
 
 type managedProcessor[SP ShardProcessor] struct {
@@ -185,7 +185,7 @@ func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
 		return
 	}
 
-	heartBeatTimer := e.timeSource.NewTimer(getJitteredHeartbeatDuration(e.heartBeatInterval, heartbeatJitterMax))
+	heartBeatTimer := e.timeSource.NewTimer(backoff.JitDuration(e.heartBeatInterval, heartbeatJitterCoeff))
 	defer heartBeatTimer.Stop()
 
 	for {
@@ -199,7 +199,7 @@ func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
 			e.stopShardProcessors()
 			return
 		case <-heartBeatTimer.Chan():
-			heartBeatTimer.Reset(getJitteredHeartbeatDuration(e.heartBeatInterval, heartbeatJitterMax))
+			heartBeatTimer.Reset(backoff.JitDuration(e.heartBeatInterval, heartbeatJitterCoeff))
 			shardAssignment, err := e.heartbeatAndHandleMigrationMode(ctx)
 			if errors.Is(err, ErrLocalPassthroughMode) {
 				e.logger.Info("local passthrough mode: stopping heartbeat loop")
@@ -462,11 +462,8 @@ func (e *executorImpl[SP]) emitMetricsConvergence(converged bool) {
 	}
 }
 
-func getJitteredHeartbeatDuration(interval time.Duration, jitterMax time.Duration) time.Duration {
-	jitterMaxNanos := int64(jitterMax)
-	randomJitterNanos := rand.Int63n(jitterMaxNanos)
-	jitter := time.Duration(randomJitterNanos)
-	return interval - jitter
+func (e *executorImpl[SP]) GetNamespace() string {
+	return e.namespace
 }
 
 func (e *executorImpl[SP]) SetMetadata(metadata map[string]string) {

@@ -50,7 +50,7 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 	previousHeartbeat, assignedShards, err := h.storage.GetHeartbeat(ctx, request.Namespace, request.ExecutorID)
 	// We ignore Executor not found errors, since it just means that this executor heartbeat the first time.
 	if err != nil && !errors.Is(err, store.ErrExecutorNotFound) {
-		return nil, fmt.Errorf("get heartbeat: %w", err)
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to get heartbeat: %v", err)}
 	}
 
 	now := h.timeSource.Now().UTC()
@@ -58,11 +58,10 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 
 	switch mode {
 	case types.MigrationModeINVALID:
-		h.logger.Warn("Migration mode is invalid", tag.ShardNamespace(request.Namespace), tag.ShardExecutor(request.ExecutorID))
-		return nil, fmt.Errorf("migration mode is invalid")
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("namespace's migration mode is invalid: %v", err)}
 	case types.MigrationModeLOCALPASSTHROUGH:
 		h.logger.Warn("Migration mode is local passthrough, no calls to heartbeat allowed", tag.ShardNamespace(request.Namespace), tag.ShardExecutor(request.ExecutorID))
-		return nil, fmt.Errorf("migration mode is local passthrough")
+		return nil, &types.BadRequestError{Message: "migration mode is local passthrough, no calls to heartbeat allowed"}
 	// From SD perspective the behaviour is the same
 	case types.MigrationModeLOCALPASSTHROUGHSHADOW, types.MigrationModeDISTRIBUTEDPASSTHROUGH:
 		assignedShards, err = h.assignShardsInCurrentHeartbeat(ctx, request)
@@ -74,26 +73,26 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 	// If the state has changed we need to update heartbeat data.
 	// Otherwise, we want to do it with controlled frequency - at most every _heartbeatRefreshRate.
 	if previousHeartbeat != nil && request.Status == previousHeartbeat.Status && mode == types.MigrationModeONBOARDED {
-		lastHeartbeatTime := time.Unix(previousHeartbeat.LastHeartbeat, 0)
+		lastHeartbeatTime := previousHeartbeat.LastHeartbeat
 		if now.Sub(lastHeartbeatTime) < _heartbeatRefreshRate {
 			return _convertResponse(assignedShards, mode), nil
 		}
 	}
 
 	newHeartbeat := store.HeartbeatState{
-		LastHeartbeat:  now.Unix(),
+		LastHeartbeat:  now,
 		Status:         request.Status,
 		ReportedShards: request.ShardStatusReports,
 		Metadata:       request.GetMetadata(),
 	}
 
 	if err := validateMetadata(newHeartbeat.Metadata); err != nil {
-		return nil, fmt.Errorf("validate metadata: %w", err)
+		return nil, types.BadRequestError{Message: fmt.Sprintf("invalid metadata: %s", err)}
 	}
 
 	err = h.storage.RecordHeartbeat(ctx, request.Namespace, request.ExecutorID, newHeartbeat)
 	if err != nil {
-		return nil, fmt.Errorf("record heartbeat: %w", err)
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to record heartbeat: %v", err)}
 	}
 
 	return _convertResponse(assignedShards, mode), nil
@@ -103,12 +102,12 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 func (h *executor) assignShardsInCurrentHeartbeat(ctx context.Context, request *types.ExecutorHeartbeatRequest) (*store.AssignedState, error) {
 	assignedShards := store.AssignedState{
 		AssignedShards: make(map[string]*types.ShardAssignment),
-		LastUpdated:    h.timeSource.Now().Unix(),
+		LastUpdated:    h.timeSource.Now().UTC(),
 		ModRevision:    int64(0),
 	}
 	err := h.storage.DeleteExecutors(ctx, request.GetNamespace(), []string{request.GetExecutorID()}, store.NopGuard())
 	if err != nil {
-		return nil, fmt.Errorf("delete executors: %w", err)
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to delete assigned shards: %v", err)}
 	}
 	for shard := range request.GetShardStatusReports() {
 		assignedShards.AssignedShards[shard] = &types.ShardAssignment{
@@ -124,7 +123,7 @@ func (h *executor) assignShardsInCurrentHeartbeat(ctx context.Context, request *
 	}
 	err = h.storage.AssignShards(ctx, request.GetNamespace(), assignShardsRequest, store.NopGuard())
 	if err != nil {
-		return nil, fmt.Errorf("assign shards in current heartbeat: %w", err)
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to assign shards in the current heartbeat: %v", err)}
 	}
 	return &assignedShards, nil
 }

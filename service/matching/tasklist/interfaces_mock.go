@@ -214,17 +214,17 @@ func (mr *MockManagerMockRecorder) ReleaseBlockedPollers() *gomock.Call {
 }
 
 // Start mocks base method.
-func (m *MockManager) Start() error {
+func (m *MockManager) Start(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start")
+	ret := m.ctrl.Call(m, "Start", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockManagerMockRecorder) Start() *gomock.Call {
+func (mr *MockManagerMockRecorder) Start(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockManager)(nil).Start))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockManager)(nil).Start), ctx)
 }
 
 // Stop mocks base method.
@@ -786,17 +786,17 @@ func (mr *MockShardProcessorMockRecorder) SetShardStatus(arg0 any) *gomock.Call 
 }
 
 // Start mocks base method.
-func (m *MockShardProcessor) Start() error {
+func (m *MockShardProcessor) Start(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start")
+	ret := m.ctrl.Call(m, "Start", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockShardProcessorMockRecorder) Start() *gomock.Call {
+func (mr *MockShardProcessorMockRecorder) Start(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockShardProcessor)(nil).Start))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockShardProcessor)(nil).Start), ctx)
 }
 
 // Stop mocks base method.

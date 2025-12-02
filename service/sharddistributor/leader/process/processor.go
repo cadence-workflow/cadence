@@ -2,6 +2,7 @@ package process
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"math/rand"
@@ -254,11 +255,10 @@ func (p *namespaceProcessor) runShardStatsCleanupLoop(ctx context.Context) {
 // identifyStaleExecutors returns a list of executors who have not reported a heartbeat recently.
 func (p *namespaceProcessor) identifyStaleExecutors(namespaceState *store.NamespaceState) map[string]int64 {
 	expiredExecutors := make(map[string]int64)
-	now := p.timeSource.Now().Unix()
-	heartbeatTTL := int64(p.cfg.HeartbeatTTL.Seconds())
+	now := p.timeSource.Now().UTC()
 
 	for executorID, state := range namespaceState.Executors {
-		if (now - state.LastHeartbeat) > heartbeatTTL {
+		if now.Sub(state.LastHeartbeat) > p.cfg.HeartbeatTTL {
 			expiredExecutors[executorID] = namespaceState.ShardAssignments[executorID].ModRevision
 		}
 	}
@@ -269,8 +269,8 @@ func (p *namespaceProcessor) identifyStaleExecutors(namespaceState *store.Namesp
 // identifyStaleShardStats returns a list of shard statistics that are no longer relevant.
 func (p *namespaceProcessor) identifyStaleShardStats(namespaceState *store.NamespaceState) []string {
 	activeShards := make(map[string]struct{})
-	now := p.timeSource.Now().Unix()
-	shardStatsTTL := int64(p.cfg.ShardStatsTTL.Seconds())
+	now := p.timeSource.Now().UTC()
+	shardStatsTTL := p.cfg.ShardStatsTTL
 
 	// 1. build set of active executors
 
@@ -282,7 +282,8 @@ func (p *namespaceProcessor) identifyStaleShardStats(namespaceState *store.Names
 		}
 
 		isActive := executor.Status == types.ExecutorStatusACTIVE
-		isNotStale := (now - executor.LastHeartbeat) <= shardStatsTTL
+		lastHeartbeat := executor.LastHeartbeat
+		isNotStale := !lastHeartbeat.IsZero() && now.Sub(lastHeartbeat) <= shardStatsTTL
 		if isActive && isNotStale {
 			for shardID := range assignedState.AssignedShards {
 				activeShards[shardID] = struct{}{}
@@ -307,8 +308,8 @@ func (p *namespaceProcessor) identifyStaleShardStats(namespaceState *store.Names
 		if _, ok := activeShards[shardID]; ok {
 			continue
 		}
-		recentUpdate := stats.LastUpdateTime > 0 && (now-stats.LastUpdateTime) <= shardStatsTTL
-		recentMove := stats.LastMoveTime > 0 && (now-stats.LastMoveTime) <= shardStatsTTL
+		recentUpdate := !stats.LastUpdateTime.IsZero() && now.Sub(stats.LastUpdateTime) <= shardStatsTTL
+		recentMove := !stats.LastMoveTime.IsZero() && now.Sub(stats.LastMoveTime) <= shardStatsTTL
 		if recentUpdate || recentMove {
 			// Preserve stats that have been updated recently to allow cooldown/load history to
 			// survive executor churn. These shards are likely awaiting reassignment,
@@ -342,7 +343,6 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 }
 
 func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoopScope metrics.Scope) (err error) {
-
 	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
 	if err != nil {
 		return fmt.Errorf("get state: %w", err)
@@ -383,8 +383,8 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	}
 
 	p.addAssignmentsToNamespaceState(namespaceState, currentAssignments)
-
 	p.logger.Info("Applying new shard distribution.")
+
 	// Use the leader guard for the assign and delete operation.
 	err = p.shardStore.AssignShards(ctx, p.namespaceCfg.Name, store.AssignShardsRequest{
 		NewState:          namespaceState,
@@ -478,25 +478,103 @@ func (*namespaceProcessor) updateAssignments(shardsToReassign []string, activeEx
 }
 
 func (p *namespaceProcessor) addAssignmentsToNamespaceState(namespaceState *store.NamespaceState, currentAssignments map[string][]string) {
-	newState := make(map[string]store.AssignedState)
+	newState := make(map[string]store.AssignedState, len(currentAssignments))
+
 	for executorID, shards := range currentAssignments {
 		assignedShardsMap := make(map[string]*types.ShardAssignment)
+
 		for _, shardID := range shards {
 			assignedShardsMap[shardID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
 		}
+
 		modRevision := int64(0) // Should be 0 if we have not seen it yet
 		if namespaceAssignments, ok := namespaceState.ShardAssignments[executorID]; ok {
 			modRevision = namespaceAssignments.ModRevision
 		}
 
 		newState[executorID] = store.AssignedState{
-			AssignedShards: assignedShardsMap,
-			LastUpdated:    p.timeSource.Now().Unix(),
-			ModRevision:    modRevision,
+			AssignedShards:     assignedShardsMap,
+			LastUpdated:        p.timeSource.Now().UTC(),
+			ModRevision:        modRevision,
+			ShardHandoverStats: p.addHandoverStatsToExecutorAssignedState(namespaceState, executorID, shards),
 		}
 	}
 
 	namespaceState.ShardAssignments = newState
+}
+
+func (p *namespaceProcessor) addHandoverStatsToExecutorAssignedState(
+	namespaceState *store.NamespaceState,
+	executorID string, shardIDs []string,
+) map[string]store.ShardHandoverStats {
+	var newStats = make(map[string]store.ShardHandoverStats)
+
+	// Prepare handover stats for each shard
+	for _, shardID := range shardIDs {
+		handoverStats := p.newHandoverStats(namespaceState, shardID, executorID)
+
+		// If there is no handover (first assignment), we skip adding handover stats
+		if handoverStats != nil {
+			newStats[shardID] = *handoverStats
+		}
+	}
+
+	return newStats
+}
+
+// newHandoverStats creates shard handover statistics if a handover occurred.
+func (p *namespaceProcessor) newHandoverStats(
+	namespaceState *store.NamespaceState,
+	shardID string,
+	newExecutorID string,
+) *store.ShardHandoverStats {
+	logger := p.logger.WithTags(
+		tag.ShardNamespace(p.namespaceCfg.Name),
+		tag.ShardKey(shardID),
+		tag.ShardExecutor(newExecutorID),
+	)
+
+	// Fetch previous shard owners from cache
+	prevExecutor, err := p.shardStore.GetShardOwner(context.Background(), p.namespaceCfg.Name, shardID)
+	if err != nil && !errors.Is(err, store.ErrShardNotFound) {
+		logger.Warn("failed to get shard owner for shard statistic", tag.Error(err))
+		return nil
+	}
+	// previous executor is not found in cache
+	// meaning this is the first assignment of the shard
+	// so we skip updating handover stats
+	if prevExecutor == nil {
+		return nil
+	}
+
+	// No change in assignment
+	// meaning no handover occurred
+	// skip updating handover stats
+	if prevExecutor.ExecutorID == newExecutorID {
+		return nil
+	}
+
+	// previous executor heartbeat is not found in namespace state
+	// meaning the executor has already been cleaned up
+	// skip updating handover stats
+	prevExecutorHeartbeat, ok := namespaceState.Executors[prevExecutor.ExecutorID]
+	if !ok {
+		logger.Info("previous executor heartbeat not found, skipping handover stats")
+		return nil
+	}
+
+	handoverType := types.HandoverTypeEMERGENCY
+
+	// Consider it a graceful handover if the previous executor was in DRAINING or DRAINED status
+	// otherwise, it's an emergency handover
+	if prevExecutorHeartbeat.Status == types.ExecutorStatusDRAINING || prevExecutorHeartbeat.Status == types.ExecutorStatusDRAINED {
+		handoverType = types.HandoverTypeGRACEFUL
+	}
+
+	return &store.ShardHandoverStats{
+		HandoverType:                      handoverType,
+		PreviousExecutorLastHeartbeatTime: prevExecutorHeartbeat.LastHeartbeat,
+	}
 }
 
 func (*namespaceProcessor) getActiveExecutors(namespaceState *store.NamespaceState, staleExecutors map[string]int64) []string {

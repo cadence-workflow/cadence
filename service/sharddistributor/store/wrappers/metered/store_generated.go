@@ -79,6 +79,16 @@ func (c *meteredStore) DeleteShardStats(ctx context.Context, namespace string, s
 	return
 }
 
+func (c *meteredStore) GetExecutor(ctx context.Context, namespace string, executorID string) (sp1 *store.ShardOwner, err error) {
+	op := func() error {
+		sp1, err = c.wrapped.GetExecutor(ctx, namespace, executorID)
+		return err
+	}
+
+	err = c.call(metrics.ShardDistributorStoreGetExecutorScope, op, metrics.NamespaceTag(namespace))
+	return
+}
+
 func (c *meteredStore) GetHeartbeat(ctx context.Context, namespace string, executorID string) (hp1 *store.HeartbeatState, ap1 *store.AssignedState, err error) {
 	op := func() error {
 		hp1, ap1, err = c.wrapped.GetHeartbeat(ctx, namespace, executorID)

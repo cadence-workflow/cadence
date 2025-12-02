@@ -96,7 +96,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 		clusterMetadata,
 		deps.mockIsolationState,
 		deps.mockMatchingClient,
-		func(Manager) {},
+		func(ShardProcessor) {},
 		taskListID,
 		taskListKind,
 		config,
@@ -248,7 +248,7 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 		cluster.GetTestClusterMetadata(true),
 		mockIsolationState,
 		mockMatchingClient,
-		func(Manager) {},
+		func(ShardProcessor) {},
 		tlID,
 		types.TaskListKindNormal,
 		cfg,
@@ -424,7 +424,7 @@ func TestCheckIdleTaskList(t *testing.T) {
 	t.Run("Idle task-list", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, clock.NewRealTimeSource())
-		require.NoError(t, tlm.Start())
+		require.NoError(t, tlm.Start(context.Background()))
 
 		require.EqualValues(t, 0, atomic.LoadInt32(&tlm.stopped), "idle check interval had not passed yet")
 		time.Sleep(20 * time.Millisecond)
@@ -434,7 +434,7 @@ func TestCheckIdleTaskList(t *testing.T) {
 	t.Run("Active poll-er", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, clock.NewRealTimeSource())
-		require.NoError(t, tlm.Start())
+		require.NoError(t, tlm.Start(context.Background()))
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		_, _ = tlm.GetTask(ctx, nil)
@@ -467,7 +467,7 @@ func TestCheckIdleTaskList(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, clock.NewRealTimeSource())
-		require.NoError(t, tlm.Start())
+		require.NoError(t, tlm.Start(context.Background()))
 
 		time.Sleep(8 * time.Millisecond)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -493,7 +493,7 @@ func TestAddTaskStandby(t *testing.T) {
 	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
 	tlm := createTestTaskListManagerWithConfig(t, logger, controller, cfg, clock.NewMockedTimeSource())
-	require.NoError(t, tlm.Start())
+	require.NoError(t, tlm.Start(context.Background()))
 
 	// stop taskWriter so that we can check if there's any call to it
 	// otherwise the task persist process is async and hard to test
@@ -842,7 +842,7 @@ func TestTaskWriterShutdown(t *testing.T) {
 	controller := gomock.NewController(t)
 	logger := testlogger.New(t)
 	tlm := createTestTaskListManager(t, logger, controller)
-	err := tlm.Start()
+	err := tlm.Start(context.Background())
 	assert.NoError(t, err)
 
 	// stop the task writer explicitly
@@ -894,7 +894,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		cluster.GetTestClusterMetadata(true),
 		mockIsolationState,
 		matching.NewMockClient(controller),
-		func(Manager) {},
+		func(ShardProcessor) {},
 		taskListID,
 		types.TaskListKindNormal,
 		cfg,
@@ -905,7 +905,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	tlMgr, err := NewManager(params)
 	assert.NoError(t, err)
 	tlm := tlMgr.(*taskListManagerImpl)
-	err = tlm.Start()
+	err = tlm.Start(context.Background())
 	assert.NoError(t, err)
 
 	// add taskCount tasks
@@ -966,7 +966,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		cluster.GetTestClusterMetadata(true),
 		mockIsolationState,
 		matching.NewMockClient(controller),
-		func(Manager) {},
+		func(ShardProcessor) {},
 		taskListID,
 		types.TaskListKindNormal,
 		cfg,
@@ -977,7 +977,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	tlMgr, err = NewManager(newParams)
 	assert.NoError(t, err)
 	tlm = tlMgr.(*taskListManagerImpl)
-	err = tlm.Start()
+	err = tlm.Start(context.Background())
 	assert.NoError(t, err)
 	for i := int64(0); i < rangeSize; i++ {
 		task, err := tlm.GetTask(context.Background(), nil)
@@ -1026,7 +1026,7 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 		cluster.GetTestClusterMetadata(true),
 		mockIsolationState,
 		matching.NewMockClient(controller),
-		func(Manager) {},
+		func(ShardProcessor) {},
 		taskListID,
 		types.TaskListKindNormal,
 		cfg,
@@ -1043,7 +1043,7 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 		tlm.taskWriter.renewLeaseWithRetry()
 	}
 
-	err = tlm.Start() // this call will also renew lease
+	err = tlm.Start(context.Background()) // this call will also renew lease
 	require.NoError(t, err)
 	defer tlm.Stop()
 
@@ -1174,7 +1174,7 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 				cluster.GetTestClusterMetadata(true),
 				mockIsolationState,
 				matching.NewMockClient(controller),
-				func(Manager) {},
+				func(ShardProcessor) {},
 				taskListID,
 				types.TaskListKindNormal,
 				cfg,
@@ -1185,7 +1185,7 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 			tlMgr, err := NewManager(params)
 			assert.NoError(t, err)
 			tlm := tlMgr.(*taskListManagerImpl)
-			err = tlm.Start()
+			err = tlm.Start(context.Background())
 			assert.NoError(t, err)
 			for i := int64(0); i < taskCount; i++ {
 				scheduleID := i * 3
@@ -1253,7 +1253,7 @@ func TestTaskListManagerImpl_HasPollerAfter(t *testing.T) {
 			controller := gomock.NewController(t)
 			logger := testlogger.New(t)
 			tlm := createTestTaskListManager(t, logger, controller)
-			err := tlm.Start()
+			err := tlm.Start(context.Background())
 			assert.NoError(t, err)
 
 			if tc.prepareManager != nil {
@@ -1661,7 +1661,7 @@ func TestManagerStart_RootPartition(t *testing.T) {
 			WritePartitions: partitions(2),
 		},
 	}).Return(&types.MatchingRefreshTaskListPartitionConfigResponse{}, nil)
-	assert.NoError(t, tlm.Start())
+	assert.NoError(t, tlm.Start(context.Background()))
 	assert.Equal(t, &types.TaskListPartitionConfig{Version: 1, ReadPartitions: partitions(2), WritePartitions: partitions(2)}, tlm.TaskListPartitionConfig())
 	tlm.stopWG.Wait()
 }
@@ -1703,7 +1703,7 @@ func TestManagerStart_NonRootPartition(t *testing.T) {
 			RangeID:  0,
 		},
 	}, nil)
-	assert.NoError(t, tlm.Start())
+	assert.NoError(t, tlm.Start(context.Background()))
 	assert.Equal(t, &types.TaskListPartitionConfig{
 		Version:         1,
 		ReadPartitions:  partitions(3),

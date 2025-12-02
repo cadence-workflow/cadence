@@ -11,7 +11,6 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -24,40 +23,26 @@ const (
 
 func TestMeteredStore_GetHeartbeat(t *testing.T) {
 	heartbeatRes := &store.HeartbeatState{
-		LastHeartbeat: time.Now().Unix(),
+		LastHeartbeat: time.Now().UTC(),
 	}
 	assignedState := &store.AssignedState{
-		LastUpdated: time.Now().Unix(),
+		LastUpdated: time.Now().UTC(),
 	}
 
 	tests := []struct {
-		name       string
-		setupMocks func(logger *log.MockLogger)
-		error      error
+		name  string
+		error error
 	}{
 		{
-			name:       "Success",
-			setupMocks: func(logger *log.MockLogger) {},
-			error:      nil,
+			name:  "Success",
+			error: nil,
 		},
 		{
-			name: "NotFound",
-			setupMocks: func(logger *log.MockLogger) {
-				logger.EXPECT().Error(
-					"Executor not found.",
-					[]tag.Tag{tag.Error(store.ErrExecutorNotFound), tag.MetricScope(int(metrics.ShardDistributorStoreGetHeartbeatScope))},
-				).Times(1)
-			},
+			name:  "NotFound",
 			error: store.ErrExecutorNotFound,
 		},
 		{
-			name: "Failure",
-			setupMocks: func(logger *log.MockLogger) {
-				logger.EXPECT().Error(
-					"Store failed with internal error.",
-					[]tag.Tag{tag.Error(&types.InternalServiceError{}), tag.MetricScope(int(metrics.ShardDistributorStoreGetHeartbeatScope))},
-				).Times(1)
-			},
+			name:  "Failure",
 			error: &types.InternalServiceError{},
 		},
 	}
@@ -79,7 +64,6 @@ func TestMeteredStore_GetHeartbeat(t *testing.T) {
 			mockLogger.EXPECT().Helper().Return(mockLogger).AnyTimes()
 
 			wrapped := NewStore(mockHandler, metricsClient, mockLogger, timeSource).(*meteredStore)
-			tt.setupMocks(mockLogger)
 
 			gotHeartbeat, gotAssignedState, err := wrapped.GetHeartbeat(context.Background(), _testNamespace, _testExecutorID)
 

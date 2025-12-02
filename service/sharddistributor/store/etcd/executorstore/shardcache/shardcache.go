@@ -54,6 +54,14 @@ func (s *ShardToExecutorCache) GetShardOwner(ctx context.Context, namespace, sha
 	return namespaceShardToExecutor.GetShardOwner(ctx, shardID)
 }
 
+func (s *ShardToExecutorCache) GetExecutor(ctx context.Context, namespace, executorID string) (*store.ShardOwner, error) {
+	namespaceShardToExecutor, err := s.getNamespaceShardToExecutor(namespace)
+	if err != nil {
+		return nil, fmt.Errorf("get namespace shard to executor: %w", err)
+	}
+	return namespaceShardToExecutor.GetExecutor(ctx, executorID)
+}
+
 func (s *ShardToExecutorCache) GetExecutorModRevisionCmp(namespace string) ([]clientv3.Cmp, error) {
 	namespaceShardToExecutor, err := s.getNamespaceShardToExecutor(namespace)
 	if err != nil {

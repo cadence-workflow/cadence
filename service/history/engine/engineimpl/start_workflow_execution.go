@@ -40,6 +40,8 @@ import (
 	"github.com/uber/cadence/service/history/workflow"
 )
 
+var errClusterAttributeNotFound = &types.BadRequestError{Message: "Cannot start workflow with a cluster attribute that is not found in the domain's metadata."}
+
 // for startWorkflowHelper be reused by signalWithStart
 type signalWithStartArg struct {
 	signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest
@@ -858,13 +860,7 @@ func (e *historyEngineImpl) createMutableState(
 			return nil, err
 		}
 		e.logger.Warn("Failed to get active cluster info by cluster attribute, falling back to domain-level active cluster info", tag.Error(err))
-		// fallback to domain-level active cluster info
-		startRequest.StartRequest.ActiveClusterSelectionPolicy = nil
-		activeClusterInfo, err = e.shard.GetActiveClusterManager().GetActiveClusterInfoByClusterAttribute(ctx, domainEntry.GetInfo().ID, nil)
-		if err != nil {
-			// unexpected error
-			return nil, err
-		}
+		return nil, errClusterAttributeNotFound
 	}
 	if activeClusterInfo.ActiveClusterName != e.currentClusterName {
 		return nil, e.newDomainNotActiveError(domainEntry, activeClusterInfo.FailoverVersion)

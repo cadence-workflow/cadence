@@ -99,7 +99,7 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 		}
 	}
 	if err != nil {
-		return nil, fmt.Errorf("get shard owner: %w", err)
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to get shard owner: %v", err)}
 	}
 
 	resp = &types.GetShardOwnerResponse{
@@ -116,28 +116,34 @@ func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string
 	// Get the current state of the namespace and find the executor with the least assigned shards
 	state, err := h.storage.GetState(ctx, namespace)
 	if err != nil {
-		return nil, fmt.Errorf("get state: %w", err)
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
 	}
 
-	var executor string
+	var executorID string
 	minAssignedShards := math.MaxInt
 
 	for assignedExecutor, assignment := range state.ShardAssignments {
 		if len(assignment.AssignedShards) < minAssignedShards {
 			minAssignedShards = len(assignment.AssignedShards)
-			executor = assignedExecutor
+			executorID = assignedExecutor
 		}
 	}
 
 	// Assign the shard to the executor with the least assigned shards
-	err = h.storage.AssignShard(ctx, namespace, shardID, executor)
+	err = h.storage.AssignShard(ctx, namespace, shardID, executorID)
 	if err != nil {
-		return nil, fmt.Errorf("assign ephemeral shard: %w", err)
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("assign ephemeral shard: %v", err)}
+	}
+
+	executor, err := h.storage.GetExecutor(ctx, namespace, executorID)
+	if err != nil {
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get executor: %v", err)}
 	}
 
 	return &types.GetShardOwnerResponse{
-		Owner:     executor,
+		Owner:     executor.ExecutorID,
 		Namespace: namespace,
+		Metadata:  executor.Metadata,
 	}, nil
 }
 
@@ -148,13 +154,13 @@ func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequ
 	assignmentChangesChan, unSubscribe, err := h.storage.SubscribeToAssignmentChanges(server.Context(), request.Namespace)
 	defer unSubscribe()
 	if err != nil {
-		return fmt.Errorf("subscribe to namespace state: %w", err)
+		return &types.InternalServiceError{Message: fmt.Sprintf("failed to subscribe to namespace state: %v", err)}
 	}
 
 	// Send initial state immediately so client doesn't have to wait for first update
 	state, err := h.storage.GetState(server.Context(), request.Namespace)
 	if err != nil {
-		return fmt.Errorf("get initial state: %w", err)
+		return &types.InternalServiceError{Message: fmt.Sprintf("failed to get namespace state: %v", err)}
 	}
 	response := toWatchNamespaceStateResponse(state)
 	if err := server.Send(response); err != nil {

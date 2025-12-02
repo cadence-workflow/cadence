@@ -123,7 +123,7 @@ func TestGetShardOwner(t *testing.T) {
 			setupMocks: func(mockStore *store.MockStore) {
 				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "123").Return(&store.ShardOwner{
 					ExecutorID: "owner1",
-					Metadata:   map[string]string{},
+					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
 				}, nil)
 			},
 			expectedOwner: "owner1",
@@ -152,6 +152,10 @@ func TestGetShardOwner(t *testing.T) {
 							},
 						},
 					},
+				}, nil)
+				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner2").Return(&store.ShardOwner{
+					ExecutorID: "owner2",
+					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
 				}, nil)
 				// owner2 has the fewest shards assigned, so we assign the shard to it
 				mockStore.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD", "owner2").Return(nil)
@@ -213,6 +217,8 @@ func TestGetShardOwner(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tt.expectedOwner, resp.Owner)
 				require.Equal(t, tt.request.Namespace, resp.Namespace)
+				expectedMetadata := map[string]string{"ip": "127.0.0.1", "port": "1234"}
+				require.Equal(t, expectedMetadata, resp.Metadata)
 			}
 		})
 	}
@@ -293,6 +299,6 @@ func TestWatchNamespaceState(t *testing.T) {
 
 		err := handler.WatchNamespaceState(&types.WatchNamespaceStateRequest{Namespace: "test-ns"}, mockServer)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "get initial state")
+		require.Contains(t, err.Error(), "failed to get namespace state: storage error")
 	})
 }

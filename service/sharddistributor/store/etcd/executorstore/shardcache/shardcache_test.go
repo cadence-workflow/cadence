@@ -27,7 +27,7 @@ func TestNewShardToExecutorCache(t *testing.T) {
 	assert.Equal(t, client, cache.client)
 }
 
-func TestShardExecutorCache(t *testing.T) {
+func TestShardExecutorCacheForwarding(t *testing.T) {
 	testCluster := testhelper.SetupStoreTestCluster(t)
 	logger := testlogger.New(t)
 
@@ -51,4 +51,11 @@ func TestShardExecutorCache(t *testing.T) {
 	// Check the cache is populated
 	assert.Greater(t, cache.namespaceToShards["test-ns"].executorRevision["executor-1"], int64(0))
 	assert.Equal(t, "executor-1", cache.namespaceToShards["test-ns"].shardToExecutor["shard-1"].ExecutorID)
+
+	// Check the executor is also cached
+	executor, err := cache.GetExecutor(context.Background(), "test-ns", "executor-1")
+	assert.NoError(t, err)
+	assert.Equal(t, "executor-1", executor.ExecutorID)
+	assert.Equal(t, "dc1", executor.Metadata["datacenter"])
+	assert.Equal(t, "rack-42", executor.Metadata["rack"])
 }

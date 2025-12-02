@@ -93,7 +93,7 @@ func (f fakeTaskFetcher) Stop()  {}
 func (f fakeTaskFetcher) GetSourceCluster() string {
 	return f.sourceCluster
 }
-func (f fakeTaskFetcher) GetRequestChan() chan<- *request {
+func (f fakeTaskFetcher) GetRequestChan(shardID int) chan<- *request {
 	return f.requestChan
 }
 func (f fakeTaskFetcher) GetRateLimiter() quotas.Limiter {

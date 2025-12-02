@@ -227,6 +227,9 @@ func TestHasMoreRowsToDelete(t *testing.T) {
 	assert.False(t, HasMoreRowsToDelete(11, 10))
 	assert.False(t, HasMoreRowsToDelete(9, 10))
 	assert.False(t, HasMoreRowsToDelete(-1, 10))
+	assert.False(t, HasMoreRowsToDelete(100, 0))
+	assert.False(t, HasMoreRowsToDelete(0, 0))
+	assert.False(t, HasMoreRowsToDelete(50, -1))
 
 }
 func TestTransferTaskInfo(t *testing.T) {

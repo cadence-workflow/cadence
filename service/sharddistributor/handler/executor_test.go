@@ -41,7 +41,7 @@ func TestHeartbeat(t *testing.T) {
 
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(nil, nil, store.ErrExecutorNotFound)
 		mockStore.EXPECT().RecordHeartbeat(gomock.Any(), namespace, executorID, store.HeartbeatState{
-			LastHeartbeat: now.Unix(),
+			LastHeartbeat: now,
 			Status:        types.ExecutorStatusACTIVE,
 		})
 
@@ -65,7 +65,7 @@ func TestHeartbeat(t *testing.T) {
 		}
 
 		previousHeartbeat := store.HeartbeatState{
-			LastHeartbeat: now.Unix(),
+			LastHeartbeat: now,
 			Status:        types.ExecutorStatusACTIVE,
 		}
 
@@ -91,7 +91,7 @@ func TestHeartbeat(t *testing.T) {
 		}
 
 		previousHeartbeat := store.HeartbeatState{
-			LastHeartbeat: now.Unix(),
+			LastHeartbeat: now,
 			Status:        types.ExecutorStatusACTIVE,
 		}
 
@@ -100,7 +100,7 @@ func TestHeartbeat(t *testing.T) {
 
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
 		mockStore.EXPECT().RecordHeartbeat(gomock.Any(), namespace, executorID, store.HeartbeatState{
-			LastHeartbeat: mockTimeSource.Now().Unix(),
+			LastHeartbeat: mockTimeSource.Now().UTC(),
 			Status:        types.ExecutorStatusACTIVE,
 		})
 
@@ -124,13 +124,13 @@ func TestHeartbeat(t *testing.T) {
 		}
 
 		previousHeartbeat := store.HeartbeatState{
-			LastHeartbeat: now.Unix(),
+			LastHeartbeat: now,
 			Status:        types.ExecutorStatusACTIVE,
 		}
 
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
 		mockStore.EXPECT().RecordHeartbeat(gomock.Any(), namespace, executorID, store.HeartbeatState{
-			LastHeartbeat: now.Unix(),
+			LastHeartbeat: now,
 			Status:        types.ExecutorStatusDRAINING,
 		})
 
@@ -178,7 +178,7 @@ func TestHeartbeat(t *testing.T) {
 			Status:     types.ExecutorStatusACTIVE,
 		}
 		previousHeartbeat := store.HeartbeatState{
-			LastHeartbeat: now.Unix(),
+			LastHeartbeat: now,
 			Status:        types.ExecutorStatusACTIVE,
 		}
 
@@ -207,7 +207,7 @@ func TestHeartbeat(t *testing.T) {
 			Status:     types.ExecutorStatusACTIVE,
 		}
 		previousHeartbeat := store.HeartbeatState{
-			LastHeartbeat: now.Unix(),
+			LastHeartbeat: now,
 			Status:        types.ExecutorStatusACTIVE,
 		}
 
@@ -240,7 +240,7 @@ func TestHeartbeat(t *testing.T) {
 		}
 
 		previousHeartbeat := store.HeartbeatState{
-			LastHeartbeat: now.Unix(),
+			LastHeartbeat: now,
 			Status:        types.ExecutorStatusACTIVE,
 			ReportedShards: map[string]*types.ShardStatusReport{
 				"shard1": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
@@ -269,13 +269,14 @@ func TestHeartbeat(t *testing.T) {
 				return nil
 			},
 		)
-		mockStore.EXPECT().RecordHeartbeat(gomock.Any(), namespace, executorID, store.HeartbeatState{
-			LastHeartbeat: now.Unix(),
-			Status:        types.ExecutorStatusACTIVE,
-			ReportedShards: map[string]*types.ShardStatusReport{
-				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
+		mockStore.EXPECT().RecordHeartbeat(gomock.Any(), namespace, executorID, gomock.AssignableToTypeOf(store.HeartbeatState{})).DoAndReturn(
+			func(_ context.Context, _ string, _ string, hb store.HeartbeatState) error {
+				// Validate status and reported shards, ignore exact timestamp
+				require.Equal(t, types.ExecutorStatusACTIVE, hb.Status)
+				require.Contains(t, hb.ReportedShards, "shard0")
+				return nil
 			},
-		})
+		)
 
 		_, err := handler.Heartbeat(ctx, req)
 		require.NoError(t, err)
@@ -303,7 +304,7 @@ func TestHeartbeat(t *testing.T) {
 		}
 
 		previousHeartbeat := store.HeartbeatState{
-			LastHeartbeat: now.Unix(),
+			LastHeartbeat: now,
 			Status:        types.ExecutorStatusACTIVE,
 			ReportedShards: map[string]*types.ShardStatusReport{
 				"shard1": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
@@ -346,7 +347,7 @@ func TestHeartbeat(t *testing.T) {
 		}
 
 		previousHeartbeat := store.HeartbeatState{
-			LastHeartbeat: now.Unix(),
+			LastHeartbeat: now,
 			Status:        types.ExecutorStatusACTIVE,
 			ReportedShards: map[string]*types.ShardStatusReport{
 				"shard1": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
@@ -395,8 +396,35 @@ func TestHeartbeat(t *testing.T) {
 
 		_, err := handler.Heartbeat(ctx, req)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "validate metadata")
-		require.Contains(t, err.Error(), "exceeds the maximum")
+		require.Contains(t, err.Error(), "invalid metadata: metadata has 33 keys, which exceeds the maximum of 32")
+	})
+
+	// Test Case: Heartbeat with executor associated with MigrationModeLOCALPASSTHROUGH (should error)
+	t.Run("MigrationModeLOCALPASSTHROUGH", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockStore := store.NewMockStore(ctrl)
+		mockTimeSource := clock.NewMockedTimeSource()
+		shardDistributionCfg := config.ShardDistribution{
+			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGH}},
+		}
+		migrationConfig := newMigrationConfig(t, []configEntry{{dynamicproperties.MigrationMode, config.MigrationModeLOCALPASSTHROUGH}})
+		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig)
+
+		req := &types.ExecutorHeartbeatRequest{
+			Namespace:  namespace,
+			ExecutorID: executorID,
+			Status:     types.ExecutorStatusACTIVE,
+		}
+		previousHeartbeat := store.HeartbeatState{
+			LastHeartbeat: now,
+			Status:        types.ExecutorStatusACTIVE,
+		}
+
+		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
+
+		_, err := handler.Heartbeat(ctx, req)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "migration mode is local passthrough, no calls to heartbeat allowed")
 	})
 }
 

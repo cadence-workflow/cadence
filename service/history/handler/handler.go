@@ -121,6 +121,7 @@ func (h *handlerImpl) Start() {
 		h.config,
 		h.GetClusterMetadata(),
 		h.GetClientBean(),
+		h.GetMetricsClient(),
 	)
 	if err != nil {
 		h.GetLogger().Fatal("Creating replication task fetchers failed", tag.Error(err))
@@ -143,7 +144,7 @@ func (h *handlerImpl) Start() {
 		h.config.ReplicationBudgetManagerMaxSizeCount,
 		cache.AdmissionOptimistic,
 		0,
-		h.GetMetricsClient().Scope(metrics.ReplicatorCacheManagerScope),
+		h.GetMetricsClient().Scope(metrics.ReplicatorCacheManagerScope, metrics.HostTag(h.config.HostName)),
 		h.GetLogger(),
 		h.config.ReplicationBudgetManagerSoftCapThreshold,
 	)
