@@ -3,6 +3,7 @@ package process
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -813,4 +814,278 @@ func TestAddHandoverStatsToExecutorAssignedState(t *testing.T) {
 			assert.Equal(t, tc.expected, stats)
 		})
 	}
+}
+
+func TestLoadBalance_Convergence(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	// Setup: ExecA is overloaded (150), ExecB is underloaded (50). Mean is 100.
+	// We expect shards to move from A to B.
+	execA, execB := "exec-A", "exec-B"
+
+	assignments := map[string]store.AssignedState{
+		execA: {AssignedShards: make(map[string]*types.ShardAssignment)},
+		execB: {AssignedShards: make(map[string]*types.ShardAssignment)},
+	}
+	shardStats := make(map[string]store.ShardStatistics)
+	now := mocks.timeSource.Now()
+
+	for i := range 50 {
+		sID := fmt.Sprintf("A-%d", i)
+		assignments[execA].AssignedShards[sID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
+		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 3.0, LastUpdateTime: now}
+	}
+	for i := range 50 {
+		sID := fmt.Sprintf("B-%d", i)
+		assignments[execB].AssignedShards[sID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
+		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 1.0, LastUpdateTime: now}
+	}
+
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			execA: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execB: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		},
+		ShardAssignments: assignments,
+		ShardStats:       shardStats,
+		GlobalRevision:   10,
+	}, nil)
+
+	mocks.election.EXPECT().Guard().Return(store.NopGuard())
+
+	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ string, request store.AssignShardsRequest, _ store.GuardFunc) error {
+			newAssignments := request.NewState.ShardAssignments
+			assert.Less(t, len(newAssignments[execA].AssignedShards), 50, "Overloaded executor should shed shards")
+			assert.Greater(t, len(newAssignments[execB].AssignedShards), 50, "Underloaded executor should receive shards")
+			return nil
+		},
+	)
+
+	err := processor.rebalanceShards(context.Background())
+	require.NoError(t, err)
+}
+
+func TestLoadBalance_NoMoveNeeded(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	execA, execB := "exec-A", "exec-B"
+	assignments := map[string]store.AssignedState{
+		execA: {AssignedShards: make(map[string]*types.ShardAssignment)},
+		execB: {AssignedShards: make(map[string]*types.ShardAssignment)},
+	}
+	shardStats := make(map[string]store.ShardStatistics)
+	now := mocks.timeSource.Now()
+
+	for i := range 51 {
+		sID := fmt.Sprintf("A-%d", i)
+		assignments[execA].AssignedShards[sID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
+		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 1.0, LastUpdateTime: now}
+	}
+	for i := range 49 {
+		sID := fmt.Sprintf("B-%d", i)
+		assignments[execB].AssignedShards[sID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
+		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 1.0, LastUpdateTime: now}
+	}
+
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			execA: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execB: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		},
+		ShardAssignments: assignments,
+		ShardStats:       shardStats,
+		GlobalRevision:   10,
+	}, nil)
+
+	// Expect AssignShards to NOT be called
+	mocks.store.EXPECT().AssignShards(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	err := processor.rebalanceShards(context.Background())
+	require.NoError(t, err)
+}
+
+func TestLoadBalance_BudgetConstraint(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	execA, execB, execC, execD := "exec-A", "exec-B", "exec-C", "exec-D"
+
+	assignments := map[string]store.AssignedState{
+		execA: {AssignedShards: make(map[string]*types.ShardAssignment)},
+		execB: {AssignedShards: make(map[string]*types.ShardAssignment)},
+		execC: {AssignedShards: make(map[string]*types.ShardAssignment)},
+		execD: {AssignedShards: make(map[string]*types.ShardAssignment)},
+	}
+	shardStats := make(map[string]store.ShardStatistics)
+	now := mocks.timeSource.Now()
+
+	for i := range 50 {
+		sID := fmt.Sprintf("A-%d", i)
+		assignments[execA].AssignedShards[sID] = &types.ShardAssignment{}
+		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 2.0, LastUpdateTime: now}
+	}
+	for i := range 50 {
+		sID := fmt.Sprintf("B-%d", i)
+		assignments[execB].AssignedShards[sID] = &types.ShardAssignment{}
+		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 2.0, LastUpdateTime: now}
+	}
+	for i := 0; i < 50; i++ {
+		sID := fmt.Sprintf("C-%d", i)
+		assignments[execC].AssignedShards[sID] = &types.ShardAssignment{}
+		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 2.0, LastUpdateTime: now}
+	}
+	for i := 0; i < 25; i++ {
+		sID := fmt.Sprintf("D-%d", i)
+		assignments[execD].AssignedShards[sID] = &types.ShardAssignment{}
+		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 0.2, LastUpdateTime: now}
+	}
+
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			execA: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execB: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execC: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execD: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		},
+		ShardAssignments: assignments,
+		ShardStats:       shardStats,
+		GlobalRevision:   10,
+	}, nil)
+
+	mocks.election.EXPECT().Guard().Return(store.NopGuard())
+
+	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ string, request store.AssignShardsRequest, _ store.GuardFunc) error {
+			newAssignments := request.NewState.ShardAssignments
+			shardsOnA := len(newAssignments[execA].AssignedShards)
+			shardsOnB := len(newAssignments[execB].AssignedShards)
+			shardsOnC := len(newAssignments[execC].AssignedShards)
+			shardsOnD := len(newAssignments[execD].AssignedShards)
+			assert.Equal(t, 148, shardsOnA+shardsOnB+shardsOnC, "Exec a, b and c should loose 2 shards")
+			assert.Equal(t, 27, shardsOnD, "ExecD should have gained two shard")
+			return nil
+		},
+	)
+
+	err := processor.rebalanceShards(context.Background())
+	require.NoError(t, err)
+}
+
+func TestLoadBalance_NoDestinations(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	execA, execB, execC, execD, execE := "exec-A", "exec-B", "exec-C", "exec-D", "exec-E"
+	now := mocks.timeSource.Now()
+
+	// Mean:	104
+	// Upper:	119,6
+	// Lower	98,8
+	shardStats := map[string]store.ShardStatistics{
+		"s1": {SmoothedLoad: 120, LastUpdateTime: now},
+		"s2": {SmoothedLoad: 100, LastUpdateTime: now},
+		"s3": {SmoothedLoad: 100, LastUpdateTime: now},
+		"s4": {SmoothedLoad: 100, LastUpdateTime: now},
+		"s5": {SmoothedLoad: 100, LastUpdateTime: now},
+	}
+	assignments := map[string]store.AssignedState{
+		execA: {AssignedShards: map[string]*types.ShardAssignment{"s1": {Status: types.AssignmentStatusREADY}}},
+		execB: {AssignedShards: map[string]*types.ShardAssignment{"s2": {Status: types.AssignmentStatusREADY}}},
+		execC: {AssignedShards: map[string]*types.ShardAssignment{"s3": {Status: types.AssignmentStatusREADY}}},
+		execD: {AssignedShards: map[string]*types.ShardAssignment{"s4": {Status: types.AssignmentStatusREADY}}},
+		execE: {AssignedShards: map[string]*types.ShardAssignment{"s5": {Status: types.AssignmentStatusREADY}}},
+	}
+
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			execA: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execB: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execC: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execD: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execE: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		},
+		ShardAssignments: assignments,
+		ShardStats:       shardStats,
+		GlobalRevision:   10,
+	}, nil)
+
+	// Expect AssignShards to NOT be called because no moves are possible
+	mocks.store.EXPECT().AssignShards(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	err := processor.rebalanceShards(context.Background())
+	require.NoError(t, err)
+}
+
+func TestLoadBalance_ExecutorRemovedFromDestination(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	execA, execB, execC, execF := "exec-A", "exec-B", "exec-C", "exec-F"
+	now := mocks.timeSource.Now()
+
+	assignments := map[string]store.AssignedState{
+		execA: {AssignedShards: map[string]*types.ShardAssignment{"sa_1": {}, "sa_2": {}}},
+		execB: {AssignedShards: map[string]*types.ShardAssignment{"sb_1": {}}},
+		execC: {AssignedShards: map[string]*types.ShardAssignment{"sc_1": {}, "sc_2": {}}},
+		execF: {AssignedShards: make(map[string]*types.ShardAssignment)},
+	}
+	shardStats := map[string]store.ShardStatistics{
+		"sa_1": {SmoothedLoad: 70, LastUpdateTime: now},
+		"sa_2": {SmoothedLoad: 70, LastUpdateTime: now},
+		"sb_1": {SmoothedLoad: 50, LastUpdateTime: now},
+		"sc_1": {SmoothedLoad: 70, LastUpdateTime: now},
+		"sc_2": {SmoothedLoad: 70, LastUpdateTime: now},
+	}
+	// Around mean load (Within upper and lower bound)
+	// Enough shards to make move budget 2
+	for i := range 108 {
+		sID := fmt.Sprintf("sf_%d", i)
+		assignments[execF].AssignedShards[sID] = &types.ShardAssignment{}
+		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 1.0, LastUpdateTime: now}
+	}
+
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			execA: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execB: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execC: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execF: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		},
+		ShardAssignments: assignments,
+		ShardStats:       shardStats,
+		GlobalRevision:   10,
+	}, nil)
+
+	mocks.election.EXPECT().Guard().Return(store.NopGuard())
+
+	mocks.store.EXPECT().AssignShards(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ string, request store.AssignShardsRequest, _ store.GuardFunc) error {
+			newAssignments := request.NewState.ShardAssignments
+			shardsOnA := newAssignments[execA].AssignedShards
+			shardsOnB := newAssignments[execB].AssignedShards
+			shardsOnC := newAssignments[execC].AssignedShards
+
+			assert.Len(t, shardsOnB, 2, "Destination 'execB' should have gained one shard")
+
+			// One of the sources ('A' or 'C') should have lost a shard, but not both.
+			lostFromA := len(shardsOnA) == 1
+			lostFromC := len(shardsOnC) == 1
+			assert.True(t, lostFromA || lostFromC, "A shard should have moved from either execA or execC")
+			assert.False(t, lostFromA && lostFromC, "execB should not accept more shards when load exceeds lower bound")
+
+			assert.Len(t, newAssignments[execF].AssignedShards, 108, "Filler executor should be untouched")
+			return nil
+		},
+	)
+
+	err := processor.rebalanceShards(context.Background())
+	require.NoError(t, err)
 }
