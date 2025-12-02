@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
+	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
@@ -19,15 +20,12 @@ func TestModule(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockLogger := log.NewNoop()
 
-	// Create executor yarpc client mock
-	mockYARPCClient := NewMockShardDistributorExecutorAPIYARPCClient(ctrl)
-	mockYARPCClient.EXPECT().
+	mockShardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
+	shardDistributorExecutorClient := sharddistributorexecutor.NewMockClient(ctrl)
+	shardDistributorExecutorClient.EXPECT().
 		Heartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&sharddistributorv1.HeartbeatResponse{}, nil).
 		AnyTimes()
-
-	mockShardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
-
 	// Example config
 	config := clientcommon.Config{
 		Namespaces: []clientcommon.NamespaceConfig{
@@ -40,8 +38,10 @@ func TestModule(t *testing.T) {
 
 	// Create a test app with the library, check that it starts and stops
 	fxtest.New(t,
+		fx.Provide(func() sharddistributorexecutor.Client {
+			return shardDistributorExecutorClient
+		}),
 		fx.Supply(
-			fx.Annotate(mockYARPCClient, fx.As(new(sharddistributorv1.ShardDistributorExecutorAPIYARPCClient))),
 			fx.Annotate(tally.NoopScope, fx.As(new(tally.Scope))),
 			fx.Annotate(mockLogger, fx.As(new(log.Logger))),
 			fx.Annotate(mockShardProcessorFactory, fx.As(new(ShardProcessorFactory[*MockShardProcessor]))),

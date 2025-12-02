@@ -33,6 +33,7 @@ import (
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
+
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/client/sharddistributorexecutor"
