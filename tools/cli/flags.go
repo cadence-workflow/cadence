@@ -454,7 +454,7 @@ func getFlagsForStart() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:    FlagClusterAttributeName,
-			Usage:   "Optional cluster attribute to be set for the workflow, used to determine, in active-active domains. This specifies which attribute to tie the workflow to, for example, if the scope is 'region' and the name is 'Lisbon' or 'San Francisco'",
+			Usage:   "Optional cluster attribute name, paired with a cluster attribute scope, to specify how to select the active cluster. This specifies which attribute to tie the workflow to, for example, if the scope is 'region' and the name is 'Lisbon' or 'San Francisco'",
 			Aliases: []string{"caname"},
 		},
 	}
