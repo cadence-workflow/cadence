@@ -4,20 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/uber-go/tally"
-	"go.uber.org/fx"
-	"go.uber.org/fx/fxtest"
-	uber_gomock "go.uber.org/mock/gomock"
-	"go.uber.org/yarpc/api/transport/transporttest"
-	"go.uber.org/yarpc/transport/grpc"
-	"go.uber.org/yarpc/yarpctest"
-
-	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
+	uber_gomock "go.uber.org/mock/gomock"
 )
 
 func TestModule(t *testing.T) {
@@ -65,21 +59,13 @@ type MockShardProcessor2 struct {
 
 func TestModuleWithNamespace(t *testing.T) {
 	// Create mocks
-	ctrl := gomock.NewController(t)
 	uberCtrl := uber_gomock.NewController(t)
 	mockLogger := log.NewNoop()
 
 	mockFactory1 := NewMockShardProcessorFactory[*MockShardProcessor1](uberCtrl)
 	mockFactory2 := NewMockShardProcessorFactory[*MockShardProcessor2](uberCtrl)
 
-	// Create shard distributor yarpc client
-	outbound := grpc.NewTransport().NewOutbound(yarpctest.NewFakePeerList())
-
-	mockClientConfig := transporttest.NewMockClientConfig(ctrl)
-	mockClientConfig.EXPECT().Caller().Return("test-executor").AnyTimes()
-	mockClientConfig.EXPECT().Service().Return("shard-distributor").AnyTimes()
-	mockClientConfig.EXPECT().GetUnaryOutbound().Return(outbound).AnyTimes()
-	yarpcClient := sharddistributorv1.NewShardDistributorExecutorAPIYARPCClient(mockClientConfig)
+	shardDistributorExecutorClient := sharddistributorexecutor.NewMockClient(uberCtrl)
 
 	// Multi-namespace config
 	config := clientcommon.Config{
@@ -97,8 +83,10 @@ func TestModuleWithNamespace(t *testing.T) {
 
 	// Create a test app with two namespace-specific modules using different processor types
 	fxtest.New(t,
+		fx.Provide(func() sharddistributorexecutor.Client {
+			return shardDistributorExecutorClient
+		}),
 		fx.Supply(
-			fx.Annotate(yarpcClient, fx.As(new(sharddistributorv1.ShardDistributorExecutorAPIYARPCClient))),
 			fx.Annotate(tally.NoopScope, fx.As(new(tally.Scope))),
 			fx.Annotate(mockLogger, fx.As(new(log.Logger))),
 			fx.Annotate(clock.NewMockedTimeSource(), fx.As(new(clock.TimeSource))),
