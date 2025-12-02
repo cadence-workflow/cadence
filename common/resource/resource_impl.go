@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/client/sharddistributor"
+	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/client/wrappers/retryable"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
@@ -111,16 +112,18 @@ type Impl struct {
 
 	// internal services clients
 
-	sdkClient                 workflowserviceclient.Interface
-	frontendRawClient         frontend.Client
-	frontendClient            frontend.Client
-	matchingRawClient         matching.Client
-	matchingClient            matching.Client
-	historyRawClient          history.Client
-	historyClient             history.Client
-	shardDistributorRawClient sharddistributor.Client
-	shardDistributorClient    sharddistributor.Client
-	clientBean                client.Bean
+	sdkClient                         workflowserviceclient.Interface
+	frontendRawClient                 frontend.Client
+	frontendClient                    frontend.Client
+	matchingRawClient                 matching.Client
+	matchingClient                    matching.Client
+	historyRawClient                  history.Client
+	historyClient                     history.Client
+	shardDistributorRawClient         sharddistributor.Client
+	shardDistributorClient            sharddistributor.Client
+	shardDistributorExecutorRawClient sharddistributorexecutor.Client
+	shardDistributorExecutorClient    sharddistributorexecutor.Client
+	clientBean                        client.Bean
 
 	// persistence clients
 	persistenceBean persistenceClient.Bean
@@ -283,6 +286,18 @@ func New(
 		)
 	}
 
+	shardDistributorExecutorRawClient := clientBean.GetShardDistributorExecutorClient()
+	var shardDistributorExecutorClient sharddistributorexecutor.Client
+	if shardDistributorExecutorRawClient == nil {
+		shardDistributorExecutorClient = nil
+	} else {
+		shardDistributorExecutorClient = retryable.NewShardDistributorExecutorClient(
+			shardDistributorExecutorRawClient,
+			common.CreateShardDistributorServiceRetryPolicy(),
+			serviceConfig.IsErrorRetryableFunction,
+		)
+	}
+
 	var historyRawClient history.Client
 	if params.HistoryClientFn != nil {
 		logger.Debug("Using history client from HistoryClientFn")
@@ -366,16 +381,18 @@ func New(
 
 		// internal services clients
 
-		sdkClient:                 params.PublicClient,
-		frontendRawClient:         frontendRawClient,
-		frontendClient:            frontendClient,
-		matchingRawClient:         matchingRawClient,
-		matchingClient:            matchingClient,
-		historyRawClient:          historyRawClient,
-		historyClient:             historyClient,
-		shardDistributorRawClient: shardDistributorRawClient,
-		shardDistributorClient:    shardDistributorClient,
-		clientBean:                clientBean,
+		sdkClient:                         params.PublicClient,
+		frontendRawClient:                 frontendRawClient,
+		frontendClient:                    frontendClient,
+		matchingRawClient:                 matchingRawClient,
+		matchingClient:                    matchingClient,
+		historyRawClient:                  historyRawClient,
+		historyClient:                     historyClient,
+		shardDistributorRawClient:         shardDistributorRawClient,
+		shardDistributorClient:            shardDistributorClient,
+		shardDistributorExecutorRawClient: shardDistributorExecutorRawClient,
+		shardDistributorExecutorClient:    shardDistributorExecutorClient,
+		clientBean:                        clientBean,
 
 		// persistence clients
 		persistenceBean: persistenceBean,
@@ -592,6 +609,16 @@ func (h *Impl) GetHistoryRawClient() history.Client {
 // GetHistoryClient return history client with retry policy
 func (h *Impl) GetHistoryClient() history.Client {
 	return h.historyClient
+}
+
+// GetShardDistributorExecutorRawClient return client for sharddistributor executor
+func (h *Impl) GetShardDistributorExecutorRawClient() sharddistributorexecutor.Client {
+	return h.shardDistributorExecutorRawClient
+}
+
+// GetShardDistributorExecutorClient return client for sharddistributor executor
+func (h *Impl) GetShardDistributorExecutorClient() sharddistributorexecutor.Client {
+	return h.shardDistributorExecutorRawClient
 }
 
 func (h *Impl) GetRatelimiterAggregatorsClient() qrpc.Client {

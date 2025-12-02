@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
+	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/archiver"
@@ -100,6 +101,7 @@ type Resource interface {
 	GetRemoteAdminClient(cluster string) (admin.Client, error)
 	GetRemoteFrontendClient(cluster string) (frontend.Client, error)
 	GetClientBean() client.Bean
+	GetShardDistributorExecutorClient() sharddistributorexecutor.Client
 
 	// persistence clients
 	GetDomainManager() persistence.DomainManager

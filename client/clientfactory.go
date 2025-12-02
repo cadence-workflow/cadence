@@ -40,6 +40,7 @@ import (
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/client/sharddistributor"
+	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/client/wrappers/errorinjectors"
 	"github.com/uber/cadence/client/wrappers/grpc"
 	"github.com/uber/cadence/client/wrappers/metered"
@@ -68,6 +69,7 @@ type (
 
 		NewShardDistributorClient() (sharddistributor.Client, error)
 		NewShardDistributorClientWithTimeout(timeout time.Duration) (sharddistributor.Client, error)
+		NewShardDistributorExecutorClient() (sharddistributorexecutor.Client, error)
 	}
 
 	// DomainIDToNameFunc maps a domainID to domain name. Returns error when mapping is not possible.
@@ -265,6 +267,29 @@ func (cf *rpcClientFactory) NewShardDistributorClientWithTimeout(
 	}
 	if cf.metricsClient != nil {
 		client = metered.NewShardDistributorClient(client, cf.metricsClient)
+	}
+
+	return client, nil
+}
+
+func (cf *rpcClientFactory) NewShardDistributorExecutorClient() (sharddistributorexecutor.Client, error) {
+	outboundConfig, ok := cf.rpcFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
+	// If no outbound config is found, it means the service is not enabled, we just return nil as we don't want to
+	// break existing configs.
+	if !ok {
+		return nil, nil
+	}
+
+	if !rpc.IsGRPCOutbound(outboundConfig) {
+		return nil, fmt.Errorf("shard distributor client does not support non-GRPC outbound")
+	}
+
+	client := grpc.NewShardDistributorExecutorClient(sharddistributorv1.NewShardDistributorExecutorAPIYARPCClient(outboundConfig))
+	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
+		client = errorinjectors.NewShardDistributorExecutorClient(client, errorRate, cf.logger)
+	}
+	if cf.metricsClient != nil {
+		client = metered.NewShardDistributorExecutorClient(client, cf.metricsClient)
 	}
 
 	return client, nil
