@@ -73,9 +73,17 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string) fx.Option {
 		fx.Provide(zap.NewDevelopment),
 		fx.Provide(log.NewLogger),
 
-		// Start the YARPC dispatcher
-		fx.Invoke(func(lc fx.Lifecycle, dispatcher *yarpc.Dispatcher) {
+		// We do decorate instead of Invoke because we want to start and stop the dispatcher at the
+		// correct time.
+		// It will start before all dependencies are started and stop after all dependencies are stopped.
+		// The Decorate gives fx enough information, so it can start and stop the dispatcher at the correct time.
+		//
+		// It is critical to start and stop the dispatcher at the correct time.
+		// Since the executors need to
+		// be able to send a final "drain" request to the shard distributor before the application is stopped.
+		fx.Decorate(func(lc fx.Lifecycle, dispatcher *yarpc.Dispatcher) *yarpc.Dispatcher {
 			lc.Append(fx.StartStopHook(dispatcher.Start, dispatcher.Stop))
+			return dispatcher
 		}),
 
 		// Include the canary module
