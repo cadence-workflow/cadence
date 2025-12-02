@@ -604,9 +604,7 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 		}
 
 		now := s.timeSource.Now().UTC()
-		statsModRevision := int64(0)
 		if len(statsResp.Kvs) > 0 {
-			statsModRevision = statsResp.Kvs[0].ModRevision
 			if err := common.DecompressAndUnmarshal(statsResp.Kvs[0].Value, &shardStats); err != nil {
 				return fmt.Errorf("parse shard statistics: %w", err)
 			}
@@ -671,7 +669,6 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(statusKey), "=", statusModRev))
 		// b) Check that neither the assigned_state nor shard statistics were modified concurrently.
 		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(assignedState), "=", modRevision))
-		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(shardStatsKey), "=", statsModRevision))
 		// c) Check that the cache is up to date.
 		cmp, err := s.shardCache.GetExecutorModRevisionCmp(namespace)
 		if err != nil {

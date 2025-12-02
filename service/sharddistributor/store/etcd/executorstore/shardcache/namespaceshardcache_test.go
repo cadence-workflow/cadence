@@ -3,7 +3,6 @@ package shardcache
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -66,16 +65,14 @@ func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 
-	namespace := fmt.Sprintf("test-ns-%s", t.Name())
-
 	// Setup: Create executor-1 with shard-1
-	setupExecutorWithShards(t, testCluster, namespace, "executor-1", []string{"shard-1"}, map[string]string{
+	setupExecutorWithShards(t, testCluster, "test-ns", "executor-1", []string{"shard-1"}, map[string]string{
 		"hostname": "executor-1-host",
 		"version":  "v1.0.0",
 	})
 
 	// Start the cache
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, namespace, testCluster.Client, stopCh, logger)
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, "test-ns", testCluster.Client, stopCh, logger)
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
 	time.Sleep(50 * time.Millisecond)
@@ -94,7 +91,7 @@ func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
 	namespaceShardToExecutor.RUnlock()
 
 	// Add executor-2 with shard-2 to trigger watch update
-	setupExecutorWithShards(t, testCluster, namespace, "executor-2", []string{"shard-2"}, map[string]string{
+	setupExecutorWithShards(t, testCluster, "test-ns", "executor-2", []string{"shard-2"}, map[string]string{
 		"hostname": "executor-2-host",
 		"region":   "us-west",
 	})
