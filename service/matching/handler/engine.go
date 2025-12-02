@@ -33,8 +33,6 @@ import (
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
-	"github.com/uber-go/tally/m3"
-
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/client/sharddistributorexecutor"
@@ -164,7 +162,7 @@ func NewEngine(
 		timeSource:           timeSource,
 	}
 
-	e.setupTaskListFactory(shardDistributorClient)
+	e.setupExecutor(shardDistributorClient)
 	e.shutdownCompletion.Add(1)
 	go e.runMembershipChangeLoop()
 
@@ -185,7 +183,7 @@ func (e *matchingEngineImpl) Stop() {
 	e.shutdownCompletion.Wait()
 }
 
-func (e *matchingEngineImpl) setupTaskListFactory(shardDistributorExecutorClient sharddistributorexecutor.Client) {
+func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient sharddistributorexecutor.Client) {
 
 	taskListFactory := &tasklist.ShardProcessorFactory{
 		DomainCache:     e.domainCache,
@@ -202,11 +200,7 @@ func (e *matchingEngineImpl) setupTaskListFactory(shardDistributorExecutorClient
 		HistoryService:  e.historyService}
 	e.taskListsFactory = taskListFactory
 	// TODO move this to setup a logger based on e.logger
-	reporter, _ := m3.NewReporter(m3.Options{})
-	scopeOpts := tally.ScopeOptions{
-		CachedReporter: reporter,
-	}
-	scope, _ := tally.NewRootScope(scopeOpts, 1*time.Second)
+	scope := tally.NoopScope
 	// Move the configuration to e.config
 	config := clientcommon.Config{
 		Namespaces: []clientcommon.NamespaceConfig{
