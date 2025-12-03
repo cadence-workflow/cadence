@@ -35,7 +35,6 @@ import (
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/client/sharddistributor"
-	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/client/wrappers/retryable"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
@@ -64,6 +63,7 @@ import (
 	"github.com/uber/cadence/common/quotas/permember"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func NewResourceFactory() ResourceFactory {
@@ -121,8 +121,8 @@ type Impl struct {
 	historyClient                     history.Client
 	shardDistributorRawClient         sharddistributor.Client
 	shardDistributorClient            sharddistributor.Client
-	shardDistributorExecutorRawClient sharddistributorexecutor.Client
-	shardDistributorExecutorClient    sharddistributorexecutor.Client
+	shardDistributorExecutorRawClient executorclient.Client
+	shardDistributorExecutorClient    executorclient.Client
 	clientBean                        client.Bean
 
 	// persistence clients
@@ -287,7 +287,7 @@ func New(
 	}
 
 	shardDistributorExecutorRawClient := clientBean.GetShardDistributorExecutorClient()
-	var shardDistributorExecutorClient sharddistributorexecutor.Client
+	var shardDistributorExecutorClient executorclient.Client
 	if shardDistributorExecutorRawClient == nil {
 		shardDistributorExecutorClient = nil
 	} else {
@@ -612,12 +612,12 @@ func (h *Impl) GetHistoryClient() history.Client {
 }
 
 // GetShardDistributorExecutorRawClient return client for sharddistributor executor
-func (h *Impl) GetShardDistributorExecutorRawClient() sharddistributorexecutor.Client {
+func (h *Impl) GetShardDistributorExecutorRawClient() executorclient.Client {
 	return h.shardDistributorExecutorRawClient
 }
 
 // GetShardDistributorExecutorClient return client for sharddistributor executor
-func (h *Impl) GetShardDistributorExecutorClient() sharddistributorexecutor.Client {
+func (h *Impl) GetShardDistributorExecutorClient() executorclient.Client {
 	return h.shardDistributorExecutorRawClient
 }
 

@@ -18,8 +18,11 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient/metricsconstants"
 )
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go . ShardProcessorFactory,ShardProcessor,Executor
-//go:generate mockgen -package $GOPACKAGE -destination yarpc_client_mock.go github.com/uber/cadence/.gen/proto/sharddistributor/v1 ShardDistributorExecutorAPIYARPCClient
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go . ShardProcessorFactory,ShardProcessor,Executor,Client
+
+type Client interface {
+	Heartbeat(context.Context, *types.ExecutorHeartbeatRequest, ...yarpc.CallOption) (*types.ExecutorHeartbeatResponse, error)
+}
 
 type ExecutorMetadata map[string]string
 

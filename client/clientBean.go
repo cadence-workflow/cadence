@@ -34,9 +34,9 @@ import (
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/client/sharddistributor"
-	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/client/wrappers/timeout"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -47,7 +47,7 @@ type (
 		GetMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error)
 		GetFrontendClient() frontend.Client
 		GetShardDistributorClient() sharddistributor.Client
-		GetShardDistributorExecutorClient() sharddistributorexecutor.Client
+		GetShardDistributorExecutorClient() executorclient.Client
 		GetRemoteAdminClient(cluster string) (admin.Client, error)
 		SetRemoteAdminClient(cluster string, client admin.Client)
 		GetRemoteFrontendClient(cluster string) (frontend.Client, error)
@@ -60,7 +60,7 @@ type (
 		matchingClient                 atomic.Value
 		frontendClient                 frontend.Client
 		shardDistributorClient         sharddistributor.Client
-		shardDistributorExecutorClient sharddistributorexecutor.Client
+		shardDistributorExecutorClient executorclient.Client
 		remoteAdminClients             map[string]admin.Client
 		remoteFrontendClients          map[string]frontend.Client
 		factory                        Factory
@@ -147,7 +147,7 @@ func (h *clientBeanImpl) GetShardDistributorClient() sharddistributor.Client {
 	return h.shardDistributorClient
 }
 
-func (h *clientBeanImpl) GetShardDistributorExecutorClient() sharddistributorexecutor.Client {
+func (h *clientBeanImpl) GetShardDistributorExecutorClient() executorclient.Client {
 	return h.shardDistributorExecutorClient
 }
 

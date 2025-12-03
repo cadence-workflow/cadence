@@ -21,7 +21,6 @@ import (
 	frontend "github.com/uber/cadence/client/frontend"
 	history "github.com/uber/cadence/client/history"
 	matching "github.com/uber/cadence/client/matching"
-	sharddistributorexecutor "github.com/uber/cadence/client/sharddistributorexecutor"
 	activecluster "github.com/uber/cadence/common/activecluster"
 	archiver "github.com/uber/cadence/common/archiver"
 	provider "github.com/uber/cadence/common/archiver/provider"
@@ -41,6 +40,7 @@ import (
 	client0 "github.com/uber/cadence/common/persistence/client"
 	rpc "github.com/uber/cadence/common/quotas/global/rpc"
 	service "github.com/uber/cadence/common/service"
+	executorclient "github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 // MockResourceFactory is a mock of ResourceFactory interface.
@@ -614,10 +614,10 @@ func (mr *MockResourceMockRecorder) GetServiceName() *gomock.Call {
 }
 
 // GetShardDistributorExecutorClient mocks base method.
-func (m *MockResource) GetShardDistributorExecutorClient() sharddistributorexecutor.Client {
+func (m *MockResource) GetShardDistributorExecutorClient() executorclient.Client {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetShardDistributorExecutorClient")
-	ret0, _ := ret[0].(sharddistributorexecutor.Client)
+	ret0, _ := ret[0].(executorclient.Client)
 	return ret0
 }
 

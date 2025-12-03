@@ -40,7 +40,6 @@ import (
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/client/sharddistributor"
-	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/client/wrappers/errorinjectors"
 	"github.com/uber/cadence/client/wrappers/grpc"
 	"github.com/uber/cadence/client/wrappers/metered"
@@ -53,6 +52,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -69,7 +69,7 @@ type (
 
 		NewShardDistributorClient() (sharddistributor.Client, error)
 		NewShardDistributorClientWithTimeout(timeout time.Duration) (sharddistributor.Client, error)
-		NewShardDistributorExecutorClient() (sharddistributorexecutor.Client, error)
+		NewShardDistributorExecutorClient() (executorclient.Client, error)
 	}
 
 	// DomainIDToNameFunc maps a domainID to domain name. Returns error when mapping is not possible.
@@ -272,7 +272,7 @@ func (cf *rpcClientFactory) NewShardDistributorClientWithTimeout(
 	return client, nil
 }
 
-func (cf *rpcClientFactory) NewShardDistributorExecutorClient() (sharddistributorexecutor.Client, error) {
+func (cf *rpcClientFactory) NewShardDistributorExecutorClient() (executorclient.Client, error) {
 	outboundConfig, ok := cf.rpcFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
 	// If no outbound config is found, it means the service is not enabled, we just return nil as we don't want to
 	// break existing configs.
