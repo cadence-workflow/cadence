@@ -34,11 +34,12 @@ func BuildShardsPrefix(prefix, namespace string) string {
 type ExecutorKeyType string
 
 const (
-	ExecutorHeartbeatKey      ExecutorKeyType = "heartbeat"
-	ExecutorStatusKey         ExecutorKeyType = "status"
-	ExecutorReportedShardsKey ExecutorKeyType = "reported_shards"
-	ExecutorAssignedStateKey  ExecutorKeyType = "assigned_state"
-	ExecutorMetadataKey       ExecutorKeyType = "metadata"
+	ExecutorHeartbeatKey       ExecutorKeyType = "heartbeat"
+	ExecutorStatusKey          ExecutorKeyType = "status"
+	ExecutorReportedShardsKey  ExecutorKeyType = "reported_shards"
+	ExecutorAssignedStateKey   ExecutorKeyType = "assigned_state"
+	ExecutorMetadataKey        ExecutorKeyType = "metadata"
+	ExecutorShardStatisticsKey ExecutorKeyType = "statistics"
 )
 
 // validExecutorKeyTypes defines the set of valid executor key types.
