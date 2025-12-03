@@ -186,3 +186,4 @@ shardDistribution:
   process:
     period: 1s
     heartbeatTTL: 2s
+    shardStatsTTL: 60s

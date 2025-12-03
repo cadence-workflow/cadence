@@ -44,8 +44,9 @@ func setupProcessorTest(t *testing.T, namespaceType string) *testDependencies {
 			mockedClock,
 			config.ShardDistribution{
 				Process: config.LeaderProcess{
-					Period:       time.Second,
-					HeartbeatTTL: time.Second,
+					Period:        time.Second,
+					HeartbeatTTL:  time.Second,
+					ShardStatsTTL: 10 * time.Second,
 				},
 			},
 		),
@@ -267,10 +268,11 @@ func TestCleanupStaleShardStats(t *testing.T) {
 			},
 		}
 
+		staleCutoff := now.Add(-11 * time.Second)
 		shardStats := map[string]store.ShardStatistics{
 			"shard-1": {SmoothedLoad: 1.0, LastUpdateTime: now, LastMoveTime: now},
 			"shard-2": {SmoothedLoad: 2.0, LastUpdateTime: now, LastMoveTime: now},
-			"shard-3": {SmoothedLoad: 3.0, LastUpdateTime: now.Add(-2 * time.Second), LastMoveTime: now.Add(-2 * time.Second)},
+			"shard-3": {SmoothedLoad: 3.0, LastUpdateTime: staleCutoff, LastMoveTime: staleCutoff},
 		}
 
 		namespaceState := &store.NamespaceState{

@@ -77,11 +77,14 @@ func NewProcessorFactory(
 	timeSource clock.TimeSource,
 	cfg config.ShardDistribution,
 ) Factory {
-	if cfg.Process.Period == 0 {
+	if cfg.Process.Period <= 0 {
 		cfg.Process.Period = _defaultPeriod
 	}
-	if cfg.Process.HeartbeatTTL == 0 {
+	if cfg.Process.HeartbeatTTL <= 0 {
 		cfg.Process.HeartbeatTTL = _defaultHearbeatTTL
+	}
+	if cfg.Process.ShardStatsTTL <= 0 {
+		cfg.Process.ShardStatsTTL = config.DefaultShardStatsTTL
 	}
 
 	return &processorFactory{
@@ -267,6 +270,7 @@ func (p *namespaceProcessor) identifyStaleExecutors(namespaceState *store.Namesp
 func (p *namespaceProcessor) identifyStaleShardStats(namespaceState *store.NamespaceState) []string {
 	activeShards := make(map[string]struct{})
 	now := p.timeSource.Now().UTC()
+	shardStatsTTL := p.cfg.ShardStatsTTL
 
 	// 1. build set of active executors
 
@@ -278,7 +282,8 @@ func (p *namespaceProcessor) identifyStaleShardStats(namespaceState *store.Names
 		}
 
 		isActive := executor.Status == types.ExecutorStatusACTIVE
-		isNotStale := now.Sub(executor.LastHeartbeat) <= p.cfg.HeartbeatTTL
+		lastHeartbeat := executor.LastHeartbeat
+		isNotStale := !lastHeartbeat.IsZero() && now.Sub(lastHeartbeat) <= shardStatsTTL
 		if isActive && isNotStale {
 			for shardID := range assignedState.AssignedShards {
 				activeShards[shardID] = struct{}{}
@@ -303,8 +308,8 @@ func (p *namespaceProcessor) identifyStaleShardStats(namespaceState *store.Names
 		if _, ok := activeShards[shardID]; ok {
 			continue
 		}
-		recentUpdate := !stats.LastUpdateTime.IsZero() && now.Sub(stats.LastUpdateTime) <= p.cfg.HeartbeatTTL
-		recentMove := !stats.LastMoveTime.IsZero() && now.Sub(stats.LastMoveTime) <= p.cfg.HeartbeatTTL
+		recentUpdate := !stats.LastUpdateTime.IsZero() && now.Sub(stats.LastUpdateTime) <= shardStatsTTL
+		recentMove := !stats.LastMoveTime.IsZero() && now.Sub(stats.LastMoveTime) <= shardStatsTTL
 		if recentUpdate || recentMove {
 			// Preserve stats that have been updated recently to allow cooldown/load history to
 			// survive executor churn. These shards are likely awaiting reassignment,

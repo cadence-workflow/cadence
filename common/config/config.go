@@ -658,8 +658,9 @@ type (
 	}
 
 	LeaderProcess struct {
-		Period       time.Duration `yaml:"period"`
-		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
+		Period        time.Duration `yaml:"period"`
+		HeartbeatTTL  time.Duration `yaml:"heartbeatTTL"`
+		ShardStatsTTL time.Duration `yaml:"shardStatsTTL"`
 	}
 )
 

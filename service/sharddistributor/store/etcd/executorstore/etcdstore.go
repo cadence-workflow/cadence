@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -32,13 +33,19 @@ var (
 const deleteShardStatsBatchSize = 64
 
 type executorStoreImpl struct {
-	client       *clientv3.Client
-	prefix       string
-	logger       log.Logger
-	shardCache   *shardcache.ShardToExecutorCache
-	timeSource   clock.TimeSource
-	recordWriter *common.RecordWriter
+	client                  *clientv3.Client
+	prefix                  string
+	logger                  log.Logger
+	shardCache              *shardcache.ShardToExecutorCache
+	timeSource              clock.TimeSource
+	recordWriter            *common.RecordWriter
+	maxStatsPersistInterval time.Duration // Max interval before we force a shard-stat persist.
 }
+
+// Constants for gating shard statistics writes to reduce etcd load.
+const (
+	shardStatsEpsilon = 0.05
+)
 
 // shardStatisticsUpdate holds the staged statistics for a shard so we can write them
 // to etcd after the main AssignShards transaction commits.
@@ -97,13 +104,19 @@ func NewStore(p ExecutorStoreParams) (store.Store, error) {
 		return nil, fmt.Errorf("create record writer: %w", err)
 	}
 
+	shardStatsTTL := p.Cfg.Process.ShardStatsTTL
+	if shardStatsTTL <= 0 {
+		shardStatsTTL = config.DefaultShardStatsTTL
+	}
+
 	store := &executorStoreImpl{
-		client:       etcdClient,
-		prefix:       etcdCfg.Prefix,
-		logger:       p.Logger,
-		shardCache:   shardCache,
-		timeSource:   timeSource,
-		recordWriter: recordWriter,
+		client:                  etcdClient,
+		prefix:                  etcdCfg.Prefix,
+		logger:                  p.Logger,
+		shardCache:              shardCache,
+		timeSource:              timeSource,
+		recordWriter:            recordWriter,
+		maxStatsPersistInterval: deriveStatsPersistInterval(shardStatsTTL),
 	}
 
 	p.Lifecycle.Append(fx.StartStopHook(store.Start, store.Stop))
@@ -165,7 +178,122 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 	if err != nil {
 		return fmt.Errorf("record heartbeat: %w", err)
 	}
+
+	s.recordShardStatistics(ctx, namespace, executorID, request.ReportedShards)
+
 	return nil
+}
+
+func deriveStatsPersistInterval(shardStatsTTL time.Duration) time.Duration {
+	if shardStatsTTL <= time.Second {
+		return time.Second
+	}
+	return shardStatsTTL - time.Second
+}
+
+func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) {
+	if len(reported) == 0 {
+		return
+	}
+
+	now := s.timeSource.Now().UTC()
+
+	for shardID, report := range reported {
+		if report == nil {
+			s.logger.Warn("empty report; skipping EWMA update",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+			)
+			continue
+		}
+
+		load := report.ShardLoad
+		if math.IsNaN(load) || math.IsInf(load, 0) {
+			s.logger.Warn(
+				"invalid shard load reported; skipping EWMA update",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+			)
+			continue
+		}
+
+		shardStatsKey := etcdkeys.BuildShardKey(s.prefix, namespace, shardID, etcdkeys.ShardStatisticsKey)
+
+		statsResp, err := s.client.Get(ctx, shardStatsKey)
+		if err != nil {
+			s.logger.Warn(
+				"failed to read shard statistics for heartbeat update",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+				tag.Error(err),
+			)
+			continue
+		}
+
+		var stats etcdtypes.ShardStatistics
+		if len(statsResp.Kvs) > 0 {
+			if err := common.DecompressAndUnmarshal(statsResp.Kvs[0].Value, &stats); err != nil {
+				s.logger.Warn(
+					"failed to unmarshal shard statistics for heartbeat update",
+					tag.ShardNamespace(namespace),
+					tag.ShardExecutor(executorID),
+					tag.ShardKey(shardID),
+					tag.Error(err),
+				)
+				continue
+			}
+		}
+
+		// Update smoothed load via EWMA.
+		prevSmoothed := stats.SmoothedLoad
+		prevUpdate := stats.LastUpdateTime.ToTime()
+		newSmoothed := ewmaSmoothedLoad(prevSmoothed, load, prevUpdate, now)
+
+		// Decide whether to persist this update. We always persist if this is the
+		// first observation (prevUpdate == 0). Otherwise, if the change is small
+		// and the previous persist is recent, skip the write to reduce etcd load.
+		shouldPersist := true
+		if !prevUpdate.IsZero() {
+			age := now.Sub(prevUpdate)
+			delta := math.Abs(newSmoothed - prevSmoothed)
+			if delta < shardStatsEpsilon && age < s.maxStatsPersistInterval {
+				shouldPersist = false
+			}
+		}
+
+		if !shouldPersist {
+			// Skip persisting, proceed to next shard.
+			continue
+		}
+
+		stats.SmoothedLoad = newSmoothed
+		stats.LastUpdateTime = etcdtypes.Time(now)
+
+		payload, err := json.Marshal(stats)
+		if err != nil {
+			s.logger.Warn(
+				"failed to marshal shard statistics after heartbeat",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+				tag.Error(err),
+			)
+			continue
+		}
+
+		if _, err := s.client.Put(ctx, shardStatsKey, string(payload)); err != nil {
+			s.logger.Warn(
+				"failed to persist shard statistics from heartbeat",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+				tag.Error(err),
+			)
+		}
+	}
 }
 
 // GetHeartbeat retrieves the last known heartbeat state for a single executor.
@@ -476,9 +604,7 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 		}
 
 		now := s.timeSource.Now().UTC()
-		statsModRevision := int64(0)
 		if len(statsResp.Kvs) > 0 {
-			statsModRevision = statsResp.Kvs[0].ModRevision
 			if err := common.DecompressAndUnmarshal(statsResp.Kvs[0].Value, &shardStats); err != nil {
 				return fmt.Errorf("parse shard statistics: %w", err)
 			}
@@ -543,7 +669,6 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(statusKey), "=", statusModRev))
 		// b) Check that neither the assigned_state nor shard statistics were modified concurrently.
 		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(assignedState), "=", modRevision))
-		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(shardStatsKey), "=", statsModRevision))
 		// c) Check that the cache is up to date.
 		cmp, err := s.shardCache.GetExecutorModRevisionCmp(namespace)
 		if err != nil {
@@ -763,4 +888,17 @@ func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, nam
 			)
 		}
 	}
+}
+
+func ewmaSmoothedLoad(prev, current float64, lastUpdate, now time.Time) float64 {
+	const tau = 30 * time.Second // smaller = more responsive, larger = smoother
+	if lastUpdate.IsZero() || tau <= 0 {
+		return current
+	}
+	if now.Before(lastUpdate) {
+		return current
+	}
+	dt := now.Sub(lastUpdate)
+	alpha := 1 - math.Exp(-dt.Seconds()/tau.Seconds())
+	return (1-alpha)*prev + alpha*current
 }

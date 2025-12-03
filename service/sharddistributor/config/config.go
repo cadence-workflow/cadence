@@ -79,8 +79,9 @@ type (
 	}
 
 	LeaderProcess struct {
-		Period       time.Duration `yaml:"period"`
-		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
+		Period        time.Duration `yaml:"period"`
+		HeartbeatTTL  time.Duration `yaml:"heartbeatTTL"`
+		ShardStatsTTL time.Duration `yaml:"shardStatsTTL"`
 	}
 )
 
@@ -95,6 +96,10 @@ const (
 	MigrationModeLOCALPASSTHROUGHSHADOW = "local_pass_shadow"
 	MigrationModeDISTRIBUTEDPASSTHROUGH = "distributed_pass"
 	MigrationModeONBOARDED              = "onboarded"
+)
+
+const (
+	DefaultShardStatsTTL = time.Minute
 )
 
 // ConfigMode maps string migration mode values to types.MigrationMode
