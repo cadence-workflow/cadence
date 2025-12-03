@@ -36,7 +36,6 @@ import (
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
-	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
@@ -141,7 +140,7 @@ func NewEngine(
 	resolver membership.Resolver,
 	isolationState isolationgroup.State,
 	timeSource clock.TimeSource,
-	shardDistributorClient sharddistributorexecutor.Client,
+	shardDistributorClient executorclient.Client,
 ) Engine {
 	e := &matchingEngineImpl{
 		shutdown:             make(chan struct{}),
@@ -184,7 +183,7 @@ func (e *matchingEngineImpl) Stop() {
 	e.shutdownCompletion.Wait()
 }
 
-func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient sharddistributorexecutor.Client) {
+func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient executorclient.Client) {
 
 	taskListFactory := &tasklist.ShardProcessorFactory{
 		DomainCache:     e.domainCache,

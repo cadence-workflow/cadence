@@ -41,7 +41,6 @@ import (
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
-	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
@@ -62,6 +61,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/tasklist"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -73,7 +73,7 @@ type (
 		mockDomainCache         *cache.MockDomainCache
 		mockMembershipResolver  *membership.MockResolver
 		mockIsolationStore      *dynamicconfig.MockClient
-		mockShardExecutorClient *sharddistributorexecutor.MockClient
+		mockShardExecutorClient *executorclient.MockClient
 
 		matchingEngine       *matchingEngineImpl
 		taskManager          *tasklist.TestTaskManager

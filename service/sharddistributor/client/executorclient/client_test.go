@@ -9,7 +9,6 @@ import (
 	"go.uber.org/fx/fxtest"
 	uber_gomock "go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
@@ -21,7 +20,7 @@ func TestModule(t *testing.T) {
 	mockLogger := log.NewNoop()
 
 	mockShardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](uberCtrl)
-	shardDistributorExecutorClient := sharddistributorexecutor.NewMockClient(uberCtrl)
+	shardDistributorExecutorClient := NewMockClient(uberCtrl)
 
 	// Example config
 	config := clientcommon.Config{
@@ -35,7 +34,7 @@ func TestModule(t *testing.T) {
 
 	// Create a test app with the library, check that it starts and stops
 	fxtest.New(t,
-		fx.Provide(func() sharddistributorexecutor.Client {
+		fx.Provide(func() Client {
 			return shardDistributorExecutorClient
 		}),
 		fx.Supply(
@@ -66,7 +65,7 @@ func TestModuleWithNamespace(t *testing.T) {
 	mockFactory1 := NewMockShardProcessorFactory[*MockShardProcessor1](uberCtrl)
 	mockFactory2 := NewMockShardProcessorFactory[*MockShardProcessor2](uberCtrl)
 
-	shardDistributorExecutorClient := sharddistributorexecutor.NewMockClient(uberCtrl)
+	shardDistributorExecutorClient := NewMockClient(uberCtrl)
 
 	// Multi-namespace config
 	config := clientcommon.Config{
@@ -84,7 +83,7 @@ func TestModuleWithNamespace(t *testing.T) {
 
 	// Create a test app with two namespace-specific modules using different processor types
 	fxtest.New(t,
-		fx.Provide(func() sharddistributorexecutor.Client {
+		fx.Provide(func() Client {
 			return shardDistributorExecutorClient
 		}),
 		fx.Supply(

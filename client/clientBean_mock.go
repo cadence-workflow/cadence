@@ -19,7 +19,7 @@ import (
 	history "github.com/uber/cadence/client/history"
 	matching "github.com/uber/cadence/client/matching"
 	sharddistributor "github.com/uber/cadence/client/sharddistributor"
-	sharddistributorexecutor "github.com/uber/cadence/client/sharddistributorexecutor"
+	executorclient "github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 // MockBean is a mock of Bean interface.
@@ -148,10 +148,10 @@ func (mr *MockBeanMockRecorder) GetShardDistributorClient() *gomock.Call {
 }
 
 // GetShardDistributorExecutorClient mocks base method.
-func (m *MockBean) GetShardDistributorExecutorClient() sharddistributorexecutor.Client {
+func (m *MockBean) GetShardDistributorExecutorClient() executorclient.Client {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetShardDistributorExecutorClient")
-	ret0, _ := ret[0].(sharddistributorexecutor.Client)
+	ret0, _ := ret[0].(executorclient.Client)
 	return ret0
 }
 

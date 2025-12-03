@@ -58,6 +58,7 @@ import (
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/quotas/global/rpc"
 	"github.com/uber/cadence/common/taskvalidator"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -362,7 +363,7 @@ func (s *Test) GetHistoryClient() history.Client {
 	return s.HistoryClient
 }
 
-func (s *Test) GetShardDistributorExecutorClient() sharddistributorexecutor.Client {
+func (s *Test) GetShardDistributorExecutorClient() executorclient.Client {
 	return s.ShardDistributorExecutorClient
 }
 

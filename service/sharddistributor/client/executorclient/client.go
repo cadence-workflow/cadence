@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/uber-go/tally"
 	"go.uber.org/fx"
+	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client/sharddistributorexecutor"
 	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
@@ -18,7 +19,11 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient/metricsconstants"
 )
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go . ShardProcessorFactory,ShardProcessor,Executor
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go . ShardProcessorFactory,ShardProcessor,Executor,Client
+
+type Client interface {
+	Heartbeat(context.Context, *types.ExecutorHeartbeatRequest, ...yarpc.CallOption) (*types.ExecutorHeartbeatResponse, error)
+}
 
 type ExecutorMetadata map[string]string
 
@@ -60,7 +65,7 @@ type Executor[SP ShardProcessor] interface {
 type Params[SP ShardProcessor] struct {
 	fx.In
 
-	ExecutorClient        sharddistributorexecutor.Client
+	ExecutorClient        Client
 	MetricsScope          tally.Scope
 	Logger                log.Logger
 	ShardProcessorFactory ShardProcessorFactory[SP]
