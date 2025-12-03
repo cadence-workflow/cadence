@@ -267,30 +267,15 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 			}
 			assigned = *assignedRaw.ToAssignedState()
 			assigned.ModRevision = kv.ModRevision
+		case etcdkeys.ExecutorShardStatisticsKey:
+			var shardStatistic etcdtypes.ShardStatistics
+			if err := common.DecompressAndUnmarshal(kv.Value, &shardStatistic); err != nil {
+				return nil, fmt.Errorf("parse shard statistics: %w, %s", err, value)
+			}
+			shardStats[executorID] = *shardStatistic.ToShardStatistics()
 		}
 		heartbeatStates[executorID] = heartbeat
 		assignedStates[executorID] = assigned
-	}
-
-	// Fetch shard-level statistics stored under shard namespace keys.
-	shardsPrefix := etcdkeys.BuildShardsPrefix(s.prefix, namespace)
-	shardResp, err := s.client.Get(ctx, shardsPrefix, clientv3.WithPrefix())
-	if err != nil {
-		return nil, fmt.Errorf("get shard data: %w", err)
-	}
-	for _, kv := range shardResp.Kvs {
-		shardID, shardKeyType, err := etcdkeys.ParseShardKey(s.prefix, namespace, string(kv.Key))
-		if err != nil {
-			continue
-		}
-		if shardKeyType != etcdkeys.ShardStatisticsKey {
-			continue
-		}
-		var shardStatistic etcdtypes.ShardStatistics
-		if err := common.DecompressAndUnmarshal(kv.Value, &shardStatistic); err != nil {
-			continue
-		}
-		shardStats[shardID] = *shardStatistic.ToShardStatistics()
 	}
 
 	return &store.NamespaceState{
