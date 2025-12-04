@@ -44,11 +44,11 @@ const (
 
 // validExecutorKeyTypes defines the set of valid executor key types.
 var validExecutorKeyTypes = map[ExecutorKeyType]struct{}{
-	ExecutorHeartbeatKey:      {},
-	ExecutorStatusKey:         {},
-	ExecutorReportedShardsKey: {},
-	ExecutorAssignedStateKey:  {},
-	ExecutorMetadataKey:       {},
+	ExecutorHeartbeatKey:       {},
+	ExecutorStatusKey:          {},
+	ExecutorReportedShardsKey:  {},
+	ExecutorAssignedStateKey:   {},
+	ExecutorMetadataKey:        {},
 	ExecutorShardStatisticsKey: {},
 }
 
