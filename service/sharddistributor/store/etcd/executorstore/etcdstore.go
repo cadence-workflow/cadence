@@ -663,6 +663,12 @@ func (s *executorStoreImpl) DeleteShardStats(ctx context.Context, namespace stri
 
 		executorStats := make(map[string]etcdtypes.ShardStatistics)
 		if err := common.DecompressAndUnmarshal(kv.Value, &executorStats); err != nil {
+			s.logger.Warn(
+				"failed to parse executor shard statistics during cleanup",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.Error(err),
+			)
 			continue
 		}
 
@@ -686,11 +692,23 @@ func (s *executorStoreImpl) DeleteShardStats(ctx context.Context, namespace stri
 
 		payload, err := json.Marshal(executorStats)
 		if err != nil {
+			s.logger.Warn(
+				"failed to marshal executor shard statistics during cleanup",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.Error(err),
+			)
 			continue
 		}
 
 		compressedPayload, err := s.recordWriter.Write(payload)
 		if err != nil {
+			s.logger.Warn(
+				"failed to compress executor shard statistics during cleanup",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.Error(err),
+			)
 			continue
 		}
 
