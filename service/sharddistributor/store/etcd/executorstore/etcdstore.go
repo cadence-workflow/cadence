@@ -312,7 +312,10 @@ func (s *executorStoreImpl) Subscribe(ctx context.Context, namespace string) (<-
 				if err != nil {
 					continue
 				}
-				if keyType != etcdkeys.ExecutorHeartbeatKey && keyType != etcdkeys.ExecutorAssignedStateKey {
+				// Treat heartbeat, assigned_state and statistics updates as non-significant for rebalancing.
+				if keyType != etcdkeys.ExecutorHeartbeatKey &&
+					keyType != etcdkeys.ExecutorAssignedStateKey &&
+					keyType != etcdkeys.ExecutorShardStatisticsKey {
 					isSignificantChange = true
 					break
 				}
