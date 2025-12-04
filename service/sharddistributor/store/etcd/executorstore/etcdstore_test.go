@@ -643,15 +643,15 @@ func TestGetShardStatisticsForMissingShard(t *testing.T) {
 	assert.NotContains(t, st.ShardStats, "unknown")
 }
 
-// TestDeleteShardStatsDeletesLargeBatches verifies that shard statistics are correctly deleted in batches.
-func TestDeleteShardStatsDeletesLargeBatches(t *testing.T) {
+// TestDeleteShardStatsDeletesAllStats verifies that shard statistics are correctly deleted.
+func TestDeleteShardStatsDeletesAllStats(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	totalShardStats := deleteShardStatsBatchSize*2 + 7 // two batches + 7 extra (remainder)
+	totalShardStats := 135 // number of stats to add and make stale
 	shardIDs := make([]string, 0, totalShardStats)
 	executorID := "exec-delete-stats"
 
@@ -684,6 +684,7 @@ func TestDeleteShardStatsDeletesLargeBatches(t *testing.T) {
 
 	nsState, err := executorStore.GetState(ctx, tc.Namespace)
 	require.NoError(t, err)
+	// All stats should be deleted
 	assert.Empty(t, nsState.ShardStats)
 }
 
