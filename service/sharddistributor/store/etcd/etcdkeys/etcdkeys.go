@@ -49,6 +49,7 @@ var validExecutorKeyTypes = map[ExecutorKeyType]struct{}{
 	ExecutorReportedShardsKey: {},
 	ExecutorAssignedStateKey:  {},
 	ExecutorMetadataKey:       {},
+	ExecutorShardStatisticsKey: {},
 }
 
 // IsValidExecutorKeyType checks if the provided key type is valid.
