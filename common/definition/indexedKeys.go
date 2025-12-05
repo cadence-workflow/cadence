@@ -40,6 +40,7 @@ const (
 	ClusterAttributeScope = "ClusterAttributeScope"
 	ClusterAttributeName  = "ClusterAttributeName"
 	IsCron                = "IsCron"
+	CronSchedule          = "CronSchedule"
 	NumClusters           = "NumClusters"
 	UpdateTime            = "UpdateTime"
 	CustomDomain          = "CustomDomain" // to support batch workflow
@@ -76,6 +77,7 @@ func createDefaultIndexedKeys() map[string]interface{} {
 		CustomDatetimeField:  types.IndexedValueTypeDatetime,
 		CadenceChangeVersion: types.IndexedValueTypeKeyword,
 		BinaryChecksums:      types.IndexedValueTypeKeyword,
+		CronSchedule:         types.IndexedValueTypeKeyword,
 		CustomDomain:         types.IndexedValueTypeString,
 		Operator:             types.IndexedValueTypeString,
 	}

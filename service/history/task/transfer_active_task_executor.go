@@ -23,6 +23,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -35,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -441,6 +443,18 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 	headers := getWorkflowHeaders(startEvent)
 	domainName := mutableState.GetDomainEntry().GetInfo().Name
 	children := mutableState.GetPendingChildExecutionInfos()
+
+	// Add CronSchedule to search attributes if it's a cron workflow
+	if isCron {
+		searchAttr = copySearchAttributes(searchAttr)
+		if searchAttr == nil {
+			searchAttr = make(map[string][]byte)
+		}
+		cronScheduleBytes, err := json.Marshal(executionInfo.CronSchedule)
+		if err == nil {
+			searchAttr[definition.CronSchedule] = cronScheduleBytes
+		}
+	}
 
 	// we've gathered all necessary information from mutable state.
 	// release the context lock since we no longer need mutable state builder and
@@ -1006,6 +1020,17 @@ func (t *transferActiveTaskExecutor) processRecordWorkflowStartedOrUpsertHelper(
 	isCron := len(executionInfo.CronSchedule) > 0
 	numClusters := (int16)(len(domainEntry.GetReplicationConfig().Clusters))
 	updateTimestamp := t.shard.GetTimeSource().Now()
+
+	// Add CronSchedule to search attributes if it's a cron workflow
+	if isCron {
+		if searchAttr == nil {
+			searchAttr = make(map[string][]byte)
+		}
+		cronScheduleBytes, err := json.Marshal(executionInfo.CronSchedule)
+		if err == nil {
+			searchAttr[definition.CronSchedule] = cronScheduleBytes
+		}
+	}
 
 	// release the context lock since we no longer need mutable state builder and
 	// the rest of logic is making RPC call, which takes time.

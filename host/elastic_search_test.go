@@ -202,7 +202,7 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflowByClusterAttribute() {
 	s.Equal("us-east", descResp.WorkflowExecutionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName())
 
 	query := `ClusterAttributeScope = "region" and ClusterAttributeName = "us-east"`
-	s.testHelperForReadOnceWithDomain(s.ActiveActiveDomainName, we.GetRunID(), query, false, false)
+	s.testHelperForReadOnceWithDomain(s.ActiveActiveDomainName, we.GetRunID(), query, false, false, false)
 }
 
 func (s *ElasticSearchIntegrationSuite) startWorkflow(
@@ -291,7 +291,7 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_SearchAttribute() {
 	we, err := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err)
 	query := fmt.Sprintf(`WorkflowID = "%s" and %s = "%s"`, id, s.testSearchAttributeKey, s.testSearchAttributeVal)
-	s.testHelperForReadOnce(we.GetRunID(), query, false, false)
+	s.testHelperForReadOnceWithTestSearchAttributes(we.GetRunID(), query, false, false, true)
 
 	// test upsert
 	dtHandler := func(execution *types.WorkflowExecution, wt *types.WorkflowType,
@@ -767,10 +767,14 @@ func (s *ElasticSearchIntegrationSuite) testListWorkflowHelper(numOfWorkflows, p
 }
 
 func (s *ElasticSearchIntegrationSuite) testHelperForReadOnce(runID, query string, isScan bool, isAnyMatchOk bool) {
-	s.testHelperForReadOnceWithDomain(s.DomainName, runID, query, isScan, isAnyMatchOk)
+	s.testHelperForReadOnceWithTestSearchAttributes(runID, query, isScan, isAnyMatchOk, false)
 }
 
-func (s *ElasticSearchIntegrationSuite) testHelperForReadOnceWithDomain(domainName string, runID, query string, isScan bool, isAnyMatchOk bool) {
+func (s *ElasticSearchIntegrationSuite) testHelperForReadOnceWithTestSearchAttributes(runID, query string, isScan bool, isAnyMatchOk bool, checkTestSearchAttr bool) {
+	s.testHelperForReadOnceWithDomain(s.DomainName, runID, query, isScan, isAnyMatchOk, checkTestSearchAttr)
+}
+
+func (s *ElasticSearchIntegrationSuite) testHelperForReadOnceWithDomain(domainName string, runID, query string, isScan bool, isAnyMatchOk bool, checkTestSearchAttr bool) {
 	var openExecution *types.WorkflowExecutionInfo
 	listRequest := &types.ListWorkflowExecutionsRequest{
 		Domain:   domainName,
@@ -814,8 +818,12 @@ Retry:
 	s.NotNil(openExecution)
 	s.Equal(runID, openExecution.GetExecution().GetRunID())
 	s.True(openExecution.GetExecutionTime() >= openExecution.GetStartTime())
-	if openExecution.SearchAttributes != nil && len(openExecution.SearchAttributes.GetIndexedFields()) > 0 {
+	if checkTestSearchAttr {
+		// Test explicitly expects the test search attribute to be present
+		s.NotNil(openExecution.SearchAttributes)
+		s.True(len(openExecution.SearchAttributes.GetIndexedFields()) > 0)
 		searchValBytes := openExecution.SearchAttributes.GetIndexedFields()[s.testSearchAttributeKey]
+		s.NotNil(searchValBytes)
 		var searchVal string
 		json.Unmarshal(searchValBytes, &searchVal)
 		s.Equal(s.testSearchAttributeVal, searchVal)
@@ -873,7 +881,7 @@ func (s *ElasticSearchIntegrationSuite) TestScanWorkflow_SearchAttribute() {
 	we, err := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err)
 	query := fmt.Sprintf(`WorkflowID = "%s" and %s = "%s"`, id, s.testSearchAttributeKey, s.testSearchAttributeVal)
-	s.testHelperForReadOnce(we.GetRunID(), query, true, false)
+	s.testHelperForReadOnceWithTestSearchAttributes(we.GetRunID(), query, true, false, true)
 }
 
 func (s *ElasticSearchIntegrationSuite) TestScanWorkflow_PageToken() {
