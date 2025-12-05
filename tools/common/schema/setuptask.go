@@ -65,6 +65,7 @@ func (task *SetupTask) Run() error {
 			return err
 		}
 		stmts, err := ParseFile(file)
+		file.Close()
 		if err != nil {
 			return err
 		}
