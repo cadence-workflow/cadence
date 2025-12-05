@@ -232,6 +232,11 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 		return nil, fmt.Errorf("get executor data: %w", err)
 	}
 
+	s.logger.Info("debug: GetState fetched executor keys",
+		tag.ShardNamespace(namespace),
+		tag.Dynamic("num-kvs", resp.Count),
+	)
+
 	for _, kv := range resp.Kvs {
 		key := string(kv.Key)
 		value := string(kv.Value)
@@ -525,7 +530,7 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 		// 4. Prepare and commit the transaction with four atomic checks.
 		// a) Check that the executor's status ACTIVE has not been changed.
 		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(statusKey), "=", statusModRev))
-		// b) Check that neither the assigned_state nor shard statistics were modified concurrently.
+		// b) Check that the assigned_state has not been modified concurrently.
 		comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(assignedState), "=", modRevision))
 		// c) Check that the cache is up to date.
 		cmp, err := s.shardCache.GetExecutorModRevisionCmp(namespace)
@@ -556,6 +561,12 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 		}
 
 		if txnResp.Succeeded {
+			s.logger.Info("debug: AssignShard updated executor stats",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(executorID),
+				tag.ShardKey(shardID),
+				tag.Dynamic("num-shards-in-stats", len(executorShardStats)),
+			)
 			return nil
 		}
 
@@ -704,6 +715,12 @@ func (s *executorStoreImpl) DeleteShardStats(ctx context.Context, namespace stri
 		return nil
 	}
 
+	s.logger.Info("debug: DeleteShardStats prepared ops",
+		tag.ShardNamespace(namespace),
+		tag.Dynamic("num-shards-to-delete", len(shardIDs)),
+		tag.Dynamic("num-ops", len(ops)),
+	)
+
 	nativeTxn := s.client.Txn(ctx)
 	guardedTxn, err := guard(nativeTxn)
 	if err != nil {
@@ -841,6 +858,12 @@ func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, nam
 				tag.ShardNamespace(namespace),
 				tag.ShardExecutor(update.executorID),
 				tag.Error(err),
+			)
+		} else {
+			s.logger.Info("debug: applyShardStatisticsUpdates wrote executor stats",
+				tag.ShardNamespace(namespace),
+				tag.ShardExecutor(update.executorID),
+				tag.Dynamic("num-shards-in-stats", len(update.stats)),
 			)
 		}
 	}
