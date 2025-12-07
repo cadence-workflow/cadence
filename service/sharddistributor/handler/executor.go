@@ -16,8 +16,6 @@ import (
 )
 
 const (
-	_heartbeatRefreshRate = 2 * time.Second
-
 	_maxMetadataKeys      = 32
 	_maxMetadataKeyLength = 128
 	_maxMetadataValueSize = 512 * 1024 // 512KB
@@ -74,15 +72,6 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 			return nil, err
 		}
 		shardAssignedInBackground = false
-	}
-
-	// If the state has changed we need to update heartbeat data.
-	// Otherwise, we want to do it with controlled frequency - at most every _heartbeatRefreshRate.
-	if previousHeartbeat != nil && request.Status == previousHeartbeat.Status && mode == types.MigrationModeONBOARDED {
-		lastHeartbeatTime := previousHeartbeat.LastHeartbeat
-		if heartbeatTime.Sub(lastHeartbeatTime) < _heartbeatRefreshRate {
-			return _convertResponse(assignedShards, mode), nil
-		}
 	}
 
 	newHeartbeat := store.HeartbeatState{
