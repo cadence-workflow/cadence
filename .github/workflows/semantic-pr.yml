@@ -11,13 +11,14 @@ jobs:
   semantic-pr:
     name: Validate PR title follows conventional commit format
     runs-on: ubuntu-latest
-    # TODO: Remove this once we commit to conventional commits
+    # TODO: Remove once we commit to conventional commits
     continue-on-error: true
 
     steps:
       - name: Validate PR title
         id: lint_pr_title
         uses: amannn/action-semantic-pull-request@v5.4.0
+        continue-on-error: true
         with:
           # Allow standard conventional commit types
           types: |
@@ -44,29 +45,63 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.issues.createComment({
+            const commentBody = `👋 This PR title doesn't follow the [conventional commit](https://www.conventionalcommits.org/) format.
+            💡 This is currently a **warning only** and won't block your PR.
+
+            **Required Format:**
+            \`\`\`
+            <type>(optional scope): <description>
+            \`\`\`
+
+            **Allowed types:** fix, feat, docs, style, refactor, perf, test, chore, ci, build
+
+            **Examples:**
+            - \`feat(auth): add JWT token validation\`
+            - \`fix: prevent racing of requests\`
+            - \`docs: clarify installation steps\`
+
+            <details>
+            <summary>Error details</summary>
+
+            \`\`\`
+            ${{ steps.lint_pr_title.outputs.error_message }}
+            \`\`\`
+
+            [View workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            </details>`;
+
+            // Check for existing comment from this workflow
+            const comments = await github.rest.issues.listComments({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `⚠️ **Semantic PR Check Failed**
+            });
 
-              **Error Details:**
-              \`\`\`
-              ${{ steps.lint_pr_title.outputs.error_message }}
-              \`\`\`
+            const botComment = comments.data.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('This PR title doesn\'t follow the conventional commit format')
+            );
 
-              **Required Format:**
-              \`\`\`
-              <type>: <description>
-              \`\`\`
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: commentBody
+              });
+            }
+      # TODO: Add this once we commit to conventional commits
+      # - name: Fail workflow if validation failed
+      #   if: steps.lint_pr_title.outputs.error_message != null
+      #   run: exit 1
 
-              **Allowed types:** fix, feat, docs, style, refactor, perf, test, chore, ci, build
 
-              **Examples:**
-              - \`feat: add user authentication system\`
-              - \`fix: resolve memory leak in worker pool\`
-              - \`docs: update API documentation\`
-              - \`test: add integration tests for auth flow\`
-
-              This is currently a **warning only** and won't block your PR from being merged.`
-            })
