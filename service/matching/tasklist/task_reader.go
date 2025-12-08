@@ -132,7 +132,7 @@ func newTaskReader(tlMgr *taskListManagerImpl, isolationGroups []string) *taskRe
 		logger:                   tlMgr.logger,
 		scope:                    tlMgr.scope,
 		handleErr:                tlMgr.handleErr,
-		onFatalErr:               tlMgr.Stop,
+		onFatalErr:               func() { tlMgr.stopCallback(tlMgr) },
 		dispatchTask:             tlMgr.DispatchTask,
 		getIsolationGroupForTask: tlMgr.getIsolationGroupForTask,
 		rateLimit:                tlMgr.limiter.Limit,

@@ -92,9 +92,9 @@ type (
 		tokenSerializer             common.TaskTokenSerializer
 		logger                      log.Logger
 		metricsClient               metrics.Client
-		taskListsLock               sync.RWMutex                                    // locks mutation of taskLists
-		taskLists                   map[tasklist.Identifier]tasklist.ShardProcessor // Convert to LRU cache
-		executor                    executorclient.Executor[tasklist.ShardProcessor]
+		taskListsLock               sync.RWMutex                             // locks mutation of taskLists
+		taskLists                   map[tasklist.Identifier]tasklist.Manager // this should be handled only form executor
+		executor                    executorclient.Executor[tasklist.Manager]
 		taskListsFactory            *tasklist.ShardProcessorFactory
 		config                      *config.Config
 		lockableQueryTaskMap        lockableQueryTaskMap
@@ -149,7 +149,7 @@ func NewEngine(
 		clusterMetadata:      clusterMetadata,
 		historyService:       historyService,
 		tokenSerializer:      common.NewJSONTaskTokenSerializer(),
-		taskLists:            make(map[tasklist.Identifier]tasklist.ShardProcessor),
+		taskLists:            make(map[tasklist.Identifier]tasklist.Manager),
 		logger:               logger.WithTags(tag.ComponentMatchingEngine),
 		metricsClient:        metricsClient,
 		matchingClient:       matchingClient,
@@ -174,8 +174,10 @@ func (e *matchingEngineImpl) Start() {
 }
 
 func (e *matchingEngineImpl) Stop() {
+	e.executor.Stop()
 	close(e.shutdown)
 	// Executes Stop() on each task list outside of lock
+	// this should be already stopped in the executor so it is a noop
 	for _, l := range e.getTaskLists(math.MaxInt32) {
 		l.Stop()
 	}
@@ -193,11 +195,14 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 		ClusterMetadata: e.clusterMetadata,
 		IsolationState:  e.isolationState,
 		MatchingClient:  e.matchingClient,
+		StartCallback:   e.addTaskListManager,
 		CloseCallback:   e.removeTaskListManager,
+		StopCallback:    e.stopCallback,
 		Cfg:             e.config,
 		TimeSource:      e.timeSource,
 		CreateTime:      e.timeSource.Now(),
-		HistoryService:  e.historyService}
+		HistoryService:  e.historyService,
+	}
 	e.taskListsFactory = taskListFactory
 	// TODO move this to setup a logger based on e.logger
 	scope := tally.NoopScope
@@ -205,7 +210,7 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 	config := clientcommon.Config{
 		Namespaces: []clientcommon.NamespaceConfig{
 			{Namespace: "cadence-matching", HeartBeatInterval: 1 * time.Second, MigrationMode: sdconfig.MigrationModeLOCALPASSTHROUGH}}}
-	params := executorclient.Params[tasklist.ShardProcessor]{
+	params := executorclient.Params[tasklist.Manager]{
 		ExecutorClient:        shardDistributorExecutorClient,
 		MetricsScope:          scope,
 		Logger:                e.logger,
@@ -213,7 +218,7 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 		Config:                config,
 		TimeSource:            e.timeSource,
 	}
-	executor, err := executorclient.NewExecutor[tasklist.ShardProcessor](params)
+	executor, err := executorclient.NewExecutor[tasklist.Manager](params)
 	if err != nil {
 		panic(err)
 	}
@@ -221,10 +226,10 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 
 }
 
-func (e *matchingEngineImpl) getTaskLists(maxCount int) []tasklist.ShardProcessor {
+func (e *matchingEngineImpl) getTaskLists(maxCount int) []tasklist.Manager {
 	e.taskListsLock.RLock()
 	defer e.taskListsLock.RUnlock()
-	lists := make([]tasklist.ShardProcessor, 0, len(e.taskLists))
+	lists := make([]tasklist.Manager, 0, len(e.taskLists))
 	count := 0
 	for _, tlMgr := range e.taskLists {
 		lists = append(lists, tlMgr)
@@ -247,25 +252,26 @@ func (e *matchingEngineImpl) String() string {
 
 // Returns taskListManager for a task list. If not already cached gets new range from DB and
 // if successful creates one.
-func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, taskListKind types.TaskListKind) (tasklist.ShardProcessor, error) {
+func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, taskListKind types.TaskListKind) (tasklist.Manager, error) {
 	// The first check is an optimization so almost all requests will have a task list manager
 	// and return avoiding the write lock
-	e.taskListsLock.RLock()
-	if result, ok := e.taskLists[*taskList]; ok {
-		e.taskListsLock.RUnlock()
+	shardID := tasklist.FromIdentifierToShardNameRepresentation(taskList, taskListKind)
+	result, err := e.executor.GetShardProcess(context.Background(), shardID)
+	if err == nil {
 		return result, nil
 	}
-	e.taskListsLock.RUnlock()
 
-	err := e.errIfShardLoss(taskList)
+	// We check the membership
+	// If we are running with local logic we rely on this logic
+	// If we are onboarded to ShardDistributor logic we altrady handled the result in the previous call of GetShaardProcess
+	// or we will fail in removing the shard using the local logic
+	err = e.errIfShardLoss(taskList)
 	if err != nil {
 		return nil, err
 	}
-
 	// If it gets here, write lock and check again in case a task list is created between the two locks
-	e.taskListsLock.Lock()
-	if result, ok := e.taskLists[*taskList]; ok {
-		e.taskListsLock.Unlock()
+	result, err = e.executor.GetShardProcess(context.Background(), shardID)
+	if err == nil {
 		return result, nil
 	}
 
@@ -277,20 +283,21 @@ func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, t
 	)
 
 	logger.Info("Task list manager state changed", tag.LifeCycleStarting)
-	mgr, err := e.taskListsFactory.NewShardProcessorWithTaskListIdentifier(taskList, taskListKind)
+	err = e.executor.RemoveShardsFromLocalLogic([]string{shardID})
 	if err != nil {
-		e.taskListsLock.Unlock()
 		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
 		return nil, err
 	}
-
-	e.taskLists[*taskList] = mgr
-	e.metricsClient.Scope(metrics.MatchingTaskListMgrScope).UpdateGauge(
-		metrics.TaskListManagersGauge,
-		float64(len(e.taskLists)),
-	)
-	e.taskListsLock.Unlock()
-	err = mgr.Start(context.Background())
+	shardAssignment := map[string]*types.ShardAssignment{
+		shardID: {
+			Status: types.AssignmentStatusREADY,
+		},
+	}
+	err = e.executor.AssignShardsFromLocalLogic(context.Background(), shardAssignment)
+	if err != nil {
+		return nil, err
+	}
+	mgr, err := e.executor.GetShardProcess(context.Background(), shardID)
 	if err != nil {
 		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
 		return nil, err
@@ -327,20 +334,34 @@ func (e *matchingEngineImpl) getTaskListByDomainLocked(domainID string, taskList
 	}
 }
 
-// For use in tests
-func (e *matchingEngineImpl) updateTaskList(taskList *tasklist.Identifier, mgr tasklist.ShardProcessor) {
+func (e *matchingEngineImpl) addTaskListManager(tlMgr tasklist.Manager) {
+	id := tlMgr.TaskListID()
 	e.taskListsLock.Lock()
 	defer e.taskListsLock.Unlock()
-	e.taskLists[*taskList] = mgr
+	e.taskLists[*id] = tlMgr
+	e.metricsClient.Scope(metrics.MatchingTaskListMgrScope).UpdateGauge(
+		metrics.TaskListManagersGauge,
+		float64(len(e.taskLists)),
+	)
 }
 
-func (e *matchingEngineImpl) removeTaskListManager(tlMgr tasklist.ShardProcessor) {
+func (e *matchingEngineImpl) stopCallback(tlMgr tasklist.Manager) {
+	id := tlMgr.TaskListID()
+	shardID := tasklist.FromIdentifierToShardNameRepresentation(id, tlMgr.GetTaskListKind())
+	err := e.executor.RemoveShardsFromLocalLogic([]string{shardID})
+	if err != nil {
+		e.logger.Error("Failed to remove task list manager from local logic", tag.Error(err))
+		tlMgr.Stop()
+	}
+}
+
+func (e *matchingEngineImpl) removeTaskListManager(tlMgr tasklist.Manager) {
 	id := tlMgr.TaskListID()
 	e.taskListsLock.Lock()
 	defer e.taskListsLock.Unlock()
 
 	currentTlMgr, ok := e.taskLists[*id]
-	if ok && currentTlMgr.String() == tlMgr.String() {
+	if ok && currentTlMgr == tlMgr {
 		delete(e.taskLists, *id)
 	}
 
@@ -1190,16 +1211,20 @@ func (e *matchingEngineImpl) getAllPartitions(
 }
 
 func (e *matchingEngineImpl) unloadTaskList(tlMgr tasklist.Manager) {
-	id := tlMgr.TaskListID()
-	e.taskListsLock.Lock()
-	currentTlMgr, ok := e.taskLists[*id]
-	if !ok || tlMgr != currentTlMgr {
-		e.taskListsLock.Unlock()
+	shardID := tasklist.FromIdentifierToShardNameRepresentation(tlMgr.TaskListID(), tlMgr.GetTaskListKind())
+	currentTlMgr, err := e.executor.GetShardProcess(context.Background(), shardID)
+	if err != nil {
+		e.logger.Error("unloadTaskList failed", tag.Error(err))
+	}
+	if tlMgr != currentTlMgr {
 		return
 	}
-	delete(e.taskLists, *id)
-	e.taskListsLock.Unlock()
-	tlMgr.Stop()
+
+	err = e.executor.RemoveShardsFromLocalLogic([]string{shardID})
+	if err != nil {
+		e.logger.Error("unable to unload Task List in executor")
+		currentTlMgr.Stop()
+	}
 }
 
 // Populate the decision task response based on context and scheduled/started events.

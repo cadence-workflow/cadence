@@ -55,6 +55,7 @@ import (
 	"github.com/uber/cadence/service/matching/event"
 	"github.com/uber/cadence/service/matching/liveness"
 	"github.com/uber/cadence/service/matching/poller"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 const (
@@ -94,7 +95,9 @@ type (
 		ClusterMetadata cluster.Metadata
 		IsolationState  isolationgroup.State
 		MatchingClient  matching.Client
-		CloseCallback   func(ShardProcessor)
+		StartCallback   func(Manager)
+		CloseCallback   func(Manager)
+		StopCallback    func(Manager)
 		TaskList        *Identifier
 		TaskListKind    types.TaskListKind
 		Cfg             *config.Config
@@ -121,6 +124,7 @@ type (
 		taskWriter      *taskWriter
 		taskReader      *taskReader // reads tasks from db and async matches it with poller
 		liveness        *liveness.Liveness
+		status          atomic.Int32 // the status of the shard
 		taskGC          *taskGC
 		taskAckManager  messaging.AckManager // tracks ackLevel for delivered messages
 		matcher         TaskMatcher          // for matching a task producer with a poller
@@ -140,7 +144,9 @@ type (
 		stopWG        sync.WaitGroup
 		stopped       int32
 		stoppedLock   sync.RWMutex
-		closeCallback func(ShardProcessor)
+		startCallback func(Manager)
+		closeCallback func(Manager)
+		stopCallback  func(Manager)
 		throttleRetry *backoff.ThrottleRetry
 
 		qpsTracker     stats.QPSTrackerGroup
@@ -199,7 +205,9 @@ func NewManager(p ManagerParams) (Manager, error) {
 		domainName:      domainName,
 		scope:           scope,
 		timeSource:      p.TimeSource,
+		startCallback:   p.StartCallback,
 		closeCallback:   p.CloseCallback,
+		stopCallback:    p.StopCallback,
 		throttleRetry: backoff.NewThrottleRetry(
 			backoff.WithRetryPolicy(persistenceOperationRetryPolicy),
 			backoff.WithRetryableError(persistence.IsTransientError),
@@ -259,7 +267,7 @@ func NewManager(p ManagerParams) (Manager, error) {
 // The pump fills up taskBuffer from persistence.
 func (c *taskListManagerImpl) Start(ctx context.Context) error {
 	defer c.startWG.Done()
-
+	c.startCallback(c)
 	if !c.taskListID.IsRoot() && c.taskListKind == types.TaskListKindNormal {
 		var info *persistence.TaskListInfo
 		err := c.throttleRetry.Do(context.Background(), func(ctx context.Context) error {
@@ -275,7 +283,7 @@ func (c *taskListManagerImpl) Start(ctx context.Context) error {
 			// This will not happen once we fully migrate partition config to database. Because in that case, root partition will always be created before non-root partitions.
 			var e *types.EntityNotExistsError
 			if !errors.As(err, &e) {
-				c.Stop()
+				c.stopCallback(c)
 				return err
 			}
 		} else {
@@ -283,7 +291,7 @@ func (c *taskListManagerImpl) Start(ctx context.Context) error {
 		}
 	}
 	if err := c.taskWriter.Start(); err != nil {
-		c.Stop()
+		c.stopCallback(c)
 		return err
 	}
 	if c.taskListID.IsRoot() && c.taskListKind == types.TaskListKindNormal {
@@ -305,7 +313,6 @@ func (c *taskListManagerImpl) Start(ctx context.Context) error {
 	if c.adaptiveScaler != nil {
 		c.adaptiveScaler.Start()
 	}
-
 	return nil
 }
 
@@ -316,10 +323,8 @@ func (c *taskListManagerImpl) Stop() {
 	if !atomic.CompareAndSwapInt32(&c.stopped, 0, 1) {
 		return
 	}
-	sp := &shardProcessorImpl{
-		Manager: c,
-	}
-	c.closeCallback(sp)
+	c.closeCallback(c)
+	c.SetShardStatus(types.ShardStatusDONE)
 	if c.adaptiveScaler != nil {
 		c.adaptiveScaler.Stop()
 	}
@@ -338,7 +343,7 @@ func (c *taskListManagerImpl) handleErr(err error) error {
 		// This indicates the task list may have moved to another host.
 		c.scope.IncCounter(metrics.ConditionFailedErrorPerTaskListCounter)
 		c.logger.Info("Stopping task list due to persistence condition failure.", tag.Error(err))
-		c.Stop()
+		c.stopCallback(c)
 		if c.taskListKind == types.TaskListKindSticky {
 			// TODO: we don't see this error in our logs, we might be able to remove this error
 			err = &types.InternalServiceError{Message: constants.StickyTaskConditionFailedErrorMsg}
@@ -396,6 +401,23 @@ func (c *taskListManagerImpl) LoadBalancerHints() *types.LoadBalancerHints {
 		BacklogCount:  c.taskAckManager.GetBacklogCount(),
 		RatePerSecond: c.qpsTracker.QPS(),
 	}
+}
+
+func (c *taskListManagerImpl) GetShardReport() executorclient.ShardReport {
+	loadBalancerHints := c.LoadBalancerHints()
+	var shardLoad = 1.0
+	if loadBalancerHints != nil {
+		shardLoad = loadBalancerHints.RatePerSecond
+	}
+	return executorclient.ShardReport{
+		// For now reporting the load as queries per second (QPS) value.
+		ShardLoad: shardLoad,
+		Status:    types.ShardStatus(c.status.Load()),
+	}
+}
+
+func (c *taskListManagerImpl) SetShardStatus(status types.ShardStatus) {
+	c.status.Store(int32(status))
 }
 
 func isTaskListPartitionConfigEqual(a types.TaskListPartitionConfig, b types.TaskListPartitionConfig) bool {
@@ -471,7 +493,7 @@ func (c *taskListManagerImpl) updatePartitionConfig(ctx context.Context, newConf
 		// We're not sure whether the update was persisted or not,
 		// Stop the tasklist manager and let it be reloaded
 		c.scope.IncCounter(metrics.TaskListPartitionUpdateFailedCounter)
-		c.Stop()
+		c.stopCallback(c)
 		return nil, nil, err
 	}
 	c.partitionConfig = c.db.PartitionConfig().ToInternalType()
@@ -527,7 +549,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 	c.startWG.Wait()
 
 	if c.shouldReload() {
-		c.Stop()
+		c.stopCallback(c)
 		return false, errShutdown
 	}
 	if c.config.EnableGetNumberOfPartitionsFromCache() {
@@ -659,7 +681,7 @@ func (c *taskListManagerImpl) GetTask(
 	maxDispatchPerSecond *float64,
 ) (*InternalTask, error) {
 	if c.shouldReload() {
-		c.Stop()
+		c.stopCallback(c)
 		return nil, ErrNoTasks
 	}
 	c.liveness.MarkAlive()

@@ -230,7 +230,9 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 		s.matchingEngine.clusterMetadata,
 		s.matchingEngine.isolationState,
 		s.matchingEngine.matchingClient,
+		s.matchingEngine.addTaskListManager,
 		s.matchingEngine.removeTaskListManager,
+		s.matchingEngine.stopCallback,
 		taskListID, // same taskListID as above
 		tlKind,
 		s.matchingEngine.config,
@@ -836,7 +838,7 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 	}
 	if throttled {
 		dispatchLimitFn = func(wc int, attempt int) float64 {
-			if attempt%50 == 0 && wc%5 == 0 { // Gets triggered atleast 20 times
+			if attempt%50 == 0 && wc%5 == 0 { // Gets triggered at least 20 times
 				return 0
 			}
 			return _defaultTaskDispatchRPS
@@ -860,7 +862,7 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 	// Make the pollers time out relatively quickly if there are no tasks
 	s.matchingEngine.config.LongPollExpirationInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 	s.taskManager.SetRangeID(testParam.TaskListID, initialRangeID)
-
+	s.matchingEngine.taskListsFactory.Cfg = s.matchingEngine.config
 	s.setupGetDrainStatus()
 
 	var wg sync.WaitGroup
@@ -930,7 +932,8 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 	mgr, err := s.matchingEngine.getTaskListManager(testParam.TaskListID, tlKind)
 	s.NoError(err)
 	// stop the tasklist manager to force the acked tasks to be deleted
-	mgr.Stop()
+	s.matchingEngine.stopCallback(mgr)
+
 	s.EqualValues(0, s.taskManager.GetTaskCount(testParam.TaskListID))
 
 	syncCtr := scope.Snapshot().Counters()["test.sync_throttle_count_per_tl+domain="+matchingTestDomainName+",operation=TaskListMgr,tasklist="+testParam.TaskList.Name+",tasklistType=activity"]
@@ -1148,6 +1151,7 @@ func (s *matchingEngineSuite) UnloadTasklistOnIsolationConfigChange(taskType int
 	s.taskManager.SetRangeID(testParam.TaskListID, initialRangeID)
 	s.matchingEngine.config.RangeSize = rangeSize // override to low number for the test
 	s.matchingEngine.config.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
+	s.matchingEngine.taskListsFactory.Cfg = s.matchingEngine.config
 
 	addRequest := &addTaskRequest{
 		TaskType:                      taskType,
@@ -1162,6 +1166,7 @@ func (s *matchingEngineSuite) UnloadTasklistOnIsolationConfigChange(taskType int
 
 	// enable isolation and verify that poller should not get any task
 	s.matchingEngine.config.EnableTasklistIsolation = dynamicproperties.GetBoolPropertyFnFilteredByDomainID(true)
+	s.matchingEngine.taskListsFactory.Cfg = s.matchingEngine.config
 	s.setupGetDrainStatus()
 	s.setupRecordTaskStartedMock(taskType, testParam, false)
 
@@ -1184,6 +1189,7 @@ func (s *matchingEngineSuite) UnloadTasklistOnIsolationConfigChange(taskType int
 
 	// disable isolation again and verify add tasklist should fail
 	s.matchingEngine.config.EnableTasklistIsolation = dynamicproperties.GetBoolPropertyFnFilteredByDomainID(false)
+	s.matchingEngine.taskListsFactory.Cfg = s.matchingEngine.config
 	_, err = addTask(s.matchingEngine, s.handlerContext, addRequest)
 	s.Error(err)
 	s.Contains(err.Error(), "task list shutting down")
