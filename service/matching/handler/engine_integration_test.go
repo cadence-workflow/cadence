@@ -914,6 +914,7 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 				s.mockTimeSource.Advance(time.Nanosecond)
 				s.NoError(err)
 				s.NotNil(result)
+				s.logger.Info("")
 				if isEmptyToken(result.TaskToken) {
 					s.logger.Debug("empty poll returned")
 					continue

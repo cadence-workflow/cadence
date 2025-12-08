@@ -283,11 +283,11 @@ func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, t
 	)
 
 	logger.Info("Task list manager state changed", tag.LifeCycleStarting)
-	err = e.executor.RemoveShardsFromLocalLogic([]string{shardID})
-	if err != nil {
-		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
-		return nil, err
-	}
+	//err = e.executor.RemoveShardsFromLocalLogic([]string{shardID})
+	//if err != nil {
+	//	logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
+	//	return nil, err
+	//}
 	shardAssignment := map[string]*types.ShardAssignment{
 		shardID: {
 			Status: types.AssignmentStatusREADY,
