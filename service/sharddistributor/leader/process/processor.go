@@ -528,7 +528,7 @@ func (p *namespaceProcessor) loadBalance(
 		if destExecutor == "" {
 			break
 		}
-		shardsToMove := p.findShardsToMove(namespaceState, sourceExecutor, destExecutor)
+		shardsToMove := p.findShardsToMove(currentAssignments, namespaceState, sourceExecutor, destExecutor)
 
 		// move
 		moved, err := p.moveShards(currentAssignments, sourceExecutor, destExecutor, shardsToMove)
@@ -560,10 +560,10 @@ func (p *namespaceProcessor) findBestDestination(destinationExecutors map[string
 	return minExecutor
 }
 
-func (p *namespaceProcessor) findShardsToMove(namespaceState *store.NamespaceState, source string, destination string) []string {
+func (p *namespaceProcessor) findShardsToMove(currentAssignments map[string][]string, namespaceState *store.NamespaceState, source string, destination string) []string {
 	largestLoad := 0.0
 	largestShard := ""
-	for shard := range namespaceState.ShardAssignments[source].AssignedShards {
+	for _, shard := range currentAssignments[source] {
 		if namespaceState.ShardStats[shard].SmoothedLoad > largestLoad {
 			largestLoad = namespaceState.ShardStats[shard].SmoothedLoad
 			largestShard = shard
