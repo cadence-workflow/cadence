@@ -9,16 +9,132 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/testhelper"
 )
 
+func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
+	testCluster := testhelper.SetupStoreTestCluster(t)
+	logger := testlogger.New(t)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
+	// Setup: Create executor-1 with shard-1
+	setupExecutorWithShards(t, testCluster, "executor-1", []string{"shard-1"}, map[string]string{
+		"hostname": "executor-1-host",
+		"version":  "v1.0.0",
+	})
+
+	// Start the cache
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger)
+	assert.NoError(t, err)
+	namespaceShardToExecutor.Start(&sync.WaitGroup{})
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify executor-1 owns shard-1 with correct metadata
+	verifyShardOwner(t, namespaceShardToExecutor, "shard-1", "executor-1", map[string]string{
+		"hostname": "executor-1-host",
+		"version":  "v1.0.0",
+	})
+
+	// Check the cache is populated
+	namespaceShardToExecutor.RLock()
+	_, ok := namespaceShardToExecutor.executorRevision["executor-1"]
+	assert.True(t, ok)
+	assert.Equal(t, "executor-1", namespaceShardToExecutor.shardToExecutor["shard-1"].ExecutorID)
+	namespaceShardToExecutor.RUnlock()
+
+	// Add executor-2 with shard-2 to trigger watch update
+	setupExecutorWithShards(t, testCluster, "executor-2", []string{"shard-2"}, map[string]string{
+		"hostname": "executor-2-host",
+		"region":   "us-west",
+	})
+	time.Sleep(100 * time.Millisecond)
+
+	// Check that executor-2 and shard-2 is in the cache
+	namespaceShardToExecutor.RLock()
+	_, ok = namespaceShardToExecutor.executorRevision["executor-2"]
+	assert.True(t, ok)
+	assert.Equal(t, "executor-2", namespaceShardToExecutor.shardToExecutor["shard-2"].ExecutorID)
+	namespaceShardToExecutor.RUnlock()
+
+	// Verify executor-2 owns shard-2 with correct metadata
+	verifyShardOwner(t, namespaceShardToExecutor, "shard-2", "executor-2", map[string]string{
+		"hostname": "executor-2-host",
+		"region":   "us-west",
+	})
+}
+
+func TestNamespaceShardToExecutor_Subscribe(t *testing.T) {
+	testCluster := testhelper.SetupStoreTestCluster(t)
+	logger := testlogger.New(t)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
+	// Setup: Create executor-1 with shard-1
+	setupExecutorWithShards(t, testCluster, "executor-1", []string{"shard-1"}, map[string]string{
+		"hostname": "executor-1-host",
+		"version":  "v1.0.0",
+	})
+
+	// Start the cache
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger)
+	assert.NoError(t, err)
+	namespaceShardToExecutor.Start(&sync.WaitGroup{})
+
+	// Refresh the cache to get the initial state
+	namespaceShardToExecutor.refresh(context.Background())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	subCh, unSub := namespaceShardToExecutor.Subscribe(ctx)
+	defer unSub()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// start listener
+	go func() {
+		defer wg.Done()
+		// Check that we get the initial state
+		state := <-subCh
+		assert.Len(t, state, 1)
+		verifyExecutorInState(t, state, "executor-1", []string{"shard-1"}, map[string]string{
+			"hostname": "executor-1-host",
+			"version":  "v1.0.0",
+		})
+
+		// Check that we get the updated state
+		state = <-subCh
+		assert.Len(t, state, 2)
+		verifyExecutorInState(t, state, "executor-1", []string{"shard-1"}, map[string]string{
+			"hostname": "executor-1-host",
+			"version":  "v1.0.0",
+		})
+		verifyExecutorInState(t, state, "executor-2", []string{"shard-2"}, map[string]string{
+			"hostname": "executor-2-host",
+			"region":   "us-west",
+		})
+	}()
+	time.Sleep(10 * time.Millisecond)
+
+	// Add executor-2 with shard-2 to trigger new subscription update
+	setupExecutorWithShards(t, testCluster, "executor-2", []string{"shard-2"}, map[string]string{
+		"hostname": "executor-2-host",
+		"region":   "us-west",
+	})
+
+	wg.Wait()
+}
+
 // setupExecutorWithShards creates an executor in etcd with assigned shards and metadata
-func setupExecutorWithShards(t *testing.T, testCluster *testhelper.StoreTestCluster, namespace, executorID string, shards []string, metadata map[string]string) {
+func setupExecutorWithShards(t *testing.T, testCluster *testhelper.StoreTestCluster, executorID string, shards []string, metadata map[string]string) {
 	// Create assigned state
 	assignedState := &etcdtypes.AssignedState{
 		AssignedShards: make(map[string]*types.ShardAssignment),
@@ -30,14 +146,33 @@ func setupExecutorWithShards(t *testing.T, testCluster *testhelper.StoreTestClus
 	assignedStateJSON, err := json.Marshal(assignedState)
 	require.NoError(t, err)
 
-	executorAssignedStateKey := etcdkeys.BuildExecutorKey(testCluster.EtcdPrefix, namespace, executorID, etcdkeys.ExecutorAssignedStateKey)
-	testCluster.Client.Put(context.Background(), executorAssignedStateKey, string(assignedStateJSON))
+	var operations []clientv3.Op
+
+	executorAssignedStateKey := etcdkeys.BuildExecutorKey(testCluster.EtcdPrefix, testCluster.Namespace, executorID, etcdkeys.ExecutorAssignedStateKey)
+	operations = append(operations, clientv3.OpPut(executorAssignedStateKey, string(assignedStateJSON)))
 
 	// Add metadata
 	for key, value := range metadata {
-		metadataKey := etcdkeys.BuildMetadataKey(testCluster.EtcdPrefix, namespace, executorID, key)
-		testCluster.Client.Put(context.Background(), metadataKey, value)
+		metadataKey := etcdkeys.BuildMetadataKey(testCluster.EtcdPrefix, testCluster.Namespace, executorID, key)
+		operations = append(operations, clientv3.OpPut(metadataKey, value))
 	}
+
+	txnResp, err := testCluster.Client.Txn(context.Background()).Then(operations...).Commit()
+	require.NoError(t, err)
+	require.True(t, txnResp.Succeeded)
+}
+
+func verifyExecutorInState(t *testing.T, state map[*store.ShardOwner][]string, executorID string, shards []string, metadata map[string]string) {
+	executorInState := false
+	for executor, executorShards := range state {
+		if executor.ExecutorID == executorID {
+			assert.Equal(t, shards, executorShards)
+			assert.Equal(t, metadata, executor.Metadata)
+			executorInState = true
+			break
+		}
+	}
+	assert.True(t, executorInState)
 }
 
 // verifyShardOwner checks that a shard has the expected owner and metadata
@@ -57,56 +192,4 @@ func verifyShardOwner(t *testing.T, cache *namespaceShardToExecutor, shardID, ex
 	for key, expectedValue := range expectedMetadata {
 		assert.Equal(t, expectedValue, executor.Metadata[key])
 	}
-}
-
-func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
-	testCluster := testhelper.SetupStoreTestCluster(t)
-	logger := testlogger.New(t)
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-
-	// Setup: Create executor-1 with shard-1
-	setupExecutorWithShards(t, testCluster, "test-ns", "executor-1", []string{"shard-1"}, map[string]string{
-		"hostname": "executor-1-host",
-		"version":  "v1.0.0",
-	})
-
-	// Start the cache
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, "test-ns", testCluster.Client, stopCh, logger)
-	assert.NoError(t, err)
-	namespaceShardToExecutor.Start(&sync.WaitGroup{})
-	time.Sleep(50 * time.Millisecond)
-
-	// Verify executor-1 owns shard-1 with correct metadata
-	verifyShardOwner(t, namespaceShardToExecutor, "shard-1", "executor-1", map[string]string{
-		"hostname": "executor-1-host",
-		"version":  "v1.0.0",
-	})
-
-	// Check the cache is populated
-	namespaceShardToExecutor.RLock()
-	_, ok := namespaceShardToExecutor.executorRevision["executor-1"]
-	assert.True(t, ok)
-	assert.Equal(t, "executor-1", namespaceShardToExecutor.shardToExecutor["shard-1"].ExecutorID)
-	namespaceShardToExecutor.RUnlock()
-
-	// Add executor-2 with shard-2 to trigger watch update
-	setupExecutorWithShards(t, testCluster, "test-ns", "executor-2", []string{"shard-2"}, map[string]string{
-		"hostname": "executor-2-host",
-		"region":   "us-west",
-	})
-	time.Sleep(100 * time.Millisecond)
-
-	// Check that executor-2 and shard-2 is in the cache
-	namespaceShardToExecutor.RLock()
-	_, ok = namespaceShardToExecutor.executorRevision["executor-2"]
-	assert.True(t, ok)
-	assert.Equal(t, "executor-2", namespaceShardToExecutor.shardToExecutor["shard-2"].ExecutorID)
-	namespaceShardToExecutor.RUnlock()
-
-	// Verify executor-2 owns shard-2 with correct metadata
-	verifyShardOwner(t, namespaceShardToExecutor, "shard-2", "executor-2", map[string]string{
-		"hostname": "executor-2-host",
-		"region":   "us-west",
-	})
 }

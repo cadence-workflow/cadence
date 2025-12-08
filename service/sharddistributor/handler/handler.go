@@ -157,16 +157,6 @@ func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequ
 		return &types.InternalServiceError{Message: fmt.Sprintf("failed to subscribe to namespace state: %v", err)}
 	}
 
-	// Send initial state immediately so client doesn't have to wait for first update
-	state, err := h.storage.GetState(server.Context(), request.Namespace)
-	if err != nil {
-		return &types.InternalServiceError{Message: fmt.Sprintf("failed to get namespace state: %v", err)}
-	}
-	response := toWatchNamespaceStateResponse(state)
-	if err := server.Send(response); err != nil {
-		return fmt.Errorf("send initial state: %w", err)
-	}
-
 	// Stream subsequent updates
 	for {
 		select {
@@ -177,7 +167,7 @@ func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequ
 				return fmt.Errorf("unexpected close of updates channel")
 			}
 			response := &types.WatchNamespaceStateResponse{
-				Executors: make([]*types.ExecutorShardAssignment, 0, len(state.ShardAssignments)),
+				Executors: make([]*types.ExecutorShardAssignment, 0, len(assignmentChanges)),
 			}
 			for executor, shardIDs := range assignmentChanges {
 				response.Executors = append(response.Executors, &types.ExecutorShardAssignment{
@@ -193,27 +183,6 @@ func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequ
 			}
 		}
 	}
-}
-
-func toWatchNamespaceStateResponse(state *store.NamespaceState) *types.WatchNamespaceStateResponse {
-	response := &types.WatchNamespaceStateResponse{
-		Executors: make([]*types.ExecutorShardAssignment, 0, len(state.ShardAssignments)),
-	}
-
-	for executorID, assignment := range state.ShardAssignments {
-		// Extract shard IDs from the assigned shards map
-		shardIDs := make([]string, 0, len(assignment.AssignedShards))
-		for shardID := range assignment.AssignedShards {
-			shardIDs = append(shardIDs, shardID)
-		}
-
-		response.Executors = append(response.Executors, &types.ExecutorShardAssignment{
-			ExecutorID:     executorID,
-			AssignedShards: WrapShards(shardIDs),
-			Metadata:       state.Executors[executorID].Metadata,
-		})
-	}
-	return response
 }
 
 func WrapShards(shardIDs []string) []*types.Shard {

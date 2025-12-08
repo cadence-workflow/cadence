@@ -743,10 +743,15 @@ func TestShardStatisticsPersistence(t *testing.T) {
 
 	// 2. Pre-create shard statistics as if coming from prior history
 	stats := store.ShardStatistics{SmoothedLoad: 12.5, LastUpdateTime: time.Unix(1234, 0).UTC(), LastMoveTime: time.Unix(5678, 0).UTC()}
-	shardStatsKey := etcdkeys.BuildShardKey(tc.EtcdPrefix, tc.Namespace, shardID, etcdkeys.ShardStatisticsKey)
-	payload, err := json.Marshal(etcdtypes.FromShardStatistics(&stats))
+	// The stats the executor should have after assignment
+	executorStats := map[string]etcdtypes.ShardStatistics{
+		shardID: *etcdtypes.FromShardStatistics(&stats),
+	}
+	payload, err := json.Marshal(executorStats)
 	require.NoError(t, err)
-	_, err = tc.Client.Put(ctx, shardStatsKey, string(payload))
+	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
+	// Write those stats to etcd under the executor (exec-stats) stats key
+	_, err = tc.Client.Put(ctx, statsKey, string(payload))
 	require.NoError(t, err)
 
 	// 3. Assign the shard via AssignShard (should not clobber existing metrics)
@@ -779,38 +784,48 @@ func TestGetShardStatisticsForMissingShard(t *testing.T) {
 	assert.NotContains(t, st.ShardStats, "unknown")
 }
 
-// TestDeleteShardStatsDeletesLargeBatches verifies that shard statistics are correctly deleted in batches.
-func TestDeleteShardStatsDeletesLargeBatches(t *testing.T) {
+// TestDeleteShardStatsDeletesAllStats verifies that shard statistics are correctly deleted.
+func TestDeleteShardStatsDeletesAllStats(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	totalShardStats := deleteShardStatsBatchSize*2 + 7 // two batches + 7 extra (remainder)
+	totalShardStats := 135 // number of stats to add and make stale
 	shardIDs := make([]string, 0, totalShardStats)
+	executorID := "exec-delete-stats"
+
+	// ensure executor exists
+	ctxHeartbeat, cancelHb := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelHb()
+	require.NoError(t, executorStore.RecordHeartbeat(ctxHeartbeat, tc.Namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
 
 	// Create stale stats
+	executorStats := make(map[string]etcdtypes.ShardStatistics)
 	for i := 0; i < totalShardStats; i++ {
 		shardID := "stale-stats-" + strconv.Itoa(i)
 		shardIDs = append(shardIDs, shardID)
 
-		statsKey := etcdkeys.BuildShardKey(tc.EtcdPrefix, tc.Namespace, shardID, etcdkeys.ShardStatisticsKey)
 		stats := store.ShardStatistics{
 			SmoothedLoad:   float64(i),
 			LastUpdateTime: time.Unix(int64(i), 0).UTC(),
 			LastMoveTime:   time.Unix(int64(i), 0).UTC(),
 		}
-		payload, err := json.Marshal(stats)
-		require.NoError(t, err)
-		_, err = tc.Client.Put(ctx, statsKey, string(payload))
-		require.NoError(t, err)
+		executorStats[shardID] = *etcdtypes.FromShardStatistics(&stats)
 	}
+
+	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
+	payload, err := json.Marshal(executorStats)
+	require.NoError(t, err)
+	_, err = tc.Client.Put(ctx, statsKey, string(payload))
+	require.NoError(t, err)
 
 	require.NoError(t, executorStore.DeleteShardStats(ctx, tc.Namespace, shardIDs, store.NopGuard()))
 
 	nsState, err := executorStore.GetState(ctx, tc.Namespace)
 	require.NoError(t, err)
+	// All stats should be deleted
 	assert.Empty(t, nsState.ShardStats)
 }
 
