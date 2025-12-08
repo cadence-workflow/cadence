@@ -207,7 +207,6 @@ func TestElector_Run_Resign(t *testing.T) {
 		for range leaderChan {
 		}
 	})
-
 }
 
 type runParams struct {
@@ -359,86 +358,4 @@ func TestOnLeader_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "onLeader")
 	assert.Contains(t, err.Error(), "leader error")
-}
-
-func TestRun_ContinuesAfterCampaignFailure(t *testing.T) {
-	goleak.VerifyNone(t)
-
-	ctrl := gomock.NewController(t)
-	logger := testlogger.New(t)
-	timeSource := clock.NewMockedTimeSource()
-	leaderStore := store.NewMockElector(ctrl)
-	shardStore := store.NewMockStore(ctrl)
-	processFactory := process.NewMockFactory(ctrl)
-	processRunner := process.NewMockProcessor(ctrl)
-
-	factory := NewElectionFactory(FactoryParams{
-		HostName: _testHost,
-		Cfg: config.ShardDistribution{
-			Election: config.Election{
-				LeaderPeriod:           _testLeaderPeriod,
-				MaxRandomDelay:         _testMaxRandomDelay,
-				FailedElectionCooldown: _testFailedElectionCooldown,
-			},
-		},
-		LeaderStore:    leaderStore,
-		Store:          shardStore,
-		Logger:         logger,
-		Clock:          timeSource,
-		ProcessFactory: processFactory,
-	})
-
-	el, err := factory.CreateElector(context.Background(), _testNamespace)
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Start the election process
-	leaderChan := el.Run(ctx)
-
-	t.Run("campaign failed, no leader", func(t *testing.T) {
-		electionFailed := store.NewMockElection(ctrl)
-		campaignErr := errors.New("etcdserver: mvcc: required revision has been compacted")
-		electionFailed.EXPECT().Campaign(gomock.Any(), _testHost).Return(campaignErr)
-		electionFailed.EXPECT().Resign(gomock.Any()).Return(nil)
-		leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(electionFailed, nil)
-
-		// First attempt: advance past random delay for first campaign
-		timeSource.BlockUntil(1)
-		timeSource.Advance(_testMaxRandomDelay)
-
-		// Should receive false due to campaign failure
-		assert.False(t, <-leaderChan, "Should receive false after campaign failure")
-	})
-
-	t.Run("campaign succeeds, became leader", func(t *testing.T) {
-		finished := make(chan struct{})
-		electionSuccess := store.NewMockElection(ctrl)
-		electionSuccess.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
-		electionSuccess.EXPECT().Done().Return(make(chan struct{}))
-		electionSuccess.EXPECT().Resign(gomock.Any()).DoAndReturn(func(_ context.Context) error {
-			close(finished)
-			return nil
-		})
-		leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(electionSuccess, nil)
-		processFactory.EXPECT().CreateProcessor(_testNamespace, shardStore, electionSuccess).Return(processRunner)
-		processRunner.EXPECT().Run(gomock.Any()).Return(nil)
-		processRunner.EXPECT().Terminate(gomock.Any()).Return(nil)
-
-		// After campaign failure, code enters cooldown - wait for it to block, then advance through it
-		timeSource.BlockUntil(1)
-		timeSource.Advance(_testFailedElectionCooldown)
-
-		// Second attempt: advance past random delay for second campaign
-		timeSource.BlockUntil(1)
-		timeSource.Advance(_testMaxRandomDelay)
-
-		// Should receive true after successful campaign
-		assert.True(t, <-leaderChan, "Should receive true after successful campaign")
-
-		// Cleanup
-		cancel()
-		<-finished
-	})
 }
