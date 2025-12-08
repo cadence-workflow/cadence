@@ -45,8 +45,9 @@ type Factory interface {
 }
 
 const (
-	_defaultPeriod      = time.Second
-	_defaultHearbeatTTL = 10 * time.Second
+	_defaultPeriod       = time.Second
+	_defaultHeartbeatTTL = 10 * time.Second
+	_defaultTimeout      = 1 * time.Second
 )
 
 type processorFactory struct {
@@ -81,7 +82,10 @@ func NewProcessorFactory(
 		cfg.Process.Period = _defaultPeriod
 	}
 	if cfg.Process.HeartbeatTTL == 0 {
-		cfg.Process.HeartbeatTTL = _defaultHearbeatTTL
+		cfg.Process.HeartbeatTTL = _defaultHeartbeatTTL
+	}
+	if cfg.Process.Timeout == 0 {
+		cfg.Process.Timeout = _defaultTimeout
 	}
 
 	return &processorFactory{
@@ -334,6 +338,9 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 	defer func() {
 		metricsLoopScope.RecordHistogramDuration(metrics.ShardDistributorAssignLoopShardRebalanceLatency, p.timeSource.Now().Sub(start))
 	}()
+
+	ctx, cancel := context.WithTimeout(ctx, p.cfg.Timeout)
+	defer cancel()
 
 	return p.rebalanceShardsImpl(ctx, metricsLoopScope)
 }

@@ -658,7 +658,17 @@ type (
 	}
 
 	LeaderProcess struct {
-		Period       time.Duration `yaml:"period"`
+		// Period is the maximum duration between shard rebalance operations
+		// Default: 30 seconds
+		Period time.Duration `yaml:"period"`
+
+		// Timeout is the maximum duration of a single shard rebalance operation
+		// Default: 1 second
+		Timeout time.Duration `yaml:"timeout"`
+
+		// HeartbeatTTL is the duration after which, if no heartbeat is received from an executor,
+		// the executor is considered stale and its shards are eligible for redistribution.
+		// Default: 10 seconds
 		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
 	}
 )
