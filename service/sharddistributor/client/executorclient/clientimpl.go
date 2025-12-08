@@ -123,6 +123,9 @@ func (e *executorImpl[SP]) Start(ctx context.Context) {
 func (e *executorImpl[SP]) Stop() {
 	e.logger.Info("stopping shard distributor executor", tag.ShardNamespace(e.namespace))
 	close(e.stopC)
+	if e.getMigrationMode() != types.MigrationModeONBOARDED {
+		e.stopShardProcessors()
+	}
 	e.processLoopWG.Wait()
 }
 

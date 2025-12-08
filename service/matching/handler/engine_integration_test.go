@@ -862,11 +862,12 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 	// Make the pollers time out relatively quickly if there are no tasks
 	s.matchingEngine.config.LongPollExpirationInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 	s.taskManager.SetRangeID(testParam.TaskListID, initialRangeID)
-	s.matchingEngine.taskListsFactory.Cfg = s.matchingEngine.config
 	s.setupGetDrainStatus()
 
 	var wg sync.WaitGroup
 	wg.Add(2 * workerCount)
+
+	persisted := s.taskManager.GetCreateTaskCount(testParam.TaskListID)
 
 	for p := 0; p < workerCount; p++ {
 		go func() {
@@ -924,11 +925,15 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 	}
 	wg.Wait()
 	totalTasks := int(taskCount) * workerCount
-	persisted := s.taskManager.GetCreateTaskCount(testParam.TaskListID)
+	s.logger.Info("persisted before", tag.Dynamic("number", persisted))
+	persisted = s.taskManager.GetCreateTaskCount(testParam.TaskListID)
+	s.logger.Info("persisted", tag.Dynamic("number", persisted))
 	s.True(persisted < totalTasks)
 	expectedRange := getExpectedRange(initialRangeID, persisted, rangeSize)
 	// Due to conflicts some ids are skipped and more real ranges are used.
 	s.True(expectedRange <= s.taskManager.GetRangeID(testParam.TaskListID))
+	s.logger.Info("expectedRange", tag.Dynamic("number", expectedRange))
+	s.logger.Info("getRange", tag.Dynamic("number", s.taskManager.GetRangeID(testParam.TaskListID)))
 	mgr, err := s.matchingEngine.getTaskListManager(testParam.TaskListID, tlKind)
 	s.NoError(err)
 	// stop the tasklist manager to force the acked tasks to be deleted
