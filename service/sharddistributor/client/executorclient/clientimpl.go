@@ -137,13 +137,10 @@ func (e *executorImpl[SP]) GetShardProcess(ctx context.Context, shardID string) 
 		}
 
 		// Do a heartbeat and check again
-		shardAssignment, err := e.heartbeatAndHandleMigrationMode(ctx)
+		err := e.heartbeatAndUpdateAssignment(ctx)
 		if err != nil {
 			var zero SP
 			return zero, fmt.Errorf("heartbeat and assign shards: %w", err)
-		}
-		if shardAssignment != nil {
-			e.updateShardAssignmentMetered(ctx, shardAssignment)
 		}
 
 		// Check again if the shard process is found
@@ -200,7 +197,7 @@ func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
 			return
 		case <-heartBeatTimer.Chan():
 			heartBeatTimer.Reset(backoff.JitDuration(e.heartBeatInterval, heartbeatJitterCoeff))
-			shardAssignment, err := e.heartbeatAndHandleMigrationMode(ctx)
+			err := e.heartbeatAndUpdateAssignment(ctx)
 			if errors.Is(err, ErrLocalPassthroughMode) {
 				e.logger.Info("local passthrough mode: stopping heartbeat loop")
 				return
@@ -209,11 +206,25 @@ func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
 				e.logger.Error("failed to heartbeat and assign shards", tag.Error(err))
 				continue
 			}
-			if shardAssignment != nil {
-				go e.updateShardAssignmentMetered(ctx, shardAssignment)
-			}
 		}
 	}
+}
+
+func (e *executorImpl[SP]) heartbeatAndUpdateAssignment(ctx context.Context) error {
+	if !e.assignmentMutex.TryLock() {
+		e.logger.Error("still doing assignment, skipping heartbeat")
+		e.metrics.Counter(metricsconstants.ShardDistributorExecutorHeartbeatSkipped).Inc(1)
+		return nil
+	}
+	defer e.assignmentMutex.Unlock()
+	shardAssignment, err := e.heartbeatAndHandleMigrationMode(ctx)
+	if err != nil {
+		return err
+	}
+	if shardAssignment != nil {
+		e.updateShardAssignmentMetered(ctx, shardAssignment)
+	}
+	return nil
 }
 
 func (e *executorImpl[SP]) heartbeatAndHandleMigrationMode(ctx context.Context) (shardAssignment map[string]*types.ShardAssignment, err error) {
@@ -253,13 +264,6 @@ func (e *executorImpl[SP]) heartbeatAndHandleMigrationMode(ctx context.Context) 
 }
 
 func (e *executorImpl[SP]) updateShardAssignmentMetered(ctx context.Context, shardAssignment map[string]*types.ShardAssignment) {
-	if !e.assignmentMutex.TryLock() {
-		e.logger.Warn("already doing shard assignment, will skip this assignment")
-		e.metrics.Counter(metricsconstants.ShardDistributorExecutorAssignmentSkipped).Inc(1)
-		return
-	}
-	defer e.assignmentMutex.Unlock()
-
 	startTime := e.timeSource.Now()
 	defer e.metrics.
 		Histogram(metricsconstants.ShardDistributorExecutorAssignLoopLatency, metricsconstants.ShardDistributorExecutorAssignLoopLatencyBuckets).
