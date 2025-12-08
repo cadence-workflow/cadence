@@ -324,7 +324,12 @@ func (p *namespaceProcessor) identifyStaleShardStats(namespaceState *store.Names
 
 // rebalanceShards is the core logic for distributing shards among active executors.
 func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
-	metricsLoopScope := p.metricsClient.Scope(metrics.ShardDistributorAssignLoopScope)
+	metricsLoopScope := p.metricsClient.Scope(
+		metrics.ShardDistributorAssignLoopScope,
+		metrics.NamespaceTag(p.namespaceCfg.Name),
+		metrics.NamespaceTypeTag(p.namespaceCfg.Type),
+	)
+
 	metricsLoopScope.AddCounter(metrics.ShardDistributorAssignLoopAttempts, 1)
 	defer func() {
 		if err != nil {
@@ -352,7 +357,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	}
 
 	if namespaceState.GlobalRevision <= p.lastAppliedRevision {
-		p.logger.Debug("No changes detected. Skipping rebalance.")
+		p.logger.Info("No changes detected. Skipping rebalance.")
 		return nil
 	}
 	p.lastAppliedRevision = namespaceState.GlobalRevision
@@ -365,7 +370,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 
 	activeExecutors := p.getActiveExecutors(namespaceState, staleExecutors)
 	if len(activeExecutors) == 0 {
-		p.logger.Warn("No active executors found. Cannot assign shards.")
+		p.logger.Info("No active executors found. Cannot assign shards.")
 		return nil
 	}
 	p.logger.Info("Active executors", tag.ShardExecutors(activeExecutors))
@@ -381,7 +386,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 
 	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments
 	if !distributionChanged {
-		p.logger.Debug("No changes to distribution detected. Skipping rebalance.")
+		p.logger.Info("No changes to distribution detected. Skipping rebalance.")
 		return nil
 	}
 
@@ -401,10 +406,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	for _, assignedState := range namespaceState.ShardAssignments {
 		totalActiveShards += len(assignedState.AssignedShards)
 	}
-	metricsLoopScope.Tagged(
-		metrics.NamespaceTag(p.namespaceCfg.Name),
-		metrics.NamespaceTypeTag(p.namespaceCfg.Type),
-	).UpdateGauge(metrics.ShardDistributorActiveShards, float64(totalActiveShards))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorActiveShards, float64(totalActiveShards))
 
 	return nil
 }
