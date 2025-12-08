@@ -659,7 +659,7 @@ type (
 
 	LeaderProcess struct {
 		// Period is the maximum duration between shard rebalance operations
-		// Default: 30 seconds
+		// Default: 1 second
 		Period time.Duration `yaml:"period"`
 
 		// Timeout is the maximum duration of a single shard rebalance operation
