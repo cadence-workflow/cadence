@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -17,39 +20,41 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/executorstore/common"
 )
 
+const (
+	// RetryInterval for watch failures is between 50ms to 150ms
+	namespaceRefreshLoopWatchJitterCoeff   = 0.5
+	namespaceRefreshLoopWatchRetryInterval = 100 * time.Millisecond
+)
+
 type namespaceShardToExecutor struct {
 	sync.RWMutex
 
-	shardToExecutor     map[string]*store.ShardOwner   // shardID -> shardOwner
-	shardOwners         map[string]*store.ShardOwner   // executorID -> shardOwner
-	executorState       map[*store.ShardOwner][]string // executor -> shardIDs
-	executorRevision    map[string]int64
-	namespace           string
-	etcdPrefix          string
-	changeUpdateChannel clientv3.WatchChan
-	stopCh              chan struct{}
-	logger              log.Logger
-	client              etcdclient.Client
-	pubSub              *executorStatePubSub
+	shardToExecutor  map[string]*store.ShardOwner   // shardID -> shardOwner
+	shardOwners      map[string]*store.ShardOwner   // executorID -> shardOwner
+	executorState    map[*store.ShardOwner][]string // executor -> shardIDs
+	executorRevision map[string]int64
+	namespace        string
+	etcdPrefix       string
+	stopCh           chan struct{}
+	logger           log.Logger
+	client           etcdclient.Client
+	timeSource       clock.TimeSource
+	pubSub           *executorStatePubSub
 }
 
-func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient.Client, stopCh chan struct{}, logger log.Logger) (*namespaceShardToExecutor, error) {
-	// Start listening
-	watchPrefix := etcdkeys.BuildExecutorsPrefix(etcdPrefix, namespace)
-	watchChan := client.Watch(context.Background(), watchPrefix, clientv3.WithPrefix(), clientv3.WithPrevKV())
-
+func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient.Client, stopCh chan struct{}, logger log.Logger, timeSource clock.TimeSource) (*namespaceShardToExecutor, error) {
 	return &namespaceShardToExecutor{
-		shardToExecutor:     make(map[string]*store.ShardOwner),
-		executorState:       make(map[*store.ShardOwner][]string),
-		executorRevision:    make(map[string]int64),
-		shardOwners:         make(map[string]*store.ShardOwner),
-		namespace:           namespace,
-		etcdPrefix:          etcdPrefix,
-		changeUpdateChannel: watchChan,
-		stopCh:              stopCh,
-		logger:              logger,
-		client:              client,
-		pubSub:              newExecutorStatePubSub(logger, namespace),
+		shardToExecutor:  make(map[string]*store.ShardOwner),
+		executorState:    make(map[*store.ShardOwner][]string),
+		executorRevision: make(map[string]int64),
+		shardOwners:      make(map[string]*store.ShardOwner),
+		namespace:        namespace,
+		etcdPrefix:       etcdPrefix,
+		stopCh:           stopCh,
+		logger:           logger.WithTags(tag.ShardNamespace(namespace)),
+		client:           client,
+		timeSource:       timeSource,
+		pubSub:           newExecutorStatePubSub(logger, namespace),
 	}, nil
 }
 
@@ -57,7 +62,7 @@ func (n *namespaceShardToExecutor) Start(wg *sync.WaitGroup) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		n.nameSpaceRefreashLoop()
+		n.namespaceRefreshLoop()
 	}()
 }
 
@@ -106,9 +111,9 @@ func (n *namespaceShardToExecutor) Subscribe(ctx context.Context) (<-chan map[*s
 
 		select {
 		case <-ctx.Done():
-			n.logger.Warn("context finnished before initial state was sent", tag.ShardNamespace(n.namespace))
+			n.logger.Warn("context finished before initial state was sent")
 		case subCh <- initialState:
-			n.logger.Info("initial state sent to subscriber", tag.ShardNamespace(n.namespace), tag.Value(initialState))
+			n.logger.Info("initial state sent to subscriber", tag.Value(initialState))
 		}
 
 	}()
@@ -116,12 +121,46 @@ func (n *namespaceShardToExecutor) Subscribe(ctx context.Context) (<-chan map[*s
 	return subCh, unSub
 }
 
-func (n *namespaceShardToExecutor) nameSpaceRefreashLoop() {
+func (n *namespaceShardToExecutor) namespaceRefreshLoop() {
+	for {
+		if err := n.watch(); err != nil {
+			n.logger.Error("error watching in namespaceRefreshLoop, retrying...", tag.Error(err))
+			n.timeSource.Sleep(backoff.JitDuration(
+				namespaceRefreshLoopWatchRetryInterval,
+				namespaceRefreshLoopWatchJitterCoeff,
+			))
+			continue
+		}
+
+		n.logger.Info("namespaceRefreshLoop is exiting")
+		return
+	}
+}
+
+func (n *namespaceShardToExecutor) watch() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	watchChan := n.client.Watch(
+		// WithRequireLeader ensures that the etcd cluster has a leader
+		clientv3.WithRequireLeader(ctx),
+		etcdkeys.BuildExecutorsPrefix(n.etcdPrefix, n.namespace),
+		clientv3.WithPrefix(), clientv3.WithPrevKV(),
+	)
+
 	for {
 		select {
 		case <-n.stopCh:
-			return
-		case watchResp := <-n.changeUpdateChannel:
+			return nil
+
+		case watchResp, ok := <-watchChan:
+			if err := watchResp.Err(); err != nil {
+				return fmt.Errorf("watch response: %w", err)
+			}
+			if !ok {
+				return fmt.Errorf("watch channel closed")
+			}
+
 			shouldRefresh := false
 			for _, event := range watchResp.Events {
 				_, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(event.Kv.Key))
@@ -134,13 +173,13 @@ func (n *namespaceShardToExecutor) nameSpaceRefreashLoop() {
 					break
 				}
 			}
+
 			if shouldRefresh {
 				err := n.refresh(context.Background())
 				if err != nil {
-					n.logger.Error("failed to refresh namespace shard to executor", tag.ShardNamespace(n.namespace), tag.Error(err))
+					n.logger.Error("failed to refresh namespace shard to executor", tag.Error(err))
 				}
 			}
-
 		}
 	}
 }
