@@ -130,7 +130,9 @@ func TestRecordHeartbeat_NoCompression(t *testing.T) {
 	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, req))
 
 	stateKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorStatusKey)
+	require.NoError(t, err)
 	reportedShardsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorReportedShardsKey)
+	require.NoError(t, err)
 
 	stateResp, err := tc.Client.Get(ctx, stateKey)
 	require.NoError(t, err)
@@ -164,10 +166,17 @@ func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {
 		LastMoveTime:   baseTime.Add(-30 * time.Second),
 	}
 
-	shardStatsKey := etcdkeys.BuildShardKey(tc.EtcdPrefix, tc.Namespace, shardID, etcdkeys.ShardStatisticsKey)
-	payload, err := json.Marshal(etcdtypes.FromShardStatistics(&initialStats))
+	executorStats := map[string]etcdtypes.ShardStatistics{
+		shardID: *etcdtypes.FromShardStatistics(&initialStats),
+	}
+	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
+	payload, err := json.Marshal(executorStats)
 	require.NoError(t, err)
-	_, err = tc.Client.Put(ctx, shardStatsKey, string(payload))
+	writer, err := common.NewRecordWriter(tc.Compression)
+	require.NoError(t, err)
+	compressedPayload, err := writer.Write(payload)
+	require.NoError(t, err)
+	_, err = tc.Client.Put(ctx, statsKey, string(compressedPayload))
 	require.NoError(t, err)
 
 	req := store.HeartbeatState{
@@ -228,65 +237,6 @@ func TestRecordHeartbeatSkipsShardStatisticsWithNilReport(t *testing.T) {
 	assert.False(t, validStats.LastUpdateTime.IsZero())
 
 	assert.NotContains(t, nsState.ShardStats, skippedShardID)
-}
-
-func TestRecordHeartbeatShardStatisticsThrottlesWrites(t *testing.T) {
-	tc := testhelper.SetupStoreTestCluster(t)
-	tc.LeaderCfg.Process.HeartbeatTTL = 10 * time.Second
-	tc.LeaderCfg.Process.ShardStatsTTL = 10 * time.Second
-	mockTS := clock.NewMockedTimeSourceAt(time.Unix(1000, 0).UTC())
-	executorStore := createStoreWithTimeSource(t, tc, mockTS)
-	esImpl, ok := executorStore.(*executorStoreImpl)
-	require.True(t, ok, "unexpected store implementation")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	executorID := "executor-shard-stats-throttle"
-	shardID := "shard-stats-throttle"
-
-	baseLoad := 0.40
-	smallDelta := shardStatsEpsilon / 2
-	interval := esImpl.maxStatsPersistInterval
-	halfInterval := interval / 2
-	if halfInterval <= 0 {
-		halfInterval = time.Second
-	}
-
-	initialHeartbeat := mockTS.Now().UTC()
-	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, store.HeartbeatState{
-		LastHeartbeat: initialHeartbeat,
-		Status:        types.ExecutorStatusACTIVE,
-		ReportedShards: map[string]*types.ShardStatusReport{
-			shardID: {Status: types.ShardStatusREADY, ShardLoad: baseLoad},
-		},
-	}))
-	statsAfterFirst := getShardStats(ctx, t, executorStore, tc.Namespace, shardID)
-	require.NotNil(t, statsAfterFirst)
-
-	mockTS.Advance(halfInterval)
-	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, store.HeartbeatState{
-		LastHeartbeat: mockTS.Now().UTC(),
-		Status:        types.ExecutorStatusACTIVE,
-		ReportedShards: map[string]*types.ShardStatusReport{
-			shardID: {Status: types.ShardStatusREADY, ShardLoad: baseLoad + smallDelta},
-		},
-	}))
-	statsAfterSkip := getShardStats(ctx, t, executorStore, tc.Namespace, shardID)
-	require.NotNil(t, statsAfterSkip)
-	assert.True(t, statsAfterFirst.LastUpdateTime.Equal(statsAfterSkip.LastUpdateTime), "small recent deltas should not trigger a persist")
-
-	mockTS.Advance(interval)
-	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, store.HeartbeatState{
-		LastHeartbeat: mockTS.Now().UTC(),
-		Status:        types.ExecutorStatusACTIVE,
-		ReportedShards: map[string]*types.ShardStatusReport{
-			shardID: {Status: types.ShardStatusREADY, ShardLoad: baseLoad + smallDelta/2},
-		},
-	}))
-	statsAfterForce := getShardStats(ctx, t, executorStore, tc.Namespace, shardID)
-	require.NotNil(t, statsAfterForce)
-	assert.True(t, statsAfterForce.LastUpdateTime.After(statsAfterSkip.LastUpdateTime), "stale stats must be refreshed even if delta is small")
 }
 
 func TestGetHeartbeat(t *testing.T) {
@@ -750,8 +700,12 @@ func TestShardStatisticsPersistence(t *testing.T) {
 	payload, err := json.Marshal(executorStats)
 	require.NoError(t, err)
 	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
+	writer, err := common.NewRecordWriter(tc.Compression)
+	require.NoError(t, err)
+	compressedPayload, err := writer.Write(payload)
+	require.NoError(t, err)
 	// Write those stats to etcd under the executor (exec-stats) stats key
-	_, err = tc.Client.Put(ctx, statsKey, string(payload))
+	_, err = tc.Client.Put(ctx, statsKey, string(compressedPayload))
 	require.NoError(t, err)
 
 	// 3. Assign the shard via AssignShard (should not clobber existing metrics)
@@ -818,7 +772,11 @@ func TestDeleteShardStatsDeletesAllStats(t *testing.T) {
 	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
 	payload, err := json.Marshal(executorStats)
 	require.NoError(t, err)
-	_, err = tc.Client.Put(ctx, statsKey, string(payload))
+	writer, err := common.NewRecordWriter(tc.Compression)
+	require.NoError(t, err)
+	compressedPayload, err := writer.Write(payload)
+	require.NoError(t, err)
+	_, err = tc.Client.Put(ctx, statsKey, string(compressedPayload))
 	require.NoError(t, err)
 
 	require.NoError(t, executorStore.DeleteShardStats(ctx, tc.Namespace, shardIDs, store.NopGuard()))

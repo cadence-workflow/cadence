@@ -107,10 +107,6 @@ const (
 	MigrationModeONBOARDED              = "onboarded"
 )
 
-const (
-	DefaultShardStatsTTL = time.Minute
-)
-
 // ConfigMode maps string migration mode values to types.MigrationMode
 var ConfigMode = map[string]types.MigrationMode{
 	MigrationModeINVALID:                types.MigrationModeINVALID,

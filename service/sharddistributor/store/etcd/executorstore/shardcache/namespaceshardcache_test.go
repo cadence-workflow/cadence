@@ -138,7 +138,6 @@ func setupExecutorWithShards(t *testing.T, testCluster *testhelper.StoreTestClus
 	// Create assigned state
 	assignedState := &etcdtypes.AssignedState{
 		AssignedShards: make(map[string]*types.ShardAssignment),
-		LastUpdated:    etcdtypes.Time(time.Now().UTC()),
 	}
 	for _, shardID := range shards {
 		assignedState.AssignedShards[shardID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
