@@ -665,6 +665,12 @@ $Q FAIL=""; for dir in $1; do \
 done; test -z "$$FAIL" || (echo "Failed packages; $$FAIL"; exit 1)
 endef
 
+define individual_looptest
+$Q FAIL=""; for dir in $1; do \
+	./scripts/run_tests_separately.sh "$$dir" $(TEST_ARG) -coverprofile=$@ $(TEST_TAG) -exec /usr/bin/true | tee -a test.log || FAIL="$$FAIL $$dir"; \
+done; test -z "$$FAIL" || (echo "Failed packages; $$FAIL"; exit 1)
+endef
+
 test: ## Build and run all tests locally
 	$Q rm -f test
 	$Q rm -f test.log
@@ -678,13 +684,13 @@ test_dirs:
 test_e2e:
 	$Q rm -f test
 	$Q rm -f test.log
-	$Q $(call looptest,$(INTEG_TEST_ROOT))
+	$Q $(call individual_looptest,$(INTEG_TEST_ROOT))
 
 # need to run end-to-end xdc tests with race detector off because of ringpop bug causing data race issue
 test_e2e_xdc:
 	$Q rm -f test
 	$Q rm -f test.log
-	$Q $(call looptest,$(INTEG_TEST_XDC_ROOT))
+	$Q $(call individual_looptest,$(INTEG_TEST_XDC_ROOT))
 
 cover_profile:
 	$Q mkdir -p $(BUILD)
