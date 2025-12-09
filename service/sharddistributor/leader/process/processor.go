@@ -45,8 +45,9 @@ type Factory interface {
 }
 
 const (
-	_defaultPeriod      = time.Second
-	_defaultHearbeatTTL = 10 * time.Second
+	_defaultPeriod       = time.Second
+	_defaultHeartbeatTTL = 10 * time.Second
+	_defaultTimeout      = 1 * time.Second
 )
 
 type processorFactory struct {
@@ -82,6 +83,9 @@ func NewProcessorFactory(
 	}
 	if cfg.Process.HeartbeatTTL <= 0 {
 		cfg.Process.HeartbeatTTL = _defaultHearbeatTTL
+	}
+	if cfg.Process.Timeout <= 0 {
+		cfg.Process.Timeout = _defaultTimeout
 	}
 	if cfg.Process.ShardStatsTTL <= 0 {
 		cfg.Process.ShardStatsTTL = config.DefaultShardStatsTTL
@@ -259,6 +263,7 @@ func (p *namespaceProcessor) identifyStaleExecutors(namespaceState *store.Namesp
 
 	for executorID, state := range namespaceState.Executors {
 		if now.Sub(state.LastHeartbeat) > p.cfg.HeartbeatTTL {
+			p.logger.Info("Executor has not reported a heartbeat recently", tag.ShardExecutor(executorID), tag.ShardNamespace(p.namespaceCfg.Name), tag.Value(state.LastHeartbeat))
 			expiredExecutors[executorID] = namespaceState.ShardAssignments[executorID].ModRevision
 		}
 	}
@@ -324,7 +329,12 @@ func (p *namespaceProcessor) identifyStaleShardStats(namespaceState *store.Names
 
 // rebalanceShards is the core logic for distributing shards among active executors.
 func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
-	metricsLoopScope := p.metricsClient.Scope(metrics.ShardDistributorAssignLoopScope)
+	metricsLoopScope := p.metricsClient.Scope(
+		metrics.ShardDistributorAssignLoopScope,
+		metrics.NamespaceTag(p.namespaceCfg.Name),
+		metrics.NamespaceTypeTag(p.namespaceCfg.Type),
+	)
+
 	metricsLoopScope.AddCounter(metrics.ShardDistributorAssignLoopAttempts, 1)
 	defer func() {
 		if err != nil {
@@ -339,6 +349,9 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 		metricsLoopScope.RecordHistogramDuration(metrics.ShardDistributorAssignLoopShardRebalanceLatency, p.timeSource.Now().Sub(start))
 	}()
 
+	ctx, cancel := context.WithTimeout(ctx, p.cfg.Timeout)
+	defer cancel()
+
 	return p.rebalanceShardsImpl(ctx, metricsLoopScope)
 }
 
@@ -349,7 +362,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	}
 
 	if namespaceState.GlobalRevision <= p.lastAppliedRevision {
-		p.logger.Debug("No changes detected. Skipping rebalance.")
+		p.logger.Info("No changes detected. Skipping rebalance.")
 		return nil
 	}
 	p.lastAppliedRevision = namespaceState.GlobalRevision
@@ -362,7 +375,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 
 	activeExecutors := p.getActiveExecutors(namespaceState, staleExecutors)
 	if len(activeExecutors) == 0 {
-		p.logger.Warn("No active executors found. Cannot assign shards.")
+		p.logger.Info("No active executors found. Cannot assign shards.")
 		return nil
 	}
 	p.logger.Info("Active executors", tag.ShardExecutors(activeExecutors))
@@ -378,7 +391,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 
 	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments
 	if !distributionChanged {
-		p.logger.Debug("No changes to distribution detected. Skipping rebalance.")
+		p.logger.Info("No changes to distribution detected. Skipping rebalance.")
 		return nil
 	}
 
@@ -398,10 +411,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	for _, assignedState := range namespaceState.ShardAssignments {
 		totalActiveShards += len(assignedState.AssignedShards)
 	}
-	metricsLoopScope.Tagged(
-		metrics.NamespaceTag(p.namespaceCfg.Name),
-		metrics.NamespaceTypeTag(p.namespaceCfg.Type),
-	).UpdateGauge(metrics.ShardDistributorActiveShards, float64(totalActiveShards))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorActiveShards, float64(totalActiveShards))
 
 	return nil
 }

@@ -8,13 +8,11 @@ import (
 	"time"
 
 	"go.uber.org/fx"
-	"go.uber.org/yarpc"
 	"go.uber.org/zap"
 
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 )
 
 //go:generate mockgen -package $GOPACKAGE -destination canary_client_mock.go github.com/uber/cadence/.gen/proto/sharddistributor/v1 ShardDistributorExecutorCanaryAPIYARPCClient
@@ -22,7 +20,6 @@ import (
 const (
 	pingInterval    = 1 * time.Second
 	pingJitterCoeff = 0.1 // 10% jitter
-	pingTimeout     = 5 * time.Second
 )
 
 // Pinger periodically pings shard owners in the fixed namespace
@@ -96,23 +93,5 @@ func (p *Pinger) pingRandomShard() {
 	shardNum := rand.Intn(p.numShards)
 	shardKey := fmt.Sprintf("%d", shardNum)
 
-	request := &sharddistributorv1.PingRequest{
-		ShardKey:  shardKey,
-		Namespace: p.namespace,
-	}
-
-	ctx, cancel := context.WithTimeout(p.ctx, pingTimeout)
-	defer cancel()
-
-	response, err := p.canaryClient.Ping(ctx, request, yarpc.WithShardKey(shardKey), yarpc.WithHeader(spectatorclient.NamespaceHeader, p.namespace))
-	if err != nil {
-		p.logger.Error("Failed to ping shard", zap.String("namespace", p.namespace), zap.String("shard_key", shardKey), zap.Error(err))
-	}
-
-	// Verify response
-	if !response.GetOwnsShard() {
-		p.logger.Warn("Executor does not own shard", zap.String("namespace", p.namespace), zap.String("shard_key", shardKey), zap.String("executor_id", response.GetExecutorId()))
-	}
-
-	p.logger.Info("Successfully pinged shard owner", zap.String("namespace", p.namespace), zap.String("shard_key", shardKey), zap.String("executor_id", response.GetExecutorId()))
+	PingShard(p.ctx, p.canaryClient, p.logger, p.namespace, shardKey)
 }

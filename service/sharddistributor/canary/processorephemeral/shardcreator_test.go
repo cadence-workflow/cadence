@@ -9,52 +9,45 @@ import (
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/uber/cadence/client/sharddistributor"
+	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/types"
 )
 
-func TestShardCreator_Lifecycle(t *testing.T) {
+func TestShardCreator_PingsShards(t *testing.T) {
 	goleak.VerifyNone(t)
 
 	logger := zaptest.NewLogger(t)
 	timeSource := clock.NewMockedTimeSource()
 	ctrl := gomock.NewController(t)
 
-	mockShardDistributor := sharddistributor.NewMockClient(ctrl)
 	namespace := "test-namespace"
+	mockCanaryClient := NewMockShardDistributorExecutorCanaryAPIYARPCClient(ctrl)
 
-	// Set up expectation for GetShardOwner calls that return errors
-	mockShardDistributor.EXPECT().
-		GetShardOwner(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx interface{}, req *types.GetShardOwnerRequest, opts ...interface{}) (*types.GetShardOwnerResponse, error) {
-			// Verify the request contains the correct namespace even on error
-			assert.Equal(t, namespace, req.Namespace)
+	// Ping happens after successful GetShardOwner
+	mockCanaryClient.EXPECT().
+		Ping(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx interface{}, req *sharddistributorv1.PingRequest, opts ...interface{}) (*sharddistributorv1.PingResponse, error) {
 			assert.NotEmpty(t, req.ShardKey)
-
-			return nil, assert.AnError // Using testify's AnError for consistency
-		}).
-		Times(2)
+			assert.Equal(t, namespace, req.Namespace)
+			return &sharddistributorv1.PingResponse{
+				OwnsShard:  true,
+				ExecutorId: "executor-1",
+			}, nil
+		})
 
 	params := ShardCreatorParams{
-		Logger:           logger,
-		TimeSource:       timeSource,
-		ShardDistributor: mockShardDistributor,
+		Logger:       logger,
+		TimeSource:   timeSource,
+		CanaryClient: mockCanaryClient,
 	}
 
 	creator := NewShardCreator(params, []string{namespace})
 	creator.Start()
 
-	// Wait for the goroutine to start
+	// Wait for the goroutine to start and do it's ping
 	timeSource.BlockUntil(1)
-
-	// Trigger shard creation that will fail
 	timeSource.Advance(shardCreationInterval + 100*time.Millisecond)
-	time.Sleep(10 * time.Millisecond) // Allow processing
-
-	// Trigger another shard creation to ensure processing continues after error
-	timeSource.Advance(shardCreationInterval + 100*time.Millisecond)
-	time.Sleep(10 * time.Millisecond) // Allow processing
+	time.Sleep(10 * time.Millisecond)
 
 	creator.Stop()
 }

@@ -8,5 +8,5 @@ import (
 )
 
 func TestDependenciesAreSatisfied(t *testing.T) {
-	assert.NoError(t, fx.ValidateApp(opts(defaultFixedNamespace, defaultEphemeralNamespace, defaultShardDistributorEndpoint)))
+	assert.NoError(t, fx.ValidateApp(opts(defaultFixedNamespace, defaultEphemeralNamespace, defaultShardDistributorEndpoint, defaultCanaryGRPCPort)))
 }

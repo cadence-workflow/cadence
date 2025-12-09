@@ -12,6 +12,7 @@ import (
 	"go.uber.org/yarpc/transport/grpc"
 
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 )
 
 func TestSpectatorPeerChooser_Choose_MissingShardKey(t *testing.T) {
@@ -128,7 +129,7 @@ func TestSpectatorPeerChooser_Choose_Success(t *testing.T) {
 		Return(&ShardOwner{
 			ExecutorID: "executor-1",
 			Metadata: map[string]string{
-				grpcAddressMetadataKey: "127.0.0.1:7953",
+				clientcommon.GrpcAddressMetadataKey: "127.0.0.1:7953",
 			},
 		}, nil)
 
@@ -172,7 +173,7 @@ func TestSpectatorPeerChooser_Choose_ReusesPeer(t *testing.T) {
 		Return(&ShardOwner{
 			ExecutorID: "executor-1",
 			Metadata: map[string]string{
-				grpcAddressMetadataKey: "127.0.0.1:7953",
+				clientcommon.GrpcAddressMetadataKey: "127.0.0.1:7953",
 			},
 		}, nil).Times(2)
 
