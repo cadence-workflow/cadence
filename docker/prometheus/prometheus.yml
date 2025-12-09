@@ -11,4 +11,5 @@ scrape_configs:
           - 'cadence:8001'
           - 'cadence:8002'
           - 'cadence:8003'
-          - 'host.docker.internal:8004' # Endpoint for Cadence samples running on localhost 
+          - 'host.docker.internal:8004' # Cadence shard distributor metrics exposed on host
+          - 'host.docker.internal:9098' # Shard distributor canary metrics exposed on host
