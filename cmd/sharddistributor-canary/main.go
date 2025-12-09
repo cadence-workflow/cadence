@@ -91,6 +91,7 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort in
 			configuration,
 			transport,
 			executorMetadata,
+			logger,
 		),
 
 		fx.Provide(func(peerChooser spectatorclient.SpectatorPeerChooserInterface) yarpc.Config {
