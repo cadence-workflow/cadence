@@ -2966,6 +2966,8 @@ const (
 	ShardDistributorAssignLoopFail
 
 	ShardDistributorActiveShards
+	// ShardDistributorAssignmentLoadCV measures coefficient of variation across executor loads
+	ShardDistributorAssignmentLoadCV
 
 	ShardDistributorStoreExecutorNotFound
 	ShardDistributorStoreFailuresPerNamespace
@@ -3763,7 +3765,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ShardDistributorAssignLoopSuccess:               {metricName: "shard_distrubutor_shard_assign_success", metricType: Counter},
 		ShardDistributorAssignLoopFail:                  {metricName: "shard_distrubutor_shard_assign_fail", metricType: Counter},
 
-		ShardDistributorActiveShards: {metricName: "shard_distributor_active_shards", metricType: Gauge},
+		ShardDistributorActiveShards:     {metricName: "shard_distributor_active_shards", metricType: Gauge},
+		ShardDistributorAssignmentLoadCV: {metricName: "shard_distributor_assignment_load_cv", metricType: Gauge},
 
 		ShardDistributorStoreExecutorNotFound:             {metricName: "shard_distributor_store_executor_not_found", metricType: Counter},
 		ShardDistributorStoreFailuresPerNamespace:         {metricName: "shard_distributor_store_failures_per_namespace", metricType: Counter},

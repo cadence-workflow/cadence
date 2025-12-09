@@ -813,3 +813,71 @@ func TestAddHandoverStatsToExecutorAssignedState(t *testing.T) {
 		})
 	}
 }
+
+func TestComputeExecutorLoadCV(t *testing.T) {
+	t.Parallel()
+
+	namespaceState := &store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			"exec-1": {
+				ReportedShards: map[string]*types.ShardStatusReport{
+					"shard-1": {ShardLoad: 1},
+					"shard-2": {ShardLoad: 2},
+				},
+			},
+			"exec-2": {
+				ReportedShards: map[string]*types.ShardStatusReport{
+					"shard-3": {ShardLoad: 3},
+					"shard-4": {ShardLoad: 1},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		assignments map[string][]string
+		expectedCV  float64
+	}{
+		{
+			name: "balanced loads",
+			assignments: map[string][]string{
+				"exec-1": {"shard-1", "shard-2"},
+				"exec-2": {"shard-3"},
+			},
+			expectedCV: 0,
+		},
+		{
+			name: "unbalanced loads",
+			assignments: map[string][]string{
+				"exec-1": {"shard-1"},
+				"exec-2": {"shard-3"},
+			},
+			// exec-1 load=1, exec-2 load=3 -> mean=2, stddev=1 -> cv=0.5
+			expectedCV: 0.5,
+		},
+		{
+			name: "executor missing heartbeat treated as zero load",
+			assignments: map[string][]string{
+				"exec-3": {"shard-unknown"},
+				"exec-1": {"shard-2"},
+			},
+			// loads: exec-3=0, exec-1=2 -> mean=1, stddev=1 -> cv=1
+			expectedCV: 1,
+		},
+		{
+			name: "single executor",
+			assignments: map[string][]string{
+				"exec-1": {"shard-1"},
+			},
+			expectedCV: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := computeExecutorLoadCV(tt.assignments, namespaceState)
+			assert.InDelta(t, tt.expectedCV, actual, 1e-9)
+		})
+	}
+}
