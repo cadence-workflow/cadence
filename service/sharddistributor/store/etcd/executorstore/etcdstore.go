@@ -205,6 +205,7 @@ func (s *executorStoreImpl) GetHeartbeat(ctx context.Context, namespace string, 
 				return nil, nil, fmt.Errorf("parse reported shards: %w", err)
 			}
 		case etcdkeys.ExecutorAssignedStateKey:
+			assignedState.ModRevision = kv.ModRevision
 			if err := common.DecompressAndUnmarshal(kv.Value, &assignedState); err != nil {
 				return nil, nil, fmt.Errorf("parse assigned shards: %w", err)
 			}
@@ -261,8 +262,8 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 			if err := common.DecompressAndUnmarshal(kv.Value, &assignedRaw); err != nil {
 				return nil, fmt.Errorf("parse assigned shards: %w, %s", err, value)
 			}
+			assignedRaw.ModRevision = kv.ModRevision
 			assigned = *assignedRaw.ToAssignedState()
-			assigned.ModRevision = kv.ModRevision
 		case etcdkeys.ExecutorShardStatisticsKey:
 			executorShardStats := make(map[string]etcdtypes.ShardStatistics)
 			if err := common.DecompressAndUnmarshal(kv.Value, &executorShardStats); err != nil {

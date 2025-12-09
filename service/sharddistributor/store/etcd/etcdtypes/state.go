@@ -9,7 +9,8 @@ type AssignedState struct {
 	AssignedShards     map[string]*types.ShardAssignment `json:"assigned_shards"`
 	ShardHandoverStats map[string]ShardHandoverStats     `json:"shard_handover_stats,omitempty"`
 	LastUpdated        Time                              `json:"last_updated"`
-	ModRevision        int64                             `json:"mod_revision"`
+	// ModRevision is the etcd mod revision for this record. It is not serialized.
+	ModRevision int64 `json:"-"`
 }
 
 // ToAssignedState converts the current AssignedState to store.AssignedState.
