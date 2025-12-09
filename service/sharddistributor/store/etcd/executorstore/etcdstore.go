@@ -812,8 +812,8 @@ func (s *executorStoreImpl) GetExecutor(ctx context.Context, namespace string, e
 }
 
 func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, namespace string, newAssignments map[string]store.AssignedState) ([]shardStatisticsUpdate, error) {
-	executorStatsCache := make(map[string]map[string]etcdtypes.ShardStatistics)
-	changedExecutors := make(map[string]struct{})
+	// This map will store the *new, final* state of statistics for any executor whose stats have changed.
+	pendingStatChanges := make(map[string]map[string]etcdtypes.ShardStatistics)
 
 	for executorID, state := range newAssignments {
 		for shardID := range state.AssignedShards {
@@ -824,44 +824,60 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 				return nil, fmt.Errorf("lookup cached shard owner: %w", err)
 			}
 
-			if err == nil && oldOwner.ExecutorID == executorID {
-				continue
-			}
-
-			var stats etcdtypes.ShardStatistics
+			var shardStatToMove etcdtypes.ShardStatistics
 
 			if err == nil {
-				oldStats, err := s.getOrLoadExecutorShardStatistics(ctx, namespace, oldOwner.ExecutorID, executorStatsCache)
+				if oldOwner.ExecutorID == executorID {
+					continue
+				}
+
+				oldOwnerStats, ok := pendingStatChanges[oldOwner.ExecutorID]
+				if !ok { // Not yet touched in this loop, get from main cache.
+					oldOwnerStats, err = s.getExecutorShardStatistics(ctx, namespace, oldOwner.ExecutorID)
+					if err != nil {
+						return nil, err
+					}
+				}
+
+				mutableOldOwnerStats := make(map[string]etcdtypes.ShardStatistics, len(oldOwnerStats))
+				for k, v := range oldOwnerStats {
+					mutableOldOwnerStats[k] = v
+				}
+
+				if existing, ok := mutableOldOwnerStats[shardID]; ok {
+					shardStatToMove = existing
+					delete(mutableOldOwnerStats, shardID)
+				}
+				pendingStatChanges[oldOwner.ExecutorID] = mutableOldOwnerStats
+			}
+
+			// If the shard is new or had no previous stats, initialize them.
+			if shardStatToMove.LastUpdateTime == etcdtypes.Time(time.Time{}) { ///  ------ Unsure if this is the correct way of performing this check
+				shardStatToMove.SmoothedLoad = 0
+				shardStatToMove.LastUpdateTime = etcdtypes.Time(now)
+			}
+			shardStatToMove.LastMoveTime = etcdtypes.Time(now)
+
+			newOwnerStats, ok := pendingStatChanges[executorID]
+			if !ok {
+				newOwnerStats, err = s.getExecutorShardStatistics(ctx, namespace, executorID)
 				if err != nil {
 					return nil, err
 				}
-
-				if existing, ok := oldStats[shardID]; ok {
-					stats = existing
-				}
-
-				delete(oldStats, shardID)
-				changedExecutors[oldOwner.ExecutorID] = struct{}{}
-			} else {
-				stats.SmoothedLoad = 0
-				stats.LastUpdateTime = etcdtypes.Time(now)
 			}
 
-			stats.LastMoveTime = etcdtypes.Time(now)
-
-			newStats, err := s.getOrLoadExecutorShardStatistics(ctx, namespace, executorID, executorStatsCache)
-			if err != nil {
-				return nil, err
+			mutableNewOwnerStats := make(map[string]etcdtypes.ShardStatistics, len(newOwnerStats))
+			for k, v := range newOwnerStats {
+				mutableNewOwnerStats[k] = v
 			}
 
-			newStats[shardID] = stats
-			changedExecutors[executorID] = struct{}{}
+			mutableNewOwnerStats[shardID] = shardStatToMove
+			pendingStatChanges[executorID] = mutableNewOwnerStats
 		}
 	}
 
-	updates := make([]shardStatisticsUpdate, 0, len(changedExecutors))
-	for executorID := range changedExecutors {
-		stats := executorStatsCache[executorID]
+	updates := make([]shardStatisticsUpdate, 0, len(pendingStatChanges))
+	for executorID, stats := range pendingStatChanges {
 		updates = append(updates, shardStatisticsUpdate{
 			executorID: executorID,
 			stats:      stats,
@@ -937,42 +953,5 @@ func ewmaSmoothedLoad(prev, current float64, lastUpdate, now time.Time) float64 
 
 // getExecutorShardStatistics returns the shard statistics for the given executor from etcd.
 func (s *executorStoreImpl) getExecutorShardStatistics(ctx context.Context, namespace, executorID string) (map[string]etcdtypes.ShardStatistics, error) {
-	statsKey := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
-	resp, err := s.client.Get(ctx, statsKey)
-	if err != nil {
-		return nil, fmt.Errorf("get executor shard statistics: %w", err)
-	}
-
-	stats := make(map[string]etcdtypes.ShardStatistics)
-	if len(resp.Kvs) == 0 {
-		return stats, nil
-	}
-
-	if err := common.DecompressAndUnmarshal(resp.Kvs[0].Value, &stats); err != nil {
-		return nil, fmt.Errorf("parse executor shard statistics: %w", err)
-	}
-
-	return stats, nil
-}
-
-// getOrLoadExecutorShardStatistics returns the shard statistics for the given executor.
-// If the statistics are not cached, it will fetch them from etcd.
-func (s *executorStoreImpl) getOrLoadExecutorShardStatistics(
-	ctx context.Context,
-	namespace, executorID string,
-	cache map[string]map[string]etcdtypes.ShardStatistics,
-) (map[string]etcdtypes.ShardStatistics, error) {
-	// Load from cache if available.
-	if stats, ok := cache[executorID]; ok {
-		return stats, nil
-	}
-
-	// Otherwise, load from etcd.
-	stats, err := s.getExecutorShardStatistics(ctx, namespace, executorID)
-	if err != nil {
-		return nil, err
-	}
-
-	cache[executorID] = stats
-	return stats, nil
+	return s.shardCache.GetExecutorStatistics(ctx, namespace, executorID)
 }
