@@ -131,8 +131,16 @@ func (e *executorImpl[SP]) Stop() {
 
 func (e *executorImpl[SP]) GetShardProcess(ctx context.Context, shardID string) (SP, error) {
 	shardProcess, ok := e.managedProcessors.Load(shardID)
+	if ok && e.getMigrationMode() != types.MigrationModeONBOARDED {
+		shardStatus := shardProcess.processor.GetShardReport().Status
+		if shardStatus == types.ShardStatusDONE {
+			e.assignmentMutex.Lock()
+			e.deleteShards([]string{shardID})
+			e.assignmentMutex.Unlock()
+			ok = false
+		}
+	}
 	if !ok {
-
 		if e.getMigrationMode() != types.MigrationModeONBOARDED {
 			// Fail immediately the shard is not going to be fetched with the heartbeat
 			var zero SP

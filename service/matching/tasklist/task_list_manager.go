@@ -343,7 +343,7 @@ func (c *taskListManagerImpl) handleErr(err error) error {
 		// This indicates the task list may have moved to another host.
 		c.scope.IncCounter(metrics.ConditionFailedErrorPerTaskListCounter)
 		c.logger.Info("Stopping task list due to persistence condition failure.", tag.Error(err))
-		c.stopCallback(c)
+		c.Stop()
 		if c.taskListKind == types.TaskListKindSticky {
 			// TODO: we don't see this error in our logs, we might be able to remove this error
 			err = &types.InternalServiceError{Message: constants.StickyTaskConditionFailedErrorMsg}
@@ -493,7 +493,7 @@ func (c *taskListManagerImpl) updatePartitionConfig(ctx context.Context, newConf
 		// We're not sure whether the update was persisted or not,
 		// Stop the tasklist manager and let it be reloaded
 		c.scope.IncCounter(metrics.TaskListPartitionUpdateFailedCounter)
-		c.stopCallback(c)
+		c.Stop()
 		return nil, nil, err
 	}
 	c.partitionConfig = c.db.PartitionConfig().ToInternalType()
@@ -549,7 +549,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 	c.startWG.Wait()
 
 	if c.shouldReload() {
-		c.stopCallback(c)
+		c.Stop()
 		return false, errShutdown
 	}
 	if c.config.EnableGetNumberOfPartitionsFromCache() {
@@ -681,7 +681,7 @@ func (c *taskListManagerImpl) GetTask(
 	maxDispatchPerSecond *float64,
 ) (*InternalTask, error) {
 	if c.shouldReload() {
-		c.stopCallback(c)
+		c.Stop()
 		return nil, ErrNoTasks
 	}
 	c.liveness.MarkAlive()
