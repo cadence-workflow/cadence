@@ -318,8 +318,8 @@ func (c *taskListManagerImpl) Start(ctx context.Context) error {
 
 // Stop stops task list manager and calls Stop on all background child objects
 func (c *taskListManagerImpl) Stop() {
-	c.stoppedLock.Lock()
-	defer c.stoppedLock.Unlock()
+	//c.stoppedLock.Lock()
+	//defer c.stoppedLock.Unlock()
 	if !atomic.CompareAndSwapInt32(&c.stopped, 0, 1) {
 		return
 	}
@@ -795,8 +795,8 @@ func (c *taskListManagerImpl) DescribeTaskList(includeTaskListStatus bool) *type
 }
 
 func (c *taskListManagerImpl) ReleaseBlockedPollers() error {
-	c.stoppedLock.RLock()
-	defer c.stoppedLock.RUnlock()
+	//c.stoppedLock.RLock()
+	//defer c.stoppedLock.RUnlock()
 
 	if atomic.LoadInt32(&c.stopped) == 1 {
 		c.logger.Info("Task list manager is already stopped")
