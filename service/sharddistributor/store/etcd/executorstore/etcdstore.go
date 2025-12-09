@@ -210,13 +210,17 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 
 		var stats etcdtypes.ShardStatistics
 
-		prevSmoothed := oldStats[shardID].SmoothedLoad
-		prevUpdate := stats.LastUpdateTime.ToTime()
+		prevStats, ok := oldStats[shardID]
+		if ok {
+			stats.LastMoveTime = prevStats.LastMoveTime
+		}
+
+		prevSmoothed := prevStats.SmoothedLoad
+		prevUpdate := prevStats.LastUpdateTime.ToTime()
 		newSmoothed := ewmaSmoothedLoad(prevSmoothed, load, prevUpdate, now)
 
 		stats.SmoothedLoad = newSmoothed
 		stats.LastUpdateTime = etcdtypes.Time(now)
-		stats.LastMoveTime = oldStats[shardID].LastMoveTime
 
 		shardsUpdate.stats[shardID] = stats
 	}
