@@ -128,6 +128,9 @@ var (
 var _ Engine = (*matchingEngineImpl)(nil) // Asserts that interface is indeed implemented
 
 // NewEngine creates an instance of matching engine
+// test prova a non fare la deletion nella callback, ma mettere lo stato dello shard a done
+// se e' gia stato messo a done allora e' stato gia rimosso dalla lista
+// estendi getshardprocess con un check che fa la deletion is the status is done
 func NewEngine(
 	taskManager persistence.TaskManager,
 	clusterMetadata cluster.Metadata,
