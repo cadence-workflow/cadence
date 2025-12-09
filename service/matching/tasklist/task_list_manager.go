@@ -283,7 +283,7 @@ func (c *taskListManagerImpl) Start(ctx context.Context) error {
 			// This will not happen once we fully migrate partition config to database. Because in that case, root partition will always be created before non-root partitions.
 			var e *types.EntityNotExistsError
 			if !errors.As(err, &e) {
-				c.stopCallback(c)
+				c.Stop()
 				return err
 			}
 		} else {
@@ -291,7 +291,7 @@ func (c *taskListManagerImpl) Start(ctx context.Context) error {
 		}
 	}
 	if err := c.taskWriter.Start(); err != nil {
-		c.stopCallback(c)
+		c.Stop()
 		return err
 	}
 	if c.taskListID.IsRoot() && c.taskListKind == types.TaskListKindNormal {

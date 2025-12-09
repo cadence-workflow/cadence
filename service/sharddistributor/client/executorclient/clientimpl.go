@@ -401,7 +401,10 @@ func (e *executorImpl[SP]) addManagerProcessor(ctx context.Context, shardID stri
 		managedProcessor := newManagedProcessor(processor, processorStateStarting)
 		e.managedProcessors.Store(shardID, managedProcessor)
 
-		processor.Start(ctx)
+		err = processor.Start(ctx)
+		if err != nil {
+			e.managedProcessors.Delete(shardID)
+		}
 
 		managedProcessor.setState(processorStateStarted)
 
