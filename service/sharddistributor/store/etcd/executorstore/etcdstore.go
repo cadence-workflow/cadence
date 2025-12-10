@@ -175,7 +175,7 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 		return nil
 	}
 
-	oldStats, err := s.getExecutorShardStatistics(ctx, namespace, executorID)
+	oldStats, err := s.shardCache.GetExecutorStatistics(ctx, namespace, executorID)
 	if err != nil {
 		return err
 	}
@@ -840,7 +840,7 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 
 				oldOwnerStats, ok := pendingStatChanges[oldOwner.ExecutorID]
 				if !ok { // Not yet touched in this loop, get from main cache.
-					oldOwnerStats, err = s.getExecutorShardStatistics(ctx, namespace, oldOwner.ExecutorID)
+					oldOwnerStats, err = s.shardCache.GetExecutorStatistics(ctx, namespace, oldOwner.ExecutorID)
 					if err != nil {
 						return nil, err
 					}
@@ -870,7 +870,7 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 
 			newOwnerStats, ok := pendingStatChanges[executorID]
 			if !ok {
-				newOwnerStats, err = s.getExecutorShardStatistics(ctx, namespace, executorID)
+				newOwnerStats, err = s.shardCache.GetExecutorStatistics(ctx, namespace, executorID)
 				if err != nil {
 					return nil, err
 				}
@@ -959,9 +959,4 @@ func ewmaSmoothedLoad(prev, current float64, lastUpdate, now time.Time) float64 
 	dt := now.Sub(lastUpdate)
 	alpha := 1 - math.Exp(-dt.Seconds()/tau.Seconds())
 	return (1-alpha)*prev + alpha*current
-}
-
-// getExecutorShardStatistics returns the shard statistics for the given executor from etcd.
-func (s *executorStoreImpl) getExecutorShardStatistics(ctx context.Context, namespace, executorID string) (map[string]etcdtypes.ShardStatistics, error) {
-	return s.shardCache.GetExecutorStatistics(ctx, namespace, executorID)
 }
