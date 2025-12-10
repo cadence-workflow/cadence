@@ -684,7 +684,6 @@ func (s *matchingEngineSuite) SyncMatchTasks(taskType int, enableIsolation bool)
 	// So we can get snapshots
 	scope := tally.NewTestScope("test", nil)
 	s.matchingEngine.metricsClient = metrics.NewClient(scope, metrics.Matching, metrics.HistogramMigration{})
-	s.matchingEngine.taskListsFactory.MetricsClient = metrics.NewClient(scope, metrics.Matching, metrics.HistogramMigration{})
 
 	testParam := newTestParam(s.T(), taskType)
 	s.taskManager.SetRangeID(testParam.TaskListID, initialRangeID)
@@ -844,7 +843,6 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 	}
 	scope := tally.NewTestScope("test", nil)
 	s.matchingEngine.metricsClient = metrics.NewClient(scope, metrics.Matching, metrics.HistogramMigration{})
-	s.matchingEngine.taskListsFactory.MetricsClient = metrics.NewClient(scope, metrics.Matching, metrics.HistogramMigration{})
 
 	const initialRangeID = 0
 	const rangeSize = 3

@@ -168,6 +168,7 @@ func TestHeartBeartLoop_ShardAssignmentChange(t *testing.T) {
 		logger:                log.NewNoop(),
 		shardProcessorFactory: shardProcessorFactory,
 		metrics:               tally.NoopScope,
+		timeSource:            clock.NewMockedTimeSource(),
 	}
 
 	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
@@ -202,6 +203,87 @@ func TestHeartBeartLoop_ShardAssignmentChange(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestCleanUpShardsLoop_Stored(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	// Setup mocks
+	shardProcessorMock1 := NewMockShardProcessor(ctrl)
+	shardProcessorMock2 := NewMockShardProcessor(ctrl)
+	shardProcessorMock3 := NewMockShardProcessor(ctrl)
+
+	shardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
+
+	// Create the executor currently has shards 1 and 2 assigned to it
+	executor := &executorImpl[*MockShardProcessor]{
+		logger:                log.NewNoop(),
+		shardProcessorFactory: shardProcessorFactory,
+		metrics:               tally.NoopScope,
+		ttlShard:              time.Hour,
+		timeSource:            clock.NewMockedTimeSource(),
+	}
+
+	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
+	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
+
+	// Assert that we now have the 2 shards in the assignment
+	processor2, err := executor.GetShardProcess(context.Background(), "test-shard-id1")
+	assert.NoError(t, err)
+	assert.Equal(t, shardProcessorMock2, processor2)
+
+	processor3, err := executor.GetShardProcess(context.Background(), "test-shard-id2")
+	assert.NoError(t, err)
+	assert.Equal(t, shardProcessorMock3, processor3)
+
+	_, ok := executor.processorsToLastUse.Load("test-shard-id1")
+	assert.True(t, ok)
+	_, ok = executor.processorsToLastUse.Load("test-shard-id2")
+	assert.True(t, ok)
+}
+
+func TestCleanUpShardsLoop_UpdateTime(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	// Setup mocks
+	shardProcessorMock1 := NewMockShardProcessor(ctrl)
+	shardProcessorMock2 := NewMockShardProcessor(ctrl)
+	shardProcessorMock1.EXPECT().Stop()
+	shardProcessorMock2.EXPECT().Stop()
+
+	shardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
+
+	// Create the executor currently has shards 1 and 2 assigned to it
+	executor := &executorImpl[*MockShardProcessor]{
+		logger:                log.NewNoop(),
+		shardProcessorFactory: shardProcessorFactory,
+		metrics:               tally.NoopScope,
+		ttlShard:              1 * time.Millisecond,
+		timeSource:            clock.NewRealTimeSource(),
+	}
+
+	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
+	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go executor.shardCleanUpLoop(ctx)
+
+	// Assert that we now have the 2 shards in the assignment
+	processor1, err := executor.GetShardProcess(context.Background(), "test-shard-id1")
+	assert.NoError(t, err)
+	assert.Equal(t, shardProcessorMock1, processor1)
+
+	processor2, err := executor.GetShardProcess(context.Background(), "test-shard-id2")
+	assert.NoError(t, err)
+	assert.Equal(t, shardProcessorMock2, processor2)
+
+	// wait for the execution of the loop
+	time.Sleep(5 * time.Millisecond)
+
+	_, ok := executor.processorsToLastUse.Load("test-shard-id1")
+	assert.False(t, ok)
+	_, ok = executor.processorsToLastUse.Load("test-shard-id2")
+	assert.False(t, ok)
+}
+
 func TestAssignShardsFromLocalLogic(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	tests := []struct {
@@ -216,8 +298,9 @@ func TestAssignShardsFromLocalLogic(t *testing.T) {
 			setup: func() *executorImpl[*MockShardProcessor] {
 				// Create the executor currently has shards 1 and 2 assigned to it
 				executor := &executorImpl[*MockShardProcessor]{
-					logger:  log.NewNoop(),
-					metrics: tally.NoopScope,
+					logger:     log.NewNoop(),
+					metrics:    tally.NoopScope,
+					timeSource: clock.NewMockedTimeSource(),
 				}
 				executor.setMigrationMode(types.MigrationModeONBOARDED)
 				return executor
@@ -243,6 +326,7 @@ func TestAssignShardsFromLocalLogic(t *testing.T) {
 					logger:                log.NewNoop(),
 					shardProcessorFactory: shardProcessorFactory,
 					metrics:               tally.NoopScope,
+					timeSource:            clock.NewMockedTimeSource(),
 				}
 				executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
 				executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
@@ -272,6 +356,7 @@ func TestAssignShardsFromLocalLogic(t *testing.T) {
 					logger:                log.NewNoop(),
 					shardProcessorFactory: shardProcessorFactory,
 					metrics:               tally.NoopScope,
+					timeSource:            clock.NewMockedTimeSource(),
 				}
 
 				executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
@@ -325,8 +410,9 @@ func TestRemoveShardsFromLocalLogic(t *testing.T) {
 			setup: func() *executorImpl[*MockShardProcessor] {
 				// Create the executor currently has shards 1 and 2 assigned to it
 				executor := &executorImpl[*MockShardProcessor]{
-					logger:  log.NewNoop(),
-					metrics: tally.NoopScope,
+					logger:     log.NewNoop(),
+					metrics:    tally.NoopScope,
+					timeSource: clock.NewMockedTimeSource(),
 				}
 				executor.setMigrationMode(types.MigrationModeONBOARDED)
 				return executor
@@ -343,8 +429,9 @@ func TestRemoveShardsFromLocalLogic(t *testing.T) {
 				shardProcessorMock2 := NewMockShardProcessor(ctrl)
 				// Create the executor currently has shards 1 and 2 assigned to it
 				executor := &executorImpl[*MockShardProcessor]{
-					logger:  log.NewNoop(),
-					metrics: tally.NoopScope,
+					logger:     log.NewNoop(),
+					metrics:    tally.NoopScope,
+					timeSource: clock.NewMockedTimeSource(),
 				}
 
 				executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))

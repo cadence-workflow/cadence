@@ -92,8 +92,8 @@ type (
 		tokenSerializer             common.TaskTokenSerializer
 		logger                      log.Logger
 		metricsClient               metrics.Client
-		taskListsLock               sync.RWMutex                                    // locks mutation of taskLists
-		taskLists                   map[tasklist.Identifier]tasklist.ShardProcessor // Convert to LRU cache
+		taskListsLock               sync.RWMutex                             // locks mutation of taskLists
+		taskLists                   map[tasklist.Identifier]tasklist.Manager // Convert to LRU cache
 		executor                    executorclient.Executor[tasklist.ShardProcessor]
 		taskListsFactory            *tasklist.ShardProcessorFactory
 		config                      *config.Config
@@ -149,7 +149,7 @@ func NewEngine(
 		clusterMetadata:      clusterMetadata,
 		historyService:       historyService,
 		tokenSerializer:      common.NewJSONTaskTokenSerializer(),
-		taskLists:            make(map[tasklist.Identifier]tasklist.ShardProcessor),
+		taskLists:            make(map[tasklist.Identifier]tasklist.Manager),
 		logger:               logger.WithTags(tag.ComponentMatchingEngine),
 		metricsClient:        metricsClient,
 		matchingClient:       matchingClient,
@@ -184,27 +184,20 @@ func (e *matchingEngineImpl) Stop() {
 }
 
 func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient executorclient.Client) {
+	config := clientcommon.Config{
+		Namespaces: []clientcommon.NamespaceConfig{
+			{Namespace: "cadence-matching", HeartBeatInterval: 1 * time.Second, MigrationMode: sdconfig.MigrationModeLOCALPASSTHROUGH, TTLShard: 5 * time.Minute, TTLReport: 1 * time.Minute}}}
 
 	taskListFactory := &tasklist.ShardProcessorFactory{
-		DomainCache:     e.domainCache,
-		Logger:          e.logger,
-		MetricsClient:   e.metricsClient,
-		TaskManager:     e.taskManager,
-		ClusterMetadata: e.clusterMetadata,
-		IsolationState:  e.isolationState,
-		MatchingClient:  e.matchingClient,
-		CloseCallback:   e.removeTaskListManager,
-		Cfg:             e.config,
-		TimeSource:      e.timeSource,
-		CreateTime:      e.timeSource.Now(),
-		HistoryService:  e.historyService}
+		TaskListsLock: &e.taskListsLock,
+		TaskLists:     e.taskLists,
+		ReportTTL:     config.Namespaces[0].TTLReport,
+		TimeSource:    e.timeSource}
 	e.taskListsFactory = taskListFactory
 	// TODO move this to setup a logger based on e.logger
 	scope := tally.NoopScope
 	// Move the configuration to e.config
-	config := clientcommon.Config{
-		Namespaces: []clientcommon.NamespaceConfig{
-			{Namespace: "cadence-matching", HeartBeatInterval: 1 * time.Second, MigrationMode: sdconfig.MigrationModeLOCALPASSTHROUGH}}}
+
 	params := executorclient.Params[tasklist.ShardProcessor]{
 		ExecutorClient:        shardDistributorExecutorClient,
 		MetricsScope:          scope,
@@ -221,10 +214,10 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 
 }
 
-func (e *matchingEngineImpl) getTaskLists(maxCount int) []tasklist.ShardProcessor {
+func (e *matchingEngineImpl) getTaskLists(maxCount int) []tasklist.Manager {
 	e.taskListsLock.RLock()
 	defer e.taskListsLock.RUnlock()
-	lists := make([]tasklist.ShardProcessor, 0, len(e.taskLists))
+	lists := make([]tasklist.Manager, 0, len(e.taskLists))
 	count := 0
 	for _, tlMgr := range e.taskLists {
 		lists = append(lists, tlMgr)
@@ -247,16 +240,19 @@ func (e *matchingEngineImpl) String() string {
 
 // Returns taskListManager for a task list. If not already cached gets new range from DB and
 // if successful creates one.
-func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, taskListKind types.TaskListKind) (tasklist.ShardProcessor, error) {
-	// The first check is an optimization so almost all requests will have a task list manager
-	// and return avoiding the write lock
-	e.taskListsLock.RLock()
-	if result, ok := e.taskLists[*taskList]; ok {
+func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, taskListKind types.TaskListKind) (tasklist.Manager, error) {
+	shardID := tasklist.FromTaskListToShardID(taskList.GetName())
+	sp, _ := e.executor.GetShardProcess(context.Background(), shardID)
+	if sp != nil {
+		// The first check is an optimization so almost all requests will have a task list manager
+		// and return avoiding the write lock
+		e.taskListsLock.RLock()
+		if result, ok := e.taskLists[*taskList]; ok {
+			e.taskListsLock.RUnlock()
+			return result, nil
+		}
 		e.taskListsLock.RUnlock()
-		return result, nil
 	}
-	e.taskListsLock.RUnlock()
-
 	err := e.errIfShardLoss(taskList)
 	if err != nil {
 		return nil, err
@@ -277,7 +273,23 @@ func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, t
 	)
 
 	logger.Info("Task list manager state changed", tag.LifeCycleStarting)
-	mgr, err := e.taskListsFactory.NewShardProcessorWithTaskListIdentifier(taskList, taskListKind)
+	params := tasklist.ManagerParams{
+		DomainCache:     e.domainCache,
+		Logger:          e.logger,
+		MetricsClient:   e.metricsClient,
+		TaskManager:     e.taskManager,
+		ClusterMetadata: e.clusterMetadata,
+		IsolationState:  e.isolationState,
+		MatchingClient:  e.matchingClient,
+		CloseCallback:   e.removeTaskListManager,
+		TaskList:        taskList,
+		TaskListKind:    taskListKind,
+		Cfg:             e.config,
+		TimeSource:      e.timeSource,
+		CreateTime:      e.timeSource.Now(),
+		HistoryService:  e.historyService,
+	}
+	mgr, err := tasklist.NewManager(params)
 	if err != nil {
 		e.taskListsLock.Unlock()
 		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
@@ -295,6 +307,14 @@ func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, t
 		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
 		return nil, err
 	}
+
+	err = e.executor.AssignShardsFromLocalLogic(context.Background(), map[string]*types.ShardAssignment{
+		shardID: {Status: types.AssignmentStatusREADY},
+	})
+	if err != nil && !e.executor.IsOnboardedToSD() {
+		logger.Info("Error in local assignment", tag.Error(err))
+	}
+
 	logger.Info("Task list manager state changed", tag.LifeCycleStarted)
 	event.Log(event.E{
 		TaskListName: taskList.GetName(),
@@ -327,20 +347,13 @@ func (e *matchingEngineImpl) getTaskListByDomainLocked(domainID string, taskList
 	}
 }
 
-// For use in tests
-func (e *matchingEngineImpl) updateTaskList(taskList *tasklist.Identifier, mgr tasklist.ShardProcessor) {
-	e.taskListsLock.Lock()
-	defer e.taskListsLock.Unlock()
-	e.taskLists[*taskList] = mgr
-}
-
-func (e *matchingEngineImpl) removeTaskListManager(tlMgr tasklist.ShardProcessor) {
+func (e *matchingEngineImpl) removeTaskListManager(tlMgr tasklist.Manager) {
 	id := tlMgr.TaskListID()
 	e.taskListsLock.Lock()
 	defer e.taskListsLock.Unlock()
 
 	currentTlMgr, ok := e.taskLists[*id]
-	if ok && currentTlMgr.String() == tlMgr.String() {
+	if ok && currentTlMgr == tlMgr {
 		delete(e.taskLists, *id)
 	}
 
@@ -1408,6 +1421,15 @@ func (e *matchingEngineImpl) emitInfoOrDebugLog(
 
 func (e *matchingEngineImpl) errIfShardLoss(taskList *tasklist.Identifier) error {
 	if !e.config.EnableTasklistOwnershipGuard() {
+		return nil
+	}
+
+	shardID := tasklist.FromTaskListToShardID(taskList.GetName())
+	sp, err := e.executor.GetShardProcess(context.Background(), shardID)
+	if e.executor.IsOnboardedToSD() {
+		if err != nil || sp == nil {
+			return fmt.Errorf("failed to lookup ownership in SD: %w", err)
+		}
 		return nil
 	}
 

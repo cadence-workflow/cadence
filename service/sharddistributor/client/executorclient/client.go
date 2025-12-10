@@ -60,6 +60,9 @@ type Executor[SP ShardProcessor] interface {
 	AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment) error
 	// RemoveShardsFromLocalLogic is used for the migration during local-passthrough, local-passthrough-shadow, distributed-passthrough
 	RemoveShardsFromLocalLogic(shardIDs []string) error
+
+	// IsOnboardedToSD is returning true if the executor relies on SD for distribution
+	IsOnboardedToSD() bool
 }
 
 type Params[SP ShardProcessor] struct {
@@ -125,6 +128,7 @@ func newExecutorWithConfig[SP ShardProcessor](params Params[SP], namespaceConfig
 		shardDistributorClient: shardDistributorClient,
 		shardProcessorFactory:  params.ShardProcessorFactory,
 		heartBeatInterval:      namespaceConfig.HeartBeatInterval,
+		ttlShard:               namespaceConfig.TTLShard,
 		namespace:              namespaceConfig.Namespace,
 		executorID:             executorID,
 		timeSource:             params.TimeSource,

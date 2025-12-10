@@ -247,6 +247,20 @@ func (mr *MockExecutorMockRecorder[SP]) GetShardProcess(ctx, shardID any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardProcess", reflect.TypeOf((*MockExecutor[SP])(nil).GetShardProcess), ctx, shardID)
 }
 
+// IsOnboardedToSD mocks base method.
+func (m *MockExecutor[SP]) IsOnboardedToSD() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsOnboardedToSD")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsOnboardedToSD indicates an expected call of IsOnboardedToSD.
+func (mr *MockExecutorMockRecorder[SP]) IsOnboardedToSD() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOnboardedToSD", reflect.TypeOf((*MockExecutor[SP])(nil).IsOnboardedToSD))
+}
+
 // RemoveShardsFromLocalLogic mocks base method.
 func (m *MockExecutor[SP]) RemoveShardsFromLocalLogic(shardIDs []string) error {
 	m.ctrl.T.Helper()
