@@ -73,10 +73,16 @@ func (auditLog *DomainAuditLog) ToFailoverEvents() *types.FailoverEvent {
 		}
 	}
 
+	failoverType := types.FailoverTypeForce
+	if auditLog.StateAfter.FailoverEndTime != nil {
+		failoverType = types.FailoverTypeGraceful
+	}
+
 	return &types.FailoverEvent{
 		ID:               &auditLog.EventID,
 		CreatedTime:      common.Ptr(auditLog.CreatedTime.UnixNano()),
 		ClusterFailovers: clusterFailovers,
+		FailoverType:     &failoverType,
 	}
 }
 
