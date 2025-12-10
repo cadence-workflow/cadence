@@ -237,6 +237,10 @@ func TestGetShardOwner(t *testing.T) {
 				// owner2 total load: 0.5
 				// Should pick owner2 (least loaded)
 				mockStore.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, "new-shard", "owner2").Return(nil)
+				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner2").Return(&store.ShardOwner{
+					ExecutorID: "owner2",
+					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
+				}, nil)
 			},
 			expectedOwner: "owner2",
 			expectedError: false,
