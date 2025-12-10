@@ -9,13 +9,14 @@ import (
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/store"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 )
 
 type NamespaceToShards map[string]*namespaceShardToExecutor
 type ShardToExecutorCache struct {
 	sync.RWMutex
 	namespaceToShards NamespaceToShards
-	client            *clientv3.Client
+	client            etcdclient.Client
 	stopC             chan struct{}
 	logger            log.Logger
 	prefix            string
@@ -24,7 +25,7 @@ type ShardToExecutorCache struct {
 
 func NewShardToExecutorCache(
 	prefix string,
-	client *clientv3.Client,
+	client etcdclient.Client,
 	logger log.Logger,
 ) *ShardToExecutorCache {
 	shardCache := &ShardToExecutorCache{
