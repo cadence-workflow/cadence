@@ -112,6 +112,8 @@ func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, ex
 	return n.getExecutorStatistics(ctx, executorID)
 }
 
+// getExecutorStatistics fetches executor statistics from etcd and caches them.
+// It is called when there's a cache miss.
 func (n *namespaceShardToExecutor) getExecutorStatistics(ctx context.Context, executorID string) (map[string]etcdtypes.ShardStatistics, error) {
 	statsKey := etcdkeys.BuildExecutorKey(n.etcdPrefix, n.namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
 	resp, err := n.client.Get(ctx, statsKey)
@@ -306,6 +308,7 @@ func (n *namespaceShardToExecutor) setExecutorStatistics(executorID string, stat
 	n.executorStatistics[executorID] = cloneStatisticsMap(stats)
 }
 
+// Clone to prevent concurrent map access
 func cloneStatisticsMap(src map[string]etcdtypes.ShardStatistics) map[string]etcdtypes.ShardStatistics {
 	if len(src) == 0 {
 		return nil
