@@ -2410,7 +2410,8 @@ func IsBackgroundTransientError(err error) bool {
 func HasMoreRowsToDelete(rowsDeleted, batchSize int) bool {
 	if rowsDeleted < batchSize || // all target tasks are deleted
 		rowsDeleted == UnknownNumRowsAffected || // underlying database does not support rows affected, so pageSize is not honored and all target tasks are deleted
-		rowsDeleted > batchSize { // pageSize is not honored and all tasks are deleted
+		rowsDeleted > batchSize ||
+		batchSize <= 0 { // if batchSize is <= 0 the attempt is for the request to be unbounded and remove all rows from min to max
 		return false
 	}
 	return true

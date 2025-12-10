@@ -43,7 +43,7 @@ type (
 		dc             *p.DynamicConfiguration
 	}
 
-	// dbConn represents a logical mysql connection - its a
+	// dbConn represents a logical mysql connection - it's a
 	// wrapper around the standard sql connection pool with
 	// additional reference counting
 	dbConn struct {
@@ -98,7 +98,7 @@ func (f *Factory) NewHistoryStore() (p.HistoryStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewHistoryV2Persistence(conn, f.logger, f.parser)
+	return NewHistoryV2Persistence(conn, f.logger, f.parser, f.dc)
 }
 
 // NewDomainStore returns a new metadata store

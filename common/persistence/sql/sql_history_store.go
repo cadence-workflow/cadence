@@ -55,6 +55,7 @@ func NewHistoryV2Persistence(
 	db sqlplugin.DB,
 	logger log.Logger,
 	parser serialization.Parser,
+	dc *persistence.DynamicConfiguration,
 ) (persistence.HistoryStore, error) {
 
 	return &sqlHistoryStore{
@@ -62,6 +63,7 @@ func NewHistoryV2Persistence(
 			db:     db,
 			logger: logger,
 			parser: parser,
+			dc:     dc,
 		},
 	}, nil
 }
@@ -421,11 +423,15 @@ func (m *sqlHistoryStore) DeleteHistoryBranch(
 		for i := len(brsToDelete) - 1; i >= 0; i-- {
 			br := brsToDelete[i]
 			maxReferredEndNodeID, ok := validBRsMaxEndNode[br.BranchID]
+			batchSize := _defaultHistoryNodeDeleteBatch
+			if m.dc != nil {
+				batchSize = m.dc.HistoryNodeDeleteBatchSize()
+			}
 			nodeFilter := &sqlplugin.HistoryNodeFilter{
 				TreeID:   serialization.MustParseUUID(treeID),
 				BranchID: serialization.MustParseUUID(br.BranchID),
 				ShardID:  request.ShardID,
-				PageSize: _defaultHistoryNodeDeleteBatch,
+				PageSize: batchSize,
 			}
 
 			if ok {
@@ -445,9 +451,10 @@ func (m *sqlHistoryStore) DeleteHistoryBranch(
 				if err != nil {
 					return err
 				}
-				if rowsAffected < _defaultHistoryNodeDeleteBatch ||
+				if batchSize <= 0 ||
+					rowsAffected < int64(batchSize) ||
 					rowsAffected == persistence.UnknownNumRowsAffected ||
-					rowsAffected > _defaultHistoryNodeDeleteBatch {
+					rowsAffected > int64(batchSize) {
 					break
 				}
 			}

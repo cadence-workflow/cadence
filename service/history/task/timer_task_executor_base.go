@@ -101,7 +101,7 @@ func (t *timerTaskExecutorBase) executeDeleteHistoryEventTask(
 		return err
 	}
 	if mutableState == nil {
-		t.logger.Debug("could not load mutable state while attempting to clean up workflow",
+		t.logger.Warn("could not load mutable state while attempting to clean up workflow",
 			tag.WorkflowID(task.WorkflowID),
 			tag.WorkflowRunID(task.RunID),
 			tag.WorkflowDomainID(task.DomainID),

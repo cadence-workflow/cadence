@@ -497,10 +497,9 @@ func (a *ShardScanResultAggregator) insertReportIntoSizes(report ScanReport) {
 		}
 		insertIndex++
 	}
-	newShardSizes := append([]ShardSizeTuple{}, a.shardSizes[0:insertIndex]...)
-	newShardSizes = append(newShardSizes, tuple)
-	newShardSizes = append(newShardSizes, a.shardSizes[insertIndex:]...)
-	a.shardSizes = newShardSizes
+	a.shardSizes = append(a.shardSizes, ShardSizeTuple{})
+	copy(a.shardSizes[insertIndex+1:], a.shardSizes[insertIndex:])
+	a.shardSizes[insertIndex] = tuple
 }
 
 // GetShardDistributionStats returns aggregated size statistics

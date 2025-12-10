@@ -36,6 +36,7 @@ import (
 
 type (
 	dnsUpdater struct {
+		resolver     dnsHostResolver
 		interval     time.Duration
 		dnsAddress   string
 		port         string
@@ -56,6 +57,10 @@ type (
 	}
 )
 
+type dnsHostResolver interface {
+	LookupHost(ctx context.Context, host string) (addrs []string, err error)
+}
+
 func newDNSUpdater(list peer.List, dnsPort string, interval time.Duration, logger log.Logger) (*dnsUpdater, error) {
 	ss := strings.Split(dnsPort, ":")
 	if len(ss) != 2 {
@@ -63,6 +68,7 @@ func newDNSUpdater(list peer.List, dnsPort string, interval time.Duration, logge
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &dnsUpdater{
+		resolver:     net.DefaultResolver,
 		interval:     interval,
 		logger:       logger,
 		list:         list,
@@ -95,8 +101,9 @@ func (d *dnsUpdater) Start() {
 				err := d.list.Update(res.updates)
 				if err != nil {
 					d.logger.Error("Failed to update peerList", tag.Error(err), tag.Address(d.dnsAddress))
+				} else {
+					d.currentPeers = res.newPeers
 				}
-				d.currentPeers = res.newPeers
 			}
 			sleepDu := now.Add(d.interval).Sub(now)
 			t := time.NewTimer(sleepDu)
@@ -120,8 +127,7 @@ func (d *dnsUpdater) Stop() {
 }
 
 func (d *dnsUpdater) refresh() (*dnsRefreshResult, error) {
-	resolver := net.DefaultResolver
-	ips, err := resolver.LookupHost(d.ctx, d.dnsAddress)
+	ips, err := d.resolver.LookupHost(d.ctx, d.dnsAddress)
 	if err != nil {
 		return nil, err
 	}

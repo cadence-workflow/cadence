@@ -94,7 +94,7 @@ type (
 		ClusterMetadata cluster.Metadata
 		IsolationState  isolationgroup.State
 		MatchingClient  matching.Client
-		CloseCallback   func(Manager)
+		CloseCallback   func(ShardProcessor)
 		TaskList        *Identifier
 		TaskListKind    types.TaskListKind
 		Cfg             *config.Config
@@ -140,7 +140,7 @@ type (
 		stopWG        sync.WaitGroup
 		stopped       int32
 		stoppedLock   sync.RWMutex
-		closeCallback func(Manager)
+		closeCallback func(ShardProcessor)
 		throttleRetry *backoff.ThrottleRetry
 
 		qpsTracker     stats.QPSTrackerGroup
@@ -257,7 +257,7 @@ func NewManager(p ManagerParams) (Manager, error) {
 
 // Starts reading pump for the given task list.
 // The pump fills up taskBuffer from persistence.
-func (c *taskListManagerImpl) Start() error {
+func (c *taskListManagerImpl) Start(ctx context.Context) error {
 	defer c.startWG.Done()
 
 	if !c.taskListID.IsRoot() && c.taskListKind == types.TaskListKindNormal {
@@ -316,7 +316,10 @@ func (c *taskListManagerImpl) Stop() {
 	if !atomic.CompareAndSwapInt32(&c.stopped, 0, 1) {
 		return
 	}
-	c.closeCallback(c)
+	sp := &shardProcessorImpl{
+		Manager: c,
+	}
+	c.closeCallback(sp)
 	if c.adaptiveScaler != nil {
 		c.adaptiveScaler.Stop()
 	}

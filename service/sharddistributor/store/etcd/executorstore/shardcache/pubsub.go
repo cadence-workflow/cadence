@@ -28,7 +28,7 @@ func newExecutorStatePubSub(logger log.Logger, namespace string) *executorStateP
 }
 
 // Subscribe returns a channel that receives executor state updates.
-func (p *executorStatePubSub) subscribe(ctx context.Context) (<-chan map[*store.ShardOwner][]string, func()) {
+func (p *executorStatePubSub) subscribe(ctx context.Context) (chan map[*store.ShardOwner][]string, func()) {
 	ch := make(chan map[*store.ShardOwner][]string)
 	uniqueID := uuid.New().String()
 

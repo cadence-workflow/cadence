@@ -36,7 +36,9 @@ const (
 	getHistoryNodesQuery = `SELECT node_id, txn_id, data, data_encoding FROM history_node ` +
 		`WHERE shard_id = ? AND tree_id = ? AND branch_id = ? AND node_id >= ? and node_id < ? ORDER BY shard_id, tree_id, branch_id, node_id, txn_id LIMIT ? `
 
-	deleteHistoryNodesQuery = `DELETE FROM history_node WHERE shard_id = ? AND tree_id = ? AND branch_id = ? AND node_id >= ? ORDER BY shard_id, tree_id, branch_id, node_id, txn_id LIMIT ? `
+	deleteHistoryNodesQuery = `DELETE FROM history_node WHERE shard_id = ? AND tree_id = ? AND branch_id = ? AND node_id >= ? `
+
+	deleteHistoryNodesByBatchQuery = `DELETE FROM history_node WHERE shard_id = ? AND tree_id = ? AND branch_id = ? AND node_id >= ? ORDER BY shard_id, tree_id, branch_id, node_id, txn_id LIMIT ? `
 
 	// below are templates for history_tree table
 	addHistoryTreeQuery = `INSERT INTO history_tree (` +
@@ -76,7 +78,10 @@ func (mdb *DB) SelectFromHistoryNode(ctx context.Context, filter *sqlplugin.Hist
 // DeleteFromHistoryNode deletes one or more rows from history_node table
 func (mdb *DB) DeleteFromHistoryNode(ctx context.Context, filter *sqlplugin.HistoryNodeFilter) (sql.Result, error) {
 	dbShardID := sqlplugin.GetDBShardIDFromTreeID(filter.TreeID, mdb.GetTotalNumDBShards())
-	return mdb.driver.ExecContext(ctx, dbShardID, deleteHistoryNodesQuery, filter.ShardID, filter.TreeID, filter.BranchID, *filter.MinNodeID, filter.PageSize)
+	if filter.PageSize > 0 {
+		return mdb.driver.ExecContext(ctx, dbShardID, deleteHistoryNodesByBatchQuery, filter.ShardID, filter.TreeID, filter.BranchID, *filter.MinNodeID, filter.PageSize)
+	}
+	return mdb.driver.ExecContext(ctx, dbShardID, deleteHistoryNodesQuery, filter.ShardID, filter.TreeID, filter.BranchID, *filter.MinNodeID)
 }
 
 // For history_tree table:

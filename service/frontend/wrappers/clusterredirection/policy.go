@@ -53,21 +53,19 @@ const (
 	// please also reference selectedAPIsForwardingRedirectionPolicyAPIAllowlist and DCRedirectionPolicySelectedAPIsForwardingV2
 	DCRedirectionPolicySelectedAPIsForwarding = "selected-apis-forwarding"
 	// DCRedirectionPolicySelectedAPIsForwardingV2 forwards everything in DCRedirectionPolicySelectedAPIsForwarding,
-	// as well as activity completions (sync and async) and heartbeats.
+	// as well as activity completions (sync and async).
 	// This is done because activity results are generally deemed "useful" and relatively costly to re-do (when it is
 	// even possible to redo), but activity workers themselves may be datacenter-specific.
 	//
 	// This will likely replace DCRedirectionPolicySelectedAPIsForwarding soon.
 	//
 	// 1-6. from DCRedirectionPolicySelectedAPIsForwarding
-	// 7. RecordActivityTaskHeartbeat
-	// 8. RecordActivityTaskHeartbeatByID
-	// 9. RespondActivityTaskCanceled
-	// 10. RespondActivityTaskCanceledByID
-	// 11. RespondActivityTaskCompleted
-	// 12. RespondActivityTaskCompletedByID
-	// 13. RespondActivityTaskFailed
-	// 14. RespondActivityTaskFailedByID
+	// 7. RespondActivityTaskCanceled
+	// 8. RespondActivityTaskCanceledByID
+	// 9. RespondActivityTaskCompleted
+	// 10. RespondActivityTaskCompletedByID
+	// 11. RespondActivityTaskFailed
+	// 12. RespondActivityTaskFailedByID
 	// please also reference selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2
 	DCRedirectionPolicySelectedAPIsForwardingV2 = "selected-apis-forwarding-v2"
 	// DCRedirectionPolicyAllDomainAPIsForwarding means forwarding all the worker and non-worker APIs based domain,
@@ -142,8 +140,6 @@ var selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2 = map[string]struct{}{
 	"TerminateWorkflowExecution":       {},
 	"ResetWorkflowExecution":           {},
 	// additional endpoints
-	"RecordActivityTaskHeartbeat":      {},
-	"RecordActivityTaskHeartbeatByID":  {},
 	"RespondActivityTaskCanceled":      {},
 	"RespondActivityTaskCanceledByID":  {},
 	"RespondActivityTaskCompleted":     {},

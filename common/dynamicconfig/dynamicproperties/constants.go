@@ -1082,6 +1082,12 @@ const (
 	// Default value: 4000
 	// Allowed filters: N/A
 	ReplicatorTaskDeleteBatchSize
+	// HistoryNodeDeleteBatchSize is batch size for deleting history nodes
+	// KeyName: history.historyNodeDeleteBatchSize
+	// Value type: Int
+	// Default value: 1000
+	// Allowed filters: N/A
+	HistoryNodeDeleteBatchSize
 	// ReplicatorReadTaskMaxRetryCount is the number of read replication task retry time
 	// KeyName: history.replicatorReadTaskMaxRetryCount
 	// Value type: Int
@@ -3735,6 +3741,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "history.replicatorTaskDeleteBatchSize",
 		Description:  "ReplicatorTaskDeleteBatchSize is batch size for ReplicatorProcessor to delete replication tasks",
 		DefaultValue: 4000,
+	},
+	HistoryNodeDeleteBatchSize: {
+		KeyName:      "history.historyNodeDeleteBatchSize",
+		Description:  "HistoryNodeDeleteBatchSize is batch size for deleting history nodes",
+		DefaultValue: 1000,
 	},
 	ReplicatorReadTaskMaxRetryCount: {
 		KeyName:      "history.replicatorReadTaskMaxRetryCount",

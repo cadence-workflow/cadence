@@ -84,6 +84,7 @@ func (s *taskFetcherSuite) SetupTest() {
 		"active",
 		s.config,
 		s.frontendClient,
+		metrics.NewNoopMetricsClient(),
 	).(*taskFetcherImpl)
 }
 
@@ -217,7 +218,7 @@ func (s *taskFetcherSuite) TestLifecycle() {
 	s.taskFetcher.Start()
 	defer s.taskFetcher.Stop()
 
-	requestChan := s.taskFetcher.GetRequestChan()
+	requestChan := s.taskFetcher.GetRequestChan(0)
 	// send 3 replication requests to the fetcher
 	requestChan <- req0
 	requestChan <- req1
@@ -269,11 +270,63 @@ func TestTaskFetchers(t *testing.T) {
 	cfg := config.NewForTest()
 
 	mockBean.EXPECT().GetRemoteAdminClient(cluster.TestAlternativeClusterName).Return(mockAdminClient, nil)
-	fetchers, err := NewTaskFetchers(logger, cfg, cluster.TestActiveClusterMetadata, mockBean)
+	fetchers, err := NewTaskFetchers(logger, cfg, cluster.TestActiveClusterMetadata, mockBean, metrics.NewNoopMetricsClient())
 	assert.NoError(t, err)
 	assert.NotNil(t, fetchers)
 	assert.Len(t, fetchers.GetFetchers(), len(cluster.TestActiveClusterMetadata.GetRemoteClusterInfo()))
 
 	fetchers.Start()
 	fetchers.Stop()
+}
+
+func TestTaskFetcherParallelism(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	logger := testlogger.New(t)
+	cfg := config.NewForTest()
+	parallelism := 4
+	cfg.ReplicationTaskFetcherParallelism = dynamicproperties.GetIntPropertyFn(parallelism)
+
+	ctrl := gomock.NewController(t)
+	mockAdminClient := admin.NewMockClient(ctrl)
+
+	fetcher := newReplicationTaskFetcher(
+		logger,
+		"standby",
+		"active",
+		cfg,
+		mockAdminClient,
+		metrics.NewNoopMetricsClient(),
+	).(*taskFetcherImpl)
+
+	// Test 1: Verify correct number of channels created
+	assert.Equal(t, parallelism, len(fetcher.requestChan), "Should create 4 request channels")
+
+	// Test 2: Verify shard-to-channel mapping
+	chan0 := fetcher.GetRequestChan(0)
+	chan1 := fetcher.GetRequestChan(1)
+	chan4 := fetcher.GetRequestChan(4) // 4 % 4 = 0, should be same as chan0
+	chan5 := fetcher.GetRequestChan(5) // 5 % 4 = 1, should be same as chan1
+
+	assert.Equal(t, chan0, chan4, "Shards 0 and 4 should map to same channel (0 % 4 == 4 % 4)")
+	assert.Equal(t, chan1, chan5, "Shards 1 and 5 should map to same channel (1 % 4 == 5 % 4)")
+	assert.NotEqual(t, chan0, chan1, "Different channels should be different")
+
+	// Test 3: Start fetcher and verify WaitGroup is properly incremented
+	fetcher.Start()
+
+	// The WaitGroup counter should now be 4 (one per goroutine)
+	// We can verify this by calling Stop() which waits on the WaitGroup
+	// If it hangs or times out, the goroutines weren't started correctly
+	done := make(chan bool)
+	go func() {
+		fetcher.Stop()
+		done <- true
+	}()
+
+	select {
+	case <-done:
+		// Success - all goroutines exited cleanly
+	case <-time.After(11 * time.Second):
+		t.Fatal("Stop() timed out - goroutines may not have been started correctly")
+	}
 }

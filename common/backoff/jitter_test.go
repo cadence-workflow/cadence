@@ -67,6 +67,10 @@ func (s *jitterSuite) TestJitInt64WithZeroCoefficient() {
 	}
 }
 
+func (s *jitterSuite) TestJitInt64WithZeroInput() {
+	s.Equal(int64(0), JitInt64(0, 0.5))
+}
+
 func (s *jitterSuite) TestJitFloat64() {
 	input := float64(1048576.1048576)
 	coefficient := float64(0.16)
@@ -85,6 +89,10 @@ func (s *jitterSuite) TestJitFloat64WithZeroCoefficient() {
 		input := rand.Float64()
 		s.Equal(input, JitFloat64(input, 0))
 	}
+}
+
+func (s *jitterSuite) TestJitFloat64WithZeroInput() {
+	s.Equal(float64(0), JitFloat64(0, 0.5))
 }
 
 func (s *jitterSuite) TestJitDuration() {

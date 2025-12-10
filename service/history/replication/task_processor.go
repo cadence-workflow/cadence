@@ -149,7 +149,7 @@ func NewTaskProcessor(
 		taskRetryPolicy:        taskRetryPolicy,
 		dlqRetryPolicy:         dlqRetryPolicy,
 		noTaskRetrier:          noTaskRetrier,
-		requestChan:            taskFetcher.GetRequestChan(),
+		requestChan:            taskFetcher.GetRequestChan(shardID),
 		syncShardChan:          make(chan *types.SyncShardStatus, 1),
 		done:                   make(chan struct{}),
 		lastProcessedMessageID: constants.EmptyMessageID,

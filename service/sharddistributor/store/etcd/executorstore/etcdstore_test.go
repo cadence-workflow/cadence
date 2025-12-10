@@ -10,12 +10,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx/fxtest"
+	"gopkg.in/yaml.v2"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/executorstore/common"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/leaderstore"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/testhelper"
@@ -29,11 +32,11 @@ func TestRecordHeartbeat(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	nowTS := time.Now().Unix()
+	now := time.Now().UTC()
 
 	executorID := "executor-TestRecordHeartbeat"
 	req := store.HeartbeatState{
-		LastHeartbeat: nowTS,
+		LastHeartbeat: now,
 		Status:        types.ExecutorStatusACTIVE,
 		ReportedShards: map[string]*types.ShardStatusReport{
 			"shard-TestRecordHeartbeat": {Status: types.ShardStatusREADY},
@@ -48,19 +51,16 @@ func TestRecordHeartbeat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify directly in etcd
-	heartbeatKey, err := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorHeartbeatKey)
-	require.NoError(t, err)
-	stateKey, err := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorStatusKey)
-	require.NoError(t, err)
-	reportedShardsKey, err := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorReportedShardsKey)
-	require.NoError(t, err)
+	heartbeatKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorHeartbeatKey)
+	stateKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorStatusKey)
+	reportedShardsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorReportedShardsKey)
 	metadataKey1 := etcdkeys.BuildMetadataKey(tc.EtcdPrefix, tc.Namespace, executorID, "key-1")
 	metadataKey2 := etcdkeys.BuildMetadataKey(tc.EtcdPrefix, tc.Namespace, executorID, "key-2")
 
 	resp, err := tc.Client.Get(ctx, heartbeatKey)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), resp.Count, "Heartbeat key should exist")
-	assert.Equal(t, strconv.FormatInt(nowTS, 10), string(resp.Kvs[0].Value))
+	assert.Equal(t, etcdtypes.FormatTime(now), string(resp.Kvs[0].Value))
 
 	resp, err = tc.Client.Get(ctx, stateKey)
 	require.NoError(t, err)
@@ -92,6 +92,63 @@ func TestRecordHeartbeat(t *testing.T) {
 	assert.Equal(t, "value-2", string(resp.Kvs[0].Value))
 }
 
+func TestRecordHeartbeat_NoCompression(t *testing.T) {
+	tc := testhelper.SetupStoreTestCluster(t)
+
+	var etcdCfg struct {
+		Endpoints   []string      `yaml:"endpoints"`
+		DialTimeout time.Duration `yaml:"dialTimeout"`
+		Prefix      string        `yaml:"prefix"`
+		Compression string        `yaml:"compression"`
+	}
+	require.NoError(t, tc.LeaderCfg.Store.StorageParams.Decode(&etcdCfg))
+	etcdCfg.Compression = "none"
+
+	encodedCfg, err := yaml.Marshal(etcdCfg)
+	require.NoError(t, err)
+
+	var yamlNode *config.YamlNode
+	require.NoError(t, yaml.Unmarshal(encodedCfg, &yamlNode))
+	tc.LeaderCfg.Store.StorageParams = yamlNode
+	tc.LeaderCfg.LeaderStore.StorageParams = yamlNode
+	tc.Compression = "none"
+
+	executorStore := createStore(t, tc)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	executorID := "executor-no-compression"
+	req := store.HeartbeatState{
+		LastHeartbeat: time.Now().UTC(),
+		Status:        types.ExecutorStatusACTIVE,
+		ReportedShards: map[string]*types.ShardStatusReport{
+			"shard-no-compression": {Status: types.ShardStatusREADY},
+		},
+	}
+
+	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, req))
+
+	stateKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorStatusKey)
+	require.NoError(t, err)
+	reportedShardsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorReportedShardsKey)
+	require.NoError(t, err)
+
+	stateResp, err := tc.Client.Get(ctx, stateKey)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), stateResp.Count)
+	statusJSON, err := json.Marshal(req.Status)
+	require.NoError(t, err)
+	assert.Equal(t, string(statusJSON), string(stateResp.Kvs[0].Value))
+
+	reportedResp, err := tc.Client.Get(ctx, reportedShardsKey)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), reportedResp.Count)
+	reportedJSON, err := json.Marshal(req.ReportedShards)
+	require.NoError(t, err)
+	assert.Equal(t, string(reportedJSON), string(reportedResp.Kvs[0].Value))
+}
+
 func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
@@ -102,23 +159,28 @@ func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {
 	executorID := "executor-shard-stats"
 	shardID := "shard-with-load"
 
+	baseTime := time.Now().UTC()
 	initialStats := store.ShardStatistics{
 		SmoothedLoad:   1.23,
-		LastUpdateTime: 10,
-		LastMoveTime:   123,
+		LastUpdateTime: baseTime.Add(-5 * time.Second),
+		LastMoveTime:   baseTime.Add(-30 * time.Second),
 	}
 
-	shardStatsKey, err := etcdkeys.BuildShardKey(tc.EtcdPrefix, tc.Namespace, shardID, etcdkeys.ShardStatisticsKey)
+	executorStats := map[string]etcdtypes.ShardStatistics{
+		shardID: *etcdtypes.FromShardStatistics(&initialStats),
+	}
+	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
+	payload, err := json.Marshal(executorStats)
 	require.NoError(t, err)
-	payload, err := json.Marshal(initialStats)
+	writer, err := common.NewRecordWriter(tc.Compression)
 	require.NoError(t, err)
-	_, err = tc.Client.Put(ctx, shardStatsKey, string(payload))
+	compressedPayload, err := writer.Write(payload)
 	require.NoError(t, err)
-
-	nowTS := time.Now().Unix()
+	_, err = tc.Client.Put(ctx, statsKey, string(compressedPayload))
+	require.NoError(t, err)
 
 	req := store.HeartbeatState{
-		LastHeartbeat: nowTS,
+		LastHeartbeat: time.Now().UTC(),
 		Status:        types.ExecutorStatusACTIVE,
 		ReportedShards: map[string]*types.ShardStatusReport{
 			shardID: {
@@ -133,11 +195,11 @@ func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {
 	nsState, err := executorStore.GetState(ctx, tc.Namespace)
 	require.NoError(t, err)
 
-	require.Contains(t, nsState.ShardStats, shardID)
-	updated := nsState.ShardStats[shardID]
-
-	assert.InDelta(t, 45.6, updated.SmoothedLoad, 1e-9)
-	assert.GreaterOrEqual(t, updated.LastUpdateTime, nowTS)
+	updated, ok := nsState.ShardStats[shardID]
+	require.True(t, ok)
+	assert.True(t, updated.LastUpdateTime.After(initialStats.LastUpdateTime))
+	expectedLoad := ewmaSmoothedLoad(initialStats.SmoothedLoad, req.ReportedShards[shardID].ShardLoad, initialStats.LastUpdateTime, updated.LastUpdateTime)
+	assert.InDelta(t, expectedLoad, updated.SmoothedLoad, 1e-9)
 	assert.Equal(t, initialStats.LastMoveTime, updated.LastMoveTime)
 }
 
@@ -152,10 +214,8 @@ func TestRecordHeartbeatSkipsShardStatisticsWithNilReport(t *testing.T) {
 	validShardID := "shard-with-valid-load"
 	skippedShardID := "shard-missing-load"
 
-	nowTS := time.Now().Unix()
-
 	req := store.HeartbeatState{
-		LastHeartbeat: nowTS,
+		LastHeartbeat: time.Now().UTC(),
 		Status:        types.ExecutorStatusACTIVE,
 		ReportedShards: map[string]*types.ShardStatusReport{
 			validShardID: {
@@ -171,73 +231,12 @@ func TestRecordHeartbeatSkipsShardStatisticsWithNilReport(t *testing.T) {
 	nsState, err := executorStore.GetState(ctx, tc.Namespace)
 	require.NoError(t, err)
 
-	require.Contains(t, nsState.ShardStats, validShardID)
-	validStats := nsState.ShardStats[validShardID]
+	validStats, ok := nsState.ShardStats[validShardID]
+	require.True(t, ok)
 	assert.InDelta(t, 3.21, validStats.SmoothedLoad, 1e-9)
-	assert.Greater(t, validStats.LastUpdateTime, int64(0))
+	assert.False(t, validStats.LastUpdateTime.IsZero())
 
 	assert.NotContains(t, nsState.ShardStats, skippedShardID)
-}
-
-func TestRecordHeartbeatShardStatisticsThrottlesWrites(t *testing.T) {
-	tc := testhelper.SetupStoreTestCluster(t)
-	tc.LeaderCfg.Process.HeartbeatTTL = 10 * time.Second
-	tc.LeaderCfg.Process.ShardStatsTTL = 10 * time.Second
-	mockTS := clock.NewMockedTimeSourceAt(time.Unix(1000, 0))
-	executorStore := createStoreWithTimeSource(t, tc, mockTS)
-	esImpl, ok := executorStore.(*executorStoreImpl)
-	require.True(t, ok, "unexpected store implementation")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	executorID := "executor-shard-stats-throttle"
-	shardID := "shard-stats-throttle"
-
-	baseLoad := 0.40
-	smallDelta := shardStatsEpsilon / 2
-	intervalSeconds := esImpl.maxStatsPersistIntervalSeconds
-	halfIntervalSeconds := intervalSeconds / 2
-	if halfIntervalSeconds == 0 {
-		halfIntervalSeconds = 1
-	}
-
-	// First heartbeat should always persist stats.
-	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, store.HeartbeatState{
-		LastHeartbeat: mockTS.Now().Unix(),
-		Status:        types.ExecutorStatusACTIVE,
-		ReportedShards: map[string]*types.ShardStatusReport{
-			shardID: {Status: types.ShardStatusREADY, ShardLoad: baseLoad},
-		},
-	}))
-	statsAfterFirst := getShardStats(ctx, t, executorStore, tc.Namespace, shardID)
-	require.NotNil(t, statsAfterFirst)
-
-	// Advance time by less than the persist interval and provide a small delta: should skip the write.
-	mockTS.Advance(time.Duration(halfIntervalSeconds) * time.Second)
-	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, store.HeartbeatState{
-		LastHeartbeat: mockTS.Now().Unix(),
-		Status:        types.ExecutorStatusACTIVE,
-		ReportedShards: map[string]*types.ShardStatusReport{
-			shardID: {Status: types.ShardStatusREADY, ShardLoad: baseLoad + smallDelta},
-		},
-	}))
-	statsAfterSkip := getShardStats(ctx, t, executorStore, tc.Namespace, shardID)
-	require.NotNil(t, statsAfterSkip)
-	assert.Equal(t, statsAfterFirst.LastUpdateTime, statsAfterSkip.LastUpdateTime, "small recent deltas should not trigger a persist")
-
-	// Advance time beyond the max persist interval, even small deltas should now persist.
-	mockTS.Advance(time.Duration(intervalSeconds) * time.Second)
-	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, store.HeartbeatState{
-		LastHeartbeat: mockTS.Now().Unix(),
-		Status:        types.ExecutorStatusACTIVE,
-		ReportedShards: map[string]*types.ShardStatusReport{
-			shardID: {Status: types.ShardStatusREADY, ShardLoad: baseLoad + smallDelta/2},
-		},
-	}))
-	statsAfterForce := getShardStats(ctx, t, executorStore, tc.Namespace, shardID)
-	require.NotNil(t, statsAfterForce)
-	assert.Greater(t, statsAfterForce.LastUpdateTime, statsAfterSkip.LastUpdateTime, "stale stats must be refreshed even if delta is small")
 }
 
 func TestGetHeartbeat(t *testing.T) {
@@ -246,12 +245,12 @@ func TestGetHeartbeat(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	nowTS := time.Now().Unix()
+	now := time.Now().UTC()
 
 	executorID := "executor-get"
 	req := store.HeartbeatState{
 		Status:        types.ExecutorStatusDRAINING,
-		LastHeartbeat: nowTS,
+		LastHeartbeat: now,
 	}
 
 	// 1. Record a heartbeat
@@ -279,7 +278,7 @@ func TestGetHeartbeat(t *testing.T) {
 
 	// 3. Verify the state
 	assert.Equal(t, types.ExecutorStatusDRAINING, hb.Status)
-	assert.Equal(t, nowTS, hb.LastHeartbeat)
+	assert.Equal(t, now, hb.LastHeartbeat)
 	require.NotNil(t, assignedFromDB.AssignedShards)
 	assert.Equal(t, assignState[executorID].AssignedShards, assignedFromDB.AssignedShards)
 
@@ -459,11 +458,11 @@ func TestGuardedOperations(t *testing.T) {
 	elector, err := leaderstore.NewLeaderStore(leaderstore.StoreParams{Client: tc.Client, Cfg: tc.LeaderCfg, Lifecycle: fxtest.NewLifecycle(t)})
 	require.NoError(t, err)
 	election1, err := elector.CreateElection(ctx, namespace)
-	require.NoError(t, err)
 	defer election1.Cleanup(ctx)
+	defer func() { _ = election1.Cleanup(ctx) }()
 	election2, err := elector.CreateElection(ctx, namespace)
-	require.NoError(t, err)
 	defer election2.Cleanup(ctx)
+	defer func() { _ = election2.Cleanup(ctx) }()
 
 	// 2. First node becomes leader
 	require.NoError(t, election1.Campaign(ctx, "host-1"))
@@ -508,8 +507,7 @@ func TestSubscribe(t *testing.T) {
 	require.NoError(t, err)
 
 	// Manually put a heartbeat update, which is an insignificant change
-	heartbeatKey, err := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "heartbeat")
-	require.NoError(t, err)
+	heartbeatKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "heartbeat")
 	_, err = tc.Client.Put(ctx, heartbeatKey, "timestamp")
 	require.NoError(t, err)
 
@@ -521,9 +519,13 @@ func TestSubscribe(t *testing.T) {
 	}
 
 	// Now update the reported shards, which IS a significant change
-	reportedShardsKey, err := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "reported_shards")
+	reportedShardsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "reported_shards")
 	require.NoError(t, err)
-	_, err = tc.Client.Put(ctx, reportedShardsKey, `{"shard-1":{"status":"running"}}`)
+	writer, err := common.NewRecordWriter(tc.Compression)
+	require.NoError(t, err)
+	compressedShards, err := writer.Write([]byte(`{"shard-1":{"status":"running"}}`))
+	require.NoError(t, err)
+	_, err = tc.Client.Put(ctx, reportedShardsKey, string(compressedShards))
 	require.NoError(t, err)
 
 	select {
@@ -609,7 +611,7 @@ func TestParseExecutorKey_Errors(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "does not have expected prefix")
 
-	key := etcdkeys.BuildExecutorPrefix(tc.EtcdPrefix, tc.Namespace) + "too/many/parts"
+	key := etcdkeys.BuildExecutorsPrefix(tc.EtcdPrefix, tc.Namespace) + "too/many/parts"
 	_, _, err = etcdkeys.ParseExecutorKey(tc.EtcdPrefix, tc.Namespace, key)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected key format")
@@ -690,12 +692,20 @@ func TestShardStatisticsPersistence(t *testing.T) {
 	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
 
 	// 2. Pre-create shard statistics as if coming from prior history
-	stats := store.ShardStatistics{SmoothedLoad: 12.5, LastUpdateTime: 1234, LastMoveTime: 5678}
-	shardStatsKey, err := etcdkeys.BuildShardKey(tc.EtcdPrefix, tc.Namespace, shardID, etcdkeys.ShardStatisticsKey)
+	stats := store.ShardStatistics{SmoothedLoad: 12.5, LastUpdateTime: time.Unix(1234, 0).UTC(), LastMoveTime: time.Unix(5678, 0).UTC()}
+	// The stats the executor should have after assignment
+	executorStats := map[string]etcdtypes.ShardStatistics{
+		shardID: *etcdtypes.FromShardStatistics(&stats),
+	}
+	payload, err := json.Marshal(executorStats)
 	require.NoError(t, err)
-	payload, err := json.Marshal(stats)
+	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
+	writer, err := common.NewRecordWriter(tc.Compression)
 	require.NoError(t, err)
-	_, err = tc.Client.Put(ctx, shardStatsKey, string(payload))
+	compressedPayload, err := writer.Write(payload)
+	require.NoError(t, err)
+	// Write those stats to etcd under the executor (exec-stats) stats key
+	_, err = tc.Client.Put(ctx, statsKey, string(compressedPayload))
 	require.NoError(t, err)
 
 	// 3. Assign the shard via AssignShard (should not clobber existing metrics)
@@ -726,6 +736,55 @@ func TestGetShardStatisticsForMissingShard(t *testing.T) {
 	st, err := executorStore.GetState(ctx, tc.Namespace)
 	require.NoError(t, err)
 	assert.NotContains(t, st.ShardStats, "unknown")
+}
+
+// TestDeleteShardStatsDeletesAllStats verifies that shard statistics are correctly deleted.
+func TestDeleteShardStatsDeletesAllStats(t *testing.T) {
+	tc := testhelper.SetupStoreTestCluster(t)
+	executorStore := createStore(t, tc)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	totalShardStats := 135 // number of stats to add and make stale
+	shardIDs := make([]string, 0, totalShardStats)
+	executorID := "exec-delete-stats"
+
+	// ensure executor exists
+	ctxHeartbeat, cancelHb := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelHb()
+	require.NoError(t, executorStore.RecordHeartbeat(ctxHeartbeat, tc.Namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
+
+	// Create stale stats
+	executorStats := make(map[string]etcdtypes.ShardStatistics)
+	for i := 0; i < totalShardStats; i++ {
+		shardID := "stale-stats-" + strconv.Itoa(i)
+		shardIDs = append(shardIDs, shardID)
+
+		stats := store.ShardStatistics{
+			SmoothedLoad:   float64(i),
+			LastUpdateTime: time.Unix(int64(i), 0).UTC(),
+			LastMoveTime:   time.Unix(int64(i), 0).UTC(),
+		}
+		executorStats[shardID] = *etcdtypes.FromShardStatistics(&stats)
+	}
+
+	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
+	payload, err := json.Marshal(executorStats)
+	require.NoError(t, err)
+	writer, err := common.NewRecordWriter(tc.Compression)
+	require.NoError(t, err)
+	compressedPayload, err := writer.Write(payload)
+	require.NoError(t, err)
+	_, err = tc.Client.Put(ctx, statsKey, string(compressedPayload))
+	require.NoError(t, err)
+
+	require.NoError(t, executorStore.DeleteShardStats(ctx, tc.Namespace, shardIDs, store.NopGuard()))
+
+	nsState, err := executorStore.GetState(ctx, tc.Namespace)
+	require.NoError(t, err)
+	// All stats should be deleted
+	assert.Empty(t, nsState.ShardStats)
 }
 
 // --- Test Setup ---

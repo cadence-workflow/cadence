@@ -35,6 +35,8 @@ operations:
       clusterAttribute:
         scope: invalid
         name: invalid
+    want:
+      error: "Cannot start workflow with a cluster attribute that is not found in the domain's metadata."
 
   # start workflow in cluster1
   - op: start_workflow
@@ -49,25 +51,5 @@ operations:
       clusterAttribute:
         scope: invalid
         name: invalid
-
-  # validate that wf1 is started in cluster0 and completed in cluster0
-  - op: validate
-    at: 70s
-    workflowID: wf1
-    cluster: cluster0
-    domain: test-domain-aa
     want:
-      status: completed
-      startedByWorkersInCluster: cluster0
-      completedByWorkersInCluster: cluster0
-
-  # validate that wf2 is started and completed in cluster0
-  - op: validate
-    at: 70s
-    workflowID: wf2
-    cluster: cluster1
-    domain: test-domain-aa
-    want:
-      status: completed
-      startedByWorkersInCluster: cluster0
-      completedByWorkersInCluster: cluster0
+      error: "Cannot start workflow with a cluster attribute that is not found in the domain's metadata."

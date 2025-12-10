@@ -416,6 +416,10 @@ func constructStartWorkflowRequest(c *cli.Context) (*types.StartWorkflowExecutio
 	if err != nil {
 		return nil, commoncli.Problem("Error in starting wf request: ", err)
 	}
+	activeClusterSelectionPolicy, err := parseClusterAttributes(c.String(FlagClusterAttributeScope), c.String(FlagClusterAttributeName))
+	if err != nil {
+		return nil, commoncli.Problem("Error parsing cluster attributes: ", err)
+	}
 	startRequest := &types.StartWorkflowExecutionRequest{
 		RequestID:  uuid.New(),
 		Domain:     domain,
@@ -431,6 +435,7 @@ func constructStartWorkflowRequest(c *cli.Context) (*types.StartWorkflowExecutio
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(int32(dt)),
 		Identity:                            getCliIdentity(),
 		WorkflowIDReusePolicy:               reusePolicy,
+		ActiveClusterSelectionPolicy:        activeClusterSelectionPolicy,
 	}
 	if c.IsSet(FlagCronSchedule) {
 		startRequest.CronSchedule = c.String(FlagCronSchedule)
@@ -856,6 +861,7 @@ func constructSignalWithStartWorkflowRequest(c *cli.Context) (*types.SignalWithS
 		DelayStartSeconds:                   startRequest.DelayStartSeconds,
 		JitterStartSeconds:                  startRequest.JitterStartSeconds,
 		FirstRunAtTimestamp:                 startRequest.FirstRunAtTimeStamp,
+		ActiveClusterSelectionPolicy:        startRequest.ActiveClusterSelectionPolicy,
 	}, nil
 }
 
@@ -1148,19 +1154,20 @@ type describeWorkflowExecutionResponse struct {
 
 // workflowExecutionInfo has same fields as types.WorkflowExecutionInfo, but has datetime instead of raw time
 type workflowExecutionInfo struct {
-	Execution         *types.WorkflowExecution
-	Type              *types.WorkflowType
-	StartTime         *string // change from *int64
-	CloseTime         *string // change from *int64
-	CloseStatus       *types.WorkflowExecutionCloseStatus
-	HistoryLength     int64
-	ParentDomainID    *string
-	ParentExecution   *types.WorkflowExecution
-	Memo              *types.Memo
-	SearchAttributes  map[string]interface{}
-	AutoResetPoints   *types.ResetPoints
-	PartitionConfig   map[string]string
-	CronOverlapPolicy *types.CronOverlapPolicy
+	Execution                    *types.WorkflowExecution
+	Type                         *types.WorkflowType
+	StartTime                    *string // change from *int64
+	CloseTime                    *string // change from *int64
+	CloseStatus                  *types.WorkflowExecutionCloseStatus
+	HistoryLength                int64
+	ParentDomainID               *string
+	ParentExecution              *types.WorkflowExecution
+	Memo                         *types.Memo
+	SearchAttributes             map[string]interface{}
+	AutoResetPoints              *types.ResetPoints
+	PartitionConfig              map[string]string
+	CronOverlapPolicy            *types.CronOverlapPolicy
+	ActiveClusterSelectionPolicy *types.ActiveClusterSelectionPolicy
 }
 
 // pendingActivityInfo has same fields as types.PendingActivityInfo, but different field type for better display
@@ -1199,19 +1206,20 @@ func convertDescribeWorkflowExecutionResponse(resp *types.DescribeWorkflowExecut
 		return nil, fmt.Errorf("error converting search attributes: %w", err)
 	}
 	executionInfo := workflowExecutionInfo{
-		Execution:         info.Execution,
-		Type:              info.Type,
-		StartTime:         common.StringPtr(timestampToString(info.GetStartTime(), false)),
-		CloseTime:         common.StringPtr(timestampToString(info.GetCloseTime(), false)),
-		CloseStatus:       info.CloseStatus,
-		HistoryLength:     info.HistoryLength,
-		ParentDomainID:    info.ParentDomainID,
-		ParentExecution:   info.ParentExecution,
-		Memo:              info.Memo,
-		SearchAttributes:  searchattributes,
-		AutoResetPoints:   info.AutoResetPoints,
-		PartitionConfig:   info.PartitionConfig,
-		CronOverlapPolicy: info.CronOverlapPolicy,
+		Execution:                    info.Execution,
+		Type:                         info.Type,
+		StartTime:                    common.StringPtr(timestampToString(info.GetStartTime(), false)),
+		CloseTime:                    common.StringPtr(timestampToString(info.GetCloseTime(), false)),
+		CloseStatus:                  info.CloseStatus,
+		HistoryLength:                info.HistoryLength,
+		ParentDomainID:               info.ParentDomainID,
+		ParentExecution:              info.ParentExecution,
+		Memo:                         info.Memo,
+		SearchAttributes:             searchattributes,
+		AutoResetPoints:              info.AutoResetPoints,
+		PartitionConfig:              info.PartitionConfig,
+		CronOverlapPolicy:            info.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy: info.ActiveClusterSelectionPolicy,
 	}
 
 	var pendingActs []*pendingActivityInfo
@@ -2689,4 +2697,21 @@ func mapQueryRejectConditionFromFlag(flag string) (types.QueryRejectCondition, e
 	}
 
 	return rejectCondition, nil
+}
+
+func parseClusterAttributes(clusterAttributeScope string, clusterAttributeName string) (*types.ActiveClusterSelectionPolicy, error) {
+	if clusterAttributeScope == "" && clusterAttributeName == "" {
+		// default case, these values are optional so most workflows will not use them
+		return nil, nil
+	}
+	if clusterAttributeScope == "" || clusterAttributeName == "" {
+		return nil, fmt.Errorf("invalid cluster attribute, scope or name is empty, either use both or none to start workflows. got %q.%q", clusterAttributeScope, clusterAttributeName)
+	}
+	policy := &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: clusterAttributeScope,
+			Name:  clusterAttributeName,
+		},
+	}
+	return policy, nil
 }

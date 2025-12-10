@@ -418,11 +418,12 @@ func TestSignalWithStartWorkflowExecution(t *testing.T) {
 
 func TestCreateMutableState(t *testing.T) {
 	tests := []struct {
-		name        string
-		domainEntry *cache.DomainCacheEntry
-		mockFn      func(ac *activecluster.MockManager)
-		wantErr     bool
-		wantVersion int64
+		name           string
+		domainEntry    *cache.DomainCacheEntry
+		mockFn         func(ac *activecluster.MockManager)
+		wantErr        bool
+		wantVersion    int64
+		wantErrMessage string
 	}{
 		{
 			name: "create mutable state successfully, failover version is looked up from active cluster manager",
@@ -480,7 +481,8 @@ func TestCreateMutableState(t *testing.T) {
 						FailoverVersion:   125,
 					}, nil)
 			},
-			wantErr: true,
+			wantErr:        true,
+			wantErrMessage: "is active in cluster(s): [cluster1 cluster2]",
 		},
 		{
 			name: "failed to create mutable state. GetActiveClusterInfoByClusterAttribute failed",
@@ -506,7 +508,35 @@ func TestCreateMutableState(t *testing.T) {
 				ac.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("some error"))
 			},
-			wantErr: true,
+			wantErr:        true,
+			wantErrMessage: "some error",
+		},
+		{
+			name: "failed to create mutable state, cluster attribute not found",
+			domainEntry: getDomainCacheEntry(
+				0,
+				&types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   0,
+								},
+								"us-east": {
+									ActiveClusterName: "cluster2",
+									FailoverVersion:   2,
+								},
+							},
+						},
+					},
+				}),
+			mockFn: func(ac *activecluster.MockManager) {
+				ac.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, &activecluster.ClusterAttributeNotFoundError{})
+			},
+			wantErr:        true,
+			wantErrMessage: "Cannot start workflow with a cluster attribute that is not found in the domain's metadata.",
 		},
 	}
 
@@ -531,6 +561,7 @@ func TestCreateMutableState(t *testing.T) {
 			)
 			if tc.wantErr {
 				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErrMessage)
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, mutableState)

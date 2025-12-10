@@ -123,7 +123,7 @@ func TestGetShardOwner(t *testing.T) {
 			setupMocks: func(mockStore *store.MockStore) {
 				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "123").Return(&store.ShardOwner{
 					ExecutorID: "owner1",
-					Metadata:   map[string]string{},
+					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
 				}, nil)
 			},
 			expectedOwner: "owner1",
@@ -156,6 +156,10 @@ func TestGetShardOwner(t *testing.T) {
 							},
 						},
 					},
+				}, nil)
+				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner2").Return(&store.ShardOwner{
+					ExecutorID: "owner2",
+					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
 				}, nil)
 				// owner2 has the fewest shards assigned, so we assign the shard to it
 				mockStore.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD", "owner2").Return(nil)
@@ -287,6 +291,8 @@ func TestGetShardOwner(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tt.expectedOwner, resp.Owner)
 				require.Equal(t, tt.request.Namespace, resp.Namespace)
+				expectedMetadata := map[string]string{"ip": "127.0.0.1", "port": "1234"}
+				require.Equal(t, expectedMetadata, resp.Metadata)
 			}
 		})
 	}
@@ -433,62 +439,31 @@ func TestWatchNamespaceState(t *testing.T) {
 		startWG:              sync.WaitGroup{},
 	}
 
-	t.Run("successful streaming", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 
-		initialState := &store.NamespaceState{
-			ShardAssignments: map[string]store.AssignedState{
-				"executor-1": {
-					AssignedShards: map[string]*types.ShardAssignment{
-						"shard-1": {},
-					},
-				},
-			},
+	updatesChan := make(chan map[*store.ShardOwner][]string, 1)
+	unsubscribe := func() { close(updatesChan) }
+
+	mockServer.EXPECT().Context().Return(ctx).AnyTimes()
+	mockStorage.EXPECT().SubscribeToAssignmentChanges(gomock.Any(), "test-ns").Return(updatesChan, unsubscribe, nil)
+
+	// Expect update send
+	mockServer.EXPECT().Send(gomock.Any()).DoAndReturn(func(resp *types.WatchNamespaceStateResponse) error {
+		require.Len(t, resp.Executors, 1)
+		require.Equal(t, "executor-1", resp.Executors[0].ExecutorID)
+		return nil
+	})
+
+	// Send update, then cancel
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		updatesChan <- map[*store.ShardOwner][]string{
+			{ExecutorID: "executor-1", Metadata: map[string]string{}}: {"shard-1"},
 		}
+		cancel()
+	}()
 
-		updatesChan := make(chan map[*store.ShardOwner][]string, 1)
-		unsubscribe := func() { close(updatesChan) }
-
-		mockServer.EXPECT().Context().Return(ctx).AnyTimes()
-		mockStorage.EXPECT().GetState(gomock.Any(), "test-ns").Return(initialState, nil)
-		mockStorage.EXPECT().SubscribeToAssignmentChanges(gomock.Any(), "test-ns").Return(updatesChan, unsubscribe, nil)
-
-		// Expect initial state send
-		mockServer.EXPECT().Send(gomock.Any()).DoAndReturn(func(resp *types.WatchNamespaceStateResponse) error {
-			require.Len(t, resp.Executors, 1)
-			require.Equal(t, "executor-1", resp.Executors[0].ExecutorID)
-			return nil
-		})
-
-		// Expect update send
-		mockServer.EXPECT().Send(gomock.Any()).DoAndReturn(func(resp *types.WatchNamespaceStateResponse) error {
-			require.Len(t, resp.Executors, 1)
-			require.Equal(t, "executor-2", resp.Executors[0].ExecutorID)
-			return nil
-		})
-
-		// Send update, then cancel
-		go func() {
-			time.Sleep(10 * time.Millisecond)
-			updatesChan <- map[*store.ShardOwner][]string{
-				{ExecutorID: "executor-2", Metadata: map[string]string{}}: {"shard-2"},
-			}
-			cancel()
-		}()
-
-		err := handler.WatchNamespaceState(&types.WatchNamespaceStateRequest{Namespace: "test-ns"}, mockServer)
-		require.Error(t, err)
-		require.ErrorIs(t, err, context.Canceled)
-	})
-
-	t.Run("storage error on initial state", func(t *testing.T) {
-		ctx := context.Background()
-		mockServer.EXPECT().Context().Return(ctx).AnyTimes()
-		mockStorage.EXPECT().GetState(gomock.Any(), "test-ns").Return(nil, errors.New("storage error"))
-		mockStorage.EXPECT().SubscribeToAssignmentChanges(gomock.Any(), "test-ns").Return(make(chan map[*store.ShardOwner][]string), func() {}, nil)
-
-		err := handler.WatchNamespaceState(&types.WatchNamespaceStateRequest{Namespace: "test-ns"}, mockServer)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "get initial state")
-	})
+	err := handler.WatchNamespaceState(&types.WatchNamespaceStateRequest{Namespace: "test-ns"}, mockServer)
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
 }

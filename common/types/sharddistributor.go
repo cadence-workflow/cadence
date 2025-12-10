@@ -22,9 +22,11 @@
 
 package types
 
-import "fmt"
+import (
+	"fmt"
+)
 
-//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus,MigrationMode -json -output sharddistributor_statuses_enumer_generated.go
+//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus,MigrationMode,HandoverType -json -output sharddistributor_statuses_enumer_generated.go
 
 type GetShardOwnerRequest struct {
 	ShardKey  string
@@ -198,7 +200,8 @@ func (v *ExecutorHeartbeatResponse) GetMigrationPhase() (o MigrationMode) {
 }
 
 type ShardAssignment struct {
-	Status AssignmentStatus
+	// Status indicates the current assignment status of the shard.
+	Status AssignmentStatus `json:"status"`
 }
 
 func (v *ShardAssignment) GetStatus() (o AssignmentStatus) {
@@ -216,6 +219,30 @@ const (
 	AssignmentStatusINVALID AssignmentStatus = 0
 	AssignmentStatusREADY   AssignmentStatus = 1
 )
+
+// HandoverType is used to indicate the type of handover that occurred during shard reassignment.
+// Type is persisted to the DB with a string value mapping.
+// Beware - if we want to change the name - it should be backward compatible and should be done in two steps.
+type HandoverType int32
+
+const (
+	HandoverTypeINVALID HandoverType = 0
+
+	// HandoverTypeGRACEFUL
+	// Graceful handover indicates that the shard was transferred in a way that allowed
+	// the previous owner had a chance to finish processing before the shard was reassigned.
+	HandoverTypeGRACEFUL HandoverType = 1
+
+	// HandoverTypeEMERGENCY
+	// Emergency handover indicates that the shard was transferred abruptly without
+	// allowing the previous owner to finish processing.
+	HandoverTypeEMERGENCY HandoverType = 2
+)
+
+// Ptr returns a pointer to the HandoverType value.
+func (t HandoverType) Ptr() *HandoverType {
+	return &t
+}
 
 type MigrationMode int32
 

@@ -5831,6 +5831,7 @@ func FromStartWorkflowExecutionRequest(t *types.StartWorkflowExecutionRequest) *
 	if t == nil {
 		return nil
 	}
+	thriftPolicy := FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy)
 	return &shared.StartWorkflowExecutionRequest{
 		Domain:                              &t.Domain,
 		WorkflowId:                          &t.WorkflowID,
@@ -5851,7 +5852,7 @@ func FromStartWorkflowExecutionRequest(t *types.StartWorkflowExecutionRequest) *
 		JitterStartSeconds:                  t.JitterStartSeconds,
 		FirstRunAtTimestamp:                 t.FirstRunAtTimeStamp,
 		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
-		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		ActiveClusterSelectionPolicy:        thriftPolicy,
 	}
 }
 
