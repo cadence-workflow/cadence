@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 
-	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/uber/cadence/common/log"
@@ -279,7 +278,7 @@ func (n *namespaceShardToExecutor) refreshExecutorState(ctx context.Context) err
 // handleExecutorStatisticsEvent processes incoming watch events for executor shard statistics.
 // It updates the in-memory statistics map directly from the event without triggering a full refresh.
 func (n *namespaceShardToExecutor) handleExecutorStatisticsEvent(executorID string, event *clientv3.Event) {
-	if event == nil || event.Type == mvccpb.DELETE || event.Kv == nil || len(event.Kv.Value) == 0 {
+	if event == nil || event.Type == clientv3.EventTypeDelete || event.Kv == nil || len(event.Kv.Value) == 0 {
 		n.setExecutorStatistics(executorID, nil)
 		return
 	}
