@@ -23,31 +23,27 @@ func BuildExecutorIDPrefix(prefix, namespace, executorID string) string {
 	return fmt.Sprintf("%s%s/", BuildExecutorsPrefix(prefix, namespace), executorID)
 }
 
-// BuildShardsPrefix constructs the etcd key prefix for shards within a given namespace.
-// result: <prefix>/<namespace>/shards/
-func BuildShardsPrefix(prefix, namespace string) string {
-	return fmt.Sprintf("%s/shards/", BuildNamespacePrefix(prefix, namespace))
-}
-
 // ExecutorKeyType represents the allowed executor-level key types in etcd.
 // Use BuildExecutorKey to construct keys of these types.
 type ExecutorKeyType string
 
 const (
-	ExecutorHeartbeatKey      ExecutorKeyType = "heartbeat"
-	ExecutorStatusKey         ExecutorKeyType = "status"
-	ExecutorReportedShardsKey ExecutorKeyType = "reported_shards"
-	ExecutorAssignedStateKey  ExecutorKeyType = "assigned_state"
-	ExecutorMetadataKey       ExecutorKeyType = "metadata"
+	ExecutorHeartbeatKey       ExecutorKeyType = "heartbeat"
+	ExecutorStatusKey          ExecutorKeyType = "status"
+	ExecutorReportedShardsKey  ExecutorKeyType = "reported_shards"
+	ExecutorAssignedStateKey   ExecutorKeyType = "assigned_state"
+	ExecutorMetadataKey        ExecutorKeyType = "metadata"
+	ExecutorShardStatisticsKey ExecutorKeyType = "statistics"
 )
 
 // validExecutorKeyTypes defines the set of valid executor key types.
 var validExecutorKeyTypes = map[ExecutorKeyType]struct{}{
-	ExecutorHeartbeatKey:      {},
-	ExecutorStatusKey:         {},
-	ExecutorReportedShardsKey: {},
-	ExecutorAssignedStateKey:  {},
-	ExecutorMetadataKey:       {},
+	ExecutorHeartbeatKey:       {},
+	ExecutorStatusKey:          {},
+	ExecutorReportedShardsKey:  {},
+	ExecutorAssignedStateKey:   {},
+	ExecutorMetadataKey:        {},
+	ExecutorShardStatisticsKey: {},
 }
 
 // IsValidExecutorKeyType checks if the provided key type is valid.
@@ -95,37 +91,4 @@ func ParseExecutorKey(prefix, namespace, key string) (executorID string, keyType
 // result: <prefix>/<namespace>/executors/<executorID>/metadata/<metadataKey>
 func BuildMetadataKey(prefix string, namespace, executorID, metadataKey string) string {
 	return fmt.Sprintf("%s/%s", BuildExecutorKey(prefix, namespace, executorID, ExecutorMetadataKey), metadataKey)
-}
-
-// ShardKeyType represents the allowed shard-level key types in etcd.
-// Use BuildShardKey to construct keys of these types.
-type ShardKeyType string
-
-const (
-	ShardStatisticsKey ShardKeyType = "statistics"
-)
-
-// BuildShardKey constructs the etcd key for a specific shard and key type.
-// result: <prefix>/<namespace>/shards/<shardID>/<keyType>
-func BuildShardKey(prefix string, namespace, shardID string, keyType ShardKeyType) string {
-	return fmt.Sprintf("%s%s/%s", BuildShardsPrefix(prefix, namespace), shardID, keyType)
-}
-
-// ParseShardKey parses an etcd key and extracts the shard ID and key type.
-// It returns an error if the key does not conform to the expected format.
-// Expected format of key: <prefix>/<namespace>/shards/<shardID>/<keyType>
-func ParseShardKey(prefix string, namespace, key string) (shardID string, keyType ShardKeyType, err error) {
-	prefix = BuildShardsPrefix(prefix, namespace)
-	if !strings.HasPrefix(key, prefix) {
-		return "", "", fmt.Errorf("key '%s' does not have expected prefix '%s'", key, prefix)
-	}
-	remainder := strings.TrimPrefix(key, prefix)
-	parts := strings.Split(remainder, "/")
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("unexpected shard key format: %s", key)
-	}
-	if parts[1] != string(ShardStatisticsKey) {
-		return "", "", fmt.Errorf("invalid shard key type: %s", parts[1])
-	}
-	return parts[0], ShardStatisticsKey, nil
 }

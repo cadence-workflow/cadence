@@ -45,9 +45,8 @@ func setupProcessorTest(t *testing.T, namespaceType string) *testDependencies {
 			mockedClock,
 			config.ShardDistribution{
 				Process: config.LeaderProcess{
-					Period:        time.Second,
-					HeartbeatTTL:  time.Second,
-					ShardStatsTTL: 10 * time.Second,
+					Period:       time.Second,
+					HeartbeatTTL: time.Second,
 				},
 			},
 		),

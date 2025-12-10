@@ -16,19 +16,9 @@ func TestBuildExecutorsPrefix(t *testing.T) {
 	assert.Equal(t, "/cadence/test-ns/executors/", got)
 }
 
-func TestBuildShardsPrefix(t *testing.T) {
-	got := BuildShardsPrefix("/cadence", "test-ns")
-	assert.Equal(t, "/cadence/test-ns/shards/", got)
-}
-
 func TestBuildExecutorKey(t *testing.T) {
 	got := BuildExecutorKey("/cadence", "test-ns", "exec-1", "heartbeat")
 	assert.Equal(t, "/cadence/test-ns/executors/exec-1/heartbeat", got)
-}
-
-func TestBuildShardKey(t *testing.T) {
-	got := BuildShardKey("/cadence", "test-ns", "shard-1", ShardStatisticsKey)
-	assert.Equal(t, "/cadence/test-ns/shards/shard-1/statistics", got)
 }
 
 func TestParseExecutorKey(t *testing.T) {
@@ -45,27 +35,6 @@ func TestParseExecutorKey(t *testing.T) {
 	// Unexpected key format
 	_, _, err = ParseExecutorKey("/cadence", "test-ns", "/cadence/test-ns/executors/exec-1/heartbeat/extra")
 	assert.ErrorContains(t, err, "unexpected key format: /cadence/test-ns/executors/exec-1/heartbeat/extra")
-}
-
-func TestParseShardKey(t *testing.T) {
-	// Valid key
-	shardID, keyType, err := ParseShardKey("/cadence", "test-ns", "/cadence/test-ns/shards/shard-1/statistics")
-	assert.NoError(t, err)
-	assert.Equal(t, "shard-1", shardID)
-	assert.Equal(t, ShardStatisticsKey, keyType)
-
-	// Prefix missing
-	_, _, err = ParseShardKey("/cadence", "test-ns", "/cadence/other/shards/shard-1/statistics")
-	assert.ErrorContains(t, err, "key '/cadence/other/shards/shard-1/statistics' does not have expected prefix '/cadence/test-ns/shards/'")
-
-	// Unexpected format
-	_, _, err = ParseShardKey("/cadence", "test-ns", "/cadence/test-ns/shards/shard-1/statistics/extra")
-	assert.ErrorContains(t, err, "unexpected shard key format: /cadence/test-ns/shards/shard-1/statistics/extra")
-}
-
-func TestParseShardKey_InvalidType(t *testing.T) {
-	_, _, err := ParseShardKey("/cadence", "test-ns", "/cadence/test-ns/shards/shard-1/unknown")
-	assert.ErrorContains(t, err, "invalid shard key type: unknown")
 }
 
 func TestBuildMetadataKey(t *testing.T) {
