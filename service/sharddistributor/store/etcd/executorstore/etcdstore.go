@@ -859,11 +859,14 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 			}
 
 			// If the shard is new or had no previous stats, initialize them.
-			if shardStatToMove.LastUpdateTime == etcdtypes.Time(time.Time{}) { ///  ------ Unsure if this is the correct way of performing this check
+			if shardStatToMove.LastUpdateTime == etcdtypes.Time(time.Time{}) {
 				shardStatToMove.SmoothedLoad = 0
 				shardStatToMove.LastUpdateTime = etcdtypes.Time(now)
+				// Leave LastMoveTime for newly added shards as zero, to not block it from being moved once we have load measurements
+				shardStatToMove.LastMoveTime = etcdtypes.Time(time.Time{})
+			} else {
+				shardStatToMove.LastMoveTime = etcdtypes.Time(now)
 			}
-			shardStatToMove.LastMoveTime = etcdtypes.Time(now)
 
 			newOwnerStats, ok := pendingStatChanges[executorID]
 			if !ok {
