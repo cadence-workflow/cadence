@@ -52,8 +52,8 @@ func TestHeartbeat(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	// Test Case 2: Subsequent Heartbeat within the refresh rate (no update)
-	t.Run("SubsequentHeartbeatWithinRate", func(t *testing.T) {
+	// Test Case 2: Subsequent heartbeat records a new heartbeat
+	t.Run("SubsequentHeartbeatRecords", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
 		mockTimeSource := clock.NewMockedTimeSourceAt(now)
@@ -71,39 +71,10 @@ func TestHeartbeat(t *testing.T) {
 			LastHeartbeat: now,
 			Status:        types.ExecutorStatusACTIVE,
 		}
-
-		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
-
-		_, err := handler.Heartbeat(ctx, req)
-		require.NoError(t, err)
-	})
-
-	// Test Case 3: Subsequent Heartbeat after refresh rate (with update)
-	t.Run("SubsequentHeartbeatAfterRate", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockStore := store.NewMockStore(ctrl)
-		mockTimeSource := clock.NewMockedTimeSourceAt(now)
-		shardDistributionCfg := config.ShardDistribution{}
-		migrationConfig := newMigrationConfig(t, []configEntry{})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, migrationConfig, metrics.NoopClient)
-
-		req := &types.ExecutorHeartbeatRequest{
-			Namespace:  namespace,
-			ExecutorID: executorID,
-			Status:     types.ExecutorStatusACTIVE,
-		}
-
-		previousHeartbeat := store.HeartbeatState{
-			LastHeartbeat: now,
-			Status:        types.ExecutorStatusACTIVE,
-		}
-
-		// Advance time
-		mockTimeSource.Advance(_heartbeatRefreshRate + time.Second)
 
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
 		mockStore.EXPECT().RecordHeartbeat(gomock.Any(), namespace, executorID, store.HeartbeatState{
-			LastHeartbeat: mockTimeSource.Now().UTC(),
+			LastHeartbeat: now,
 			Status:        types.ExecutorStatusACTIVE,
 		})
 
@@ -111,7 +82,7 @@ func TestHeartbeat(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	// Test Case 4: Status Change (with update)
+	// Test Case 3: Status Change (with update)
 	t.Run("StatusChange", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
@@ -141,7 +112,7 @@ func TestHeartbeat(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	// Test Case 5: Storage Error
+	// Test Case 4: Storage Error
 	t.Run("StorageError", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
@@ -164,7 +135,7 @@ func TestHeartbeat(t *testing.T) {
 		require.Contains(t, err.Error(), expectedErr.Error())
 	})
 
-	// Test Case 6: Heartbeat with executor associated invalid migration mode
+	// Test Case 5: Heartbeat with executor associated invalid migration mode
 	t.Run("MigrationModeInvald", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
@@ -193,7 +164,7 @@ func TestHeartbeat(t *testing.T) {
 		require.Contains(t, err.Error(), expectedErr.Error())
 	})
 
-	// Test Case 7: Heartbeat with executor associated with local passthrough mode
+	// Test Case 6: Heartbeat with executor associated with local passthrough mode
 	t.Run("MigrationModeLocalPassthrough", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
@@ -222,7 +193,7 @@ func TestHeartbeat(t *testing.T) {
 		require.Contains(t, err.Error(), expectedErr.Error())
 	})
 
-	// Test Case 8: Heartbeat with executor associated with local passthrough shadow
+	// Test Case 7: Heartbeat with executor associated with local passthrough shadow
 	t.Run("MigrationModeLocalPassthroughWithAssignmentChanges", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
@@ -287,7 +258,7 @@ func TestHeartbeat(t *testing.T) {
 	},
 	)
 
-	// Test Case 9: Heartbeat with executor associated with distributed passthrough
+	// Test Case 8: Heartbeat with executor associated with distributed passthrough
 	t.Run("MigrationModeDISTRIBUTEDPASSTHROUGHDeletionFailure", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
@@ -330,7 +301,7 @@ func TestHeartbeat(t *testing.T) {
 		require.Contains(t, err.Error(), expectedErr.Error())
 	})
 
-	// Test Case 10: Heartbeat with executor associated with distributed passthrough
+	// Test Case 9: Heartbeat with executor associated with distributed passthrough
 	t.Run("MigrationModeDISTRIBUTEDPASSTHROUGHAssignmentFailure", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
@@ -374,7 +345,7 @@ func TestHeartbeat(t *testing.T) {
 		require.Contains(t, err.Error(), expectedErr.Error())
 	})
 
-	// Test Case 11: Heartbeat with metadata validation failure - too many keys
+	// Test Case 10: Heartbeat with metadata validation failure - too many keys
 	t.Run("MetadataValidationTooManyKeys", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
@@ -403,7 +374,7 @@ func TestHeartbeat(t *testing.T) {
 		require.Contains(t, err.Error(), "invalid metadata: metadata has 33 keys, which exceeds the maximum of 32")
 	})
 
-	// Test Case: Heartbeat with executor associated with MigrationModeLOCALPASSTHROUGH (should error)
+	// Test Case 11: Heartbeat with executor associated with MigrationModeLOCALPASSTHROUGH (should error)
 	t.Run("MigrationModeLOCALPASSTHROUGH", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
