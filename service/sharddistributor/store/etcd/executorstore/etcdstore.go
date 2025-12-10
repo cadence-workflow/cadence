@@ -815,6 +815,9 @@ func (s *executorStoreImpl) GetExecutor(ctx context.Context, namespace string, e
 	return s.shardCache.GetExecutor(ctx, namespace, executorID)
 }
 
+// This function calculates the necessary changes to shard statistics based on a new shard assignment plan.
+// It determines which shards have moved between executors, which are new. It then prepares a list of
+// update operations that will remove a moved shard's stats from its old owner and add them to its new owner, recording the time of the move.
 func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, namespace string, newAssignments map[string]store.AssignedState) ([]shardStatisticsUpdate, error) {
 	// This map will store the *new, final* state of statistics for any executor whose stats have changed.
 	pendingStatChanges := make(map[string]map[string]etcdtypes.ShardStatistics)
