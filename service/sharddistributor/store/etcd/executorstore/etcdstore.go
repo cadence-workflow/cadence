@@ -139,11 +139,8 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 	}
 
 	err = s.recordShardStatistics(ctx, namespace, executorID, request.ReportedShards)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
 
 func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) error {
@@ -165,7 +162,7 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 
 	for shardID, report := range reported {
 		if report == nil {
-			s.logger.Warn("empty report; skipping EWMA update",
+			s.logger.Warn("empty report; skipping smoothed load update",
 				tag.ShardNamespace(namespace),
 				tag.ShardExecutor(executorID),
 				tag.ShardKey(shardID),
@@ -176,7 +173,7 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 		load := report.ShardLoad
 		if math.IsNaN(load) || math.IsInf(load, 0) {
 			s.logger.Warn(
-				"invalid shard load reported; skipping EWMA update",
+				"invalid shard load reported; skipping smoothed load update",
 				tag.ShardNamespace(namespace),
 				tag.ShardExecutor(executorID),
 				tag.ShardKey(shardID),
