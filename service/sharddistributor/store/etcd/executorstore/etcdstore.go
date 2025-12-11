@@ -158,10 +158,10 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 
 	now := s.timeSource.Now().UTC()
 
-	var shardsUpdates []shardStatisticsUpdate
-	var shardsUpdate shardStatisticsUpdate
-	shardsUpdate.executorID = executorID
-	shardsUpdate.stats = make(map[string]etcdtypes.ShardStatistics)
+	var statsUpdates []shardStatisticsUpdate
+	var statsUpdate shardStatisticsUpdate
+	statsUpdate.executorID = executorID
+	statsUpdate.stats = make(map[string]etcdtypes.ShardStatistics)
 
 	for shardID, report := range reported {
 		if report == nil {
@@ -198,12 +198,12 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 		stats.SmoothedLoad = newSmoothed
 		stats.LastUpdateTime = etcdtypes.Time(now)
 
-		shardsUpdate.stats[shardID] = stats
+		statsUpdate.stats[shardID] = stats
 	}
 
-	shardsUpdates = append(shardsUpdates, shardsUpdate)
+	statsUpdates = append(statsUpdates, statsUpdate)
 
-	s.applyShardStatisticsUpdates(ctx, namespace, shardsUpdates)
+	s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
 
 	return nil
 }
