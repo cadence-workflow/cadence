@@ -94,7 +94,7 @@ type (
 		ClusterMetadata cluster.Metadata
 		IsolationState  isolationgroup.State
 		MatchingClient  matching.Client
-		CloseCallback   func(ShardProcessor)
+		CloseCallback   func(Manager)
 		TaskList        *Identifier
 		TaskListKind    types.TaskListKind
 		Cfg             *config.Config
@@ -140,7 +140,7 @@ type (
 		stopWG        sync.WaitGroup
 		stopped       int32
 		stoppedLock   sync.RWMutex
-		closeCallback func(ShardProcessor)
+		closeCallback func(Manager)
 		throttleRetry *backoff.ThrottleRetry
 
 		qpsTracker     stats.QPSTrackerGroup
@@ -316,10 +316,7 @@ func (c *taskListManagerImpl) Stop() {
 	if !atomic.CompareAndSwapInt32(&c.stopped, 0, 1) {
 		return
 	}
-	sp := &shardProcessorImpl{
-		Manager: c,
-	}
-	c.closeCallback(sp)
+	c.closeCallback(c)
 	if c.adaptiveScaler != nil {
 		c.adaptiveScaler.Stop()
 	}

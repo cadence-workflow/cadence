@@ -51,6 +51,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/tasklist"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestGetTaskListManager_OwnerShip(t *testing.T) {
@@ -109,6 +110,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 			resolverMock := membership.NewMockResolver(ctrl)
 			resolverMock.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).AnyTimes()
+			mockShardDistributorExecutorClient := executorclient.NewMockClient(ctrl)
 
 			// this is only if the call goes through
 			mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry(matchingTestDomainName), nil).AnyTimes()
@@ -133,6 +135,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				resolverMock,
 				isolationgroup.NewMockState(ctrl),
 				mockTimeSource,
+				mockShardDistributorExecutorClient,
 			).(*matchingEngineImpl)
 
 			resolverMock.EXPECT().Lookup(gomock.Any(), gomock.Any()).Return(
@@ -314,6 +317,10 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	mockResolver.EXPECT().WhoAmI().Return(self, nil).AnyTimes()
 	mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).Times(1)
 
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+	mockExecutor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	mockExecutor.EXPECT().IsOnboardedToSD().Return(false).AnyTimes()
+
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(0)
 
@@ -326,6 +333,7 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 		shutdown:    make(chan struct{}),
 		logger:      log.NewNoop(),
 		domainCache: mockDomainCache,
+		executor:    mockExecutor,
 	}
 
 	// set this engine to be shutting down to trigger the tasklistGetTasklistByID guard

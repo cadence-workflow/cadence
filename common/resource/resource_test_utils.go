@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
+	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -57,6 +58,7 @@ import (
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/quotas/global/rpc"
 	"github.com/uber/cadence/common/taskvalidator"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -84,13 +86,14 @@ type (
 
 		// internal services clients
 
-		SDKClient            *publicservicetest.MockClient
-		FrontendClient       *frontend.MockClient
-		MatchingClient       *matching.MockClient
-		HistoryClient        *history.MockClient
-		RemoteAdminClient    *admin.MockClient
-		RemoteFrontendClient *frontend.MockClient
-		ClientBean           *client.MockBean
+		SDKClient                      *publicservicetest.MockClient
+		FrontendClient                 *frontend.MockClient
+		MatchingClient                 *matching.MockClient
+		HistoryClient                  *history.MockClient
+		ShardDistributorExecutorClient *sharddistributorexecutor.MockClient
+		RemoteAdminClient              *admin.MockClient
+		RemoteFrontendClient           *frontend.MockClient
+		ClientBean                     *client.MockBean
 
 		// persistence clients
 
@@ -144,6 +147,7 @@ func NewTest(
 	clientBean.EXPECT().GetHistoryClient().Return(historyClient).AnyTimes()
 	clientBean.EXPECT().GetRemoteAdminClient(gomock.Any()).Return(remoteAdminClient, nil).AnyTimes()
 	clientBean.EXPECT().GetRemoteFrontendClient(gomock.Any()).Return(remoteFrontendClient, nil).AnyTimes()
+	shardDistributorExecutorClient := sharddistributorexecutor.NewMockClient(controller)
 
 	metadataMgr := &mocks.MetadataManager{}
 	domainAuditMgr := persistence.NewMockDomainAuditManager(controller)
@@ -198,13 +202,14 @@ func NewTest(
 
 		// internal services clients
 
-		SDKClient:            publicservicetest.NewMockClient(oldgomock.NewController(t)),
-		FrontendClient:       frontendClient,
-		MatchingClient:       matchingClient,
-		HistoryClient:        historyClient,
-		RemoteAdminClient:    remoteAdminClient,
-		RemoteFrontendClient: remoteFrontendClient,
-		ClientBean:           clientBean,
+		SDKClient:                      publicservicetest.NewMockClient(oldgomock.NewController(t)),
+		FrontendClient:                 frontendClient,
+		MatchingClient:                 matchingClient,
+		HistoryClient:                  historyClient,
+		RemoteAdminClient:              remoteAdminClient,
+		RemoteFrontendClient:           remoteFrontendClient,
+		ClientBean:                     clientBean,
+		ShardDistributorExecutorClient: shardDistributorExecutorClient,
 
 		// persistence clients
 
@@ -356,6 +361,10 @@ func (s *Test) GetHistoryRawClient() history.Client {
 // GetHistoryClient for testing
 func (s *Test) GetHistoryClient() history.Client {
 	return s.HistoryClient
+}
+
+func (s *Test) GetShardDistributorExecutorClient() executorclient.Client {
+	return s.ShardDistributorExecutorClient
 }
 
 // GetRemoteAdminClient for testing

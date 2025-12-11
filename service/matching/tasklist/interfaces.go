@@ -93,7 +93,8 @@ type (
 	}
 
 	ShardProcessor interface {
-		Manager
+		Start(ctx context.Context) error
+		Stop()
 		GetShardReport() executorclient.ShardReport
 		SetShardStatus(types.ShardStatus)
 	}

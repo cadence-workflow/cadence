@@ -45,26 +45,27 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/tasklist"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestGetTaskListsByDomain(t *testing.T) {
 	testCases := []struct {
 		name           string
-		mockSetup      func(*cache.MockDomainCache, map[tasklist.Identifier]*tasklist.MockShardProcessor, map[tasklist.Identifier]*tasklist.MockShardProcessor)
+		mockSetup      func(*cache.MockDomainCache, map[tasklist.Identifier]*tasklist.MockManager, map[tasklist.Identifier]*tasklist.MockManager)
 		returnAllKinds bool
 		wantErr        bool
 		want           *types.GetTaskListsByDomainResponse
 	}{
 		{
 			name: "domain cache error",
-			mockSetup: func(mockDomainCache *cache.MockDomainCache, mockTaskListManagers map[tasklist.Identifier]*tasklist.MockShardProcessor, mockStickyManagers map[tasklist.Identifier]*tasklist.MockShardProcessor) {
+			mockSetup: func(mockDomainCache *cache.MockDomainCache, mockTaskListManagers map[tasklist.Identifier]*tasklist.MockManager, mockStickyManagers map[tasklist.Identifier]*tasklist.MockManager) {
 				mockDomainCache.EXPECT().GetDomainID("test-domain").Return("", errors.New("cache failure"))
 			},
 			wantErr: true,
 		},
 		{
 			name: "success",
-			mockSetup: func(mockDomainCache *cache.MockDomainCache, mockTaskListManagers map[tasklist.Identifier]*tasklist.MockShardProcessor, mockStickyManagers map[tasklist.Identifier]*tasklist.MockShardProcessor) {
+			mockSetup: func(mockDomainCache *cache.MockDomainCache, mockTaskListManagers map[tasklist.Identifier]*tasklist.MockManager, mockStickyManagers map[tasklist.Identifier]*tasklist.MockManager) {
 				mockDomainCache.EXPECT().GetDomainID("test-domain").Return("test-domain-id", nil)
 				for id, mockManager := range mockTaskListManagers {
 					if id.GetDomainID() == "test-domain-id" {
@@ -109,7 +110,7 @@ func TestGetTaskListsByDomain(t *testing.T) {
 		{
 			name:           "success - all kinds",
 			returnAllKinds: true,
-			mockSetup: func(mockDomainCache *cache.MockDomainCache, mockTaskListManagers map[tasklist.Identifier]*tasklist.MockShardProcessor, mockStickyManagers map[tasklist.Identifier]*tasklist.MockShardProcessor) {
+			mockSetup: func(mockDomainCache *cache.MockDomainCache, mockTaskListManagers map[tasklist.Identifier]*tasklist.MockManager, mockStickyManagers map[tasklist.Identifier]*tasklist.MockManager) {
 				mockDomainCache.EXPECT().GetDomainID("test-domain").Return("test-domain-id", nil)
 				for id, mockManager := range mockTaskListManagers {
 					if id.GetDomainID() == "test-domain-id" {
@@ -175,25 +176,25 @@ func TestGetTaskListsByDomain(t *testing.T) {
 			require.NoError(t, err)
 			otherDomainTasklistID, err := tasklist.NewIdentifier("other-domain-id", "other0", 0)
 			require.NoError(t, err)
-			mockDecisionTaskListManager := tasklist.NewMockShardProcessor(mockCtrl)
-			mockActivityTaskListManager := tasklist.NewMockShardProcessor(mockCtrl)
-			mockOtherDomainTaskListManager := tasklist.NewMockShardProcessor(mockCtrl)
-			mockTaskListManagers := map[tasklist.Identifier]*tasklist.MockShardProcessor{
+			mockDecisionTaskListManager := tasklist.NewMockManager(mockCtrl)
+			mockActivityTaskListManager := tasklist.NewMockManager(mockCtrl)
+			mockOtherDomainTaskListManager := tasklist.NewMockManager(mockCtrl)
+			mockTaskListManagers := map[tasklist.Identifier]*tasklist.MockManager{
 				*decisionTasklistID:    mockDecisionTaskListManager,
 				*activityTasklistID:    mockActivityTaskListManager,
 				*otherDomainTasklistID: mockOtherDomainTaskListManager,
 			}
 			stickyTasklistID, err := tasklist.NewIdentifier("test-domain-id", "sticky0", 0)
 			require.NoError(t, err)
-			mockStickyManager := tasklist.NewMockShardProcessor(mockCtrl)
-			mockStickyManagers := map[tasklist.Identifier]*tasklist.MockShardProcessor{
+			mockStickyManager := tasklist.NewMockManager(mockCtrl)
+			mockStickyManagers := map[tasklist.Identifier]*tasklist.MockManager{
 				*stickyTasklistID: mockStickyManager,
 			}
 			tc.mockSetup(mockDomainCache, mockTaskListManagers, mockStickyManagers)
 
 			engine := &matchingEngineImpl{
 				domainCache: mockDomainCache,
-				taskLists: map[tasklist.Identifier]tasklist.ShardProcessor{
+				taskLists: map[tasklist.Identifier]tasklist.Manager{
 					*decisionTasklistID:    mockDecisionTaskListManager,
 					*activityTasklistID:    mockActivityTaskListManager,
 					*otherDomainTasklistID: mockOtherDomainTaskListManager,
@@ -334,7 +335,7 @@ func TestCancelOutstandingPoll(t *testing.T) {
 	testCases := []struct {
 		name      string
 		req       *types.CancelOutstandingPollRequest
-		mockSetup func(processor *tasklist.MockShardProcessor)
+		mockSetup func(mockCtrl *gomock.Controller, processor *tasklist.MockManager, executor *executorclient.MockExecutor[tasklist.ShardProcessor])
 		wantErr   bool
 	}{
 		{
@@ -346,7 +347,7 @@ func TestCancelOutstandingPoll(t *testing.T) {
 				},
 				PollerID: "test-poller-id",
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockCtrl *gomock.Controller, mockManager *tasklist.MockManager, executor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
 			},
 			wantErr: true,
 		},
@@ -359,7 +360,8 @@ func TestCancelOutstandingPoll(t *testing.T) {
 				},
 				PollerID: "test-poller-id",
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockCtrl *gomock.Controller, mockManager *tasklist.MockManager, executor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
+				executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(tasklist.NewMockShardProcessor(mockCtrl), nil)
 				mockManager.EXPECT().CancelPoller("test-poller-id")
 			},
 			wantErr: false,
@@ -369,14 +371,16 @@ func TestCancelOutstandingPoll(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
-			mockManager := tasklist.NewMockShardProcessor(mockCtrl)
-			tc.mockSetup(mockManager)
+			mockManager := tasklist.NewMockManager(mockCtrl)
+			executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
+			tc.mockSetup(mockCtrl, mockManager, executor)
 			tasklistID, err := tasklist.NewIdentifier("test-domain-id", "test-tasklist", 0)
 			require.NoError(t, err)
 			engine := &matchingEngineImpl{
-				taskLists: map[tasklist.Identifier]tasklist.ShardProcessor{
+				taskLists: map[tasklist.Identifier]tasklist.Manager{
 					*tasklistID: mockManager,
 				},
+				executor: executor,
 			}
 			err = engine.CancelOutstandingPoll(nil, tc.req)
 			if tc.wantErr {
@@ -445,7 +449,7 @@ func TestQueryWorkflow(t *testing.T) {
 		name      string
 		req       *types.MatchingQueryWorkflowRequest
 		hCtx      *handlerContext
-		mockSetup func(*tasklist.MockShardProcessor, *lockableQueryTaskMap)
+		mockSetup func(*tasklist.MockManager, *lockableQueryTaskMap, *gomock.Controller, *executorclient.MockExecutor[tasklist.ShardProcessor])
 		wantErr   bool
 		want      *types.MatchingQueryWorkflowResponse
 	}{
@@ -457,8 +461,9 @@ func TestQueryWorkflow(t *testing.T) {
 					Name: "/__cadence_sys/invalid-tasklist-name",
 				},
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor, queryResultMap *lockableQueryTaskMap) {},
-			wantErr:   true,
+			mockSetup: func(mockManager *tasklist.MockManager, queryResultMap *lockableQueryTaskMap, mockCtrl *gomock.Controller, executor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
+			},
+			wantErr: true,
 		},
 		{
 			name: "sticky worker unavailable",
@@ -469,7 +474,8 @@ func TestQueryWorkflow(t *testing.T) {
 					Kind: types.TaskListKindSticky.Ptr(),
 				},
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor, queryResultMap *lockableQueryTaskMap) {
+			mockSetup: func(mockManager *tasklist.MockManager, queryResultMap *lockableQueryTaskMap, mockCtrl *gomock.Controller, executor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
+				executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(tasklist.NewMockShardProcessor(mockCtrl), nil)
 				mockManager.EXPECT().HasPollerAfter(gomock.Any()).Return(false)
 			},
 			wantErr: true,
@@ -485,7 +491,8 @@ func TestQueryWorkflow(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor, queryResultMap *lockableQueryTaskMap) {
+			mockSetup: func(mockManager *tasklist.MockManager, queryResultMap *lockableQueryTaskMap, mockCtrl *gomock.Controller, executor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
+				executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(tasklist.NewMockShardProcessor(mockCtrl), nil)
 				mockManager.EXPECT().DispatchQueryTask(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("some error"))
 			},
 			wantErr: true,
@@ -503,7 +510,8 @@ func TestQueryWorkflow(t *testing.T) {
 					return context.Background()
 				}(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor, queryResultMap *lockableQueryTaskMap) {
+			mockSetup: func(mockManager *tasklist.MockManager, queryResultMap *lockableQueryTaskMap, mockCtrl *gomock.Controller, executor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
+				executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(tasklist.NewMockShardProcessor(mockCtrl), nil)
 				mockManager.EXPECT().DispatchQueryTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, taskID string, request *types.MatchingQueryWorkflowRequest) (*types.MatchingQueryWorkflowResponse, error) {
 					queryResChan, ok := queryResultMap.get(taskID)
 					if !ok {
@@ -546,17 +554,19 @@ func TestQueryWorkflow(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
-			mockManager := tasklist.NewMockShardProcessor(mockCtrl)
+			mockManager := tasklist.NewMockManager(mockCtrl)
+			executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
 			tasklistID, err := tasklist.NewIdentifier("test-domain-id", "test-tasklist", 0)
 			require.NoError(t, err)
 			engine := &matchingEngineImpl{
-				taskLists: map[tasklist.Identifier]tasklist.ShardProcessor{
+				taskLists: map[tasklist.Identifier]tasklist.Manager{
 					*tasklistID: mockManager,
 				},
 				timeSource:           clock.NewRealTimeSource(),
 				lockableQueryTaskMap: lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
+				executor:             executor,
 			}
-			tc.mockSetup(mockManager, &engine.lockableQueryTaskMap)
+			tc.mockSetup(mockManager, &engine.lockableQueryTaskMap, mockCtrl, executor)
 			resp, err := engine.QueryWorkflow(tc.hCtx, tc.req)
 			if tc.wantErr {
 				require.Error(t, err)
@@ -734,9 +744,9 @@ func TestGetTasklistsNotOwned(t *testing.T) {
 	tl2, _ := tasklist.NewIdentifier("", "tl2", 0)
 	tl3, _ := tasklist.NewIdentifier("", "tl3", 0)
 
-	tl1m := tasklist.NewMockShardProcessor(ctrl)
-	tl2m := tasklist.NewMockShardProcessor(ctrl)
-	tl3m := tasklist.NewMockShardProcessor(ctrl)
+	tl1m := tasklist.NewMockManager(ctrl)
+	tl2m := tasklist.NewMockManager(ctrl)
+	tl3m := tasklist.NewMockManager(ctrl)
 
 	resolver.EXPECT().Lookup(service.Matching, tl1.GetName()).Return(membership.NewDetailedHostInfo("", "host123", nil), nil)
 	resolver.EXPECT().Lookup(service.Matching, tl2.GetName()).Return(membership.NewDetailedHostInfo("", "host456", nil), nil)
@@ -746,7 +756,7 @@ func TestGetTasklistsNotOwned(t *testing.T) {
 		shutdown:           make(chan struct{}),
 		membershipResolver: resolver,
 		taskListsLock:      sync.RWMutex{},
-		taskLists: map[tasklist.Identifier]tasklist.ShardProcessor{
+		taskLists: map[tasklist.Identifier]tasklist.Manager{
 			*tl1: tl1m,
 			*tl2: tl2m,
 			*tl3: tl3m,
@@ -774,9 +784,9 @@ func TestShutDownTasklistsNotOwned(t *testing.T) {
 	tl2, _ := tasklist.NewIdentifier("", "tl2", 0)
 	tl3, _ := tasklist.NewIdentifier("", "tl3", 0)
 
-	tl1m := tasklist.NewMockShardProcessor(ctrl)
-	tl2m := tasklist.NewMockShardProcessor(ctrl)
-	tl3m := tasklist.NewMockShardProcessor(ctrl)
+	tl1m := tasklist.NewMockManager(ctrl)
+	tl2m := tasklist.NewMockManager(ctrl)
+	tl3m := tasklist.NewMockManager(ctrl)
 
 	resolver.EXPECT().Lookup(service.Matching, tl1.GetName()).Return(membership.NewDetailedHostInfo("", "host123", nil), nil)
 	resolver.EXPECT().Lookup(service.Matching, tl2.GetName()).Return(membership.NewDetailedHostInfo("", "host456", nil), nil)
@@ -786,7 +796,7 @@ func TestShutDownTasklistsNotOwned(t *testing.T) {
 		shutdown:           make(chan struct{}),
 		membershipResolver: resolver,
 		taskListsLock:      sync.RWMutex{},
-		taskLists: map[tasklist.Identifier]tasklist.ShardProcessor{
+		taskLists: map[tasklist.Identifier]tasklist.Manager{
 			*tl1: tl1m,
 			*tl2: tl2m,
 			*tl3: tl3m,
@@ -821,7 +831,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 		req                  *types.MatchingUpdateTaskListPartitionConfigRequest
 		enableAdaptiveScaler bool
 		hCtx                 *handlerContext
-		mockSetup            func(*tasklist.MockShardProcessor)
+		mockSetup            func(*tasklist.MockManager, *gomock.Controller, *executorclient.MockExecutor[tasklist.ShardProcessor])
 		expectError          bool
 		expectedError        string
 	}{
@@ -846,7 +856,8 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockManager *tasklist.MockManager, ctrl *gomock.Controller, executor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
+				executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(tasklist.NewMockShardProcessor(ctrl), nil)
 				mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
 					Version: 1,
 					ReadPartitions: map[int]*types.TaskListPartition{
@@ -880,7 +891,8 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockManager *tasklist.MockManager, ctrl *gomock.Controller, executor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
+				executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(tasklist.NewMockShardProcessor(ctrl), nil)
 				mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
 					Version: 1,
 					ReadPartitions: map[int]*types.TaskListPartition{
@@ -915,7 +927,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockManager *tasklist.MockManager, ctrl *gomock.Controller, executor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
 			},
 			expectError:   true,
 			expectedError: "Only root partition's partition config can be updated.",
@@ -941,7 +953,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockManager *tasklist.MockManager, ctrl *gomock.Controller, executor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
 			},
 			expectError:   true,
 			expectedError: "invalid partitioned task list name /__cadence_sys/test-tasklist",
@@ -958,7 +970,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockManager *tasklist.MockManager, ctrl *gomock.Controller, executor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
 			},
 			expectError:   true,
 			expectedError: "Task list partition config is not set in the request.",
@@ -976,7 +988,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockManager *tasklist.MockManager, ctrl *gomock.Controller, executor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
 			},
 			expectError:   true,
 			expectedError: "Only normal tasklist's partition config can be updated.",
@@ -995,7 +1007,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockManager *tasklist.MockManager, ctrl *gomock.Controller, executor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
 			},
 			expectError:   true,
 			expectedError: "Manual update is not allowed because adaptive scaler is enabled.",
@@ -1007,12 +1019,13 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
 			mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
-			mockManager := tasklist.NewMockShardProcessor(mockCtrl)
-			tc.mockSetup(mockManager)
+			mockManager := tasklist.NewMockManager(mockCtrl)
+			mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
+			tc.mockSetup(mockManager, mockCtrl, mockExecutor)
 			tasklistID, err := tasklist.NewIdentifier("test-domain-id", "test-tasklist", 1)
 			require.NoError(t, err)
 			engine := &matchingEngineImpl{
-				taskLists: map[tasklist.Identifier]tasklist.ShardProcessor{
+				taskLists: map[tasklist.Identifier]tasklist.Manager{
 					*tasklistID: mockManager,
 				},
 				timeSource:  clock.NewRealTimeSource(),
@@ -1020,6 +1033,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				config: &config.Config{
 					EnableAdaptiveScaler: dynamicproperties.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
 				},
+				executor: mockExecutor,
 			}
 			_, err = engine.UpdateTaskListPartitionConfig(tc.hCtx, tc.req)
 			if tc.expectError {
@@ -1036,7 +1050,7 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 		name          string
 		req           *types.MatchingRefreshTaskListPartitionConfigRequest
 		hCtx          *handlerContext
-		mockSetup     func(*tasklist.MockShardProcessor)
+		mockSetup     func(*tasklist.MockManager, *gomock.Controller, *executorclient.MockExecutor[tasklist.ShardProcessor])
 		expectError   bool
 		expectedError string
 	}{
@@ -1061,7 +1075,8 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockManager *tasklist.MockManager, mockCtrl *gomock.Controller, mockExecutor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
+				mockExecutor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(tasklist.NewMockShardProcessor(mockCtrl), nil)
 				mockManager.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
 					Version: 1,
 					ReadPartitions: map[int]*types.TaskListPartition{
@@ -1095,7 +1110,8 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockManager *tasklist.MockManager, mockCtrl *gomock.Controller, mockExecutor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
+				mockExecutor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(tasklist.NewMockShardProcessor(mockCtrl), nil)
 				mockManager.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
 					Version: 1,
 					ReadPartitions: map[int]*types.TaskListPartition{
@@ -1130,7 +1146,7 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockManager *tasklist.MockManager, ctrl *gomock.Controller, mockExecutor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
 			},
 			expectError:   true,
 			expectedError: "invalid partitioned task list name /__cadence_sys/test-tasklist",
@@ -1148,7 +1164,7 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockManager *tasklist.MockManager, mockCtrl *gomock.Controller, mockExecutor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
 			},
 			expectError:   true,
 			expectedError: "Only normal tasklist's partition config can be updated.",
@@ -1174,7 +1190,7 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockShardProcessor) {
+			mockSetup: func(mockManager *tasklist.MockManager, ctrl *gomock.Controller, mockExecutor *executorclient.MockExecutor[tasklist.ShardProcessor]) {
 			},
 			expectError:   true,
 			expectedError: "PartitionConfig must be nil for root partition.",
@@ -1184,18 +1200,20 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
-			mockManager := tasklist.NewMockShardProcessor(mockCtrl)
-			tc.mockSetup(mockManager)
+			mockManager := tasklist.NewMockManager(mockCtrl)
+			mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
+			tc.mockSetup(mockManager, mockCtrl, mockExecutor)
 			tasklistID, err := tasklist.NewIdentifier("test-domain-id", "test-tasklist", 1)
 			require.NoError(t, err)
 			tasklistID2, err := tasklist.NewIdentifier("test-domain-id", "/__cadence_sys/test-tasklist/1", 1)
 			require.NoError(t, err)
 			engine := &matchingEngineImpl{
-				taskLists: map[tasklist.Identifier]tasklist.ShardProcessor{
+				taskLists: map[tasklist.Identifier]tasklist.Manager{
 					*tasklistID:  mockManager,
 					*tasklistID2: mockManager,
 				},
 				timeSource: clock.NewRealTimeSource(),
+				executor:   mockExecutor,
 			}
 			_, err = engine.RefreshTaskListPartitionConfig(tc.hCtx, tc.req)
 			if tc.expectError {
@@ -1213,13 +1231,16 @@ func Test_domainChangeCallback(t *testing.T) {
 
 	clusters := []string{"cluster0", "cluster1"}
 
-	mockTaskListManagerGlobal1 := tasklist.NewMockShardProcessor(mockCtrl)
-	mockTaskListManagerGlobal2 := tasklist.NewMockShardProcessor(mockCtrl)
-	mockStickyTaskListManagerGlobal2 := tasklist.NewMockShardProcessor(mockCtrl)
-	mockTaskListManagerGlobal3 := tasklist.NewMockShardProcessor(mockCtrl)
-	mockStickyTaskListManagerGlobal3 := tasklist.NewMockShardProcessor(mockCtrl)
-	mockTaskListManagerLocal1 := tasklist.NewMockShardProcessor(mockCtrl)
-	mockTaskListManagerActiveActive1 := tasklist.NewMockShardProcessor(mockCtrl)
+	mockTaskListManagerGlobal1 := tasklist.NewMockManager(mockCtrl)
+	mockTaskListManagerGlobal2 := tasklist.NewMockManager(mockCtrl)
+	mockStickyTaskListManagerGlobal2 := tasklist.NewMockManager(mockCtrl)
+	mockTaskListManagerGlobal3 := tasklist.NewMockManager(mockCtrl)
+	mockStickyTaskListManagerGlobal3 := tasklist.NewMockManager(mockCtrl)
+	mockTaskListManagerLocal1 := tasklist.NewMockManager(mockCtrl)
+	mockTaskListManagerActiveActive1 := tasklist.NewMockManager(mockCtrl)
+
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
+	mockExecutor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(tasklist.NewMockShardProcessor(mockCtrl), nil).AnyTimes()
 
 	tlIdentifierDecisionGlobal1, _ := tasklist.NewIdentifier("global-domain-1-id", "global-domain-1", persistence.TaskListTypeDecision)
 	tlIdentifierActivityGlobal1, _ := tasklist.NewIdentifier("global-domain-1-id", "global-domain-1", persistence.TaskListTypeActivity)
@@ -1239,7 +1260,7 @@ func Test_domainChangeCallback(t *testing.T) {
 		failoverNotificationVersion: 1,
 		config:                      defaultTestConfig(),
 		logger:                      log.NewNoop(),
-		taskLists: map[tasklist.Identifier]tasklist.ShardProcessor{
+		taskLists: map[tasklist.Identifier]tasklist.Manager{
 			*tlIdentifierDecisionGlobal1:       mockTaskListManagerGlobal1,
 			*tlIdentifierActivityGlobal1:       mockTaskListManagerGlobal1,
 			*tlIdentifierDecisionGlobal2:       mockTaskListManagerGlobal2,
@@ -1253,6 +1274,7 @@ func Test_domainChangeCallback(t *testing.T) {
 			*tlIdentifierDecisionActiveActive1: mockTaskListManagerActiveActive1,
 			*tlIdentifierActivityActiveActive1: mockTaskListManagerActiveActive1,
 		},
+		executor: mockExecutor,
 	}
 
 	mockTaskListManagerGlobal1.EXPECT().ReleaseBlockedPollers().Times(0)
@@ -1370,7 +1392,7 @@ func Test_registerDomainFailoverCallback(t *testing.T) {
 		failoverNotificationVersion: 0,
 		config:                      defaultTestConfig(),
 		logger:                      log.NewNoop(),
-		taskLists:                   map[tasklist.Identifier]tasklist.ShardProcessor{},
+		taskLists:                   map[tasklist.Identifier]tasklist.Manager{},
 	}
 
 	engine.registerDomainFailoverCallback()
