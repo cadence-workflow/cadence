@@ -32,6 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
@@ -59,9 +61,11 @@ func TestGetShardOwner(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		request        *types.GetShardOwnerRequest
-		setupMocks     func(mockStore *store.MockStore)
+		name               string
+		request            *types.GetShardOwnerRequest
+		setupMocks         func(mockStore *store.MockStore)
+		setupDynamicConfig func(t *testing.T, client dynamicconfig.Client)
+
 		expectedOwner  string
 		expectedError  bool
 		expectedErrMsg string
@@ -164,6 +168,38 @@ func TestGetShardOwner(t *testing.T) {
 			expectedError: false,
 		},
 		{
+			name: "ShardNotFound_Ephemeral_LimitExceeded",
+			request: &types.GetShardOwnerRequest{
+				Namespace: _testNamespaceEphemeral,
+				ShardKey:  "NON-EXISTING-SHARD",
+			},
+			setupMocks: func(mockStore *store.MockStore) {
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
+				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+					ShardAssignments: map[string]store.AssignedState{
+						"owner1": {
+							AssignedShards: map[string]*types.ShardAssignment{
+								"shard1": {Status: types.AssignmentStatusREADY},
+								"shard2": {Status: types.AssignmentStatusREADY},
+								"shard3": {Status: types.AssignmentStatusREADY},
+							},
+						},
+						"owner2": {
+							AssignedShards: map[string]*types.ShardAssignment{
+								"shard4": {Status: types.AssignmentStatusREADY},
+							},
+						},
+					},
+				}, nil)
+			},
+			// set max ephemeral shards to 4 to cause an limit exceeded error
+			setupDynamicConfig: func(t *testing.T, client dynamicconfig.Client) {
+				client.UpdateValue(dynamicproperties.ShardDistributorMaxEphemeralShards, 4)
+			},
+			expectedError:  true,
+			expectedErrMsg: "ephemeral shard limit exceeded for namespace test-ephemeral: current 4, max 4",
+		},
+		{
 			name: "ShardNotFound_Ephemeral_GetStateFailure",
 			request: &types.GetShardOwnerRequest{
 				Namespace: _testNamespaceEphemeral,
@@ -199,15 +235,21 @@ func TestGetShardOwner(t *testing.T) {
 
 			logger := testlogger.New(t)
 			mockStorage := store.NewMockStore(ctrl)
+			dynamicClient := dynamicconfig.NewInMemoryClient()
 
 			handler := &handlerImpl{
 				logger:               logger,
 				shardDistributionCfg: cfg,
 				storage:              mockStorage,
+				cfg:                  config.NewConfig(dynamicconfig.NewCollection(dynamicClient, testlogger.New(t))),
 			}
 			if tt.setupMocks != nil {
 				tt.setupMocks(mockStorage)
 			}
+			if tt.setupDynamicConfig != nil {
+				tt.setupDynamicConfig(t, dynamicClient)
+			}
+
 			resp, err := handler.GetShardOwner(context.Background(), tt.request)
 			if tt.expectedError {
 				require.Error(t, err)

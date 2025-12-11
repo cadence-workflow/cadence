@@ -89,6 +89,8 @@ func FromError(err error) error {
 		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, fromShardNotFoundErr); ok {
 		return typedErr
+	} else if ok, typedErr = errorutils.ConvertError(err, fromEphemeralShardLimitExceededErr); ok {
+		return typedErr
 	}
 
 	return protobuf.NewError(yarpcerrors.CodeUnknown, err.Error())
@@ -415,5 +417,13 @@ func fromShardNotFoundErr(e *types.ShardNotFoundError) error {
 	return protobuf.NewError(yarpcerrors.CodeNotFound, e.Error(), protobuf.WithErrorDetails(&sharddistributorv1.ShardNotFoundError{
 		Namespace: e.Namespace,
 		ShardKey:  e.ShardKey,
+	}))
+}
+
+func fromEphemeralShardLimitExceededErr(e *types.EphemeralShardLimitExceededError) error {
+	return protobuf.NewError(yarpcerrors.CodeResourceExhausted, e.Error(), protobuf.WithErrorDetails(&sharddistributorv1.EphemeralShardLimitExceededError{
+		Namespace:    e.Namespace,
+		MaxLimit:     int64(e.MaxLimit),
+		CurrentValue: int64(e.CurrentValue),
 	}))
 }

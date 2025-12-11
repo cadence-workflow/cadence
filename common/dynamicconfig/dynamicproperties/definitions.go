@@ -89,6 +89,9 @@ type StringPropertyFnWithTaskListInfoFilters func(domain string, taskList string
 // StringPropertyFnWithNamespaceFilters is a wrapper to get string property from dynamic config with namespace as filter
 type StringPropertyFnWithNamespaceFilters func(namespace string) string
 
+// IntPropertyFnWithNamespaceFilters is a wrapper to get int property from dynamic config with namespace as filter
+type IntPropertyFnWithNamespaceFilters func(namespace string) int
+
 // BoolPropertyFnWithDomainFilter is a wrapper to get bool property from dynamic config with domain as filter
 type BoolPropertyFnWithDomainFilter func(domain string) bool
 

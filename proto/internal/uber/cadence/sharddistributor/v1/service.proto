@@ -54,6 +54,12 @@ message ShardNotFoundError {
   string shard_key = 2;
 }
 
+message EphemeralShardLimitExceededError {
+  string namespace = 1;
+  int64 max_limit = 2;
+  int64 current_value = 3;
+}
+
 message WatchNamespaceStateRequest {
   string namespace = 1;
 }

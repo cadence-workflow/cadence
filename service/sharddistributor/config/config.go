@@ -35,8 +35,9 @@ import (
 type (
 	// Config represents configuration for shard manager service
 	Config struct {
-		LoadBalancingMode dynamicproperties.StringPropertyFnWithNamespaceFilters
-		MigrationMode     dynamicproperties.StringPropertyFnWithNamespaceFilters
+		LoadBalancingMode  dynamicproperties.StringPropertyFnWithNamespaceFilters
+		MigrationMode      dynamicproperties.StringPropertyFnWithNamespaceFilters
+		MaxEphemeralShards dynamicproperties.IntPropertyFnWithNamespaceFilters
 	}
 
 	StaticConfig struct {
@@ -119,8 +120,9 @@ var MigrationMode = map[string]types.MigrationMode{
 // NewConfig returns a new instance of Config
 func NewConfig(dc *dynamicconfig.Collection) *Config {
 	return &Config{
-		LoadBalancingMode: dc.GetStringPropertyFilteredByNamespace(dynamicproperties.ShardDistributorLoadBalancingMode),
-		MigrationMode:     dc.GetStringPropertyFilteredByNamespace(dynamicproperties.ShardDistributorMigrationMode),
+		LoadBalancingMode:  dc.GetStringPropertyFilteredByNamespace(dynamicproperties.ShardDistributorLoadBalancingMode),
+		MigrationMode:      dc.GetStringPropertyFilteredByNamespace(dynamicproperties.ShardDistributorMigrationMode),
+		MaxEphemeralShards: dc.GetIntPropertyFilteredByNamespace(dynamicproperties.ShardDistributorMaxEphemeralShards),
 	}
 }
 
