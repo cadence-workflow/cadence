@@ -389,8 +389,6 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 		p.logger.Info("No active executors found. Cannot assign shards.")
 		return nil
 	}
-	p.logger.Info("Active executors", tag.ShardExecutors(activeExecutors))
-
 	deletedShards := p.findDeletedShards(namespaceState)
 	shardsToReassign, currentAssignments := p.findShardsToReassign(activeExecutors, namespaceState, deletedShards, staleExecutors)
 
@@ -620,7 +618,7 @@ func (p *namespaceProcessor) loadBalance(
 		// If no source has an eligible shard (e.g., all are cooling down), we stop early.
 		movedThisIteration := false
 		for _, sourceExecutor := range sources {
-			shardsToMove := p.findShardsToMove(currentAssignments, namespaceState, sourceExecutor, destExecutor, now, perShardCooldown)
+			shardsToMove := p.findShardsToMove(currentAssignments, namespaceState, sourceExecutor, now, perShardCooldown)
 			if len(shardsToMove) == 0 {
 				// All shards on this source are in cooldown; try the next source.
 				continue
@@ -671,7 +669,6 @@ func (p *namespaceProcessor) findShardsToMove(
 	currentAssignments map[string][]string,
 	namespaceState *store.NamespaceState,
 	source string,
-	destination string,
 	now time.Time,
 	perShardCooldown time.Duration,
 ) []string {
