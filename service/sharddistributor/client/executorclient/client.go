@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/uber-go/tally"
 	"go.uber.org/fx"
+	"go.uber.org/yarpc"
 
-	"github.com/uber/cadence/client/sharddistributorexecutor"
 	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
@@ -64,7 +64,7 @@ type Executor[SP ShardProcessor] interface {
 type Params[SP ShardProcessor] struct {
 	fx.In
 
-	ExecutorClient        sharddistributorexecutor.Client
+	ExecutorClient        Client
 	MetricsScope          tally.Scope
 	Logger                log.Logger
 	ShardProcessorFactory ShardProcessorFactory[SP]
@@ -138,7 +138,7 @@ func newExecutorWithConfig[SP ShardProcessor](params Params[SP], namespaceConfig
 	return executor, nil
 }
 
-func createShardDistributorExecutorClient(client sharddistributorexecutor.Client, metricsScope tally.Scope, logger log.Logger) (sharddistributorexecutor.Client, error) {
+func createShardDistributorExecutorClient(client Client, metricsScope tally.Scope, logger log.Logger) (Client, error) {
 
 	shardDistributorExecutorClient := timeoutwrapper.NewShardDistributorExecutorClient(client, timeoutwrapper.ShardDistributorExecutorDefaultTimeout)
 
