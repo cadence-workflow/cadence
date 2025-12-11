@@ -1028,7 +1028,7 @@ func TestLoadBalance_MultiMovePerCycle(t *testing.T) {
 	}
 
 	totalShards := len(shardStats)
-	expectedBudget := int(math.Ceil(_moveBudgetProportionalityFactor * float64(totalShards)))
+	expectedBudget := int(math.Ceil(processor.cfg.MoveBudgetProportion * float64(totalShards)))
 
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
 		Executors: map[string]store.HeartbeatState{
@@ -1113,6 +1113,7 @@ func TestLoadBalance_PerShardCooldownSkipsHotShard(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
+	// Use structuralChange=true to bypass global cooldown and isolate per-shard cooldown behavior.
 	changed, err := processor.loadBalance(currentAssignments, namespaceState, map[string]store.ShardState{}, true, nil)
 	require.NoError(t, err)
 	require.True(t, changed)

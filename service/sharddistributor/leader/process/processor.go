@@ -51,8 +51,11 @@ const (
 	_defaultTimeout      = 1 * time.Second
 	// Default cooldown between moving the same shard / applying consecutive moves.
 	_defaultPerShardCooldown = time.Minute
-	// Fraction of total shards that may be moved per load-balance pass.
-	_moveBudgetProportionalityFactor = 0.01
+	// Default fraction of total shards that may be moved per load-balance pass.
+	_defaultMoveBudgetProportion = 0.01
+	// Default hysteresis bands around mean load.
+	_defaultHysteresisUpperBand = 1.15
+	_defaultHysteresisLowerBand = 0.95
 )
 
 type processorFactory struct {
@@ -94,6 +97,15 @@ func NewProcessorFactory(
 	}
 	if cfg.Process.PerShardCooldown <= 0 {
 		cfg.Process.PerShardCooldown = _defaultPerShardCooldown
+	}
+	if cfg.Process.MoveBudgetProportion <= 0 {
+		cfg.Process.MoveBudgetProportion = _defaultMoveBudgetProportion
+	}
+	if cfg.Process.HysteresisUpperBand <= 0 {
+		cfg.Process.HysteresisUpperBand = _defaultHysteresisUpperBand
+	}
+	if cfg.Process.HysteresisLowerBand <= 0 {
+		cfg.Process.HysteresisLowerBand = _defaultHysteresisLowerBand
 	}
 
 	return &processorFactory{
@@ -387,8 +399,8 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	// If there are deleted shards or stale executors, the distribution has changed.
 	assignedToEmptyExecutors := assignShardsToEmptyExecutors(currentAssignments)
 	updatedAssignments := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
-	// structuralChange means we must reconcile for liveness/namespace-structure reasons
-	// Cooldowns only gate load-only moves. While structural changes apply immediately.
+	// structuralChange means we must reconcile for liveness/namespace-structure reasons.
+	// Cooldowns only gate load-only moves, while structural changes apply immediately.
 	structuralChange := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments
 	loadBalanceChange, err := p.loadBalance(currentAssignments, namespaceState, deletedShards, structuralChange, metricsLoopScope)
 	if err != nil {
@@ -501,14 +513,15 @@ func (p *namespaceProcessor) loadBalance(
 	metricsScope metrics.Scope,
 ) (bool, error) {
 
-	const hysteresisUpperBand = 1.15
-	const hysteresisLowerBand = 0.95
-
 	shardsMoved := false
 
 	allShards := getShards(p.namespaceCfg, namespaceState, deletedShards)
 
-	moveBudget := int(math.Ceil(_moveBudgetProportionalityFactor * float64(len(allShards))))
+	moveBudgetProportion := p.cfg.MoveBudgetProportion
+	hysteresisUpperBand := p.cfg.HysteresisUpperBand
+	hysteresisLowerBand := p.cfg.HysteresisLowerBand
+
+	moveBudget := int(math.Ceil(moveBudgetProportion * float64(len(allShards))))
 
 	now := p.timeSource.Now().UTC()
 	// PerShardCooldown is the minimum time between moving the same shard.
