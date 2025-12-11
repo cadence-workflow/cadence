@@ -510,6 +510,9 @@ func (p *namespaceProcessor) loadBalance(
 			totalLoad += namespaceState.ShardStats[shardID].SmoothedLoad
 		}
 	}
+	if len(executorLoads) == 0 {
+		return false, nil
+	}
 
 	meanLoad := totalLoad / float64(len(executorLoads))
 
