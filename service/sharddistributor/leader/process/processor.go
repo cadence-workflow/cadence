@@ -498,12 +498,13 @@ func (p *namespaceProcessor) loadBalance(
 
 	moveBudget := int(math.Ceil(moveBudgetProportionalityFactor * float64(len(allShards))))
 
-	executorLoads := make(map[string]float64)
+	executorLoads := make(map[string]float64, len(currentAssignments))
 	totalLoad := 0.0
-	for executorID, assignmentState := range namespaceState.ShardAssignments {
-		for shardID := range assignmentState.AssignedShards {
-			executorLoads[executorID] += namespaceState.ShardStats[shardID].SmoothedLoad
-			totalLoad += namespaceState.ShardStats[shardID].SmoothedLoad
+	for executorID, shards := range currentAssignments {
+		for _, shardID := range shards {
+			load := namespaceState.ShardStats[shardID].SmoothedLoad
+			executorLoads[executorID] += load
+			totalLoad += load
 		}
 	}
 	if len(executorLoads) == 0 {
