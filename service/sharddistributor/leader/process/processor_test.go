@@ -852,6 +852,16 @@ func TestLoadBalance_Convergence(t *testing.T) {
 		GlobalRevision:   10,
 	}, nil)
 
+	for sID := range shardStats {
+		var owner string
+		if _, ok := assignments[execA].AssignedShards[sID]; ok {
+			owner = execA
+		} else {
+			owner = execB
+		}
+		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, sID).Return(&store.ShardOwner{ExecutorID: owner}, nil).AnyTimes()
+	}
+
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 
 	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
@@ -956,6 +966,20 @@ func TestLoadBalance_BudgetConstraint(t *testing.T) {
 		ShardStats:       shardStats,
 		GlobalRevision:   10,
 	}, nil)
+
+	for sID := range shardStats {
+		var owner string
+		if _, ok := assignments[execA].AssignedShards[sID]; ok {
+			owner = execA
+		} else if _, ok := assignments[execB].AssignedShards[sID]; ok {
+			owner = execB
+		} else if _, ok := assignments[execC].AssignedShards[sID]; ok {
+			owner = execC
+		} else {
+			owner = execD
+		}
+		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, sID).Return(&store.ShardOwner{ExecutorID: owner}, nil).AnyTimes()
+	}
 
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 
@@ -1062,6 +1086,20 @@ func TestLoadBalance_ExecutorRemovedFromDestination(t *testing.T) {
 		ShardStats:       shardStats,
 		GlobalRevision:   10,
 	}, nil)
+
+	for sID := range shardStats {
+		var owner string
+		if _, ok := assignments[execA].AssignedShards[sID]; ok {
+			owner = execA
+		} else if _, ok := assignments[execB].AssignedShards[sID]; ok {
+			owner = execB
+		} else if _, ok := assignments[execC].AssignedShards[sID]; ok {
+			owner = execC
+		} else if _, ok := assignments[execF].AssignedShards[sID]; ok {
+			owner = execF
+		}
+		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, sID).Return(&store.ShardOwner{ExecutorID: owner}, nil).AnyTimes()
+	}
 
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 
