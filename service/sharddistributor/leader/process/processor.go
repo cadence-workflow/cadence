@@ -357,10 +357,6 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 		return fmt.Errorf("get state: %w", err)
 	}
 
-	if namespaceState.GlobalRevision <= p.lastAppliedRevision {
-		p.logger.Info("No changes detected. Skipping rebalance.")
-		return nil
-	}
 	p.lastAppliedRevision = namespaceState.GlobalRevision
 
 	// Identify stale executors that need to be removed
