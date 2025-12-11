@@ -48,6 +48,11 @@ func setupProcessorTest(t *testing.T, namespaceType string) *testDependencies {
 					HeartbeatTTL: time.Second,
 				},
 			},
+			&config.Config{
+				LoadBalancingMode: func(namespace string) string {
+					return config.LoadBalancingModeNAIVE
+				},
+			},
 		),
 		cfg: config.Namespace{Name: "test-ns", ShardNum: 2, Type: namespaceType, Mode: config.MigrationModeONBOARDED},
 	}
