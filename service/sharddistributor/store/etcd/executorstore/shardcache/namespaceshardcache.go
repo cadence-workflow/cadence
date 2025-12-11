@@ -6,12 +6,12 @@ import (
 	"strings"
 	"sync"
 
-	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/service/sharddistributor/store"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/executorstore/common"
@@ -31,11 +31,11 @@ type namespaceShardToExecutor struct {
 	changeUpdateChannel    clientv3.WatchChan
 	stopCh                 chan struct{}
 	logger                 log.Logger
-	client                 *clientv3.Client
+	client                 etcdclient.Client
 	pubSub                 *executorStatePubSub
 }
 
-func newNamespaceShardToExecutor(etcdPrefix, namespace string, client *clientv3.Client, stopCh chan struct{}, logger log.Logger) (*namespaceShardToExecutor, error) {
+func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient.Client, stopCh chan struct{}, logger log.Logger) (*namespaceShardToExecutor, error) {
 	// Start listening
 	watchPrefix := etcdkeys.BuildExecutorsPrefix(etcdPrefix, namespace)
 	watchChan := client.Watch(context.Background(), watchPrefix, clientv3.WithPrefix(), clientv3.WithPrevKV())
@@ -279,7 +279,7 @@ func (n *namespaceShardToExecutor) refreshExecutorState(ctx context.Context) err
 // handleExecutorStatisticsEvent processes incoming watch events for executor shard statistics.
 // It updates the in-memory statistics map directly from the event without triggering a full refresh.
 func (n *namespaceShardToExecutor) handleExecutorStatisticsEvent(executorID string, event *clientv3.Event) {
-	if event == nil || event.Type == mvccpb.DELETE || event.Kv == nil || len(event.Kv.Value) == 0 {
+	if event == nil || event.Type == clientv3.EventTypeDelete || event.Kv == nil || len(event.Kv.Value) == 0 {
 		n.setExecutorStatistics(executorID, nil)
 		return
 	}

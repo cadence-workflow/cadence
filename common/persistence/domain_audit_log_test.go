@@ -53,8 +53,9 @@ func TestDomainAuditLog_ToFailoverEvents(t *testing.T) {
 				OperationType: DomainAuditOperationTypeFailover,
 			},
 			expected: &types.FailoverEvent{
-				ID:          stringPtr("event-1"),
-				CreatedTime: int64Ptr(now.UnixNano()),
+				ID:           stringPtr("event-1"),
+				CreatedTime:  int64Ptr(now.UnixNano()),
+				FailoverType: types.FailoverTypeForce.Ptr(),
 				ClusterFailovers: []*types.ClusterFailover{
 					{
 						FromCluster: &types.ActiveClusterInfo{
@@ -117,8 +118,9 @@ func TestDomainAuditLog_ToFailoverEvents(t *testing.T) {
 				OperationType: DomainAuditOperationTypeFailover,
 			},
 			expected: &types.FailoverEvent{
-				ID:          stringPtr("event-2"),
-				CreatedTime: int64Ptr(now.UnixNano()),
+				ID:           stringPtr("event-2"),
+				CreatedTime:  int64Ptr(now.UnixNano()),
+				FailoverType: types.FailoverTypeForce.Ptr(),
 				ClusterFailovers: []*types.ClusterFailover{
 					{
 						FromCluster: &types.ActiveClusterInfo{
@@ -179,8 +181,9 @@ func TestDomainAuditLog_ToFailoverEvents(t *testing.T) {
 				OperationType: DomainAuditOperationTypeFailover,
 			},
 			expected: &types.FailoverEvent{
-				ID:          stringPtr("event-3"),
-				CreatedTime: int64Ptr(now.UnixNano()),
+				ID:           stringPtr("event-3"),
+				CreatedTime:  int64Ptr(now.UnixNano()),
+				FailoverType: types.FailoverTypeForce.Ptr(),
 				ClusterFailovers: []*types.ClusterFailover{
 					{
 						FromCluster: &types.ActiveClusterInfo{
@@ -251,8 +254,9 @@ func TestDomainAuditLog_ToFailoverEvents(t *testing.T) {
 				OperationType: DomainAuditOperationTypeFailover,
 			},
 			expected: &types.FailoverEvent{
-				ID:          stringPtr("event-4"),
-				CreatedTime: int64Ptr(now.UnixNano()),
+				ID:           stringPtr("event-4"),
+				CreatedTime:  int64Ptr(now.UnixNano()),
+				FailoverType: types.FailoverTypeForce.Ptr(),
 				ClusterFailovers: []*types.ClusterFailover{
 					{
 						FromCluster: &types.ActiveClusterInfo{
@@ -311,8 +315,9 @@ func TestDomainAuditLog_ToFailoverEvents(t *testing.T) {
 				OperationType: DomainAuditOperationTypeFailover,
 			},
 			expected: &types.FailoverEvent{
-				ID:          stringPtr("event-5"),
-				CreatedTime: int64Ptr(now.UnixNano()),
+				ID:           stringPtr("event-5"),
+				CreatedTime:  int64Ptr(now.UnixNano()),
+				FailoverType: types.FailoverTypeForce.Ptr(),
 				ClusterFailovers: []*types.ClusterFailover{
 					{
 						ToCluster: &types.ActiveClusterInfo{
@@ -359,6 +364,7 @@ func TestDomainAuditLog_ToFailoverEvents(t *testing.T) {
 			expected: &types.FailoverEvent{
 				ID:               stringPtr("event-6"),
 				CreatedTime:      int64Ptr(now.UnixNano()),
+				FailoverType:     types.FailoverTypeForce.Ptr(),
 				ClusterFailovers: nil,
 			},
 		},
@@ -373,6 +379,7 @@ func TestDomainAuditLog_ToFailoverEvents(t *testing.T) {
 			},
 			expected: &types.FailoverEvent{
 				ID:               stringPtr("event-7"),
+				FailoverType:     types.FailoverTypeForce.Ptr(),
 				CreatedTime:      int64Ptr(now.UnixNano()),
 				ClusterFailovers: nil,
 			},
@@ -425,8 +432,9 @@ func TestDomainAuditLog_ToFailoverEvents(t *testing.T) {
 				OperationType: DomainAuditOperationTypeFailover,
 			},
 			expected: &types.FailoverEvent{
-				ID:          stringPtr("event-8"),
-				CreatedTime: int64Ptr(now.UnixNano()),
+				ID:           stringPtr("event-8"),
+				CreatedTime:  int64Ptr(now.UnixNano()),
+				FailoverType: types.FailoverTypeForce.Ptr(),
 				ClusterFailovers: []*types.ClusterFailover{
 					{
 						FromCluster: &types.ActiveClusterInfo{
@@ -489,8 +497,9 @@ func TestDomainAuditLog_ToFailoverEvents(t *testing.T) {
 				OperationType: DomainAuditOperationTypeFailover,
 			},
 			expected: &types.FailoverEvent{
-				ID:          stringPtr("event-9"),
-				CreatedTime: int64Ptr(now.UnixNano()),
+				ID:           stringPtr("event-9"),
+				CreatedTime:  int64Ptr(now.UnixNano()),
+				FailoverType: types.FailoverTypeForce.Ptr(),
 				ClusterFailovers: []*types.ClusterFailover{
 					{
 						FromCluster: &types.ActiveClusterInfo{
@@ -512,6 +521,44 @@ func TestDomainAuditLog_ToFailoverEvents(t *testing.T) {
 						ClusterAttribute: &types.ClusterAttribute{
 							Scope: "region",
 							Name:  "us-west",
+						},
+					},
+				},
+			},
+		},
+		"graceful failover": {
+			auditLog: &DomainAuditLog{
+				EventID:     "event-9",
+				DomainID:    "domain-9",
+				CreatedTime: now,
+				StateBefore: &GetDomainResponse{
+					ReplicationConfig: &DomainReplicationConfig{
+						ActiveClusterName: "region-us-east",
+					},
+					FailoverVersion: 800,
+				},
+				StateAfter: &GetDomainResponse{
+					ReplicationConfig: &DomainReplicationConfig{
+						ActiveClusterName: "region-us-west",
+					},
+					FailoverVersion: 801,
+					FailoverEndTime: int64Ptr(now.Add(1 * time.Hour).UnixNano()),
+				},
+				OperationType: DomainAuditOperationTypeFailover,
+			},
+			expected: &types.FailoverEvent{
+				ID:           stringPtr("event-9"),
+				CreatedTime:  int64Ptr(now.UnixNano()),
+				FailoverType: types.FailoverTypeGraceful.Ptr(),
+				ClusterFailovers: []*types.ClusterFailover{
+					{
+						FromCluster: &types.ActiveClusterInfo{
+							ActiveClusterName: "region-us-east",
+							FailoverVersion:   800,
+						},
+						ToCluster: &types.ActiveClusterInfo{
+							ActiveClusterName: "region-us-west",
+							FailoverVersion:   801,
 						},
 					},
 				},

@@ -12,7 +12,6 @@ import (
 	"go.uber.org/fx/fxtest"
 	"gopkg.in/yaml.v2"
 
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
@@ -807,36 +806,16 @@ func recordHeartbeats(ctx context.Context, t *testing.T, executorStore store.Sto
 
 func createStore(t *testing.T, tc *testhelper.StoreTestCluster) store.Store {
 	t.Helper()
+
+	etcdConfig, err := NewETCDConfig(tc.LeaderCfg)
+	require.NoError(t, err)
+
 	store, err := NewStore(ExecutorStoreParams{
 		Client:    tc.Client,
-		Cfg:       tc.LeaderCfg,
+		Cfg:       etcdConfig,
 		Lifecycle: fxtest.NewLifecycle(t),
 		Logger:    testlogger.New(t),
 	})
 	require.NoError(t, err)
 	return store
-}
-
-func createStoreWithTimeSource(t *testing.T, tc *testhelper.StoreTestCluster, ts clock.TimeSource) store.Store {
-	t.Helper()
-	store, err := NewStore(ExecutorStoreParams{
-		Client:     tc.Client,
-		Cfg:        tc.LeaderCfg,
-		Lifecycle:  fxtest.NewLifecycle(t),
-		Logger:     testlogger.New(t),
-		TimeSource: ts,
-	})
-	require.NoError(t, err)
-	return store
-}
-
-func getShardStats(ctx context.Context, t *testing.T, s store.Store, namespace, shardID string) *store.ShardStatistics {
-	t.Helper()
-	nsState, err := s.GetState(ctx, namespace)
-	require.NoError(t, err)
-	stats, ok := nsState.ShardStats[shardID]
-	if !ok {
-		return nil
-	}
-	return &stats
 }

@@ -18,8 +18,8 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/executorstore/common"
@@ -31,7 +31,7 @@ var (
 )
 
 type executorStoreImpl struct {
-	client       *clientv3.Client
+	client       etcdclient.Client
 	prefix       string
 	logger       log.Logger
 	shardCache   *shardcache.ShardToExecutorCache
@@ -50,8 +50,8 @@ type shardStatisticsUpdate struct {
 type ExecutorStoreParams struct {
 	fx.In
 
-	Client     *clientv3.Client `optional:"true"`
-	Cfg        config.ShardDistribution
+	Client     etcdclient.Client `name:"executorstore"`
+	Cfg        ETCDConfig
 	Lifecycle  fx.Lifecycle
 	Logger     log.Logger
 	TimeSource clock.TimeSource
@@ -59,43 +59,20 @@ type ExecutorStoreParams struct {
 
 // NewStore creates a new etcd-backed store and provides it to the fx application.
 func NewStore(p ExecutorStoreParams) (store.Store, error) {
-	var err error
-	var etcdCfg struct {
-		Endpoints   []string      `yaml:"endpoints"`
-		DialTimeout time.Duration `yaml:"dialTimeout"`
-		Prefix      string        `yaml:"prefix"`
-		Compression string        `yaml:"compression"`
-	}
-
-	if err := p.Cfg.Store.StorageParams.Decode(&etcdCfg); err != nil {
-		return nil, fmt.Errorf("bad config for etcd store: %w", err)
-	}
-
-	etcdClient := p.Client
-	if etcdClient == nil {
-		etcdClient, err = clientv3.New(clientv3.Config{
-			Endpoints:   etcdCfg.Endpoints,
-			DialTimeout: etcdCfg.DialTimeout,
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	shardCache := shardcache.NewShardToExecutorCache(etcdCfg.Prefix, etcdClient, p.Logger)
+	shardCache := shardcache.NewShardToExecutorCache(p.Cfg.Prefix, p.Client, p.Logger)
 
 	timeSource := p.TimeSource
 	if timeSource == nil {
 		timeSource = clock.NewRealTimeSource()
 	}
 
-	recordWriter, err := common.NewRecordWriter(etcdCfg.Compression)
+	recordWriter, err := common.NewRecordWriter(p.Cfg.Compression)
 	if err != nil {
 		return nil, fmt.Errorf("create record writer: %w", err)
 	}
 	store := &executorStoreImpl{
-		client:       etcdClient,
-		prefix:       etcdCfg.Prefix,
+		client:       p.Client,
+		prefix:       p.Cfg.Prefix,
 		logger:       p.Logger,
 		shardCache:   shardCache,
 		timeSource:   timeSource,
@@ -113,7 +90,6 @@ func (s *executorStoreImpl) Start() {
 
 func (s *executorStoreImpl) Stop() {
 	s.shardCache.Stop()
-	s.client.Close()
 }
 
 // --- HeartbeatStore Implementation ---
@@ -182,10 +158,10 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 
 	now := s.timeSource.Now().UTC()
 
-	var shardsUpdates []shardStatisticsUpdate
-	var shardsUpdate shardStatisticsUpdate
-	shardsUpdate.executorID = executorID
-	shardsUpdate.stats = make(map[string]etcdtypes.ShardStatistics)
+	var statsUpdates []shardStatisticsUpdate
+	var statsUpdate shardStatisticsUpdate
+	statsUpdate.executorID = executorID
+	statsUpdate.stats = make(map[string]etcdtypes.ShardStatistics)
 
 	for shardID, report := range reported {
 		if report == nil {
@@ -222,12 +198,12 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 		stats.SmoothedLoad = newSmoothed
 		stats.LastUpdateTime = etcdtypes.Time(now)
 
-		shardsUpdate.stats[shardID] = stats
+		statsUpdate.stats[shardID] = stats
 	}
 
-	shardsUpdates = append(shardsUpdates, shardsUpdate)
+	statsUpdates = append(statsUpdates, statsUpdate)
 
-	s.applyShardStatisticsUpdates(ctx, namespace, shardsUpdates)
+	s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
 
 	return nil
 }
