@@ -68,18 +68,21 @@ func (s *sqlVisibilityStore) RecordWorkflowExecutionStarted(
 	request *p.InternalRecordWorkflowExecutionStartedRequest,
 ) error {
 	_, err := s.db.InsertIntoVisibility(ctx, &sqlplugin.VisibilityRow{
-		DomainID:         request.DomainUUID,
-		WorkflowID:       request.WorkflowID,
-		RunID:            request.RunID,
-		StartTime:        request.StartTimestamp,
-		ExecutionTime:    request.ExecutionTimestamp,
-		WorkflowTypeName: request.WorkflowTypeName,
-		Memo:             request.Memo.Data,
-		Encoding:         string(request.Memo.GetEncoding()),
-		IsCron:           request.IsCron,
-		NumClusters:      request.NumClusters,
-		UpdateTime:       request.UpdateTimestamp,
-		ShardID:          request.ShardID,
+		DomainID:               request.DomainUUID,
+		WorkflowID:             request.WorkflowID,
+		RunID:                  request.RunID,
+		StartTime:              request.StartTimestamp,
+		ExecutionTime:          request.ExecutionTimestamp,
+		WorkflowTypeName:       request.WorkflowTypeName,
+		Memo:                   request.Memo.Data,
+		Encoding:               string(request.Memo.GetEncoding()),
+		IsCron:                 request.IsCron,
+		CronSchedule:           request.CronSchedule,
+		NumClusters:            request.NumClusters,
+		UpdateTime:             request.UpdateTimestamp,
+		ShardID:                request.ShardID,
+		ExecutionStatus:        int32(request.ExecutionStatus),
+		ScheduledExecutionTime: request.ScheduledExecutionTime,
 	})
 
 	if err != nil {
@@ -93,6 +96,24 @@ func (s *sqlVisibilityStore) RecordWorkflowExecutionClosed(
 	request *p.InternalRecordWorkflowExecutionClosedRequest,
 ) error {
 	closeTime := request.CloseTimestamp
+
+	// Map CloseStatus to ExecutionStatus
+	executionStatus := types.WorkflowExecutionStatusCompleted // default
+	switch request.Status {
+	case types.WorkflowExecutionCloseStatusCompleted:
+		executionStatus = types.WorkflowExecutionStatusCompleted
+	case types.WorkflowExecutionCloseStatusFailed:
+		executionStatus = types.WorkflowExecutionStatusFailed
+	case types.WorkflowExecutionCloseStatusCanceled:
+		executionStatus = types.WorkflowExecutionStatusCanceled
+	case types.WorkflowExecutionCloseStatusTerminated:
+		executionStatus = types.WorkflowExecutionStatusTerminated
+	case types.WorkflowExecutionCloseStatusContinuedAsNew:
+		executionStatus = types.WorkflowExecutionStatusContinuedAsNew
+	case types.WorkflowExecutionCloseStatusTimedOut:
+		executionStatus = types.WorkflowExecutionStatusTimedOut
+	}
+
 	result, err := s.db.ReplaceIntoVisibility(ctx, &sqlplugin.VisibilityRow{
 		DomainID:         request.DomainUUID,
 		WorkflowID:       request.WorkflowID,
@@ -106,9 +127,11 @@ func (s *sqlVisibilityStore) RecordWorkflowExecutionClosed(
 		Memo:             request.Memo.Data,
 		Encoding:         string(request.Memo.GetEncoding()),
 		IsCron:           request.IsCron,
+		CronSchedule:     request.CronSchedule,
 		NumClusters:      request.NumClusters,
 		UpdateTime:       request.UpdateTimestamp,
 		ShardID:          request.ShardID,
+		ExecutionStatus:  int32(executionStatus),
 	})
 	if err != nil {
 		return convertCommonErrors(s.db, "RecordWorkflowExecutionClosed", "", err)
@@ -339,16 +362,19 @@ func (s *sqlVisibilityStore) rowToInfo(row *sqlplugin.VisibilityRow) *p.Internal
 		row.ExecutionTime = row.StartTime
 	}
 	info := &p.InternalVisibilityWorkflowExecutionInfo{
-		WorkflowID:    row.WorkflowID,
-		RunID:         row.RunID,
-		TypeName:      row.WorkflowTypeName,
-		StartTime:     row.StartTime,
-		ExecutionTime: row.ExecutionTime,
-		IsCron:        row.IsCron,
-		NumClusters:   row.NumClusters,
-		Memo:          p.NewDataBlob(row.Memo, constants.EncodingType(row.Encoding)),
-		UpdateTime:    row.UpdateTime,
-		ShardID:       row.ShardID,
+		WorkflowID:             row.WorkflowID,
+		RunID:                  row.RunID,
+		TypeName:               row.WorkflowTypeName,
+		StartTime:              row.StartTime,
+		ExecutionTime:          row.ExecutionTime,
+		IsCron:                 row.IsCron,
+		CronSchedule:           row.CronSchedule,
+		NumClusters:            row.NumClusters,
+		Memo:                   p.NewDataBlob(row.Memo, constants.EncodingType(row.Encoding)),
+		UpdateTime:             row.UpdateTime,
+		ShardID:                row.ShardID,
+		ExecutionStatus:        types.WorkflowExecutionStatus(row.ExecutionStatus),
+		ScheduledExecutionTime: row.ScheduledExecutionTime,
 	}
 	if row.CloseStatus != nil {
 		status := workflow.WorkflowExecutionCloseStatus(*row.CloseStatus)
