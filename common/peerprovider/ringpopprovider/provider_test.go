@@ -35,6 +35,7 @@ import (
 
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
+	ringpopproviderconfig "github.com/uber/cadence/common/peerprovider/ringpopprovider/config"
 )
 
 const testServiceName = "test-service"
@@ -69,8 +70,8 @@ func TestRingpopProvider(t *testing.T) {
 	}
 
 	allServicesAndChs := append(matchingChs, irrelevantChs...)
-	cfg := Config{
-		BootstrapMode:   BootstrapModeHosts,
+	cfg := ringpopproviderconfig.Config{
+		BootstrapMode:   ringpopproviderconfig.BootstrapModeHosts,
 		Name:            "ring",
 		BootstrapHosts:  toHosts(t, allServicesAndChs),
 		MaxJoinDuration: 10 * time.Second,

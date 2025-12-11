@@ -35,7 +35,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
-	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
+	ringpopproviderconfig "github.com/uber/cadence/common/peerprovider/ringpopprovider/config"
 	"github.com/uber/cadence/common/rpc"
 )
 
@@ -54,9 +54,9 @@ func TestFxApp(t *testing.T) {
 					Logger:     testlogger.New(t),
 					RPCFactory: factory,
 					Config: config.Config{
-						Ringpop: ringpopprovider.Config{
+						Ringpop: ringpopproviderconfig.Config{
 							Name:           "test-ringpop",
-							BootstrapMode:  ringpopprovider.BootstrapModeHosts,
+							BootstrapMode:  ringpopproviderconfig.BootstrapModeHosts,
 							BootstrapHosts: []string{"127.0.0.1:7933", "127.0.0.1:7934", "127.0.0.1:7935"},
 						},
 					},
