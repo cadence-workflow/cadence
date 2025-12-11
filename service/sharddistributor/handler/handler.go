@@ -176,8 +176,6 @@ func pickLeastLoadedExecutor(state *store.NamespaceState) (executorID string, ag
 	}
 
 	var chosenID string
-	var chosenAggregatedLoad float64
-	var chosenAssignedCount int
 	minAggregatedLoad := math.MaxFloat64
 	minAssignedShards := math.MaxInt
 
@@ -201,8 +199,6 @@ func pickLeastLoadedExecutor(state *store.NamespaceState) (executorID string, ag
 			minAggregatedLoad = aggregated
 			minAssignedShards = count
 			chosenID = candidate
-			chosenAggregatedLoad = aggregated
-			chosenAssignedCount = count
 		}
 	}
 
@@ -210,7 +206,7 @@ func pickLeastLoadedExecutor(state *store.NamespaceState) (executorID string, ag
 		return "", 0, 0, fmt.Errorf("no active executors available")
 	}
 
-	return chosenID, chosenAggregatedLoad, chosenAssignedCount, nil
+	return chosenID, minAggregatedLoad, minAssignedShards, nil
 }
 
 func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequest, server WatchNamespaceStateServer) error {
