@@ -807,9 +807,13 @@ func recordHeartbeats(ctx context.Context, t *testing.T, executorStore store.Sto
 
 func createStore(t *testing.T, tc *testhelper.StoreTestCluster) store.Store {
 	t.Helper()
+
+	etcdConfig, err := NewETCDConfig(tc.LeaderCfg)
+	require.NoError(t, err)
+
 	store, err := NewStore(ExecutorStoreParams{
 		Client:    tc.Client,
-		Cfg:       tc.LeaderCfg,
+		Cfg:       etcdConfig,
 		Lifecycle: fxtest.NewLifecycle(t),
 		Logger:    testlogger.New(t),
 	})

@@ -8,6 +8,6 @@ import (
 )
 
 var Module = fx.Module("etcd",
-	fx.Provide(executorstore.NewStore),
+	executorstore.Module,
 	fx.Provide(leaderstore.NewLeaderStore),
 )
