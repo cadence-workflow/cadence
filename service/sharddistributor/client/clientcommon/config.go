@@ -19,7 +19,7 @@ type NamespaceConfig struct {
 // GetMigrationMode converts the string migration mode to types.MigrationMode using the shared configMode map
 func (nc *NamespaceConfig) GetMigrationMode() types.MigrationMode {
 	mode := strings.ToLower(strings.TrimSpace(nc.MigrationMode))
-	if migrationMode, ok := sdconfig.ConfigMode[mode]; ok {
+	if migrationMode, ok := sdconfig.MigrationMode[mode]; ok {
 		return migrationMode
 	}
 	// Default to INVALID if not specified or unrecognized
