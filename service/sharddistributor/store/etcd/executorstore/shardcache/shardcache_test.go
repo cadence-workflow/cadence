@@ -35,7 +35,7 @@ func TestShardExecutorCacheForwarding(t *testing.T) {
 	setupExecutorWithShards(t, testCluster, "executor-1", []string{"shard-1"}, map[string]string{
 		"datacenter": "dc1",
 		"rack":       "rack-42",
-	}, nil)
+	})
 
 	cache := NewShardToExecutorCache(testCluster.EtcdPrefix, testCluster.Client, logger)
 	cache.Start()

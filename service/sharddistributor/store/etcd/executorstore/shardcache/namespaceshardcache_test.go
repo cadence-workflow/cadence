@@ -30,7 +30,7 @@ func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
 	setupExecutorWithShards(t, testCluster, "executor-1", []string{"shard-1"}, map[string]string{
 		"hostname": "executor-1-host",
 		"version":  "v1.0.0",
-	}, nil)
+	})
 
 	// Start the cache
 	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger)
@@ -55,7 +55,7 @@ func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
 	setupExecutorWithShards(t, testCluster, "executor-2", []string{"shard-2"}, map[string]string{
 		"hostname": "executor-2-host",
 		"region":   "us-west",
-	}, nil)
+	})
 	time.Sleep(100 * time.Millisecond)
 
 	// Check that executor-2 and shard-2 is in the cache
@@ -82,7 +82,7 @@ func TestNamespaceShardToExecutor_Subscribe(t *testing.T) {
 	setupExecutorWithShards(t, testCluster, "executor-1", []string{"shard-1"}, map[string]string{
 		"hostname": "executor-1-host",
 		"version":  "v1.0.0",
-	}, nil)
+	})
 
 	// Start the cache
 	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger)
@@ -129,13 +129,13 @@ func TestNamespaceShardToExecutor_Subscribe(t *testing.T) {
 	setupExecutorWithShards(t, testCluster, "executor-2", []string{"shard-2"}, map[string]string{
 		"hostname": "executor-2-host",
 		"region":   "us-west",
-	}, nil)
+	})
 
 	wg.Wait()
 }
 
-// setupExecutorWithShards creates an executor in etcd with assigned shards, metadata, and optional statistics
-func setupExecutorWithShards(t *testing.T, testCluster *testhelper.StoreTestCluster, executorID string, shards []string, metadata map[string]string, stats map[string]etcdtypes.ShardStatistics) {
+// setupExecutorWithShards creates an executor in etcd with assigned shards and metadata
+func setupExecutorWithShards(t *testing.T, testCluster *testhelper.StoreTestCluster, executorID string, shards []string, metadata map[string]string) {
 	// Create assigned state
 	assignedState := &etcdtypes.AssignedState{
 		AssignedShards: make(map[string]*types.ShardAssignment),
@@ -155,11 +155,6 @@ func setupExecutorWithShards(t *testing.T, testCluster *testhelper.StoreTestClus
 	for key, value := range metadata {
 		metadataKey := etcdkeys.BuildMetadataKey(testCluster.EtcdPrefix, testCluster.Namespace, executorID, key)
 		operations = append(operations, clientv3.OpPut(metadataKey, value))
-	}
-
-	// Add statistics
-	if len(stats) > 0 {
-		putExecutorStatisticsInEtcd(t, testCluster, executorID, stats)
 	}
 
 	txnResp, err := testCluster.Client.Txn(context.Background()).Then(operations...).Commit()
