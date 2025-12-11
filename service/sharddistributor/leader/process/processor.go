@@ -51,6 +51,8 @@ const (
 	_defaultTimeout      = 1 * time.Second
 	// Default cooldown between moving the same shard / applying consecutive moves.
 	_defaultPerShardCooldown = time.Minute
+	// Fraction of total shards that may be moved per load-balance pass.
+	_moveBudgetProportionalityFactor = 0.01
 )
 
 type processorFactory struct {
@@ -499,7 +501,6 @@ func (p *namespaceProcessor) loadBalance(
 	metricsScope metrics.Scope,
 ) (bool, error) {
 
-	const moveBudgetProportionalityFactor = 0.01
 	const hysteresisUpperBand = 1.15
 	const hysteresisLowerBand = 0.95
 
@@ -507,7 +508,7 @@ func (p *namespaceProcessor) loadBalance(
 
 	allShards := getShards(p.namespaceCfg, namespaceState, deletedShards)
 
-	moveBudget := int(math.Ceil(moveBudgetProportionalityFactor * float64(len(allShards))))
+	moveBudget := int(math.Ceil(_moveBudgetProportionalityFactor * float64(len(allShards))))
 
 	now := p.timeSource.Now().UTC()
 	// PerShardCooldown is the minimum time between moving the same shard.
@@ -551,68 +552,85 @@ func (p *namespaceProcessor) loadBalance(
 
 	meanLoad := totalLoad / float64(len(executorLoads))
 
-	sourceExecutors := make(map[string]struct{})
-	destinationExecutors := make(map[string]struct{})
-
-	for executorID, load := range executorLoads {
-		if load > meanLoad*hysteresisUpperBand || namespaceState.Executors[executorID].Status == types.ExecutorStatusDRAINING {
-			sourceExecutors[executorID] = struct{}{}
-		} else if load < meanLoad*hysteresisLowerBand && namespaceState.Executors[executorID].Status == types.ExecutorStatusACTIVE {
-			destinationExecutors[executorID] = struct{}{}
-		}
-	}
-
-	// Deterministic iteration over sources (ordered by load desc, then ID) reduces churn/oscillation.
-	// Without sorting, identical state can yield different move sequences across cycles, making shards more likely to bounce near thresholds.
-	// Executor count is small, so this sort is cheap compared to shard movement cost.
-	sources := make([]string, 0, len(sourceExecutors))
-	for executorID := range sourceExecutors {
-		sources = append(sources, executorID)
-	}
-	slices.SortFunc(sources, func(a, b string) int {
-		la, lb := executorLoads[a], executorLoads[b]
-		if la == lb {
-			if a < b {
-				return -1
-			}
-			if a > b {
-				return 1
-			}
-			return 0
-		}
-		if la > lb {
-			return -1
-		}
-		return 1
-	})
-
 	movesPlanned := 0
-	for _, sourceExecutor := range sources {
-		if moveBudget <= 0 {
+	// Plan multiple moves per cycle (within budget), recomputing eligibility after each move.
+	// Stop early once sources/destinations are empty, i.e. imbalance is within hysteresis bands.
+	for moveBudget > 0 {
+		sourceExecutors := make(map[string]struct{})
+		destinationExecutors := make(map[string]struct{})
+
+		for executorID, load := range executorLoads {
+			executor := namespaceState.Executors[executorID]
+			if executor.Status == types.ExecutorStatusDRAINING || load > meanLoad*hysteresisUpperBand {
+				sourceExecutors[executorID] = struct{}{}
+			} else if executor.Status == types.ExecutorStatusACTIVE && load < meanLoad*hysteresisLowerBand {
+				destinationExecutors[executorID] = struct{}{}
+			}
+		}
+
+		// Nothing to do once we're within bands (or have no eligible destinations).
+		if len(sourceExecutors) == 0 || len(destinationExecutors) == 0 {
 			break
 		}
+
+		// Deterministic iteration over sources (ordered by load desc, then ID) reduces churn/oscillation.
+		// Without sorting, identical state can yield different move sequences across cycles, making shards more likely to bounce near thresholds.
+		// Executor count is small, so this sort is cheap compared to shard movement cost.
+		sources := make([]string, 0, len(sourceExecutors))
+		for executorID := range sourceExecutors {
+			sources = append(sources, executorID)
+		}
+		slices.SortFunc(sources, func(a, b string) int {
+			la, lb := executorLoads[a], executorLoads[b]
+			if la == lb {
+				if a < b {
+					return -1
+				}
+				if a > b {
+					return 1
+				}
+				return 0
+			}
+			if la > lb {
+				return -1
+			}
+			return 1
+		})
+
 		destExecutor := p.findBestDestination(destinationExecutors, executorLoads)
-		// No destination executor
 		if destExecutor == "" {
 			break
 		}
-		shardsToMove := p.findShardsToMove(currentAssignments, namespaceState, sourceExecutor, destExecutor, now, perShardCooldown)
 
-		// move
-		moved, err := p.moveShards(currentAssignments, sourceExecutor, destExecutor, shardsToMove)
-		if err != nil {
-			return false, err
+		// Try sources in priority order to find a shard that is not in per-shard cooldown.
+		// movedThisIteration tracks whether we actually performed a move in this recompute.
+		// If no source has an eligible shard (e.g., all are cooling down), we stop early.
+		movedThisIteration := false
+		for _, sourceExecutor := range sources {
+			shardsToMove := p.findShardsToMove(currentAssignments, namespaceState, sourceExecutor, destExecutor, now, perShardCooldown)
+			if len(shardsToMove) == 0 {
+				// All shards on this source are in cooldown; try the next source.
+				continue
+			}
+
+			moved, err := p.moveShards(currentAssignments, sourceExecutor, destExecutor, shardsToMove)
+			if err != nil {
+				return false, err
+			}
+			if moved {
+				movesPlanned += len(shardsToMove)
+			}
+			shardsMoved = shardsMoved || moved
+
+			p.updateLoad(currentAssignments, namespaceState, sourceExecutor, destExecutor, executorLoads)
+			moveBudget -= len(shardsToMove)
+			movedThisIteration = moved
+			break
 		}
-		if moved {
-			movesPlanned += len(shardsToMove)
-		}
-		shardsMoved = shardsMoved || moved
 
-		p.updateLoad(currentAssignments, namespaceState, sourceExecutor, destExecutor, executorLoads)
-
-		moveBudget -= len(shardsToMove)
-		if executorLoads[destExecutor] > meanLoad*hysteresisLowerBand {
-			delete(destinationExecutors, destExecutor)
+		// No eligible shard could be moved from any source.
+		if !movedThisIteration {
+			break
 		}
 	}
 

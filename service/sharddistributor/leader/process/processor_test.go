@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"sync"
 	"testing"
@@ -992,6 +993,70 @@ func TestLoadBalance_BudgetConstraint(t *testing.T) {
 			shardsOnD := len(newAssignments[execD].AssignedShards)
 			assert.Equal(t, 148, shardsOnA+shardsOnB+shardsOnC, "Exec a, b and c should loose 2 shards")
 			assert.Equal(t, 27, shardsOnD, "ExecD should have gained two shard")
+			return nil
+		},
+	)
+
+	err := processor.rebalanceShards(context.Background())
+	require.NoError(t, err)
+}
+
+// TestLoadBalance_MultiMovePerCycle tests whether the move budget is applied within a single rebalance cycle.
+func TestLoadBalance_MultiMovePerCycle(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	execA, execB := "exec-A", "exec-B"
+	now := mocks.timeSource.Now()
+
+	assignments := map[string]store.AssignedState{
+		execA: {AssignedShards: make(map[string]*types.ShardAssignment)},
+		execB: {AssignedShards: make(map[string]*types.ShardAssignment)},
+	}
+	shardStats := make(map[string]store.ShardStatistics)
+
+	for i := range 100 {
+		sID := fmt.Sprintf("A-%d", i)
+		assignments[execA].AssignedShards[sID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
+		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 2.0, LastUpdateTime: now}
+	}
+	for i := range 50 {
+		sID := fmt.Sprintf("B-%d", i)
+		assignments[execB].AssignedShards[sID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
+		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 0.1, LastUpdateTime: now}
+	}
+
+	totalShards := len(shardStats)
+	expectedBudget := int(math.Ceil(_moveBudgetProportionalityFactor * float64(totalShards)))
+
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			execA: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execB: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		},
+		ShardAssignments: assignments,
+		ShardStats:       shardStats,
+		GlobalRevision:   10,
+	}, nil)
+
+	for sID := range shardStats {
+		var owner string
+		if _, ok := assignments[execA].AssignedShards[sID]; ok {
+			owner = execA
+		} else {
+			owner = execB
+		}
+		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, sID).Return(&store.ShardOwner{ExecutorID: owner}, nil).AnyTimes()
+	}
+
+	mocks.election.EXPECT().Guard().Return(store.NopGuard())
+
+	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ string, request store.AssignShardsRequest, _ store.GuardFunc) error {
+			newAssignments := request.NewState.ShardAssignments
+			assert.Equal(t, 100-expectedBudget, len(newAssignments[execA].AssignedShards), "ExecA should lose budgeted shards")
+			assert.Equal(t, 50+expectedBudget, len(newAssignments[execB].AssignedShards), "ExecB should gain budgeted shards")
 			return nil
 		},
 	)
