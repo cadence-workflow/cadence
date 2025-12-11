@@ -24,26 +24,29 @@ import "github.com/uber/cadence/common/types"
 
 // valid indexed fields on ES
 const (
-	DomainID              = "DomainID"
-	WorkflowID            = "WorkflowID"
-	RunID                 = "RunID"
-	WorkflowType          = "WorkflowType"
-	StartTime             = "StartTime"
-	ExecutionTime         = "ExecutionTime"
-	CloseTime             = "CloseTime"
-	CloseStatus           = "CloseStatus"
-	HistoryLength         = "HistoryLength"
-	Encoding              = "Encoding"
-	KafkaKey              = "KafkaKey"
-	BinaryChecksums       = "BinaryChecksums"
-	TaskList              = "TaskList"
-	ClusterAttributeScope = "ClusterAttributeScope"
-	ClusterAttributeName  = "ClusterAttributeName"
-	IsCron                = "IsCron"
-	NumClusters           = "NumClusters"
-	UpdateTime            = "UpdateTime"
-	CustomDomain          = "CustomDomain" // to support batch workflow
-	Operator              = "Operator"     // to support batch workflow
+	DomainID               = "DomainID"
+	WorkflowID             = "WorkflowID"
+	RunID                  = "RunID"
+	WorkflowType           = "WorkflowType"
+	StartTime              = "StartTime"
+	ExecutionTime          = "ExecutionTime"
+	CloseTime              = "CloseTime"
+	CloseStatus            = "CloseStatus"
+	HistoryLength          = "HistoryLength"
+	Encoding               = "Encoding"
+	KafkaKey               = "KafkaKey"
+	BinaryChecksums        = "BinaryChecksums"
+	TaskList               = "TaskList"
+	ClusterAttributeScope  = "ClusterAttributeScope"
+	ClusterAttributeName   = "ClusterAttributeName"
+	IsCron                 = "IsCron"
+	NumClusters            = "NumClusters"
+	UpdateTime             = "UpdateTime"
+	CronSchedule           = "CronSchedule"
+	ExecutionStatus        = "ExecutionStatus"
+	ScheduledExecutionTime = "ScheduledExecutionTime"
+	CustomDomain           = "CustomDomain" // to support batch workflow
+	Operator               = "Operator"     // to support batch workflow
 
 	CustomStringField    = "CustomStringField"
 	CustomKeywordField   = "CustomKeywordField"
@@ -92,21 +95,24 @@ func GetDefaultIndexedKeys() map[string]interface{} {
 
 // systemIndexedKeys is Cadence created visibility keys
 var systemIndexedKeys = map[string]interface{}{
-	DomainID:              types.IndexedValueTypeKeyword,
-	WorkflowID:            types.IndexedValueTypeKeyword,
-	RunID:                 types.IndexedValueTypeKeyword,
-	WorkflowType:          types.IndexedValueTypeKeyword,
-	StartTime:             types.IndexedValueTypeInt,
-	ExecutionTime:         types.IndexedValueTypeInt,
-	CloseTime:             types.IndexedValueTypeInt,
-	CloseStatus:           types.IndexedValueTypeInt,
-	HistoryLength:         types.IndexedValueTypeInt,
-	TaskList:              types.IndexedValueTypeKeyword,
-	IsCron:                types.IndexedValueTypeBool,
-	NumClusters:           types.IndexedValueTypeInt,
-	UpdateTime:            types.IndexedValueTypeInt,
-	ClusterAttributeScope: types.IndexedValueTypeKeyword,
-	ClusterAttributeName:  types.IndexedValueTypeKeyword,
+	DomainID:               types.IndexedValueTypeKeyword,
+	WorkflowID:             types.IndexedValueTypeKeyword,
+	RunID:                  types.IndexedValueTypeKeyword,
+	WorkflowType:           types.IndexedValueTypeKeyword,
+	StartTime:              types.IndexedValueTypeInt,
+	ExecutionTime:          types.IndexedValueTypeInt,
+	CloseTime:              types.IndexedValueTypeInt,
+	CloseStatus:            types.IndexedValueTypeInt,
+	HistoryLength:          types.IndexedValueTypeInt,
+	TaskList:               types.IndexedValueTypeKeyword,
+	IsCron:                 types.IndexedValueTypeBool,
+	NumClusters:            types.IndexedValueTypeInt,
+	UpdateTime:             types.IndexedValueTypeInt,
+	CronSchedule:           types.IndexedValueTypeKeyword,
+	ExecutionStatus:        types.IndexedValueTypeInt,
+	ScheduledExecutionTime: types.IndexedValueTypeInt,
+	ClusterAttributeScope:  types.IndexedValueTypeKeyword,
+	ClusterAttributeName:   types.IndexedValueTypeKeyword,
 }
 
 // IsSystemIndexedKey return true is key is system added
