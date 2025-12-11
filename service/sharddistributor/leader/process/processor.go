@@ -49,6 +49,8 @@ const (
 	_defaultPeriod       = time.Second
 	_defaultHeartbeatTTL = 10 * time.Second
 	_defaultTimeout      = 1 * time.Second
+	// Default cooldown between moving the same shard / applying consecutive moves.
+	_defaultPerShardCooldown = time.Minute
 )
 
 type processorFactory struct {
@@ -87,6 +89,9 @@ func NewProcessorFactory(
 	}
 	if cfg.Process.Timeout <= 0 {
 		cfg.Process.Timeout = _defaultTimeout
+	}
+	if cfg.Process.PerShardCooldown <= 0 {
+		cfg.Process.PerShardCooldown = _defaultPerShardCooldown
 	}
 
 	return &processorFactory{
@@ -380,12 +385,15 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	// If there are deleted shards or stale executors, the distribution has changed.
 	assignedToEmptyExecutors := assignShardsToEmptyExecutors(currentAssignments)
 	updatedAssignments := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
-	loadBalanceChange, err := p.loadBalance(currentAssignments, namespaceState, deletedShards)
+	// structuralChange means we must reconcile for liveness/namespace-structure reasons
+	// Cooldowns only gate load-only moves. While structural changes apply immediately.
+	structuralChange := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments
+	loadBalanceChange, err := p.loadBalance(currentAssignments, namespaceState, deletedShards, structuralChange, metricsLoopScope)
 	if err != nil {
 		return fmt.Errorf("load balance: %w", err)
 	}
 
-	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments || loadBalanceChange
+	distributionChanged := structuralChange || loadBalanceChange
 	if !distributionChanged {
 		p.logger.Info("No changes to distribution detected. Skipping rebalance.")
 		return nil
@@ -486,7 +494,10 @@ func (*namespaceProcessor) updateAssignments(shardsToReassign []string, activeEx
 func (p *namespaceProcessor) loadBalance(
 	currentAssignments map[string][]string,
 	namespaceState *store.NamespaceState,
-	deletedShards map[string]store.ShardState) (bool, error) {
+	deletedShards map[string]store.ShardState,
+	structuralChange bool,
+	metricsScope metrics.Scope,
+) (bool, error) {
 
 	const moveBudgetProportionalityFactor = 0.01
 	const hysteresisUpperBand = 1.15
@@ -498,16 +509,43 @@ func (p *namespaceProcessor) loadBalance(
 
 	moveBudget := int(math.Ceil(moveBudgetProportionalityFactor * float64(len(allShards))))
 
+	now := p.timeSource.Now().UTC()
+	// PerShardCooldown is the minimum time between moving the same shard.
+	perShardCooldown := p.cfg.PerShardCooldown
+
 	executorLoads := make(map[string]float64, len(currentAssignments))
 	totalLoad := 0.0
+	latestMoveTime := time.Time{}
+	// Compute executor loads from the in-memory assignment plan.
+	// Track latest shard move time for the global cooldown.
 	for executorID, shards := range currentAssignments {
 		for _, shardID := range shards {
-			load := namespaceState.ShardStats[shardID].SmoothedLoad
+			stats, ok := namespaceState.ShardStats[shardID]
+			load := 0.0
+			if ok {
+				load = stats.SmoothedLoad
+				if !stats.LastMoveTime.IsZero() && stats.LastMoveTime.After(latestMoveTime) {
+					latestMoveTime = stats.LastMoveTime
+				}
+			}
 			executorLoads[executorID] += load
 			totalLoad += load
 		}
 	}
 	if len(executorLoads) == 0 {
+		if metricsScope != nil {
+			metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceMovesPerCycle, 0)
+		}
+		return false, nil
+	}
+
+	// Global cooldown derived from persisted LastMoveTime, so it survives leader failover.
+	// Only applies on load-only passes. Structural changes should not be throttled.
+	if !structuralChange && perShardCooldown > 0 && !latestMoveTime.IsZero() && now.Sub(latestMoveTime) < perShardCooldown {
+		if metricsScope != nil {
+			metricsScope.AddCounter(metrics.ShardDistributorLoadBalanceGlobalCooldownSkips, 1)
+			metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceMovesPerCycle, 0)
+		}
 		return false, nil
 	}
 
@@ -524,7 +562,32 @@ func (p *namespaceProcessor) loadBalance(
 		}
 	}
 
-	for sourceExecutor := range sourceExecutors {
+	// Deterministic iteration over sources (ordered by load desc, then ID) reduces churn/oscillation.
+	// Without sorting, identical state can yield different move sequences across cycles, making shards more likely to bounce near thresholds.
+	// Executor count is small, so this sort is cheap compared to shard movement cost.
+	sources := make([]string, 0, len(sourceExecutors))
+	for executorID := range sourceExecutors {
+		sources = append(sources, executorID)
+	}
+	slices.SortFunc(sources, func(a, b string) int {
+		la, lb := executorLoads[a], executorLoads[b]
+		if la == lb {
+			if a < b {
+				return -1
+			}
+			if a > b {
+				return 1
+			}
+			return 0
+		}
+		if la > lb {
+			return -1
+		}
+		return 1
+	})
+
+	movesPlanned := 0
+	for _, sourceExecutor := range sources {
 		if moveBudget <= 0 {
 			break
 		}
@@ -533,12 +596,15 @@ func (p *namespaceProcessor) loadBalance(
 		if destExecutor == "" {
 			break
 		}
-		shardsToMove := p.findShardsToMove(currentAssignments, namespaceState, sourceExecutor, destExecutor)
+		shardsToMove := p.findShardsToMove(currentAssignments, namespaceState, sourceExecutor, destExecutor, now, perShardCooldown)
 
 		// move
 		moved, err := p.moveShards(currentAssignments, sourceExecutor, destExecutor, shardsToMove)
 		if err != nil {
 			return false, err
+		}
+		if moved {
+			movesPlanned += len(shardsToMove)
 		}
 		shardsMoved = shardsMoved || moved
 
@@ -550,6 +616,9 @@ func (p *namespaceProcessor) loadBalance(
 		}
 	}
 
+	if metricsScope != nil {
+		metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceMovesPerCycle, float64(movesPlanned))
+	}
 	return shardsMoved, nil
 }
 
@@ -557,7 +626,9 @@ func (p *namespaceProcessor) findBestDestination(destinationExecutors map[string
 	minLoad := math.MaxFloat64
 	minExecutor := ""
 	for executor := range destinationExecutors {
-		if executorLoads[executor] < minLoad {
+		load := executorLoads[executor]
+		// Tie-break on executor ID to keep destination selection stable when loads are equal.
+		if load < minLoad || (load == minLoad && (minExecutor == "" || executor < minExecutor)) {
 			minLoad = executorLoads[executor]
 			minExecutor = executor
 		}
@@ -565,12 +636,31 @@ func (p *namespaceProcessor) findBestDestination(destinationExecutors map[string
 	return minExecutor
 }
 
-func (p *namespaceProcessor) findShardsToMove(currentAssignments map[string][]string, namespaceState *store.NamespaceState, source string, destination string) []string {
-	largestLoad := 0.0
+func (p *namespaceProcessor) findShardsToMove(
+	currentAssignments map[string][]string,
+	namespaceState *store.NamespaceState,
+	source string,
+	destination string,
+	now time.Time,
+	perShardCooldown time.Duration,
+) []string {
+	// Pick the hottest eligible shard on the source executor.
+	// Recently moved shards (within cooldown) are skipped.
+	largestLoad := -1.0
 	largestShard := ""
 	for _, shard := range currentAssignments[source] {
-		if namespaceState.ShardStats[shard].SmoothedLoad > largestLoad {
-			largestLoad = namespaceState.ShardStats[shard].SmoothedLoad
+		stats, ok := namespaceState.ShardStats[shard]
+		if ok && perShardCooldown > 0 && !stats.LastMoveTime.IsZero() && now.Sub(stats.LastMoveTime) < perShardCooldown {
+			continue
+		}
+
+		load := 0.0
+		if ok {
+			load = stats.SmoothedLoad
+		}
+
+		if load > largestLoad || (load == largestLoad && (largestShard == "" || shard < largestShard)) {
+			largestLoad = load
 			largestShard = shard
 		}
 	}
