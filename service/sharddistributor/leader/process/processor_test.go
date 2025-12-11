@@ -1065,6 +1065,105 @@ func TestLoadBalance_MultiMovePerCycle(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestLoadBalance_PerShardCooldownSkipsHotShard verifies that a recently moved hottest shard is skipped,
+// and the next hottest eligible shard is moved instead.
+func TestLoadBalance_PerShardCooldownSkipsHotShard(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	execA, execB := "exec-A", "exec-B"
+	now := mocks.timeSource.Now()
+	cooldown := processor.cfg.PerShardCooldown
+	if cooldown <= 0 {
+		cooldown = _defaultPerShardCooldown
+		processor.cfg.PerShardCooldown = cooldown
+	}
+	recentMove := now.Add(-cooldown / 2)
+
+	// ExecA has two hot shards; hottest was moved recently and should be skipped.
+	currentAssignments := map[string][]string{
+		execA: {"hot-1", "hot-2", "a-1", "a-2", "a-3"},
+		execB: {"b-1", "b-2", "b-3", "b-4", "b-5"},
+	}
+	assignments := map[string]store.AssignedState{
+		execA: {AssignedShards: map[string]*types.ShardAssignment{"hot-1": {}, "hot-2": {}, "a-1": {}, "a-2": {}, "a-3": {}}},
+		execB: {AssignedShards: map[string]*types.ShardAssignment{"b-1": {}, "b-2": {}, "b-3": {}, "b-4": {}, "b-5": {}}},
+	}
+
+	shardStats := map[string]store.ShardStatistics{
+		"hot-1": {SmoothedLoad: 10.0, LastUpdateTime: now, LastMoveTime: recentMove},
+		"hot-2": {SmoothedLoad: 9.0, LastUpdateTime: now},
+		"a-1":   {SmoothedLoad: 1.0, LastUpdateTime: now},
+		"a-2":   {SmoothedLoad: 1.0, LastUpdateTime: now},
+		"a-3":   {SmoothedLoad: 1.0, LastUpdateTime: now},
+		"b-1":   {SmoothedLoad: 0.1, LastUpdateTime: now},
+		"b-2":   {SmoothedLoad: 0.1, LastUpdateTime: now},
+		"b-3":   {SmoothedLoad: 0.1, LastUpdateTime: now},
+		"b-4":   {SmoothedLoad: 0.1, LastUpdateTime: now},
+		"b-5":   {SmoothedLoad: 0.1, LastUpdateTime: now},
+	}
+
+	namespaceState := &store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			execA: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execB: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		},
+		ShardAssignments: assignments,
+		ShardStats:       shardStats,
+	}
+
+	changed, err := processor.loadBalance(currentAssignments, namespaceState, map[string]store.ShardState{}, true, nil)
+	require.NoError(t, err)
+	require.True(t, changed)
+	assert.True(t, slices.Contains(currentAssignments[execB], "hot-2"), "eligible hot shard should move")
+	assert.False(t, slices.Contains(currentAssignments[execB], "hot-1"), "recently moved shard should not move")
+}
+
+// TestLoadBalance_GlobalCooldownSkipsLoadOnlyPass verifies that a recent move causes a load-only pass
+// to skip balancing entirely (no AssignShards call).
+func TestLoadBalance_GlobalCooldownSkipsLoadOnlyPass(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	execA, execB := "exec-A", "exec-B"
+	now := mocks.timeSource.Now()
+	cooldown := processor.cfg.PerShardCooldown
+	if cooldown <= 0 {
+		cooldown = _defaultPerShardCooldown
+		processor.cfg.PerShardCooldown = cooldown
+	}
+	recentMove := now.Add(-cooldown / 2)
+
+	assignments := map[string]store.AssignedState{
+		execA: {AssignedShards: map[string]*types.ShardAssignment{"s1": {}, "s2": {}}},
+		execB: {AssignedShards: map[string]*types.ShardAssignment{"s3": {}, "s4": {}}},
+	}
+	shardStats := map[string]store.ShardStatistics{
+		"s1": {SmoothedLoad: 10.0, LastUpdateTime: now, LastMoveTime: recentMove},
+		"s2": {SmoothedLoad: 9.0, LastUpdateTime: now},
+		"s3": {SmoothedLoad: 0.1, LastUpdateTime: now},
+		"s4": {SmoothedLoad: 0.1, LastUpdateTime: now},
+	}
+
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			execA: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execB: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		},
+		ShardAssignments: assignments,
+		ShardStats:       shardStats,
+		GlobalRevision:   10,
+	}, nil)
+
+	// Load-only pass should be skipped due to global cooldown.
+	mocks.store.EXPECT().AssignShards(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	err := processor.rebalanceShards(context.Background())
+	require.NoError(t, err)
+}
+
 func TestLoadBalance_NoDestinations(t *testing.T) {
 	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
 	defer mocks.ctrl.Finish()

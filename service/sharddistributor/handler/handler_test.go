@@ -224,6 +224,67 @@ func TestGetShardOwner(t *testing.T) {
 	}
 }
 
+// TestAssignEphemeralShard_PrefersLowerLoad verifies that ephemeral shard placement
+// prefers the executor with lower total load, using shard count only as a tie-breaker.
+func TestAssignEphemeralShard_PrefersLowerLoad(t *testing.T) {
+	cfg := config.ShardDistribution{
+		Namespaces: []config.Namespace{
+			{
+				Name: _testNamespaceEphemeral,
+				Type: config.NamespaceTypeEphemeral,
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	logger := testlogger.New(t)
+	mockStorage := store.NewMockStore(ctrl)
+
+	handler := &handlerImpl{
+		logger:               logger,
+		shardDistributionCfg: cfg,
+		storage:              mockStorage,
+	}
+
+	request := &types.GetShardOwnerRequest{
+		Namespace: _testNamespaceEphemeral,
+		ShardKey:  "NON-EXISTING-SHARD",
+	}
+
+	mockStorage.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, request.ShardKey).Return(nil, store.ErrShardNotFound)
+	mockStorage.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+		ShardAssignments: map[string]store.AssignedState{
+			"owner1": {
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard1": {Status: types.AssignmentStatusREADY},
+					"shard2": {Status: types.AssignmentStatusREADY},
+				},
+			},
+			"owner2": {
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard3": {Status: types.AssignmentStatusREADY},
+					"shard4": {Status: types.AssignmentStatusREADY},
+				},
+			},
+		},
+		ShardStats: map[string]store.ShardStatistics{
+			"shard1": {SmoothedLoad: 5.0},
+			"shard2": {SmoothedLoad: 5.0},
+			"shard3": {SmoothedLoad: 1.0},
+			"shard4": {SmoothedLoad: 1.0},
+		},
+	}, nil)
+	mockStorage.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, request.ShardKey, "owner2").Return(nil)
+	mockStorage.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner2").Return(&store.ShardOwner{
+		ExecutorID: "owner2",
+		Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
+	}, nil)
+
+	resp, err := handler.GetShardOwner(context.Background(), request)
+	require.NoError(t, err)
+	require.Equal(t, "owner2", resp.Owner)
+}
+
 func TestWatchNamespaceState(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	logger := testlogger.New(t)
