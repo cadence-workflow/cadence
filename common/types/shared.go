@@ -8336,6 +8336,8 @@ func (e WorkflowExecutionCloseStatus) String() string {
 	return fmt.Sprintf("WorkflowExecutionCloseStatus(%d)", w)
 }
 
+type WorkflowExecutionStatus int32
+
 // UnmarshalText parses enum value from string representation
 func (e *WorkflowExecutionCloseStatus) UnmarshalText(value []byte) error {
 	switch s := strings.ToUpper(string(value)); s {
@@ -8385,6 +8387,25 @@ const (
 	WorkflowExecutionCloseStatusContinuedAsNew
 	// WorkflowExecutionCloseStatusTimedOut is an option for WorkflowExecutionCloseStatus
 	WorkflowExecutionCloseStatusTimedOut
+)
+
+const (
+	// WorkflowExecutionStatusPending is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusPending WorkflowExecutionStatus = iota
+	// WorkflowExecutionStatusStarted is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusStarted
+	// WorkflowExecutionStatusCompleted is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusCompleted
+	// WorkflowExecutionStatusFailed is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusFailed
+	// WorkflowExecutionStatusCanceled is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusCanceled
+	// WorkflowExecutionStatusTerminated is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusTerminated
+	// WorkflowExecutionStatusContinuedAsNew is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusContinuedAsNew
+	// WorkflowExecutionStatusTimedOut is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusTimedOut
 )
 
 // WorkflowExecutionCompletedEventAttributes is an internal type (TBD...)
@@ -8520,6 +8541,9 @@ type WorkflowExecutionInfo struct {
 	PartitionConfig              map[string]string             `json:"partitionConfig,omitempty"`
 	CronOverlapPolicy            *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
 	ActiveClusterSelectionPolicy *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
+	CronSchedule                 *string                       `json:"cronSchedule,omitempty"`
+	ExecutionStatus              *WorkflowExecutionStatus      `json:"executionStatus,omitempty"`
+	ScheduledExecutionTime       *int64                        `json:"scheduledExecutionTime,omitempty"`
 }
 
 // GetExecution is an internal getter (TBD...)
@@ -8590,6 +8614,30 @@ func (v *WorkflowExecutionInfo) GetSearchAttributes() (o *SearchAttributes) {
 func (v *WorkflowExecutionInfo) GetPartitionConfig() (o map[string]string) {
 	if v != nil && v.PartitionConfig != nil {
 		return v.PartitionConfig
+	}
+	return
+}
+
+// GetCronSchedule is an internal getter (TBD...)
+func (v *WorkflowExecutionInfo) GetCronSchedule() (o string) {
+	if v != nil && v.CronSchedule != nil {
+		return *v.CronSchedule
+	}
+	return
+}
+
+// GetExecutionStatus is an internal getter (TBD...)
+func (v *WorkflowExecutionInfo) GetExecutionStatus() (o WorkflowExecutionStatus) {
+	if v != nil && v.ExecutionStatus != nil {
+		return *v.ExecutionStatus
+	}
+	return
+}
+
+// GetScheduledExecutionTime is an internal getter (TBD...)
+func (v *WorkflowExecutionInfo) GetScheduledExecutionTime() (o int64) {
+	if v != nil && v.ScheduledExecutionTime != nil {
+		return *v.ScheduledExecutionTime
 	}
 	return
 }
