@@ -1355,19 +1355,22 @@ func printRunStatus(event *types.HistoryEvent) {
 
 // WorkflowRow is a presentation layer entity use to render a table of workflows
 type WorkflowRow struct {
-	WorkflowType     string                 `header:"Workflow Type" maxLength:"32"`
-	WorkflowID       string                 `header:"Workflow ID"`
-	RunID            string                 `header:"Run ID"`
-	TaskList         string                 `header:"Task List"`
-	IsCron           bool                   `header:"Is Cron"`
-	StartTime        time.Time              `header:"Start Time"`
-	ExecutionTime    time.Time              `header:"Execution Time"`
-	EndTime          time.Time              `header:"End Time"`
-	CloseStatus      string                 `header:"Close Status"`
-	HistoryLength    int64                  `header:"History Length"`
-	UpdateTime       time.Time              `header:"Update Time"`
-	Memo             map[string]string      `header:"Memo"`
-	SearchAttributes map[string]interface{} `header:"Search Attributes"`
+	WorkflowType           string                 `header:"Workflow Type" maxLength:"32"`
+	WorkflowID             string                 `header:"Workflow ID"`
+	RunID                  string                 `header:"Run ID"`
+	TaskList               string                 `header:"Task List"`
+	IsCron                 bool                   `header:"Is Cron"`
+	StartTime              time.Time              `header:"Start Time"`
+	ExecutionTime          time.Time              `header:"Execution Time"`
+	EndTime                time.Time              `header:"End Time"`
+	CloseStatus            string                 `header:"Close Status"`
+	HistoryLength          int64                  `header:"History Length"`
+	UpdateTime             time.Time              `header:"Update Time"`
+	Memo                   map[string]string      `header:"Memo"`
+	SearchAttributes       map[string]interface{} `header:"Search Attributes"`
+	ExecutionStatus        string                 `header:"Execution Status"`
+	CronSchedule           string                 `header:"Cron Schedule"`
+	ScheduledExecutionTime time.Time              `header:"Scheduled Execution Time"`
 }
 
 func newWorkflowRow(workflow *types.WorkflowExecutionInfo) (WorkflowRow, error) {
@@ -1385,20 +1388,46 @@ func newWorkflowRow(workflow *types.WorkflowExecutionInfo) (WorkflowRow, error) 
 		sa[k] = decodedVal
 	}
 
+	// Convert ExecutionStatus enum to string
+	executionStatus := ""
+	if workflow.ExecutionStatus != nil {
+		switch workflow.GetExecutionStatus() {
+		case types.WorkflowExecutionStatusPending:
+			executionStatus = "PENDING"
+		case types.WorkflowExecutionStatusStarted:
+			executionStatus = "STARTED"
+		case types.WorkflowExecutionStatusCompleted:
+			executionStatus = "COMPLETED"
+		case types.WorkflowExecutionStatusFailed:
+			executionStatus = "FAILED"
+		case types.WorkflowExecutionStatusCanceled:
+			executionStatus = "CANCELED"
+		case types.WorkflowExecutionStatusTerminated:
+			executionStatus = "TERMINATED"
+		case types.WorkflowExecutionStatusContinuedAsNew:
+			executionStatus = "CONTINUED_AS_NEW"
+		case types.WorkflowExecutionStatusTimedOut:
+			executionStatus = "TIMED_OUT"
+		}
+	}
+
 	return WorkflowRow{
-		WorkflowType:     workflow.Type.GetName(),
-		WorkflowID:       workflow.Execution.GetWorkflowID(),
-		RunID:            workflow.Execution.GetRunID(),
-		TaskList:         workflow.TaskList.GetName(),
-		IsCron:           workflow.IsCron,
-		StartTime:        time.Unix(0, workflow.GetStartTime()),
-		ExecutionTime:    time.Unix(0, workflow.GetExecutionTime()),
-		EndTime:          time.Unix(0, workflow.GetCloseTime()),
-		UpdateTime:       time.Unix(0, workflow.GetUpdateTime()),
-		CloseStatus:      workflow.GetCloseStatus().String(),
-		HistoryLength:    workflow.HistoryLength,
-		Memo:             memo,
-		SearchAttributes: sa,
+		WorkflowType:           workflow.Type.GetName(),
+		WorkflowID:             workflow.Execution.GetWorkflowID(),
+		RunID:                  workflow.Execution.GetRunID(),
+		TaskList:               workflow.TaskList.GetName(),
+		IsCron:                 workflow.IsCron,
+		StartTime:              time.Unix(0, workflow.GetStartTime()),
+		ExecutionTime:          time.Unix(0, workflow.GetExecutionTime()),
+		EndTime:                time.Unix(0, workflow.GetCloseTime()),
+		UpdateTime:             time.Unix(0, workflow.GetUpdateTime()),
+		CloseStatus:            workflow.GetCloseStatus().String(),
+		HistoryLength:          workflow.HistoryLength,
+		Memo:                   memo,
+		SearchAttributes:       sa,
+		ExecutionStatus:        executionStatus,
+		CronSchedule:           workflow.GetCronSchedule(),
+		ScheduledExecutionTime: time.Unix(0, workflow.GetScheduledExecutionTime()),
 	}, nil
 }
 
@@ -1411,9 +1440,11 @@ func workflowTableOptions(c *cli.Context) RenderOptions {
 		PrintDateTime:   c.Bool(FlagPrintDateTime),
 		PrintRawTime:    c.Bool(FlagPrintRawTime),
 		OptionalColumns: map[string]bool{
-			"End Time":          !(c.Bool(FlagOpen) || isScanQueryOpen),
-			"Memo":              c.Bool(FlagPrintMemo),
-			"Search Attributes": c.Bool(FlagPrintSearchAttr),
+			"End Time":                 !(c.Bool(FlagOpen) || isScanQueryOpen),
+			"Memo":                     c.Bool(FlagPrintMemo),
+			"Search Attributes":        c.Bool(FlagPrintSearchAttr),
+			"Cron Schedule":            c.Bool(FlagPrintCron),
+			"Scheduled Execution Time": c.Bool(FlagPrintCron),
 		},
 	}
 }
