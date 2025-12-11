@@ -51,6 +51,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/tasklist"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestGetTaskListManager_OwnerShip(t *testing.T) {
@@ -109,6 +110,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 			resolverMock := membership.NewMockResolver(ctrl)
 			resolverMock.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).AnyTimes()
+			mockShardDistributorExecutorClient := executorclient.NewMockClient(ctrl)
 
 			// this is only if the call goes through
 			mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry(matchingTestDomainName), nil).AnyTimes()
@@ -133,6 +135,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				resolverMock,
 				isolationgroup.NewMockState(ctrl),
 				mockTimeSource,
+				mockShardDistributorExecutorClient,
 			).(*matchingEngineImpl)
 
 			resolverMock.EXPECT().Lookup(gomock.Any(), gomock.Any()).Return(
@@ -180,6 +183,7 @@ func TestMembershipSubscriptionRecoversAfterPanic(t *testing.T) {
 func TestSubscriptionAndShutdown(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockResolver := membership.NewMockResolver(ctrl)
+	mockExecutor := executorclient.NewMockExecutor[tasklist.Manager](ctrl)
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(1)
@@ -188,6 +192,7 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
+		executor:           mockExecutor,
 		membershipResolver: mockResolver,
 		config: &config.Config{
 			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
@@ -200,6 +205,7 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 	mockResolver.EXPECT().WhoAmI().Return(membership.NewDetailedHostInfo("host2", "host2", nil), nil).AnyTimes()
 	mockResolver.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any())
 	mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).Times(1)
+	mockExecutor.EXPECT().Stop()
 
 	go engine.runMembershipChangeLoop()
 
@@ -210,6 +216,7 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 func TestSubscriptionAndErrorReturned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockResolver := membership.NewMockResolver(ctrl)
+	mockExecutor := executorclient.NewMockExecutor[tasklist.Manager](ctrl)
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -221,6 +228,7 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
+		executor:           mockExecutor,
 		membershipResolver: mockResolver,
 		config: &config.Config{
 			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
@@ -248,6 +256,7 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 		})
 
 	mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).Times(1)
+	mockExecutor.EXPECT().Stop()
 
 	go engine.runMembershipChangeLoop()
 
@@ -306,6 +315,7 @@ func TestSubscribeToMembershipChangesQuitsIfSubscribeFails(t *testing.T) {
 func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockResolver := membership.NewMockResolver(ctrl)
+	mockExecutor := executorclient.NewMockExecutor[tasklist.Manager](ctrl)
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -313,12 +323,15 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 
 	mockResolver.EXPECT().WhoAmI().Return(self, nil).AnyTimes()
 	mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).Times(1)
+	mockExecutor.EXPECT().Stop()
+	mockExecutor.EXPECT().GetShardProcess(gomock.Any(), "domainid$0$tl$NORMAL").Return(nil, errors.New("hard process not found for shard ID"))
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(0)
 
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
+		executor:           mockExecutor,
 		membershipResolver: mockResolver,
 		config: &config.Config{
 			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },

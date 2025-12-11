@@ -55,6 +55,7 @@ import (
 	"github.com/uber/cadence/service/matching/event"
 	"github.com/uber/cadence/service/matching/liveness"
 	"github.com/uber/cadence/service/matching/poller"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 const (
@@ -94,7 +95,9 @@ type (
 		ClusterMetadata cluster.Metadata
 		IsolationState  isolationgroup.State
 		MatchingClient  matching.Client
-		CloseCallback   func(ShardProcessor)
+		StartCallback   func(Manager)
+		CloseCallback   func(Manager)
+		StopCallback    func(Manager)
 		TaskList        *Identifier
 		TaskListKind    types.TaskListKind
 		Cfg             *config.Config
@@ -121,6 +124,7 @@ type (
 		taskWriter      *taskWriter
 		taskReader      *taskReader // reads tasks from db and async matches it with poller
 		liveness        *liveness.Liveness
+		status          atomic.Int32 // the status of the shard
 		taskGC          *taskGC
 		taskAckManager  messaging.AckManager // tracks ackLevel for delivered messages
 		matcher         TaskMatcher          // for matching a task producer with a poller
@@ -140,7 +144,9 @@ type (
 		stopWG        sync.WaitGroup
 		stopped       int32
 		stoppedLock   sync.RWMutex
-		closeCallback func(ShardProcessor)
+		startCallback func(Manager)
+		closeCallback func(Manager)
+		stopCallback  func(Manager)
 		throttleRetry *backoff.ThrottleRetry
 
 		qpsTracker     stats.QPSTrackerGroup
@@ -199,7 +205,9 @@ func NewManager(p ManagerParams) (Manager, error) {
 		domainName:      domainName,
 		scope:           scope,
 		timeSource:      p.TimeSource,
+		startCallback:   p.StartCallback,
 		closeCallback:   p.CloseCallback,
+		stopCallback:    p.StopCallback,
 		throttleRetry: backoff.NewThrottleRetry(
 			backoff.WithRetryPolicy(persistenceOperationRetryPolicy),
 			backoff.WithRetryableError(persistence.IsTransientError),
@@ -259,7 +267,7 @@ func NewManager(p ManagerParams) (Manager, error) {
 // The pump fills up taskBuffer from persistence.
 func (c *taskListManagerImpl) Start(ctx context.Context) error {
 	defer c.startWG.Done()
-
+	c.startCallback(c)
 	if !c.taskListID.IsRoot() && c.taskListKind == types.TaskListKindNormal {
 		var info *persistence.TaskListInfo
 		err := c.throttleRetry.Do(context.Background(), func(ctx context.Context) error {
@@ -305,21 +313,18 @@ func (c *taskListManagerImpl) Start(ctx context.Context) error {
 	if c.adaptiveScaler != nil {
 		c.adaptiveScaler.Start()
 	}
-
 	return nil
 }
 
 // Stop stops task list manager and calls Stop on all background child objects
 func (c *taskListManagerImpl) Stop() {
-	c.stoppedLock.Lock()
-	defer c.stoppedLock.Unlock()
+	//c.stoppedLock.Lock()
+	//defer c.stoppedLock.Unlock()
 	if !atomic.CompareAndSwapInt32(&c.stopped, 0, 1) {
 		return
 	}
-	sp := &shardProcessorImpl{
-		Manager: c,
-	}
-	c.closeCallback(sp)
+	c.closeCallback(c)
+	c.SetShardStatus(types.ShardStatusDONE)
 	if c.adaptiveScaler != nil {
 		c.adaptiveScaler.Stop()
 	}
@@ -396,6 +401,23 @@ func (c *taskListManagerImpl) LoadBalancerHints() *types.LoadBalancerHints {
 		BacklogCount:  c.taskAckManager.GetBacklogCount(),
 		RatePerSecond: c.qpsTracker.QPS(),
 	}
+}
+
+func (c *taskListManagerImpl) GetShardReport() executorclient.ShardReport {
+	loadBalancerHints := c.LoadBalancerHints()
+	var shardLoad = 1.0
+	if loadBalancerHints != nil {
+		shardLoad = loadBalancerHints.RatePerSecond
+	}
+	return executorclient.ShardReport{
+		// For now reporting the load as queries per second (QPS) value.
+		ShardLoad: shardLoad,
+		Status:    types.ShardStatus(c.status.Load()),
+	}
+}
+
+func (c *taskListManagerImpl) SetShardStatus(status types.ShardStatus) {
+	c.status.Store(int32(status))
 }
 
 func isTaskListPartitionConfigEqual(a types.TaskListPartitionConfig, b types.TaskListPartitionConfig) bool {
@@ -773,8 +795,8 @@ func (c *taskListManagerImpl) DescribeTaskList(includeTaskListStatus bool) *type
 }
 
 func (c *taskListManagerImpl) ReleaseBlockedPollers() error {
-	c.stoppedLock.RLock()
-	defer c.stoppedLock.RUnlock()
+	//c.stoppedLock.RLock()
+	//defer c.stoppedLock.RUnlock()
 
 	if atomic.LoadInt32(&c.stopped) == 1 {
 		c.logger.Info("Task list manager is already stopped")

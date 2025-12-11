@@ -128,6 +128,20 @@ func (mr *MockManagerMockRecorder) GetAllPollerInfo() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllPollerInfo", reflect.TypeOf((*MockManager)(nil).GetAllPollerInfo))
 }
 
+// GetShardReport mocks base method.
+func (m *MockManager) GetShardReport() executorclient.ShardReport {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetShardReport")
+	ret0, _ := ret[0].(executorclient.ShardReport)
+	return ret0
+}
+
+// GetShardReport indicates an expected call of GetShardReport.
+func (mr *MockManagerMockRecorder) GetShardReport() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardReport", reflect.TypeOf((*MockManager)(nil).GetShardReport))
+}
+
 // GetTask mocks base method.
 func (m *MockManager) GetTask(ctx context.Context, maxDispatchPerSecond *float64) (*InternalTask, error) {
 	m.ctrl.T.Helper()
@@ -211,6 +225,18 @@ func (m *MockManager) ReleaseBlockedPollers() error {
 func (mr *MockManagerMockRecorder) ReleaseBlockedPollers() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseBlockedPollers", reflect.TypeOf((*MockManager)(nil).ReleaseBlockedPollers))
+}
+
+// SetShardStatus mocks base method.
+func (m *MockManager) SetShardStatus(arg0 types.ShardStatus) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetShardStatus", arg0)
+}
+
+// SetShardStatus indicates an expected call of SetShardStatus.
+func (mr *MockManagerMockRecorder) SetShardStatus(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShardStatus", reflect.TypeOf((*MockManager)(nil).SetShardStatus), arg0)
 }
 
 // Start mocks base method.

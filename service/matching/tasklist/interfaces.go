@@ -66,6 +66,8 @@ type (
 		UpdateTaskListPartitionConfig(context.Context, *types.TaskListPartitionConfig) error
 		RefreshTaskListPartitionConfig(context.Context, *types.TaskListPartitionConfig) error
 		LoadBalancerHints() *types.LoadBalancerHints
+		GetShardReport() executorclient.ShardReport
+		SetShardStatus(types.ShardStatus)
 		ReleaseBlockedPollers() error
 	}
 
