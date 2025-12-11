@@ -82,7 +82,6 @@ func TestRingpopProvider(t *testing.T) {
 	// start ringpop provider for each channel
 	var wg sync.WaitGroup
 	for i, svc := range allServicesAndChs {
-		svc := svc
 		cfg := cfg
 		if i == 0 {
 			// set broadcast address for the first provider to test that path
