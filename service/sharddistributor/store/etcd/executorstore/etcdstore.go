@@ -533,8 +533,12 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 		if !ok {
 			shardStats.SmoothedLoad = 0
 			shardStats.LastUpdateTime = etcdtypes.Time(now)
+			// Leave LastMoveTime for newly added shards as zero, to not block it from being moved
+			// once we have load measurements.
+			shardStats.LastMoveTime = etcdtypes.Time(time.Time{})
+		} else {
+			shardStats.LastMoveTime = etcdtypes.Time(now)
 		}
-		shardStats.LastMoveTime = etcdtypes.Time(now)
 		executorShardStats[shardID] = shardStats
 
 		// 2. Get the executor state.
