@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"time"
 
@@ -798,15 +799,20 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 	for executorID, state := range newAssignments {
 		for shardID := range state.AssignedShards {
 			now := s.timeSource.Now().UTC()
+			existingShardFound := true
 
 			oldOwner, err := s.shardCache.GetShardOwner(ctx, namespace, shardID)
-			if err != nil && !errors.Is(err, store.ErrShardNotFound) {
-				return nil, fmt.Errorf("lookup cached shard owner: %w", err)
+			if err != nil {
+				if errors.Is(err, store.ErrShardNotFound) {
+					existingShardFound = false
+				} else {
+					return nil, fmt.Errorf("lookup cached shard owner: %w", err)
+				}
 			}
 
 			var shardStatToMove etcdtypes.ShardStatistics
 
-			if err == nil {
+			if existingShardFound {
 				if oldOwner.ExecutorID == executorID {
 					continue
 				}
@@ -819,16 +825,15 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 					}
 				}
 
-				mutableOldOwnerStats := make(map[string]etcdtypes.ShardStatistics, len(oldOwnerStats))
-				for k, v := range oldOwnerStats {
-					mutableOldOwnerStats[k] = v
-				}
+				clonedOldOwnerStats := make(map[string]etcdtypes.ShardStatistics, len(oldOwnerStats))
+				maps.Copy(clonedOldOwnerStats, oldOwnerStats)
 
-				if existing, ok := mutableOldOwnerStats[shardID]; ok {
+				if existing, ok := clonedOldOwnerStats[shardID]; ok {
 					shardStatToMove = existing
-					delete(mutableOldOwnerStats, shardID)
+					shardStatToMove.LastMoveTime = etcdtypes.Time(now)
+					delete(clonedOldOwnerStats, shardID)
 				}
-				pendingStatChanges[oldOwner.ExecutorID] = mutableOldOwnerStats
+				pendingStatChanges[oldOwner.ExecutorID] = clonedOldOwnerStats
 			}
 
 			// If the shard is new or had no previous stats, initialize them.
@@ -837,8 +842,6 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 				shardStatToMove.LastUpdateTime = etcdtypes.Time(now)
 				// Leave LastMoveTime for newly added shards as zero, to not block it from being moved once we have load measurements
 				shardStatToMove.LastMoveTime = etcdtypes.Time(time.Time{})
-			} else {
-				shardStatToMove.LastMoveTime = etcdtypes.Time(now)
 			}
 
 			newOwnerStats, ok := pendingStatChanges[executorID]
@@ -849,13 +852,11 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 				}
 			}
 
-			mutableNewOwnerStats := make(map[string]etcdtypes.ShardStatistics, len(newOwnerStats))
-			for k, v := range newOwnerStats {
-				mutableNewOwnerStats[k] = v
-			}
+			clonedNewOwnerStats := make(map[string]etcdtypes.ShardStatistics, len(newOwnerStats))
+			maps.Copy(clonedNewOwnerStats, newOwnerStats)
 
-			mutableNewOwnerStats[shardID] = shardStatToMove
-			pendingStatChanges[executorID] = mutableNewOwnerStats
+			clonedNewOwnerStats[shardID] = shardStatToMove
+			pendingStatChanges[executorID] = clonedNewOwnerStats
 		}
 	}
 
