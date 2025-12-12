@@ -122,7 +122,7 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	s.NoError(err)
 	ans, err = readSchemaDir(fsys, "0.6", "")
 	s.NoError(err)
-	s.Equal([]string{"v0.7", "v0.8", "v0.9"}, ans)
+	s.Equal([]string{"v0.7", "v0.8", "v0.9", "v0.10"}, ans)
 
 	// MySQL
 	fsys, err = fs.Sub(mysql.SchemaFS, "v8/cadence/versioned")
@@ -135,7 +135,7 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	s.NoError(err)
 	ans, err = readSchemaDir(fsys, "0.5", "")
 	s.NoError(err)
-	s.Equal([]string{"v0.6", "v0.7"}, ans)
+	s.Equal([]string{"v0.6", "v0.7", "v0.8"}, ans)
 
 	// SQLite
 	fsys, err = fs.Sub(sqlite.SchemaFS, "cadence/versioned")
@@ -148,7 +148,7 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	s.NoError(err)
 	ans, err = readSchemaDir(fsys, "0.1", "")
 	s.NoError(err)
-	s.Nil(ans, "no version dirs found after 0.1")
+	s.Equal([]string{"v0.2"}, ans)
 
 	// Postgres
 	fsys, err = fs.Sub(postgres.SchemaFS, "cadence/versioned")
@@ -161,7 +161,7 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	s.NoError(err)
 	ans, err = readSchemaDir(fsys, "0.5", "")
 	s.NoError(err)
-	s.Equal([]string{"v0.6", "v0.7", "v0.8"}, ans)
+	s.Equal([]string{"v0.6", "v0.7", "v0.8", "v0.9"}, ans)
 }
 
 func (s *UpdateTaskTestSuite) TestReadManifest() {
