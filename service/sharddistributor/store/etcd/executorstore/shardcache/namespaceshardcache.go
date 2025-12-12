@@ -161,32 +161,35 @@ func (n *namespaceShardToExecutor) nameSpaceRefreashLoop() {
 		case <-n.stopCh:
 			return
 		case watchResp := <-n.changeUpdateChannel:
-			shouldRefresh := false
-			for _, event := range watchResp.Events {
-				executorID, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(event.Kv.Key))
-				if keyErr != nil {
-					continue
-				}
+			n.handlePotentialRefresh(watchResp)
+		}
+	}
+}
 
-				// Check if value actually changed (skip if same value written again)
-				if event.PrevKv != nil && string(event.Kv.Value) == string(event.PrevKv.Value) {
-					continue
-				}
+func (n *namespaceShardToExecutor) handlePotentialRefresh(watchResp clientv3.WatchResponse) {
+	shouldRefresh := false
+	for _, event := range watchResp.Events {
+		executorID, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(event.Kv.Key))
+		if keyErr != nil {
+			continue
+		}
 
-				switch keyType {
-				case etcdkeys.ExecutorShardStatisticsKey:
-					n.handleExecutorStatisticsEvent(executorID, event)
-				case etcdkeys.ExecutorAssignedStateKey, etcdkeys.ExecutorMetadataKey:
-					shouldRefresh = true
-				}
-			}
-			if shouldRefresh {
-				err := n.refresh(context.Background())
-				if err != nil {
-					n.logger.Error("failed to refresh namespace shard to executor", tag.ShardNamespace(n.namespace), tag.Error(err))
-				}
-			}
+		// Check if value actually changed (skip if same value written again)
+		if event.PrevKv != nil && string(event.Kv.Value) == string(event.PrevKv.Value) {
+			continue
+		}
 
+		switch keyType {
+		case etcdkeys.ExecutorShardStatisticsKey:
+			n.handleExecutorStatisticsEvent(executorID, event)
+		case etcdkeys.ExecutorAssignedStateKey, etcdkeys.ExecutorMetadataKey:
+			shouldRefresh = true
+		}
+	}
+	if shouldRefresh {
+		err := n.refresh(context.Background())
+		if err != nil {
+			n.logger.Error("failed to refresh namespace shard to executor", tag.ShardNamespace(n.namespace), tag.Error(err))
 		}
 	}
 }
