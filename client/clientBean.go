@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/client/wrappers/timeout"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -46,6 +47,7 @@ type (
 		GetMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error)
 		GetFrontendClient() frontend.Client
 		GetShardDistributorClient() sharddistributor.Client
+		GetShardDistributorExecutorClient() executorclient.Client
 		GetRemoteAdminClient(cluster string) (admin.Client, error)
 		SetRemoteAdminClient(cluster string, client admin.Client)
 		GetRemoteFrontendClient(cluster string) (frontend.Client, error)
@@ -53,14 +55,15 @@ type (
 
 	clientBeanImpl struct {
 		sync.Mutex
-		historyClient          history.Client
-		historyPeers           history.PeerResolver
-		matchingClient         atomic.Value
-		frontendClient         frontend.Client
-		shardDistributorClient sharddistributor.Client
-		remoteAdminClients     map[string]admin.Client
-		remoteFrontendClients  map[string]frontend.Client
-		factory                Factory
+		historyClient                  history.Client
+		historyPeers                   history.PeerResolver
+		matchingClient                 atomic.Value
+		frontendClient                 frontend.Client
+		shardDistributorClient         sharddistributor.Client
+		shardDistributorExecutorClient executorclient.Client
+		remoteAdminClients             map[string]admin.Client
+		remoteFrontendClients          map[string]frontend.Client
+		factory                        Factory
 	}
 )
 
@@ -104,14 +107,20 @@ func NewClientBean(factory Factory, dispatcher *yarpc.Dispatcher, clusterMetadat
 		return nil, err
 	}
 
+	shardDistributorExecutorClient, err := factory.NewShardDistributorExecutorClient()
+	if err != nil {
+		return nil, err
+	}
+
 	return &clientBeanImpl{
-		factory:                factory,
-		historyClient:          historyClient,
-		historyPeers:           historyPeers,
-		frontendClient:         remoteFrontendClients[clusterMetadata.GetCurrentClusterName()],
-		shardDistributorClient: shardDistributorClient,
-		remoteAdminClients:     remoteAdminClients,
-		remoteFrontendClients:  remoteFrontendClients,
+		factory:                        factory,
+		historyClient:                  historyClient,
+		historyPeers:                   historyPeers,
+		frontendClient:                 remoteFrontendClients[clusterMetadata.GetCurrentClusterName()],
+		shardDistributorClient:         shardDistributorClient,
+		shardDistributorExecutorClient: shardDistributorExecutorClient,
+		remoteAdminClients:             remoteAdminClients,
+		remoteFrontendClients:          remoteFrontendClients,
 	}, nil
 }
 
@@ -136,6 +145,10 @@ func (h *clientBeanImpl) GetFrontendClient() frontend.Client {
 
 func (h *clientBeanImpl) GetShardDistributorClient() sharddistributor.Client {
 	return h.shardDistributorClient
+}
+
+func (h *clientBeanImpl) GetShardDistributorExecutorClient() executorclient.Client {
+	return h.shardDistributorExecutorClient
 }
 
 func (h *clientBeanImpl) GetRemoteAdminClient(cluster string) (admin.Client, error) {

@@ -110,14 +110,23 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort in
 		fx.Provide(zap.NewDevelopment),
 		fx.Provide(log.NewLogger),
 
-		// Register canary procedures with dispatcher
-		fx.Invoke(func(dispatcher *yarpc.Dispatcher, server sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCServer) {
+		// We do decorate instead of Invoke because we want to start and stop the dispatcher at the
+		// correct time.
+		// It will start before all dependencies are started and stop after all dependencies are stopped.
+		// The Decorate gives fx enough information, so it can start and stop the dispatcher at the correct time.
+		//
+		// It is critical to start and stop the dispatcher at the correct time.
+		// Since the executors need to
+		// be able to send a final "drain" request to the shard distributor before the application is stopped.
+		fx.Decorate(func(
+			lc fx.Lifecycle,
+			dispatcher *yarpc.Dispatcher,
+			server sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCServer,
+		) *yarpc.Dispatcher {
+			// Register canary procedures and ensure dispatcher lifecycle is managed by fx.
 			dispatcher.Register(sharddistributorv1.BuildShardDistributorExecutorCanaryAPIYARPCProcedures(server))
-		}),
-
-		// Start the YARPC dispatcher
-		fx.Invoke(func(lc fx.Lifecycle, dispatcher *yarpc.Dispatcher) {
 			lc.Append(fx.StartStopHook(dispatcher.Start, dispatcher.Stop))
+			return dispatcher
 		}),
 
 		// Include the canary module - it will set up spectator peer choosers and canary client

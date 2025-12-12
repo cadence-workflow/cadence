@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -250,6 +251,177 @@ func TestStartWorkflowExecution(t *testing.T) {
 			_, err := eft.Engine.StartWorkflowExecution(context.Background(), tc.request)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("%s: StartWorkflowExecution() error = %v, wantErr %v", tc.name, err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestStartWorkflowExecution_OrphanedHistoryCleanup(t *testing.T) {
+	tests := []struct {
+		name                 string
+		request              *types.HistoryStartWorkflowExecutionRequest
+		setupMocks           func(*testing.T, *testdata.EngineForTest)
+		enableCleanupFlag    bool
+		expectHistoryCleanup bool
+		wantErr              bool
+	}{
+		{
+			name: "cleanup orphaned history on WorkflowExecutionAlreadyStartedError with flag enabled",
+			request: &types.HistoryStartWorkflowExecutionRequest{
+				DomainUUID: constants.TestDomainID,
+				StartRequest: &types.StartWorkflowExecutionRequest{
+					Domain:                              constants.TestDomainName,
+					WorkflowID:                          "workflow-id",
+					WorkflowType:                        &types.WorkflowType{Name: "workflow-type"},
+					TaskList:                            &types.TaskList{Name: "default-task-list"},
+					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
+					TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(10),
+					Identity:                            "workflow-starter",
+					RequestID:                           "request-id",
+				},
+			},
+			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
+				domainEntry := &cache.DomainCacheEntry{}
+				eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(domainEntry, nil).AnyTimes()
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, nil).Return(&types.ActiveClusterInfo{ActiveClusterName: cluster.TestCurrentClusterName}, nil)
+
+				var capturedBranchToken []byte
+				historyV2Mgr := eft.ShardCtx.Resource.HistoryMgr
+				historyV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.AnythingOfType("*persistence.AppendHistoryNodesRequest")).
+					Run(func(args mock.Arguments) {
+						req := args.Get(1).(*persistence.AppendHistoryNodesRequest)
+						capturedBranchToken = req.BranchToken
+					}).
+					Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.Anything).
+					Return(nil, &persistence.WorkflowExecutionAlreadyStartedError{
+						StartRequestID: "different-request-id",
+						RunID:          "existing-run-id",
+						State:          persistence.WorkflowStateCompleted,
+					}).Once()
+
+				historyV2Mgr.On("DeleteHistoryBranch", mock.Anything, mock.MatchedBy(func(req *persistence.DeleteHistoryBranchRequest) bool {
+					return assert.Equal(t, capturedBranchToken, req.BranchToken) &&
+						assert.Equal(t, constants.TestDomainName, req.DomainName)
+				})).
+					Return(nil).Once()
+			},
+			enableCleanupFlag:    true,
+			expectHistoryCleanup: true,
+			wantErr:              true,
+		},
+		{
+			name: "no cleanup when flag disabled on WorkflowExecutionAlreadyStartedError",
+			request: &types.HistoryStartWorkflowExecutionRequest{
+				DomainUUID: constants.TestDomainID,
+				StartRequest: &types.StartWorkflowExecutionRequest{
+					Domain:                              constants.TestDomainName,
+					WorkflowID:                          "workflow-id",
+					WorkflowType:                        &types.WorkflowType{Name: "workflow-type"},
+					TaskList:                            &types.TaskList{Name: "default-task-list"},
+					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
+					TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(10),
+					Identity:                            "workflow-starter",
+					RequestID:                           "request-id",
+				},
+			},
+			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
+				domainEntry := &cache.DomainCacheEntry{}
+				eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(domainEntry, nil).AnyTimes()
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, nil).Return(&types.ActiveClusterInfo{ActiveClusterName: cluster.TestCurrentClusterName}, nil)
+
+				historyV2Mgr := eft.ShardCtx.Resource.HistoryMgr
+				historyV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.AnythingOfType("*persistence.AppendHistoryNodesRequest")).
+					Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.Anything).
+					Return(nil, &persistence.WorkflowExecutionAlreadyStartedError{
+						StartRequestID: "different-request-id",
+						RunID:          "existing-run-id",
+						State:          persistence.WorkflowStateCompleted,
+					}).Once()
+			},
+			enableCleanupFlag:    false,
+			expectHistoryCleanup: false,
+			wantErr:              true,
+		},
+		{
+			name: "cleanup orphaned history on DuplicateRequestError with flag enabled",
+			request: &types.HistoryStartWorkflowExecutionRequest{
+				DomainUUID: constants.TestDomainID,
+				StartRequest: &types.StartWorkflowExecutionRequest{
+					Domain:                              constants.TestDomainName,
+					WorkflowID:                          "workflow-id",
+					WorkflowType:                        &types.WorkflowType{Name: "workflow-type"},
+					TaskList:                            &types.TaskList{Name: "default-task-list"},
+					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(3600),
+					TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(10),
+					Identity:                            "workflow-starter",
+					RequestID:                           "request-id",
+				},
+			},
+			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
+				domainEntry := &cache.DomainCacheEntry{}
+				eft.ShardCtx.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(domainEntry, nil).AnyTimes()
+				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, nil).Return(&types.ActiveClusterInfo{ActiveClusterName: cluster.TestCurrentClusterName}, nil)
+
+				eft.ShardCtx.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).
+					Return(nil, &types.EntityNotExistsError{}).Once()
+
+				var capturedBranchToken []byte
+				historyV2Mgr := eft.ShardCtx.Resource.HistoryMgr
+				historyV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.AnythingOfType("*persistence.AppendHistoryNodesRequest")).
+					Run(func(args mock.Arguments) {
+						req := args.Get(1).(*persistence.AppendHistoryNodesRequest)
+						capturedBranchToken = req.BranchToken
+					}).
+					Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+
+				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.Anything).
+					Return(nil, &persistence.DuplicateRequestError{
+						RequestType: persistence.WorkflowRequestTypeStart,
+						RunID:       "existing-run-id",
+					}).Once()
+
+				historyV2Mgr.On("DeleteHistoryBranch", mock.Anything, mock.MatchedBy(func(req *persistence.DeleteHistoryBranchRequest) bool {
+					return assert.Equal(t, capturedBranchToken, req.BranchToken) &&
+						assert.Equal(t, constants.TestDomainName, req.DomainName)
+				})).
+					Return(nil).Once()
+			},
+			enableCleanupFlag:    true,
+			expectHistoryCleanup: true,
+			wantErr:              false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
+			eft.Engine.Start()
+			defer eft.Engine.Stop()
+
+			eft.ShardCtx.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
+			eft.ShardCtx.GetConfig().EnableCleanupOrphanedHistoryBranchOnWorkflowCreation = func(...dynamicproperties.FilterOption) bool {
+				return tc.enableCleanupFlag
+			}
+
+			tc.setupMocks(t, eft)
+
+			_, err := eft.Engine.StartWorkflowExecution(context.Background(), tc.request)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			if tc.expectHistoryCleanup {
+				eft.ShardCtx.Resource.HistoryMgr.AssertCalled(t, "DeleteHistoryBranch", mock.Anything, mock.MatchedBy(func(req *persistence.DeleteHistoryBranchRequest) bool {
+					return req.BranchToken != nil
+				}))
+			} else {
+				eft.ShardCtx.Resource.HistoryMgr.AssertNotCalled(t, "DeleteHistoryBranch", mock.Anything, mock.AnythingOfType("*persistence.DeleteHistoryBranchRequest"))
 			}
 		})
 	}

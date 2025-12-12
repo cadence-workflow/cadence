@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
+	"github.com/uber-go/tally"
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
@@ -54,7 +55,9 @@ import (
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/event"
 	"github.com/uber/cadence/service/matching/tasklist"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
+	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 )
 
 // If sticky poller is not seem in last 10s, we treat it as sticky worker unavailable
@@ -137,6 +140,7 @@ func NewEngine(
 	resolver membership.Resolver,
 	isolationState isolationgroup.State,
 	timeSource clock.TimeSource,
+	shardDistributorClient executorclient.Client,
 ) Engine {
 	e := &matchingEngineImpl{
 		shutdown:             make(chan struct{}),
@@ -158,7 +162,7 @@ func NewEngine(
 		timeSource:           timeSource,
 	}
 
-	e.setupTaskListFactory()
+	e.setupExecutor(shardDistributorClient)
 	e.shutdownCompletion.Add(1)
 	go e.runMembershipChangeLoop()
 
@@ -179,7 +183,8 @@ func (e *matchingEngineImpl) Stop() {
 	e.shutdownCompletion.Wait()
 }
 
-func (e *matchingEngineImpl) setupTaskListFactory() {
+func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient executorclient.Client) {
+
 	taskListFactory := &tasklist.ShardProcessorFactory{
 		DomainCache:     e.domainCache,
 		Logger:          e.logger,
@@ -194,6 +199,26 @@ func (e *matchingEngineImpl) setupTaskListFactory() {
 		CreateTime:      e.timeSource.Now(),
 		HistoryService:  e.historyService}
 	e.taskListsFactory = taskListFactory
+	// TODO move this to setup a logger based on e.logger
+	scope := tally.NoopScope
+	// Move the configuration to e.config
+	config := clientcommon.Config{
+		Namespaces: []clientcommon.NamespaceConfig{
+			{Namespace: "cadence-matching", HeartBeatInterval: 1 * time.Second, MigrationMode: sdconfig.MigrationModeLOCALPASSTHROUGH}}}
+	params := executorclient.Params[tasklist.ShardProcessor]{
+		ExecutorClient:        shardDistributorExecutorClient,
+		MetricsScope:          scope,
+		Logger:                e.logger,
+		ShardProcessorFactory: taskListFactory,
+		Config:                config,
+		TimeSource:            e.timeSource,
+	}
+	executor, err := executorclient.NewExecutor[tasklist.ShardProcessor](params)
+	if err != nil {
+		panic(err)
+	}
+	e.executor = executor
+
 }
 
 func (e *matchingEngineImpl) getTaskLists(maxCount int) []tasklist.ShardProcessor {
