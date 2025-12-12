@@ -159,7 +159,7 @@ func TestLoadBalance_BudgetConstraint(t *testing.T) {
 	}
 
 	totalShards := len(shardStats)
-	expectedBudget := computeMoveBudget(totalShards, processor.cfg.MoveBudgetProportion)
+	expectedBudget := computeMoveBudget(totalShards, processor.cfg.LoadBalance.MoveBudgetProportion)
 	initialHot := len(assignments[execA].AssignedShards) + len(assignments[execB].AssignedShards) + len(assignments[execC].AssignedShards)
 	initialD := len(assignments[execD].AssignedShards)
 	expectedHotAfter := initialHot - expectedBudget
@@ -237,7 +237,7 @@ func TestLoadBalance_MultiMovePerCycle(t *testing.T) {
 	}
 
 	totalShards := len(shardStats)
-	expectedBudget := computeMoveBudget(totalShards, processor.cfg.MoveBudgetProportion)
+	expectedBudget := computeMoveBudget(totalShards, processor.cfg.LoadBalance.MoveBudgetProportion)
 
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
 		Executors: map[string]store.HeartbeatState{
@@ -282,7 +282,7 @@ func TestLoadBalance_PerShardCooldownSkipsHotShard(t *testing.T) {
 
 	execA, execB := "exec-A", "exec-B"
 	now := mocks.timeSource.Now()
-	cooldown := processor.cfg.PerShardCooldown
+	cooldown := processor.cfg.LoadBalance.PerShardCooldown
 	require.True(t, cooldown > 0, "PerShardCooldown should be configured")
 	recentMove := now.Add(-cooldown / 2)
 
@@ -333,7 +333,7 @@ func TestLoadBalance_GlobalCooldownSkipsLoadOnlyPass(t *testing.T) {
 
 	execA, execB := "exec-A", "exec-B"
 	now := mocks.timeSource.Now()
-	cooldown := processor.cfg.PerShardCooldown
+	cooldown := processor.cfg.LoadBalance.PerShardCooldown
 	require.True(t, cooldown > 0, "PerShardCooldown should be configured")
 	recentMove := now.Add(-cooldown / 2)
 

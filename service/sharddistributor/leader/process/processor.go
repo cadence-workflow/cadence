@@ -94,17 +94,17 @@ func NewProcessorFactory(
 	if cfg.Process.Timeout <= 0 {
 		cfg.Process.Timeout = _defaultTimeout
 	}
-	if cfg.Process.PerShardCooldown <= 0 {
-		cfg.Process.PerShardCooldown = _defaultPerShardCooldown
+	if cfg.Process.LoadBalance.PerShardCooldown <= 0 {
+		cfg.Process.LoadBalance.PerShardCooldown = _defaultPerShardCooldown
 	}
-	if cfg.Process.MoveBudgetProportion <= 0 {
-		cfg.Process.MoveBudgetProportion = _defaultMoveBudgetProportion
+	if cfg.Process.LoadBalance.MoveBudgetProportion <= 0 {
+		cfg.Process.LoadBalance.MoveBudgetProportion = _defaultMoveBudgetProportion
 	}
-	if cfg.Process.HysteresisUpperBand <= 0 {
-		cfg.Process.HysteresisUpperBand = _defaultHysteresisUpperBand
+	if cfg.Process.LoadBalance.HysteresisUpperBand <= 0 {
+		cfg.Process.LoadBalance.HysteresisUpperBand = _defaultHysteresisUpperBand
 	}
-	if cfg.Process.HysteresisLowerBand <= 0 {
-		cfg.Process.HysteresisLowerBand = _defaultHysteresisLowerBand
+	if cfg.Process.LoadBalance.HysteresisLowerBand <= 0 {
+		cfg.Process.LoadBalance.HysteresisLowerBand = _defaultHysteresisLowerBand
 	}
 
 	return &processorFactory{
@@ -514,10 +514,10 @@ func (p *namespaceProcessor) loadBalance(
 
 	inputs := loadBalanceInputs{
 		now:                  p.timeSource.Now().UTC(),
-		moveBudgetProportion: p.cfg.MoveBudgetProportion,
-		hysteresisUpperBand:  p.cfg.HysteresisUpperBand,
-		hysteresisLowerBand:  p.cfg.HysteresisLowerBand,
-		perShardCooldown:     p.cfg.PerShardCooldown,
+		moveBudgetProportion: p.cfg.LoadBalance.MoveBudgetProportion,
+		hysteresisUpperBand:  p.cfg.LoadBalance.HysteresisUpperBand,
+		hysteresisLowerBand:  p.cfg.LoadBalance.HysteresisLowerBand,
+		perShardCooldown:     p.cfg.LoadBalance.PerShardCooldown,
 		structuralChange:     structuralChange,
 	}
 

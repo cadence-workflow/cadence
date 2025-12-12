@@ -671,6 +671,11 @@ type (
 		// Default: 10 seconds
 		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
 
+		// LoadBalance contains tunables for load-based rebalancing.
+		LoadBalance LoadBalance `yaml:"loadBalance"`
+	}
+
+	LoadBalance struct {
 		// PerShardCooldown is the minimum time between moving the same shard and between
 		// consecutive load-only rebalances.
 		// Default: 1 minute
