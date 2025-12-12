@@ -868,29 +868,32 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 
 // applyShardStatisticsUpdates updates shard statistics.
 func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, namespace string, updates []shardStatisticsUpdate) error {
+	var multiError error
 	for _, update := range updates {
 		statsKey := etcdkeys.BuildExecutorKey(s.prefix, namespace, update.executorID, etcdkeys.ExecutorShardStatisticsKey)
 
 		if len(update.stats) == 0 {
 			if _, err := s.client.Delete(ctx, statsKey); err != nil {
-				return fmt.Errorf("failed to delete executor shard statistics: %w", err)
+				multiError = errors.Join(multiError, fmt.Errorf("failed to delete executor shard statistics: %w", err))
 			}
 			continue
 		}
 
 		payload, err := json.Marshal(update.stats)
 		if err != nil {
-			return fmt.Errorf("failed to marshal shard statistics after assignment: %w", err)
+			multiError = errors.Join(multiError, fmt.Errorf("failed to delete executor shard statistics: %w", err))
+			continue
 		}
 
 		compressedPayload, err := s.recordWriter.Write(payload)
 		if err != nil {
-			return fmt.Errorf("failed to compress shard statistics after assignment: %w", err)
+			multiError = errors.Join(multiError, fmt.Errorf("failed to delete executor shard statistics: %w", err))
+			continue
 		}
 
 		if _, err := s.client.Put(ctx, statsKey, string(compressedPayload)); err != nil {
-			return fmt.Errorf("failed to update shard statistics: %w", err)
+			multiError = errors.Join(multiError, fmt.Errorf("failed to delete executor shard statistics: %w", err))
 		}
 	}
-	return nil
+	return multiError
 }
