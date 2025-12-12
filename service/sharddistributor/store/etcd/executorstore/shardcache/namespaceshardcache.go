@@ -20,19 +20,24 @@ import (
 type namespaceShardToExecutor struct {
 	sync.RWMutex
 
-	shardToExecutor        map[string]*store.ShardOwner   // shardID -> shardOwner
-	shardOwners            map[string]*store.ShardOwner   // executorID -> shardOwner
-	executorState          map[*store.ShardOwner][]string // executor -> shardIDs
-	executorRevision       map[string]int64
-	executorStatisticsLock sync.RWMutex
-	executorStatistics     map[string]map[string]etcdtypes.ShardStatistics
-	namespace              string
-	etcdPrefix             string
-	changeUpdateChannel    clientv3.WatchChan
-	stopCh                 chan struct{}
-	logger                 log.Logger
-	client                 etcdclient.Client
-	pubSub                 *executorStatePubSub
+	shardToExecutor     map[string]*store.ShardOwner   // shardID -> shardOwner
+	shardOwners         map[string]*store.ShardOwner   // executorID -> shardOwner
+	executorState       map[*store.ShardOwner][]string // executor -> shardIDs
+	executorRevision    map[string]int64
+	namespace           string
+	etcdPrefix          string
+	changeUpdateChannel clientv3.WatchChan
+	stopCh              chan struct{}
+	logger              log.Logger
+	client              etcdclient.Client
+	pubSub              *executorStatePubSub
+
+	executorStatistics namespaceExecutorStatistics
+}
+
+type namespaceExecutorStatistics struct {
+	lock  sync.RWMutex
+	stats map[string]map[string]etcdtypes.ShardStatistics
 }
 
 func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient.Client, stopCh chan struct{}, logger log.Logger) (*namespaceShardToExecutor, error) {
@@ -45,7 +50,6 @@ func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient
 		executorState:       make(map[*store.ShardOwner][]string),
 		executorRevision:    make(map[string]int64),
 		shardOwners:         make(map[string]*store.ShardOwner),
-		executorStatistics:  make(map[string]map[string]etcdtypes.ShardStatistics),
 		namespace:           namespace,
 		etcdPrefix:          etcdPrefix,
 		changeUpdateChannel: watchChan,
@@ -53,6 +57,9 @@ func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient
 		logger:              logger,
 		client:              client,
 		pubSub:              newExecutorStatePubSub(logger, namespace),
+		executorStatistics: namespaceExecutorStatistics{
+			stats: make(map[string]map[string]etcdtypes.ShardStatistics),
+		},
 	}, nil
 }
 
@@ -101,9 +108,9 @@ func (n *namespaceShardToExecutor) GetExecutorModRevisionCmp() ([]clientv3.Cmp, 
 }
 
 func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, executorID string) (map[string]etcdtypes.ShardStatistics, error) {
-	n.executorStatisticsLock.RLock()
-	stats, ok := n.executorStatistics[executorID]
-	n.executorStatisticsLock.RUnlock()
+	n.executorStatistics.lock.RLock()
+	stats, ok := n.executorStatistics.stats[executorID]
+	n.executorStatistics.lock.RUnlock()
 	if ok {
 		return cloneStatisticsMap(stats), nil
 	}
@@ -114,9 +121,9 @@ func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, ex
 	}
 
 	// After refresh, read from cache again.
-	n.executorStatisticsLock.RLock()
-	defer n.executorStatisticsLock.RUnlock()
-	stats, ok = n.executorStatistics[executorID]
+	n.executorStatistics.lock.RLock()
+	defer n.executorStatistics.lock.RUnlock()
+	stats, ok = n.executorStatistics.stats[executorID]
 	if !ok {
 		return nil, fmt.Errorf("could not get executor statistics, even after refresh")
 	}
@@ -127,10 +134,10 @@ func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, ex
 // refreshExecutorStatisticsCache fetches executor statistics from etcd and caches them.
 // It is called when there's a cache miss.
 func (n *namespaceShardToExecutor) refreshExecutorStatisticsCache(ctx context.Context, executorID string) error {
-	n.executorStatisticsLock.Lock()
-	defer n.executorStatisticsLock.Unlock()
+	n.executorStatistics.lock.Lock()
+	defer n.executorStatistics.lock.Unlock()
 
-	if _, ok := n.executorStatistics[executorID]; ok {
+	if _, ok := n.executorStatistics.stats[executorID]; ok {
 		return nil // Value is already cached. Nothing to do.
 	}
 
@@ -147,7 +154,7 @@ func (n *namespaceShardToExecutor) refreshExecutorStatisticsCache(ctx context.Co
 		}
 	}
 
-	n.executorStatistics[executorID] = stats
+	n.executorStatistics.stats[executorID] = stats
 	return nil
 }
 
@@ -241,14 +248,14 @@ func (n *namespaceShardToExecutor) refreshExecutorState(ctx context.Context) err
 
 	n.Lock()
 	defer n.Unlock()
-	n.executorStatisticsLock.Lock()
-	defer n.executorStatisticsLock.Unlock()
+	n.executorStatistics.lock.Lock()
+	defer n.executorStatistics.lock.Unlock()
 	// Clear the cache, so we don't have any stale data
 	n.shardToExecutor = make(map[string]*store.ShardOwner)
 	n.executorState = make(map[*store.ShardOwner][]string)
 	n.executorRevision = make(map[string]int64)
 	n.shardOwners = make(map[string]*store.ShardOwner)
-	n.executorStatistics = make(map[string]map[string]etcdtypes.ShardStatistics)
+	n.executorStatistics.stats = make(map[string]map[string]etcdtypes.ShardStatistics)
 
 	for _, kv := range resp.Kvs {
 		executorID, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(kv.Key))
@@ -285,7 +292,7 @@ func (n *namespaceShardToExecutor) refreshExecutorState(ctx context.Context) err
 			if err != nil {
 				return fmt.Errorf("parse shard statistics: %w", err)
 			}
-			n.executorStatistics[executorID] = stats
+			n.executorStatistics.stats[executorID] = stats
 		default:
 			continue
 		}
@@ -317,13 +324,13 @@ func (n *namespaceShardToExecutor) handleExecutorStatisticsEvent(executorID stri
 }
 
 func (n *namespaceShardToExecutor) setExecutorStatistics(executorID string, stats map[string]etcdtypes.ShardStatistics) {
-	n.executorStatisticsLock.Lock()
-	defer n.executorStatisticsLock.Unlock()
+	n.executorStatistics.lock.Lock()
+	defer n.executorStatistics.lock.Unlock()
 	if len(stats) == 0 {
-		delete(n.executorStatistics, executorID)
+		delete(n.executorStatistics.stats, executorID)
 		return
 	}
-	n.executorStatistics[executorID] = cloneStatisticsMap(stats)
+	n.executorStatistics.stats[executorID] = cloneStatisticsMap(stats)
 }
 
 // Clone to prevent concurrent map access
