@@ -8,6 +8,7 @@ import (
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -31,6 +32,7 @@ type namespaceShardToExecutor struct {
 	logger              log.Logger
 	client              etcdclient.Client
 	pubSub              *executorStatePubSub
+	timeSource          clock.TimeSource
 
 	executorStatistics namespaceExecutorStatistics
 }
@@ -40,7 +42,7 @@ type namespaceExecutorStatistics struct {
 	stats map[string]map[string]etcdtypes.ShardStatistics
 }
 
-func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient.Client, stopCh chan struct{}, logger log.Logger) (*namespaceShardToExecutor, error) {
+func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient.Client, stopCh chan struct{}, logger log.Logger, timeSource clock.TimeSource) (*namespaceShardToExecutor, error) {
 	// Start listening
 	watchPrefix := etcdkeys.BuildExecutorsPrefix(etcdPrefix, namespace)
 	watchChan := client.Watch(context.Background(), watchPrefix, clientv3.WithPrefix(), clientv3.WithPrevKV())
@@ -57,6 +59,7 @@ func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient
 		logger:              logger,
 		client:              client,
 		pubSub:              newExecutorStatePubSub(logger, namespace),
+		timeSource:          timeSource,
 		executorStatistics: namespaceExecutorStatistics{
 			stats: make(map[string]map[string]etcdtypes.ShardStatistics),
 		},

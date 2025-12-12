@@ -7,6 +7,7 @@ import (
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
@@ -22,12 +23,14 @@ type ShardToExecutorCache struct {
 	logger            log.Logger
 	prefix            string
 	wg                sync.WaitGroup
+	timeSource        clock.TimeSource
 }
 
 func NewShardToExecutorCache(
 	prefix string,
 	client etcdclient.Client,
 	logger log.Logger,
+	timeSource clock.TimeSource,
 ) *ShardToExecutorCache {
 	shardCache := &ShardToExecutorCache{
 		namespaceToShards: make(NamespaceToShards),
@@ -36,6 +39,7 @@ func NewShardToExecutorCache(
 		prefix:            prefix,
 		client:            client,
 		wg:                sync.WaitGroup{},
+		timeSource:        timeSource,
 	}
 
 	return shardCache
@@ -102,7 +106,7 @@ func (s *ShardToExecutorCache) getNamespaceShardToExecutor(namespace string) (*n
 	s.Lock()
 	defer s.Unlock()
 
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(s.prefix, namespace, s.client, s.stopC, s.logger)
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(s.prefix, namespace, s.client, s.stopC, s.logger, s.timeSource)
 	if err != nil {
 		return nil, fmt.Errorf("new namespace shard to executor: %w", err)
 	}
