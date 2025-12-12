@@ -3,6 +3,8 @@ package common
 import (
 	"math"
 	"time"
+
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
 )
 
 func CalculateSmoothedLoad(prev, current float64, lastUpdate, now time.Time) float64 {
@@ -19,4 +21,22 @@ func CalculateSmoothedLoad(prev, current float64, lastUpdate, now time.Time) flo
 	dt := now.Sub(lastUpdate)
 	alpha := 1 - math.Exp(-dt.Seconds()/tau.Seconds())
 	return (1-alpha)*prev + alpha*current
+}
+
+func UpdateShardStatistic(shardID string, shardLoad float64, now time.Time, oldStats map[string]etcdtypes.ShardStatistics) etcdtypes.ShardStatistics {
+	var stats etcdtypes.ShardStatistics
+
+	prevStats, ok := oldStats[shardID]
+	if ok {
+		stats.LastMoveTime = prevStats.LastMoveTime
+	}
+
+	prevSmoothed := prevStats.SmoothedLoad
+	prevUpdate := prevStats.LastUpdateTime.ToTime()
+	newSmoothed := CalculateSmoothedLoad(prevSmoothed, shardLoad, prevUpdate, now)
+
+	stats.SmoothedLoad = newSmoothed
+	stats.LastUpdateTime = etcdtypes.Time(now)
+
+	return stats
 }
