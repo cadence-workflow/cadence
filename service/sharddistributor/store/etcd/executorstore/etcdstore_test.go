@@ -15,6 +15,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
+	sdConfig "github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
@@ -591,6 +592,12 @@ func TestAssignShardErrors(t *testing.T) {
 func TestShardStatisticsPersistence(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
+	executorStore.(*executorStoreImpl).dynamicConfig = &sdConfig.DynamicConfig{
+		LoadBalancingMode: func(namespace string) string {
+			return types.LoadBalancingModeGREEDY.String()
+		},
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -717,6 +724,9 @@ func createStore(t *testing.T, tc *testhelper.StoreTestCluster) store.Store {
 		Cfg:       etcdConfig,
 		Lifecycle: fxtest.NewLifecycle(t),
 		Logger:    testlogger.New(t),
+		DynamicConfig: &sdConfig.DynamicConfig{
+			LoadBalancingMode: func(namespace string) string { return types.LoadBalancingModeNAIVE.String() },
+		},
 	})
 	require.NoError(t, err)
 	return store

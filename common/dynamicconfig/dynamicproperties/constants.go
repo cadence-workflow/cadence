@@ -1465,28 +1465,6 @@ const (
 	// Default value: 100
 	ESAnalyzerMinNumWorkflowsForAvg
 
-	// key for shard manager
-
-	// ShardManagerPersistenceMaxQPS is the max qps a shard manager host can query DB
-	// KeyName: shardManager.persistenceMaxQPS
-	// Value type: Int
-	// Default value: 3000
-	// Allowed filters: N/A
-	ShardManagerPersistenceMaxQPS
-	// ShardManagerPersistenceGlobalMaxQPS is the max qps matching cluster can query DB
-	// KeyName: shardManager.persistenceGlobalMaxQPS
-	// Value type: Int
-	// Default value: 0
-	// Allowed filters: N/A
-	ShardManagerPersistenceGlobalMaxQPS
-
-	// ShardManagerThrottledLogRPS is the rate limit on number of log messages emitted per second for throttled logger
-	// KeyName: shardManager.throttledLogRPS
-	// Value type: Int
-	// Default value: 20
-	// Allowed filters: N/A
-	ShardManagerThrottledLogRPS
-
 	// Usage: VisibilityArchivalQueryMaxRangeInDays is the maximum number of days for a visibility archival query
 	// KeyName: N/A
 	// Default value: N/A
@@ -2466,7 +2444,7 @@ const (
 	// Default value: "thriftrw"
 	SerializationEncoding
 
-	// MigrationMode is the mode the at represent the state of the migration to rely on shard distributor for the sharding mechanism
+	// ShardDistributorMigrationMode is the mode the at represent the state of the migration to rely on shard distributor for the sharding mechanism
 	//
 	// "invalid" invalid mode for the migration, not expected to be used
 	// "local_pass" the executor library is integrated but no external call to the SD happening
@@ -2478,7 +2456,19 @@ const (
 	// Value type: String
 	// Default value: onboarded
 	// Allowed filters: namespace
-	MigrationMode
+	ShardDistributorMigrationMode
+
+	// ShardDistributorLoadBalancingMode is the load balancing mode for the shard distributor
+	// Depending on the mode, the shard distributor will use different ways to distribute the shards
+	//
+	// * "naive" 	- mode assigns shards to the least loaded hosts without considering the existing shard distribution
+	// * "greedy" 	- mode balances the load across all hosts while minimizing shard movements and uses shard statistics to make better decisions
+	//
+	// KeyName: shardDistributor.loadBalancingMode
+	// Value type: String
+	// Default value: "naive"
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingMode
 
 	// LastStringKey must be the last one in this const group
 	LastStringKey
@@ -4079,21 +4069,6 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "ESAnalyzerMinNumWorkflowsForAvg controls how many workflows to have at least to rely on workflow run time avg per type",
 		DefaultValue: 100,
 	},
-	ShardManagerPersistenceMaxQPS: {
-		KeyName:      "shardManager.persistenceMaxQPS",
-		Description:  "ShardManagerPersistenceMaxQPS is the max qps shard manager host can query DB",
-		DefaultValue: 3000,
-	},
-	ShardManagerPersistenceGlobalMaxQPS: {
-		KeyName:      "shardManager.persistenceGlobalMaxQPS",
-		Description:  "ShardManagerPersistenceGlobalMaxQPS is the max qps shard manager cluster can query DB",
-		DefaultValue: 0,
-	},
-	ShardManagerThrottledLogRPS: {
-		KeyName:      "shardManager.throttledLogRPS",
-		Description:  "ShardManagerThrottledLogRPS is the rate limit on number of log messages emitted per second for throttled logger",
-		DefaultValue: 20,
-	},
 	VisibilityArchivalQueryMaxRangeInDays: {
 		KeyName:      "frontend.visibilityArchivalQueryMaxRangeInDays",
 		Description:  "VisibilityArchivalQueryMaxRangeInDays is the maximum number of days for a visibility archival query",
@@ -5034,11 +5009,16 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "SerializationEncoding is the encoding type for blobs",
 		DefaultValue: string(constants.EncodingTypeThriftRW),
 	},
-	MigrationMode: {
+	ShardDistributorMigrationMode: {
 		KeyName:      "shardDistributor.migrationMode",
-		Description:  "MigrationMode is the mode the at represent the state of the migration to rely on shard distributor for the sharding mechanism",
+		Description:  "ShardDistributorMigrationMode is the mode the at represent the state of the migration to rely on shard distributor for the sharding mechanism",
 		DefaultValue: "onboarded",
 		Filters:      []Filter{Namespace},
+	},
+	ShardDistributorLoadBalancingMode: {
+		KeyName:      "shardDistributor.loadBalancingMode",
+		Description:  "ShardDistributorLoadBalancingMode is the load balancing mode for the shard distributor. Depending on the mode, the shard distributor will use different ways to distribute the shards",
+		DefaultValue: "naive",
 	},
 }
 
