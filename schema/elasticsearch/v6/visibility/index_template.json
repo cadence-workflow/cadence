@@ -83,7 +83,8 @@
             "Operator": { "type": "keyword"},
             "RolloutID": { "type": "keyword"},
             "BinaryChecksums": { "type": "keyword"},
-            "Passed": { "type": "boolean" }
+            "Passed": { "type": "boolean" },
+            "CronSchedule": { "type": "keyword" }
           }
         }
       }

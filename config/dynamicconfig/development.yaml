@@ -66,6 +66,7 @@ frontend.validSearchAttributes:
     service: 1
     user: 1
     IsDeleted: 4
+    CronSchedule: 1
   constraints: {}
 system.writeVisibilityStoreName:
   - value: "db"

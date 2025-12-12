@@ -22,10 +22,12 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -286,6 +288,18 @@ func (t *transferStandbyTaskExecutor) processCloseExecution(
 		isCron := len(executionInfo.CronSchedule) > 0
 		updateTimestamp := t.shard.GetTimeSource().Now()
 
+		// Add CronSchedule to search attributes if it's a cron workflow
+		if isCron {
+			searchAttr = copySearchAttributes(searchAttr)
+			if searchAttr == nil {
+				searchAttr = make(map[string][]byte)
+			}
+			cronScheduleBytes, err := json.Marshal(executionInfo.CronSchedule)
+			if err == nil {
+				searchAttr[definition.CronSchedule] = cronScheduleBytes
+			}
+		}
+
 		lastWriteVersion, err := mutableState.GetLastWriteVersion()
 		if err != nil {
 			return nil, err
@@ -536,6 +550,17 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 
 	searchAttr := copySearchAttributes(executionInfo.SearchAttributes)
 	headers := getWorkflowHeaders(startEvent)
+
+	// Add CronSchedule to search attributes if it's a cron workflow
+	if isCron {
+		if searchAttr == nil {
+			searchAttr = make(map[string][]byte)
+		}
+		cronScheduleBytes, err := json.Marshal(executionInfo.CronSchedule)
+		if err == nil {
+			searchAttr[definition.CronSchedule] = cronScheduleBytes
+		}
+	}
 
 	if isRecordStart {
 		workflowStartedScope.IncCounter(metrics.WorkflowStartedCount)
