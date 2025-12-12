@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"math"
 	"math/rand"
 	"slices"
 	"sort"
@@ -511,40 +510,19 @@ func (p *namespaceProcessor) loadBalance(
 	metricsScope metrics.Scope,
 ) (bool, error) {
 
-	shardsMoved := false
-
 	allShards := getShards(p.namespaceCfg, namespaceState, deletedShards)
 
-	moveBudgetProportion := p.cfg.MoveBudgetProportion
-	hysteresisUpperBand := p.cfg.HysteresisUpperBand
-	hysteresisLowerBand := p.cfg.HysteresisLowerBand
-
-	moveBudget := int(math.Ceil(moveBudgetProportion * float64(len(allShards))))
-
-	now := p.timeSource.Now().UTC()
-	// PerShardCooldown is the minimum time between moving the same shard.
-	perShardCooldown := p.cfg.PerShardCooldown
-
-	executorLoads := make(map[string]float64, len(currentAssignments))
-	totalLoad := 0.0
-	latestMoveTime := time.Time{}
-	// Compute executor loads from the in-memory assignment plan.
-	// Track latest shard move time for the global cooldown.
-	for executorID, shards := range currentAssignments {
-		for _, shardID := range shards {
-			stats, ok := namespaceState.ShardStats[shardID]
-			load := 0.0
-			if ok {
-				load = stats.SmoothedLoad
-				if !stats.LastMoveTime.IsZero() && stats.LastMoveTime.After(latestMoveTime) {
-					latestMoveTime = stats.LastMoveTime
-				}
-			}
-			executorLoads[executorID] += load
-			totalLoad += load
-		}
+	inputs := loadBalanceInputs{
+		now:                  p.timeSource.Now().UTC(),
+		moveBudgetProportion: p.cfg.MoveBudgetProportion,
+		hysteresisUpperBand:  p.cfg.HysteresisUpperBand,
+		hysteresisLowerBand:  p.cfg.HysteresisLowerBand,
+		perShardCooldown:     p.cfg.PerShardCooldown,
+		structuralChange:     structuralChange,
 	}
-	if len(executorLoads) == 0 {
+
+	snapshot := computeExecutorLoads(currentAssignments, namespaceState)
+	if len(snapshot.loads) == 0 {
 		if metricsScope != nil {
 			metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceMovesPerCycle, 0)
 		}
@@ -553,7 +531,7 @@ func (p *namespaceProcessor) loadBalance(
 
 	// Global cooldown derived from persisted LastMoveTime, so it survives leader failover.
 	// Only applies on load-only passes. Structural changes should not be throttled.
-	if !structuralChange && perShardCooldown > 0 && !latestMoveTime.IsZero() && now.Sub(latestMoveTime) < perShardCooldown {
+	if shouldSkipLoadBalanceDueToGlobalCooldown(inputs, snapshot.latestMoveTime) {
 		if metricsScope != nil {
 			metricsScope.AddCounter(metrics.ShardDistributorLoadBalanceGlobalCooldownSkips, 1)
 			metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceMovesPerCycle, 0)
@@ -561,54 +539,30 @@ func (p *namespaceProcessor) loadBalance(
 		return false, nil
 	}
 
-	meanLoad := totalLoad / float64(len(executorLoads))
+	meanLoad := snapshot.totalLoad / float64(len(snapshot.loads))
 
+	moveBudget := computeMoveBudget(len(allShards), inputs.moveBudgetProportion)
+	shardsMoved := false
 	movesPlanned := 0
 	// Plan multiple moves per cycle (within budget), recomputing eligibility after each move.
 	// Stop early once sources/destinations are empty, i.e. imbalance is within hysteresis bands.
 	for moveBudget > 0 {
-		sourceExecutors := make(map[string]struct{})
-		destinationExecutors := make(map[string]struct{})
-
-		for executorID, load := range executorLoads {
-			executor := namespaceState.Executors[executorID]
-			if executor.Status == types.ExecutorStatusDRAINING || load > meanLoad*hysteresisUpperBand {
-				sourceExecutors[executorID] = struct{}{}
-			} else if executor.Status == types.ExecutorStatusACTIVE && load < meanLoad*hysteresisLowerBand {
-				destinationExecutors[executorID] = struct{}{}
-			}
-		}
+		sourceExecutors, destinationExecutors := classifySourcesAndDestinations(
+			snapshot.loads,
+			namespaceState,
+			meanLoad,
+			inputs.hysteresisUpperBand,
+			inputs.hysteresisLowerBand,
+		)
 
 		// Nothing to do once we're within bands (or have no eligible destinations).
 		if len(sourceExecutors) == 0 || len(destinationExecutors) == 0 {
 			break
 		}
 
-		// Deterministic iteration over sources (ordered by load desc, then ID) reduces churn/oscillation.
-		// Without sorting, identical state can yield different move sequences across cycles, making shards more likely to bounce near thresholds.
-		// Executor count is small, so this sort is cheap compared to shard movement cost.
-		sources := make([]string, 0, len(sourceExecutors))
-		for executorID := range sourceExecutors {
-			sources = append(sources, executorID)
-		}
-		slices.SortFunc(sources, func(a, b string) int {
-			la, lb := executorLoads[a], executorLoads[b]
-			if la == lb {
-				if a < b {
-					return -1
-				}
-				if a > b {
-					return 1
-				}
-				return 0
-			}
-			if la > lb {
-				return -1
-			}
-			return 1
-		})
+		sources := sourcesSortedByDescendingLoad(sourceExecutors, snapshot.loads)
 
-		destExecutor := p.findBestDestination(destinationExecutors, executorLoads)
+		destExecutor := p.findBestDestination(destinationExecutors, snapshot.loads)
 		if destExecutor == "" {
 			break
 		}
@@ -618,9 +572,9 @@ func (p *namespaceProcessor) loadBalance(
 		// If no source has an eligible shard (e.g., all are cooling down), we stop early.
 		movedThisIteration := false
 		for _, sourceExecutor := range sources {
-			shardsToMove := p.findShardsToMove(currentAssignments, namespaceState, sourceExecutor, now, perShardCooldown)
+			shardsToMove := p.findShardsToMove(currentAssignments, namespaceState, sourceExecutor, inputs.now, inputs.perShardCooldown)
 			if len(shardsToMove) == 0 {
-				// All shards on this source are in cooldown; try the next source.
+				// All shards on this source are in cooldown, try the next source.
 				continue
 			}
 
@@ -633,7 +587,12 @@ func (p *namespaceProcessor) loadBalance(
 			}
 			shardsMoved = shardsMoved || moved
 
-			p.updateLoad(currentAssignments, namespaceState, sourceExecutor, destExecutor, executorLoads)
+			p.updateLoad(currentAssignments, namespaceState, sourceExecutor, destExecutor, snapshot.loads)
+			snapshot.totalLoad = 0
+			for _, l := range snapshot.loads {
+				snapshot.totalLoad += l
+			}
+			meanLoad = snapshot.totalLoad / float64(len(snapshot.loads))
 			moveBudget -= len(shardsToMove)
 			movedThisIteration = moved
 			break
@@ -649,20 +608,6 @@ func (p *namespaceProcessor) loadBalance(
 		metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceMovesPerCycle, float64(movesPlanned))
 	}
 	return shardsMoved, nil
-}
-
-func (p *namespaceProcessor) findBestDestination(destinationExecutors map[string]struct{}, executorLoads map[string]float64) string {
-	minLoad := math.MaxFloat64
-	minExecutor := ""
-	for executor := range destinationExecutors {
-		load := executorLoads[executor]
-		// Tie-break on executor ID to keep destination selection stable when loads are equal.
-		if load < minLoad || (load == minLoad && (minExecutor == "" || executor < minExecutor)) {
-			minLoad = executorLoads[executor]
-			minExecutor = executor
-		}
-	}
-	return minExecutor
 }
 
 func (p *namespaceProcessor) findShardsToMove(
@@ -687,7 +632,7 @@ func (p *namespaceProcessor) findShardsToMove(
 			load = stats.SmoothedLoad
 		}
 
-		if load > largestLoad || (load == largestLoad && (largestShard == "" || shard < largestShard)) {
+		if load > largestLoad {
 			largestLoad = load
 			largestShard = shard
 		}
