@@ -139,19 +139,19 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 		return fmt.Errorf("record heartbeat: %w", err)
 	}
 
-	err = s.recordShardStatistics(ctx, namespace, executorID, request.ReportedShards)
+	statsUpdates, err := s.calcUpdatedStatistics(ctx, namespace, executorID, request.ReportedShards)
+	if err != nil {
+		return err
+	}
+
+	err = s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
 
 	return err
 }
 
-func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) error {
+func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) ([]shardStatisticsUpdate, error) {
 	if len(reported) == 0 {
-		return nil
-	}
-
-	oldStats, err := s.shardCache.GetExecutorStatistics(ctx, namespace, executorID)
-	if err != nil {
-		return err
+		return nil, nil
 	}
 
 	now := s.timeSource.Now().UTC()
@@ -160,6 +160,11 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 	var statsUpdate shardStatisticsUpdate
 	statsUpdate.executorID = executorID
 	statsUpdate.stats = make(map[string]etcdtypes.ShardStatistics)
+
+	oldStats, err := s.shardCache.GetExecutorStatistics(ctx, namespace, executorID)
+	if err != nil {
+		return nil, err
+	}
 
 	for shardID, report := range reported {
 		if report == nil {
@@ -201,7 +206,7 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 
 	statsUpdates = append(statsUpdates, statsUpdate)
 
-	return s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
+	return statsUpdates, err
 }
 
 // GetHeartbeat retrieves the last known heartbeat state for a single executor.
