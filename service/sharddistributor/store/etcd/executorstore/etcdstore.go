@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"math"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -176,17 +175,6 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 			continue
 		}
 
-		load := report.ShardLoad
-		if math.IsNaN(load) || math.IsInf(load, 0) {
-			s.logger.Warn(
-				"invalid shard load reported; skipping smoothed load update",
-				tag.ShardNamespace(namespace),
-				tag.ShardExecutor(executorID),
-				tag.ShardKey(shardID),
-			)
-			continue
-		}
-
 		var stats etcdtypes.ShardStatistics
 
 		prevStats, ok := oldStats[shardID]
@@ -196,7 +184,7 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 
 		prevSmoothed := prevStats.SmoothedLoad
 		prevUpdate := prevStats.LastUpdateTime.ToTime()
-		newSmoothed := common.CalculateSmoothedLoad(prevSmoothed, load, prevUpdate, now)
+		newSmoothed := common.CalculateSmoothedLoad(prevSmoothed, report.ShardLoad, prevUpdate, now)
 
 		stats.SmoothedLoad = newSmoothed
 		stats.LastUpdateTime = etcdtypes.Time(now)
