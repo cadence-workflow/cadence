@@ -201,9 +201,7 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 
 	statsUpdates = append(statsUpdates, statsUpdate)
 
-	s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
-
-	return nil
+	return s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
 }
 
 // GetHeartbeat retrieves the last known heartbeat state for a single executor.
@@ -479,10 +477,7 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 		return fmt.Errorf("%w: transaction failed, a shard may have been concurrently assigned, %v", store.ErrVersionConflict, failingRevisionString)
 	}
 
-	// Apply shard statistics updates outside the main transaction to stay within etcd's max operations per txn.
-	s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
-
-	return nil
+	return s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
 }
 
 func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID, executorID string) error {
