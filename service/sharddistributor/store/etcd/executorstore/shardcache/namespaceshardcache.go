@@ -103,37 +103,52 @@ func (n *namespaceShardToExecutor) GetExecutorModRevisionCmp() ([]clientv3.Cmp, 
 func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, executorID string) (map[string]etcdtypes.ShardStatistics, error) {
 	n.executorStatisticsLock.RLock()
 	stats, ok := n.executorStatistics[executorID]
-	cloned := cloneStatisticsMap(stats)
 	n.executorStatisticsLock.RUnlock()
 	if ok {
-		return cloned, nil
+		return cloneStatisticsMap(stats), nil
 	}
 
-	return n.getExecutorStatistics(ctx, executorID)
+	err := n.refreshExecutorStatisticsCache(ctx, executorID)
+	if err != nil {
+		return nil, fmt.Errorf("error from refresh: %w", err)
+	}
+
+	// After refresh, read from cache again.
+	n.executorStatisticsLock.RLock()
+	defer n.executorStatisticsLock.RUnlock()
+	stats, ok = n.executorStatistics[executorID]
+	if !ok {
+		return nil, fmt.Errorf("could not get executor statistics, even after refresh")
+	}
+
+	return cloneStatisticsMap(stats), nil
 }
 
-// getExecutorStatistics fetches executor statistics from etcd and caches them.
+// refreshExecutorStatisticsCache fetches executor statistics from etcd and caches them.
 // It is called when there's a cache miss.
-func (n *namespaceShardToExecutor) getExecutorStatistics(ctx context.Context, executorID string) (map[string]etcdtypes.ShardStatistics, error) {
+func (n *namespaceShardToExecutor) refreshExecutorStatisticsCache(ctx context.Context, executorID string) error {
+	n.executorStatisticsLock.Lock()
+	defer n.executorStatisticsLock.Unlock()
+
+	if _, ok := n.executorStatistics[executorID]; ok {
+		return nil // Value is already cached. Nothing to do.
+	}
+
 	statsKey := etcdkeys.BuildExecutorKey(n.etcdPrefix, n.namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
 	resp, err := n.client.Get(ctx, statsKey)
 	if err != nil {
-		return nil, fmt.Errorf("get executor shard statistics: %w", err)
+		return fmt.Errorf("get executor shard statistics: %w", err)
 	}
 
 	stats := make(map[string]etcdtypes.ShardStatistics)
-	if len(resp.Kvs) == 0 {
-		return stats, nil
+	if len(resp.Kvs) > 0 {
+		if err := common.DecompressAndUnmarshal(resp.Kvs[0].Value, &stats); err != nil {
+			return fmt.Errorf("parse executor shard statistics: %w", err)
+		}
 	}
 
-	if err := common.DecompressAndUnmarshal(resp.Kvs[0].Value, &stats); err != nil {
-		return nil, fmt.Errorf("parse executor shard statistics: %w", err)
-	}
-
-	n.executorStatisticsLock.Lock()
-	defer n.executorStatisticsLock.Unlock()
 	n.executorStatistics[executorID] = stats
-	return cloneStatisticsMap(stats), nil
+	return nil
 }
 
 func (n *namespaceShardToExecutor) Subscribe(ctx context.Context) (<-chan map[*store.ShardOwner][]string, func()) {
