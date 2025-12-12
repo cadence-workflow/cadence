@@ -190,7 +190,7 @@ func (s *executorStoreImpl) recordShardStatistics(ctx context.Context, namespace
 
 		prevSmoothed := prevStats.SmoothedLoad
 		prevUpdate := prevStats.LastUpdateTime.ToTime()
-		newSmoothed := ewmaSmoothedLoad(prevSmoothed, load, prevUpdate, now)
+		newSmoothed := common.CalculateSmoothedLoad(prevSmoothed, load, prevUpdate, now)
 
 		stats.SmoothedLoad = newSmoothed
 		stats.LastUpdateTime = etcdtypes.Time(now)
@@ -919,17 +919,4 @@ func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, nam
 			)
 		}
 	}
-}
-
-func ewmaSmoothedLoad(prev, current float64, lastUpdate, now time.Time) float64 {
-	const tau = 30 * time.Second // smaller = more responsive, larger = smoother
-	if lastUpdate.IsZero() || tau <= 0 {
-		return current
-	}
-	if now.Before(lastUpdate) {
-		return current
-	}
-	dt := now.Sub(lastUpdate)
-	alpha := 1 - math.Exp(-dt.Seconds()/tau.Seconds())
-	return (1-alpha)*prev + alpha*current
 }
