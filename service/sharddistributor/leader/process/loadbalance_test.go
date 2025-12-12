@@ -78,6 +78,45 @@ func TestLoadBalance_Convergence(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestLoadBalance_SkipsNonBeneficialHotShard verifies we skip hot shards that would not improve balance.
+func TestLoadBalance_SkipsNonBeneficialHotShard(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	execA, execB := "exec-A", "exec-B"
+	now := mocks.timeSource.Now()
+
+	// ExecA is overloaded, ExecB is underloaded.
+	// "hot" is very large, and moving it would not reduce squared imbalance (gap < shard load).
+	// "warm" is smaller and should be selected instead because it provides a positive benefit.
+	currentAssignments := map[string][]string{
+		execA: {"hot", "warm"},
+		execB: {"b-1"},
+	}
+	namespaceState := &store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			execA: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execB: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		},
+		ShardAssignments: map[string]store.AssignedState{
+			execA: {AssignedShards: map[string]*types.ShardAssignment{"hot": {}, "warm": {}}},
+			execB: {AssignedShards: map[string]*types.ShardAssignment{"b-1": {}}},
+		},
+		ShardStats: map[string]store.ShardStatistics{
+			"hot":  {SmoothedLoad: 10, LastUpdateTime: now},
+			"warm": {SmoothedLoad: 2, LastUpdateTime: now},
+			"b-1":  {SmoothedLoad: 3, LastUpdateTime: now},
+		},
+	}
+
+	changed, err := processor.loadBalance(currentAssignments, namespaceState, map[string]store.ShardState{}, true, nil)
+	require.NoError(t, err)
+	require.True(t, changed)
+	assert.True(t, slices.Contains(currentAssignments[execB], "warm"))
+	assert.False(t, slices.Contains(currentAssignments[execB], "hot"))
+}
+
 // TestLoadBalance_NoMoveNeeded verifies the balancer does nothing when already within hysteresis bands.
 func TestLoadBalance_NoMoveNeeded(t *testing.T) {
 	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)

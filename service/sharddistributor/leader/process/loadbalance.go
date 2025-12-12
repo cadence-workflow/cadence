@@ -24,6 +24,17 @@ type executorLoadSnapshot struct {
 	latestMoveTime time.Time
 }
 
+// shardMoveBenefitSquaredError returns the expected reduction in sum of squared error (SSE)
+// around the mean load if we move a shard of size shardLoad from sourceLoad to destLoad.
+// A positive value means the move improves overall load balance.
+func shardMoveBenefitSquaredError(sourceLoad, destLoad, shardLoad float64) float64 {
+	// SSE delta depends only on (sourceLoad, destLoad, shardLoad) since the mean stays constant
+	// when moving load between executors (total load is conserved).
+	// benefit = -(deltaSSE) = 2*w*(Ls-Ld) - 2*w^2
+	w := shardLoad
+	return 2*w*(sourceLoad-destLoad) - 2*w*w
+}
+
 func computeExecutorLoads(currentAssignments map[string][]string, namespaceState *store.NamespaceState) executorLoadSnapshot {
 	loads := make(map[string]float64, len(currentAssignments))
 	total := 0.0

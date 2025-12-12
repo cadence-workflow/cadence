@@ -572,9 +572,20 @@ func (p *namespaceProcessor) loadBalance(
 		// If no source has an eligible shard (e.g., all are cooling down), we stop early.
 		movedThisIteration := false
 		for _, sourceExecutor := range sources {
-			shardsToMove := p.findShardsToMove(currentAssignments, namespaceState, sourceExecutor, inputs.now, inputs.perShardCooldown)
+			sourceStatus := namespaceState.Executors[sourceExecutor].Status
+			forceMove := sourceStatus == types.ExecutorStatusDRAINING
+			shardsToMove := p.findShardsToMove(
+				currentAssignments,
+				namespaceState,
+				sourceExecutor,
+				destExecutor,
+				snapshot.loads,
+				inputs.now,
+				inputs.perShardCooldown,
+				forceMove,
+			)
 			if len(shardsToMove) == 0 {
-				// All shards on this source are in cooldown, try the next source.
+				// No eligible shard for this source+destination (cooldown, or no beneficial move), try the next source.
 				continue
 			}
 
@@ -614,13 +625,24 @@ func (p *namespaceProcessor) findShardsToMove(
 	currentAssignments map[string][]string,
 	namespaceState *store.NamespaceState,
 	source string,
+	destination string,
+	executorLoads map[string]float64,
 	now time.Time,
 	perShardCooldown time.Duration,
+	forceMove bool,
 ) []string {
-	// Pick the hottest eligible shard on the source executor.
-	// Recently moved shards (within cooldown) are skipped.
+	// Pick a single eligible shard to move from source -> destination.
+	//
+	// For load-based balancing, prefer shards with the largest positive benefit (SSE reduction)
+	// and skip shards that would not improve balance.
+	//
+	// For draining executors, we must evict shards even if they do not improve the load objective.
 	largestLoad := -1.0
 	largestShard := ""
+	bestBenefit := 0.0
+	bestShard := ""
+	sourceLoad := executorLoads[source]
+	destLoad := executorLoads[destination]
 	for _, shard := range currentAssignments[source] {
 		stats, ok := namespaceState.ShardStats[shard]
 		if ok && perShardCooldown > 0 && !stats.LastMoveTime.IsZero() && now.Sub(stats.LastMoveTime) < perShardCooldown {
@@ -632,15 +654,36 @@ func (p *namespaceProcessor) findShardsToMove(
 			load = stats.SmoothedLoad
 		}
 
-		if load > largestLoad {
-			largestLoad = load
-			largestShard = shard
+		if forceMove {
+			if load > largestLoad {
+				largestLoad = load
+				largestShard = shard
+			}
+			continue
+		}
+
+		benefit := shardMoveBenefitSquaredError(sourceLoad, destLoad, load)
+		// If there is no benefit, skip this shard
+		if benefit <= 0 {
+			continue
+		}
+		if benefit > bestBenefit {
+			bestBenefit = benefit
+			bestShard = shard
 		}
 	}
-	if largestShard == "" {
+
+	if forceMove {
+		if largestShard == "" {
+			return make([]string, 0)
+		}
+		return []string{largestShard}
+	}
+
+	if bestShard == "" {
 		return make([]string, 0)
 	}
-	return []string{largestShard}
+	return []string{bestShard}
 }
 
 func (p *namespaceProcessor) moveShards(currentAssignments map[string][]string, sourceExecutor string, destExecutor string, shardsToMove []string) (bool, error) {
