@@ -495,6 +495,12 @@ func (d *domainCLIImpl) FailoverDomain(c *cli.Context) error {
 		}
 		failoverRequest.ActiveClusters = &ac
 	}
+	// Set the reason for failover (will use default value if not specified)
+	reason := c.String(FlagFailoverReason)
+	if reason != "" {
+		failoverRequest.Reason = common.StringPtr(reason)
+	}
+
 	_, err = d.failoverDomain(ctx, failoverRequest)
 	if err != nil {
 		if _, ok := err.(*types.EntityNotExistsError); ok {

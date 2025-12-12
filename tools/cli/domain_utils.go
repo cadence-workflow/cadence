@@ -280,6 +280,11 @@ var (
 			Aliases: []string{"acs-json"},
 			Usage:   `Active clusters by cluster attribute in JSON format. Eg {"attributeScopes":{"region-us-east1":{"clusterAttributes":{"new-york":{"activeClusterName":"cluster1"}}}}}`,
 		},
+		&cli.StringFlag{
+			Name:    FlagFailoverReason,
+			Aliases: []string{"r"},
+			Usage:   "Reason for failover (for tracking and transparency)",
+		},
 	}
 
 	listFailoverHistoryFlags = []cli.Flag{

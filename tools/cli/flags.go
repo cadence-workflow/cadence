@@ -129,6 +129,7 @@ const (
 	FlagActiveClusters                 = "active_clusters"
 	FlagActiveClustersJSON             = "active_clusters_json"
 	FlagClusters                       = "clusters"
+	FlagFailoverReason                 = "reason"
 	FlagIsGlobalDomain                 = "global_domain" // active-passive domain
 	FlagDomainData                     = "domain_data"
 	FlagEventID                        = "event_id"
