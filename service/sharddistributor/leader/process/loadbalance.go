@@ -39,7 +39,7 @@ func (p *namespaceProcessor) loadBalance(
 
 	// Global cooldown derived from persisted LastMoveTime, so it survives leader failover.
 	// Only applies on load-only passes. Structural changes should not be throttled.
-	if shouldSkipLoadBalanceDueToGlobalCooldown(inputs, snapshot.latestMoveTime) {
+	if shouldSkipLoadBalanceDueToCooldown(inputs, snapshot.latestMoveTime) {
 		if metricsScope != nil {
 			metricsScope.AddCounter(metrics.ShardDistributorLoadBalanceGlobalCooldownSkips, 1)
 			metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceMovesPerCycle, 0)
@@ -227,7 +227,9 @@ func computeExecutorLoads(currentAssignments map[string][]string, namespaceState
 	return executorLoadSnapshot{loads: loads, totalLoad: total, latestMoveTime: latestMove}
 }
 
-func shouldSkipLoadBalanceDueToGlobalCooldown(inputs loadBalanceInputs, latestMoveTime time.Time) bool {
+// shouldSkipLoadBalanceDueToCooldown implements a cooldown for load-only balancing:
+// if any shard moved recently (latestMoveTime within the cooldown window), skip this pass to reduce churn.
+func shouldSkipLoadBalanceDueToCooldown(inputs loadBalanceInputs, latestMoveTime time.Time) bool {
 	return !inputs.structuralChange &&
 		inputs.perShardCooldown > 0 &&
 		!latestMoveTime.IsZero() &&
