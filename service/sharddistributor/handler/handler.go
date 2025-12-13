@@ -29,8 +29,8 @@ import (
 	"math"
 	"slices"
 	"sync"
-	"time"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
@@ -41,11 +41,13 @@ func NewHandler(
 	logger log.Logger,
 	shardDistributionCfg config.ShardDistribution,
 	storage store.Store,
+	timeSource clock.TimeSource,
 ) Handler {
 	handler := &handlerImpl{
 		logger:               logger,
 		shardDistributionCfg: shardDistributionCfg,
 		storage:              storage,
+		timeSource:           timeSource,
 	}
 
 	// prevent us from trying to serve requests before shard distributor is started and ready
@@ -60,6 +62,7 @@ type handlerImpl struct {
 
 	storage              store.Store
 	shardDistributionCfg config.ShardDistribution
+	timeSource           clock.TimeSource
 }
 
 func (h *handlerImpl) Start() {
@@ -121,7 +124,7 @@ func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
 	}
 
-	now := time.Now().UTC()
+	now := h.timeSource.Now().UTC()
 	ttl := h.shardDistributionCfg.Process.HeartbeatTTL
 
 	candidates := make([]string, 0)
