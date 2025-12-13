@@ -7,10 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/uber-go/tally"
 	"go.uber.org/fx"
+	"go.uber.org/yarpc"
 
-	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
-	"github.com/uber/cadence/client/sharddistributorexecutor"
-	"github.com/uber/cadence/client/wrappers/grpc"
 	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
@@ -20,7 +18,11 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient/metricsconstants"
 )
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go . ShardProcessorFactory,ShardProcessor,Executor
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go . ShardProcessorFactory,ShardProcessor,Executor,Client
+
+type Client interface {
+	Heartbeat(context.Context, *types.ExecutorHeartbeatRequest, ...yarpc.CallOption) (*types.ExecutorHeartbeatResponse, error)
+}
 
 type ExecutorMetadata map[string]string
 
@@ -62,7 +64,7 @@ type Executor[SP ShardProcessor] interface {
 type Params[SP ShardProcessor] struct {
 	fx.In
 
-	YarpcClient           sharddistributorv1.ShardDistributorExecutorAPIYARPCClient
+	ExecutorClient        Client
 	MetricsScope          tally.Scope
 	Logger                log.Logger
 	ShardProcessorFactory ShardProcessorFactory[SP]
@@ -104,7 +106,7 @@ func NewExecutor[SP ShardProcessor](params Params[SP]) (Executor[SP], error) {
 }
 
 func newExecutorWithConfig[SP ShardProcessor](params Params[SP], namespaceConfig *clientcommon.NamespaceConfig) (Executor[SP], error) {
-	shardDistributorClient, err := createShardDistributorExecutorClient(params.YarpcClient, params.MetricsScope, params.Logger)
+	shardDistributorClient, err := createShardDistributorExecutorClient(params.ExecutorClient, params.MetricsScope, params.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("create shard distributor executor client: %w", err)
 	}
@@ -136,10 +138,9 @@ func newExecutorWithConfig[SP ShardProcessor](params Params[SP], namespaceConfig
 	return executor, nil
 }
 
-func createShardDistributorExecutorClient(yarpcClient sharddistributorv1.ShardDistributorExecutorAPIYARPCClient, metricsScope tally.Scope, logger log.Logger) (sharddistributorexecutor.Client, error) {
-	shardDistributorExecutorClient := grpc.NewShardDistributorExecutorClient(yarpcClient)
+func createShardDistributorExecutorClient(client Client, metricsScope tally.Scope, logger log.Logger) (Client, error) {
 
-	shardDistributorExecutorClient = timeoutwrapper.NewShardDistributorExecutorClient(shardDistributorExecutorClient, timeoutwrapper.ShardDistributorExecutorDefaultTimeout)
+	shardDistributorExecutorClient := timeoutwrapper.NewShardDistributorExecutorClient(client, timeoutwrapper.ShardDistributorExecutorDefaultTimeout)
 
 	if metricsScope != nil {
 		shardDistributorExecutorClient = NewMeteredShardDistributorExecutorClient(shardDistributorExecutorClient, metricsScope)

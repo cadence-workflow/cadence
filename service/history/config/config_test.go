@@ -281,6 +281,7 @@ func TestNewConfig(t *testing.T) {
 		"QueueMaxVirtualQueueCount":                            {dynamicproperties.QueueMaxVirtualQueueCount, 101},
 		"VirtualSliceForceAppendInterval":                      {dynamicproperties.VirtualSliceForceAppendInterval, time.Second},
 		"ReplicationTaskProcessorLatencyLogThreshold":          {dynamicproperties.ReplicationTaskProcessorLatencyLogThreshold, time.Duration(0)},
+		"EnableCleanupOrphanedHistoryBranchOnWorkflowCreation": {dynamicproperties.EnableCleanupOrphanedHistoryBranchOnWorkflowCreation, true},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {

@@ -11,6 +11,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
+	yarpc "go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common/clock"
@@ -19,8 +20,39 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient/syncgeneric"
 )
 
-func TestHeartBeartLoop(t *testing.T) {
-	// Insure that there are no goroutines leaked
+func expectDrainingHeartbeat(t *testing.T, mockClient *sharddistributorexecutor.MockClient) {
+	mockClient.EXPECT().
+		Heartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, req *types.ExecutorHeartbeatRequest, _ ...yarpc.CallOption) (*types.ExecutorHeartbeatResponse, error) {
+			assert.Equal(t, types.ExecutorStatusDRAINING, req.Status)
+			return &types.ExecutorHeartbeatResponse{}, nil
+		})
+}
+
+func newTestExecutor(
+	client sharddistributorexecutor.Client,
+	factory ShardProcessorFactory[*MockShardProcessor],
+	timeSource clock.TimeSource,
+) *executorImpl[*MockShardProcessor] {
+	if timeSource == nil {
+		timeSource = clock.NewMockedTimeSource()
+	}
+	return &executorImpl[*MockShardProcessor]{
+		logger:                 log.NewNoop(),
+		metrics:                tally.NoopScope,
+		shardDistributorClient: client,
+		shardProcessorFactory:  factory,
+		namespace:              "test-namespace",
+		stopC:                  make(chan struct{}),
+		heartBeatInterval:      10 * time.Second,
+		managedProcessors:      syncgeneric.Map[string, *managedProcessor[*MockShardProcessor]]{},
+		executorID:             "test-executor-id",
+		timeSource:             timeSource,
+	}
+}
+
+func TestHeartBeatLoop(t *testing.T) {
+	// Ensure that there are no goroutines leaked
 	defer goleak.VerifyNone(t)
 
 	// Create mocks
@@ -44,6 +76,7 @@ func TestHeartBeartLoop(t *testing.T) {
 			},
 			MigrationMode: types.MigrationModeONBOARDED,
 		}, nil)
+	expectDrainingHeartbeat(t, mockShardDistributorClient)
 
 	// The two shards are assigned to the executor, so we expect them to be created, started and stopped
 	mockShardProcessor1 := NewMockShardProcessor(ctrl)
@@ -62,18 +95,7 @@ func TestHeartBeartLoop(t *testing.T) {
 	mockTimeSource := clock.NewMockedTimeSource()
 
 	// Create the executor
-	executor := &executorImpl[*MockShardProcessor]{
-		logger:                 log.NewNoop(),
-		metrics:                tally.NoopScope,
-		shardDistributorClient: mockShardDistributorClient,
-		shardProcessorFactory:  mockShardProcessorFactory,
-		namespace:              "test-namespace",
-		stopC:                  make(chan struct{}),
-		heartBeatInterval:      10 * time.Second,
-		managedProcessors:      syncgeneric.Map[string, *managedProcessor[*MockShardProcessor]]{},
-		executorID:             "test-executor-id",
-		timeSource:             mockTimeSource,
-	}
+	executor := newTestExecutor(mockShardDistributorClient, mockShardProcessorFactory, mockTimeSource)
 
 	// Start the executor, and defer stopping it
 	executor.Start(context.Background())
@@ -130,13 +152,7 @@ func TestHeartbeat(t *testing.T) {
 	shardProcessorMock2.EXPECT().GetShardReport().Return(ShardReport{ShardLoad: 0.456, Status: types.ShardStatusREADY})
 
 	// Create the executor
-	executor := &executorImpl[*MockShardProcessor]{
-		logger:                 log.NewNoop(),
-		shardDistributorClient: shardDistributorClient,
-		namespace:              "test-namespace",
-		executorID:             "test-executor-id",
-		metrics:                tally.NoopScope,
-	}
+	executor := newTestExecutor(shardDistributorClient, nil, nil)
 
 	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
 	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
@@ -152,7 +168,7 @@ func TestHeartbeat(t *testing.T) {
 	assert.Equal(t, types.AssignmentStatusREADY, shardAssignments["test-shard-id3"].Status)
 }
 
-func TestHeartBeartLoop_ShardAssignmentChange(t *testing.T) {
+func TestHeartBeatLoop_ShardAssignmentChange(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	// Setup mocks
@@ -164,11 +180,7 @@ func TestHeartBeartLoop_ShardAssignmentChange(t *testing.T) {
 	shardProcessorFactory.EXPECT().NewShardProcessor(gomock.Any()).Return(shardProcessorMock3, nil)
 
 	// Create the executor currently has shards 1 and 2 assigned to it
-	executor := &executorImpl[*MockShardProcessor]{
-		logger:                log.NewNoop(),
-		shardProcessorFactory: shardProcessorFactory,
-		metrics:               tally.NoopScope,
-	}
+	executor := newTestExecutor(nil, shardProcessorFactory, nil)
 
 	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
 	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
@@ -214,11 +226,7 @@ func TestAssignShardsFromLocalLogic(t *testing.T) {
 			name:   "AssignShardsFromLocalLogic fails if the namespace is onboarded",
 			params: map[string]*types.ShardAssignment{},
 			setup: func() *executorImpl[*MockShardProcessor] {
-				// Create the executor currently has shards 1 and 2 assigned to it
-				executor := &executorImpl[*MockShardProcessor]{
-					logger:  log.NewNoop(),
-					metrics: tally.NoopScope,
-				}
+				executor := newTestExecutor(nil, nil, nil)
 				executor.setMigrationMode(types.MigrationModeONBOARDED)
 				return executor
 			},
@@ -238,12 +246,7 @@ func TestAssignShardsFromLocalLogic(t *testing.T) {
 				// Setup mocks
 				shardProcessorFactory.EXPECT().NewShardProcessor(gomock.Any()).Return(nil, assert.AnError)
 
-				// Create the executor currently has shards 1 and 2 assigned to it
-				executor := &executorImpl[*MockShardProcessor]{
-					logger:                log.NewNoop(),
-					shardProcessorFactory: shardProcessorFactory,
-					metrics:               tally.NoopScope,
-				}
+				executor := newTestExecutor(nil, shardProcessorFactory, nil)
 				executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
 				executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
 
@@ -267,12 +270,7 @@ func TestAssignShardsFromLocalLogic(t *testing.T) {
 
 				shardProcessorFactory.EXPECT().NewShardProcessor(gomock.Any()).Return(shardProcessorMock3, nil)
 
-				// Create the executor currently has shards 1 and 2 assigned to it
-				executor := &executorImpl[*MockShardProcessor]{
-					logger:                log.NewNoop(),
-					shardProcessorFactory: shardProcessorFactory,
-					metrics:               tally.NoopScope,
-				}
+				executor := newTestExecutor(nil, shardProcessorFactory, nil)
 
 				executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
 				executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
@@ -284,7 +282,7 @@ func TestAssignShardsFromLocalLogic(t *testing.T) {
 				shardProcessorMock3.EXPECT().GetShardReport().Return(ShardReport{Status: types.ShardStatusREADY})
 				return executor
 			},
-			assert: func(err error, executor *executorImpl[*MockShardProcessor]) {
+			assert: func(_ error, executor *executorImpl[*MockShardProcessor]) {
 				// Assert that we now have the 3 shards in the assignment
 				processor1, err := executor.GetShardProcess(context.Background(), "test-shard-id1")
 				assert.NoError(t, err)
@@ -323,11 +321,7 @@ func TestRemoveShardsFromLocalLogic(t *testing.T) {
 			name:   "RemoveShardsFromLocalLogic fails if the namespace is onboarded",
 			params: []string{},
 			setup: func() *executorImpl[*MockShardProcessor] {
-				// Create the executor currently has shards 1 and 2 assigned to it
-				executor := &executorImpl[*MockShardProcessor]{
-					logger:  log.NewNoop(),
-					metrics: tally.NoopScope,
-				}
+				executor := newTestExecutor(nil, nil, nil)
 				executor.setMigrationMode(types.MigrationModeONBOARDED)
 				return executor
 			},
@@ -341,11 +335,7 @@ func TestRemoveShardsFromLocalLogic(t *testing.T) {
 			setup: func() *executorImpl[*MockShardProcessor] {
 				shardProcessorMock1 := NewMockShardProcessor(ctrl)
 				shardProcessorMock2 := NewMockShardProcessor(ctrl)
-				// Create the executor currently has shards 1 and 2 assigned to it
-				executor := &executorImpl[*MockShardProcessor]{
-					logger:  log.NewNoop(),
-					metrics: tally.NoopScope,
-				}
+				executor := newTestExecutor(nil, nil, nil)
 
 				executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
 				executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
@@ -355,7 +345,7 @@ func TestRemoveShardsFromLocalLogic(t *testing.T) {
 				shardProcessorMock1.EXPECT().GetShardReport().Return(ShardReport{Status: types.ShardStatusREADY})
 				return executor
 			},
-			assert: func(err error, executor *executorImpl[*MockShardProcessor]) {
+			assert: func(_ error, executor *executorImpl[*MockShardProcessor]) {
 				// Assert that we now have the 1 shard in the assignment
 				processor1, err := executor.GetShardProcess(context.Background(), "test-shard-id1")
 				assert.NoError(t, err)
@@ -397,13 +387,7 @@ func TestHeartbeat_WithMigrationMode(t *testing.T) {
 		MigrationMode: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
 	}, nil)
 
-	executor := &executorImpl[*MockShardProcessor]{
-		logger:                 log.NewNoop(),
-		shardDistributorClient: shardDistributorClient,
-		namespace:              "test-namespace",
-		executorID:             "test-executor-id",
-		metrics:                tally.NoopScope,
-	}
+	executor := newTestExecutor(shardDistributorClient, nil, nil)
 	executor.setMigrationMode(types.MigrationModeINVALID)
 
 	shardAssignments, migrationMode, err := executor.heartbeat(context.Background())
@@ -423,13 +407,7 @@ func TestHeartbeat_MigrationModeTransition(t *testing.T) {
 		MigrationMode:    types.MigrationModeONBOARDED,
 	}, nil)
 
-	executor := &executorImpl[*MockShardProcessor]{
-		logger:                 log.NewNoop(),
-		shardDistributorClient: shardDistributorClient,
-		namespace:              "test-namespace",
-		executorID:             "test-executor-id",
-		metrics:                tally.NoopScope,
-	}
+	executor := newTestExecutor(shardDistributorClient, nil, nil)
 	executor.setMigrationMode(types.MigrationModeDISTRIBUTEDPASSTHROUGH)
 
 	_, migrationMode, err := executor.heartbeat(context.Background())
@@ -450,17 +428,7 @@ func TestHeartbeatLoop_LocalPassthrough_SkipsHeartbeat(t *testing.T) {
 
 	mockTimeSource := clock.NewMockedTimeSource()
 
-	executor := &executorImpl[*MockShardProcessor]{
-		logger:                 log.NewNoop(),
-		metrics:                tally.NoopScope,
-		shardDistributorClient: mockShardDistributorClient,
-		namespace:              "test-namespace",
-		stopC:                  make(chan struct{}),
-		heartBeatInterval:      10 * time.Second,
-		managedProcessors:      syncgeneric.Map[string, *managedProcessor[*MockShardProcessor]]{},
-		executorID:             "test-executor-id",
-		timeSource:             mockTimeSource,
-	}
+	executor := newTestExecutor(mockShardDistributorClient, nil, mockTimeSource)
 	executor.setMigrationMode(types.MigrationModeLOCALPASSTHROUGH)
 
 	executor.Start(context.Background())
@@ -484,6 +452,7 @@ func TestHeartbeatLoop_LocalPassthroughShadow_SkipsAssignment(t *testing.T) {
 			},
 			MigrationMode: types.MigrationModeLOCALPASSTHROUGHSHADOW,
 		}, nil)
+	expectDrainingHeartbeat(t, mockShardDistributorClient)
 
 	mockShardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
 	// No shard processor should be created
@@ -491,18 +460,7 @@ func TestHeartbeatLoop_LocalPassthroughShadow_SkipsAssignment(t *testing.T) {
 
 	mockTimeSource := clock.NewMockedTimeSource()
 
-	executor := &executorImpl[*MockShardProcessor]{
-		logger:                 log.NewNoop(),
-		metrics:                tally.NoopScope,
-		shardDistributorClient: mockShardDistributorClient,
-		shardProcessorFactory:  mockShardProcessorFactory,
-		namespace:              "test-namespace",
-		stopC:                  make(chan struct{}),
-		heartBeatInterval:      10 * time.Second,
-		managedProcessors:      syncgeneric.Map[string, *managedProcessor[*MockShardProcessor]]{},
-		executorID:             "test-executor-id",
-		timeSource:             mockTimeSource,
-	}
+	executor := newTestExecutor(mockShardDistributorClient, mockShardProcessorFactory, mockTimeSource)
 	executor.setMigrationMode(types.MigrationModeONBOARDED)
 
 	executor.Start(context.Background())
@@ -531,6 +489,7 @@ func TestHeartbeatLoop_DistributedPassthrough_AppliesAssignment(t *testing.T) {
 			},
 			MigrationMode: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
 		}, nil)
+	expectDrainingHeartbeat(t, mockShardDistributorClient)
 
 	mockShardProcessor := NewMockShardProcessor(ctrl)
 	mockShardProcessor.EXPECT().Start(gomock.Any())
@@ -541,18 +500,7 @@ func TestHeartbeatLoop_DistributedPassthrough_AppliesAssignment(t *testing.T) {
 
 	mockTimeSource := clock.NewMockedTimeSource()
 
-	executor := &executorImpl[*MockShardProcessor]{
-		logger:                 log.NewNoop(),
-		metrics:                tally.NoopScope,
-		shardDistributorClient: mockShardDistributorClient,
-		shardProcessorFactory:  mockShardProcessorFactory,
-		namespace:              "test-namespace",
-		stopC:                  make(chan struct{}),
-		heartBeatInterval:      10 * time.Second,
-		managedProcessors:      syncgeneric.Map[string, *managedProcessor[*MockShardProcessor]]{},
-		executorID:             "test-executor-id",
-		timeSource:             mockTimeSource,
-	}
+	executor := newTestExecutor(mockShardDistributorClient, mockShardProcessorFactory, mockTimeSource)
 	executor.setMigrationMode(types.MigrationModeONBOARDED)
 
 	executor.Start(context.Background())
@@ -569,6 +517,47 @@ func TestHeartbeatLoop_DistributedPassthrough_AppliesAssignment(t *testing.T) {
 	assert.Equal(t, mockShardProcessor, processor)
 }
 
+func TestHeartbeatLoop_StopSignalSendsDrainingHeartbeat(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctrl := gomock.NewController(t)
+	mockShardDistributorClient := sharddistributorexecutor.NewMockClient(ctrl)
+	expectDrainingHeartbeat(t, mockShardDistributorClient)
+
+	mockTimeSource := clock.NewMockedTimeSource()
+
+	executor := newTestExecutor(mockShardDistributorClient, nil, mockTimeSource)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		executor.heartbeatloop(ctx)
+		close(done)
+	}()
+
+	close(executor.stopC)
+	<-done
+}
+
+func TestHeartbeatLoop_ContextCancelSendsDrainingHeartbeat(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctrl := gomock.NewController(t)
+	mockShardDistributorClient := sharddistributorexecutor.NewMockClient(ctrl)
+	expectDrainingHeartbeat(t, mockShardDistributorClient)
+
+	mockTimeSource := clock.NewMockedTimeSource()
+
+	executor := newTestExecutor(mockShardDistributorClient, nil, mockTimeSource)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancelling the context
+
+	executor.heartbeatloop(ctx)
+}
+
 func TestCompareAssignments_Converged(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
@@ -576,10 +565,8 @@ func TestCompareAssignments_Converged(t *testing.T) {
 	shardProcessorMock2 := NewMockShardProcessor(ctrl)
 
 	testScope := tally.NewTestScope("test", nil)
-	executor := &executorImpl[*MockShardProcessor]{
-		logger:  log.NewNoop(),
-		metrics: testScope,
-	}
+	executor := newTestExecutor(nil, nil, nil)
+	executor.metrics = testScope
 
 	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
 	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
@@ -603,10 +590,8 @@ func TestCompareAssignments_Diverged_MissingShard(t *testing.T) {
 	shardProcessorMock2 := NewMockShardProcessor(ctrl)
 
 	testScope := tally.NewTestScope("test", nil)
-	executor := &executorImpl[*MockShardProcessor]{
-		logger:  log.NewNoop(),
-		metrics: testScope,
-	}
+	executor := newTestExecutor(nil, nil, nil)
+	executor.metrics = testScope
 
 	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
 	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
@@ -629,10 +614,8 @@ func TestCompareAssignments_Diverged_ExtraShard(t *testing.T) {
 	shardProcessorMock1 := NewMockShardProcessor(ctrl)
 
 	testScope := tally.NewTestScope("test", nil)
-	executor := &executorImpl[*MockShardProcessor]{
-		logger:  log.NewNoop(),
-		metrics: testScope,
-	}
+	executor := newTestExecutor(nil, nil, nil)
+	executor.metrics = testScope
 
 	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
 
@@ -655,10 +638,8 @@ func TestCompareAssignments_Diverged_WrongStatus(t *testing.T) {
 	shardProcessorMock1 := NewMockShardProcessor(ctrl)
 
 	testScope := tally.NewTestScope("test", nil)
-	executor := &executorImpl[*MockShardProcessor]{
-		logger:  log.NewNoop(),
-		metrics: testScope,
-	}
+	executor := newTestExecutor(nil, nil, nil)
+	executor.metrics = testScope
 
 	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
 
@@ -739,13 +720,7 @@ func TestGetShardProcess_NonOwnedShard_Fails(t *testing.T) {
 				tc.setupMocks(shardProcessorFactory, NewMockShardProcessor(ctrl))
 			}
 
-			executor := &executorImpl[*MockShardProcessor]{
-				logger:                 log.NewNoop(),
-				shardProcessorFactory:  shardProcessorFactory,
-				metrics:                tally.NoopScope,
-				shardDistributorClient: shardDistributorClient,
-				timeSource:             clock.NewMockedTimeSource(),
-			}
+			executor := newTestExecutor(shardDistributorClient, shardProcessorFactory, clock.NewMockedTimeSource())
 			executor.setMigrationMode(tc.migrationMode)
 
 			for _, shardID := range tc.shardsInCache {

@@ -230,6 +230,47 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		prevLastWriteVersion,
 		persistence.CreateWorkflowRequestModeNew,
 	)
+
+	// The history branch (tree and nodes) was created above (PersistStartWorkflowBatchEvents)
+	// but the workflow execution returned an error, and it was probably not created.
+	// This may leave orphaned history_tree and history_node records that are never referenced by any workflow.
+	// If the error is of type WorkflowExecutionAlreadyStartedError or DuplicateRequestError, the workflow was not and
+	// didn't need to be created.
+	// Remove history in these cases.
+	// All other cases, log them for future leak investigations.
+	if err != nil {
+		var workflowExecutionAlreadyStartedError *persistence.WorkflowExecutionAlreadyStartedError
+		isAlreadyStarted := errors.As(err, &workflowExecutionAlreadyStartedError)
+		_, isDuplicateRequest := persistence.AsDuplicateRequestError(err)
+
+		if isAlreadyStarted || isDuplicateRequest {
+			if e.shard.GetConfig().EnableCleanupOrphanedHistoryBranchOnWorkflowCreation() {
+				if cleanupErr := e.shard.GetHistoryManager().DeleteHistoryBranch(ctx, &persistence.DeleteHistoryBranchRequest{
+					BranchToken: historyBlob.BranchToken,
+					ShardID:     common.IntPtr(e.shard.GetShardID()),
+					DomainName:  domain,
+				}); cleanupErr != nil {
+					e.logger.Error("Failed to cleanup history branch after CreateWorkflowExecution failure",
+						tag.WorkflowDomainID(domainID),
+						tag.WorkflowID(workflowID),
+						tag.WorkflowRunID(workflowExecution.RunID),
+						tag.Error(cleanupErr))
+				}
+			} else {
+				e.logger.Warn("Orphaned history branch created due to WorkflowExecutionAlreadyStartedError or DuplicateRequestError",
+					tag.WorkflowDomainID(domainID),
+					tag.WorkflowID(workflowID),
+					tag.WorkflowRunID(workflowExecution.RunID),
+					tag.Error(err))
+			}
+		} else {
+			e.logger.Error("Possible orphaned history branch due to unexpected error from CreateWorkflowExecution",
+				tag.WorkflowDomainID(domainID),
+				tag.WorkflowID(workflowID),
+				tag.WorkflowRunID(workflowExecution.RunID),
+				tag.Error(err))
+		}
+	}
 	if t, ok := persistence.AsDuplicateRequestError(err); ok {
 		if t.RequestType == persistence.WorkflowRequestTypeStart || (isSignalWithStart && t.RequestType == persistence.WorkflowRequestTypeSignal) {
 			return &types.StartWorkflowExecutionResponse{
@@ -241,7 +282,6 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	}
 	// handle already started error
 	if t, ok := err.(*persistence.WorkflowExecutionAlreadyStartedError); ok {
-
 		if t.StartRequestID == request.GetRequestID() {
 			return &types.StartWorkflowExecutionResponse{
 				RunID: t.RunID,

@@ -3,11 +3,13 @@ package shardcache
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -20,22 +22,74 @@ import (
 type namespaceShardToExecutor struct {
 	sync.RWMutex
 
-	shardToExecutor        map[string]*store.ShardOwner   // shardID -> shardOwner
-	shardOwners            map[string]*store.ShardOwner   // executorID -> shardOwner
-	executorState          map[*store.ShardOwner][]string // executor -> shardIDs
-	executorRevision       map[string]int64
-	executorStatisticsLock sync.RWMutex
-	executorStatistics     map[string]map[string]etcdtypes.ShardStatistics
-	namespace              string
-	etcdPrefix             string
-	changeUpdateChannel    clientv3.WatchChan
-	stopCh                 chan struct{}
-	logger                 log.Logger
-	client                 etcdclient.Client
-	pubSub                 *executorStatePubSub
+	shardToExecutor     map[string]*store.ShardOwner   // shardID -> shardOwner
+	shardOwners         map[string]*store.ShardOwner   // executorID -> shardOwner
+	executorState       map[*store.ShardOwner][]string // executor -> shardIDs
+	executorRevision    map[string]int64
+	namespace           string
+	etcdPrefix          string
+	changeUpdateChannel clientv3.WatchChan
+	stopCh              chan struct{}
+	logger              log.Logger
+	client              etcdclient.Client
+	pubSub              *executorStatePubSub
+	timeSource          clock.TimeSource
+
+	executorStatistics namespaceExecutorStatistics
 }
 
-func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient.Client, stopCh chan struct{}, logger log.Logger) (*namespaceShardToExecutor, error) {
+type namespaceExecutorStatistics struct {
+	lock  sync.RWMutex
+	stats map[string]map[string]etcdtypes.ShardStatistics
+}
+
+type executorData struct {
+	assignedStates map[string]etcdtypes.AssignedState
+	metadata       map[string]map[string]string // executorID -> metadata key -> metadata value
+	statistics     map[string]map[string]etcdtypes.ShardStatistics
+	revisions      map[string]int64
+}
+
+func parseExecutorData(resp *clientv3.GetResponse, etcdPrefix, namespace string) (*executorData, error) {
+	data := &executorData{
+		assignedStates: make(map[string]etcdtypes.AssignedState),
+		metadata:       make(map[string]map[string]string),
+		statistics:     make(map[string]map[string]etcdtypes.ShardStatistics),
+		revisions:      make(map[string]int64),
+	}
+
+	for _, kv := range resp.Kvs {
+		executorID, keyType, err := etcdkeys.ParseExecutorKey(etcdPrefix, namespace, string(kv.Key))
+		if err != nil {
+			continue
+		}
+
+		switch keyType {
+		case etcdkeys.ExecutorAssignedStateKey:
+			var assignedState etcdtypes.AssignedState
+			if err := common.DecompressAndUnmarshal(kv.Value, &assignedState); err != nil {
+				return nil, fmt.Errorf("parse assigned state for %s: %w", executorID, err)
+			}
+			data.assignedStates[executorID] = assignedState
+			data.revisions[executorID] = kv.ModRevision
+		case etcdkeys.ExecutorMetadataKey:
+			if _, ok := data.metadata[executorID]; !ok {
+				data.metadata[executorID] = make(map[string]string)
+			}
+			metadataKey := strings.TrimPrefix(string(kv.Key), etcdkeys.BuildMetadataKey(etcdPrefix, namespace, executorID, ""))
+			data.metadata[executorID][metadataKey] = string(kv.Value)
+		case etcdkeys.ExecutorShardStatisticsKey:
+			var stats map[string]etcdtypes.ShardStatistics
+			if err := common.DecompressAndUnmarshal(kv.Value, &stats); err != nil {
+				return nil, fmt.Errorf("parse shard statistics for %s: %w", executorID, err)
+			}
+			data.statistics[executorID] = stats
+		}
+	}
+	return data, nil
+}
+
+func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient.Client, stopCh chan struct{}, logger log.Logger, timeSource clock.TimeSource) (*namespaceShardToExecutor, error) {
 	// Start listening
 	watchPrefix := etcdkeys.BuildExecutorsPrefix(etcdPrefix, namespace)
 	watchChan := client.Watch(context.Background(), watchPrefix, clientv3.WithPrefix(), clientv3.WithPrevKV())
@@ -45,7 +99,6 @@ func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient
 		executorState:       make(map[*store.ShardOwner][]string),
 		executorRevision:    make(map[string]int64),
 		shardOwners:         make(map[string]*store.ShardOwner),
-		executorStatistics:  make(map[string]map[string]etcdtypes.ShardStatistics),
 		namespace:           namespace,
 		etcdPrefix:          etcdPrefix,
 		changeUpdateChannel: watchChan,
@@ -53,6 +106,10 @@ func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient
 		logger:              logger,
 		client:              client,
 		pubSub:              newExecutorStatePubSub(logger, namespace),
+		timeSource:          timeSource,
+		executorStatistics: namespaceExecutorStatistics{
+			stats: make(map[string]map[string]etcdtypes.ShardStatistics),
+		},
 	}, nil
 }
 
@@ -101,39 +158,54 @@ func (n *namespaceShardToExecutor) GetExecutorModRevisionCmp() ([]clientv3.Cmp, 
 }
 
 func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, executorID string) (map[string]etcdtypes.ShardStatistics, error) {
-	n.executorStatisticsLock.RLock()
-	stats, ok := n.executorStatistics[executorID]
-	cloned := cloneStatisticsMap(stats)
-	n.executorStatisticsLock.RUnlock()
+	n.executorStatistics.lock.RLock()
+	stats, ok := n.executorStatistics.stats[executorID]
+	n.executorStatistics.lock.RUnlock()
 	if ok {
-		return cloned, nil
+		return cloneStatisticsMap(stats), nil
 	}
 
-	return n.getExecutorStatistics(ctx, executorID)
+	err := n.refreshExecutorStatisticsCache(ctx, executorID)
+	if err != nil {
+		return nil, fmt.Errorf("error from refresh: %w", err)
+	}
+
+	// After refresh, read from cache again.
+	n.executorStatistics.lock.RLock()
+	defer n.executorStatistics.lock.RUnlock()
+	stats, ok = n.executorStatistics.stats[executorID]
+	if !ok {
+		return nil, fmt.Errorf("could not get executor statistics, even after refresh")
+	}
+
+	return cloneStatisticsMap(stats), nil
 }
 
-// getExecutorStatistics fetches executor statistics from etcd and caches them.
+// refreshExecutorStatisticsCache fetches executor statistics from etcd and caches them.
 // It is called when there's a cache miss.
-func (n *namespaceShardToExecutor) getExecutorStatistics(ctx context.Context, executorID string) (map[string]etcdtypes.ShardStatistics, error) {
+func (n *namespaceShardToExecutor) refreshExecutorStatisticsCache(ctx context.Context, executorID string) error {
+	n.executorStatistics.lock.Lock()
+	defer n.executorStatistics.lock.Unlock()
+
+	if _, ok := n.executorStatistics.stats[executorID]; ok {
+		return nil // Value is already cached. Nothing to do.
+	}
+
 	statsKey := etcdkeys.BuildExecutorKey(n.etcdPrefix, n.namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
 	resp, err := n.client.Get(ctx, statsKey)
 	if err != nil {
-		return nil, fmt.Errorf("get executor shard statistics: %w", err)
+		return fmt.Errorf("get executor shard statistics: %w", err)
 	}
 
 	stats := make(map[string]etcdtypes.ShardStatistics)
-	if len(resp.Kvs) == 0 {
-		return stats, nil
+	if len(resp.Kvs) > 0 {
+		if err := common.DecompressAndUnmarshal(resp.Kvs[0].Value, &stats); err != nil {
+			return fmt.Errorf("parse executor shard statistics: %w", err)
+		}
 	}
 
-	if err := common.DecompressAndUnmarshal(resp.Kvs[0].Value, &stats); err != nil {
-		return nil, fmt.Errorf("parse executor shard statistics: %w", err)
-	}
-
-	n.executorStatisticsLock.Lock()
-	defer n.executorStatisticsLock.Unlock()
-	n.executorStatistics[executorID] = stats
-	return cloneStatisticsMap(stats), nil
+	n.executorStatistics.stats[executorID] = stats
+	return nil
 }
 
 func (n *namespaceShardToExecutor) Subscribe(ctx context.Context) (<-chan map[*store.ShardOwner][]string, func()) {
@@ -161,32 +233,35 @@ func (n *namespaceShardToExecutor) nameSpaceRefreashLoop() {
 		case <-n.stopCh:
 			return
 		case watchResp := <-n.changeUpdateChannel:
-			shouldRefresh := false
-			for _, event := range watchResp.Events {
-				executorID, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(event.Kv.Key))
-				if keyErr != nil {
-					continue
-				}
+			n.handlePotentialRefresh(watchResp)
+		}
+	}
+}
 
-				// Check if value actually changed (skip if same value written again)
-				if event.PrevKv != nil && string(event.Kv.Value) == string(event.PrevKv.Value) {
-					continue
-				}
+func (n *namespaceShardToExecutor) handlePotentialRefresh(watchResp clientv3.WatchResponse) {
+	shouldRefresh := false
+	for _, event := range watchResp.Events {
+		executorID, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(event.Kv.Key))
+		if keyErr != nil {
+			continue
+		}
 
-				switch keyType {
-				case etcdkeys.ExecutorShardStatisticsKey:
-					n.handleExecutorStatisticsEvent(executorID, event)
-				case etcdkeys.ExecutorAssignedStateKey, etcdkeys.ExecutorMetadataKey:
-					shouldRefresh = true
-				}
-			}
-			if shouldRefresh {
-				err := n.refresh(context.Background())
-				if err != nil {
-					n.logger.Error("failed to refresh namespace shard to executor", tag.ShardNamespace(n.namespace), tag.Error(err))
-				}
-			}
+		// Check if value actually changed (skip if same value written again)
+		if event.PrevKv != nil && string(event.Kv.Value) == string(event.PrevKv.Value) {
+			continue
+		}
 
+		switch keyType {
+		case etcdkeys.ExecutorShardStatisticsKey:
+			n.handleExecutorStatisticsEvent(executorID, event)
+		case etcdkeys.ExecutorAssignedStateKey, etcdkeys.ExecutorMetadataKey:
+			shouldRefresh = true
+		}
+	}
+	if shouldRefresh {
+		err := n.refresh(context.Background())
+		if err != nil {
+			n.logger.Error("failed to refresh namespace shard to executor", tag.ShardNamespace(n.namespace), tag.Error(err))
 		}
 	}
 }
@@ -221,59 +296,46 @@ func (n *namespaceShardToExecutor) refreshExecutorState(ctx context.Context) err
 		return fmt.Errorf("get executor prefix for namespace %s: %w", n.namespace, err)
 	}
 
+	parsedData, err := parseExecutorData(resp, n.etcdPrefix, n.namespace)
+	if err != nil {
+		return fmt.Errorf("failed to parse executor data: %w", err)
+	}
+
 	n.Lock()
 	defer n.Unlock()
-	n.executorStatisticsLock.Lock()
-	defer n.executorStatisticsLock.Unlock()
-	// Clear the cache, so we don't have any stale data
+	n.executorStatistics.lock.Lock()
+	defer n.executorStatistics.lock.Unlock()
+
+	n.applyParsedData(parsedData)
+	return nil
+}
+
+// This function must be called with write locks held for both shard owners and statistics.
+func (n *namespaceShardToExecutor) applyParsedData(data *executorData) {
+	// Clear the cache
 	n.shardToExecutor = make(map[string]*store.ShardOwner)
 	n.executorState = make(map[*store.ShardOwner][]string)
 	n.executorRevision = make(map[string]int64)
 	n.shardOwners = make(map[string]*store.ShardOwner)
-	n.executorStatistics = make(map[string]map[string]etcdtypes.ShardStatistics)
+	n.executorStatistics.stats = make(map[string]map[string]etcdtypes.ShardStatistics)
 
-	for _, kv := range resp.Kvs {
-		executorID, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(kv.Key))
-		if keyErr != nil {
-			continue
+	for executorID, assignedState := range data.assignedStates {
+		shardOwner := getOrCreateShardOwner(n.shardOwners, executorID)
+		shardIDs := make([]string, 0, len(assignedState.AssignedShards))
+		for shardID := range assignedState.AssignedShards {
+			n.shardToExecutor[shardID] = shardOwner
+			shardIDs = append(shardIDs, shardID)
 		}
-		switch keyType {
-		case etcdkeys.ExecutorAssignedStateKey:
-			shardOwner := getOrCreateShardOwner(n.shardOwners, executorID)
-
-			var assignedState etcdtypes.AssignedState
-			err = common.DecompressAndUnmarshal(kv.Value, &assignedState)
-			if err != nil {
-				return fmt.Errorf("parse assigned state: %w", err)
-			}
-
-			// Build both shard->executor and executor->shards mappings
-			shardIDs := make([]string, 0, len(assignedState.AssignedShards))
-			for shardID := range assignedState.AssignedShards {
-				n.shardToExecutor[shardID] = shardOwner
-				shardIDs = append(shardIDs, shardID)
-				n.executorRevision[executorID] = kv.ModRevision
-			}
-			n.executorState[shardOwner] = shardIDs
-
-		case etcdkeys.ExecutorMetadataKey:
-			shardOwner := getOrCreateShardOwner(n.shardOwners, executorID)
-			metadataKey := strings.TrimPrefix(string(kv.Key), etcdkeys.BuildMetadataKey(n.etcdPrefix, n.namespace, executorID, ""))
-			shardOwner.Metadata[metadataKey] = string(kv.Value)
-
-		case etcdkeys.ExecutorShardStatisticsKey:
-			var stats map[string]etcdtypes.ShardStatistics
-			err = common.DecompressAndUnmarshal(kv.Value, &stats)
-			if err != nil {
-				return fmt.Errorf("parse shard statistics: %w", err)
-			}
-			n.executorStatistics[executorID] = stats
-		default:
-			continue
-		}
+		n.executorState[shardOwner] = shardIDs
+		n.executorRevision[executorID] = data.revisions[executorID]
 	}
 
-	return nil
+	for executorID, metadata := range data.metadata {
+		shardOwner := getOrCreateShardOwner(n.shardOwners, executorID)
+		maps.Copy(shardOwner.Metadata, metadata)
+	}
+
+	maps.Copy(n.executorStatistics.stats, data.statistics)
 }
 
 // handleExecutorStatisticsEvent processes incoming watch events for executor shard statistics.
@@ -299,13 +361,13 @@ func (n *namespaceShardToExecutor) handleExecutorStatisticsEvent(executorID stri
 }
 
 func (n *namespaceShardToExecutor) setExecutorStatistics(executorID string, stats map[string]etcdtypes.ShardStatistics) {
-	n.executorStatisticsLock.Lock()
-	defer n.executorStatisticsLock.Unlock()
+	n.executorStatistics.lock.Lock()
+	defer n.executorStatistics.lock.Unlock()
 	if len(stats) == 0 {
-		delete(n.executorStatistics, executorID)
+		delete(n.executorStatistics.stats, executorID)
 		return
 	}
-	n.executorStatistics[executorID] = cloneStatisticsMap(stats)
+	n.executorStatistics.stats[executorID] = cloneStatisticsMap(stats)
 }
 
 // Clone to prevent concurrent map access

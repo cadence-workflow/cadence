@@ -231,7 +231,7 @@ func TestCleanupStaleExecutors(t *testing.T) {
 
 	heartbeats := map[string]store.HeartbeatState{
 		"exec-active": {LastHeartbeat: now},
-		"exec-stale":  {LastHeartbeat: now.Add(-2 * time.Second)},
+		"exec-stale":  {LastHeartbeat: now.Add(-_defaultHeartbeatTTL).Add(-1 * time.Second)},
 	}
 
 	namespaceState := &store.NamespaceState{Executors: heartbeats}
@@ -250,7 +250,7 @@ func TestCleanupStaleShardStats(t *testing.T) {
 
 		heartbeats := map[string]store.HeartbeatState{
 			"exec-active": {LastHeartbeat: now, Status: types.ExecutorStatusACTIVE},
-			"exec-stale":  {LastHeartbeat: now.Add(-2 * time.Second)},
+			"exec-stale":  {LastHeartbeat: now.Add(-_defaultHeartbeatTTL).Add(-1 * time.Second)},
 		}
 
 		assignments := map[string]store.AssignedState{
@@ -267,7 +267,7 @@ func TestCleanupStaleShardStats(t *testing.T) {
 			},
 		}
 
-		staleCutoff := now.Add(-11 * time.Second)
+		staleCutoff := now.Add(-_defaultHeartbeatTTL).Add(-1 * time.Second)
 		shardStats := map[string]store.ShardStatistics{
 			"shard-1": {SmoothedLoad: 1.0, LastUpdateTime: now, LastMoveTime: now},
 			"shard-2": {SmoothedLoad: 2.0, LastUpdateTime: now, LastMoveTime: now},
@@ -291,7 +291,7 @@ func TestCleanupStaleShardStats(t *testing.T) {
 
 		now := mocks.timeSource.Now()
 
-		expiredExecutor := now.Add(-2 * time.Second)
+		expiredExecutor := now.Add(-_defaultHeartbeatTTL).Add(-1 * time.Second)
 		namespaceState := &store.NamespaceState{
 			Executors: map[string]store.HeartbeatState{
 				"exec-stale": {LastHeartbeat: expiredExecutor},

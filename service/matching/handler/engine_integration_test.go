@@ -61,17 +61,19 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/tasklist"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
 	matchingEngineSuite struct {
 		suite.Suite
-		controller             *gomock.Controller
-		mockHistoryClient      *history.MockClient
-		mockMatchingClient     *matching.MockClient
-		mockDomainCache        *cache.MockDomainCache
-		mockMembershipResolver *membership.MockResolver
-		mockIsolationStore     *dynamicconfig.MockClient
+		controller              *gomock.Controller
+		mockHistoryClient       *history.MockClient
+		mockMatchingClient      *matching.MockClient
+		mockDomainCache         *cache.MockDomainCache
+		mockMembershipResolver  *membership.MockResolver
+		mockIsolationStore      *dynamicconfig.MockClient
+		mockShardExecutorClient *executorclient.MockClient
 
 		matchingEngine       *matchingEngineImpl
 		taskManager          *tasklist.TestTaskManager
@@ -185,6 +187,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		s.mockMembershipResolver,
 		s.isolationState,
 		s.mockTimeSource,
+		s.mockShardExecutorClient,
 	).(*matchingEngineImpl)
 }
 

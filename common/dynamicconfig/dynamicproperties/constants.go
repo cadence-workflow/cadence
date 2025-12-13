@@ -1847,6 +1847,12 @@ const (
 	// Default value: true
 	// Allowed filters: DomainName
 	EnableRecordWorkflowExecutionUninitialized
+	// EnableCleanupOrphanedHistoryBranchOnWorkflowCreation enables cleanup of orphaned history branches when CreateWorkflowExecution fails
+	// KeyName: history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableCleanupOrphanedHistoryBranchOnWorkflowCreation
 	// AllowArchivingIncompleteHistory will continue on when seeing some error like history mutated(usually caused by database consistency issues)
 	// KeyName: worker.AllowArchivingIncompleteHistory
 	// Value type: Bool
@@ -4199,6 +4205,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableRecordWorkflowExecutionUninitialized: {
 		KeyName:      "history.enableRecordWorkflowExecutionUninitialized",
 		Description:  "EnableRecordWorkflowExecutionUninitialized enables record workflow execution uninitialized state in ElasticSearch",
+		DefaultValue: false,
+	},
+	EnableCleanupOrphanedHistoryBranchOnWorkflowCreation: {
+		KeyName:      "history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation",
+		Description:  "EnableCleanupOrphanedHistoryBranchOnWorkflowCreation enables cleanup of orphaned history branches when CreateWorkflowExecution fails",
 		DefaultValue: false,
 	},
 	DisableListVisibilityByFilter: {

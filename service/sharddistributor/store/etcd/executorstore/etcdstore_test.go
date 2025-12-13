@@ -197,7 +197,7 @@ func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {
 	updated, ok := nsState.ShardStats[shardID]
 	require.True(t, ok)
 	assert.True(t, updated.LastUpdateTime.After(initialStats.LastUpdateTime))
-	expectedLoad := ewmaSmoothedLoad(initialStats.SmoothedLoad, req.ReportedShards[shardID].ShardLoad, initialStats.LastUpdateTime, updated.LastUpdateTime)
+	expectedLoad := common.CalculateSmoothedLoad(initialStats.SmoothedLoad, req.ReportedShards[shardID].ShardLoad, initialStats.LastUpdateTime, updated.LastUpdateTime)
 	assert.InDelta(t, expectedLoad, updated.SmoothedLoad, 1e-9)
 	assert.Equal(t, initialStats.LastMoveTime, updated.LastMoveTime)
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
+	ubergomock "go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 	"go.uber.org/yarpc/api/peer"
 	"go.uber.org/yarpc/api/transport/transporttest"
@@ -15,24 +16,36 @@ import (
 	"go.uber.org/yarpc/yarpctest"
 	"go.uber.org/zap/zaptest"
 
+	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestModule(t *testing.T) {
 	// Create mocks
 	ctrl := gomock.NewController(t)
+	uberCtrl := ubergomock.NewController(t)
+	mockLogger := log.NewNoop()
+
 	mockClientConfig := transporttest.NewMockClientConfig(ctrl)
 	transport := grpc.NewTransport()
 	outbound := transport.NewOutbound(yarpctest.NewFakePeerList())
 
-	mockClientConfig.EXPECT().Caller().Return("test-executor").Times(2)
-	mockClientConfig.EXPECT().Service().Return("shard-distributor").Times(2)
-	mockClientConfig.EXPECT().GetUnaryOutbound().Return(outbound).Times(2)
+	mockClientConfig.EXPECT().Caller().Return("test-executor").AnyTimes()
+	mockClientConfig.EXPECT().Service().Return("shard-distributor").AnyTimes()
+	mockClientConfig.EXPECT().GetUnaryOutbound().Return(outbound).AnyTimes()
 
 	mockClientConfigProvider := transporttest.NewMockClientConfigProvider(ctrl)
-	mockClientConfigProvider.EXPECT().ClientConfig("cadence-shard-distributor").Return(mockClientConfig).Times(2)
+	mockClientConfigProvider.EXPECT().ClientConfig("cadence-shard-distributor").Return(mockClientConfig).AnyTimes()
+
+	// Create executor yarpc client mock
+	mockYARPCClient := executorclient.NewMockShardDistributorExecutorAPIYARPCClient(uberCtrl)
+	mockYARPCClient.EXPECT().
+		Heartbeat(ubergomock.Any(), ubergomock.Any(), ubergomock.Any()).
+		Return(&sharddistributorv1.HeartbeatResponse{}, nil).
+		AnyTimes()
 
 	config := clientcommon.Config{
 		Namespaces: []clientcommon.NamespaceConfig{
@@ -60,13 +73,22 @@ func TestModule(t *testing.T) {
 		fx.Supply(
 			fx.Annotate(tally.NoopScope, fx.As(new(tally.Scope))),
 			fx.Annotate(clock.NewMockedTimeSource(), fx.As(new(clock.TimeSource))),
-			fx.Annotate(log.NewNoop(), fx.As(new(log.Logger))),
+			fx.Annotate(mockLogger, fx.As(new(log.Logger))),
 			fx.Annotate(mockClientConfigProvider, fx.As(new(yarpc.ClientConfig))),
 			fx.Annotate(transport, fx.As(new(peer.Transport))),
 			zaptest.NewLogger(t),
 			config,
 			dispatcher,
 		),
-		Module(NamespacesNames{FixedNamespace: "shard-distributor-canary", EphemeralNamespace: "shard-distributor-canary-ephemeral", ExternalAssignmentNamespace: "test-external-assignment", SharddistributorServiceName: "cadence-shard-distributor"}),
+		// Replacing the real YARPC client with mock to handle the draining heartbeat
+		fx.Decorate(func() sharddistributorv1.ShardDistributorExecutorAPIYARPCClient {
+			return mockYARPCClient
+		}),
+		Module(NamespacesNames{
+			FixedNamespace:              "shard-distributor-canary",
+			EphemeralNamespace:          "shard-distributor-canary-ephemeral",
+			ExternalAssignmentNamespace: "test-external-assignment",
+			SharddistributorServiceName: "cadence-shard-distributor",
+		}),
 	).RequireStart().RequireStop()
 }

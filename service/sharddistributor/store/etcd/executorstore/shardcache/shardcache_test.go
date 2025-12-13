@@ -3,10 +3,13 @@ package shardcache
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/testhelper"
 )
@@ -15,7 +18,8 @@ func TestNewShardToExecutorCache(t *testing.T) {
 	logger := testlogger.New(t)
 
 	client := &clientv3.Client{}
-	cache := NewShardToExecutorCache("some-prefix", client, logger)
+	mockTime := clock.NewMockedTimeSource()
+	cache := NewShardToExecutorCache("some-prefix", client, logger, mockTime)
 
 	assert.NotNil(t, cache)
 
@@ -35,13 +39,21 @@ func TestShardExecutorCacheForwarding(t *testing.T) {
 	setupExecutorWithShards(t, testCluster, "executor-1", []string{"shard-1"}, map[string]string{
 		"datacenter": "dc1",
 		"rack":       "rack-42",
-	}, nil)
+	})
 
-	cache := NewShardToExecutorCache(testCluster.EtcdPrefix, testCluster.Client, logger)
+	mockTime := clock.NewMockedTimeSource()
+	cache := NewShardToExecutorCache(testCluster.EtcdPrefix, testCluster.Client, logger, mockTime)
 	cache.Start()
 	defer cache.Stop()
 
 	// This will read the namespace from the store as the cache is empty
+	// We need to advance time for the background refresh loop to pick up changes
+	require.Eventually(t, func() bool {
+		mockTime.Advance(10 * time.Millisecond) // Advance mock time to trigger any internal timers/loops
+		owner, err := cache.GetShardOwner(context.Background(), testCluster.Namespace, "shard-1")
+		return err == nil && owner != nil && owner.ExecutorID == "executor-1" && owner.Metadata["datacenter"] == "dc1"
+	}, time.Second, 10*time.Millisecond, "cache not populated with shard-1")
+
 	owner, err := cache.GetShardOwner(context.Background(), testCluster.Namespace, "shard-1")
 	assert.NoError(t, err)
 	assert.Equal(t, "executor-1", owner.ExecutorID)
