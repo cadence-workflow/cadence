@@ -27,6 +27,7 @@ func (p *namespaceProcessor) loadBalance(
 		hysteresisUpperBand:  p.cfg.LoadBalance.HysteresisUpperBand,
 		hysteresisLowerBand:  p.cfg.LoadBalance.HysteresisLowerBand,
 		perShardCooldown:     p.cfg.LoadBalance.PerShardCooldown,
+		severeImbalanceRatio: p.cfg.LoadBalance.SevereImbalanceRatio,
 		structuralChange:     structuralChange,
 	}
 
@@ -64,9 +65,24 @@ func (p *namespaceProcessor) loadBalance(
 			inputs.hysteresisLowerBand,
 		)
 
-		// Nothing to do once we're within bands (or have no eligible destinations).
-		if len(sourceExecutors) == 0 || len(destinationExecutors) == 0 {
+		if len(sourceExecutors) == 0 {
 			break
+		}
+
+		// Escape hatch: if we have sources but no destinations under the normal lower band,
+		// allow moving to the least-loaded ACTIVE executor when imbalance is severe.
+		if len(destinationExecutors) == 0 {
+			relaxed, ok := destinationsForSevereImbalance(
+				snapshot.loads,
+				meanLoad,
+				inputs.severeImbalanceRatio,
+				currentAssignments,
+				namespaceState,
+			)
+			if !ok {
+				break
+			}
+			destinationExecutors = relaxed
 		}
 
 		sources := sourcesSortedByDescendingLoad(sourceExecutors, snapshot.loads)
@@ -81,6 +97,9 @@ func (p *namespaceProcessor) loadBalance(
 		// If no source has an eligible shard (e.g., all are cooling down), we stop early.
 		movedThisIteration := false
 		for _, sourceExecutor := range sources {
+			if sourceExecutor == destExecutor {
+				continue
+			}
 			sourceStatus := namespaceState.Executors[sourceExecutor].Status
 			forceMove := sourceStatus == types.ExecutorStatusDRAINING
 			shardsToMove := p.findShardsToMove(
@@ -108,11 +127,6 @@ func (p *namespaceProcessor) loadBalance(
 			shardsMoved = shardsMoved || moved
 
 			p.updateLoad(currentAssignments, namespaceState, sourceExecutor, destExecutor, snapshot.loads)
-			snapshot.totalLoad = 0
-			for _, l := range snapshot.loads {
-				snapshot.totalLoad += l
-			}
-			meanLoad = snapshot.totalLoad / float64(len(snapshot.loads))
 			moveBudget -= len(shardsToMove)
 			movedThisIteration = moved
 			break
@@ -136,7 +150,42 @@ type loadBalanceInputs struct {
 	hysteresisUpperBand  float64
 	hysteresisLowerBand  float64
 	perShardCooldown     time.Duration
+	severeImbalanceRatio float64
 	structuralChange     bool
+}
+
+func destinationsForSevereImbalance(
+	executorLoads map[string]float64,
+	meanLoad float64,
+	severeImbalanceRatio float64,
+	currentAssignments map[string][]string,
+	namespaceState *store.NamespaceState,
+) (map[string]struct{}, bool) {
+	maxLoad := 0.0
+	for _, load := range executorLoads {
+		if load > maxLoad {
+			maxLoad = load
+		}
+	}
+
+	severe := meanLoad > 0 &&
+		severeImbalanceRatio > 0 &&
+		maxLoad/meanLoad >= severeImbalanceRatio
+	if !severe {
+		return nil, false
+	}
+
+	relaxed := make(map[string]struct{})
+	for executorID := range currentAssignments {
+		if namespaceState.Executors[executorID].Status == types.ExecutorStatusACTIVE {
+			relaxed[executorID] = struct{}{}
+		}
+	}
+	if len(relaxed) == 0 {
+		return nil, false
+	}
+
+	return relaxed, true
 }
 
 type executorLoadSnapshot struct {

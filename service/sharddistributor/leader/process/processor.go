@@ -55,6 +55,8 @@ const (
 	// Default hysteresis bands around mean load.
 	_defaultHysteresisUpperBand = 1.15
 	_defaultHysteresisLowerBand = 0.95
+	// Default threshold for triggering severe-imbalance escape hatch.
+	_defaultSevereImbalanceRatio = 1.5
 )
 
 type processorFactory struct {
@@ -105,6 +107,9 @@ func NewProcessorFactory(
 	}
 	if cfg.Process.LoadBalance.HysteresisLowerBand <= 0 {
 		cfg.Process.LoadBalance.HysteresisLowerBand = _defaultHysteresisLowerBand
+	}
+	if cfg.Process.LoadBalance.SevereImbalanceRatio <= 0 {
+		cfg.Process.LoadBalance.SevereImbalanceRatio = _defaultSevereImbalanceRatio
 	}
 
 	return &processorFactory{

@@ -159,6 +159,120 @@ func TestLoadBalance_NoMoveNeeded(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestLoadBalance_SevereImbalance_AllowsMoveWithoutDestinations verifies severe imbalance can trigger a relaxed destination set.
+func TestLoadBalance_SevereImbalance_AllowsMoveWithoutDestinations(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	processor.cfg.LoadBalance.HysteresisLowerBand = 0.1 // make destinations strict
+	processor.cfg.LoadBalance.SevereImbalanceRatio = 2.0
+
+	execA, execB, execC, execD, execE := "exec-A", "exec-B", "exec-C", "exec-D", "exec-E"
+	now := mocks.timeSource.Now()
+
+	assignments := map[string]store.AssignedState{
+		execA: {AssignedShards: make(map[string]*types.ShardAssignment)},
+		execB: {AssignedShards: map[string]*types.ShardAssignment{"b-1": {}}},
+		execC: {AssignedShards: map[string]*types.ShardAssignment{"c-1": {}}},
+		execD: {AssignedShards: map[string]*types.ShardAssignment{"d-1": {}}},
+		execE: {AssignedShards: map[string]*types.ShardAssignment{"e-1": {}}},
+	}
+
+	currentAssignments := map[string][]string{
+		execA: {},
+		execB: {"b-1"},
+		execC: {"c-1"},
+		execD: {"d-1"},
+		execE: {"e-1"},
+	}
+
+	shardStats := map[string]store.ShardStatistics{
+		"b-1": {SmoothedLoad: 50, LastUpdateTime: now},
+		"c-1": {SmoothedLoad: 50, LastUpdateTime: now},
+		"d-1": {SmoothedLoad: 50, LastUpdateTime: now},
+		"e-1": {SmoothedLoad: 50, LastUpdateTime: now},
+	}
+
+	// Make execA very overloaded (100 shards * 10 load each = 1000).
+	for i := range 100 {
+		sID := fmt.Sprintf("a-%d", i)
+		assignments[execA].AssignedShards[sID] = &types.ShardAssignment{}
+		currentAssignments[execA] = append(currentAssignments[execA], sID)
+		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 10, LastUpdateTime: now}
+	}
+
+	namespaceState := &store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			execA: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execB: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execC: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execD: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execE: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		},
+		ShardAssignments: assignments,
+		ShardStats:       shardStats,
+	}
+
+	initialA := len(currentAssignments[execA])
+	initialOther := len(currentAssignments[execB]) + len(currentAssignments[execC]) + len(currentAssignments[execD]) + len(currentAssignments[execE])
+	expectedBudget := computeMoveBudget(len(shardStats), processor.cfg.LoadBalance.MoveBudgetProportion)
+
+	changed, err := processor.loadBalance(currentAssignments, namespaceState, map[string]store.ShardState{}, true, nil)
+	require.NoError(t, err)
+	require.True(t, changed)
+
+	assert.Len(t, currentAssignments[execA], initialA-expectedBudget, "execA should shed budgeted shards")
+	totalOther := len(currentAssignments[execB]) + len(currentAssignments[execC]) + len(currentAssignments[execD]) + len(currentAssignments[execE])
+	assert.Equal(t, initialOther+expectedBudget, totalOther, "Destinations should gain budgeted shards")
+}
+
+// TestLoadBalance_NoDestinations_NotSevere verifies we do not relax destinations without severe imbalance.
+func TestLoadBalance_NoDestinations_NotSevere(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	processor.cfg.LoadBalance.HysteresisLowerBand = 0.1 // make destinations very strict
+	processor.cfg.LoadBalance.SevereImbalanceRatio = 10.0
+
+	execA, execB := "exec-A", "exec-B"
+	now := mocks.timeSource.Now()
+
+	assignments := map[string]store.AssignedState{
+		execA: {AssignedShards: make(map[string]*types.ShardAssignment)},
+		execB: {AssignedShards: map[string]*types.ShardAssignment{"b-1": {}}},
+	}
+	currentAssignments := map[string][]string{
+		execA: {},
+		execB: {"b-1"},
+	}
+	shardStats := map[string]store.ShardStatistics{
+		"b-1": {SmoothedLoad: 50, LastUpdateTime: now},
+	}
+	for i := range 10 {
+		sID := fmt.Sprintf("a-%d", i)
+		assignments[execA].AssignedShards[sID] = &types.ShardAssignment{}
+		currentAssignments[execA] = append(currentAssignments[execA], sID)
+		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 10, LastUpdateTime: now}
+	}
+
+	namespaceState := &store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			execA: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execB: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		},
+		ShardAssignments: assignments,
+		ShardStats:       shardStats,
+	}
+
+	changed, err := processor.loadBalance(currentAssignments, namespaceState, map[string]store.ShardState{}, true, nil)
+	require.NoError(t, err)
+	require.False(t, changed)
+	assert.Len(t, currentAssignments[execA], 10)
+	assert.Len(t, currentAssignments[execB], 1)
+}
+
 // TestLoadBalance_BudgetConstraint verifies the balancer respects the move budget per pass.
 func TestLoadBalance_BudgetConstraint(t *testing.T) {
 	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)

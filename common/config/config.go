@@ -692,6 +692,11 @@ type (
 		// HysteresisLowerBand is the multiplier below mean load that qualifies an executor as a destination.
 		// Default: 0.95.
 		HysteresisLowerBand float64 `yaml:"hysteresisLowerBand"`
+
+		// SevereImbalanceRatio triggers a destination "escape hatch" when maxLoad/meanLoad exceeds this value
+		// but no executor qualifies as a destination under the normal hysteresis lower band.
+		// Default: 1.5.
+		SevereImbalanceRatio float64 `yaml:"severeImbalanceRatio"`
 	}
 )
 
