@@ -72,6 +72,7 @@ const (
 	isRetry                   = "is_retry"
 	queryConsistencyLevel     = "query_consistency_level"
 	budgetManagerName         = "budget_manager_name"
+	datastore                 = "datastore"
 
 	// limiter-side tags
 	globalRatelimitKey            = "global_ratelimit_key"
@@ -354,6 +355,11 @@ func NamespaceTypeTag(namespaceType string) Tag {
 
 func HandoverTypeTag(handoverType string) Tag {
 	return metricWithUnknown("handover_type", handoverType)
+}
+
+// DatastoreTag returns a new datastore tag.
+func DatastoreTag(value string) Tag {
+	return metricWithUnknown(datastore, value)
 }
 
 func TaskCategoryTag(category string) Tag {

@@ -25,6 +25,8 @@ func NewDomainManager(
 	metricClient metrics.Client,
 	logger log.Logger,
 	cfg *config.Persistence,
+	hostname string,
+	datastoreName string,
 ) persistence.DomainManager {
 	return &meteredDomainManager{
 		wrapped: wrapped,
@@ -32,6 +34,8 @@ func NewDomainManager(
 			metricClient:                  metricClient,
 			logger:                        logger,
 			enableLatencyHistogramMetrics: cfg.EnablePersistenceLatencyHistogramMetrics,
+			hostname:                      hostname,
+			datastoreName:                 datastoreName,
 		},
 	}
 }

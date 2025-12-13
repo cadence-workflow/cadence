@@ -900,7 +900,7 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 
 	var replicatorDomainCache cache.DomainCache
 	if c.workerConfig.EnableReplicator {
-		metadataManager := metered.NewDomainManager(c.domainManager, service.GetMetricsClient(), c.logger, &c.persistenceConfig)
+		metadataManager := metered.NewDomainManager(c.domainManager, service.GetMetricsClient(), c.logger, &c.persistenceConfig, "onebox-worker", "onebox")
 		replicatorDomainCache = cache.NewDomainCache(metadataManager, c.clusterMetadata, service.GetMetricsClient(), service.GetLogger())
 		replicatorDomainCache.Start()
 		defer replicatorDomainCache.Stop()
@@ -909,7 +909,7 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 
 	var clientWorkerDomainCache cache.DomainCache
 	if c.workerConfig.EnableArchiver {
-		metadataProxyManager := metered.NewDomainManager(c.domainManager, service.GetMetricsClient(), c.logger, &c.persistenceConfig)
+		metadataProxyManager := metered.NewDomainManager(c.domainManager, service.GetMetricsClient(), c.logger, &c.persistenceConfig, "onebox-worker", "onebox")
 		clientWorkerDomainCache = cache.NewDomainCache(metadataProxyManager, c.clusterMetadata, service.GetMetricsClient(), service.GetLogger())
 		clientWorkerDomainCache.Start()
 		defer clientWorkerDomainCache.Stop()
@@ -931,7 +931,9 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 			c.domainManager,
 			service.GetMetricsClient(),
 			c.logger,
-			&c.persistenceConfig)
+			&c.persistenceConfig,
+			"onebox-worker",
+			"onebox")
 		asyncWFDomainCache = cache.NewDomainCache(
 			metadataProxyManager,
 			c.clusterMetadata,

@@ -1,6 +1,7 @@
 import (
 	"context"
 
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 )
@@ -9,24 +10,34 @@ import (
 
 // {{$decorator}} implements {{.Interface.Type}} interface instrumented with rate limiter.
 type {{$decorator}} struct {
-    wrapped     {{.Interface.Type}}
-    rateLimiter quotas.Limiter
+    wrapped      {{.Interface.Type}}
+    rateLimiter  quotas.Limiter
+    metricsClient metrics.Client
+    datastoreName string
 }
 
 // New{{.Interface.Name}} creates a new instance of {{.Interface.Name}} with ratelimiter.
 func New{{.Interface.Name}}(
     wrapped persistence.{{.Interface.Name}},
     rateLimiter quotas.Limiter,
+    metricsClient metrics.Client,
+    datastoreName string,
 ) persistence.{{.Interface.Name}} {
     return &{{$decorator}}{
         wrapped: wrapped,
         rateLimiter: rateLimiter,
+        metricsClient: metricsClient,
+        datastoreName: datastoreName,
     }
 }
 
 {{range $method := .Interface.Methods}}
     {{- if (and $method.AcceptsContext $method.ReturnsError)}}
         func (c *{{$decorator}}) {{$method.Declaration}} {
+	        if c.metricsClient != nil {
+		        scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
+		        scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
+	        }
 	        if ok := c.rateLimiter.Allow(); !ok {
 		        err = ErrPersistenceLimitExceeded
 		        return
