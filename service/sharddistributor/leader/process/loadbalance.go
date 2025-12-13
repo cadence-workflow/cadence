@@ -19,8 +19,6 @@ func (p *namespaceProcessor) loadBalance(
 	metricsScope metrics.Scope,
 ) (bool, error) {
 
-	allShards := getShards(p.namespaceCfg, namespaceState, deletedShards)
-
 	inputs := loadBalanceInputs{
 		now:                  p.timeSource.Now().UTC(),
 		moveBudgetProportion: p.cfg.LoadBalance.MoveBudgetProportion,
@@ -51,6 +49,7 @@ func (p *namespaceProcessor) loadBalance(
 
 	meanLoad := snapshot.totalLoad / float64(len(snapshot.loads))
 
+	allShards := getShards(p.namespaceCfg, namespaceState, deletedShards)
 	moveBudget := computeMoveBudget(len(allShards), inputs.moveBudgetProportion)
 	shardsMoved := false
 	movesPlanned := 0
@@ -325,14 +324,14 @@ func (p *namespaceProcessor) findShardsToMove(
 	destLoad := executorLoads[destination]
 	for _, shard := range currentAssignments[source] {
 		stats, ok := namespaceState.ShardStats[shard]
-		if ok && perShardCooldown > 0 && !stats.LastMoveTime.IsZero() && now.Sub(stats.LastMoveTime) < perShardCooldown {
+		if !ok {
+			continue
+		}
+		if perShardCooldown > 0 && !stats.LastMoveTime.IsZero() && now.Sub(stats.LastMoveTime) < perShardCooldown {
 			continue
 		}
 
-		load := 0.0
-		if ok {
-			load = stats.SmoothedLoad
-		}
+		load := stats.SmoothedLoad
 
 		if forceMove {
 			if load > largestLoad {
