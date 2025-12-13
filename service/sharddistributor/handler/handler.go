@@ -29,6 +29,7 @@ import (
 	"math"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
@@ -151,37 +152,24 @@ func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string
 	}
 
 	slices.Sort(candidates)
+	candidateLoads := calculateExecutorLoadsForCandidates(state, candidates, now, ttl)
 
 	executorID := ""
-	minLoad := math.MaxFloat64
-	minAssignedShards := math.MaxInt
+	minTotalLoad := math.MaxFloat64
+	minAssignedShardCount := math.MaxInt
 
 	for _, candidate := range candidates {
-		assignment, ok := state.ShardAssignments[candidate]
-		assignedShards := 0
-		if ok {
-			assignedShards = len(assignment.AssignedShards)
+		assignedShardCount := 0
+		totalLoad := candidateLoads[candidate]
+		if assignment, ok := state.ShardAssignments[candidate]; ok {
+			assignedShardCount = len(assignment.AssignedShards)
 		}
 
-		load := 0.0
-		if ok {
-			for sID := range assignment.AssignedShards {
-				stats, ok := state.ShardStats[sID]
-				if !ok {
-					continue
-				}
-				if ttl > 0 && !stats.LastUpdateTime.IsZero() && now.Sub(stats.LastUpdateTime) > ttl {
-					continue
-				}
-				load += stats.SmoothedLoad
-			}
-		}
-
-		if load < minLoad ||
-			(load == minLoad && (assignedShards < minAssignedShards ||
-				(assignedShards == minAssignedShards && (executorID == "" || candidate < executorID)))) {
-			minLoad = load
-			minAssignedShards = assignedShards
+		if totalLoad < minTotalLoad ||
+			(totalLoad == minTotalLoad && (assignedShardCount < minAssignedShardCount ||
+				(assignedShardCount == minAssignedShardCount && (executorID == "" || candidate < executorID)))) {
+			minTotalLoad = totalLoad
+			minAssignedShardCount = assignedShardCount
 			executorID = candidate
 		}
 	}
@@ -202,6 +190,35 @@ func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string
 		Namespace: namespace,
 		Metadata:  executor.Metadata,
 	}, nil
+}
+
+func calculateExecutorLoadsForCandidates(
+	state *store.NamespaceState,
+	candidates []string,
+	now time.Time,
+	ttl time.Duration,
+) map[string]float64 {
+	loads := make(map[string]float64, len(candidates))
+	for _, executorID := range candidates {
+		assignment, ok := state.ShardAssignments[executorID]
+		if !ok {
+			continue
+		}
+
+		totalLoad := 0.0
+		for shardID := range assignment.AssignedShards {
+			stats, ok := state.ShardStats[shardID]
+			if !ok {
+				continue
+			}
+			if ttl > 0 && !stats.LastUpdateTime.IsZero() && now.Sub(stats.LastUpdateTime) > ttl {
+				continue
+			}
+			totalLoad += stats.SmoothedLoad
+		}
+		loads[executorID] = totalLoad
+	}
+	return loads
 }
 
 func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequest, server WatchNamespaceStateServer) error {
