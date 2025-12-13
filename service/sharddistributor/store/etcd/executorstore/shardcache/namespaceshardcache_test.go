@@ -4,16 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/testhelper"
@@ -32,7 +37,7 @@ func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
 	})
 
 	// Start the cache
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger)
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource())
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
 	time.Sleep(50 * time.Millisecond)
@@ -84,12 +89,13 @@ func TestNamespaceShardToExecutor_Subscribe(t *testing.T) {
 	})
 
 	// Start the cache
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger)
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource())
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
 
 	// Refresh the cache to get the initial state
-	namespaceShardToExecutor.refresh(context.Background())
+	err = namespaceShardToExecutor.refresh(context.Background())
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -131,6 +137,125 @@ func TestNamespaceShardToExecutor_Subscribe(t *testing.T) {
 	})
 
 	wg.Wait()
+}
+
+func TestNamespaceShardToExecutor_watch_watchChanErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := testlogger.New(t)
+	mockClient := etcdclient.NewMockClient(ctrl)
+	stopCh := make(chan struct{})
+	testPrefix := "/test-prefix"
+	testNamespace := "test-namespace"
+
+	// Mock the Watch call to return our watch channel
+	watchChan := make(chan clientv3.WatchResponse)
+	mockClient.EXPECT().
+		Watch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(watchChan).
+		AnyTimes()
+
+	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, clock.NewRealTimeSource())
+	require.NoError(t, err)
+
+	// Test Case #1
+	// Test received compact revision error from watch channel
+	{
+		go func() {
+			watchChan <- clientv3.WatchResponse{
+				CompactRevision: 100,
+			}
+		}()
+
+		err = e.watch()
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "etcdserver: mvcc: required revision has been compacted")
+	}
+
+	// Test Case #2
+	// Test closed watch channel
+	{
+		close(watchChan)
+		err = e.watch()
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "watch channel closed")
+	}
+}
+
+func TestNamespaceShardToExecutor_namespaceRefreshLoop_watchError(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := testlogger.New(t)
+	mockClient := etcdclient.NewMockClient(ctrl)
+	timeSource := clock.NewMockedTimeSource()
+	stopCh := make(chan struct{})
+	testPrefix := "/test-prefix"
+	testNamespace := "test-namespace"
+
+	// mock for first watch call that receives error
+	watchChanRcvErr := make(chan clientv3.WatchResponse)
+	mockClient.EXPECT().
+		Watch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(watchChanRcvErr)
+
+	// mock for second watch call that receives closed channel
+	watchChanClosed := make(chan clientv3.WatchResponse)
+	mockClient.EXPECT().
+		Watch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(watchChanClosed)
+
+	// mock for third watch call that will be used when stopCh is closed
+	mockClient.EXPECT().
+		Watch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(make(chan clientv3.WatchResponse))
+
+	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, timeSource)
+	require.NoError(t, err)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	finished := atomic.Bool{}
+
+	go func() {
+		defer wg.Done()
+		e.namespaceRefreshLoop()
+		finished.Store(true)
+	}()
+
+	// Test Case #1: watchChan receives error
+	{
+		// Sends a response containing compact revision to simulate error
+		watchChanRcvErr <- clientv3.WatchResponse{
+			CompactRevision: 100,
+		}
+
+		timeSource.BlockUntil(1)
+		require.False(t, finished.Load(), "namespaceRefreshLoop should not exit on watch error")
+	}
+
+	// Test Case #2: watchChan is closed
+	{
+		timeSource.Advance(2 * namespaceRefreshLoopWatchRetryInterval)
+
+		// Sends a response containing compact revision to simulate error
+		close(watchChanClosed)
+
+		timeSource.BlockUntil(1)
+		require.False(t, finished.Load(), "namespaceRefreshLoop should not exit on watch error")
+	}
+
+	// Test Case #3: stopCh is closed
+	{
+		timeSource.Advance(2 * namespaceRefreshLoopWatchRetryInterval)
+
+		close(stopCh)
+		wg.Wait()
+		require.True(t, finished.Load(), "namespaceRefreshLoop should exit on watch error")
+	}
 }
 
 // setupExecutorWithShards creates an executor in etcd with assigned shards and metadata

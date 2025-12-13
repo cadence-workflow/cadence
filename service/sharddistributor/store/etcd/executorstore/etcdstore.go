@@ -57,7 +57,7 @@ type ExecutorStoreParams struct {
 
 // NewStore creates a new etcd-backed store and provides it to the fx application.
 func NewStore(p ExecutorStoreParams) (store.Store, error) {
-	shardCache := shardcache.NewShardToExecutorCache(p.Cfg.Prefix, p.Client, p.Logger)
+	shardCache := shardcache.NewShardToExecutorCache(p.Cfg.Prefix, p.Client, p.Logger, p.TimeSource)
 
 	timeSource := p.TimeSource
 	if timeSource == nil {
