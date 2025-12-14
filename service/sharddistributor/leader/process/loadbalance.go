@@ -381,8 +381,6 @@ func (p *namespaceProcessor) updateExecutorLoadsAfterMove(
 	executorLoads map[string]float64,
 	movedShards []string,
 ) {
-	// Moving a shard between executors preserves total load, so we can update loads incrementally
-	// instead of recomputing from the full assignment lists.
 	delta := 0.0
 	for _, shardID := range movedShards {
 		stats, ok := namespaceState.ShardStats[shardID]
