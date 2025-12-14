@@ -129,7 +129,7 @@ func (p *namespaceProcessor) loadBalance(
 			}
 			shardsMoved = shardsMoved || moved
 
-			p.updateLoad(currentAssignments, namespaceState, sourceExecutor, destExecutor, snapshot.loads)
+			p.updateExecutorLoadsAfterMove(namespaceState, sourceExecutor, destExecutor, snapshot.loads, shardsToMove)
 			moveBudget -= len(shardsToMove)
 			movedThisIteration = moved
 			break
@@ -374,19 +374,23 @@ func (p *namespaceProcessor) moveShards(currentAssignments map[string][]string, 
 	return movedShards, nil
 }
 
-func (p *namespaceProcessor) updateLoad(
-	currentAssignments map[string][]string,
+func (p *namespaceProcessor) updateExecutorLoadsAfterMove(
 	namespaceState *store.NamespaceState,
 	source string,
 	destination string,
 	executorLoads map[string]float64,
+	movedShards []string,
 ) {
-	executorLoads[source] = 0
-	for _, shard := range currentAssignments[source] {
-		executorLoads[source] += namespaceState.ShardStats[shard].SmoothedLoad
+	// Moving a shard between executors preserves total load, so we can update loads incrementally
+	// instead of recomputing from the full assignment lists.
+	delta := 0.0
+	for _, shardID := range movedShards {
+		stats, ok := namespaceState.ShardStats[shardID]
+		if !ok {
+			continue
+		}
+		delta += stats.SmoothedLoad
 	}
-	executorLoads[destination] = 0
-	for _, shard := range currentAssignments[destination] {
-		executorLoads[destination] += namespaceState.ShardStats[shard].SmoothedLoad
-	}
+	executorLoads[source] -= delta
+	executorLoads[destination] += delta
 }
