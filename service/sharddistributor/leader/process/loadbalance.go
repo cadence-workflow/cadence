@@ -25,13 +25,6 @@ func (p *namespaceProcessor) loadBalance(
 	metricsScope metrics.Scope,
 ) (bool, error) {
 
-	now := p.timeSource.Now().UTC()
-	moveBudgetProportion := p.cfg.LoadBalance.MoveBudgetProportion
-	hysteresisUpperBand := p.cfg.LoadBalance.HysteresisUpperBand
-	hysteresisLowerBand := p.cfg.LoadBalance.HysteresisLowerBand
-	perShardCooldown := p.cfg.LoadBalance.PerShardCooldown
-	severeImbalanceRatio := p.cfg.LoadBalance.SevereImbalanceRatio
-
 	snapshot := computeExecutorLoads(currentAssignments, namespaceState)
 	if len(snapshot.loads) == 0 {
 		if metricsScope != nil {
@@ -39,6 +32,9 @@ func (p *namespaceProcessor) loadBalance(
 		}
 		return false, nil
 	}
+
+	now := p.timeSource.Now().UTC()
+	perShardCooldown := p.cfg.LoadBalance.PerShardCooldown
 
 	// Cooldown derived from persisted LastMoveTime, so it survives leader failover.
 	// Only applies on load-only passes. Structural changes should not be throttled.
@@ -52,6 +48,7 @@ func (p *namespaceProcessor) loadBalance(
 
 	meanLoad := snapshot.totalLoad / float64(len(snapshot.loads))
 
+	moveBudgetProportion := p.cfg.LoadBalance.MoveBudgetProportion
 	allShards := getShards(p.namespaceCfg, namespaceState, deletedShards)
 	moveBudget := computeMoveBudget(len(allShards), moveBudgetProportion)
 	shardsMoved := false
@@ -64,8 +61,8 @@ func (p *namespaceProcessor) loadBalance(
 			snapshot.loads,
 			namespaceState,
 			meanLoad,
-			hysteresisUpperBand,
-			hysteresisLowerBand,
+			p.cfg.LoadBalance.HysteresisUpperBand,
+			p.cfg.LoadBalance.HysteresisLowerBand,
 		)
 
 		if len(sourceExecutors) == 0 {
@@ -78,7 +75,7 @@ func (p *namespaceProcessor) loadBalance(
 			relaxed, ok := destinationsForSevereImbalance(
 				snapshot.loads,
 				meanLoad,
-				severeImbalanceRatio,
+				p.cfg.LoadBalance.SevereImbalanceRatio,
 				currentAssignments,
 				namespaceState,
 			)
