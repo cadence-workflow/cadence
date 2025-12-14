@@ -103,8 +103,6 @@ func (p *namespaceProcessor) loadBalance(
 			if sourceExecutor == destExecutor {
 				continue
 			}
-			sourceStatus := namespaceState.Executors[sourceExecutor].Status
-			forceMove := sourceStatus == types.ExecutorStatusDRAINING
 			shardsToMove := p.findShardsToMove(
 				currentAssignments,
 				namespaceState,
@@ -113,7 +111,6 @@ func (p *namespaceProcessor) loadBalance(
 				snapshot.loads,
 				now,
 				perShardCooldown,
-				forceMove,
 			)
 			if len(shardsToMove) == 0 {
 				// No eligible shard for this source+destination (cooldown, or no beneficial move), try the next source.
@@ -237,7 +234,7 @@ func classifySourcesAndDestinations(
 
 	for executorID, load := range executorLoads {
 		executor := namespaceState.Executors[executorID]
-		if executor.Status == types.ExecutorStatusDRAINING || load > meanLoad*upperBand {
+		if load > meanLoad*upperBand {
 			sources[executorID] = struct{}{}
 		} else if executor.Status == types.ExecutorStatusACTIVE && load < meanLoad*lowerBand {
 			destinations[executorID] = struct{}{}
@@ -298,16 +295,11 @@ func (p *namespaceProcessor) findShardsToMove(
 	executorLoads map[string]float64,
 	now time.Time,
 	perShardCooldown time.Duration,
-	forceMove bool,
 ) []string {
 	// Pick a single eligible shard to move from source -> destination.
 	//
 	// For load-based balancing, prefer shards with the largest positive benefit (SSE reduction)
 	// and skip shards that would not improve balance.
-	//
-	// For draining executors, we must evict shards even if they do not improve the load objective.
-	largestLoad := -1.0
-	largestShard := ""
 	bestBenefit := 0.0
 	bestShard := ""
 	sourceLoad := executorLoads[source]
@@ -323,14 +315,6 @@ func (p *namespaceProcessor) findShardsToMove(
 
 		load := stats.SmoothedLoad
 
-		if forceMove {
-			if load > largestLoad {
-				largestLoad = load
-				largestShard = shard
-			}
-			continue
-		}
-
 		benefit := shardMoveBenefitSquaredError(sourceLoad, destLoad, load)
 		if benefit <= 0 {
 			continue
@@ -339,13 +323,6 @@ func (p *namespaceProcessor) findShardsToMove(
 			bestBenefit = benefit
 			bestShard = shard
 		}
-	}
-
-	if forceMove {
-		if largestShard == "" {
-			return make([]string, 0)
-		}
-		return []string{largestShard}
 	}
 
 	if bestShard == "" {
