@@ -11,6 +11,12 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
+type executorLoadSnapshot struct {
+	loads          map[string]float64
+	totalLoad      float64
+	latestMoveTime time.Time
+}
+
 func (p *namespaceProcessor) loadBalance(
 	currentAssignments map[string][]string,
 	namespaceState *store.NamespaceState,
@@ -19,15 +25,12 @@ func (p *namespaceProcessor) loadBalance(
 	metricsScope metrics.Scope,
 ) (bool, error) {
 
-	inputs := loadBalanceInputs{
-		now:                  p.timeSource.Now().UTC(),
-		moveBudgetProportion: p.cfg.LoadBalance.MoveBudgetProportion,
-		hysteresisUpperBand:  p.cfg.LoadBalance.HysteresisUpperBand,
-		hysteresisLowerBand:  p.cfg.LoadBalance.HysteresisLowerBand,
-		perShardCooldown:     p.cfg.LoadBalance.PerShardCooldown,
-		severeImbalanceRatio: p.cfg.LoadBalance.SevereImbalanceRatio,
-		structuralChange:     structuralChange,
-	}
+	now := p.timeSource.Now().UTC()
+	moveBudgetProportion := p.cfg.LoadBalance.MoveBudgetProportion
+	hysteresisUpperBand := p.cfg.LoadBalance.HysteresisUpperBand
+	hysteresisLowerBand := p.cfg.LoadBalance.HysteresisLowerBand
+	perShardCooldown := p.cfg.LoadBalance.PerShardCooldown
+	severeImbalanceRatio := p.cfg.LoadBalance.SevereImbalanceRatio
 
 	snapshot := computeExecutorLoads(currentAssignments, namespaceState)
 	if len(snapshot.loads) == 0 {
@@ -37,9 +40,9 @@ func (p *namespaceProcessor) loadBalance(
 		return false, nil
 	}
 
-	// Global cooldown derived from persisted LastMoveTime, so it survives leader failover.
+	// Cooldown derived from persisted LastMoveTime, so it survives leader failover.
 	// Only applies on load-only passes. Structural changes should not be throttled.
-	if shouldSkipLoadBalanceDueToCooldown(inputs, snapshot.latestMoveTime) {
+	if shouldSkipLoadBalanceDueToCooldown(structuralChange, perShardCooldown, now, snapshot.latestMoveTime) {
 		if metricsScope != nil {
 			metricsScope.AddCounter(metrics.ShardDistributorLoadBalanceGlobalCooldownSkips, 1)
 			metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceMovesPerCycle, 0)
@@ -50,9 +53,10 @@ func (p *namespaceProcessor) loadBalance(
 	meanLoad := snapshot.totalLoad / float64(len(snapshot.loads))
 
 	allShards := getShards(p.namespaceCfg, namespaceState, deletedShards)
-	moveBudget := computeMoveBudget(len(allShards), inputs.moveBudgetProportion)
+	moveBudget := computeMoveBudget(len(allShards), moveBudgetProportion)
 	shardsMoved := false
 	movesPlanned := 0
+
 	// Plan multiple moves per cycle (within budget), recomputing eligibility after each move.
 	// Stop early once sources/destinations are empty, i.e. imbalance is within hysteresis bands.
 	for moveBudget > 0 {
@@ -60,8 +64,8 @@ func (p *namespaceProcessor) loadBalance(
 			snapshot.loads,
 			namespaceState,
 			meanLoad,
-			inputs.hysteresisUpperBand,
-			inputs.hysteresisLowerBand,
+			hysteresisUpperBand,
+			hysteresisLowerBand,
 		)
 
 		if len(sourceExecutors) == 0 {
@@ -74,7 +78,7 @@ func (p *namespaceProcessor) loadBalance(
 			relaxed, ok := destinationsForSevereImbalance(
 				snapshot.loads,
 				meanLoad,
-				inputs.severeImbalanceRatio,
+				severeImbalanceRatio,
 				currentAssignments,
 				namespaceState,
 			)
@@ -107,8 +111,8 @@ func (p *namespaceProcessor) loadBalance(
 				sourceExecutor,
 				destExecutor,
 				snapshot.loads,
-				inputs.now,
-				inputs.perShardCooldown,
+				now,
+				perShardCooldown,
 				forceMove,
 			)
 			if len(shardsToMove) == 0 {
@@ -143,16 +147,6 @@ func (p *namespaceProcessor) loadBalance(
 	return shardsMoved, nil
 }
 
-type loadBalanceInputs struct {
-	now                  time.Time
-	moveBudgetProportion float64
-	hysteresisUpperBand  float64
-	hysteresisLowerBand  float64
-	perShardCooldown     time.Duration
-	severeImbalanceRatio float64
-	structuralChange     bool
-}
-
 func destinationsForSevereImbalance(
 	executorLoads map[string]float64,
 	meanLoad float64,
@@ -185,12 +179,6 @@ func destinationsForSevereImbalance(
 	}
 
 	return relaxed, true
-}
-
-type executorLoadSnapshot struct {
-	loads          map[string]float64
-	totalLoad      float64
-	latestMoveTime time.Time
 }
 
 // shardMoveBenefitSquaredError returns the expected reduction in sum of squared error (SSE)
@@ -229,11 +217,11 @@ func computeExecutorLoads(currentAssignments map[string][]string, namespaceState
 
 // shouldSkipLoadBalanceDueToCooldown implements a cooldown for load-only balancing:
 // if any shard moved recently (latestMoveTime within the cooldown window), skip this pass to reduce churn.
-func shouldSkipLoadBalanceDueToCooldown(inputs loadBalanceInputs, latestMoveTime time.Time) bool {
-	return !inputs.structuralChange &&
-		inputs.perShardCooldown > 0 &&
+func shouldSkipLoadBalanceDueToCooldown(structuralChange bool, cooldown time.Duration, now time.Time, latestMoveTime time.Time) bool {
+	return !structuralChange &&
+		cooldown > 0 &&
 		!latestMoveTime.IsZero() &&
-		inputs.now.Sub(latestMoveTime) < inputs.perShardCooldown
+		now.Sub(latestMoveTime) < cooldown
 }
 
 // classifySourcesAndDestinations returns the source and destination executor sets for rebalancing.

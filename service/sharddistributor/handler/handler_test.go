@@ -153,12 +153,18 @@ func TestGetShardOwner(t *testing.T) {
 							},
 						},
 					},
+					ShardStats: map[string]store.ShardStatistics{
+						"shard1": {SmoothedLoad: 5.0},
+						"shard2": {SmoothedLoad: 5.0},
+						"shard3": {SmoothedLoad: 5.0},
+						"shard4": {SmoothedLoad: 1.0},
+					},
 				}, nil)
 				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner2").Return(&store.ShardOwner{
 					ExecutorID: "owner2",
 					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
 				}, nil)
-				// owner2 has the fewest shards assigned, so we assign the shard to it
+				// owner2 has the lowest total load, so we assign the shard to it
 				mockStore.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD", "owner2").Return(nil)
 			},
 			expectedOwner: "owner2",
@@ -227,7 +233,7 @@ func TestGetShardOwner(t *testing.T) {
 }
 
 // TestAssignEphemeralShard_PrefersLowerLoad verifies that ephemeral shard placement
-// prefers the executor with lower total load, using shard count only as a tie-breaker.
+// prefers the executor with lower total load.
 func TestAssignEphemeralShard_PrefersLowerLoad(t *testing.T) {
 	cfg := config.ShardDistribution{
 		Namespaces: []config.Namespace{

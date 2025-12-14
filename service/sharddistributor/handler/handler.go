@@ -119,7 +119,7 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string, shardID string) (*types.GetShardOwnerResponse, error) {
 
 	// Get the current state of the namespace and find the best executor for a new ephemeral shard.
-	// Prefer ACTIVE, non-stale executors with the lowest current load. Break ties by shard count and ID.
+	// Prefer ACTIVE, non-stale executors with the lowest current load.
 	state, err := h.storage.GetState(ctx, namespace)
 	if err != nil {
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
@@ -156,20 +156,12 @@ func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string
 
 	executorID := ""
 	minTotalLoad := math.MaxFloat64
-	minAssignedShardCount := math.MaxInt
 
 	for _, candidate := range candidates {
-		assignedShardCount := 0
 		totalLoad := candidateLoads[candidate]
-		if assignment, ok := state.ShardAssignments[candidate]; ok {
-			assignedShardCount = len(assignment.AssignedShards)
-		}
 
-		if totalLoad < minTotalLoad ||
-			(totalLoad == minTotalLoad && (assignedShardCount < minAssignedShardCount ||
-				(assignedShardCount == minAssignedShardCount && (executorID == "" || candidate < executorID)))) {
+		if totalLoad < minTotalLoad {
 			minTotalLoad = totalLoad
-			minAssignedShardCount = assignedShardCount
 			executorID = candidate
 		}
 	}
