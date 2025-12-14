@@ -160,10 +160,12 @@ func (n *namespaceShardToExecutor) GetExecutorModRevisionCmp() ([]clientv3.Cmp, 
 func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, executorID string) (map[string]etcdtypes.ShardStatistics, error) {
 	n.executorStatistics.lock.RLock()
 	stats, ok := n.executorStatistics.stats[executorID]
-	n.executorStatistics.lock.RUnlock()
 	if ok {
-		return cloneStatisticsMap(stats), nil
+		clonedStatistics := cloneStatisticsMap(stats)
+		n.executorStatistics.lock.RUnlock()
+		return clonedStatistics, nil
 	}
+	n.executorStatistics.lock.RUnlock()
 
 	err := n.refreshExecutorStatisticsCache(ctx, executorID)
 	if err != nil {
