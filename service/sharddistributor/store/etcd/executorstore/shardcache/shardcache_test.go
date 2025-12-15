@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/uber/cadence/common/clock"
@@ -48,11 +47,8 @@ func TestShardExecutorCacheForwarding(t *testing.T) {
 
 	// This will read the namespace from the store as the cache is empty
 	// We need to advance time for the background refresh loop to pick up changes
-	require.Eventually(t, func() bool {
-		mockTime.Advance(10 * time.Millisecond) // Advance mock time to trigger any internal timers/loops
-		owner, err := cache.GetShardOwner(context.Background(), testCluster.Namespace, "shard-1")
-		return err == nil && owner != nil && owner.ExecutorID == "executor-1" && owner.Metadata["datacenter"] == "dc1"
-	}, time.Second, 10*time.Millisecond, "cache not populated with shard-1")
+	mockTime.BlockUntil(1)
+	mockTime.Advance(time.Second) // Advance mock time to trigger any internal timers/loops
 
 	owner, err := cache.GetShardOwner(context.Background(), testCluster.Namespace, "shard-1")
 	assert.NoError(t, err)

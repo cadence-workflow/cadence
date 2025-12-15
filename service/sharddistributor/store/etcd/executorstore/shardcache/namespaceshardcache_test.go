@@ -39,12 +39,8 @@ func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
 
-	require.Eventually(t, func() bool {
-		mockTime.Advance(10 * time.Millisecond)
-		owner, _ := namespaceShardToExecutor.GetShardOwner(context.Background(), "shard-1")
-		return owner != nil && owner.ExecutorID == "executor-1"
-	}, 1*time.Second, 10*time.Millisecond, "cache was not populated with shard-1 in time")
-
+	mockTime.BlockUntil(1)
+	mockTime.Advance(1 * time.Second)
 	// Verify executor-1 owns shard-1 with correct metadata
 	verifyShardOwner(t, namespaceShardToExecutor, "shard-1", "executor-1", map[string]string{
 		"hostname": "executor-1-host",
@@ -64,12 +60,8 @@ func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
 		"region":   "us-west",
 	})
 
-	require.Eventually(t, func() bool {
-		mockTime.Advance(10 * time.Millisecond)
-		owner, _ := namespaceShardToExecutor.GetShardOwner(context.Background(), "shard-2")
-		return owner != nil && owner.ExecutorID == "executor-2"
-	}, 1*time.Second, 10*time.Millisecond, "cache was not populated with shard-2 in time")
-
+	mockTime.BlockUntil(1)
+	mockTime.Advance(1 * time.Second)
 	// Check that executor-2 and shard-2 is in the cache
 	namespaceShardToExecutor.RLock()
 	_, ok = namespaceShardToExecutor.executorRevision["executor-2"]
@@ -143,11 +135,10 @@ func TestNamespaceShardToExecutor_Subscribe(t *testing.T) {
 		"region":   "us-west",
 	})
 	// Let the watch event propagate
-	require.Eventually(t, func() bool {
-		mockTime.Advance(10 * time.Millisecond)
-		owner, _ := namespaceShardToExecutor.GetShardOwner(context.Background(), "shard-2")
-		return owner != nil && owner.ExecutorID == "executor-2"
-	}, 1*time.Second, 10*time.Millisecond, "cache was not populated with shard-2 in time")
+	mockTime.BlockUntil(1)
+	mockTime.Advance(1 * time.Second)
+	wg.Wait() // wait for listener to complete
+
 }
 
 // setupExecutorWithShards creates an executor in etcd with assigned shards and metadata
@@ -213,11 +204,8 @@ func TestNamespaceShardToExecutor_ExecutorStatistics(t *testing.T) {
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
 
 	// Wait for initial stats to be loaded
-	require.Eventually(t, func() bool {
-		mockTime.Advance(10 * time.Millisecond)
-		stats, _ := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
-		return len(stats) == 2
-	}, 1*time.Second, 10*time.Millisecond, "initial stats not loaded")
+	mockTime.BlockUntil(1)
+	mockTime.Advance(1 * time.Second)
 
 	statsFromCache, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
 	require.NoError(t, err)
@@ -230,11 +218,8 @@ func TestNamespaceShardToExecutor_ExecutorStatistics(t *testing.T) {
 	putExecutorStatisticsInEtcd(t, testCluster, executorID, updatedStats)
 
 	// Wait for stats to be updated via watch event
-	require.Eventually(t, func() bool {
-		mockTime.Advance(10 * time.Millisecond)
-		stats, _ := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
-		return stats[shardID1].SmoothedLoad == 15.0
-	}, 1*time.Second, 10*time.Millisecond, "stats not updated")
+	mockTime.BlockUntil(1)
+	mockTime.Advance(1 * time.Second)
 
 	statsFromCacheAfterUpdate, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
 	require.NoError(t, err)
@@ -249,11 +234,8 @@ func TestNamespaceShardToExecutor_ExecutorStatistics(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for stats to be deleted via watch event
-	require.Eventually(t, func() bool {
-		mockTime.Advance(10 * time.Millisecond)
-		stats, _ := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
-		return len(stats) == 0
-	}, 1*time.Second, 10*time.Millisecond, "stats not deleted")
+	mockTime.BlockUntil(1)
+	mockTime.Advance(1 * time.Second)
 
 	deletedStats, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
 	require.NoError(t, err)
