@@ -59,7 +59,7 @@ func generateFakeError(
 	errorRate float64,
 	starttime time.Time,
 ) error {
-	// don't inject errors after 30 seconds to avoid overwhelming the system
+	// don't inject errors before 30 seconds of startup to avoid overwhelming the system
 	// on startup
 	if time.Since(starttime) < 30*time.Second {
 		return nil

@@ -306,3 +306,62 @@ func builderForPassThrough(t *testing.T, injector any, errorRate float64, logger
 	}
 	return
 }
+
+func TestGenerateFakeErrorWarmupPeriod(t *testing.T) {
+	tests := []struct {
+		name           string
+		starttime      time.Time
+		errorRate      float64
+		expectNoErrors bool
+	}{
+		{
+			name:           "no errors within 30 second warmup period",
+			starttime:      time.Now(), // just started
+			errorRate:      1.0,        // 100% error rate
+			expectNoErrors: true,       // but no errors during warmup
+		},
+		{
+			name:           "no errors at 29 seconds",
+			starttime:      time.Now().Add(-29 * time.Second),
+			errorRate:      1.0,
+			expectNoErrors: true,
+		},
+		{
+			name:           "errors generated after 30 seconds",
+			starttime:      time.Now().Add(-31 * time.Second),
+			errorRate:      1.0,
+			expectNoErrors: false,
+		},
+		{
+			name:           "no errors when error rate is 0 even after warmup",
+			starttime:      time.Now().Add(-time.Minute),
+			errorRate:      0.0,
+			expectNoErrors: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Call multiple times to account for randomness
+			const iterations = 100
+			var errorCount int
+			for i := 0; i < iterations; i++ {
+				err := generateFakeError(tc.errorRate, tc.starttime)
+				if err != nil {
+					errorCount++
+				}
+			}
+
+			if tc.expectNoErrors {
+				assert.Equal(t, 0, errorCount,
+					"expected no errors during warmup period, but got %d errors in %d iterations",
+					errorCount, iterations)
+			} else {
+				// With 100% error rate and past warmup, we expect errors
+				assert.Greater(t, errorCount, 0,
+					"expected errors after warmup period with 100%% error rate, but got none in %d iterations",
+					iterations)
+			}
+		})
+	}
+}
