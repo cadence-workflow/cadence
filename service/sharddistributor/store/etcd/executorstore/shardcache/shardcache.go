@@ -24,7 +24,6 @@ type ShardToExecutorCache struct {
 	logger            log.Logger
 	prefix            string
 	wg                sync.WaitGroup
-	timeSource        clock.TimeSource
 }
 
 func NewShardToExecutorCache(
@@ -41,7 +40,6 @@ func NewShardToExecutorCache(
 		prefix:            prefix,
 		client:            client,
 		wg:                sync.WaitGroup{},
-		timeSource:        timeSource,
 	}
 
 	return shardCache
