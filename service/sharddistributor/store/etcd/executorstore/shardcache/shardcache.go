@@ -18,6 +18,7 @@ type NamespaceToShards map[string]*namespaceShardToExecutor
 type ShardToExecutorCache struct {
 	sync.RWMutex
 	namespaceToShards NamespaceToShards
+	timeSource        clock.TimeSource
 	client            etcdclient.Client
 	stopC             chan struct{}
 	logger            log.Logger
@@ -34,6 +35,7 @@ func NewShardToExecutorCache(
 ) *ShardToExecutorCache {
 	shardCache := &ShardToExecutorCache{
 		namespaceToShards: make(NamespaceToShards),
+		timeSource:        timeSource,
 		stopC:             make(chan struct{}),
 		logger:            logger,
 		prefix:            prefix,
