@@ -2979,8 +2979,8 @@ const (
 	ShardDistributorLoadBalanceGlobalCooldownSkips
 	// ShardDistributorLoadBalanceMovesPerCycle reports number of shards moved in a single load-balance pass.
 	ShardDistributorLoadBalanceMovesPerCycle
-	// ShardDistributorRecentShardMoves reports how many shards were moved recently (within the per-shard cooldown window).
-	ShardDistributorRecentShardMoves
+	// ShardDistributorShardMovesLastMinute reports how many shards were moved in the last minute.
+	ShardDistributorShardMovesLastMinute
 
 	// ShardDistributorShardAssignmentDistributionLatency measures the time taken between assignment of a shard
 	// and the time it is fully distributed to executors
@@ -3779,7 +3779,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		ShardDistributorLoadBalanceGlobalCooldownSkips: {metricName: "shard_distributor_load_balance_global_cooldown_skips", metricType: Counter},
 		ShardDistributorLoadBalanceMovesPerCycle:       {metricName: "shard_distributor_load_balance_moves_per_cycle", metricType: Gauge},
-		ShardDistributorRecentShardMoves:               {metricName: "shard_distributor_recent_shard_moves", metricType: Gauge},
+		ShardDistributorShardMovesLastMinute:           {metricName: "shard_distributor_shard_moves_last_minute", metricType: Gauge},
 
 		ShardDistributorShardAssignmentDistributionLatency: {metricName: "shard_distributor_shard_assignment_distribution_latency", metricType: Histogram, buckets: Default1ms100s.buckets()},
 		ShardDistributorShardHandoverLatency:               {metricName: "shard_distributor_shard_handover_latency", metricType: Histogram, buckets: Default1ms100s.buckets()},
