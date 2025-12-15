@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/testhelper"
 )
@@ -15,7 +16,7 @@ func TestNewShardToExecutorCache(t *testing.T) {
 	logger := testlogger.New(t)
 
 	client := &clientv3.Client{}
-	cache := NewShardToExecutorCache("some-prefix", client, logger)
+	cache := NewShardToExecutorCache("some-prefix", client, logger, clock.NewRealTimeSource())
 
 	assert.NotNil(t, cache)
 
@@ -37,7 +38,7 @@ func TestShardExecutorCacheForwarding(t *testing.T) {
 		"rack":       "rack-42",
 	})
 
-	cache := NewShardToExecutorCache(testCluster.EtcdPrefix, testCluster.Client, logger)
+	cache := NewShardToExecutorCache(testCluster.EtcdPrefix, testCluster.Client, logger, clock.NewRealTimeSource())
 	cache.Start()
 	defer cache.Stop()
 

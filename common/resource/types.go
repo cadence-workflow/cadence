@@ -23,6 +23,7 @@
 package resource
 
 import (
+	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/yarpc"
 
@@ -128,4 +129,7 @@ type Resource interface {
 	GetIsolationGroupStore() configstore.Client
 
 	GetAsyncWorkflowQueueProvider() queue.Provider
+
+	// GetMetricsScope returns the tally scope for metrics reporting
+	GetMetricsScope() tally.Scope
 }

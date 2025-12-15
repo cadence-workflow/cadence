@@ -25,10 +25,11 @@ func NewTaskManager(
 	wrapped persistence.TaskManager,
 	errorRate float64,
 	logger log.Logger,
+	starttime time.Time,
 ) persistence.TaskManager {
 	return &injectorTaskManager{
 		wrapped:   wrapped,
-		starttime: time.Now(),
+		starttime: starttime,
 		errorRate: errorRate,
 		logger:    logger,
 	}

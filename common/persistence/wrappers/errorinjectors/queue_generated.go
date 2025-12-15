@@ -25,10 +25,11 @@ func NewQueueManager(
 	wrapped persistence.QueueManager,
 	errorRate float64,
 	logger log.Logger,
+	starttime time.Time,
 ) persistence.QueueManager {
 	return &injectorQueueManager{
 		wrapped:   wrapped,
-		starttime: time.Now(),
+		starttime: starttime,
 		errorRate: errorRate,
 		logger:    logger,
 	}

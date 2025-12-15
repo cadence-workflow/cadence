@@ -301,6 +301,11 @@ func (s *Test) GetMetricsClient() metrics.Client {
 	return s.MetricsClient
 }
 
+// GetMetricsScope for testing
+func (s *Test) GetMetricsScope() tally.Scope {
+	return s.MetricsScope
+}
+
 // GetMessagingClient for testing
 func (s *Test) GetMessagingClient() messaging.Client {
 	panic("user should implement this method for test")

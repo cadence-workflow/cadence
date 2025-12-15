@@ -25,10 +25,11 @@ func NewShardManager(
 	wrapped persistence.ShardManager,
 	errorRate float64,
 	logger log.Logger,
+	starttime time.Time,
 ) persistence.ShardManager {
 	return &injectorShardManager{
 		wrapped:   wrapped,
-		starttime: time.Now(),
+		starttime: starttime,
 		errorRate: errorRate,
 		logger:    logger,
 	}

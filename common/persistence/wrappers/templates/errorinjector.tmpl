@@ -23,10 +23,11 @@ func New{{.Interface.Name}}(
     wrapped   persistence.{{.Interface.Name}},
 	errorRate float64,
 	logger    log.Logger,
+    starttime time.Time,
 ) persistence.{{.Interface.Name}} {
     return &{{$decorator}}{
         wrapped:   wrapped,
-        starttime: time.Now(),
+        starttime: starttime,
         errorRate: errorRate,
         logger:    logger,
     }

@@ -183,6 +183,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		config,
 		s.logger,
 		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
+		tally.NoopScope,
 		s.mockDomainCache,
 		s.mockMembershipResolver,
 		s.isolationState,

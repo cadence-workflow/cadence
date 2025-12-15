@@ -131,6 +131,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				config,
 				logger,
 				metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
+				tally.NoopScope,
 				mockDomainCache,
 				resolverMock,
 				isolationgroup.NewMockState(ctrl),
