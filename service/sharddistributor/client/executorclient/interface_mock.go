@@ -204,6 +204,20 @@ func (mr *MockExecutorMockRecorder[SP]) AssignShardsFromLocalLogic(ctx, shardAss
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardsFromLocalLogic", reflect.TypeOf((*MockExecutor[SP])(nil).AssignShardsFromLocalLogic), ctx, shardAssignment)
 }
 
+// GetAssignedShardsCount mocks base method.
+func (m *MockExecutor[SP]) GetAssignedShardsCount() int64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAssignedShardsCount")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// GetAssignedShardsCount indicates an expected call of GetAssignedShardsCount.
+func (mr *MockExecutorMockRecorder[SP]) GetAssignedShardsCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAssignedShardsCount", reflect.TypeOf((*MockExecutor[SP])(nil).GetAssignedShardsCount))
+}
+
 // GetMetadata mocks base method.
 func (m *MockExecutor[SP]) GetMetadata() map[string]string {
 	m.ctrl.T.Helper()

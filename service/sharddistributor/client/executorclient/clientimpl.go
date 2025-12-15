@@ -95,6 +95,7 @@ type executorImpl[SP ShardProcessor] struct {
 	stopC                  chan struct{}
 	heartBeatInterval      time.Duration
 	managedProcessors      syncgeneric.Map[string, *managedProcessor[SP]]
+	managedProcessorsCount atomic.Int64
 	executorID             string
 	timeSource             clock.TimeSource
 	processLoopWG          sync.WaitGroup
@@ -418,6 +419,7 @@ func (e *executorImpl[SP]) addManagerProcessor(ctx context.Context, shardID stri
 		}
 		managedProcessor := newManagedProcessor(processor, processorStateStarting)
 		e.managedProcessors.Store(shardID, managedProcessor)
+		e.managedProcessorsCount.Add(1)
 
 		processor.Start(ctx)
 
@@ -435,6 +437,7 @@ func (e *executorImpl[SP]) stopManagerProcessor(shardID string) {
 	managedProcessor.setState(processorStateStopping)
 	managedProcessor.processor.Stop()
 	e.managedProcessors.Delete(shardID)
+	e.managedProcessorsCount.Add(-1)
 }
 
 // compareAssignments compares the local assignments with the heartbeat response assignments
@@ -493,4 +496,8 @@ func (e *executorImpl[SP]) SetMetadata(metadata map[string]string) {
 
 func (e *executorImpl[SP]) GetMetadata() map[string]string {
 	return e.metadata.Get()
+}
+
+func (e *executorImpl[SP]) GetAssignedShardsCount() int64 {
+	return e.managedProcessorsCount.Load()
 }
