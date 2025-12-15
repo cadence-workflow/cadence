@@ -25,10 +25,11 @@ func NewDomainManager(
 	wrapped persistence.DomainManager,
 	errorRate float64,
 	logger log.Logger,
+	starttime time.Time,
 ) persistence.DomainManager {
 	return &injectorDomainManager{
 		wrapped:   wrapped,
-		starttime: time.Now(),
+		starttime: starttime,
 		errorRate: errorRate,
 		logger:    logger,
 	}

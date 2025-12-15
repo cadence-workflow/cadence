@@ -26,10 +26,11 @@ func NewExecutionManager(
 	wrapped persistence.ExecutionManager,
 	errorRate float64,
 	logger log.Logger,
+	starttime time.Time,
 ) persistence.ExecutionManager {
 	return &injectorExecutionManager{
 		wrapped:   wrapped,
-		starttime: time.Now(),
+		starttime: starttime,
 		errorRate: errorRate,
 		logger:    logger,
 	}

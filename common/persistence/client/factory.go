@@ -24,6 +24,7 @@ package client
 
 import (
 	"sync"
+	"time"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/codec"
@@ -276,7 +277,7 @@ func (f *factoryImpl) NewExecutionManager(shardID int) (p.ExecutionManager, erro
 	}
 	result := p.NewExecutionManagerImpl(store, f.logger, p.NewPayloadSerializer(), f.dc)
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
-		result = errorinjectors.NewExecutionManager(result, errorRate, f.logger)
+		result = errorinjectors.NewExecutionManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
 		result = ratelimited.NewExecutionManager(result, ds.ratelimit)

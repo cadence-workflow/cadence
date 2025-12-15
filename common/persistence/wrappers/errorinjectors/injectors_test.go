@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -171,17 +172,23 @@ func TestInjectorsWithUnderlyingErrors(t *testing.T) {
 
 func builderForPassThrough(t *testing.T, injector any, errorRate float64, logger log.Logger, expectCalls bool, expectedErr error) (object any) {
 	ctrl := gomock.NewController(t)
+	// For error injection tests (errorRate > 0), use a starttime far enough in the past
+	// to bypass the 30-second warmup period in generateFakeError
+	starttime := time.Now()
+	if errorRate > 0 {
+		starttime = time.Now().Add(-time.Minute) // 60 seconds ago, past the 30s warmup
+	}
 	switch injector.(type) {
 	case *injectorConfigStoreManager:
 		mocked := persistence.NewMockConfigStoreManager(ctrl)
-		object = NewConfigStoreManager(mocked, errorRate, logger)
+		object = NewConfigStoreManager(mocked, errorRate, logger, starttime)
 		if expectCalls {
 			mocked.EXPECT().UpdateDynamicConfig(gomock.Any(), gomock.Any(), gomock.Any()).Return(expectedErr)
 			mocked.EXPECT().FetchDynamicConfig(gomock.Any(), gomock.Any()).Return(&persistence.FetchDynamicConfigResponse{}, expectedErr)
 		}
 	case *injectorDomainManager:
 		mocked := persistence.NewMockDomainManager(ctrl)
-		object = NewDomainManager(mocked, errorRate, logger)
+		object = NewDomainManager(mocked, errorRate, logger, starttime)
 		if expectCalls {
 			mocked.EXPECT().CreateDomain(gomock.Any(), gomock.Any()).Return(&persistence.CreateDomainResponse{}, expectedErr)
 			mocked.EXPECT().GetDomain(gomock.Any(), gomock.Any()).Return(&persistence.GetDomainResponse{}, expectedErr)
@@ -193,7 +200,7 @@ func builderForPassThrough(t *testing.T, injector any, errorRate float64, logger
 		}
 	case *injectorHistoryManager:
 		mocked := persistence.NewMockHistoryManager(ctrl)
-		object = NewHistoryManager(mocked, errorRate, logger)
+		object = NewHistoryManager(mocked, errorRate, logger, starttime)
 		if expectCalls {
 			mocked.EXPECT().AppendHistoryNodes(gomock.Any(), gomock.Any()).Return(&persistence.AppendHistoryNodesResponse{}, expectedErr)
 			mocked.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).Return(&persistence.ReadHistoryBranchResponse{}, expectedErr)
@@ -206,7 +213,7 @@ func builderForPassThrough(t *testing.T, injector any, errorRate float64, logger
 		}
 	case *injectorQueueManager:
 		mocked := persistence.NewMockQueueManager(ctrl)
-		object = NewQueueManager(mocked, errorRate, logger)
+		object = NewQueueManager(mocked, errorRate, logger, starttime)
 		if expectCalls {
 			mocked.EXPECT().EnqueueMessage(gomock.Any(), gomock.Any()).Return(expectedErr)
 			mocked.EXPECT().ReadMessages(gomock.Any(), gomock.Any(), gomock.Any()).Return([]*persistence.QueueMessage{}, expectedErr)
@@ -223,7 +230,7 @@ func builderForPassThrough(t *testing.T, injector any, errorRate float64, logger
 		}
 	case *injectorShardManager:
 		mocked := persistence.NewMockShardManager(ctrl)
-		object = NewShardManager(mocked, errorRate, logger)
+		object = NewShardManager(mocked, errorRate, logger, starttime)
 		if expectCalls {
 			mocked.EXPECT().GetShard(gomock.Any(), gomock.Any()).Return(&persistence.GetShardResponse{}, expectedErr)
 			mocked.EXPECT().UpdateShard(gomock.Any(), gomock.Any()).Return(expectedErr)
@@ -231,7 +238,7 @@ func builderForPassThrough(t *testing.T, injector any, errorRate float64, logger
 		}
 	case *injectorTaskManager:
 		mocked := persistence.NewMockTaskManager(ctrl)
-		object = NewTaskManager(mocked, errorRate, logger)
+		object = NewTaskManager(mocked, errorRate, logger, starttime)
 		if expectCalls {
 			mocked.EXPECT().CompleteTasksLessThan(gomock.Any(), gomock.Any()).Return(&persistence.CompleteTasksLessThanResponse{}, expectedErr)
 			mocked.EXPECT().CompleteTask(gomock.Any(), gomock.Any()).Return(expectedErr)
@@ -247,7 +254,7 @@ func builderForPassThrough(t *testing.T, injector any, errorRate float64, logger
 		}
 	case *injectorVisibilityManager:
 		mocked := persistence.NewMockVisibilityManager(ctrl)
-		object = NewVisibilityManager(mocked, errorRate, logger)
+		object = NewVisibilityManager(mocked, errorRate, logger, starttime)
 		if expectCalls {
 			mocked.EXPECT().DeleteUninitializedWorkflowExecution(gomock.Any(), gomock.Any()).Return(expectedErr)
 			mocked.EXPECT().DeleteWorkflowExecution(gomock.Any(), gomock.Any()).Return(expectedErr)
@@ -269,7 +276,7 @@ func builderForPassThrough(t *testing.T, injector any, errorRate float64, logger
 		}
 	case *injectorExecutionManager:
 		mocked := persistence.NewMockExecutionManager(ctrl)
-		object = NewExecutionManager(mocked, errorRate, logger)
+		object = NewExecutionManager(mocked, errorRate, logger, starttime)
 		if expectCalls {
 			mocked.EXPECT().CreateWorkflowExecution(gomock.Any(), gomock.Any()).Return(&persistence.CreateWorkflowExecutionResponse{}, expectedErr)
 			mocked.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(&persistence.GetWorkflowExecutionResponse{}, expectedErr)
