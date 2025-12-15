@@ -2851,6 +2851,43 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			},
 			err: errors.New("handle-transmission-task-error"),
 		},
+		{
+			name: "Error case - update deprecated domain should return errDomainDeprecated",
+			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.UpdateDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, timeSource clock.MockedTimeSource, _ *MockReplicator) {
+				domainResponse := &persistence.GetDomainResponse{
+					ReplicationConfig: &persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestCurrentClusterName,
+						Clusters: []*persistence.ClusterReplicationConfig{
+							{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
+					},
+					Config: &persistence.DomainConfig{
+						Retention:                1,
+						EmitMetric:               true,
+						HistoryArchivalStatus:    types.ArchivalStatusDisabled,
+						VisibilityArchivalStatus: types.ArchivalStatusDisabled,
+						BadBinaries:              types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
+						IsolationGroups:          types.IsolationGroupConfiguration{},
+						AsyncWorkflowConfig:      types.AsyncWorkflowConfiguration{Enabled: true},
+					},
+					Info: &persistence.DomainInfo{
+						Name:   constants.TestDomainName,
+						ID:     constants.TestDomainID,
+						Status: persistence.DomainStatusDeprecated,
+					},
+					IsGlobalDomain:  true,
+					LastUpdatedTime: timeSource.Now().UnixNano(),
+					FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion,
+				}
+				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
+				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
+					Return(domainResponse, nil).Times(1)
+			},
+			request: &types.UpdateDomainRequest{
+				Name:              constants.TestDomainName,
+				ActiveClusterName: common.Ptr(cluster.TestAlternativeClusterName),
+			},
+			err: errDomainDeprecated,
+		},
 	}
 
 	for _, tc := range testCases {
