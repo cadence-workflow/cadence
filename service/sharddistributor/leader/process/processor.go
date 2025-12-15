@@ -413,6 +413,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	}
 
 	p.emitAssignmentLoadCV(metricsLoopScope, currentAssignments, namespaceState)
+	p.emitRecentShardMoves(metricsLoopScope, namespaceState)
 
 	distributionChanged := structuralChange || loadBalanceChange
 	if !distributionChanged {
@@ -715,6 +716,33 @@ func (p *namespaceProcessor) emitAssignmentLoadCV(
 	}
 	cv := computeExecutorLoadCV(assignments, namespaceState)
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentLoadCV, cv)
+}
+
+func (p *namespaceProcessor) emitRecentShardMoves(
+	metricsLoopScope metrics.Scope,
+	namespaceState *store.NamespaceState,
+) {
+	if metricsLoopScope == nil || namespaceState == nil {
+		return
+	}
+
+	cooldownWindow := p.cfg.LoadBalance.PerShardCooldown
+	if cooldownWindow <= 0 || len(namespaceState.ShardStats) == 0 {
+		metricsLoopScope.UpdateGauge(metrics.ShardDistributorRecentShardMoves, 0)
+		return
+	}
+
+	now := p.timeSource.Now().UTC()
+	recentMoves := 0
+	for _, stats := range namespaceState.ShardStats {
+		if stats.LastMoveTime.IsZero() {
+			continue
+		}
+		if now.Sub(stats.LastMoveTime) <= cooldownWindow {
+			recentMoves++
+		}
+	}
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorRecentShardMoves, float64(recentMoves))
 }
 
 func computeExecutorLoadCV(assignments map[string][]string, namespaceState *store.NamespaceState) float64 {
