@@ -11,12 +11,6 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-type executorLoadSnapshot struct {
-	loads          map[string]float64
-	totalLoad      float64
-	latestMoveTime time.Time
-}
-
 func (p *namespaceProcessor) loadBalance(
 	currentAssignments map[string][]string,
 	namespaceState *store.NamespaceState,
@@ -24,8 +18,8 @@ func (p *namespaceProcessor) loadBalance(
 	metricsScope metrics.Scope,
 ) (bool, error) {
 
-	snapshot := computeExecutorLoads(currentAssignments, namespaceState)
-	if len(snapshot.loads) == 0 {
+	loads, totalLoad := computeExecutorLoads(currentAssignments, namespaceState)
+	if len(loads) == 0 {
 		if metricsScope != nil {
 			metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceMovesPerCycle, 0)
 		}
@@ -34,7 +28,8 @@ func (p *namespaceProcessor) loadBalance(
 
 	now := p.timeSource.Now().UTC()
 	perShardCooldown := p.cfg.LoadBalance.PerShardCooldown
-	meanLoad := snapshot.totalLoad / float64(len(snapshot.loads))
+
+	meanLoad := totalLoad / float64(len(loads))
 
 	moveBudgetProportion := p.cfg.LoadBalance.MoveBudgetProportion
 	allShards := getShards(p.namespaceCfg, namespaceState, deletedShards)
@@ -46,7 +41,7 @@ func (p *namespaceProcessor) loadBalance(
 	// Stop early once sources/destinations are empty, i.e. imbalance is within hysteresis bands.
 	for moveBudget > 0 {
 		sourceExecutors, destinationExecutors := classifySourcesAndDestinations(
-			snapshot.loads,
+			loads,
 			namespaceState,
 			meanLoad,
 			p.cfg.LoadBalance.HysteresisUpperBand,
@@ -61,7 +56,7 @@ func (p *namespaceProcessor) loadBalance(
 		// allow moving to the least-loaded ACTIVE executor when imbalance is severe.
 		if len(destinationExecutors) == 0 {
 			relaxed, ok := destinationsForSevereImbalance(
-				snapshot.loads,
+				loads,
 				meanLoad,
 				p.cfg.LoadBalance.SevereImbalanceRatio,
 				currentAssignments,
@@ -73,9 +68,9 @@ func (p *namespaceProcessor) loadBalance(
 			destinationExecutors = relaxed
 		}
 
-		sources := sourcesSortedByDescendingLoad(sourceExecutors, snapshot.loads)
+		sources := sourcesSortedByDescendingLoad(sourceExecutors, loads)
 
-		destExecutor := p.findBestDestination(destinationExecutors, snapshot.loads)
+		destExecutor := p.findBestDestination(destinationExecutors, loads)
 		if destExecutor == "" {
 			break
 		}
@@ -93,7 +88,7 @@ func (p *namespaceProcessor) loadBalance(
 				namespaceState,
 				sourceExecutor,
 				destExecutor,
-				snapshot.loads,
+				loads,
 				now,
 				perShardCooldown,
 			)
@@ -111,7 +106,7 @@ func (p *namespaceProcessor) loadBalance(
 			}
 			shardsMoved = shardsMoved || moved
 
-			p.updateExecutorLoadsAfterMove(namespaceState, sourceExecutor, destExecutor, snapshot.loads, shardsToMove)
+			p.updateExecutorLoadsAfterMove(namespaceState, sourceExecutor, destExecutor, loads, shardsToMove)
 			moveBudget -= len(shardsToMove)
 			movedThisIteration = moved
 			break
@@ -174,7 +169,7 @@ func shardMoveBenefitSquaredError(sourceLoad, destLoad, shardLoad float64) float
 	return 2*w*(sourceLoad-destLoad) - 2*w*w
 }
 
-func computeExecutorLoads(currentAssignments map[string][]string, namespaceState *store.NamespaceState) executorLoadSnapshot {
+func computeExecutorLoads(currentAssignments map[string][]string, namespaceState *store.NamespaceState) (map[string]float64, float64) {
 	loads := make(map[string]float64, len(currentAssignments))
 	total := 0.0
 	latestMove := time.Time{}
@@ -194,7 +189,7 @@ func computeExecutorLoads(currentAssignments map[string][]string, namespaceState
 		}
 	}
 
-	return executorLoadSnapshot{loads: loads, totalLoad: total, latestMoveTime: latestMove}
+	return loads, total
 }
 
 // classifySourcesAndDestinations returns the source and destination executor sets for rebalancing.
