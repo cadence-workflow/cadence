@@ -1,6 +1,7 @@
 import (
 	"context"
 
+    "time"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -12,6 +13,7 @@ import (
 // {{$decorator}} implements {{.Interface.Type}} interface instrumented with error injection.
 type {{$decorator}} struct {
     wrapped   {{.Interface.Type}}
+	starttime time.Time
 	errorRate float64
 	logger    log.Logger
 }
@@ -24,6 +26,7 @@ func New{{.Interface.Name}}(
 ) persistence.{{.Interface.Name}} {
     return &{{$decorator}}{
         wrapped:   wrapped,
+        starttime: time.Now(),
         errorRate: errorRate,
         logger:    logger,
     }
@@ -32,7 +35,7 @@ func New{{.Interface.Name}}(
 {{range $methodName, $method := .Interface.Methods}}
     {{- if (and $method.AcceptsContext $method.ReturnsError)}}
         func (c *{{$decorator}}) {{$method.Declaration}} {
-	        fakeErr := generateFakeError(c.errorRate)
+	        fakeErr := generateFakeError(c.errorRate, c.starttime)
 	        var forwardCall bool
 	        if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 	            {{$method.ResultsNames}} = c.wrapped.{{$method.Call}}
