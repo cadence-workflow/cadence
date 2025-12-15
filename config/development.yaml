@@ -158,6 +158,11 @@ shardDistribution:
       type: fixed
       mode: onboarded
       shardNum: 32
+    - name: shard-distributor-replay
+      type: fixed
+      mode: onboarded
+      # Must match the CSV column count when using canary replay mode.
+      shardNum: 100
     - name: shard-distributor-canary-ephemeral
       mode: onboarded
       type: ephemeral

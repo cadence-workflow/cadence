@@ -1,6 +1,6 @@
 datasources:
   - name: Prometheus
     type: prometheus
-    url: http://host.docker.internal:9090
+    url: http://prometheus:9090
     version: 1
     editable: true

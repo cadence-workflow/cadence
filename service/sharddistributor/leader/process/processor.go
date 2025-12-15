@@ -52,10 +52,10 @@ const (
 	// Default cooldown between moving the same shard / applying consecutive moves.
 	_defaultPerShardCooldown = time.Minute
 	// Default fraction of total shards that may be moved per load-balance pass.
-	_defaultMoveBudgetProportion = 0.01
+	_defaultMoveBudgetProportion = 0.02
 	// Default hysteresis bands around mean load.
-	_defaultHysteresisUpperBand = 1.15
-	_defaultHysteresisLowerBand = 0.95
+	_defaultHysteresisUpperBand = 1.1
+	_defaultHysteresisLowerBand = 0.9
 	// Default threshold for triggering severe-imbalance escape hatch.
 	_defaultSevereImbalanceRatio = 1.5
 )
