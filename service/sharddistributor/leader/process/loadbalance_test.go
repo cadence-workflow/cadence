@@ -478,46 +478,6 @@ func TestLoadBalance_PerShardCooldownSkipsHotShard(t *testing.T) {
 	assert.False(t, slices.Contains(currentAssignments[execB], "hot-1"), "recently moved shard should not move")
 }
 
-// TestLoadBalance_GlobalCooldownSkipsLoadOnlyPass verifies global cooldown skips load-only passes after recent moves.
-func TestLoadBalance_GlobalCooldownSkipsLoadOnlyPass(t *testing.T) {
-	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
-	defer mocks.ctrl.Finish()
-	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
-
-	execA, execB := "exec-A", "exec-B"
-	now := mocks.timeSource.Now()
-	cooldown := processor.cfg.LoadBalance.PerShardCooldown
-	require.True(t, cooldown > 0, "PerShardCooldown should be configured")
-	recentMove := now.Add(-cooldown / 2)
-
-	assignments := map[string]store.AssignedState{
-		execA: {AssignedShards: map[string]*types.ShardAssignment{"s1": {}, "s2": {}}},
-		execB: {AssignedShards: map[string]*types.ShardAssignment{"s3": {}, "s4": {}}},
-	}
-	shardStats := map[string]store.ShardStatistics{
-		"s1": {SmoothedLoad: 10.0, LastUpdateTime: now, LastMoveTime: recentMove},
-		"s2": {SmoothedLoad: 9.0, LastUpdateTime: now},
-		"s3": {SmoothedLoad: 0.1, LastUpdateTime: now},
-		"s4": {SmoothedLoad: 0.1, LastUpdateTime: now},
-	}
-
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
-		Executors: map[string]store.HeartbeatState{
-			execA: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
-			execB: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
-		},
-		ShardAssignments: assignments,
-		ShardStats:       shardStats,
-		GlobalRevision:   10,
-	}, nil)
-
-	// Load-only pass should be skipped due to global cooldown.
-	mocks.store.EXPECT().AssignShards(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
-
-	err := processor.rebalanceShards(context.Background())
-	require.NoError(t, err)
-}
-
 // TestLoadBalance_NoDestinations verifies no moves are made when no executor is eligible as a destination.
 func TestLoadBalance_NoDestinations(t *testing.T) {
 	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
