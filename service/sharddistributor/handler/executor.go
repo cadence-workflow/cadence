@@ -26,7 +26,7 @@ type executor struct {
 	timeSource           clock.TimeSource
 	storage              store.Store
 	shardDistributionCfg config.ShardDistribution
-	dynamicConfig        *config.DynamicConfig
+	cfg                  *config.Config
 	metricsClient        metrics.Client
 }
 
@@ -35,7 +35,7 @@ func NewExecutorHandler(
 	storage store.Store,
 	timeSource clock.TimeSource,
 	shardDistributionCfg config.ShardDistribution,
-	dynamicConfig *config.DynamicConfig,
+	cfg *config.Config,
 	metricsClient metrics.Client,
 ) Executor {
 	return &executor{
@@ -43,7 +43,7 @@ func NewExecutorHandler(
 		timeSource:           timeSource,
 		storage:              storage,
 		shardDistributionCfg: shardDistributionCfg,
-		dynamicConfig:        dynamicConfig,
+		cfg:                  cfg,
 		metricsClient:        metricsClient,
 	}
 }
@@ -56,7 +56,7 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 	}
 
 	heartbeatTime := h.timeSource.Now().UTC()
-	mode := h.dynamicConfig.GetMigrationMode(request.Namespace)
+	mode := h.cfg.GetMigrationMode(request.Namespace)
 	shardAssignedInBackground := true
 
 	switch mode {

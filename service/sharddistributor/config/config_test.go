@@ -15,7 +15,7 @@ import (
 func TestNewDynamicConfigCreatesInstanceWithProperties(t *testing.T) {
 	dc := dynamicconfig.NewNopCollection()
 
-	config := NewDynamicConfig(dc)
+	config := NewConfig(dc)
 
 	assert.NotNil(t, config)
 	assert.NotNil(t, config.LoadBalancingMode)
@@ -51,7 +51,7 @@ func TestGetMigrationMode(t *testing.T) {
 		{
 			name:         "Empty",
 			configValue:  "",
-			expectedMode: types.MigrationModeONBOARDED,
+			expectedMode: types.MigrationModeINVALID,
 		},
 		{
 			name:         "Invalid",
@@ -66,7 +66,7 @@ func TestGetMigrationMode(t *testing.T) {
 			err := client.UpdateValue(dynamicproperties.ShardDistributorMigrationMode, tt.configValue)
 			require.NoError(t, err)
 			dc := dynamicconfig.NewCollection(client, testlogger.New(t))
-			config := NewDynamicConfig(dc)
+			config := NewConfig(dc)
 
 			mode := config.GetMigrationMode("test-namespace")
 			assert.Equal(t, tt.expectedMode, mode)
@@ -108,7 +108,7 @@ func TestGetLoadBalancingMode(t *testing.T) {
 			err := client.UpdateValue(dynamicproperties.ShardDistributorLoadBalancingMode, tt.configValue)
 			require.NoError(t, err)
 			dc := dynamicconfig.NewCollection(client, testlogger.New(t))
-			config := NewDynamicConfig(dc)
+			config := NewConfig(dc)
 
 			mode := config.GetLoadBalancingMode("test-namespace")
 			assert.Equal(t, tt.expectedMode, mode)

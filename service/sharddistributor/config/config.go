@@ -26,10 +26,18 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
 type (
+	// Config represents configuration for shard manager service
+	Config struct {
+		LoadBalancingMode dynamicproperties.StringPropertyFnWithNamespaceFilters
+		MigrationMode     dynamicproperties.StringPropertyFnWithNamespaceFilters
+	}
+
 	StaticConfig struct {
 		// ShardDistribution is the configuration for leader election mechanism that is used by Shard distributor to handle shard distribution per namespace.
 		ShardDistribution ShardDistribution `yaml:"shardDistribution"`
@@ -78,6 +86,57 @@ type (
 		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
 	}
 )
+
+const (
+	NamespaceTypeFixed     = "fixed"
+	NamespaceTypeEphemeral = "ephemeral"
+)
+
+const (
+	MigrationModeINVALID                = "invalid"
+	MigrationModeLOCALPASSTHROUGH       = "local_pass"
+	MigrationModeLOCALPASSTHROUGHSHADOW = "local_pass_shadow"
+	MigrationModeDISTRIBUTEDPASSTHROUGH = "distributed_pass"
+	MigrationModeONBOARDED              = "onboarded"
+)
+
+// MigrationMode maps string migration mode values to types.MigrationMode
+var MigrationMode = map[string]types.MigrationMode{
+	MigrationModeINVALID:                types.MigrationModeINVALID,
+	MigrationModeLOCALPASSTHROUGH:       types.MigrationModeLOCALPASSTHROUGH,
+	MigrationModeLOCALPASSTHROUGHSHADOW: types.MigrationModeLOCALPASSTHROUGHSHADOW,
+	MigrationModeDISTRIBUTEDPASSTHROUGH: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
+	MigrationModeONBOARDED:              types.MigrationModeONBOARDED,
+}
+
+// NewConfig returns a new instance of Config
+func NewConfig(dc *dynamicconfig.Collection) *Config {
+	return &Config{
+		LoadBalancingMode: dc.GetStringPropertyFilteredByNamespace(dynamicproperties.ShardDistributorLoadBalancingMode),
+		MigrationMode:     dc.GetStringPropertyFilteredByNamespace(dynamicproperties.ShardDistributorMigrationMode),
+	}
+}
+
+// GetMigrationMode gets the migration mode for a given namespace
+// If the mode is not set, it defaults to MigrationModeINVALID
+func (c *Config) GetMigrationMode(namespace string) types.MigrationMode {
+	mode, ok := MigrationMode[c.MigrationMode(namespace)]
+	if !ok {
+		return MigrationMode[MigrationModeINVALID]
+	}
+	return mode
+}
+
+// GetLoadBalancingMode gets the load balancing mode for a given namespace
+// If the mode is invalid, it returns types.LoadBalancingModeINVALID
+func (c *Config) GetLoadBalancingMode(namespace string) types.LoadBalancingMode {
+	mode, err := types.LoadBalancingModeString(c.LoadBalancingMode(namespace))
+	if err != nil {
+		return types.LoadBalancingModeINVALID
+	}
+
+	return mode
+}
 
 func (s *ShardDistribution) GetMigrationMode(namespace string) types.MigrationMode {
 	for _, ns := range s.Namespaces {
