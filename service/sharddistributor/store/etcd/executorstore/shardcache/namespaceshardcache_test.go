@@ -201,9 +201,11 @@ func TestNamespaceShardToExecutor_ExecutorStatistics(t *testing.T) {
 	shardID1 := "shard-stats-1"
 	shardID2 := "shard-stats-2"
 
+	now := time.Now().UTC()
+
 	initialStats := map[string]etcdtypes.ShardStatistics{
-		shardID1: {SmoothedLoad: 10.0, LastUpdateTime: etcdtypes.Time(time.Now().Add(-time.Hour)), LastMoveTime: etcdtypes.Time(time.Now().Add(-2 * time.Hour))},
-		shardID2: {SmoothedLoad: 20.0, LastUpdateTime: etcdtypes.Time(time.Now().Add(-30 * time.Minute)), LastMoveTime: etcdtypes.Time(time.Now().Add(-90 * time.Minute))},
+		shardID1: {SmoothedLoad: 10.0, LastUpdateTime: etcdtypes.Time(now.Add(-time.Hour)), LastMoveTime: etcdtypes.Time(now.Add(-2 * time.Hour))},
+		shardID2: {SmoothedLoad: 20.0, LastUpdateTime: etcdtypes.Time(now.Add(-30 * time.Minute)), LastMoveTime: etcdtypes.Time(now.Add(-90 * time.Minute))},
 	}
 	putExecutorStatisticsInEtcd(t, testCluster, executorID, initialStats)
 
@@ -224,8 +226,8 @@ func TestNamespaceShardToExecutor_ExecutorStatistics(t *testing.T) {
 	assert.Equal(t, initialStats, statsFromCache)
 
 	updatedStats := map[string]etcdtypes.ShardStatistics{
-		shardID1: {SmoothedLoad: 15.0, LastUpdateTime: etcdtypes.Time(time.Now())},
-		shardID2: {SmoothedLoad: 25.0, LastUpdateTime: etcdtypes.Time(time.Now())},
+		shardID1: {SmoothedLoad: 15.0, LastUpdateTime: etcdtypes.Time(now)},
+		shardID2: {SmoothedLoad: 25.0, LastUpdateTime: etcdtypes.Time(now)},
 	}
 	putExecutorStatisticsInEtcd(t, testCluster, executorID, updatedStats)
 
