@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/history/events"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/workflow"
 )
@@ -99,6 +100,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		workflowID,
 	)
 	if err != nil {
+		// todo (david.porter): have another look at this, this doesn't seem correct
 		if err == context.DeadlineExceeded {
 			return nil, workflow.ErrConcurrentStartRequest
 		}
@@ -234,43 +236,12 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	// The history branch (tree and nodes) was created above (PersistStartWorkflowBatchEvents)
 	// but the workflow execution returned an error, and it was probably not created.
 	// This may leave orphaned history_tree and history_node records that are never referenced by any workflow.
-	// If the error is of type WorkflowExecutionAlreadyStartedError or DuplicateRequestError, the workflow was not and
-	// didn't need to be created.
 	// Remove history in these cases.
 	// All other cases, log them for future leak investigations.
 	if err != nil {
-		var workflowExecutionAlreadyStartedError *persistence.WorkflowExecutionAlreadyStartedError
-		isAlreadyStarted := errors.As(err, &workflowExecutionAlreadyStartedError)
-		_, isDuplicateRequest := persistence.AsDuplicateRequestError(err)
-
-		if isAlreadyStarted || isDuplicateRequest {
-			if e.shard.GetConfig().EnableCleanupOrphanedHistoryBranchOnWorkflowCreation() {
-				if cleanupErr := e.shard.GetHistoryManager().DeleteHistoryBranch(ctx, &persistence.DeleteHistoryBranchRequest{
-					BranchToken: historyBlob.BranchToken,
-					ShardID:     common.IntPtr(e.shard.GetShardID()),
-					DomainName:  domain,
-				}); cleanupErr != nil {
-					e.logger.Error("Failed to cleanup history branch after CreateWorkflowExecution failure",
-						tag.WorkflowDomainID(domainID),
-						tag.WorkflowID(workflowID),
-						tag.WorkflowRunID(workflowExecution.RunID),
-						tag.Error(cleanupErr))
-				}
-			} else {
-				e.logger.Warn("Orphaned history branch created due to WorkflowExecutionAlreadyStartedError or DuplicateRequestError",
-					tag.WorkflowDomainID(domainID),
-					tag.WorkflowID(workflowID),
-					tag.WorkflowRunID(workflowExecution.RunID),
-					tag.Error(err))
-			}
-		} else {
-			e.logger.Error("Possible orphaned history branch due to unexpected error from CreateWorkflowExecution",
-				tag.WorkflowDomainID(domainID),
-				tag.WorkflowID(workflowID),
-				tag.WorkflowRunID(workflowExecution.RunID),
-				tag.Error(err))
-		}
+		e.handleCreateWorkflowExecutionFailureCleanup(ctx, workflowExecution, domainID, historyBlob, domain, workflowID, isSignalWithStart, err)
 	}
+
 	if t, ok := persistence.AsDuplicateRequestError(err); ok {
 		if t.RequestType == persistence.WorkflowRequestTypeStart || (isSignalWithStart && t.RequestType == persistence.WorkflowRequestTypeSignal) {
 			return &types.StartWorkflowExecutionResponse{
@@ -369,6 +340,79 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	return &types.StartWorkflowExecutionResponse{
 		RunID: workflowExecution.RunID,
 	}, nil
+}
+
+func (e *historyEngineImpl) handleCreateWorkflowExecutionFailureCleanup(
+	ctx context.Context,
+	workflowExecution types.WorkflowExecution,
+	domainID string,
+	historyBlob events.PersistedBlob,
+	domain string,
+	workflowID string,
+	isSignalWithStart bool,
+	err error,
+) {
+	if !e.shard.GetConfig().EnableCleanupOrphanedHistoryBranchOnWorkflowCreation() {
+		return
+	}
+
+	if isSignalWithStart {
+		// expected behaviour for signalWithStart is that the request is duplicated
+		// and we get a duplicate request error
+		if _, ok := persistence.AsDuplicateRequestError(err); ok {
+			return
+		}
+		e.logger.Error("unexpected error from CreateWorkflowExecution with signalWithStart. There plausibly is an orphaned history branch that needs cleaning up",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(workflowID),
+			tag.WorkflowRunID(workflowExecution.RunID),
+			tag.Error(err))
+		// unclear exactly what the right course of action is here, but being conservative and returning
+		// is probably the safest option
+		return
+	}
+
+	var workflowExecutionAlreadyStartedError *persistence.WorkflowExecutionAlreadyStartedError
+	isAlreadyStarted := errors.As(err, &workflowExecutionAlreadyStartedError)
+	_, isDuplicateRequest := persistence.AsDuplicateRequestError(err)
+	isTransientError := persistence.IsTransientError(err)
+
+	// The key here is to delete the additational branch, since it has just been created earlier in this call
+	// and is not used. However, we must be careful, there may be other existing branches that we must not touch
+	if isAlreadyStarted || isDuplicateRequest || isTransientError {
+		e.logger.Debug("Deleting orphaned history branch during cleanup after identified failure during creation",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(workflowID),
+			tag.WorkflowRunID(workflowExecution.RunID),
+			tag.Dynamic("isAlreadyStarted", isAlreadyStarted),
+			tag.Dynamic("isDuplicateRequest", isDuplicateRequest),
+			tag.Dynamic("isTransientError", isTransientError),
+			tag.Error(err))
+		cleanupErr := e.shard.GetHistoryManager().DeleteHistoryBranch(ctx, &persistence.DeleteHistoryBranchRequest{
+			BranchToken: historyBlob.BranchToken,
+			ShardID:     common.IntPtr(e.shard.GetShardID()),
+			DomainName:  domain,
+		})
+		if cleanupErr != nil {
+			e.logger.Error("Failed to cleanup orphaned history branch",
+				tag.WorkflowDomainID(domainID),
+				tag.WorkflowID(workflowID),
+				tag.WorkflowRunID(workflowExecution.RunID),
+				tag.Error(cleanupErr))
+		}
+		if e.shard.GetConfig().EnableRecordWorkflowExecutionUninitialized(domain) && e.visibilityMgr != nil {
+			// delete the uninitialized workflow execution record since it failed to start the workflow
+			// uninitialized record is used to find wfs that didn't make a progress or stuck during the start process
+			if errVisibility := e.visibilityMgr.DeleteWorkflowExecution(ctx, &persistence.VisibilityDeleteWorkflowExecutionRequest{
+				DomainID:   domainID,
+				Domain:     domain,
+				RunID:      workflowExecution.RunID,
+				WorkflowID: workflowID,
+			}); errVisibility != nil {
+				e.logger.Error("Failed to delete uninitialized workflow execution record after failed CreateWorkflowExecution", tag.Error(errVisibility))
+			}
+		}
+	}
 }
 
 // TODO(active-active): Review this method for active-active domains

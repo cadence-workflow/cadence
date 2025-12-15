@@ -75,7 +75,6 @@ var (
 		errors.ErrFakeServiceBusy,
 		errors.ErrFakeInternalService,
 		ErrFakeTimeout,
-		errors.ErrFakeUnhandled,
 	}
 )
 
