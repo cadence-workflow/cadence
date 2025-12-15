@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -610,6 +611,8 @@ VisibilityArchivalURI: {{.}}{{end}}
 {{with .BadBinaries}}Bad binaries to reset:
 {{table .}}{{end}}
 {{with .FailoverInfo}}Graceful failover info:
+{{table .}}{{end}}
+{{with .ActiveClustersByClusterAttribute}}Active clusters by cluster attribute:
 {{table .}}{{end}}`
 
 // DescribeDomain updates a domain
@@ -675,9 +678,10 @@ type FailoverInfoRow struct {
 }
 
 type ActiveClusterInfoRow struct {
-	Region          string `header:"Region"`
-	ClusterName     string `header:"Cluster Name"`
-	FailoverVersion int64  `header:"Failover Version"`
+	Scope             string `header:"Scope"`
+	Value             string `header:"Value"`
+	ActiveClusterName string `header:"Active Cluster Name"`
+	FailoverVersion   int64  `header:"Failover Version"`
 }
 
 type FailoverHistoryRow struct {
@@ -735,24 +739,25 @@ type MismatchedDynamicConfig struct {
 
 func newDomainRow(domain *types.DescribeDomainResponse) DomainRow {
 	return DomainRow{
-		Name:                     domain.DomainInfo.Name,
-		UUID:                     domain.DomainInfo.UUID,
-		Description:              domain.DomainInfo.Description,
-		OwnerEmail:               domain.DomainInfo.OwnerEmail,
-		DomainData:               domain.DomainInfo.GetData(),
-		Status:                   domain.DomainInfo.GetStatus(),
-		IsGlobal:                 domain.IsGlobalDomain,
-		ActiveCluster:            domain.ReplicationConfiguration.GetActiveClusterName(),
-		Clusters:                 clustersToStrings(domain.ReplicationConfiguration.GetClusters()),
-		RetentionDays:            domain.Configuration.GetWorkflowExecutionRetentionPeriodInDays(),
-		EmitMetrics:              domain.Configuration.GetEmitMetric(),
-		HistoryArchivalStatus:    domain.Configuration.GetHistoryArchivalStatus(),
-		HistoryArchivalURI:       domain.Configuration.GetHistoryArchivalURI(),
-		VisibilityArchivalStatus: domain.Configuration.GetVisibilityArchivalStatus(),
-		VisibilityArchivalURI:    domain.Configuration.GetVisibilityArchivalURI(),
-		BadBinaries:              newBadBinaryRows(domain.Configuration.BadBinaries),
-		FailoverInfo:             newFailoverInfoRow(domain.FailoverInfo),
-		IsActiveActiveDomain:     domain.ReplicationConfiguration.IsActiveActive(),
+		Name:                             domain.DomainInfo.Name,
+		UUID:                             domain.DomainInfo.UUID,
+		Description:                      domain.DomainInfo.Description,
+		OwnerEmail:                       domain.DomainInfo.OwnerEmail,
+		DomainData:                       domain.DomainInfo.GetData(),
+		Status:                           domain.DomainInfo.GetStatus(),
+		IsGlobal:                         domain.IsGlobalDomain,
+		ActiveCluster:                    domain.ReplicationConfiguration.GetActiveClusterName(),
+		Clusters:                         clustersToStrings(domain.ReplicationConfiguration.GetClusters()),
+		RetentionDays:                    domain.Configuration.GetWorkflowExecutionRetentionPeriodInDays(),
+		EmitMetrics:                      domain.Configuration.GetEmitMetric(),
+		HistoryArchivalStatus:            domain.Configuration.GetHistoryArchivalStatus(),
+		HistoryArchivalURI:               domain.Configuration.GetHistoryArchivalURI(),
+		VisibilityArchivalStatus:         domain.Configuration.GetVisibilityArchivalStatus(),
+		VisibilityArchivalURI:            domain.Configuration.GetVisibilityArchivalURI(),
+		BadBinaries:                      newBadBinaryRows(domain.Configuration.BadBinaries),
+		FailoverInfo:                     newFailoverInfoRow(domain.FailoverInfo),
+		IsActiveActiveDomain:             domain.ReplicationConfiguration.IsActiveActive(),
+		ActiveClustersByClusterAttribute: newActiveClustersByClusterAttribute(domain.ReplicationConfiguration.GetActiveClusters()),
 	}
 }
 
@@ -782,6 +787,34 @@ func newBadBinaryRows(bb *types.BadBinaries) []BadBinaryRow {
 			Reason:    bin.GetReason(),
 		})
 	}
+	return rows
+}
+
+func newActiveClustersByClusterAttribute(activeClusters *types.ActiveClusters) []ActiveClusterInfoRow {
+	if activeClusters == nil {
+		return nil
+	}
+
+	rows := []ActiveClusterInfoRow{}
+	for scope, attributeScopes := range activeClusters.GetAttributeScopes() {
+		for attributeScope, clusterInfo := range attributeScopes.ClusterAttributes {
+			rows = append(rows, ActiveClusterInfoRow{
+				Scope:             scope,
+				Value:             attributeScope,
+				ActiveClusterName: clusterInfo.ActiveClusterName,
+				FailoverVersion:   clusterInfo.FailoverVersion,
+			})
+		}
+	}
+
+	// Sort for deterministic output
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Scope != rows[j].Scope {
+			return rows[i].Scope < rows[j].Scope
+		}
+		return rows[i].Value < rows[j].Value
+	})
+
 	return rows
 }
 
