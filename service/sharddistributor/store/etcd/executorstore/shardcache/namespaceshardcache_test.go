@@ -187,18 +187,18 @@ func TestNamespaceShardToExecutor_ExecutorStatistics(t *testing.T) {
 	logger := testlogger.New(t)
 	stopCh := make(chan struct{})
 	defer close(stopCh)
+	mockTime := clock.NewMockedTimeSource()
 
 	executorID := "executor-stats"
 	shardID1 := "shard-stats-1"
 	shardID2 := "shard-stats-2"
 
 	initialStats := map[string]etcdtypes.ShardStatistics{
-		shardID1: {SmoothedLoad: 10.0, LastUpdateTime: etcdtypes.Time(time.Now().Add(-time.Hour)), LastMoveTime: etcdtypes.Time(time.Now().Add(-2 * time.Hour))},
-		shardID2: {SmoothedLoad: 20.0, LastUpdateTime: etcdtypes.Time(time.Now().Add(-30 * time.Minute)), LastMoveTime: etcdtypes.Time(time.Now().Add(-90 * time.Minute))},
+		shardID1: {SmoothedLoad: 10.0, LastUpdateTime: etcdtypes.Time(mockTime.Now().Add(-time.Hour)), LastMoveTime: etcdtypes.Time(mockTime.Now().Add(-2 * time.Hour))},
+		shardID2: {SmoothedLoad: 20.0, LastUpdateTime: etcdtypes.Time(mockTime.Now().Add(-30 * time.Minute)), LastMoveTime: etcdtypes.Time(mockTime.Now().Add(-90 * time.Minute))},
 	}
 	putExecutorStatisticsInEtcd(t, testCluster, executorID, initialStats)
 
-	mockTime := clock.NewMockedTimeSource()
 	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, mockTime)
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
@@ -212,8 +212,8 @@ func TestNamespaceShardToExecutor_ExecutorStatistics(t *testing.T) {
 	assert.Equal(t, initialStats, statsFromCache)
 
 	updatedStats := map[string]etcdtypes.ShardStatistics{
-		shardID1: {SmoothedLoad: 15.0, LastUpdateTime: etcdtypes.Time(time.Now())},
-		shardID2: {SmoothedLoad: 25.0, LastUpdateTime: etcdtypes.Time(time.Now())},
+		shardID1: {SmoothedLoad: 15.0, LastUpdateTime: etcdtypes.Time(mockTime.Now())},
+		shardID2: {SmoothedLoad: 25.0, LastUpdateTime: etcdtypes.Time(mockTime.Now())},
 	}
 	putExecutorStatisticsInEtcd(t, testCluster, executorID, updatedStats)
 
