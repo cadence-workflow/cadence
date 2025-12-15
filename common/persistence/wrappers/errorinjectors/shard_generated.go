@@ -6,6 +6,7 @@ package errorinjectors
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -14,6 +15,7 @@ import (
 // injectorShardManager implements persistence.ShardManager interface instrumented with error injection.
 type injectorShardManager struct {
 	wrapped   persistence.ShardManager
+	starttime time.Time
 	errorRate float64
 	logger    log.Logger
 }
@@ -26,6 +28,7 @@ func NewShardManager(
 ) persistence.ShardManager {
 	return &injectorShardManager{
 		wrapped:   wrapped,
+		starttime: time.Now(),
 		errorRate: errorRate,
 		logger:    logger,
 	}
@@ -37,7 +40,7 @@ func (c *injectorShardManager) Close() {
 }
 
 func (c *injectorShardManager) CreateShard(ctx context.Context, request *persistence.CreateShardRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.CreateShard(ctx, request)
@@ -56,7 +59,7 @@ func (c *injectorShardManager) GetName() (s1 string) {
 }
 
 func (c *injectorShardManager) GetShard(ctx context.Context, request *persistence.GetShardRequest) (gp1 *persistence.GetShardResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetShard(ctx, request)
@@ -71,7 +74,7 @@ func (c *injectorShardManager) GetShard(ctx context.Context, request *persistenc
 }
 
 func (c *injectorShardManager) UpdateShard(ctx context.Context, request *persistence.UpdateShardRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.UpdateShard(ctx, request)

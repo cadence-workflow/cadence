@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"time"
 
 	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
@@ -56,7 +57,14 @@ func shouldForwardCallToPersistence(
 
 func generateFakeError(
 	errorRate float64,
+	starttime time.Time,
 ) error {
+	// don't inject errors after 30 seconds to avoid overwhelming the system
+	// on startup
+	if time.Since(starttime) < 30*time.Second {
+		return nil
+	}
+
 	randFl := rand.Float64()
 	if randFl < errorRate {
 		return fakeErrors[rand.Intn(len(fakeErrors))]

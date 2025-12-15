@@ -6,6 +6,7 @@ package errorinjectors
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -14,6 +15,7 @@ import (
 // injectorVisibilityManager implements persistence.VisibilityManager interface instrumented with error injection.
 type injectorVisibilityManager struct {
 	wrapped   persistence.VisibilityManager
+	starttime time.Time
 	errorRate float64
 	logger    log.Logger
 }
@@ -26,6 +28,7 @@ func NewVisibilityManager(
 ) persistence.VisibilityManager {
 	return &injectorVisibilityManager{
 		wrapped:   wrapped,
+		starttime: time.Now(),
 		errorRate: errorRate,
 		logger:    logger,
 	}
@@ -37,7 +40,7 @@ func (c *injectorVisibilityManager) Close() {
 }
 
 func (c *injectorVisibilityManager) CountWorkflowExecutions(ctx context.Context, request *persistence.CountWorkflowExecutionsRequest) (cp1 *persistence.CountWorkflowExecutionsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		cp1, err = c.wrapped.CountWorkflowExecutions(ctx, request)
@@ -52,7 +55,7 @@ func (c *injectorVisibilityManager) CountWorkflowExecutions(ctx context.Context,
 }
 
 func (c *injectorVisibilityManager) DeleteUninitializedWorkflowExecution(ctx context.Context, request *persistence.VisibilityDeleteWorkflowExecutionRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.DeleteUninitializedWorkflowExecution(ctx, request)
@@ -67,7 +70,7 @@ func (c *injectorVisibilityManager) DeleteUninitializedWorkflowExecution(ctx con
 }
 
 func (c *injectorVisibilityManager) DeleteWorkflowExecution(ctx context.Context, request *persistence.VisibilityDeleteWorkflowExecutionRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.DeleteWorkflowExecution(ctx, request)
@@ -82,7 +85,7 @@ func (c *injectorVisibilityManager) DeleteWorkflowExecution(ctx context.Context,
 }
 
 func (c *injectorVisibilityManager) GetClosedWorkflowExecution(ctx context.Context, request *persistence.GetClosedWorkflowExecutionRequest) (gp1 *persistence.GetClosedWorkflowExecutionResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetClosedWorkflowExecution(ctx, request)
@@ -101,7 +104,7 @@ func (c *injectorVisibilityManager) GetName() (s1 string) {
 }
 
 func (c *injectorVisibilityManager) ListClosedWorkflowExecutions(ctx context.Context, request *persistence.ListWorkflowExecutionsRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.ListClosedWorkflowExecutions(ctx, request)
@@ -116,7 +119,7 @@ func (c *injectorVisibilityManager) ListClosedWorkflowExecutions(ctx context.Con
 }
 
 func (c *injectorVisibilityManager) ListClosedWorkflowExecutionsByStatus(ctx context.Context, request *persistence.ListClosedWorkflowExecutionsByStatusRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.ListClosedWorkflowExecutionsByStatus(ctx, request)
@@ -131,7 +134,7 @@ func (c *injectorVisibilityManager) ListClosedWorkflowExecutionsByStatus(ctx con
 }
 
 func (c *injectorVisibilityManager) ListClosedWorkflowExecutionsByType(ctx context.Context, request *persistence.ListWorkflowExecutionsByTypeRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.ListClosedWorkflowExecutionsByType(ctx, request)
@@ -146,7 +149,7 @@ func (c *injectorVisibilityManager) ListClosedWorkflowExecutionsByType(ctx conte
 }
 
 func (c *injectorVisibilityManager) ListClosedWorkflowExecutionsByWorkflowID(ctx context.Context, request *persistence.ListWorkflowExecutionsByWorkflowIDRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.ListClosedWorkflowExecutionsByWorkflowID(ctx, request)
@@ -161,7 +164,7 @@ func (c *injectorVisibilityManager) ListClosedWorkflowExecutionsByWorkflowID(ctx
 }
 
 func (c *injectorVisibilityManager) ListOpenWorkflowExecutions(ctx context.Context, request *persistence.ListWorkflowExecutionsRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.ListOpenWorkflowExecutions(ctx, request)
@@ -176,7 +179,7 @@ func (c *injectorVisibilityManager) ListOpenWorkflowExecutions(ctx context.Conte
 }
 
 func (c *injectorVisibilityManager) ListOpenWorkflowExecutionsByType(ctx context.Context, request *persistence.ListWorkflowExecutionsByTypeRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.ListOpenWorkflowExecutionsByType(ctx, request)
@@ -191,7 +194,7 @@ func (c *injectorVisibilityManager) ListOpenWorkflowExecutionsByType(ctx context
 }
 
 func (c *injectorVisibilityManager) ListOpenWorkflowExecutionsByWorkflowID(ctx context.Context, request *persistence.ListWorkflowExecutionsByWorkflowIDRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.ListOpenWorkflowExecutionsByWorkflowID(ctx, request)
@@ -206,7 +209,7 @@ func (c *injectorVisibilityManager) ListOpenWorkflowExecutionsByWorkflowID(ctx c
 }
 
 func (c *injectorVisibilityManager) ListWorkflowExecutions(ctx context.Context, request *persistence.ListWorkflowExecutionsByQueryRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.ListWorkflowExecutions(ctx, request)
@@ -221,7 +224,7 @@ func (c *injectorVisibilityManager) ListWorkflowExecutions(ctx context.Context, 
 }
 
 func (c *injectorVisibilityManager) RecordWorkflowExecutionClosed(ctx context.Context, request *persistence.RecordWorkflowExecutionClosedRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.RecordWorkflowExecutionClosed(ctx, request)
@@ -236,7 +239,7 @@ func (c *injectorVisibilityManager) RecordWorkflowExecutionClosed(ctx context.Co
 }
 
 func (c *injectorVisibilityManager) RecordWorkflowExecutionStarted(ctx context.Context, request *persistence.RecordWorkflowExecutionStartedRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.RecordWorkflowExecutionStarted(ctx, request)
@@ -251,7 +254,7 @@ func (c *injectorVisibilityManager) RecordWorkflowExecutionStarted(ctx context.C
 }
 
 func (c *injectorVisibilityManager) RecordWorkflowExecutionUninitialized(ctx context.Context, request *persistence.RecordWorkflowExecutionUninitializedRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.RecordWorkflowExecutionUninitialized(ctx, request)
@@ -266,7 +269,7 @@ func (c *injectorVisibilityManager) RecordWorkflowExecutionUninitialized(ctx con
 }
 
 func (c *injectorVisibilityManager) ScanWorkflowExecutions(ctx context.Context, request *persistence.ListWorkflowExecutionsByQueryRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.ScanWorkflowExecutions(ctx, request)
@@ -281,7 +284,7 @@ func (c *injectorVisibilityManager) ScanWorkflowExecutions(ctx context.Context, 
 }
 
 func (c *injectorVisibilityManager) UpsertWorkflowExecution(ctx context.Context, request *persistence.UpsertWorkflowExecutionRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.UpsertWorkflowExecution(ctx, request)

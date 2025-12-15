@@ -6,6 +6,7 @@ package errorinjectors
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -14,6 +15,7 @@ import (
 // injectorDomainManager implements persistence.DomainManager interface instrumented with error injection.
 type injectorDomainManager struct {
 	wrapped   persistence.DomainManager
+	starttime time.Time
 	errorRate float64
 	logger    log.Logger
 }
@@ -26,6 +28,7 @@ func NewDomainManager(
 ) persistence.DomainManager {
 	return &injectorDomainManager{
 		wrapped:   wrapped,
+		starttime: time.Now(),
 		errorRate: errorRate,
 		logger:    logger,
 	}
@@ -37,7 +40,7 @@ func (c *injectorDomainManager) Close() {
 }
 
 func (c *injectorDomainManager) CreateDomain(ctx context.Context, request *persistence.CreateDomainRequest) (cp1 *persistence.CreateDomainResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		cp1, err = c.wrapped.CreateDomain(ctx, request)
@@ -52,7 +55,7 @@ func (c *injectorDomainManager) CreateDomain(ctx context.Context, request *persi
 }
 
 func (c *injectorDomainManager) DeleteDomain(ctx context.Context, request *persistence.DeleteDomainRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.DeleteDomain(ctx, request)
@@ -67,7 +70,7 @@ func (c *injectorDomainManager) DeleteDomain(ctx context.Context, request *persi
 }
 
 func (c *injectorDomainManager) DeleteDomainByName(ctx context.Context, request *persistence.DeleteDomainByNameRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.DeleteDomainByName(ctx, request)
@@ -82,7 +85,7 @@ func (c *injectorDomainManager) DeleteDomainByName(ctx context.Context, request 
 }
 
 func (c *injectorDomainManager) GetDomain(ctx context.Context, request *persistence.GetDomainRequest) (gp1 *persistence.GetDomainResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetDomain(ctx, request)
@@ -97,7 +100,7 @@ func (c *injectorDomainManager) GetDomain(ctx context.Context, request *persiste
 }
 
 func (c *injectorDomainManager) GetMetadata(ctx context.Context) (gp1 *persistence.GetMetadataResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetMetadata(ctx)
@@ -116,7 +119,7 @@ func (c *injectorDomainManager) GetName() (s1 string) {
 }
 
 func (c *injectorDomainManager) ListDomains(ctx context.Context, request *persistence.ListDomainsRequest) (lp1 *persistence.ListDomainsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.ListDomains(ctx, request)
@@ -131,7 +134,7 @@ func (c *injectorDomainManager) ListDomains(ctx context.Context, request *persis
 }
 
 func (c *injectorDomainManager) UpdateDomain(ctx context.Context, request *persistence.UpdateDomainRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.UpdateDomain(ctx, request)

@@ -6,6 +6,7 @@ package errorinjectors
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -14,6 +15,7 @@ import (
 // injectorTaskManager implements persistence.TaskManager interface instrumented with error injection.
 type injectorTaskManager struct {
 	wrapped   persistence.TaskManager
+	starttime time.Time
 	errorRate float64
 	logger    log.Logger
 }
@@ -26,6 +28,7 @@ func NewTaskManager(
 ) persistence.TaskManager {
 	return &injectorTaskManager{
 		wrapped:   wrapped,
+		starttime: time.Now(),
 		errorRate: errorRate,
 		logger:    logger,
 	}
@@ -37,7 +40,7 @@ func (c *injectorTaskManager) Close() {
 }
 
 func (c *injectorTaskManager) CompleteTask(ctx context.Context, request *persistence.CompleteTaskRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.CompleteTask(ctx, request)
@@ -52,7 +55,7 @@ func (c *injectorTaskManager) CompleteTask(ctx context.Context, request *persist
 }
 
 func (c *injectorTaskManager) CompleteTasksLessThan(ctx context.Context, request *persistence.CompleteTasksLessThanRequest) (cp1 *persistence.CompleteTasksLessThanResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		cp1, err = c.wrapped.CompleteTasksLessThan(ctx, request)
@@ -67,7 +70,7 @@ func (c *injectorTaskManager) CompleteTasksLessThan(ctx context.Context, request
 }
 
 func (c *injectorTaskManager) CreateTasks(ctx context.Context, request *persistence.CreateTasksRequest) (cp1 *persistence.CreateTasksResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		cp1, err = c.wrapped.CreateTasks(ctx, request)
@@ -82,7 +85,7 @@ func (c *injectorTaskManager) CreateTasks(ctx context.Context, request *persiste
 }
 
 func (c *injectorTaskManager) DeleteTaskList(ctx context.Context, request *persistence.DeleteTaskListRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.DeleteTaskList(ctx, request)
@@ -101,7 +104,7 @@ func (c *injectorTaskManager) GetName() (s1 string) {
 }
 
 func (c *injectorTaskManager) GetOrphanTasks(ctx context.Context, request *persistence.GetOrphanTasksRequest) (gp1 *persistence.GetOrphanTasksResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetOrphanTasks(ctx, request)
@@ -116,7 +119,7 @@ func (c *injectorTaskManager) GetOrphanTasks(ctx context.Context, request *persi
 }
 
 func (c *injectorTaskManager) GetTaskList(ctx context.Context, request *persistence.GetTaskListRequest) (gp1 *persistence.GetTaskListResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetTaskList(ctx, request)
@@ -131,7 +134,7 @@ func (c *injectorTaskManager) GetTaskList(ctx context.Context, request *persiste
 }
 
 func (c *injectorTaskManager) GetTaskListSize(ctx context.Context, request *persistence.GetTaskListSizeRequest) (gp1 *persistence.GetTaskListSizeResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetTaskListSize(ctx, request)
@@ -146,7 +149,7 @@ func (c *injectorTaskManager) GetTaskListSize(ctx context.Context, request *pers
 }
 
 func (c *injectorTaskManager) GetTasks(ctx context.Context, request *persistence.GetTasksRequest) (gp1 *persistence.GetTasksResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetTasks(ctx, request)
@@ -161,7 +164,7 @@ func (c *injectorTaskManager) GetTasks(ctx context.Context, request *persistence
 }
 
 func (c *injectorTaskManager) LeaseTaskList(ctx context.Context, request *persistence.LeaseTaskListRequest) (lp1 *persistence.LeaseTaskListResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.LeaseTaskList(ctx, request)
@@ -176,7 +179,7 @@ func (c *injectorTaskManager) LeaseTaskList(ctx context.Context, request *persis
 }
 
 func (c *injectorTaskManager) ListTaskList(ctx context.Context, request *persistence.ListTaskListRequest) (lp1 *persistence.ListTaskListResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.ListTaskList(ctx, request)
@@ -191,7 +194,7 @@ func (c *injectorTaskManager) ListTaskList(ctx context.Context, request *persist
 }
 
 func (c *injectorTaskManager) UpdateTaskList(ctx context.Context, request *persistence.UpdateTaskListRequest) (up1 *persistence.UpdateTaskListResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		up1, err = c.wrapped.UpdateTaskList(ctx, request)
