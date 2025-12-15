@@ -21,7 +21,6 @@ func (p *namespaceProcessor) loadBalance(
 	currentAssignments map[string][]string,
 	namespaceState *store.NamespaceState,
 	deletedShards map[string]store.ShardState,
-	structuralChange bool,
 	metricsScope metrics.Scope,
 ) (bool, error) {
 
@@ -35,17 +34,6 @@ func (p *namespaceProcessor) loadBalance(
 
 	now := p.timeSource.Now().UTC()
 	perShardCooldown := p.cfg.LoadBalance.PerShardCooldown
-
-	// Cooldown derived from persisted LastMoveTime, so it survives leader failover.
-	// Only applies on load-only passes. Structural changes should not be throttled.
-	if shouldSkipLoadBalanceDueToCooldown(structuralChange, perShardCooldown, now, snapshot.latestMoveTime) {
-		if metricsScope != nil {
-			metricsScope.AddCounter(metrics.ShardDistributorLoadBalanceGlobalCooldownSkips, 1)
-			metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceMovesPerCycle, 0)
-		}
-		return false, nil
-	}
-
 	meanLoad := snapshot.totalLoad / float64(len(snapshot.loads))
 
 	moveBudgetProportion := p.cfg.LoadBalance.MoveBudgetProportion
@@ -207,15 +195,6 @@ func computeExecutorLoads(currentAssignments map[string][]string, namespaceState
 	}
 
 	return executorLoadSnapshot{loads: loads, totalLoad: total, latestMoveTime: latestMove}
-}
-
-// shouldSkipLoadBalanceDueToCooldown implements a cooldown for load-only balancing:
-// if any shard moved recently (latestMoveTime within the cooldown window), skip this pass to reduce churn.
-func shouldSkipLoadBalanceDueToCooldown(structuralChange bool, cooldown time.Duration, now time.Time, latestMoveTime time.Time) bool {
-	return !structuralChange &&
-		cooldown > 0 &&
-		!latestMoveTime.IsZero() &&
-		now.Sub(latestMoveTime) < cooldown
 }
 
 // classifySourcesAndDestinations returns the source and destination executor sets for rebalancing.

@@ -2975,8 +2975,6 @@ const (
 	ShardDistributorStoreRequestsPerNamespace
 	ShardDistributorStoreLatencyHistogramPerNamespace
 
-	// ShardDistributorLoadBalanceGlobalCooldownSkips counts load-only balancing passes skipped due to cooldown.
-	ShardDistributorLoadBalanceGlobalCooldownSkips
 	// ShardDistributorLoadBalanceMovesPerCycle reports number of shards moved in a single load-balance pass.
 	ShardDistributorLoadBalanceMovesPerCycle
 	// ShardDistributorShardMovesLastMinute reports how many shards were moved in the last minute.
@@ -3777,7 +3775,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ShardDistributorStoreRequestsPerNamespace:         {metricName: "shard_distributor_store_requests_per_namespace", metricType: Counter},
 		ShardDistributorStoreLatencyHistogramPerNamespace: {metricName: "shard_distributor_store_latency_histogram_per_namespace", metricType: Histogram, buckets: ShardDistributorExecutorStoreLatencyBuckets},
 
-		ShardDistributorLoadBalanceGlobalCooldownSkips: {metricName: "shard_distributor_load_balance_global_cooldown_skips", metricType: Counter},
 		ShardDistributorLoadBalanceMovesPerCycle:       {metricName: "shard_distributor_load_balance_moves_per_cycle", metricType: Gauge},
 		ShardDistributorShardMovesLastMinute:           {metricName: "shard_distributor_shard_moves_last_minute", metricType: Gauge},
 

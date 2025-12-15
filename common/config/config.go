@@ -676,8 +676,7 @@ type (
 	}
 
 	LoadBalance struct {
-		// PerShardCooldown is the minimum time between moving the same shard and between
-		// consecutive load-only rebalances.
+		// PerShardCooldown is the minimum time between moving the same shard.
 		// Default: 1 minute
 		PerShardCooldown time.Duration `yaml:"perShardCooldown"`
 
