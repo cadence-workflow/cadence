@@ -107,3 +107,21 @@ func Module(fixedNamespace, ephemeralNamespace, externalAssignmentNamespace stri
 		fx.Invoke(NewExecutorsModule),
 	)
 }
+
+// ReplayFixedModule starts N fixed-namespace executors for a single namespace.
+// It is used by the CSV replay canary to simulate multiple executors in a single process.
+func ReplayFixedModule(namespace string, fixedExecutorCount int) fx.Option {
+	if fixedExecutorCount <= 0 {
+		fixedExecutorCount = 1
+	}
+
+	var options []fx.Option
+	for i := 0; i < fixedExecutorCount; i++ {
+		options = append(options, fx.Provide(func(params executorclient.Params[*processor.ShardProcessor]) (ExecutorResult, error) {
+			return NewExecutorWithFixedNamespace(params, namespace)
+		}))
+	}
+	options = append(options, fx.Invoke(NewExecutorsModule))
+
+	return fx.Module("ReplayFixedExecutors", fx.Options(options...))
+}
