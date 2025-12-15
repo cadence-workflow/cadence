@@ -100,6 +100,7 @@ func (s *Service) Start() {
 		s.config,
 		s.GetLogger(),
 		s.GetMetricsClient(),
+		s.GetMetricsScope(),
 		s.GetDomainCache(),
 		s.GetMembershipResolver(),
 		s.GetIsolationGroupState(),

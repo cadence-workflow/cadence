@@ -725,6 +725,11 @@ func (h *Impl) GetAsyncWorkflowQueueProvider() queue.Provider {
 	return h.asyncWorkflowQueueProvider
 }
 
+// GetMetricsScope returns the tally scope for metrics reporting
+func (h *Impl) GetMetricsScope() tally.Scope {
+	return h.metricsScope
+}
+
 // due to the config store being only available for some
 // persistence layers, *both* the configStoreClient and IsolationGroupState
 // will be optionally available

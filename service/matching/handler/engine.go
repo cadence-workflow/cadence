@@ -92,6 +92,7 @@ type (
 		tokenSerializer             common.TaskTokenSerializer
 		logger                      log.Logger
 		metricsClient               metrics.Client
+		metricsScope                tally.Scope
 		taskListsLock               sync.RWMutex                                    // locks mutation of taskLists
 		taskLists                   map[tasklist.Identifier]tasklist.ShardProcessor // Convert to LRU cache
 		executor                    executorclient.Executor[tasklist.ShardProcessor]
@@ -136,6 +137,7 @@ func NewEngine(
 	config *config.Config,
 	logger log.Logger,
 	metricsClient metrics.Client,
+	metricsScope tally.Scope,
 	domainCache cache.DomainCache,
 	resolver membership.Resolver,
 	isolationState isolationgroup.State,
@@ -152,6 +154,7 @@ func NewEngine(
 		taskLists:            make(map[tasklist.Identifier]tasklist.ShardProcessor),
 		logger:               logger.WithTags(tag.ComponentMatchingEngine),
 		metricsClient:        metricsClient,
+		metricsScope:         metricsScope,
 		matchingClient:       matchingClient,
 		config:               config,
 		lockableQueryTaskMap: lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
@@ -199,8 +202,7 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 		CreateTime:      e.timeSource.Now(),
 		HistoryService:  e.historyService}
 	e.taskListsFactory = taskListFactory
-	// TODO move this to setup a logger based on e.logger
-	scope := tally.NoopScope
+	scope := e.metricsScope
 	// Move the configuration to e.config
 	config := clientcommon.Config{
 		Namespaces: []clientcommon.NamespaceConfig{
