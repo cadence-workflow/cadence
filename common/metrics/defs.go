@@ -3775,8 +3775,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ShardDistributorStoreRequestsPerNamespace:         {metricName: "shard_distributor_store_requests_per_namespace", metricType: Counter},
 		ShardDistributorStoreLatencyHistogramPerNamespace: {metricName: "shard_distributor_store_latency_histogram_per_namespace", metricType: Histogram, buckets: ShardDistributorExecutorStoreLatencyBuckets},
 
-		ShardDistributorLoadBalanceMovesPerCycle:       {metricName: "shard_distributor_load_balance_moves_per_cycle", metricType: Gauge},
-		ShardDistributorShardMovesLastMinute:           {metricName: "shard_distributor_shard_moves_last_minute", metricType: Gauge},
+		ShardDistributorLoadBalanceMovesPerCycle: {metricName: "shard_distributor_load_balance_moves_per_cycle", metricType: Gauge},
+		ShardDistributorShardMovesLastMinute:     {metricName: "shard_distributor_shard_moves_last_minute", metricType: Gauge},
 
 		ShardDistributorShardAssignmentDistributionLatency: {metricName: "shard_distributor_shard_assignment_distribution_latency", metricType: Histogram, buckets: Default1ms100s.buckets()},
 		ShardDistributorShardHandoverLatency:               {metricName: "shard_distributor_shard_handover_latency", metricType: Histogram, buckets: Default1ms100s.buckets()},
