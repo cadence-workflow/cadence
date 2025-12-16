@@ -50,25 +50,24 @@ type namespaceExecutorStatistics struct {
 	stats map[string]map[string]etcdtypes.ShardStatistics
 }
 
-type ExecutorMetadata = map[string]string
-
 type executorData struct {
-	assignedStates map[string]etcdtypes.AssignedState
-	metadata       map[string]ExecutorMetadata // executorID -> metadata key -> metadata value
-	statistics     map[string]map[string]etcdtypes.ShardStatistics
-	revisions      map[string]int64
+	assignedStates etcdtypes.AssignedState
+	metadata       map[string]string
+	statistics     map[string]etcdtypes.ShardStatistics
+	revisions      int64
 }
 
-func (n *namespaceShardToExecutor) parseExecutorData(resp *clientv3.GetResponse, etcdPrefix, namespace string) (*executorData, error) {
-	data := &executorData{
-		assignedStates: make(map[string]etcdtypes.AssignedState),
-		metadata:       make(map[string]ExecutorMetadata),
-		statistics:     make(map[string]map[string]etcdtypes.ShardStatistics),
-		revisions:      make(map[string]int64),
-	}
+func (n *namespaceShardToExecutor) parseExecutorData(resp *clientv3.GetResponse, etcdPrefix, namespace string) (map[string]executorData, error) {
+	data := make(map[string]executorData)
 
 	for _, kv := range resp.Kvs {
 		executorID, keyType, err := etcdkeys.ParseExecutorKey(etcdPrefix, namespace, string(kv.Key))
+		execData := executorData{
+			assignedStates: etcdtypes.AssignedState{},
+			metadata:       make(map[string]string),
+			statistics:     make(map[string]etcdtypes.ShardStatistics),
+			revisions:      0,
+		}
 		if err != nil {
 			n.logger.Warn("error parsing executor key:", tag.Error(err))
 			continue
@@ -80,21 +79,19 @@ func (n *namespaceShardToExecutor) parseExecutorData(resp *clientv3.GetResponse,
 			if err := common.DecompressAndUnmarshal(kv.Value, &assignedState); err != nil {
 				return nil, fmt.Errorf("parse assigned state for %s: %w", executorID, err)
 			}
-			data.assignedStates[executorID] = assignedState
-			data.revisions[executorID] = kv.ModRevision
+			execData.assignedStates = assignedState
+			execData.revisions = kv.ModRevision
 		case etcdkeys.ExecutorMetadataKey:
-			if _, ok := data.metadata[executorID]; !ok {
-				data.metadata[executorID] = make(map[string]string)
-			}
 			metadataKey := strings.TrimPrefix(string(kv.Key), etcdkeys.BuildMetadataKey(etcdPrefix, namespace, executorID, ""))
-			data.metadata[executorID][metadataKey] = string(kv.Value)
+			execData.metadata[metadataKey] = string(kv.Value)
 		case etcdkeys.ExecutorShardStatisticsKey:
 			var stats map[string]etcdtypes.ShardStatistics
 			if err := common.DecompressAndUnmarshal(kv.Value, &stats); err != nil {
 				return nil, fmt.Errorf("parse shard statistics for %s: %w", executorID, err)
 			}
-			data.statistics[executorID] = stats
+			execData.statistics = stats
 		}
+		data[executorID] = execData
 	}
 	return data, nil
 }
@@ -355,7 +352,7 @@ func (n *namespaceShardToExecutor) refreshExecutorState(ctx context.Context) err
 }
 
 // This function must be called with write locks held for both shard owners and statistics.
-func (n *namespaceShardToExecutor) applyParsedData(data *executorData) {
+func (n *namespaceShardToExecutor) applyParsedData(data map[string]executorData) {
 	// Clear the cache
 	n.shardToExecutor = make(map[string]*store.ShardOwner)
 	n.executorState = make(map[*store.ShardOwner][]string)
@@ -363,23 +360,20 @@ func (n *namespaceShardToExecutor) applyParsedData(data *executorData) {
 	n.shardOwners = make(map[string]*store.ShardOwner)
 	n.executorStatistics.stats = make(map[string]map[string]etcdtypes.ShardStatistics)
 
-	for executorID, assignedState := range data.assignedStates {
+	for executorID, executordata := range data {
 		shardOwner := getOrCreateShardOwner(n.shardOwners, executorID)
-		shardIDs := make([]string, 0, len(assignedState.AssignedShards))
-		for shardID := range assignedState.AssignedShards {
+		shardIDs := make([]string, 0, len(executordata.assignedStates.AssignedShards))
+		for shardID := range executordata.assignedStates.AssignedShards {
 			n.shardToExecutor[shardID] = shardOwner
 			shardIDs = append(shardIDs, shardID)
 		}
 		n.executorState[shardOwner] = shardIDs
-		n.executorRevision[executorID] = data.revisions[executorID]
-	}
+		n.executorRevision[executorID] = executordata.revisions
 
-	for executorID, metadata := range data.metadata {
-		shardOwner := getOrCreateShardOwner(n.shardOwners, executorID)
-		maps.Copy(shardOwner.Metadata, metadata)
-	}
+		maps.Copy(shardOwner.Metadata, executordata.metadata)
 
-	maps.Copy(n.executorStatistics.stats, data.statistics)
+		n.executorStatistics.stats[executorID] = executordata.statistics
+	}
 }
 
 // handleExecutorStatisticsEvent processes incoming watch events for executor shard statistics.
