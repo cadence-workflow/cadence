@@ -17,7 +17,6 @@ func (p *namespaceProcessor) loadBalance(
 	deletedShards map[string]store.ShardState,
 	metricsScope metrics.Scope,
 ) (bool, error) {
-
 	loads, totalLoad := computeExecutorLoads(currentAssignments, namespaceState)
 	if len(loads) == 0 {
 		if metricsScope != nil {
@@ -116,6 +115,25 @@ func (p *namespaceProcessor) loadBalance(
 	return shardsMoved, nil
 }
 
+func computeExecutorLoads(currentAssignments map[string][]string, namespaceState *store.NamespaceState) (map[string]float64, float64) {
+	loads := make(map[string]float64, len(currentAssignments))
+	total := 0.0
+
+	for executorID, shards := range currentAssignments {
+		for _, shardID := range shards {
+			stats, ok := namespaceState.ShardStats[shardID]
+			load := 0.0
+			if ok {
+				load = stats.SmoothedLoad
+			}
+			loads[executorID] += load
+			total += load
+		}
+	}
+
+	return loads, total
+}
+
 func destinationsForSevereImbalance(
 	executorLoads map[string]float64,
 	meanLoad float64,
@@ -148,36 +166,6 @@ func destinationsForSevereImbalance(
 	}
 
 	return relaxed, true
-}
-
-// shardMoveBenefitSquaredError returns the expected reduction in sum of squared error (SSE)
-// around the mean load if we move a shard of size shardLoad from sourceLoad to destLoad.
-// A positive value means the move improves overall load balance.
-func shardMoveBenefitSquaredError(sourceLoad, destLoad, shardLoad float64) float64 {
-	// SSE delta depends only on (sourceLoad, destLoad, shardLoad) since the mean stays constant
-	// when moving load between executors (total load is conserved).
-	// benefit = -(deltaSSE) = 2*w*(Ls-Ld) - 2*w^2
-	w := shardLoad
-	return 2*w*(sourceLoad-destLoad) - 2*w*w
-}
-
-func computeExecutorLoads(currentAssignments map[string][]string, namespaceState *store.NamespaceState) (map[string]float64, float64) {
-	loads := make(map[string]float64, len(currentAssignments))
-	total := 0.0
-
-	for executorID, shards := range currentAssignments {
-		for _, shardID := range shards {
-			stats, ok := namespaceState.ShardStats[shardID]
-			load := 0.0
-			if ok {
-				load = stats.SmoothedLoad
-			}
-			loads[executorID] += load
-			total += load
-		}
-	}
-
-	return loads, total
 }
 
 // classifySourcesAndDestinations returns the source and destination executor sets for rebalancing.
@@ -295,7 +283,7 @@ func (p *namespaceProcessor) findShardToMove(
 
 		load := stats.SmoothedLoad
 
-		benefit := shardMoveBenefitSquaredError(sourceLoad, destLoad, load)
+		benefit := computeBenefitOfMove(sourceLoad, destLoad, load)
 		if benefit <= 0 {
 			continue
 		}
@@ -306,6 +294,14 @@ func (p *namespaceProcessor) findShardToMove(
 	}
 
 	return bestShard, bestShard != ""
+}
+
+// shardMoveBenefitSquaredError returns the expected reduction in sum of squared error (SSE)
+// around the mean load if we move a shard with shardLoad from sourceLoad to destLoad.
+// A positive value means the move improves overall load balance.
+func computeBenefitOfMove(sourceLoad, destLoad, shardLoad float64) float64 {
+	w := shardLoad
+	return 2*w*(sourceLoad-destLoad) - 2*w*w
 }
 
 func (p *namespaceProcessor) moveShard(currentAssignments map[string][]string, sourceExecutor string, destExecutor string, shard string) error {
