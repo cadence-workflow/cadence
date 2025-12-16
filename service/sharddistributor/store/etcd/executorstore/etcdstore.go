@@ -152,9 +152,6 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 		return nil, nil
 	}
 
-	now := s.timeSource.Now().UTC()
-
-	var statsUpdates []shardStatisticsUpdate
 	var statsUpdate shardStatisticsUpdate
 	statsUpdate.executorID = executorID
 	statsUpdate.stats = make(map[string]etcdtypes.ShardStatistics)
@@ -164,6 +161,7 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 		return nil, err
 	}
 
+	now := s.timeSource.Now().UTC()
 	for shardID, report := range reported {
 		if report == nil {
 			s.logger.Warn("empty report; skipping smoothed load update",
@@ -176,9 +174,7 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 		statsUpdate.stats[shardID] = UpdateShardStatistic(shardID, report.ShardLoad, now, oldStats)
 	}
 
-	statsUpdates = append(statsUpdates, statsUpdate)
-
-	return statsUpdates, err
+	return []shardStatisticsUpdate{statsUpdate}, err
 }
 
 func UpdateShardStatistic(shardID string, shardLoad float64, now time.Time, oldStats map[string]etcdtypes.ShardStatistics) etcdtypes.ShardStatistics {
