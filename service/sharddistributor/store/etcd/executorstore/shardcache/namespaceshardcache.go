@@ -283,6 +283,7 @@ func (n *namespaceShardToExecutor) handlePotentialRefresh(watchResp clientv3.Wat
 	for _, event := range watchResp.Events {
 		executorID, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(event.Kv.Key))
 		if keyErr != nil {
+			n.logger.Error("failed to parse executor key", tag.ShardNamespace(n.namespace), tag.Error(keyErr))
 			continue
 		}
 
