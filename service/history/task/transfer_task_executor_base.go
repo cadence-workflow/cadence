@@ -340,6 +340,15 @@ func (t *transferTaskExecutorBase) upsertWorkflowExecution(
 		ScheduledExecutionTimestamp: scheduledExecutionTimeUnixNano,
 	}
 
+	// Log for debugging ExecutionStatus changes (especially PENDING -> STARTED for cron workflows)
+	t.logger.Info("Upserting workflow execution to visibility",
+		tag.WorkflowID(workflowID),
+		tag.WorkflowRunID(runID),
+		tag.WorkflowDomainName(domain),
+		tag.WorkflowCronSchedule(cronSchedule),
+		tag.Key("execution-status"),
+		tag.Value(executionStatus))
+
 	return t.visibilityMgr.UpsertWorkflowExecution(ctx, request)
 }
 
