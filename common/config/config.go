@@ -699,7 +699,6 @@ type (
 
 		// DisableBenefitGating controls whether load-based balancing may accept moves that do not
 		// strictly improve the objective function (currently: sum of squared error around mean load).
-		//
 		// Default: false (benefit gating enabled).
 		DisableBenefitGating bool `yaml:"disableBenefitGating"`
 	}

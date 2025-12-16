@@ -78,7 +78,7 @@ func (p *namespaceProcessor) loadBalance(
 			if sourceExecutor == destExecutor {
 				continue
 			}
-			shardToMove, found := p.findShardToMove(
+			shardToMove, idx, found := p.findShardToMove(
 				currentAssignments,
 				namespaceState,
 				sourceExecutor,
@@ -91,7 +91,7 @@ func (p *namespaceProcessor) loadBalance(
 				continue
 			}
 
-			if err := p.moveShard(currentAssignments, sourceExecutor, destExecutor, shardToMove); err != nil {
+			if err := p.moveShard(currentAssignments, sourceExecutor, destExecutor, shardToMove, idx); err != nil {
 				return false, err
 			}
 			movesPlanned++
@@ -234,6 +234,7 @@ func (p *namespaceProcessor) findBestDestination(destinationExecutors map[string
 	return minExecutor
 }
 
+// findShardToMove returns the best shard to move from source to destination.
 func (p *namespaceProcessor) findShardToMove(
 	currentAssignments map[string][]string,
 	namespaceState *store.NamespaceState,
@@ -241,21 +242,19 @@ func (p *namespaceProcessor) findShardToMove(
 	destination string,
 	executorLoads map[string]float64,
 	now time.Time,
-) (string, bool) {
-	// Pick a single eligible shard to move from source -> destination.
-	//
-	// Default behavior is "benefit gated": only move a shard if it improves the objective
-	// (currently: sum of squared error around mean load).
+) (string, int, bool) {
 	bestShard := ""
 	perShardCooldown := p.cfg.LoadBalance.PerShardCooldown
 	benefitGatingDisabled := p.cfg.LoadBalance.DisableBenefitGating
 
 	sourceLoad := executorLoads[source]
 	destLoad := executorLoads[destination]
+	idx := -1
 
+	// If benefitGatingDisabled is true we allow moves that are not beneficial according to computeBenefitOfMove.
 	if benefitGatingDisabled {
 		bestLoad := -1.0
-		for _, shard := range currentAssignments[source] {
+		for i, shard := range currentAssignments[source] {
 			stats, ok := namespaceState.ShardStats[shard]
 			if !ok {
 				continue
@@ -266,13 +265,14 @@ func (p *namespaceProcessor) findShardToMove(
 			if stats.SmoothedLoad > bestLoad {
 				bestLoad = stats.SmoothedLoad
 				bestShard = shard
+				idx = i
 			}
 		}
-		return bestShard, bestShard != ""
+		return bestShard, idx, bestShard != ""
 	}
 
 	bestBenefit := 0.0
-	for _, shard := range currentAssignments[source] {
+	for i, shard := range currentAssignments[source] {
 		stats, ok := namespaceState.ShardStats[shard]
 		if !ok {
 			continue
@@ -290,13 +290,14 @@ func (p *namespaceProcessor) findShardToMove(
 		if benefit > bestBenefit {
 			bestBenefit = benefit
 			bestShard = shard
+			idx = i
 		}
 	}
 
-	return bestShard, bestShard != ""
+	return bestShard, idx, bestShard != ""
 }
 
-// shardMoveBenefitSquaredError returns the expected reduction in sum of squared error (SSE)
+// computeBenefitOfMove returns the expected reduction in sum of squared error (SSE)
 // around the mean load if we move a shard with shardLoad from sourceLoad to destLoad.
 // A positive value means the move improves overall load balance.
 func computeBenefitOfMove(sourceLoad, destLoad, shardLoad float64) float64 {
@@ -304,18 +305,22 @@ func computeBenefitOfMove(sourceLoad, destLoad, shardLoad float64) float64 {
 	return 2*w*(sourceLoad-destLoad) - 2*w*w
 }
 
-func (p *namespaceProcessor) moveShard(currentAssignments map[string][]string, sourceExecutor string, destExecutor string, shard string) error {
-	i := slices.Index(currentAssignments[sourceExecutor], shard)
-	if i == -1 {
-		return fmt.Errorf("shard %s not found in source executor %s", shard, sourceExecutor)
+func (p *namespaceProcessor) moveShard(currentAssignments map[string][]string, sourceExecutor string, destExecutor string, shardID string, idx int) error {
+	// defensive fallback in case index is stale
+	if idx < 0 || idx >= len(currentAssignments[sourceExecutor]) || currentAssignments[sourceExecutor][idx] != shardID {
+		idx = slices.Index(currentAssignments[sourceExecutor], shardID)
+	}
+	//
+	if idx == -1 {
+		return fmt.Errorf("shard %s not found in source executor %s", shardID, sourceExecutor)
 	}
 
 	// Remove shard from source.
-	currentAssignments[sourceExecutor][i] = currentAssignments[sourceExecutor][len(currentAssignments[sourceExecutor])-1]
+	currentAssignments[sourceExecutor][idx] = currentAssignments[sourceExecutor][len(currentAssignments[sourceExecutor])-1]
 	currentAssignments[sourceExecutor] = currentAssignments[sourceExecutor][:len(currentAssignments[sourceExecutor])-1]
 
 	// Add shard to destination.
-	currentAssignments[destExecutor] = append(currentAssignments[destExecutor], shard)
+	currentAssignments[destExecutor] = append(currentAssignments[destExecutor], shardID)
 	return nil
 }
 
