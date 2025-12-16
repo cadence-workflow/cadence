@@ -27,19 +27,11 @@ func (p *namespaceProcessor) loadBalance(
 	}
 
 	meanLoad := totalLoad / float64(len(loads))
-
-	moveBudgetProportion := p.cfg.LoadBalance.MoveBudgetProportion
 	allShards := getShards(p.namespaceCfg, namespaceState, deletedShards)
-	moveBudget := computeMoveBudget(len(allShards), moveBudgetProportion)
+	moveBudget := computeMoveBudget(len(allShards), p.cfg.LoadBalance.MoveBudgetProportion)
 	shardsMoved := false
 	movesPlanned := 0
-
 	now := p.timeSource.Now().UTC()
-	perShardCooldown := p.cfg.LoadBalance.PerShardCooldown
-	benefitGatingEnabled := true
-	if p.cfg.LoadBalance.BenefitGatingEnabled != nil {
-		benefitGatingEnabled = *p.cfg.LoadBalance.BenefitGatingEnabled
-	}
 
 	// Plan multiple moves per cycle (within budget), recomputing eligibility after each move.
 	// Stop early once sources/destinations are empty, i.e. imbalance is within hysteresis bands.
@@ -94,8 +86,6 @@ func (p *namespaceProcessor) loadBalance(
 				destExecutor,
 				loads,
 				now,
-				perShardCooldown,
-				benefitGatingEnabled,
 			)
 			if !found {
 				// No eligible shard for this source+destination (cooldown, or no beneficial move), try the next source.
@@ -263,14 +253,14 @@ func (p *namespaceProcessor) findShardToMove(
 	destination string,
 	executorLoads map[string]float64,
 	now time.Time,
-	perShardCooldown time.Duration,
-	benefitGatingEnabled bool,
 ) (string, bool) {
 	// Pick a single eligible shard to move from source -> destination.
 	//
 	// Default behavior is "benefit gated": only move a shard if it improves the objective
 	// (currently: sum of squared error around mean load).
 	bestShard := ""
+	perShardCooldown := p.cfg.LoadBalance.PerShardCooldown
+	benefitGatingEnabled := p.cfg.LoadBalance.BenefitGatingEnabled == nil || *p.cfg.LoadBalance.BenefitGatingEnabled
 
 	sourceLoad := executorLoads[source]
 	destLoad := executorLoads[destination]
