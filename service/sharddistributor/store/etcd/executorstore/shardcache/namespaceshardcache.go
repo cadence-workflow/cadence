@@ -59,7 +59,7 @@ type executorData struct {
 	revisions      map[string]int64
 }
 
-func parseExecutorData(resp *clientv3.GetResponse, etcdPrefix, namespace string) (*executorData, error) {
+func (n *namespaceShardToExecutor) parseExecutorData(resp *clientv3.GetResponse, etcdPrefix, namespace string) (*executorData, error) {
 	data := &executorData{
 		assignedStates: make(map[string]etcdtypes.AssignedState),
 		metadata:       make(map[string]ExecutorMetadata),
@@ -70,6 +70,7 @@ func parseExecutorData(resp *clientv3.GetResponse, etcdPrefix, namespace string)
 	for _, kv := range resp.Kvs {
 		executorID, keyType, err := etcdkeys.ParseExecutorKey(etcdPrefix, namespace, string(kv.Key))
 		if err != nil {
+			n.logger.Warn("error parsing executor key:", tag.Error(err))
 			continue
 		}
 
@@ -339,7 +340,7 @@ func (n *namespaceShardToExecutor) refreshExecutorState(ctx context.Context) err
 		return fmt.Errorf("get executor prefix for namespace %s: %w", n.namespace, err)
 	}
 
-	parsedData, err := parseExecutorData(resp, n.etcdPrefix, n.namespace)
+	parsedData, err := n.parseExecutorData(resp, n.etcdPrefix, n.namespace)
 	if err != nil {
 		return fmt.Errorf("failed to parse executor data: %w", err)
 	}
