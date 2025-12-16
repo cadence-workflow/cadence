@@ -2242,10 +2242,22 @@ func createRecordWorkflowExecutionStartedRequest(
 			"Header_context_key": contextValueJSONString,
 		}
 	}
-	scheduledExecutionTimestamp := int64(0)
-	if executionTimestamp != 0 {
-		scheduledExecutionTimestamp = executionTimestamp
+	// scheduledExecutionTimestamp = startTime + backoffSeconds
+	// When backoffSeconds is 0, this equals startTime
+	scheduledExecutionTimestamp := startEvent.GetTimestamp() + int64(backoffSeconds)*int64(time.Second)
+
+	// Determine ExecutionStatus based on whether the workflow has started executing
+	// A workflow is PENDING if it has a first decision task backoff and hasn't been scheduled yet
+	// Once the decision task is scheduled (or if there's no backoff), it's STARTED
+	executionStatus := types.WorkflowExecutionStatusStarted
+	if backoffSeconds > 0 {
+		// Check if the first decision task has been scheduled yet
+		// If there's no decision info, the workflow is still pending
+		if !mutableState.HasPendingDecision() && !mutableState.HasInFlightDecision() && !mutableState.HasProcessedOrPendingDecision() {
+			executionStatus = types.WorkflowExecutionStatusPending
+		}
 	}
+
 	return &persistence.RecordWorkflowExecutionStartedRequest{
 		Domain:                      domainName,
 		DomainUUID:                  taskInfo.DomainID,
@@ -2262,7 +2274,7 @@ func createRecordWorkflowExecutionStartedRequest(
 		ClusterAttributeName:        executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName(),
 		UpdateTimestamp:             updateTime.UnixNano(),
 		SearchAttributes:            searchAttributes,
-		ExecutionStatus:             executionInfo.ExecutionStatus,
+		ExecutionStatus:             executionStatus,
 		CronSchedule:                executionInfo.CronSchedule,
 		ScheduledExecutionTimestamp: scheduledExecutionTimestamp,
 	}
@@ -2469,10 +2481,9 @@ func createUpsertWorkflowSearchAttributesRequest(
 		}
 	}
 
-	scheduledExecutionTimestamp := int64(0)
-	if executionTimestamp != 0 {
-		scheduledExecutionTimestamp = executionTimestamp
-	}
+	// scheduledExecutionTimestamp = startTime + backoffSeconds
+	// When backoffSeconds is 0, this equals startTime
+	scheduledExecutionTimestamp := startEvent.GetTimestamp() + int64(backoffSeconds)*int64(time.Second)
 
 	// Determine ExecutionStatus based on whether the workflow has started executing
 	// A workflow is PENDING if it has a first decision task backoff and hasn't been scheduled yet
