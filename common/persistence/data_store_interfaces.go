@@ -780,23 +780,26 @@ type (
 
 	// InternalUpsertWorkflowExecutionRequest is request to UpsertWorkflowExecution
 	InternalUpsertWorkflowExecutionRequest struct {
-		DomainUUID            string
-		WorkflowID            string
-		RunID                 string
-		WorkflowTypeName      string
-		StartTimestamp        time.Time
-		ExecutionTimestamp    time.Time
-		WorkflowTimeout       time.Duration
-		TaskID                int64
-		Memo                  *DataBlob
-		TaskList              string
-		IsCron                bool
-		NumClusters           int16
-		ClusterAttributeScope string
-		ClusterAttributeName  string
-		UpdateTimestamp       time.Time
-		SearchAttributes      map[string][]byte
-		ShardID               int64
+		DomainUUID                  string
+		WorkflowID                  string
+		RunID                       string
+		WorkflowTypeName            string
+		StartTimestamp              time.Time
+		ExecutionTimestamp          time.Time
+		WorkflowTimeout             time.Duration
+		TaskID                      int64
+		Memo                        *DataBlob
+		TaskList                    string
+		IsCron                      bool
+		CronSchedule                string
+		NumClusters                 int16
+		ClusterAttributeScope       string
+		ClusterAttributeName        string
+		UpdateTimestamp             time.Time
+		SearchAttributes            map[string][]byte
+		ShardID                     int64
+		ExecutionStatus             types.WorkflowExecutionStatus
+		ScheduledExecutionTimestamp int64
 	}
 
 	// InternalListWorkflowExecutionsRequest is used to list executions in a domain

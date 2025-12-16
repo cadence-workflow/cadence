@@ -1026,11 +1026,25 @@ func (t *transferActiveTaskExecutor) processRecordWorkflowStartedOrUpsertHelper(
 	numClusters := (int16)(len(domainEntry.GetReplicationConfig().Clusters))
 	updateTimestamp := t.shard.GetTimeSource().Now()
 
-	// Determine ExecutionStatus based on FirstDecisionTaskBackoff
+	// Determine ExecutionStatus based on whether the workflow has started executing
+	// A workflow is PENDING if it has a first decision task backoff and hasn't been scheduled yet
+	// Once the decision task is scheduled (or if there's no backoff), it's STARTED
 	executionStatus := types.WorkflowExecutionStatusStarted
-	if startEvent.WorkflowExecutionStartedEventAttributes != nil &&
-		startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds() > 0 {
-		executionStatus = types.WorkflowExecutionStatusPending
+	backoffSeconds := int32(0)
+	if startEvent.WorkflowExecutionStartedEventAttributes != nil {
+		backoffSeconds = startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds()
+	}
+
+	if backoffSeconds > 0 {
+		hasPending := mutableState.HasPendingDecision()
+		hasInFlight := mutableState.HasInFlightDecision()
+		hasProcessed := mutableState.HasProcessedOrPendingDecision()
+
+		// Check if the first decision task has been scheduled yet
+		// If there's no decision info, the workflow is still pending
+		if !hasPending && !hasInFlight && !hasProcessed {
+			executionStatus = types.WorkflowExecutionStatusPending
+		}
 	}
 
 	// startTime + firstDecisionTaskBackoffSeconds
