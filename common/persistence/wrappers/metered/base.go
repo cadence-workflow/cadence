@@ -135,12 +135,14 @@ func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag
 	duration := time.Since(before)
 	if len(tags) > 0 {
 		metricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration)
+		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerDomainHistogram, duration)
 	} else {
 		metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
+		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 	}
 
 	if p.enableLatencyHistogramMetrics {
-		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyManualHistogram, duration)
 	}
 
 	logger := p.logger.Helper()
@@ -161,9 +163,10 @@ func (p *base) callWithoutDomainTag(scope metrics.ScopeIdx, op func() error, tag
 	err := op()
 	duration := time.Since(before)
 	metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
+	metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 
 	if p.enableLatencyHistogramMetrics {
-		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyManualHistogram, duration)
 	}
 	if err != nil {
 		p.updateErrorMetric(scope, err, metricsScope, p.logger.Helper())
@@ -172,11 +175,14 @@ func (p *base) callWithoutDomainTag(scope metrics.ScopeIdx, op func() error, tag
 }
 
 func (p *base) callWithDomainAndShardScope(scope metrics.ScopeIdx, op func() error, domainTag metrics.Tag, shardIDTag metrics.Tag, additionalTags ...metrics.Tag) error {
+	// caution: additionalTags is generally unsafe in Prometheus, as it varies the tags applied to a metric.
+	// this method should be changed to use specific tags, and always emit the same list, using empty values where necessary.
+	overallScope := p.metricClient.Scope(scope)
 	domainMetricsScope := p.metricClient.Scope(scope, append([]metrics.Tag{domainTag}, additionalTags...)...)
 	shardOperationsMetricsScope := p.metricClient.Scope(scope, append([]metrics.Tag{shardIDTag}, additionalTags...)...)
-	shardOverallMetricsScope := p.metricClient.Scope(metrics.PersistenceShardRequestCountScope, shardIDTag)
+	shardOverallMetricsScope := p.metricClient.Scope(metrics.PersistenceShardRequestCountScope, shardIDTag) // operation:shardidpersistencerequest
 
-	domainMetricsScope.IncCounter(metrics.PersistenceRequestsPerDomain)
+	domainMetricsScope.IncCounter(metrics.PersistenceRequestsPerDomain) // also emits PersistenceRequests
 	shardOperationsMetricsScope.IncCounter(metrics.PersistenceRequestsPerShard)
 	shardOverallMetricsScope.IncCounter(metrics.PersistenceRequestsPerShard)
 
@@ -184,12 +190,18 @@ func (p *base) callWithDomainAndShardScope(scope metrics.ScopeIdx, op func() err
 	err := op()
 	duration := time.Since(before)
 
-	domainMetricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration)
-	shardOperationsMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
-	shardOverallMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
+	domainMetricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration) // also emits PersistenceLatency
+	domainMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerDomainHistogram, duration)
+	overallScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+
+	shardOperationsMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration) // operation:{scope argument}
+	shardOperationsMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerShardHistogram, duration)
+
+	shardOverallMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration) // operation:shardidpersistencerequest
+	shardOverallMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerShardHistogram, duration)
 
 	if p.enableLatencyHistogramMetrics {
-		domainMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+		domainMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyManualHistogram, duration) // manual buckets, being deprecated
 	}
 	if err != nil {
 		p.updateErrorMetricPerDomain(scope, err, domainMetricsScope, p.logger.Helper())
