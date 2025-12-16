@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/uber-go/tally"
-	"github.com/uber-go/tally/prometheus"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/fx"
 	"go.uber.org/yarpc"
@@ -17,14 +16,13 @@ import (
 
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
-	cadenceconfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/canary"
 	"github.com/uber/cadence/service/sharddistributor/canary/executors"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
-	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/tools/common/commoncli"
 )
 
@@ -48,25 +46,14 @@ func runApp(c *cli.Context) {
 }
 
 func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort int) fx.Option {
-	logger, _ := zap.NewDevelopment()
-	cadenceLogger := log.NewLogger(logger)
-
-	metricsConfig := cadenceconfig.Metrics{
-		Prometheus: &prometheus.Configuration{
-			ListenAddress: "127.0.0.1:9098",
-			TimerType:     "histogram",
-		},
-	}
-	metricsScope := metricsConfig.NewScope(cadenceLogger, "shard-distributor-canary")
-
 	configuration := clientcommon.Config{
 		Namespaces: []clientcommon.NamespaceConfig{
-			{Namespace: fixedNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: sdconfig.MigrationModeONBOARDED},
-			{Namespace: ephemeralNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: sdconfig.MigrationModeONBOARDED},
-			{Namespace: executors.LocalPassthroughNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: sdconfig.MigrationModeLOCALPASSTHROUGH},
-			{Namespace: executors.LocalPassthroughShadowNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: sdconfig.MigrationModeLOCALPASSTHROUGHSHADOW},
-			{Namespace: executors.DistributedPassthroughNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: sdconfig.MigrationModeDISTRIBUTEDPASSTHROUGH},
-			{Namespace: executors.ExternalAssignmentNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: sdconfig.MigrationModeDISTRIBUTEDPASSTHROUGH},
+			{Namespace: fixedNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
+			{Namespace: ephemeralNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
+			{Namespace: executors.LocalPassthroughNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeLOCALPASSTHROUGH},
+			{Namespace: executors.LocalPassthroughShadowNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeLOCALPASSTHROUGHSHADOW},
+			{Namespace: executors.DistributedPassthroughNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeDISTRIBUTEDPASSTHROUGH},
+			{Namespace: executors.ExternalAssignmentNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeDISTRIBUTEDPASSTHROUGH},
 		},
 	}
 
@@ -86,7 +73,7 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort in
 
 	return fx.Options(
 		fx.Supply(
-			fx.Annotate(metricsScope, fx.As(new(tally.Scope))),
+			fx.Annotate(tally.NoopScope, fx.As(new(tally.Scope))),
 			fx.Annotate(clock.NewRealTimeSource(), fx.As(new(clock.TimeSource))),
 			configuration,
 			transport,
@@ -119,8 +106,9 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort in
 		fx.Provide(
 			yarpc.NewDispatcher,
 			func(d *yarpc.Dispatcher) yarpc.ClientConfig { return d }, // Reprovide the dispatcher as a client config
-			func(l *zap.Logger) log.Logger { return log.NewLogger(l) },
 		),
+		fx.Provide(zap.NewDevelopment),
+		fx.Provide(log.NewLogger),
 
 		// We do decorate instead of Invoke because we want to start and stop the dispatcher at the
 		// correct time.
