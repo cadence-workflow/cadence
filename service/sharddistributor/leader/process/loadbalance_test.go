@@ -485,8 +485,7 @@ func TestLoadBalance_BenefitGatingDisabled_AllowsNonImprovingMove(t *testing.T) 
 	defer mocks.ctrl.Finish()
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
-	disabled := false
-	processor.cfg.LoadBalance.BenefitGatingEnabled = &disabled
+	processor.cfg.LoadBalance.DisableBenefitGating = true
 	processor.cfg.LoadBalance.HysteresisUpperBand = 1.0
 	processor.cfg.LoadBalance.HysteresisLowerBand = 1.0
 

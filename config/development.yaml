@@ -192,6 +192,4 @@ shardDistribution:
     period: 1s
     heartbeatTTL: 2s
     loadBalance:
-      # For local experimentation: disable objective-based gating so we can observe whether
-      # the load balancer is otherwise able to plan moves under replayed load patterns.
-      benefitGatingEnabled: false
+      disableBenefitGating: false

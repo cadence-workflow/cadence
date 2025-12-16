@@ -260,12 +260,12 @@ func (p *namespaceProcessor) findShardToMove(
 	// (currently: sum of squared error around mean load).
 	bestShard := ""
 	perShardCooldown := p.cfg.LoadBalance.PerShardCooldown
-	benefitGatingEnabled := p.cfg.LoadBalance.BenefitGatingEnabled == nil || *p.cfg.LoadBalance.BenefitGatingEnabled
+	benefitGatingDisabled := p.cfg.LoadBalance.DisableBenefitGating
 
 	sourceLoad := executorLoads[source]
 	destLoad := executorLoads[destination]
 
-	if !benefitGatingEnabled {
+	if benefitGatingDisabled {
 		bestLoad := -1.0
 		for _, shard := range currentAssignments[source] {
 			stats, ok := namespaceState.ShardStats[shard]
