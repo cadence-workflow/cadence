@@ -55,6 +55,9 @@ type Executor[SP ShardProcessor] interface {
 	// Get the current metadata of the executor
 	GetMetadata() map[string]string
 
+	// GetAssignedShardsCount returns the number of currently assigned shards
+	GetAssignedShardsCount() int64
+
 	// AssignShardsFromLocalLogic is used for the migration during local-passthrough, local-passthrough-shadow, distributed-passthrough
 	AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment) error
 	// RemoveShardsFromLocalLogic is used for the migration during local-passthrough, local-passthrough-shadow, distributed-passthrough

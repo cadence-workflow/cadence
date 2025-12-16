@@ -11,6 +11,7 @@ import (
 
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestShardCreator_PingsShards(t *testing.T) {
@@ -50,4 +51,84 @@ func TestShardCreator_PingsShards(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	creator.Stop()
+}
+
+func TestShardCreator_isAllowed_noExecutors(t *testing.T) {
+	testNamespace := "test-namespace"
+	params := ShardCreatorParams{Logger: zaptest.NewLogger(t)}
+
+	creator := NewShardCreator(params, []string{testNamespace})
+
+	assert.True(t, creator.isAllowed(testNamespace))
+}
+
+func TestShardCreator_isAllowed_AnotherNamespace(t *testing.T) {
+	goleak.VerifyNone(t)
+
+	logger := zaptest.NewLogger(t)
+	ctrl := gomock.NewController(t)
+
+	testNamespace := "test-namespace"
+
+	mockExecutor := executorclient.NewMockExecutor[*ShardProcessor](ctrl)
+	mockExecutor.EXPECT().GetNamespace().Return(testNamespace)
+
+	params := ShardCreatorParams{
+		Logger: logger,
+		ExecutorsEphemeral: []executorclient.Executor[*ShardProcessor]{
+			mockExecutor,
+		},
+	}
+
+	creator := NewShardCreator(params, []string{testNamespace})
+
+	assert.True(t, creator.isAllowed("another-namespace"))
+}
+
+func TestShardCreator_isAllowed_LessThanMax(t *testing.T) {
+	goleak.VerifyNone(t)
+
+	logger := zaptest.NewLogger(t)
+	ctrl := gomock.NewController(t)
+
+	testNamespace := "test-namespace"
+
+	mockExecutor := executorclient.NewMockExecutor[*ShardProcessor](ctrl)
+	mockExecutor.EXPECT().GetNamespace().Return(testNamespace)
+	mockExecutor.EXPECT().GetAssignedShardsCount().Return(int64(10))
+
+	params := ShardCreatorParams{
+		Logger: logger,
+		ExecutorsEphemeral: []executorclient.Executor[*ShardProcessor]{
+			mockExecutor,
+		},
+	}
+
+	creator := NewShardCreator(params, []string{testNamespace})
+
+	assert.True(t, creator.isAllowed(testNamespace))
+}
+
+func TestShardCreator_isAllowed_AssignedCountGreaterMax(t *testing.T) {
+	goleak.VerifyNone(t)
+
+	logger := zaptest.NewLogger(t)
+	ctrl := gomock.NewController(t)
+
+	testNamespace := "test-namespace"
+
+	mockExecutor := executorclient.NewMockExecutor[*ShardProcessor](ctrl)
+	mockExecutor.EXPECT().GetNamespace().Return(testNamespace)
+	mockExecutor.EXPECT().GetAssignedShardsCount().Return(int64(maxAssignedShardsLimit))
+
+	params := ShardCreatorParams{
+		Logger: logger,
+		ExecutorsEphemeral: []executorclient.Executor[*ShardProcessor]{
+			mockExecutor,
+		},
+	}
+
+	creator := NewShardCreator(params, []string{testNamespace})
+
+	assert.False(t, creator.isAllowed(testNamespace))
 }

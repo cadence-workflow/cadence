@@ -12,12 +12,17 @@ import (
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/service/sharddistributor/canary/pinger"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 //go:generate mockgen -package $GOPACKAGE -destination canary_client_mock_test.go github.com/uber/cadence/.gen/proto/sharddistributor/v1 ShardDistributorExecutorCanaryAPIYARPCClient
 
 const (
 	shardCreationInterval = 1 * time.Second
+
+	// maxAssignedShardsLimit defines the maximum number of assigned shards
+	// an executor can have before the shard creator stops creating new shards
+	maxAssignedShardsLimit = 1000
 )
 
 // ShardCreator creates shards at regular intervals for ephemeral canary testing
@@ -26,6 +31,7 @@ type ShardCreator struct {
 	timeSource   clock.TimeSource
 	canaryClient sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCClient
 	namespaces   []string
+	executors    map[string]executorclient.Executor[*ShardProcessor]
 
 	stopChan    chan struct{}
 	goRoutineWg sync.WaitGroup
@@ -38,10 +44,17 @@ type ShardCreatorParams struct {
 	Logger       *zap.Logger
 	TimeSource   clock.TimeSource
 	CanaryClient sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCClient
+
+	ExecutorsEphemeral []executorclient.Executor[*ShardProcessor] `group:"executor-ephemeral-proc"`
 }
 
 // NewShardCreator creates a new ShardCreator instance with the given parameters and namespace
 func NewShardCreator(params ShardCreatorParams, namespaces []string) *ShardCreator {
+	executors := make(map[string]executorclient.Executor[*ShardProcessor])
+	for _, executor := range params.ExecutorsEphemeral {
+		executors[executor.GetNamespace()] = executor
+	}
+
 	return &ShardCreator{
 		logger:       params.Logger,
 		timeSource:   params.TimeSource,
@@ -49,6 +62,7 @@ func NewShardCreator(params ShardCreatorParams, namespaces []string) *ShardCreat
 		stopChan:     make(chan struct{}),
 		goRoutineWg:  sync.WaitGroup{},
 		namespaces:   namespaces,
+		executors:    executors,
 	}
 }
 
@@ -92,6 +106,10 @@ func (s *ShardCreator) process(ctx context.Context) {
 			return
 		case <-ticker.Chan():
 			for _, namespace := range s.namespaces {
+				if !s.isAllowed(namespace) {
+					continue
+				}
+
 				shardKey := uuid.New().String()
 				s.logger.Info("Creating shard", zap.String("shardKey", shardKey), zap.String("namespace", namespace))
 
@@ -99,4 +117,26 @@ func (s *ShardCreator) process(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// isAllowed checks if a new shard can be created for the given namespace
+// based on the max assigned shards limit
+func (s *ShardCreator) isAllowed(namespace string) bool {
+	executor, ok := s.executors[namespace]
+	if !ok {
+		return true
+	}
+
+	assignedShardsCount := executor.GetAssignedShardsCount()
+	if assignedShardsCount < maxAssignedShardsLimit {
+		return true
+	}
+
+	s.logger.Info("Shard creator exceeds max assigned shards limit",
+		zap.String("namespace", namespace),
+		zap.Int64("assignedShards", assignedShardsCount),
+		zap.Int64("maxAssignedShardsLimit", maxAssignedShardsLimit),
+	)
+
+	return false
 }
