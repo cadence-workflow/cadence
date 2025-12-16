@@ -179,10 +179,12 @@ func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, ex
 func (n *namespaceShardToExecutor) readStats(executorID string) (map[string]etcdtypes.ShardStatistics, bool) {
 	n.executorStatistics.lock.RLock()
 	defer n.executorStatistics.lock.RUnlock()
+
 	stats, ok := n.executorStatistics.stats[executorID]
 	if ok {
 		return cloneStatisticsMap(stats), true
 	}
+
 	return nil, false
 }
 
