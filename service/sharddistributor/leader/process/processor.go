@@ -372,10 +372,10 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, p.cfg.Timeout)
 	defer cancel()
 
-	return p.rebalanceShardsImpl(ctx, metricsLoopScope)
+	return p.executeRebalanceCycle(ctx, metricsLoopScope)
 }
 
-func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoopScope metrics.Scope) (err error) {
+func (p *namespaceProcessor) executeRebalanceCycle(ctx context.Context, metricsLoopScope metrics.Scope) (err error) {
 	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
 	if err != nil {
 		return fmt.Errorf("get state: %w", err)
