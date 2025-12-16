@@ -26,8 +26,7 @@ import (
 	"fmt"
 )
 
-//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus,MigrationMode,HandoverType -json -output sharddistributor_statuses_enumer_generated.go
-//go:generate enumer -type=LoadBalancingMode -trimprefix=LoadBalancingMode -json -output sharddistributor_load_balancing_mode_enumer_generated.go
+//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus,MigrationMode,HandoverType,LoadBalancingMode -json -output sharddistributor_statuses_enumer_generated.go
 
 type GetShardOwnerRequest struct {
 	ShardKey  string

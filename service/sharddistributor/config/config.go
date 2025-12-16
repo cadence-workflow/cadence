@@ -127,11 +127,24 @@ func (c *Config) GetMigrationMode(namespace string) types.MigrationMode {
 	return mode
 }
 
+const (
+	LoadBalancingModeINVALID = "invalid"
+	LoadBalancingModeNAIVE   = "naive"
+	LoadBalancingModeGREEDY  = "greedy"
+)
+
+// LoadBalancingMode maps string migration mode values to types.LoadBalancingMode
+var LoadBalancingMode = map[string]types.LoadBalancingMode{
+	LoadBalancingModeINVALID: types.LoadBalancingModeINVALID,
+	LoadBalancingModeNAIVE:   types.LoadBalancingModeNAIVE,
+	LoadBalancingModeGREEDY:  types.LoadBalancingModeGREEDY,
+}
+
 // GetLoadBalancingMode gets the load balancing mode for a given namespace
 // If the mode is invalid, it returns types.LoadBalancingModeINVALID
 func (c *Config) GetLoadBalancingMode(namespace string) types.LoadBalancingMode {
-	mode, err := types.LoadBalancingModeString(c.LoadBalancingMode(namespace))
-	if err != nil {
+	mode, ok := LoadBalancingMode[c.LoadBalancingMode(namespace)]
+	if !ok {
 		return types.LoadBalancingModeINVALID
 	}
 
