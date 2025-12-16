@@ -382,9 +382,7 @@ func (n *namespaceShardToExecutor) applyParsedData(data map[string]executorData)
 // It updates the in-memory statistics map directly from the event without triggering a full refresh.
 func (n *namespaceShardToExecutor) handleExecutorStatisticsEvent(executorID string, event *clientv3.Event) {
 	if event == nil || event.Type == clientv3.EventTypeDelete || event.Kv == nil || len(event.Kv.Value) == 0 {
-		n.executorStatistics.lock.Lock()
-		defer n.executorStatistics.lock.Unlock()
-		delete(n.executorStatistics.stats, executorID)
+		n.executorStatistics.deleteStatistics(executorID)
 		return
 	}
 
@@ -399,9 +397,19 @@ func (n *namespaceShardToExecutor) handleExecutorStatisticsEvent(executorID stri
 		return
 	}
 
-	n.executorStatistics.lock.Lock()
-	defer n.executorStatistics.lock.Unlock()
-	n.executorStatistics.stats[executorID] = cloneStatisticsMap(stats)
+	n.executorStatistics.assignStatistics(executorID, stats)
+}
+
+func (n *namespaceExecutorStatistics) deleteStatistics(executorID string) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+	delete(n.stats, executorID)
+}
+
+func (n *namespaceExecutorStatistics) assignStatistics(executorID string, stats map[string]etcdtypes.ShardStatistics) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+	n.stats[executorID] = cloneStatisticsMap(stats)
 }
 
 // Clone to prevent concurrent map access
