@@ -18,6 +18,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/statistics"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
@@ -174,12 +175,30 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 			)
 			continue
 		}
-		statsUpdate.stats[shardID] = common.UpdateShardStatistic(shardID, report.ShardLoad, now, oldStats)
+		statsUpdate.stats[shardID] = UpdateShardStatistic(shardID, report.ShardLoad, now, oldStats)
 	}
 
 	statsUpdates = append(statsUpdates, statsUpdate)
 
 	return statsUpdates, err
+}
+
+func UpdateShardStatistic(shardID string, shardLoad float64, now time.Time, oldStats map[string]etcdtypes.ShardStatistics) etcdtypes.ShardStatistics {
+	var stats etcdtypes.ShardStatistics
+
+	prevStats, ok := oldStats[shardID]
+	if ok {
+		stats.LastMoveTime = prevStats.LastMoveTime
+	}
+
+	prevSmoothed := prevStats.SmoothedLoad
+	prevUpdate := prevStats.LastUpdateTime.ToTime()
+	newSmoothed := statistics.CalculateSmoothedLoad(prevSmoothed, shardLoad, prevUpdate, now)
+
+	stats.SmoothedLoad = newSmoothed
+	stats.LastUpdateTime = etcdtypes.Time(now)
+
+	return stats
 }
 
 // GetHeartbeat retrieves the last known heartbeat state for a single executor.
