@@ -162,29 +162,30 @@ func (n *namespaceShardToExecutor) GetExecutorModRevisionCmp() ([]clientv3.Cmp, 
 }
 
 func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, executorID string) (map[string]etcdtypes.ShardStatistics, error) {
-	n.executorStatistics.lock.RLock()
-	stats, ok := n.executorStatistics.stats[executorID]
-	if ok {
-		clonedStatistics := cloneStatisticsMap(stats)
-		n.executorStatistics.lock.RUnlock()
-		return clonedStatistics, nil
+	if stats, found := n.readStats(executorID); found {
+		return stats, nil
 	}
-	n.executorStatistics.lock.RUnlock()
 
-	err := n.refreshExecutorStatisticsCache(ctx, executorID)
-	if err != nil {
+	if err := n.refreshExecutorStatisticsCache(ctx, executorID); err != nil {
 		return nil, fmt.Errorf("error from refresh: %w", err)
 	}
 
-	// After refresh, read from cache again.
-	n.executorStatistics.lock.RLock()
-	defer n.executorStatistics.lock.RUnlock()
-	stats, ok = n.executorStatistics.stats[executorID]
-	if !ok {
-		return nil, fmt.Errorf("could not get executor statistics, even after refresh")
+	// Refreshing cache after cache miss should allow the statistics to be found
+	if stats, found := n.readStats(executorID); found {
+		return stats, nil
 	}
 
-	return cloneStatisticsMap(stats), nil
+	return nil, fmt.Errorf("could not get executor statistics, even after refresh")
+}
+
+func (n *namespaceShardToExecutor) readStats(executorID string) (map[string]etcdtypes.ShardStatistics, bool) {
+	n.executorStatistics.lock.RLock()
+	defer n.executorStatistics.lock.RUnlock()
+	stats, ok := n.executorStatistics.stats[executorID]
+	if ok {
+		return cloneStatisticsMap(stats), true
+	}
+	return nil, false
 }
 
 // refreshExecutorStatisticsCache fetches executor statistics from etcd and caches them.
