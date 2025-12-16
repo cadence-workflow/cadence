@@ -196,9 +196,9 @@ func (v *esVisibilityStore) UpsertWorkflowExecution(
 		0, // will not be used
 		request.UpdateTimestamp.UnixNano(),
 		request.ShardID,
-		"", // cronSchedule not available in upsert
-		0,  // executionStatus not available in upsert
-		0,  // scheduledExecutionTime not available in upsert
+		request.CronSchedule,
+		int32(request.ExecutionStatus),
+		request.ScheduledExecutionTimestamp,
 	)
 	return v.producer.Publish(ctx, msg)
 }

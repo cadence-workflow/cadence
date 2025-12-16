@@ -630,10 +630,9 @@ func (t *timerActiveTaskExecutor) executeWorkflowBackoffTimerTask(
 	isFirstDecision := executionInfo.DecisionScheduleID == constants.EmptyEventID
 
 	if isCronBackoff && isFirstDecision {
-		// Update ExecutionStatus to STARTED
-		executionInfo.ExecutionStatus = types.WorkflowExecutionStatusStarted
-
 		// Add UpsertWorkflowSearchAttributes task to trigger visibility update
+		// This will update ExecutionStatus from PENDING to STARTED in visibility
+		// The status is calculated dynamically in the upsert handler based on decision task state
 		mutableState.AddTransferTasks(&persistence.UpsertWorkflowSearchAttributesTask{
 			WorkflowIdentifier: persistence.WorkflowIdentifier{
 				DomainID:   executionInfo.DomainID,
