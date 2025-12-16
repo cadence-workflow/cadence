@@ -50,9 +50,11 @@ type namespaceExecutorStatistics struct {
 	stats map[string]map[string]etcdtypes.ShardStatistics
 }
 
+type ExecutorMetadata = map[string]string
+
 type executorData struct {
 	assignedStates map[string]etcdtypes.AssignedState
-	metadata       map[string]map[string]string // executorID -> metadata key -> metadata value
+	metadata       map[string]ExecutorMetadata // executorID -> metadata key -> metadata value
 	statistics     map[string]map[string]etcdtypes.ShardStatistics
 	revisions      map[string]int64
 }
@@ -60,7 +62,7 @@ type executorData struct {
 func parseExecutorData(resp *clientv3.GetResponse, etcdPrefix, namespace string) (*executorData, error) {
 	data := &executorData{
 		assignedStates: make(map[string]etcdtypes.AssignedState),
-		metadata:       make(map[string]map[string]string),
+		metadata:       make(map[string]ExecutorMetadata),
 		statistics:     make(map[string]map[string]etcdtypes.ShardStatistics),
 		revisions:      make(map[string]int64),
 	}
