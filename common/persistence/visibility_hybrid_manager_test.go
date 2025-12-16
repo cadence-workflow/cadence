@@ -1111,7 +1111,7 @@ func TestVisibilityHybridListClosedWorkflowExecutions(t *testing.T) {
 			mockESVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicproperties.GetStringPropertyFnFilteredByDomain(pinotStoreName),
+			readVisibilityStoreName: dynamicproperties.GetStringPropertyFnFilteredByDomain(esStoreName),
 			wgCount:                 0,
 		},
 		"Case3-2: read from Pinot with context key": {
@@ -1121,7 +1121,7 @@ func TestVisibilityHybridListClosedWorkflowExecutions(t *testing.T) {
 			mockPinotVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockPinotVisibilityManager *MockVisibilityManager) {
 				mockPinotVisibilityManager.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicproperties.GetStringPropertyFnFilteredByDomain(esStoreName),
+			readVisibilityStoreName: dynamicproperties.GetStringPropertyFnFilteredByDomain(pinotStoreName),
 			wgCount:                 0,
 		},
 		"Case4-1: success case with double read": {
