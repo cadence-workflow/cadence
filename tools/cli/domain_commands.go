@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -612,8 +611,8 @@ VisibilityArchivalURI: {{.}}{{end}}
 {{table .}}{{end}}
 {{with .FailoverInfo}}Graceful failover info:
 {{table .}}{{end}}
-{{with .ActiveClustersByClusterAttribute}}Active clusters by cluster attribute:
-{{table .}}{{end}}`
+{{if .IsActiveActiveDomain}}To see active clusters by cluster attribute use --print-json.
+{{end}}`
 
 // DescribeDomain updates a domain
 func (d *domainCLIImpl) DescribeDomain(c *cli.Context) error {
@@ -677,13 +676,6 @@ type FailoverInfoRow struct {
 	PendingShard        []int32   `header:"Pending Shard"`
 }
 
-type ActiveClusterInfoRow struct {
-	Scope             string `header:"Scope"`
-	Value             string `header:"Value"`
-	ActiveClusterName string `header:"Active Cluster Name"`
-	FailoverVersion   int64  `header:"Failover Version"`
-}
-
 type FailoverHistoryRow struct {
 	EventID     string    `header:"Event ID"`
 	CreatedTime time.Time `header:"Created Time"`
@@ -693,26 +685,25 @@ type FailoverHistoryRow struct {
 }
 
 type DomainRow struct {
-	Name                             string `header:"Name"`
-	UUID                             string `header:"UUID"`
-	Description                      string
-	OwnerEmail                       string
-	DomainData                       map[string]string  `header:"Domain Data"`
-	Status                           types.DomainStatus `header:"Status"`
-	IsGlobal                         bool               `header:"Is Global Domain"`
-	ActiveCluster                    string             `header:"Active Cluster"`
-	Clusters                         []string           `header:"Clusters"`
-	RetentionDays                    int32              `header:"Retention Days"`
-	EmitMetrics                      bool
-	HistoryArchivalStatus            types.ArchivalStatus `header:"History Archival Status"`
-	HistoryArchivalURI               string               `header:"History Archival URI"`
-	VisibilityArchivalStatus         types.ArchivalStatus `header:"Visibility Archival Status"`
-	VisibilityArchivalURI            string               `header:"Visibility Archival URI"`
-	BadBinaries                      []BadBinaryRow
-	FailoverInfo                     *FailoverInfoRow
-	LongRunningWorkFlowNum           *int
-	IsActiveActiveDomain             bool
-	ActiveClustersByClusterAttribute []ActiveClusterInfoRow
+	Name                     string `header:"Name"`
+	UUID                     string `header:"UUID"`
+	Description              string
+	OwnerEmail               string
+	DomainData               map[string]string  `header:"Domain Data"`
+	Status                   types.DomainStatus `header:"Status"`
+	IsGlobal                 bool               `header:"Is Global Domain"`
+	ActiveCluster            string             `header:"Active Cluster"`
+	Clusters                 []string           `header:"Clusters"`
+	RetentionDays            int32              `header:"Retention Days"`
+	EmitMetrics              bool
+	HistoryArchivalStatus    types.ArchivalStatus `header:"History Archival Status"`
+	HistoryArchivalURI       string               `header:"History Archival URI"`
+	VisibilityArchivalStatus types.ArchivalStatus `header:"Visibility Archival Status"`
+	VisibilityArchivalURI    string               `header:"Visibility Archival URI"`
+	BadBinaries              []BadBinaryRow
+	FailoverInfo             *FailoverInfoRow
+	LongRunningWorkFlowNum   *int
+	IsActiveActiveDomain     bool
 }
 
 type DomainMigrationRow struct {
@@ -739,25 +730,24 @@ type MismatchedDynamicConfig struct {
 
 func newDomainRow(domain *types.DescribeDomainResponse) DomainRow {
 	return DomainRow{
-		Name:                             domain.DomainInfo.Name,
-		UUID:                             domain.DomainInfo.UUID,
-		Description:                      domain.DomainInfo.Description,
-		OwnerEmail:                       domain.DomainInfo.OwnerEmail,
-		DomainData:                       domain.DomainInfo.GetData(),
-		Status:                           domain.DomainInfo.GetStatus(),
-		IsGlobal:                         domain.IsGlobalDomain,
-		ActiveCluster:                    domain.ReplicationConfiguration.GetActiveClusterName(),
-		Clusters:                         clustersToStrings(domain.ReplicationConfiguration.GetClusters()),
-		RetentionDays:                    domain.Configuration.GetWorkflowExecutionRetentionPeriodInDays(),
-		EmitMetrics:                      domain.Configuration.GetEmitMetric(),
-		HistoryArchivalStatus:            domain.Configuration.GetHistoryArchivalStatus(),
-		HistoryArchivalURI:               domain.Configuration.GetHistoryArchivalURI(),
-		VisibilityArchivalStatus:         domain.Configuration.GetVisibilityArchivalStatus(),
-		VisibilityArchivalURI:            domain.Configuration.GetVisibilityArchivalURI(),
-		BadBinaries:                      newBadBinaryRows(domain.Configuration.BadBinaries),
-		FailoverInfo:                     newFailoverInfoRow(domain.FailoverInfo),
-		IsActiveActiveDomain:             domain.ReplicationConfiguration.IsActiveActive(),
-		ActiveClustersByClusterAttribute: newActiveClustersByClusterAttribute(domain.ReplicationConfiguration.GetActiveClusters()),
+		Name:                     domain.DomainInfo.Name,
+		UUID:                     domain.DomainInfo.UUID,
+		Description:              domain.DomainInfo.Description,
+		OwnerEmail:               domain.DomainInfo.OwnerEmail,
+		DomainData:               domain.DomainInfo.GetData(),
+		Status:                   domain.DomainInfo.GetStatus(),
+		IsGlobal:                 domain.IsGlobalDomain,
+		ActiveCluster:            domain.ReplicationConfiguration.GetActiveClusterName(),
+		Clusters:                 clustersToStrings(domain.ReplicationConfiguration.GetClusters()),
+		RetentionDays:            domain.Configuration.GetWorkflowExecutionRetentionPeriodInDays(),
+		EmitMetrics:              domain.Configuration.GetEmitMetric(),
+		HistoryArchivalStatus:    domain.Configuration.GetHistoryArchivalStatus(),
+		HistoryArchivalURI:       domain.Configuration.GetHistoryArchivalURI(),
+		VisibilityArchivalStatus: domain.Configuration.GetVisibilityArchivalStatus(),
+		VisibilityArchivalURI:    domain.Configuration.GetVisibilityArchivalURI(),
+		BadBinaries:              newBadBinaryRows(domain.Configuration.BadBinaries),
+		FailoverInfo:             newFailoverInfoRow(domain.FailoverInfo),
+		IsActiveActiveDomain:     domain.ReplicationConfiguration.IsActiveActive(),
 	}
 }
 
@@ -787,34 +777,6 @@ func newBadBinaryRows(bb *types.BadBinaries) []BadBinaryRow {
 			Reason:    bin.GetReason(),
 		})
 	}
-	return rows
-}
-
-func newActiveClustersByClusterAttribute(activeClusters *types.ActiveClusters) []ActiveClusterInfoRow {
-	if activeClusters == nil {
-		return nil
-	}
-
-	rows := []ActiveClusterInfoRow{}
-	for scope, attributeScopes := range activeClusters.GetAttributeScopes() {
-		for attributeScope, clusterInfo := range attributeScopes.ClusterAttributes {
-			rows = append(rows, ActiveClusterInfoRow{
-				Scope:             scope,
-				Value:             attributeScope,
-				ActiveClusterName: clusterInfo.ActiveClusterName,
-				FailoverVersion:   clusterInfo.FailoverVersion,
-			})
-		}
-	}
-
-	// Sort for deterministic output
-	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].Scope != rows[j].Scope {
-			return rows[i].Scope < rows[j].Scope
-		}
-		return rows[i].Value < rows[j].Value
-	})
-
 	return rows
 }
 
