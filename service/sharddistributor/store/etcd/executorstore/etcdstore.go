@@ -872,18 +872,18 @@ func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, nam
 
 		payload, err := json.Marshal(update.stats)
 		if err != nil {
-			multiError = errors.Join(multiError, fmt.Errorf("failed to delete executor shard statistics: %w", err))
+			multiError = errors.Join(multiError, fmt.Errorf("failed to marshal executor shard statistics: %w", err))
 			continue
 		}
 
 		compressedPayload, err := s.recordWriter.Write(payload)
 		if err != nil {
-			multiError = errors.Join(multiError, fmt.Errorf("failed to delete executor shard statistics: %w", err))
+			multiError = errors.Join(multiError, fmt.Errorf("failed to compress executor shard statistics: %w", err))
 			continue
 		}
 
 		if _, err := s.client.Put(ctx, statsKey, string(compressedPayload)); err != nil {
-			multiError = errors.Join(multiError, fmt.Errorf("failed to delete executor shard statistics: %w", err))
+			multiError = errors.Join(multiError, fmt.Errorf("failed to put executor shard statistics: %w", err))
 		}
 	}
 	return multiError
