@@ -144,9 +144,7 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 		return err
 	}
 
-	err = s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
-
-	return err
+	return s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
 }
 
 func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) ([]shardStatisticsUpdate, error) {
