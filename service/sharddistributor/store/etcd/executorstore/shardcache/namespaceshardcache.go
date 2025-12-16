@@ -299,7 +299,7 @@ func (n *namespaceShardToExecutor) executorStateChanges(events []*clientv3.Event
 
 		switch keyType {
 		case etcdkeys.ExecutorShardStatisticsKey:
-			n.handleExecutorStatisticsEvent(executorID, event)
+			n.handleExecutorStatisticsEvent(executorID, *event)
 		case etcdkeys.ExecutorAssignedStateKey, etcdkeys.ExecutorMetadataKey:
 			return true
 		}
@@ -378,8 +378,8 @@ func (n *namespaceShardToExecutor) applyParsedData(data map[string]executorData)
 
 // handleExecutorStatisticsEvent processes incoming watch events for executor shard statistics.
 // It updates the in-memory statistics map directly from the event without triggering a full refresh.
-func (n *namespaceShardToExecutor) handleExecutorStatisticsEvent(executorID string, event *clientv3.Event) {
-	if event == nil || event.Type == clientv3.EventTypeDelete || event.Kv == nil || len(event.Kv.Value) == 0 {
+func (n *namespaceShardToExecutor) handleExecutorStatisticsEvent(executorID string, event clientv3.Event) {
+	if event.Type == clientv3.EventTypeDelete {
 		n.executorStatistics.deleteStatistics(executorID)
 		return
 	}
