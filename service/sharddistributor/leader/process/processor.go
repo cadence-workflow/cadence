@@ -88,6 +88,8 @@ func NewProcessorFactory(
 	timeSource clock.TimeSource,
 	cfg config.ShardDistribution,
 ) Factory {
+	boolPtr := func(v bool) *bool { return &v }
+
 	if cfg.Process.Period <= 0 {
 		cfg.Process.Period = _defaultPeriod
 	}
@@ -111,6 +113,9 @@ func NewProcessorFactory(
 	}
 	if cfg.Process.LoadBalance.SevereImbalanceRatio <= 0 {
 		cfg.Process.LoadBalance.SevereImbalanceRatio = _defaultSevereImbalanceRatio
+	}
+	if cfg.Process.LoadBalance.BenefitGatingEnabled == nil {
+		cfg.Process.LoadBalance.BenefitGatingEnabled = boolPtr(true)
 	}
 
 	return &processorFactory{

@@ -478,6 +478,52 @@ func TestLoadBalance_PerShardCooldownSkipsHotShard(t *testing.T) {
 	assert.False(t, slices.Contains(currentAssignments[execB], "hot-1"), "recently moved shard should not move")
 }
 
+// TestLoadBalance_BenefitGatingDisabled_AllowsNonImprovingMove verifies disabling benefit gating
+// allows a move even when the objective function would not improve.
+func TestLoadBalance_BenefitGatingDisabled_AllowsNonImprovingMove(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	disabled := false
+	processor.cfg.LoadBalance.BenefitGatingEnabled = &disabled
+	processor.cfg.LoadBalance.HysteresisUpperBand = 1.0
+	processor.cfg.LoadBalance.HysteresisLowerBand = 1.0
+
+	execA, execB := "exec-A", "exec-B"
+	now := mocks.timeSource.Now()
+
+	currentAssignments := map[string][]string{
+		execA: {"a-1"},
+		execB: {"b-1"},
+	}
+	assignments := map[string]store.AssignedState{
+		execA: {AssignedShards: map[string]*types.ShardAssignment{"a-1": {}}},
+		execB: {AssignedShards: map[string]*types.ShardAssignment{"b-1": {}}},
+	}
+	shardStats := map[string]store.ShardStatistics{
+		// Total load: 20, mean: 10. execA is a source (11), execB is a destination (9).
+		// Moving shard "a-1" (load 11) to execB makes loads 0 and 20 (worse balance), so benefit gating would block it.
+		"a-1": {SmoothedLoad: 11.0, LastUpdateTime: now},
+		"b-1": {SmoothedLoad: 9.0, LastUpdateTime: now},
+	}
+
+	namespaceState := &store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			execA: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+			execB: {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		},
+		ShardAssignments: assignments,
+		ShardStats:       shardStats,
+	}
+
+	changed, err := processor.loadBalance(currentAssignments, namespaceState, map[string]store.ShardState{}, nil)
+	require.NoError(t, err)
+	require.True(t, changed)
+	assert.Len(t, currentAssignments[execA], 0)
+	assert.True(t, slices.Contains(currentAssignments[execB], "a-1"))
+}
+
 // TestLoadBalance_NoDestinations verifies no moves are made when no executor is eligible as a destination.
 func TestLoadBalance_NoDestinations(t *testing.T) {
 	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)

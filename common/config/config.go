@@ -696,6 +696,14 @@ type (
 		// but no executor qualifies as a destination under the normal hysteresis lower band.
 		// Default: 1.5.
 		SevereImbalanceRatio float64 `yaml:"severeImbalanceRatio"`
+
+		// BenefitGatingEnabled controls whether load-based balancing requires a move to improve the
+		// objective function (currently: sum of squared error around mean load). When disabled, the
+		// balancer will still try to move load from hot to cold executors, but may accept moves that
+		// do not strictly improve the objective.
+		//
+		// Default: true.
+		BenefitGatingEnabled *bool `yaml:"benefitGatingEnabled"`
 	}
 )
 

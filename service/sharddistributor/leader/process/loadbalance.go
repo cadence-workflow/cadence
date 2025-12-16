@@ -28,6 +28,10 @@ func (p *namespaceProcessor) loadBalance(
 
 	now := p.timeSource.Now().UTC()
 	perShardCooldown := p.cfg.LoadBalance.PerShardCooldown
+	benefitGatingEnabled := true
+	if p.cfg.LoadBalance.BenefitGatingEnabled != nil {
+		benefitGatingEnabled = *p.cfg.LoadBalance.BenefitGatingEnabled
+	}
 
 	meanLoad := totalLoad / float64(len(loads))
 
@@ -91,6 +95,7 @@ func (p *namespaceProcessor) loadBalance(
 				loads,
 				now,
 				perShardCooldown,
+				benefitGatingEnabled,
 			)
 			if len(shardsToMove) == 0 {
 				// No eligible shard for this source+destination (cooldown, or no beneficial move), try the next source.
@@ -266,15 +271,39 @@ func (p *namespaceProcessor) findShardsToMove(
 	executorLoads map[string]float64,
 	now time.Time,
 	perShardCooldown time.Duration,
+	benefitGatingEnabled bool,
 ) []string {
 	// Pick a single eligible shard to move from source -> destination.
 	//
-	// For load-based balancing, prefer shards with the largest positive benefit (SSE reduction)
-	// and skip shards that would not improve balance.
-	bestBenefit := 0.0
+	// Default behavior is "benefit gated": only move a shard if it improves the objective
+	// (currently: sum of squared error around mean load).
 	bestShard := ""
+
 	sourceLoad := executorLoads[source]
 	destLoad := executorLoads[destination]
+
+	if !benefitGatingEnabled {
+		bestLoad := -1.0
+		for _, shard := range currentAssignments[source] {
+			stats, ok := namespaceState.ShardStats[shard]
+			if !ok {
+				continue
+			}
+			if perShardCooldown > 0 && !stats.LastMoveTime.IsZero() && now.Sub(stats.LastMoveTime) < perShardCooldown {
+				continue
+			}
+			if stats.SmoothedLoad > bestLoad {
+				bestLoad = stats.SmoothedLoad
+				bestShard = shard
+			}
+		}
+		if bestShard == "" {
+			return make([]string, 0)
+		}
+		return []string{bestShard}
+	}
+
+	bestBenefit := 0.0
 	for _, shard := range currentAssignments[source] {
 		stats, ok := namespaceState.ShardStats[shard]
 		if !ok {
