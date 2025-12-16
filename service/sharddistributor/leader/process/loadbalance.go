@@ -26,13 +26,6 @@ func (p *namespaceProcessor) loadBalance(
 		return false, nil
 	}
 
-	now := p.timeSource.Now().UTC()
-	perShardCooldown := p.cfg.LoadBalance.PerShardCooldown
-	benefitGatingEnabled := true
-	if p.cfg.LoadBalance.BenefitGatingEnabled != nil {
-		benefitGatingEnabled = *p.cfg.LoadBalance.BenefitGatingEnabled
-	}
-
 	meanLoad := totalLoad / float64(len(loads))
 
 	moveBudgetProportion := p.cfg.LoadBalance.MoveBudgetProportion
@@ -40,6 +33,13 @@ func (p *namespaceProcessor) loadBalance(
 	moveBudget := computeMoveBudget(len(allShards), moveBudgetProportion)
 	shardsMoved := false
 	movesPlanned := 0
+
+	now := p.timeSource.Now().UTC()
+	perShardCooldown := p.cfg.LoadBalance.PerShardCooldown
+	benefitGatingEnabled := true
+	if p.cfg.LoadBalance.BenefitGatingEnabled != nil {
+		benefitGatingEnabled = *p.cfg.LoadBalance.BenefitGatingEnabled
+	}
 
 	// Plan multiple moves per cycle (within budget), recomputing eligibility after each move.
 	// Stop early once sources/destinations are empty, i.e. imbalance is within hysteresis bands.
@@ -177,7 +177,6 @@ func shardMoveBenefitSquaredError(sourceLoad, destLoad, shardLoad float64) float
 func computeExecutorLoads(currentAssignments map[string][]string, namespaceState *store.NamespaceState) (map[string]float64, float64) {
 	loads := make(map[string]float64, len(currentAssignments))
 	total := 0.0
-	latestMove := time.Time{}
 
 	for executorID, shards := range currentAssignments {
 		for _, shardID := range shards {
@@ -185,9 +184,6 @@ func computeExecutorLoads(currentAssignments map[string][]string, namespaceState
 			load := 0.0
 			if ok {
 				load = stats.SmoothedLoad
-				if !stats.LastMoveTime.IsZero() && stats.LastMoveTime.After(latestMove) {
-					latestMove = stats.LastMoveTime
-				}
 			}
 			loads[executorID] += load
 			total += load
@@ -298,7 +294,7 @@ func (p *namespaceProcessor) findShardsToMove(
 			}
 		}
 		if bestShard == "" {
-			return make([]string, 0)
+			return nil
 		}
 		return []string{bestShard}
 	}
@@ -326,7 +322,7 @@ func (p *namespaceProcessor) findShardsToMove(
 	}
 
 	if bestShard == "" {
-		return make([]string, 0)
+		return nil
 	}
 	return []string{bestShard}
 }

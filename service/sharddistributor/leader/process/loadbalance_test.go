@@ -300,12 +300,12 @@ func TestLoadBalance_BudgetConstraint(t *testing.T) {
 		assignments[execB].AssignedShards[sID] = &types.ShardAssignment{}
 		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 2.0, LastUpdateTime: now}
 	}
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		sID := fmt.Sprintf("C-%d", i)
 		assignments[execC].AssignedShards[sID] = &types.ShardAssignment{}
 		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 2.0, LastUpdateTime: now}
 	}
-	for i := 0; i < 25; i++ {
+	for i := range 25 {
 		sID := fmt.Sprintf("D-%d", i)
 		assignments[execD].AssignedShards[sID] = &types.ShardAssignment{}
 		shardStats[sID] = store.ShardStatistics{SmoothedLoad: 0.2, LastUpdateTime: now}
