@@ -18,6 +18,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/statistics"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
@@ -143,9 +144,7 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 		return err
 	}
 
-	err = s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
-
-	return err
+	return s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
 }
 
 func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) ([]shardStatisticsUpdate, error) {
@@ -153,9 +152,6 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 		return nil, nil
 	}
 
-	now := s.timeSource.Now().UTC()
-
-	var statsUpdates []shardStatisticsUpdate
 	var statsUpdate shardStatisticsUpdate
 	statsUpdate.executorID = executorID
 	statsUpdate.stats = make(map[string]etcdtypes.ShardStatistics)
@@ -165,6 +161,7 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 		return nil, err
 	}
 
+	now := s.timeSource.Now().UTC()
 	for shardID, report := range reported {
 		if report == nil {
 			s.logger.Warn("empty report; skipping smoothed load update",
@@ -174,12 +171,28 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 			)
 			continue
 		}
-		statsUpdate.stats[shardID] = common.UpdateShardStatistic(shardID, report.ShardLoad, now, oldStats)
+		statsUpdate.stats[shardID] = UpdateShardStatistic(shardID, report.ShardLoad, now, oldStats)
 	}
 
-	statsUpdates = append(statsUpdates, statsUpdate)
+	return []shardStatisticsUpdate{statsUpdate}, err
+}
 
-	return statsUpdates, err
+func UpdateShardStatistic(shardID string, shardLoad float64, now time.Time, oldStats map[string]etcdtypes.ShardStatistics) etcdtypes.ShardStatistics {
+	var stats etcdtypes.ShardStatistics
+
+	prevStats, ok := oldStats[shardID]
+	if ok {
+		stats.LastMoveTime = prevStats.LastMoveTime
+	}
+
+	prevSmoothed := prevStats.SmoothedLoad
+	prevUpdate := prevStats.LastUpdateTime.ToTime()
+	newSmoothed := statistics.CalculateSmoothedLoad(prevSmoothed, shardLoad, prevUpdate, now)
+
+	stats.SmoothedLoad = newSmoothed
+	stats.LastUpdateTime = etcdtypes.Time(now)
+
+	return stats
 }
 
 // GetHeartbeat retrieves the last known heartbeat state for a single executor.
@@ -863,18 +876,18 @@ func (s *executorStoreImpl) applyShardStatisticsUpdates(ctx context.Context, nam
 
 		payload, err := json.Marshal(update.stats)
 		if err != nil {
-			multiError = errors.Join(multiError, fmt.Errorf("failed to delete executor shard statistics: %w", err))
+			multiError = errors.Join(multiError, fmt.Errorf("failed to marshal executor shard statistics: %w", err))
 			continue
 		}
 
 		compressedPayload, err := s.recordWriter.Write(payload)
 		if err != nil {
-			multiError = errors.Join(multiError, fmt.Errorf("failed to delete executor shard statistics: %w", err))
+			multiError = errors.Join(multiError, fmt.Errorf("failed to compress executor shard statistics: %w", err))
 			continue
 		}
 
 		if _, err := s.client.Put(ctx, statsKey, string(compressedPayload)); err != nil {
-			multiError = errors.Join(multiError, fmt.Errorf("failed to delete executor shard statistics: %w", err))
+			multiError = errors.Join(multiError, fmt.Errorf("failed to put executor shard statistics: %w", err))
 		}
 	}
 	return multiError

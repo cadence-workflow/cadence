@@ -50,9 +50,11 @@ type namespaceExecutorStatistics struct {
 	stats map[string]map[string]etcdtypes.ShardStatistics
 }
 
+type ExecutorMetadata = map[string]string
+
 type executorData struct {
 	assignedStates map[string]etcdtypes.AssignedState
-	metadata       map[string]map[string]string // executorID -> metadata key -> metadata value
+	metadata       map[string]ExecutorMetadata // executorID -> metadata key -> metadata value
 	statistics     map[string]map[string]etcdtypes.ShardStatistics
 	revisions      map[string]int64
 }
@@ -60,7 +62,7 @@ type executorData struct {
 func parseExecutorData(resp *clientv3.GetResponse, etcdPrefix, namespace string) (*executorData, error) {
 	data := &executorData{
 		assignedStates: make(map[string]etcdtypes.AssignedState),
-		metadata:       make(map[string]map[string]string),
+		metadata:       make(map[string]ExecutorMetadata),
 		statistics:     make(map[string]map[string]etcdtypes.ShardStatistics),
 		revisions:      make(map[string]int64),
 	}
@@ -160,29 +162,30 @@ func (n *namespaceShardToExecutor) GetExecutorModRevisionCmp() ([]clientv3.Cmp, 
 }
 
 func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, executorID string) (map[string]etcdtypes.ShardStatistics, error) {
-	n.executorStatistics.lock.RLock()
-	stats, ok := n.executorStatistics.stats[executorID]
-	if ok {
-		clonedStatistics := cloneStatisticsMap(stats)
-		n.executorStatistics.lock.RUnlock()
-		return clonedStatistics, nil
+	if stats, found := n.readStats(executorID); found {
+		return stats, nil
 	}
-	n.executorStatistics.lock.RUnlock()
 
-	err := n.refreshExecutorStatisticsCache(ctx, executorID)
-	if err != nil {
+	if err := n.refreshExecutorStatisticsCache(ctx, executorID); err != nil {
 		return nil, fmt.Errorf("error from refresh: %w", err)
 	}
 
-	// After refresh, read from cache again.
-	n.executorStatistics.lock.RLock()
-	defer n.executorStatistics.lock.RUnlock()
-	stats, ok = n.executorStatistics.stats[executorID]
-	if !ok {
-		return nil, fmt.Errorf("could not get executor statistics, even after refresh")
+	// Refreshing cache after cache miss should allow the statistics to be found
+	if stats, found := n.readStats(executorID); found {
+		return stats, nil
 	}
 
-	return cloneStatisticsMap(stats), nil
+	return nil, fmt.Errorf("could not get executor statistics, even after refresh")
+}
+
+func (n *namespaceShardToExecutor) readStats(executorID string) (map[string]etcdtypes.ShardStatistics, bool) {
+	n.executorStatistics.lock.RLock()
+	defer n.executorStatistics.lock.RUnlock()
+	stats, ok := n.executorStatistics.stats[executorID]
+	if ok {
+		return cloneStatisticsMap(stats), true
+	}
+	return nil, false
 }
 
 // refreshExecutorStatisticsCache fetches executor statistics from etcd and caches them.
@@ -280,6 +283,7 @@ func (n *namespaceShardToExecutor) handlePotentialRefresh(watchResp clientv3.Wat
 	for _, event := range watchResp.Events {
 		executorID, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(event.Kv.Key))
 		if keyErr != nil {
+			n.logger.Error("failed to parse executor key", tag.ShardNamespace(n.namespace), tag.Error(keyErr))
 			continue
 		}
 
@@ -381,7 +385,9 @@ func (n *namespaceShardToExecutor) applyParsedData(data *executorData) {
 // It updates the in-memory statistics map directly from the event without triggering a full refresh.
 func (n *namespaceShardToExecutor) handleExecutorStatisticsEvent(executorID string, event *clientv3.Event) {
 	if event == nil || event.Type == clientv3.EventTypeDelete || event.Kv == nil || len(event.Kv.Value) == 0 {
-		n.setExecutorStatistics(executorID, nil)
+		n.executorStatistics.lock.Lock()
+		defer n.executorStatistics.lock.Unlock()
+		delete(n.executorStatistics.stats, executorID)
 		return
 	}
 
@@ -396,16 +402,8 @@ func (n *namespaceShardToExecutor) handleExecutorStatisticsEvent(executorID stri
 		return
 	}
 
-	n.setExecutorStatistics(executorID, stats)
-}
-
-func (n *namespaceShardToExecutor) setExecutorStatistics(executorID string, stats map[string]etcdtypes.ShardStatistics) {
 	n.executorStatistics.lock.Lock()
 	defer n.executorStatistics.lock.Unlock()
-	if len(stats) == 0 {
-		delete(n.executorStatistics.stats, executorID)
-		return
-	}
 	n.executorStatistics.stats[executorID] = cloneStatisticsMap(stats)
 }
 
