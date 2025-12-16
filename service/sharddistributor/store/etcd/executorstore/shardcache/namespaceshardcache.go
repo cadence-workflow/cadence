@@ -182,7 +182,7 @@ func (n *namespaceShardToExecutor) readStats(executorID string) (map[string]etcd
 
 	stats, ok := n.executorStatistics.stats[executorID]
 	if ok {
-		return cloneStatisticsMap(stats), true
+		return maps.Clone(stats), true
 	}
 
 	return nil, false
@@ -409,19 +409,7 @@ func (n *namespaceExecutorStatistics) deleteStatistics(executorID string) {
 func (n *namespaceExecutorStatistics) assignStatistics(executorID string, stats map[string]etcdtypes.ShardStatistics) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-	n.stats[executorID] = cloneStatisticsMap(stats)
-}
-
-// Clone to prevent concurrent map access
-func cloneStatisticsMap(src map[string]etcdtypes.ShardStatistics) map[string]etcdtypes.ShardStatistics {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make(map[string]etcdtypes.ShardStatistics, len(src))
-	for shardID, stat := range src {
-		dst[shardID] = stat
-	}
-	return dst
+	n.stats[executorID] = maps.Clone(stats)
 }
 
 // getOrCreateShardOwner retrieves an existing ShardOwner from the map or creates a new one if it doesn't exist

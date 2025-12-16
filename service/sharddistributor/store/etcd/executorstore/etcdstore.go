@@ -811,8 +811,7 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 					}
 				}
 
-				clonedOldOwnerStats := make(map[string]etcdtypes.ShardStatistics, len(oldOwnerStats))
-				maps.Copy(clonedOldOwnerStats, oldOwnerStats)
+				clonedOldOwnerStats := maps.Clone(oldOwnerStats)
 
 				if existing, ok := clonedOldOwnerStats[shardID]; ok {
 					shardStatToMove = existing
@@ -838,8 +837,7 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 				}
 			}
 
-			clonedNewOwnerStats := make(map[string]etcdtypes.ShardStatistics, len(newOwnerStats))
-			maps.Copy(clonedNewOwnerStats, newOwnerStats)
+			clonedNewOwnerStats := maps.Clone(newOwnerStats)
 
 			clonedNewOwnerStats[shardID] = shardStatToMove
 			pendingStatChanges[executorID] = clonedNewOwnerStats
