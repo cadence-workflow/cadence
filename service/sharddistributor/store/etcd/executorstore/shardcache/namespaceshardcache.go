@@ -269,18 +269,23 @@ func (n *namespaceShardToExecutor) watch() error {
 			if !ok {
 				return fmt.Errorf("watch channel closed")
 			}
-			return n.handlePotentialRefresh(watchResp)
+
+			if err := watchResp.Err(); err != nil {
+				return fmt.Errorf("watch response: %w", err)
+			}
+
+			if n.executorStateChanges(watchResp.Events) {
+				if err := n.refresh(context.Background()); err != nil {
+					n.logger.Error("failed to refresh namespace shard to executor", tag.ShardNamespace(n.namespace), tag.Error(err))
+					return err
+				}
+			}
 		}
 	}
 }
 
-func (n *namespaceShardToExecutor) handlePotentialRefresh(watchResp clientv3.WatchResponse) error {
-	if err := watchResp.Err(); err != nil {
-		return fmt.Errorf("watch response: %w", err)
-	}
-
-	shouldRefresh := false
-	for _, event := range watchResp.Events {
+func (n *namespaceShardToExecutor) executorStateChanges(events []*clientv3.Event) bool {
+	for _, event := range events {
 		executorID, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(event.Kv.Key))
 		if keyErr != nil {
 			n.logger.Error("failed to parse executor key", tag.ShardNamespace(n.namespace), tag.Error(keyErr))
@@ -296,17 +301,10 @@ func (n *namespaceShardToExecutor) handlePotentialRefresh(watchResp clientv3.Wat
 		case etcdkeys.ExecutorShardStatisticsKey:
 			n.handleExecutorStatisticsEvent(executorID, event)
 		case etcdkeys.ExecutorAssignedStateKey, etcdkeys.ExecutorMetadataKey:
-			shouldRefresh = true
+			return true
 		}
 	}
-	if shouldRefresh {
-		err := n.refresh(context.Background())
-		if err != nil {
-			n.logger.Error("failed to refresh namespace shard to executor", tag.ShardNamespace(n.namespace), tag.Error(err))
-			return err
-		}
-	}
-	return nil
+	return false
 }
 
 func (n *namespaceShardToExecutor) refresh(ctx context.Context) error {
