@@ -186,3 +186,5 @@ shardDistribution:
   process:
     period: 1s
     heartbeatTTL: 2s
+    loadBalance:
+      disableBenefitGating: false

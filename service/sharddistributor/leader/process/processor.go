@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"math/rand"
 	"slices"
 	"sort"
@@ -48,6 +49,15 @@ const (
 	_defaultPeriod       = time.Second
 	_defaultHeartbeatTTL = 10 * time.Second
 	_defaultTimeout      = 1 * time.Second
+	// Default cooldown between moving the same shard / applying consecutive moves.
+	_defaultPerShardCooldown = time.Minute
+	// Default fraction of total shards that may be moved per load-balance pass.
+	_defaultMoveBudgetProportion = 0.01
+	// Default hysteresis bands around mean load.
+	_defaultHysteresisUpperBand = 1.15
+	_defaultHysteresisLowerBand = 0.95
+	// Default threshold for triggering severe-imbalance escape hatch.
+	_defaultSevereImbalanceRatio = 1.5
 )
 
 type processorFactory struct {
@@ -78,14 +88,29 @@ func NewProcessorFactory(
 	timeSource clock.TimeSource,
 	cfg config.ShardDistribution,
 ) Factory {
-	if cfg.Process.Period == 0 {
+	if cfg.Process.Period <= 0 {
 		cfg.Process.Period = _defaultPeriod
 	}
-	if cfg.Process.HeartbeatTTL == 0 {
+	if cfg.Process.HeartbeatTTL <= 0 {
 		cfg.Process.HeartbeatTTL = _defaultHeartbeatTTL
 	}
-	if cfg.Process.Timeout == 0 {
+	if cfg.Process.Timeout <= 0 {
 		cfg.Process.Timeout = _defaultTimeout
+	}
+	if cfg.Process.LoadBalance.PerShardCooldown <= 0 {
+		cfg.Process.LoadBalance.PerShardCooldown = _defaultPerShardCooldown
+	}
+	if cfg.Process.LoadBalance.MoveBudgetProportion <= 0 {
+		cfg.Process.LoadBalance.MoveBudgetProportion = _defaultMoveBudgetProportion
+	}
+	if cfg.Process.LoadBalance.HysteresisUpperBand <= 0 {
+		cfg.Process.LoadBalance.HysteresisUpperBand = _defaultHysteresisUpperBand
+	}
+	if cfg.Process.LoadBalance.HysteresisLowerBand <= 0 {
+		cfg.Process.LoadBalance.HysteresisLowerBand = _defaultHysteresisLowerBand
+	}
+	if cfg.Process.LoadBalance.SevereImbalanceRatio <= 0 {
+		cfg.Process.LoadBalance.SevereImbalanceRatio = _defaultSevereImbalanceRatio
 	}
 
 	return &processorFactory{
@@ -347,19 +372,15 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, p.cfg.Timeout)
 	defer cancel()
 
-	return p.rebalanceShardsImpl(ctx, metricsLoopScope)
+	return p.executeRebalanceCycle(ctx, metricsLoopScope)
 }
 
-func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoopScope metrics.Scope) (err error) {
+func (p *namespaceProcessor) executeRebalanceCycle(ctx context.Context, metricsLoopScope metrics.Scope) (err error) {
 	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
 	if err != nil {
 		return fmt.Errorf("get state: %w", err)
 	}
 
-	if namespaceState.GlobalRevision <= p.lastAppliedRevision {
-		p.logger.Info("No changes detected. Skipping rebalance.")
-		return nil
-	}
 	p.lastAppliedRevision = namespaceState.GlobalRevision
 
 	// Identify stale executors that need to be removed
@@ -373,18 +394,27 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 		p.logger.Info("No active executors found. Cannot assign shards.")
 		return nil
 	}
-	p.logger.Info("Active executors", tag.ShardExecutors(activeExecutors))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorActiveExecutors, float64(len(activeExecutors)))
 
 	deletedShards := p.findDeletedShards(namespaceState)
-	shardsToReassign, currentAssignments := p.findShardsToReassign(activeExecutors, namespaceState, deletedShards, staleExecutors)
+	shardsNeedingReassignment, currentAssignments := p.findShardsNeedingReassignment(activeExecutors, namespaceState, deletedShards, staleExecutors)
 
-	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumRebalancedShards, float64(len(shardsToReassign)))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumRebalancedShards, float64(len(shardsNeedingReassignment)))
 
-	// If there are deleted shards or stale executors, the distribution has changed.
-	assignedToEmptyExecutors := assignShardsToEmptyExecutors(currentAssignments)
-	updatedAssignments := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
+	// Reassign shards from deleted/stale executors and backfill empty ones
+	didAssignToEmpty := assignShardsToEmptyExecutors(currentAssignments)
+	didAssignShardsNeedingReassignment := p.assignShardsNeedingReassignment(shardsNeedingReassignment, activeExecutors, currentAssignments)
 
-	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments
+	// Load-based changes
+	didLoadBalance, err := p.loadBalance(currentAssignments, namespaceState, deletedShards, metricsLoopScope)
+	if err != nil {
+		return fmt.Errorf("load balance: %w", err)
+	}
+
+	p.emitAssignmentLoadCV(metricsLoopScope, currentAssignments, namespaceState)
+	p.emitShardMovesLastMinute(metricsLoopScope, namespaceState)
+
+	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || didAssignToEmpty || didAssignShardsNeedingReassignment || didLoadBalance
 	if !distributionChanged {
 		p.logger.Info("No changes to distribution detected. Skipping rebalance.")
 		return nil
@@ -426,7 +456,7 @@ func (p *namespaceProcessor) findDeletedShards(namespaceState *store.NamespaceSt
 	return deletedShards
 }
 
-func (p *namespaceProcessor) findShardsToReassign(
+func (p *namespaceProcessor) findShardsNeedingReassignment(
 	activeExecutors []string,
 	namespaceState *store.NamespaceState,
 	deletedShards map[string]store.ShardState,
@@ -437,7 +467,7 @@ func (p *namespaceProcessor) findShardsToReassign(
 		allShards[shardID] = struct{}{}
 	}
 
-	shardsToReassign := make([]string, 0)
+	shardsNeedingReassignment := make([]string, 0)
 	currentAssignments := make(map[string][]string)
 
 	for _, executorID := range activeExecutors {
@@ -456,25 +486,25 @@ func (p *namespaceProcessor) findShardsToReassign(
 					currentAssignments[executorID] = append(currentAssignments[executorID], shardID)
 				} else {
 					// Otherwise, reassign the shard (executor is either inactive or stale)
-					shardsToReassign = append(shardsToReassign, shardID)
+					shardsNeedingReassignment = append(shardsNeedingReassignment, shardID)
 				}
 			}
 		}
 	}
 
 	for shardID := range allShards {
-		shardsToReassign = append(shardsToReassign, shardID)
+		shardsNeedingReassignment = append(shardsNeedingReassignment, shardID)
 	}
-	return shardsToReassign, currentAssignments
+	return shardsNeedingReassignment, currentAssignments
 }
 
-func (*namespaceProcessor) updateAssignments(shardsToReassign []string, activeExecutors []string, currentAssignments map[string][]string) (distributionChanged bool) {
-	if len(shardsToReassign) == 0 {
+func (*namespaceProcessor) assignShardsNeedingReassignment(shardsNeedingReassignment []string, activeExecutors []string, currentAssignments map[string][]string) bool {
+	if len(shardsNeedingReassignment) == 0 {
 		return false
 	}
 
 	i := rand.Intn(len(activeExecutors))
-	for _, shardID := range shardsToReassign {
+	for _, shardID := range shardsNeedingReassignment {
 		executorID := activeExecutors[i%len(activeExecutors)]
 		currentAssignments[executorID] = append(currentAssignments[executorID], shardID)
 		i++
@@ -673,4 +703,93 @@ func makeShards(num int64) []string {
 		shards[i] = strconv.FormatInt(i, 10)
 	}
 	return shards
+}
+
+func (p *namespaceProcessor) emitAssignmentLoadCV(
+	metricsLoopScope metrics.Scope,
+	assignments map[string][]string,
+	namespaceState *store.NamespaceState,
+) {
+	if metricsLoopScope == nil {
+		return
+	}
+	cv := computeExecutorLoadCV(assignments, namespaceState)
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentLoadCV, cv)
+}
+
+func (p *namespaceProcessor) emitShardMovesLastMinute(
+	metricsLoopScope metrics.Scope,
+	namespaceState *store.NamespaceState,
+) {
+	if metricsLoopScope == nil || namespaceState == nil {
+		return
+	}
+
+	if len(namespaceState.ShardStats) == 0 {
+		metricsLoopScope.UpdateGauge(metrics.ShardDistributorShardMovesLastMinute, 0)
+		return
+	}
+
+	window := time.Minute
+	now := p.timeSource.Now().UTC()
+	recentMoves := 0
+	for _, stats := range namespaceState.ShardStats {
+		if stats.LastMoveTime.IsZero() {
+			continue
+		}
+		if now.Sub(stats.LastMoveTime) <= window {
+			recentMoves++
+		}
+	}
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorShardMovesLastMinute, float64(recentMoves))
+}
+
+func computeExecutorLoadCV(assignments map[string][]string, namespaceState *store.NamespaceState) float64 {
+	if len(assignments) == 0 || namespaceState == nil || len(namespaceState.Executors) == 0 {
+		return 0
+	}
+
+	loads := make([]float64, 0, len(assignments))
+	for executorID, shards := range assignments {
+		load := 0.0
+		heartbeat, ok := namespaceState.Executors[executorID]
+		for _, shardID := range shards {
+			if !ok || heartbeat.ReportedShards == nil {
+				continue
+			}
+			if shardReport, exists := heartbeat.ReportedShards[shardID]; exists && shardReport != nil {
+				load += shardReport.ShardLoad
+			}
+		}
+		loads = append(loads, load)
+	}
+
+	return coefficientOfVariation(loads)
+}
+
+func coefficientOfVariation(values []float64) float64 {
+	if len(values) <= 1 {
+		return 0
+	}
+
+	total := 0.0
+	for _, value := range values {
+		total += value
+	}
+	mean := total / float64(len(values))
+	if mean == 0 {
+		return 0
+	}
+
+	variance := 0.0
+	for _, value := range values {
+		diff := value - mean
+		variance += diff * diff
+	}
+	variance /= float64(len(values))
+	if variance == 0 {
+		return 0
+	}
+
+	return math.Sqrt(variance) / mean
 }

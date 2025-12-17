@@ -2967,11 +2967,19 @@ const (
 	ShardDistributorAssignLoopFail
 
 	ShardDistributorActiveShards
+	ShardDistributorActiveExecutors
+	// ShardDistributorAssignmentLoadCV measures coefficient of variation across executor loads
+	ShardDistributorAssignmentLoadCV
 
 	ShardDistributorStoreExecutorNotFound
 	ShardDistributorStoreFailuresPerNamespace
 	ShardDistributorStoreRequestsPerNamespace
 	ShardDistributorStoreLatencyHistogramPerNamespace
+
+	// ShardDistributorLoadBalanceMovesPerCycle reports number of shards moved in a single load-balance pass.
+	ShardDistributorLoadBalanceMovesPerCycle
+	// ShardDistributorShardMovesLastMinute reports how many shards were moved in the last minute.
+	ShardDistributorShardMovesLastMinute
 
 	// ShardDistributorShardAssignmentDistributionLatency measures the time taken between assignment of a shard
 	// and the time it is fully distributed to executors
@@ -3760,12 +3768,17 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ShardDistributorAssignLoopSuccess:               {metricName: "shard_distrubutor_shard_assign_success", metricType: Counter},
 		ShardDistributorAssignLoopFail:                  {metricName: "shard_distrubutor_shard_assign_fail", metricType: Counter},
 
-		ShardDistributorActiveShards: {metricName: "shard_distributor_active_shards", metricType: Gauge},
+		ShardDistributorActiveShards:     {metricName: "shard_distributor_active_shards", metricType: Gauge},
+		ShardDistributorActiveExecutors:  {metricName: "shard_distributor_active_executors", metricType: Gauge},
+		ShardDistributorAssignmentLoadCV: {metricName: "shard_distributor_assignment_load_cv", metricType: Gauge},
 
 		ShardDistributorStoreExecutorNotFound:             {metricName: "shard_distributor_store_executor_not_found", metricType: Counter},
 		ShardDistributorStoreFailuresPerNamespace:         {metricName: "shard_distributor_store_failures_per_namespace", metricType: Counter},
 		ShardDistributorStoreRequestsPerNamespace:         {metricName: "shard_distributor_store_requests_per_namespace", metricType: Counter},
 		ShardDistributorStoreLatencyHistogramPerNamespace: {metricName: "shard_distributor_store_latency_histogram_per_namespace", metricType: Histogram, buckets: ShardDistributorExecutorStoreLatencyBuckets},
+
+		ShardDistributorLoadBalanceMovesPerCycle: {metricName: "shard_distributor_load_balance_moves_per_cycle", metricType: Gauge},
+		ShardDistributorShardMovesLastMinute:     {metricName: "shard_distributor_shard_moves_last_minute", metricType: Gauge},
 
 		ShardDistributorShardAssignmentDistributionLatency: {metricName: "shard_distributor_shard_assignment_distribution_latency", metricType: Histogram, buckets: Default1ms100s.buckets()},
 		ShardDistributorShardHandoverLatency:               {metricName: "shard_distributor_shard_handover_latency", metricType: Histogram, buckets: Default1ms100s.buckets()},

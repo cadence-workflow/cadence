@@ -21,6 +21,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/executorstore/common"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/testhelper"
 )
 
@@ -37,11 +38,13 @@ func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
 	})
 
 	// Start the cache
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource())
+	mockTime := clock.NewMockedTimeSource()
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, mockTime)
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
-	time.Sleep(50 * time.Millisecond)
 
+	mockTime.BlockUntil(1)
+	mockTime.Advance(1 * time.Second)
 	// Verify executor-1 owns shard-1 with correct metadata
 	verifyShardOwner(t, namespaceShardToExecutor, "shard-1", "executor-1", map[string]string{
 		"hostname": "executor-1-host",
@@ -60,8 +63,9 @@ func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
 		"hostname": "executor-2-host",
 		"region":   "us-west",
 	})
-	time.Sleep(100 * time.Millisecond)
 
+	mockTime.BlockUntil(1)
+	mockTime.Advance(1 * time.Second)
 	// Check that executor-2 and shard-2 is in the cache
 	namespaceShardToExecutor.RLock()
 	_, ok = namespaceShardToExecutor.executorRevision["executor-2"]
@@ -89,7 +93,8 @@ func TestNamespaceShardToExecutor_Subscribe(t *testing.T) {
 	})
 
 	// Start the cache
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource())
+	mockTime := clock.NewMockedTimeSource()
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, mockTime)
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
 
@@ -128,15 +133,17 @@ func TestNamespaceShardToExecutor_Subscribe(t *testing.T) {
 			"region":   "us-west",
 		})
 	}()
-	time.Sleep(10 * time.Millisecond)
 
 	// Add executor-2 with shard-2 to trigger new subscription update
 	setupExecutorWithShards(t, testCluster, "executor-2", []string{"shard-2"}, map[string]string{
 		"hostname": "executor-2-host",
 		"region":   "us-west",
 	})
+	// Let the watch event propagate
+	mockTime.BlockUntil(1)
+	mockTime.Advance(1 * time.Second)
+	wg.Wait() // wait for listener to complete
 
-	wg.Wait()
 }
 
 func TestNamespaceShardToExecutor_watch_watchChanErrors(t *testing.T) {
@@ -297,6 +304,81 @@ func verifyExecutorInState(t *testing.T, state map[*store.ShardOwner][]string, e
 		}
 	}
 	assert.True(t, executorInState)
+}
+
+func TestNamespaceShardToExecutor_ExecutorStatistics(t *testing.T) {
+	testCluster := testhelper.SetupStoreTestCluster(t)
+	logger := testlogger.New(t)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	mockTime := clock.NewMockedTimeSource()
+
+	executorID := "executor-stats"
+	shardID1 := "shard-stats-1"
+	shardID2 := "shard-stats-2"
+
+	initialStats := map[string]etcdtypes.ShardStatistics{
+		shardID1: {SmoothedLoad: 10.0, LastUpdateTime: etcdtypes.Time(mockTime.Now().Add(-time.Hour)), LastMoveTime: etcdtypes.Time(mockTime.Now().Add(-2 * time.Hour))},
+		shardID2: {SmoothedLoad: 20.0, LastUpdateTime: etcdtypes.Time(mockTime.Now().Add(-30 * time.Minute)), LastMoveTime: etcdtypes.Time(mockTime.Now().Add(-90 * time.Minute))},
+	}
+	putExecutorStatisticsInEtcd(t, testCluster, executorID, initialStats)
+
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, mockTime)
+	assert.NoError(t, err)
+	namespaceShardToExecutor.Start(&sync.WaitGroup{})
+
+	// Wait for initial stats to be loaded
+	mockTime.BlockUntil(1)
+	mockTime.Advance(1 * time.Second)
+
+	statsFromCache, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
+	require.NoError(t, err)
+	assert.Equal(t, initialStats, statsFromCache)
+
+	updatedStats := map[string]etcdtypes.ShardStatistics{
+		shardID1: {SmoothedLoad: 15.0, LastUpdateTime: etcdtypes.Time(mockTime.Now())},
+		shardID2: {SmoothedLoad: 25.0, LastUpdateTime: etcdtypes.Time(mockTime.Now())},
+	}
+	putExecutorStatisticsInEtcd(t, testCluster, executorID, updatedStats)
+
+	// Wait for stats to be updated via watch event
+	mockTime.BlockUntil(1)
+	mockTime.Advance(1 * time.Second)
+
+	statsFromCacheAfterUpdate, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
+	require.NoError(t, err)
+	assert.Equal(t, updatedStats, statsFromCacheAfterUpdate)
+
+	nonExistentStats, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), "non-existent-executor")
+	require.NoError(t, err) // No error, just empty map
+	assert.Empty(t, nonExistentStats)
+
+	statsKey := etcdkeys.BuildExecutorKey(testCluster.EtcdPrefix, testCluster.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
+	_, err = testCluster.Client.Delete(context.Background(), statsKey)
+	require.NoError(t, err)
+
+	// Wait for stats to be deleted via watch event
+	mockTime.BlockUntil(1)
+	mockTime.Advance(1 * time.Second)
+
+	deletedStats, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
+	require.NoError(t, err)
+	assert.Empty(t, deletedStats)
+}
+
+// putExecutorStatisticsInEtcd is a helper to directly put compressed executor statistics into etcd.
+func putExecutorStatisticsInEtcd(t *testing.T, tc *testhelper.StoreTestCluster, executorID string, stats map[string]etcdtypes.ShardStatistics) {
+	payload, err := json.Marshal(stats)
+	require.NoError(t, err)
+
+	writer, err := common.NewRecordWriter(tc.Compression)
+	require.NoError(t, err)
+	compressedPayload, err := writer.Write(payload)
+	require.NoError(t, err)
+
+	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
+	_, err = tc.Client.Put(context.Background(), statsKey, string(compressedPayload))
+	require.NoError(t, err)
 }
 
 // verifyShardOwner checks that a shard has the expected owner and metadata

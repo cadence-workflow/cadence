@@ -84,6 +84,9 @@ type (
 		// the executor is considered stale and its shards are eligible for redistribution.
 		// Default: 10 seconds
 		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
+
+		// LoadBalance contains tunables for load-based rebalancing.
+		LoadBalance config.LoadBalance `yaml:"loadBalance"`
 	}
 )
 
