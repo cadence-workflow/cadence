@@ -23,7 +23,6 @@
 package config
 
 import (
-	"github.com/uber/cadence/common/log/testlogger"
 	"testing"
 	"time"
 
@@ -31,6 +30,7 @@ import (
 
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 )
 
