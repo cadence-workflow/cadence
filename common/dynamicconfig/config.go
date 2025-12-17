@@ -264,6 +264,22 @@ func (c *Collection) GetFloat64PropertyFilteredByTaskListInfo(key dynamicpropert
 	}
 }
 
+// GetFloat64PropertyFilteredByNamespace gets property with domain filter and asserts that it's a string
+func (c *Collection) GetFloat64PropertyFilteredByNamespace(key dynamicproperties.FloatKey) dynamicproperties.Float64PropertyFnWithNamespaceFilters {
+	return func(namespace string) float64 {
+		filters := c.toFilterMap(dynamicproperties.NamespaceFilter(namespace))
+		val, err := c.client.GetFloatValue(
+			key,
+			filters,
+		)
+		if err != nil {
+			c.logError(key, filters, err)
+			return key.DefaultFloat()
+		}
+		return val
+	}
+}
+
 // GetDurationProperty gets property and asserts that it's a duration
 func (c *Collection) GetDurationProperty(key dynamicproperties.DurationKey) dynamicproperties.DurationPropertyFn {
 	return func(opts ...dynamicproperties.FilterOption) time.Duration {
