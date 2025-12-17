@@ -221,7 +221,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 		"makeToast",
 		persistence.TaskListTypeActivity)
 	tlKind := types.TaskListKindNormal
-	tlm, err := s.matchingEngine.getTaskListManager(taskListID, tlKind)
+	tlm, err := s.matchingEngine.getTaskListManager(context.Background(), taskListID, tlKind)
 	s.Require().NoError(err)
 	params := tasklist.ManagerParams{
 		s.matchingEngine.domainCache,
@@ -245,7 +245,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 	// try to unload a different tlm instance with the same taskListID
 	s.matchingEngine.unloadTaskList(tlm2)
 
-	got, err := s.matchingEngine.getTaskListManager(taskListID, tlKind)
+	got, err := s.matchingEngine.getTaskListManager(context.Background(), taskListID, tlKind)
 	s.Require().NoError(err)
 	s.Require().Same(tlm, got,
 		"Unload call with non-matching taskListManager should not cause unload")
@@ -253,7 +253,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 	// this time unload the right tlm
 	s.matchingEngine.unloadTaskList(tlm)
 
-	got, err = s.matchingEngine.getTaskListManager(taskListID, tlKind)
+	got, err = s.matchingEngine.getTaskListManager(context.Background(), taskListID, tlKind)
 	s.Require().NoError(err)
 	s.Require().NotSame(tlm, got,
 		"Unload call with matching incarnation should have caused unload")
@@ -685,7 +685,6 @@ func (s *matchingEngineSuite) SyncMatchTasks(taskType int, enableIsolation bool)
 	// So we can get snapshots
 	scope := tally.NewTestScope("test", nil)
 	s.matchingEngine.metricsClient = metrics.NewClient(scope, metrics.Matching, metrics.HistogramMigration{})
-	s.matchingEngine.taskListsFactory.MetricsClient = metrics.NewClient(scope, metrics.Matching, metrics.HistogramMigration{})
 
 	testParam := newTestParam(s.T(), taskType)
 	s.taskManager.SetRangeID(testParam.TaskListID, initialRangeID)
@@ -845,7 +844,6 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 	}
 	scope := tally.NewTestScope("test", nil)
 	s.matchingEngine.metricsClient = metrics.NewClient(scope, metrics.Matching, metrics.HistogramMigration{})
-	s.matchingEngine.taskListsFactory.MetricsClient = metrics.NewClient(scope, metrics.Matching, metrics.HistogramMigration{})
 
 	const initialRangeID = 0
 	const rangeSize = 3
@@ -928,7 +926,7 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 	expectedRange := getExpectedRange(initialRangeID, persisted, rangeSize)
 	// Due to conflicts some ids are skipped and more real ranges are used.
 	s.True(expectedRange <= s.taskManager.GetRangeID(testParam.TaskListID))
-	mgr, err := s.matchingEngine.getTaskListManager(testParam.TaskListID, tlKind)
+	mgr, err := s.matchingEngine.getTaskListManager(context.Background(), testParam.TaskListID, tlKind)
 	s.NoError(err)
 	// stop the tasklist manager to force the acked tasks to be deleted
 	mgr.Stop()
@@ -1109,7 +1107,7 @@ func (s *matchingEngineSuite) TestAddTaskAfterStartFailure() {
 	s.NoError(err)
 	s.EqualValues(1, s.taskManager.GetTaskCount(tlID))
 
-	tlMgr, err := s.matchingEngine.getTaskListManager(tlID, tlKind)
+	tlMgr, err := s.matchingEngine.getTaskListManager(context.Background(), tlID, tlKind)
 	s.NoError(err)
 	ctx, err := tlMgr.GetTask(context.Background(), nil)
 	s.NoError(err)
@@ -1216,7 +1214,7 @@ func (s *matchingEngineSuite) DrainBacklogNoPollersIsolationGroup(taskType int) 
 	s.taskManager.SetRangeID(testParam.TaskListID, initialRangeID)
 	s.matchingEngine.config.RangeSize = rangeSize // override to low number for the test
 	s.matchingEngine.config.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
-	_, err := s.matchingEngine.getTaskListManager(testParam.TaskListID, testParam.TaskList.GetKind())
+	_, err := s.matchingEngine.getTaskListManager(context.Background(), testParam.TaskListID, testParam.TaskList.GetKind())
 	s.NoError(err)
 	// advance the time a bit more than warmup time of new tasklist after the creation of tasklist manager, which is 1 minute
 	s.mockTimeSource.Advance(time.Minute)

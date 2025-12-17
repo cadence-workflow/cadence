@@ -22,12 +22,12 @@ const (
 )
 
 type executor struct {
-	logger                 log.Logger
-	timeSource             clock.TimeSource
-	storage                store.Store
-	shardDistributionCfg   config.ShardDistribution
-	migrationConfiguration *config.MigrationConfig
-	metricsClient          metrics.Client
+	logger               log.Logger
+	timeSource           clock.TimeSource
+	storage              store.Store
+	shardDistributionCfg config.ShardDistribution
+	cfg                  *config.Config
+	metricsClient        metrics.Client
 }
 
 func NewExecutorHandler(
@@ -35,16 +35,16 @@ func NewExecutorHandler(
 	storage store.Store,
 	timeSource clock.TimeSource,
 	shardDistributionCfg config.ShardDistribution,
-	migrationConfig *config.MigrationConfig,
+	cfg *config.Config,
 	metricsClient metrics.Client,
 ) Executor {
 	return &executor{
-		logger:                 logger,
-		timeSource:             timeSource,
-		storage:                storage,
-		shardDistributionCfg:   shardDistributionCfg,
-		migrationConfiguration: migrationConfig,
-		metricsClient:          metricsClient,
+		logger:               logger,
+		timeSource:           timeSource,
+		storage:              storage,
+		shardDistributionCfg: shardDistributionCfg,
+		cfg:                  cfg,
+		metricsClient:        metricsClient,
 	}
 }
 
@@ -56,7 +56,7 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 	}
 
 	heartbeatTime := h.timeSource.Now().UTC()
-	mode := h.migrationConfiguration.GetMigrationMode(request.Namespace)
+	mode := h.cfg.GetMigrationMode(request.Namespace)
 	shardAssignedInBackground := true
 
 	switch mode {

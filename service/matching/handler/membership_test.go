@@ -23,6 +23,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -146,7 +147,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				membership.NewDetailedHostInfo("", tc.whoAmIResult, make(membership.PortMap)), tc.whoAmIErr,
 			).AnyTimes()
 
-			_, err := matchingEngine.getTaskListManager(
+			_, err := matchingEngine.getTaskListManager(context.Background(),
 				tasklist.NewTestTaskListID(t, "domain", "tasklist", persistence.TaskListTypeActivity),
 				types.TaskListKindNormal,
 			)
@@ -318,6 +319,10 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	mockResolver.EXPECT().WhoAmI().Return(self, nil).AnyTimes()
 	mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).Times(1)
 
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+	mockExecutor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	mockExecutor.EXPECT().IsOnboardedToSD().Return(false).AnyTimes()
+
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(0)
 
@@ -330,13 +335,14 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 		shutdown:    make(chan struct{}),
 		logger:      log.NewNoop(),
 		domainCache: mockDomainCache,
+		executor:    mockExecutor,
 	}
 
 	// set this engine to be shutting down to trigger the tasklistGetTasklistByID guard
 	engine.Stop()
 
 	tl, _ := tasklist.NewIdentifier("domainid", "tl", 0)
-	res, err := engine.getTaskListManager(tl, types.TaskListKindNormal)
+	res, err := engine.getTaskListManager(context.Background(), tl, types.TaskListKindNormal)
 	assertErr := &cadence_errors.TaskListNotOwnedByHostError{}
 	assert.ErrorAs(t, err, &assertErr)
 	assert.Nil(t, res)

@@ -37,16 +37,14 @@ import (
 )
 
 const (
-	dualStoreName           = "es,pinot"    // test dual read for es and pinot, with es as primary
-	dualStorePinotPrimary   = "pinot,es"    // test dual read for es and pinot, with pinot as primary
-	tripleStoreName         = "es,pinot,db" // test triple read for es, pinot and db
-	dualReadStoreName       = "es,db"       // test dual read for es and db
-	dualReadStoreDBPrimary  = "db,es"       // test dual read for es and db with db as primary
-	esStoreName             = "es"
-	pinotStoreName          = "pinot"
-	VisibilityOverrideES    = "es"
-	VisibilityOverridePinot = "pinot"
-	testStoreName           = "test"
+	dualStoreName          = "es,pinot"    // test dual read for es and pinot, with es as primary
+	dualStorePinotPrimary  = "pinot,es"    // test dual read for es and pinot, with pinot as primary
+	tripleStoreName        = "es,pinot,db" // test triple read for es, pinot and db
+	dualReadStoreName      = "es,db"       // test dual read for es and db
+	dualReadStoreDBPrimary = "db,es"       // test dual read for es and db with db as primary
+	esStoreName            = "es"
+	pinotStoreName         = "pinot"
+	testStoreName          = "test"
 )
 
 func TestNewVisibilityHybridManager(t *testing.T) {
@@ -1107,23 +1105,23 @@ func TestVisibilityHybridListClosedWorkflowExecutions(t *testing.T) {
 			expectedError:           nil,
 		},
 		"Case3-1: read from ES with context key": {
-			context:                 context.WithValue(context.Background(), ContextKey, VisibilityOverrideES),
+			context:                 context.Background(),
 			request:                 request,
 			mockESVisibilityManager: NewMockVisibilityManager(ctrl),
 			mockESVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicproperties.GetStringPropertyFnFilteredByDomain(pinotStoreName),
+			readVisibilityStoreName: dynamicproperties.GetStringPropertyFnFilteredByDomain(esStoreName),
 			wgCount:                 0,
 		},
 		"Case3-2: read from Pinot with context key": {
-			context:                    context.WithValue(context.Background(), ContextKey, VisibilityOverridePinot),
+			context:                    context.Background(),
 			request:                    request,
 			mockPinotVisibilityManager: NewMockVisibilityManager(ctrl),
 			mockPinotVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockPinotVisibilityManager *MockVisibilityManager) {
 				mockPinotVisibilityManager.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicproperties.GetStringPropertyFnFilteredByDomain(esStoreName),
+			readVisibilityStoreName: dynamicproperties.GetStringPropertyFnFilteredByDomain(pinotStoreName),
 			wgCount:                 0,
 		},
 		"Case4-1: success case with double read": {

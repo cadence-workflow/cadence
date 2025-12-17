@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	ringpopprovider "github.com/uber/cadence/common/peerprovider/ringpopprovider/config"
 	"github.com/uber/cadence/common/service"
+	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 )
 
 type (
@@ -92,7 +93,7 @@ type (
 		ShardDistributorClient ShardDistributorClient `yaml:"shardDistributorClient"`
 
 		// ShardDistribution is a config for the shard distributor leader election component that allows to run a single process per region and manage shard namespaces.
-		ShardDistribution ShardDistribution `yaml:"shardDistribution"`
+		ShardDistribution sdconfig.ShardDistribution `yaml:"shardDistribution"`
 
 		// Histograms controls timer vs histogram metric emission while they are being migrated.
 		//
@@ -626,50 +627,6 @@ type (
 	AsyncWorkflowQueueProvider struct {
 		Type   string    `yaml:"type"`
 		Config *YamlNode `yaml:"config"`
-	}
-
-	// ShardDistribution is a configuration for leader election running.
-	// This configuration should be in sync with sharddistributor.
-	ShardDistribution struct {
-		LeaderStore Store         `yaml:"leaderStore"`
-		Election    Election      `yaml:"election"`
-		Namespaces  []Namespace   `yaml:"namespaces"`
-		Process     LeaderProcess `yaml:"process"`
-		Store       Store         `yaml:"store"`
-	}
-
-	// Store is a generic container for any storage configuration that should be parsed by the implementation.
-	Store struct {
-		StorageParams *YamlNode `yaml:"storageParams"`
-	}
-
-	Namespace struct {
-		Name string `yaml:"name"`
-		Type string `yaml:"type"`
-		Mode string `yaml:"mode"`
-		// ShardNum is defined for fixed namespace.
-		ShardNum int64 `yaml:"shardNum"`
-	}
-
-	Election struct {
-		LeaderPeriod           time.Duration `yaml:"leaderPeriod"`           // Time to hold leadership before resigning
-		MaxRandomDelay         time.Duration `yaml:"maxRandomDelay"`         // Maximum random delay before campaigning
-		FailedElectionCooldown time.Duration `yaml:"failedElectionCooldown"` // wait between election attempts with unhandled errors
-	}
-
-	LeaderProcess struct {
-		// Period is the maximum duration between shard rebalance operations
-		// Default: 1 second
-		Period time.Duration `yaml:"period"`
-
-		// Timeout is the maximum duration of a single shard rebalance operation
-		// Default: 1 second
-		Timeout time.Duration `yaml:"timeout"`
-
-		// HeartbeatTTL is the duration after which, if no heartbeat is received from an executor,
-		// the executor is considered stale and its shards are eligible for redistribution.
-		// Default: 10 seconds
-		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
 	}
 )
 
