@@ -69,8 +69,8 @@ func Module(serviceName string) fx.Option {
 			fx.Provide(func(cfg config.Config) shardDistributorCfg.ShardDistribution {
 				return cfg.ShardDistribution
 			}),
-			fx.Provide(func(dynamicCollection *dynamicconfig.Collection) shardDistributorCfg.MigrationConfig {
-				return shardDistributorCfg.NewMigrationConfig(dynamicCollection)
+			fx.Provide(func(dynamicCollection *dynamicconfig.Collection) *shardDistributorCfg.Config {
+				return shardDistributorCfg.NewConfig(dynamicCollection)
 			}),
 			// Decorate both logger so all components use proper service name.
 			fx.Decorate(func(z *zap.Logger, l log.Logger) (*zap.Logger, log.Logger) {

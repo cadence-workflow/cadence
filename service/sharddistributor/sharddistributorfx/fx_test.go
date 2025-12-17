@@ -32,8 +32,8 @@ func TestFxServiceStartStop(t *testing.T) {
 				factory.EXPECT().GetDispatcher().Return(testDispatcher)
 				return factory
 			},
-			func() config.MigrationConfig {
-				return config.MigrationConfig{}
+			func() *config.Config {
+				return &config.Config{}
 			},
 			fx.Annotated{Target: func() string { return "testHost" }, Name: "hostname"},
 			func() store.Elector {

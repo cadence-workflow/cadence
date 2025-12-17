@@ -62,6 +62,28 @@ func setupProcessorTestWithMigrationConfig(t *testing.T, namespaceType string, m
 			return deps.migrationMode
 		},
 	}
+
+	return &testDependencies{
+		ctrl:       ctrl,
+		store:      store.NewMockStore(ctrl),
+		election:   store.NewMockElection(ctrl),
+		timeSource: mockedClock,
+		factory: NewProcessorFactory(
+			testlogger.New(t),
+			metrics.NewNoopMetricsClient(),
+			mockedClock,
+			config.ShardDistribution{
+				Process: config.LeaderProcess{
+					Period:       time.Second,
+					HeartbeatTTL: time.Second,
+				},
+			},
+			dynamicConfig,
+			sdConfig,
+		),
+		cfg:      config.Namespace{Name: "test-ns", ShardNum: 2, Type: namespaceType, Mode: config.MigrationModeONBOARDED},
+		sdConfig: sdConfig,
+	}
 	deps.factory = NewProcessorFactory(
 		testlogger.New(t),
 		metrics.NewNoopMetricsClient(),
@@ -399,7 +421,7 @@ func TestRunLoop_ContextCancellation(t *testing.T) {
 }
 
 func TestRebalanceShards_WithUnassignedShardsButNigrationModeNotOnboarded(t *testing.T) {
-	migrationConfig := config.NewTestMigrationConfig(t, []config.ConfigEntry{{dynamicproperties.MigrationMode, config.MigrationModeDISTRIBUTEDPASSTHROUGH}})
+	migrationConfig := config.NewTestMigrationConfig(t, []config.ConfigEntry{{dynamicproperties.ShardDistributorMigrationMode, config.MigrationModeDISTRIBUTEDPASSTHROUGH}})
 	mocks := setupProcessorTestWithMigrationConfig(t, config.NamespaceTypeFixed, migrationConfig)
 	defer mocks.ctrl.Finish()
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
