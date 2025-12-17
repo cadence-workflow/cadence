@@ -3,6 +3,7 @@ package process
 import (
 	"context"
 	"errors"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"slices"
 	"sync"
 	"testing"
@@ -33,6 +34,11 @@ type testDependencies struct {
 }
 
 func setupProcessorTest(t *testing.T, namespaceType string) *testDependencies {
+	migrationConfig := config.NewTestMigrationConfig(t, []config.ConfigEntry{{dynamicproperties.MigrationMode, config.MigrationModeONBOARDED}})
+	return setupProcessorTestWithMigrationConfig(t, namespaceType, migrationConfig)
+}
+
+func setupProcessorTestWithMigrationConfig(t *testing.T, namespaceType string, migrationConfig config.MigrationConfig) *testDependencies {
 	ctrl := gomock.NewController(t)
 	mockedClock := clock.NewMockedTimeSource()
 	deps := &testDependencies{
@@ -392,29 +398,42 @@ func TestRunLoop_ContextCancellation(t *testing.T) {
 	processor.wg.Wait()
 }
 
-func TestRunLoop_MigrationNotOnboarded(t *testing.T) {
-	mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
-	mocks.migrationMode = config.MigrationModeDISTRIBUTEDPASSTHROUGH
+func TestRebalanceShards_WithUnassignedShardsButNigrationModeNotOnboarded(t *testing.T) {
+	migrationConfig := config.NewTestMigrationConfig(t, []config.ConfigEntry{{dynamicproperties.MigrationMode, config.MigrationModeDISTRIBUTEDPASSTHROUGH}})
+	mocks := setupProcessorTestWithMigrationConfig(t, config.NamespaceTypeFixed, migrationConfig)
 	defer mocks.ctrl.Finish()
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
-	ctx, cancel := context.WithCancel(context.Background())
 
-	mocks.store.EXPECT().Subscribe(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil)
-	// We explicitly verify that the state is not queried
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{GlobalRevision: 0}, nil).Times(0)
+	now := mocks.timeSource.Now()
+	heartbeats := map[string]store.HeartbeatState{
+		"exec-1": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+	}
+	// Note: shard "1" is missing from assignments
+	assignments := map[string]store.AssignedState{
+		"exec-1": {
+			AssignedShards: map[string]*types.ShardAssignment{
+				"0": {Status: types.AssignmentStatusREADY},
+			},
+		},
+	}
+	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "0").Return(nil, nil)
+	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "1").Return(nil, nil)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors:        heartbeats,
+		ShardAssignments: assignments,
+		GlobalRevision:   3,
+	}, nil)
+	// These are the expected calls in case of onbording, with the assignment of new shards
+	mocks.election.EXPECT().Guard().Return(store.NopGuard()).Times(0)
+	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ string, request store.AssignShardsRequest, _ store.GuardFunc) error {
+			assert.Len(t, request.NewState.ShardAssignments["exec-1"].AssignedShards, 2, "Both shards should now be assigned to exec-1")
+			return nil
+		},
+	).Times(0)
 
-	processor.wg.Add(1)
-	// Run the process in a separate goroutine to avoid blocking the test
-	go processor.runProcess(ctx)
-
-	// Wait for the two loops (rebalance and cleanup) to create their tickers
-	mocks.timeSource.BlockUntil(2)
-
-	// Now, cancel the context to signal the loops to stop
-	cancel()
-
-	// Wait for the main process loop to exit gracefully
-	processor.wg.Wait()
+	err := processor.rebalanceShards(context.Background())
+	require.NoError(t, err)
 }
 
 func TestRebalanceShards_NoShardsToReassign(t *testing.T) {
