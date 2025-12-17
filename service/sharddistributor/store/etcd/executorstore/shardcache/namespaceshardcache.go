@@ -42,12 +42,18 @@ type namespaceShardToExecutor struct {
 	pubSub           *executorStatePubSub
 	timeSource       clock.TimeSource
 
-	executorStatistics namespaceExecutorStatistics
+	executorStatistics *namespaceExecutorStatistics
 }
 
 type namespaceExecutorStatistics struct {
 	lock  sync.RWMutex
 	stats map[string]map[string]etcdtypes.ShardStatistics
+}
+
+func newNamespaceExecutorStatistics() *namespaceExecutorStatistics {
+	return &namespaceExecutorStatistics{
+		stats: make(map[string]map[string]etcdtypes.ShardStatistics),
+	}
 }
 
 type executorData struct {
@@ -98,20 +104,18 @@ func (n *namespaceShardToExecutor) parseExecutorData(resp *clientv3.GetResponse,
 
 func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient.Client, stopCh chan struct{}, logger log.Logger, timeSource clock.TimeSource) (*namespaceShardToExecutor, error) {
 	return &namespaceShardToExecutor{
-		shardToExecutor:  make(map[string]*store.ShardOwner),
-		executorState:    make(map[*store.ShardOwner][]string),
-		executorRevision: make(map[string]int64),
-		shardOwners:      make(map[string]*store.ShardOwner),
-		namespace:        namespace,
-		etcdPrefix:       etcdPrefix,
-		stopCh:           stopCh,
-		logger:           logger.WithTags(tag.ShardNamespace(namespace)),
-		client:           client,
-		timeSource:       timeSource,
-		pubSub:           newExecutorStatePubSub(logger, namespace),
-		executorStatistics: namespaceExecutorStatistics{
-			stats: make(map[string]map[string]etcdtypes.ShardStatistics),
-		},
+		shardToExecutor:    make(map[string]*store.ShardOwner),
+		executorState:      make(map[*store.ShardOwner][]string),
+		executorRevision:   make(map[string]int64),
+		shardOwners:        make(map[string]*store.ShardOwner),
+		namespace:          namespace,
+		etcdPrefix:         etcdPrefix,
+		stopCh:             stopCh,
+		logger:             logger.WithTags(tag.ShardNamespace(namespace)),
+		client:             client,
+		timeSource:         timeSource,
+		pubSub:             newExecutorStatePubSub(logger, namespace),
+		executorStatistics: newNamespaceExecutorStatistics(),
 	}, nil
 }
 
@@ -160,7 +164,7 @@ func (n *namespaceShardToExecutor) GetExecutorModRevisionCmp() ([]clientv3.Cmp, 
 }
 
 func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, executorID string) (map[string]etcdtypes.ShardStatistics, error) {
-	if stats, found := n.readStats(executorID); found {
+	if stats, found := n.getStats(executorID); found {
 		return stats, nil
 	}
 
@@ -169,14 +173,14 @@ func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, ex
 	}
 
 	// Refreshing cache after cache miss should allow the statistics to be found
-	if stats, found := n.readStats(executorID); found {
+	if stats, found := n.getStats(executorID); found {
 		return stats, nil
 	}
 
 	return nil, fmt.Errorf("could not get executor statistics, even after refresh")
 }
 
-func (n *namespaceShardToExecutor) readStats(executorID string) (map[string]etcdtypes.ShardStatistics, bool) {
+func (n *namespaceShardToExecutor) getStats(executorID string) (map[string]etcdtypes.ShardStatistics, bool) {
 	n.executorStatistics.lock.RLock()
 	defer n.executorStatistics.lock.RUnlock()
 
@@ -342,17 +346,16 @@ func (n *namespaceShardToExecutor) refreshExecutorState(ctx context.Context) err
 		return fmt.Errorf("failed to parse executor data: %w", err)
 	}
 
+	n.applyExecutorData(parsedData)
+	return nil
+}
+
+func (n *namespaceShardToExecutor) applyExecutorData(data map[string]executorData) {
 	n.Lock()
 	defer n.Unlock()
 	n.executorStatistics.lock.Lock()
 	defer n.executorStatistics.lock.Unlock()
 
-	n.applyParsedData(parsedData)
-	return nil
-}
-
-// This function must be called with write locks held for both shard owners and statistics.
-func (n *namespaceShardToExecutor) applyParsedData(data map[string]executorData) {
 	// Clear the cache
 	n.shardToExecutor = make(map[string]*store.ShardOwner)
 	n.executorState = make(map[*store.ShardOwner][]string)
