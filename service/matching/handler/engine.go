@@ -173,11 +173,13 @@ func NewEngine(
 }
 
 func (e *matchingEngineImpl) Start() {
+	e.executor.Start(context.Background())
 	e.registerDomainFailoverCallback()
 }
 
 func (e *matchingEngineImpl) Stop() {
 	close(e.shutdown)
+	e.executor.Stop()
 	// Executes Stop() on each task list outside of lock
 	for _, l := range e.getTaskLists(math.MaxInt32) {
 		l.Stop()

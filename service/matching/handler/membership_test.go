@@ -185,6 +185,8 @@ func TestMembershipSubscriptionRecoversAfterPanic(t *testing.T) {
 func TestSubscriptionAndShutdown(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockResolver := membership.NewMockResolver(ctrl)
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+	mockExecutor.EXPECT().Stop()
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(1)
@@ -200,6 +202,7 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 		shutdown:    make(chan struct{}),
 		logger:      log.NewNoop(),
 		domainCache: mockDomainCache,
+		executor:    mockExecutor,
 	}
 
 	mockResolver.EXPECT().WhoAmI().Return(membership.NewDetailedHostInfo("host2", "host2", nil), nil).AnyTimes()
@@ -215,6 +218,8 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 func TestSubscriptionAndErrorReturned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockResolver := membership.NewMockResolver(ctrl)
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+	mockExecutor.EXPECT().Stop()
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -233,6 +238,7 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 		shutdown:    make(chan struct{}),
 		logger:      log.NewNoop(),
 		domainCache: mockDomainCache,
+		executor:    mockExecutor,
 	}
 
 	// this should trigger the error case on a membership event
@@ -322,6 +328,7 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
 	mockExecutor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	mockExecutor.EXPECT().IsOnboardedToSD().Return(false).AnyTimes()
+	mockExecutor.EXPECT().Stop()
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(0)
