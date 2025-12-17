@@ -723,13 +723,18 @@ func TestWaitForQueryResult(t *testing.T) {
 func TestIsShuttingDown(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(0)
+	mockCtrl := gomock.NewController(t)
 	mockDomainCache := cache.NewMockDomainCache(gomock.NewController(t))
 	mockDomainCache.EXPECT().RegisterDomainChangeCallback(service.Matching, gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 	mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).Times(1)
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](mockCtrl)
+	mockExecutor.EXPECT().Start(gomock.Any())
+	mockExecutor.EXPECT().Stop()
 	e := matchingEngineImpl{
 		domainCache:        mockDomainCache,
 		shutdownCompletion: &wg,
 		shutdown:           make(chan struct{}),
+		executor:           mockExecutor,
 	}
 	e.Start()
 	assert.False(t, e.isShuttingDown())
