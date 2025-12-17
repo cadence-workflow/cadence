@@ -1518,6 +1518,13 @@ const (
 
 	QueueMaxVirtualQueueCount
 
+	// ShardDistributorMaxEphemeralShards is the maximum number of ephemeral shards a shard distributor can create
+	// KeyName: shardDistributor.maxEphemeralShards
+	// Value type: Int
+	// Default value: 8192
+	// Allowed filters: namespace
+	ShardDistributorMaxEphemeralShards
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -4118,6 +4125,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "history.queueMaxVirtualQueueCount",
 		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
 		DefaultValue: 2,
+	},
+	ShardDistributorMaxEphemeralShards: {
+		KeyName:      "shardDistributor.maxEphemeralShards",
+		Description:  "ShardDistributorMaxEphemeralShards is the maximum number of ephemeral shards a shard distributor can create",
+		DefaultValue: 8192,
+		Filters:      []Filter{Namespace},
 	},
 }
 

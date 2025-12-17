@@ -97,6 +97,19 @@ func (n *ShardNotFoundError) Error() (o string) {
 	return
 }
 
+type EphemeralShardLimitExceededError struct {
+	Namespace    string
+	MaxLimit     int
+	CurrentValue int
+}
+
+func (n *EphemeralShardLimitExceededError) Error() (o string) {
+	if n != nil {
+		return fmt.Sprintf("ephemeral shard limit exceeded for namespace %v: current %v, max %v", n.Namespace, n.CurrentValue, n.MaxLimit)
+	}
+	return
+}
+
 type ExecutorHeartbeatRequest struct {
 	Namespace          string
 	ExecutorID         string

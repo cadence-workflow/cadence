@@ -39,11 +39,13 @@ import (
 func NewHandler(
 	logger log.Logger,
 	shardDistributionCfg config.ShardDistribution,
+	cfg *config.Config,
 	storage store.Store,
 ) Handler {
 	handler := &handlerImpl{
 		logger:               logger,
 		shardDistributionCfg: shardDistributionCfg,
+		cfg:                  cfg,
 		storage:              storage,
 	}
 
@@ -59,6 +61,7 @@ type handlerImpl struct {
 
 	storage              store.Store
 	shardDistributionCfg config.ShardDistribution
+	cfg                  *config.Config
 }
 
 func (h *handlerImpl) Start() {
@@ -121,11 +124,25 @@ func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string
 
 	var executorID string
 	minAssignedShards := math.MaxInt
+	totalAssignedShards := 0
 
 	for assignedExecutor, assignment := range state.ShardAssignments {
 		if len(assignment.AssignedShards) < minAssignedShards {
 			minAssignedShards = len(assignment.AssignedShards)
 			executorID = assignedExecutor
+		}
+		totalAssignedShards += len(assignment.AssignedShards)
+	}
+
+	// check against max ephemeral shards limit
+	maxEphemeralShardsLimit := h.cfg.MaxEphemeralShards(namespace)
+
+	// we should consider the new shard to be assigned here
+	if totalAssignedShards+1 > maxEphemeralShardsLimit {
+		return nil, &types.EphemeralShardLimitExceededError{
+			Namespace:    namespace,
+			MaxLimit:     maxEphemeralShardsLimit,
+			CurrentValue: totalAssignedShards,
 		}
 	}
 
