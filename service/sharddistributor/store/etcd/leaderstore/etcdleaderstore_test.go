@@ -14,8 +14,7 @@ import (
 	"go.uber.org/fx/fxtest"
 	"gopkg.in/yaml.v2"
 
-	"github.com/uber/cadence/common/config"
-	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/testflags"
 )
@@ -228,7 +227,7 @@ func setupETCDCluster(t *testing.T) *testCluster {
 
 	// Create store
 	storeParams := StoreParams{
-		Cfg:       shardDistributorCfg.ShardDistribution{LeaderStore: shardDistributorCfg.Store{StorageParams: createConfig(t, testConfig)}},
+		Cfg:       config.ShardDistribution{LeaderStore: config.Store{StorageParams: createConfig(t, testConfig)}},
 		Lifecycle: fxtest.NewLifecycle(t),
 	}
 

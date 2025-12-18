@@ -71,6 +71,8 @@ import (
 	"github.com/uber/cadence/service/frontend"
 	"github.com/uber/cadence/service/history"
 	"github.com/uber/cadence/service/matching"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/worker"
 	"github.com/uber/cadence/service/worker/archiver"
 	"github.com/uber/cadence/service/worker/asyncworkflow"
@@ -840,6 +842,17 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 			}
 		}
 
+		// Set default ShardDistributorMatchingConfig for integration tests
+		params.ShardDistributorMatchingConfig = clientcommon.Config{
+			Namespaces: []clientcommon.NamespaceConfig{{
+				Namespace:         "cadence-matching-integration",
+				HeartBeatInterval: 1 * time.Second,
+				MigrationMode:     sdconfig.MigrationModeLOCALPASSTHROUGH,
+				TTLShard:          5 * time.Minute,
+				TTLReport:         1 * time.Minute,
+			}},
+		}
+
 		matchingService, err := matching.NewService(params)
 		if err != nil {
 			params.Logger.Fatal("unable to start matching service", tag.Error(err))
@@ -900,7 +913,7 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 
 	var replicatorDomainCache cache.DomainCache
 	if c.workerConfig.EnableReplicator {
-		metadataManager := metered.NewDomainManager(c.domainManager, service.GetMetricsClient(), c.logger, &c.persistenceConfig)
+		metadataManager := metered.NewDomainManager(c.domainManager, service.GetMetricsClient(), c.logger, &c.persistenceConfig, "onebox-worker", "onebox")
 		replicatorDomainCache = cache.NewDomainCache(metadataManager, c.clusterMetadata, service.GetMetricsClient(), service.GetLogger())
 		replicatorDomainCache.Start()
 		defer replicatorDomainCache.Stop()
@@ -909,7 +922,7 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 
 	var clientWorkerDomainCache cache.DomainCache
 	if c.workerConfig.EnableArchiver {
-		metadataProxyManager := metered.NewDomainManager(c.domainManager, service.GetMetricsClient(), c.logger, &c.persistenceConfig)
+		metadataProxyManager := metered.NewDomainManager(c.domainManager, service.GetMetricsClient(), c.logger, &c.persistenceConfig, "onebox-worker", "onebox")
 		clientWorkerDomainCache = cache.NewDomainCache(metadataProxyManager, c.clusterMetadata, service.GetMetricsClient(), service.GetLogger())
 		clientWorkerDomainCache.Start()
 		defer clientWorkerDomainCache.Stop()
@@ -931,7 +944,9 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 			c.domainManager,
 			service.GetMetricsClient(),
 			c.logger,
-			&c.persistenceConfig)
+			&c.persistenceConfig,
+			"onebox-worker",
+			"onebox")
 		asyncWFDomainCache = cache.NewDomainCache(
 			metadataProxyManager,
 			c.clusterMetadata,

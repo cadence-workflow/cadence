@@ -65,6 +65,7 @@ type processorFactory struct {
 	timeSource    clock.TimeSource
 	cfg           config.LeaderProcess
 	metricsClient metrics.Client
+	sdConfig      *config.Config
 }
 
 type namespaceProcessor struct {
@@ -74,6 +75,7 @@ type namespaceProcessor struct {
 	timeSource          clock.TimeSource
 	running             bool
 	cancel              context.CancelFunc
+	sdConfig            *config.Config
 	cfg                 config.LeaderProcess
 	wg                  sync.WaitGroup
 	shardStore          store.Store
@@ -87,6 +89,7 @@ func NewProcessorFactory(
 	metricsClient metrics.Client,
 	timeSource clock.TimeSource,
 	cfg config.ShardDistribution,
+	sdConfig *config.Config,
 ) Factory {
 	if cfg.Process.Period <= 0 {
 		cfg.Process.Period = _defaultPeriod
@@ -118,6 +121,7 @@ func NewProcessorFactory(
 		timeSource:    timeSource,
 		cfg:           cfg.Process,
 		metricsClient: metricsClient,
+		sdConfig:      sdConfig,
 	}
 }
 
@@ -131,6 +135,7 @@ func (f *processorFactory) CreateProcessor(cfg config.Namespace, shardStore stor
 		shardStore:    shardStore,
 		election:      election, // Store the election object
 		metricsClient: f.metricsClient,
+		sdConfig:      f.sdConfig,
 	}
 }
 
@@ -260,6 +265,13 @@ func (p *namespaceProcessor) runShardStatsCleanupLoop(ctx context.Context) {
 			p.logger.Info("Shard stats cleanup loop cancelled.")
 			return
 		case <-ticker.Chan():
+			// Only perform shard stats cleanup in GREEDY load balancing mode
+			// TODO: refactor this to not have this loop for non-GREEDY modes
+			if p.sdConfig.GetLoadBalancingMode(p.namespaceCfg.Name) != types.LoadBalancingModeGREEDY {
+				p.logger.Debug("Load balancing mode is not GREEDY, skipping shard stats cleanup.", tag.ShardNamespace(p.namespaceCfg.Name))
+				continue
+			}
+
 			p.logger.Info("Periodic shard stats cleanup triggered.")
 			namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
 			if err != nil {

@@ -610,7 +610,9 @@ VisibilityArchivalURI: {{.}}{{end}}
 {{with .BadBinaries}}Bad binaries to reset:
 {{table .}}{{end}}
 {{with .FailoverInfo}}Graceful failover info:
-{{table .}}{{end}}`
+{{table .}}{{end}}
+{{if .IsActiveActiveDomain}}To see active clusters by cluster attribute use --print-json.
+{{end}}`
 
 // DescribeDomain updates a domain
 func (d *domainCLIImpl) DescribeDomain(c *cli.Context) error {
@@ -674,12 +676,6 @@ type FailoverInfoRow struct {
 	PendingShard        []int32   `header:"Pending Shard"`
 }
 
-type ActiveClusterInfoRow struct {
-	Region          string `header:"Region"`
-	ClusterName     string `header:"Cluster Name"`
-	FailoverVersion int64  `header:"Failover Version"`
-}
-
 type FailoverHistoryRow struct {
 	EventID     string    `header:"Event ID"`
 	CreatedTime time.Time `header:"Created Time"`
@@ -689,26 +685,25 @@ type FailoverHistoryRow struct {
 }
 
 type DomainRow struct {
-	Name                             string `header:"Name"`
-	UUID                             string `header:"UUID"`
-	Description                      string
-	OwnerEmail                       string
-	DomainData                       map[string]string  `header:"Domain Data"`
-	Status                           types.DomainStatus `header:"Status"`
-	IsGlobal                         bool               `header:"Is Global Domain"`
-	ActiveCluster                    string             `header:"Active Cluster"`
-	Clusters                         []string           `header:"Clusters"`
-	RetentionDays                    int32              `header:"Retention Days"`
-	EmitMetrics                      bool
-	HistoryArchivalStatus            types.ArchivalStatus `header:"History Archival Status"`
-	HistoryArchivalURI               string               `header:"History Archival URI"`
-	VisibilityArchivalStatus         types.ArchivalStatus `header:"Visibility Archival Status"`
-	VisibilityArchivalURI            string               `header:"Visibility Archival URI"`
-	BadBinaries                      []BadBinaryRow
-	FailoverInfo                     *FailoverInfoRow
-	LongRunningWorkFlowNum           *int
-	IsActiveActiveDomain             bool
-	ActiveClustersByClusterAttribute []ActiveClusterInfoRow
+	Name                     string `header:"Name"`
+	UUID                     string `header:"UUID"`
+	Description              string
+	OwnerEmail               string
+	DomainData               map[string]string  `header:"Domain Data"`
+	Status                   types.DomainStatus `header:"Status"`
+	IsGlobal                 bool               `header:"Is Global Domain"`
+	ActiveCluster            string             `header:"Active Cluster"`
+	Clusters                 []string           `header:"Clusters"`
+	RetentionDays            int32              `header:"Retention Days"`
+	EmitMetrics              bool
+	HistoryArchivalStatus    types.ArchivalStatus `header:"History Archival Status"`
+	HistoryArchivalURI       string               `header:"History Archival URI"`
+	VisibilityArchivalStatus types.ArchivalStatus `header:"Visibility Archival Status"`
+	VisibilityArchivalURI    string               `header:"Visibility Archival URI"`
+	BadBinaries              []BadBinaryRow
+	FailoverInfo             *FailoverInfoRow
+	LongRunningWorkFlowNum   *int
+	IsActiveActiveDomain     bool
 }
 
 type DomainMigrationRow struct {

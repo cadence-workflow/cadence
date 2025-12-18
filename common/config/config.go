@@ -38,6 +38,8 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	ringpopprovider "github.com/uber/cadence/common/peerprovider/ringpopprovider/config"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 )
 
 type (
@@ -92,7 +94,10 @@ type (
 		ShardDistributorClient ShardDistributorClient `yaml:"shardDistributorClient"`
 
 		// ShardDistribution is a config for the shard distributor leader election component that allows to run a single process per region and manage shard namespaces.
-		ShardDistribution ShardDistribution `yaml:"shardDistribution"`
+		ShardDistribution sdconfig.ShardDistribution `yaml:"shardDistribution"`
+
+		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
+		ShardDistributorMatchingConfig clientcommon.Config `yaml:"shard-distributor-matching"`
 
 		// Histograms controls timer vs histogram metric emission while they are being migrated.
 		//
@@ -626,81 +631,6 @@ type (
 	AsyncWorkflowQueueProvider struct {
 		Type   string    `yaml:"type"`
 		Config *YamlNode `yaml:"config"`
-	}
-
-	// ShardDistribution is a configuration for leader election running.
-	// This configuration should be in sync with sharddistributor.
-	ShardDistribution struct {
-		LeaderStore Store         `yaml:"leaderStore"`
-		Election    Election      `yaml:"election"`
-		Namespaces  []Namespace   `yaml:"namespaces"`
-		Process     LeaderProcess `yaml:"process"`
-		Store       Store         `yaml:"store"`
-	}
-
-	// Store is a generic container for any storage configuration that should be parsed by the implementation.
-	Store struct {
-		StorageParams *YamlNode `yaml:"storageParams"`
-	}
-
-	Namespace struct {
-		Name string `yaml:"name"`
-		Type string `yaml:"type"`
-		Mode string `yaml:"mode"`
-		// ShardNum is defined for fixed namespace.
-		ShardNum int64 `yaml:"shardNum"`
-	}
-
-	Election struct {
-		LeaderPeriod           time.Duration `yaml:"leaderPeriod"`           // Time to hold leadership before resigning
-		MaxRandomDelay         time.Duration `yaml:"maxRandomDelay"`         // Maximum random delay before campaigning
-		FailedElectionCooldown time.Duration `yaml:"failedElectionCooldown"` // wait between election attempts with unhandled errors
-	}
-
-	LeaderProcess struct {
-		// Period is the maximum duration between shard rebalance operations
-		// Default: 1 second
-		Period time.Duration `yaml:"period"`
-
-		// Timeout is the maximum duration of a single shard rebalance operation
-		// Default: 1 second
-		Timeout time.Duration `yaml:"timeout"`
-
-		// HeartbeatTTL is the duration after which, if no heartbeat is received from an executor,
-		// the executor is considered stale and its shards are eligible for redistribution.
-		// Default: 10 seconds
-		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
-
-		// LoadBalance contains tunables for load-based rebalancing.
-		LoadBalance LoadBalance `yaml:"loadBalance"`
-	}
-
-	LoadBalance struct {
-		// PerShardCooldown is the minimum time between moving the same shard.
-		// Default: 1 minute
-		PerShardCooldown time.Duration `yaml:"perShardCooldown"`
-
-		// MoveBudgetProportion is the fraction of total shards that may be moved per load-balance pass.
-		// Default: 0.01 (1%).
-		MoveBudgetProportion float64 `yaml:"moveBudgetProportion"`
-
-		// HysteresisUpperBand is the multiplier above mean load that qualifies an executor as a source.
-		// Default: 1.15.
-		HysteresisUpperBand float64 `yaml:"hysteresisUpperBand"`
-
-		// HysteresisLowerBand is the multiplier below mean load that qualifies an executor as a destination.
-		// Default: 0.95.
-		HysteresisLowerBand float64 `yaml:"hysteresisLowerBand"`
-
-		// SevereImbalanceRatio triggers a destination "escape hatch" when maxLoad/meanLoad exceeds this value
-		// but no executor qualifies as a destination under the normal hysteresis lower band.
-		// Default: 1.5.
-		SevereImbalanceRatio float64 `yaml:"severeImbalanceRatio"`
-
-		// DisableBenefitGating controls whether load-based balancing may accept moves that do not
-		// strictly improve the objective function (currently: sum of squared error around mean load).
-		// Default: false (benefit gating enabled).
-		DisableBenefitGating bool `yaml:"disableBenefitGating"`
 	}
 )
 

@@ -13,9 +13,9 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/statistics"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
@@ -153,6 +153,7 @@ func TestRecordHeartbeat_NoCompression(t *testing.T) {
 func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
+	setLoadBalancingMode(executorStore, config.LoadBalancingModeGREEDY)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -207,6 +208,7 @@ func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {
 func TestRecordHeartbeatSkipsShardStatisticsWithNilReport(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
+	setLoadBalancingMode(executorStore, config.LoadBalancingModeGREEDY)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -683,6 +685,12 @@ func TestAssignShardErrors(t *testing.T) {
 func TestShardStatisticsPersistence(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
+	executorStore.(*executorStoreImpl).cfg = &config.Config{
+		LoadBalancingMode: func(namespace string) string {
+			return config.LoadBalancingModeGREEDY
+		},
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -743,6 +751,7 @@ func TestGetShardStatisticsForMissingShard(t *testing.T) {
 func TestDeleteShardStatsDeletesAllStats(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
+	setLoadBalancingMode(executorStore, config.LoadBalancingModeGREEDY)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -806,6 +815,12 @@ func recordHeartbeats(ctx context.Context, t *testing.T, executorStore store.Sto
 	}
 }
 
+func setLoadBalancingMode(executorStore store.Store, mode string) {
+	executorStore.(*executorStoreImpl).cfg = &config.Config{
+		LoadBalancingMode: func(string) string { return mode },
+	}
+}
+
 func createStore(t *testing.T, tc *testhelper.StoreTestCluster) store.Store {
 	t.Helper()
 
@@ -814,10 +829,13 @@ func createStore(t *testing.T, tc *testhelper.StoreTestCluster) store.Store {
 
 	store, err := NewStore(ExecutorStoreParams{
 		Client:     tc.Client,
-		Cfg:        etcdConfig,
+		ETCDConfig: etcdConfig,
 		Lifecycle:  fxtest.NewLifecycle(t),
 		Logger:     testlogger.New(t),
 		TimeSource: clock.NewRealTimeSource(),
+		Config: &config.Config{
+			LoadBalancingMode: func(namespace string) string { return config.LoadBalancingModeNAIVE },
+		},
 	})
 	require.NoError(t, err)
 	return store

@@ -9,7 +9,6 @@ import (
 	"go.uber.org/fx/fxtest"
 	"go.uber.org/mock/gomock"
 
-	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
@@ -64,13 +63,6 @@ type MockShardProcessor2 struct {
 func TestModuleWithNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockLogger := log.NewNoop()
-
-	// Create executor yarpc client mock
-	mockYARPCClient := NewMockShardDistributorExecutorAPIYARPCClient(ctrl)
-	mockYARPCClient.EXPECT().
-		Heartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(&sharddistributorv1.HeartbeatResponse{}, nil).
-		AnyTimes()
 
 	shardDistributorExecutorClient := NewMockClient(ctrl)
 	shardDistributorExecutorClient.EXPECT().

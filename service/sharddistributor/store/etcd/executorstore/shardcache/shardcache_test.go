@@ -3,7 +3,6 @@ package shardcache
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -17,8 +16,7 @@ func TestNewShardToExecutorCache(t *testing.T) {
 	logger := testlogger.New(t)
 
 	client := &clientv3.Client{}
-	mockTime := clock.NewMockedTimeSource()
-	cache := NewShardToExecutorCache("some-prefix", client, logger, mockTime)
+	cache := NewShardToExecutorCache("some-prefix", client, logger, clock.NewRealTimeSource())
 
 	assert.NotNil(t, cache)
 
@@ -40,16 +38,11 @@ func TestShardExecutorCacheForwarding(t *testing.T) {
 		"rack":       "rack-42",
 	})
 
-	mockTime := clock.NewMockedTimeSource()
-	cache := NewShardToExecutorCache(testCluster.EtcdPrefix, testCluster.Client, logger, mockTime)
+	cache := NewShardToExecutorCache(testCluster.EtcdPrefix, testCluster.Client, logger, clock.NewRealTimeSource())
 	cache.Start()
 	defer cache.Stop()
 
 	// This will read the namespace from the store as the cache is empty
-	// We need to advance time for the background refresh loop to pick up changes
-	mockTime.BlockUntil(1)
-	mockTime.Advance(time.Second) // Advance mock time to trigger any internal timers/loops
-
 	owner, err := cache.GetShardOwner(context.Background(), testCluster.Namespace, "shard-1")
 	assert.NoError(t, err)
 	assert.Equal(t, "executor-1", owner.ExecutorID)

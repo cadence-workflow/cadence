@@ -193,3 +193,11 @@ shardDistribution:
     heartbeatTTL: 2s
     loadBalance:
       disableBenefitGating: false
+
+shard-distributor-matching:
+  namespaces:
+    - namespace: cadence-matching-dev
+      heartbeat_interval: 1s
+      migration_mode: local_pass
+      ttl_shard: 5m
+      ttl_report: 1m
