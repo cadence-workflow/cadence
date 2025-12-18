@@ -68,15 +68,20 @@ func (n *namespaceShardToExecutor) parseExecutorData(resp *clientv3.GetResponse,
 
 	for _, kv := range resp.Kvs {
 		executorID, keyType, err := etcdkeys.ParseExecutorKey(etcdPrefix, namespace, string(kv.Key))
-		execData := executorData{
-			assignedStates: etcdtypes.AssignedState{},
-			metadata:       make(map[string]string),
-			statistics:     make(map[string]etcdtypes.ShardStatistics),
-			revisions:      0,
-		}
 		if err != nil {
 			n.logger.Warn("error parsing executor key:", tag.Error(err))
 			continue
+		}
+
+		// Get existing data for this executor or create new entry
+		execData, ok := data[executorID]
+		if !ok {
+			execData = executorData{
+				assignedStates: etcdtypes.AssignedState{},
+				metadata:       make(map[string]string),
+				statistics:     make(map[string]etcdtypes.ShardStatistics),
+				revisions:      0,
+			}
 		}
 
 		switch keyType {

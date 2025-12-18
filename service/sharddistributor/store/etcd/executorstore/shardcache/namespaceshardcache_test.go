@@ -38,13 +38,11 @@ func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
 	})
 
 	// Start the cache
-	mockTime := clock.NewMockedTimeSource()
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, mockTime)
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource())
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
+	time.Sleep(50 * time.Millisecond)
 
-	mockTime.BlockUntil(1)
-	mockTime.Advance(1 * time.Second)
 	// Verify executor-1 owns shard-1 with correct metadata
 	verifyShardOwner(t, namespaceShardToExecutor, "shard-1", "executor-1", map[string]string{
 		"hostname": "executor-1-host",
@@ -63,9 +61,8 @@ func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
 		"hostname": "executor-2-host",
 		"region":   "us-west",
 	})
+	time.Sleep(100 * time.Millisecond)
 
-	mockTime.BlockUntil(1)
-	mockTime.Advance(1 * time.Second)
 	// Check that executor-2 and shard-2 is in the cache
 	namespaceShardToExecutor.RLock()
 	_, ok = namespaceShardToExecutor.executorRevision["executor-2"]
@@ -93,8 +90,7 @@ func TestNamespaceShardToExecutor_Subscribe(t *testing.T) {
 	})
 
 	// Start the cache
-	mockTime := clock.NewMockedTimeSource()
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, mockTime)
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource())
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
 
@@ -133,16 +129,15 @@ func TestNamespaceShardToExecutor_Subscribe(t *testing.T) {
 			"region":   "us-west",
 		})
 	}()
+	time.Sleep(10 * time.Millisecond)
 
 	// Add executor-2 with shard-2 to trigger new subscription update
 	setupExecutorWithShards(t, testCluster, "executor-2", []string{"shard-2"}, map[string]string{
 		"hostname": "executor-2-host",
 		"region":   "us-west",
 	})
-	// Let the watch event propagate
-	mockTime.BlockUntil(1)
-	mockTime.Advance(1 * time.Second)
-	wg.Wait() // wait for listener to complete
+
+	wg.Wait()
 
 }
 
@@ -318,8 +313,8 @@ func TestNamespaceShardToExecutor_ExecutorStatistics(t *testing.T) {
 	shardID2 := "shard-stats-2"
 
 	initialStats := map[string]etcdtypes.ShardStatistics{
-		shardID1: {SmoothedLoad: 10.0, LastUpdateTime: etcdtypes.Time(mockTime.Now().Add(-time.Hour)), LastMoveTime: etcdtypes.Time(mockTime.Now().Add(-2 * time.Hour))},
-		shardID2: {SmoothedLoad: 20.0, LastUpdateTime: etcdtypes.Time(mockTime.Now().Add(-30 * time.Minute)), LastMoveTime: etcdtypes.Time(mockTime.Now().Add(-90 * time.Minute))},
+		shardID1: {SmoothedLoad: 10.0, LastUpdateTime: etcdtypes.Time(mockTime.Now().UTC().Add(-time.Hour)), LastMoveTime: etcdtypes.Time(mockTime.Now().UTC().Add(-2 * time.Hour))},
+		shardID2: {SmoothedLoad: 20.0, LastUpdateTime: etcdtypes.Time(mockTime.Now().UTC().Add(-30 * time.Minute)), LastMoveTime: etcdtypes.Time(mockTime.Now().UTC().Add(-90 * time.Minute))},
 	}
 	putExecutorStatisticsInEtcd(t, testCluster, executorID, initialStats)
 
@@ -327,23 +322,25 @@ func TestNamespaceShardToExecutor_ExecutorStatistics(t *testing.T) {
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
 
-	// Wait for initial stats to be loaded
-	mockTime.BlockUntil(1)
-	mockTime.Advance(1 * time.Second)
-
+	// GetExecutorStatistics triggers refresh on cache miss, so no need to wait for timers
 	statsFromCache, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
 	require.NoError(t, err)
 	assert.Equal(t, initialStats, statsFromCache)
 
 	updatedStats := map[string]etcdtypes.ShardStatistics{
-		shardID1: {SmoothedLoad: 15.0, LastUpdateTime: etcdtypes.Time(mockTime.Now())},
-		shardID2: {SmoothedLoad: 25.0, LastUpdateTime: etcdtypes.Time(mockTime.Now())},
+		shardID1: {SmoothedLoad: 15.0, LastUpdateTime: etcdtypes.Time(mockTime.Now().UTC())},
+		shardID2: {SmoothedLoad: 25.0, LastUpdateTime: etcdtypes.Time(mockTime.Now().UTC())},
 	}
 	putExecutorStatisticsInEtcd(t, testCluster, executorID, updatedStats)
 
 	// Wait for stats to be updated via watch event
-	mockTime.BlockUntil(1)
-	mockTime.Advance(1 * time.Second)
+	assert.Eventually(t, func() bool {
+		stats, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
+		if err != nil {
+			return false
+		}
+		return stats[shardID1].SmoothedLoad == 15.0
+	}, 5*time.Second, 50*time.Millisecond, "stats should be updated via watch")
 
 	statsFromCacheAfterUpdate, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
 	require.NoError(t, err)
@@ -358,8 +355,13 @@ func TestNamespaceShardToExecutor_ExecutorStatistics(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for stats to be deleted via watch event
-	mockTime.BlockUntil(1)
-	mockTime.Advance(1 * time.Second)
+	assert.Eventually(t, func() bool {
+		stats, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
+		if err != nil {
+			return false
+		}
+		return len(stats) == 0
+	}, 5*time.Second, 50*time.Millisecond, "stats should be deleted via watch")
 
 	deletedStats, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
 	require.NoError(t, err)
