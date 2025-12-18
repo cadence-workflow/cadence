@@ -54,6 +54,7 @@ type processorFactory struct {
 	logger        log.Logger
 	timeSource    clock.TimeSource
 	cfg           config.LeaderProcess
+	dynamicCfg    *config.Config
 	metricsClient metrics.Client
 }
 
@@ -65,6 +66,7 @@ type namespaceProcessor struct {
 	running             bool
 	cancel              context.CancelFunc
 	cfg                 config.LeaderProcess
+	dynamicCfg          *config.Config
 	wg                  sync.WaitGroup
 	shardStore          store.Store
 	election            store.Election
@@ -77,6 +79,7 @@ func NewProcessorFactory(
 	metricsClient metrics.Client,
 	timeSource clock.TimeSource,
 	cfg config.ShardDistribution,
+	dynamicCfg *config.Config,
 ) Factory {
 	if cfg.Process.Period == 0 {
 		cfg.Process.Period = _defaultPeriod
@@ -92,6 +95,7 @@ func NewProcessorFactory(
 		logger:        logger,
 		timeSource:    timeSource,
 		cfg:           cfg.Process,
+		dynamicCfg:    dynamicCfg,
 		metricsClient: metricsClient,
 	}
 }
@@ -103,6 +107,7 @@ func (f *processorFactory) CreateProcessor(cfg config.Namespace, shardStore stor
 		logger:        f.logger.WithTags(tag.ComponentLeaderProcessor, tag.ShardNamespace(cfg.Name)),
 		timeSource:    f.timeSource,
 		cfg:           f.cfg,
+		dynamicCfg:    f.dynamicCfg,
 		shardStore:    shardStore,
 		election:      election, // Store the election object
 		metricsClient: f.metricsClient,
@@ -178,11 +183,9 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 	defer ticker.Stop()
 
 	// Perform an initial rebalance on startup.
-	if p.namespaceCfg.Mode == config.MigrationModeONBOARDED {
-		err := p.rebalanceShards(ctx)
-		if err != nil {
-			p.logger.Error("initial rebalance failed", tag.Error(err))
-		}
+	err := p.rebalanceShards(ctx)
+	if err != nil {
+		p.logger.Error("initial rebalance failed", tag.Error(err))
 	}
 
 	updateChan, err := p.shardStore.Subscribe(ctx, p.namespaceCfg.Name)
@@ -204,17 +207,9 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 			if latestRevision <= p.lastAppliedRevision {
 				continue
 			}
-			if p.namespaceCfg.Mode != config.MigrationModeONBOARDED {
-				p.logger.Info("Namespace not onboarded, rebalance not triggered", tag.ShardNamespace(p.namespaceCfg.Name))
-				break
-			}
 			p.logger.Info("State change detected, triggering rebalance.")
 			err = p.rebalanceShards(ctx)
 		case <-ticker.Chan():
-			if p.namespaceCfg.Mode != config.MigrationModeONBOARDED {
-				p.logger.Info("Namespace not onboarded, skipped periodic reconciliation", tag.ShardNamespace(p.namespaceCfg.Name))
-				break
-			}
 			p.logger.Info("Periodic reconciliation triggered, rebalancing.")
 			err = p.rebalanceShards(ctx)
 		}
@@ -390,9 +385,14 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 		return nil
 	}
 
-	p.addAssignmentsToNamespaceState(namespaceState, currentAssignments)
-	p.logger.Info("Applying new shard distribution.")
+	newState := p.getNewAssignmentsState(namespaceState, currentAssignments)
+	if p.dynamicCfg.GetMigrationMode(p.namespaceCfg.Name) != types.MigrationModeONBOARDED {
+		p.logger.Info("Running rebalancing in shadow mode", tag.Dynamic("old_assignments", namespaceState.ShardAssignments), tag.Dynamic("new_assignments", newState))
+		return nil
+	}
 
+	namespaceState.ShardAssignments = newState
+	p.logger.Info("Applying new shard distribution.")
 	// Use the leader guard for the assign and delete operation.
 	err = p.shardStore.AssignShards(ctx, p.namespaceCfg.Name, store.AssignShardsRequest{
 		NewState:          namespaceState,
@@ -482,7 +482,7 @@ func (*namespaceProcessor) updateAssignments(shardsToReassign []string, activeEx
 	return true
 }
 
-func (p *namespaceProcessor) addAssignmentsToNamespaceState(namespaceState *store.NamespaceState, currentAssignments map[string][]string) {
+func (p *namespaceProcessor) getNewAssignmentsState(namespaceState *store.NamespaceState, currentAssignments map[string][]string) map[string]store.AssignedState {
 	newState := make(map[string]store.AssignedState, len(currentAssignments))
 
 	for executorID, shards := range currentAssignments {
@@ -505,7 +505,7 @@ func (p *namespaceProcessor) addAssignmentsToNamespaceState(namespaceState *stor
 		}
 	}
 
-	namespaceState.ShardAssignments = newState
+	return newState
 }
 
 func (p *namespaceProcessor) addHandoverStatsToExecutorAssignedState(
