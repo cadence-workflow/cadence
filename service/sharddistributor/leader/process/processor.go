@@ -68,7 +68,6 @@ type namespaceProcessor struct {
 	cancel              context.CancelFunc
 	sdConfig            *config.Config
 	cfg                 config.LeaderProcess
-	sdConfig            *config.Config
 	wg                  sync.WaitGroup
 	shardStore          store.Store
 	election            store.Election
