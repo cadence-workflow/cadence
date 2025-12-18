@@ -25,7 +25,8 @@ package config
 import (
 	"time"
 
-	"github.com/uber/cadence/common/config"
+	"gopkg.in/yaml.v2"
+
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
@@ -54,7 +55,7 @@ type (
 
 	// Store is a generic container for any storage configuration that should be parsed by the implementation.
 	Store struct {
-		StorageParams *config.YamlNode `yaml:"storageParams"`
+		StorageParams *YamlNode `yaml:"storageParams"`
 	}
 
 	Namespace struct {
@@ -84,6 +85,12 @@ type (
 		// the executor is considered stale and its shards are eligible for redistribution.
 		// Default: 10 seconds
 		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
+	}
+
+	// YamlNode is a lazy-unmarshaler, because *yaml.Node only exists in gopkg.in/yaml.v3, not v2,
+	// and go.uber.org/config currently uses only v2.
+	YamlNode struct {
+		unmarshal func(out any) error
 	}
 )
 
@@ -161,18 +168,16 @@ func (s *ShardDistribution) GetMigrationMode(namespace string) types.MigrationMo
 	return MigrationMode[MigrationModeONBOARDED]
 }
 
-// GetShardDistributionFromExternal converts other configs to an internal one.
-func GetShardDistributionFromExternal(in config.ShardDistribution) ShardDistribution {
-	namespaces := make([]Namespace, 0, len(in.Namespaces))
-	for _, namespace := range in.Namespaces {
-		namespaces = append(namespaces, Namespace(namespace))
-	}
+var _ yaml.Unmarshaler = (*YamlNode)(nil)
 
-	return ShardDistribution{
-		LeaderStore: Store(in.LeaderStore),
-		Store:       Store(in.Store),
-		Election:    Election(in.Election),
-		Namespaces:  namespaces,
-		Process:     LeaderProcess(in.Process),
+func (y *YamlNode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	y.unmarshal = unmarshal
+	return nil
+}
+
+func (y *YamlNode) Decode(out any) error {
+	if y == nil {
+		return nil
 	}
+	return y.unmarshal(out)
 }

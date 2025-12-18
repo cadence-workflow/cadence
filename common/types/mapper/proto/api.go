@@ -4538,9 +4538,13 @@ func ToFailoverDomainRequest(t *apiv1.FailoverDomainRequest) *types.FailoverDoma
 	if t == nil {
 		return nil
 	}
+	var domainActiveClusterName *string
+	if t.DomainActiveClusterName != "" {
+		domainActiveClusterName = common.StringPtr(t.DomainActiveClusterName)
+	}
 	return &types.FailoverDomainRequest{
 		DomainName:              t.DomainName,
-		DomainActiveClusterName: common.StringPtr(t.DomainActiveClusterName),
+		DomainActiveClusterName: domainActiveClusterName,
 		ActiveClusters:          ToActiveClusters(t.ActiveClusters),
 	}
 }

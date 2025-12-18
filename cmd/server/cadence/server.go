@@ -249,6 +249,7 @@ func (s *server) startService() common.Daemon {
 
 	params.KafkaConfig = s.cfg.Kafka
 	params.DiagnosticsInvariants = []diagnosticsInvariant.Invariant{timeout.NewInvariant(timeout.Params{Client: params.PublicClient}), failure.NewInvariant(), retry.NewInvariant()}
+	params.ShardDistributorMatchingConfig = s.cfg.ShardDistributorMatchingConfig
 
 	params.Logger.Info("Starting service " + s.name)
 

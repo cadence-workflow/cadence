@@ -207,7 +207,10 @@ func (wh *WorkflowHandler) FailoverDomain(ctx context.Context, failoverRequest *
 		tag.WorkflowDomainName(domainName),
 		tag.OperationName("FailoverDomain"))
 
-	logger.Info(fmt.Sprintf("Failover domain is requested. Request: %#v.", failoverRequest))
+	logger.Info("Failover domain requested.",
+		tag.ActiveClusterName(failoverRequest.GetDomainActiveClusterName()),
+		tag.Dynamic("active-clusters-by-cluster-attribute", failoverRequest.ActiveClusters),
+	)
 
 	failoverResp, err := wh.domainHandler.FailoverDomain(ctx, failoverRequest)
 	if err != nil {

@@ -763,6 +763,83 @@ func TestUpdateDomainRequest(t *testing.T) {
 		assert.Equal(t, item, ToUpdateDomainRequest(FromUpdateDomainRequest(item)))
 	}
 }
+func TestFailoverDomainRequest(t *testing.T) {
+	// Test round-trip conversion for standard testdata
+	for _, item := range []*types.FailoverDomainRequest{nil, {}, &testdata.FailoverDomainRequest, &testdata.FailoverDomainRequest_OnlyActiveClusters} {
+		assert.Equal(t, item, ToFailoverDomainRequest(FromFailoverDomainRequest(item)))
+	}
+
+	// Test specific edge cases for proto3 empty string handling
+	t.Run("empty DomainActiveClusterName should map to nil pointer", func(t *testing.T) {
+		input := &apiv1.FailoverDomainRequest{
+			DomainName:              "test-domain",
+			DomainActiveClusterName: "",
+			ActiveClusters:          nil,
+		}
+		expected := &types.FailoverDomainRequest{
+			DomainName:              "test-domain",
+			DomainActiveClusterName: nil,
+			ActiveClusters:          nil,
+		}
+		result := ToFailoverDomainRequest(input)
+		assert.Equal(t, expected, result)
+		assert.Nil(t, result.DomainActiveClusterName,
+			"DomainActiveClusterName should be nil when proto field is empty string, not pointer to empty string")
+	})
+
+	t.Run("non-empty DomainActiveClusterName should map to pointer", func(t *testing.T) {
+		input := &apiv1.FailoverDomainRequest{
+			DomainName:              "test-domain",
+			DomainActiveClusterName: "cluster1",
+			ActiveClusters:          nil,
+		}
+		expected := &types.FailoverDomainRequest{
+			DomainName:              "test-domain",
+			DomainActiveClusterName: common.StringPtr("cluster1"),
+			ActiveClusters:          nil,
+		}
+		assert.Equal(t, expected, ToFailoverDomainRequest(input))
+	})
+
+	t.Run("with ActiveClusters and empty DomainActiveClusterName", func(t *testing.T) {
+		input := &apiv1.FailoverDomainRequest{
+			DomainName:              "test-domain",
+			DomainActiveClusterName: "",
+			ActiveClusters: &apiv1.ActiveClusters{
+				ActiveClustersByClusterAttribute: map[string]*apiv1.ClusterAttributeScope{
+					"location": {
+						ClusterAttributes: map[string]*apiv1.ActiveClusterInfo{
+							"london": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   1,
+							},
+						},
+					},
+				},
+			},
+		}
+		expected := &types.FailoverDomainRequest{
+			DomainName:              "test-domain",
+			DomainActiveClusterName: nil,
+			ActiveClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"location": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"london": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   1,
+							},
+						},
+					},
+				},
+			},
+		}
+		result := ToFailoverDomainRequest(input)
+		assert.Equal(t, expected, result)
+		assert.Nil(t, result.DomainActiveClusterName,
+			"DomainActiveClusterName should be nil when proto field is empty string")
+	})
+}
 func TestUpdateDomainResponse(t *testing.T) {
 	for _, item := range []*types.UpdateDomainResponse{nil, &testdata.UpdateDomainResponse} {
 		assert.Equal(t, item, ToUpdateDomainResponse(FromUpdateDomainResponse(item)))

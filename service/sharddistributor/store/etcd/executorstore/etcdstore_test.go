@@ -13,10 +13,9 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
-	sdConfig "github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
@@ -593,9 +592,9 @@ func TestAssignShardErrors(t *testing.T) {
 func TestShardStatisticsPersistence(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
-	executorStore.(*executorStoreImpl).cfg = &sdConfig.Config{
+	executorStore.(*executorStoreImpl).cfg = &config.Config{
 		LoadBalancingMode: func(namespace string) string {
-			return sdConfig.LoadBalancingModeGREEDY
+			return config.LoadBalancingModeGREEDY
 		},
 	}
 
@@ -726,8 +725,8 @@ func createStore(t *testing.T, tc *testhelper.StoreTestCluster) store.Store {
 		Lifecycle:  fxtest.NewLifecycle(t),
 		Logger:     testlogger.New(t),
 		TimeSource: clock.NewRealTimeSource(),
-		Config: &sdConfig.Config{
-			LoadBalancingMode: func(namespace string) string { return sdConfig.LoadBalancingModeNAIVE },
+		Config: &config.Config{
+			LoadBalancingMode: func(namespace string) string { return config.LoadBalancingModeNAIVE },
 		},
 	})
 	require.NoError(t, err)
