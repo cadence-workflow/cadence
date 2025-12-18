@@ -661,7 +661,7 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 		return nil, err
 	}
 
-	d.logger.Info("faiover request succeeded",
+	d.logger.Info("Failover request succeeded",
 		tag.WorkflowDomainName(intendedDomainState.Info.Name),
 		tag.WorkflowDomainID(intendedDomainState.Info.ID),
 	)

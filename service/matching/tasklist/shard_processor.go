@@ -98,7 +98,9 @@ func (sp *shardProcessorImpl) getShardLoad() float64 {
 	for _, tlMgr := range sp.taskLists {
 		if tlMgr.TaskListID().name == sp.shardID {
 			lbh := tlMgr.LoadBalancerHints()
-			load = load + lbh.RatePerSecond
+			if lbh != nil {
+				load = load + lbh.RatePerSecond
+			}
 		}
 	}
 	return load

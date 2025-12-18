@@ -61,19 +61,22 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/tasklist"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
+	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 )
 
 type (
 	matchingEngineSuite struct {
 		suite.Suite
-		controller              *gomock.Controller
-		mockHistoryClient       *history.MockClient
-		mockMatchingClient      *matching.MockClient
-		mockDomainCache         *cache.MockDomainCache
-		mockMembershipResolver  *membership.MockResolver
-		mockIsolationStore      *dynamicconfig.MockClient
-		mockShardExecutorClient *executorclient.MockClient
+		controller                     *gomock.Controller
+		mockHistoryClient              *history.MockClient
+		mockMatchingClient             *matching.MockClient
+		mockDomainCache                *cache.MockDomainCache
+		mockMembershipResolver         *membership.MockResolver
+		mockIsolationStore             *dynamicconfig.MockClient
+		mockShardExecutorClient        *executorclient.MockClient
+		ShardDistributorMatchingConfig clientcommon.Config
 
 		matchingEngine       *matchingEngineImpl
 		taskManager          *tasklist.TestTaskManager
@@ -189,6 +192,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		s.isolationState,
 		s.mockTimeSource,
 		s.mockShardExecutorClient,
+		defaultSDExecutorConfig(),
 	).(*matchingEngineImpl)
 }
 
@@ -1410,6 +1414,18 @@ func defaultTestConfig() *config.Config {
 	config.MaxTimeBetweenTaskDeletes = time.Duration(0)
 	config.EnableTasklistOwnershipGuard = func(opts ...dynamicproperties.FilterOption) bool { return true }
 	return config
+}
+
+func defaultSDExecutorConfig() clientcommon.Config {
+	return clientcommon.Config{
+		Namespaces: []clientcommon.NamespaceConfig{{
+			Namespace:         "cadence-matching",
+			HeartBeatInterval: 1 * time.Second,
+			MigrationMode:     sdconfig.MigrationModeLOCALPASSTHROUGH,
+			TTLShard:          5 * time.Minute,
+			TTLReport:         1 * time.Minute,
+		}},
+	}
 }
 
 func getExpectedRange(initialRangeID, taskCount, rangeSize int) int64 {
