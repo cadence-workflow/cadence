@@ -264,7 +264,7 @@ func (c *Collection) GetFloat64PropertyFilteredByTaskListInfo(key dynamicpropert
 	}
 }
 
-// GetFloat64PropertyFilteredByNamespace gets property with domain filter and asserts that it's a string
+// GetFloat64PropertyFilteredByNamespace gets property with domain filter and asserts that it's a float64
 func (c *Collection) GetFloat64PropertyFilteredByNamespace(key dynamicproperties.FloatKey) dynamicproperties.Float64PropertyFnWithNamespaceFilters {
 	return func(namespace string) float64 {
 		filters := c.toFilterMap(dynamicproperties.NamespaceFilter(namespace))
