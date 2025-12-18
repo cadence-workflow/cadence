@@ -193,6 +193,10 @@ shardDistribution:
     heartbeatTTL: 2s
     loadBalance:
       disableBenefitGating: false
+      severeImbalanceRatio: 1.3
+      moveBudgetProportion: 0.05
+      hysteresisUpperBand: 1.1
+      hysteresisLowerBand: 0.9
 
 shard-distributor-matching:
   namespaces:

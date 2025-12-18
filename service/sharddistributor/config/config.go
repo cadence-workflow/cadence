@@ -87,7 +87,35 @@ type (
 		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
 
 		// LoadBalance contains tunables for load-based rebalancing.
-		LoadBalance config.LoadBalance `yaml:"loadBalance"`
+		LoadBalance LoadBalance `yaml:"loadBalance"`
+	}
+
+	LoadBalance struct {
+		// PerShardCooldown is the minimum time between moving the same shard.
+		// Default: 1 minute.
+		PerShardCooldown time.Duration `yaml:"perShardCooldown"`
+
+		// MoveBudgetProportion is the fraction of total shards that may be moved per load-balance pass.
+		// Default: 0.01 (1%).
+		MoveBudgetProportion float64 `yaml:"moveBudgetProportion"`
+
+		// HysteresisUpperBand is the multiplier above mean load that qualifies an executor as a source.
+		// Default: 1.15.
+		HysteresisUpperBand float64 `yaml:"hysteresisUpperBand"`
+
+		// HysteresisLowerBand is the multiplier below mean load that qualifies an executor as a destination.
+		// Default: 0.95.
+		HysteresisLowerBand float64 `yaml:"hysteresisLowerBand"`
+
+		// SevereImbalanceRatio triggers a destination "escape hatch" when maxLoad/meanLoad exceeds this value
+		// but no executor qualifies as a destination under the normal hysteresis lower band.
+		// Default: 1.5.
+		SevereImbalanceRatio float64 `yaml:"severeImbalanceRatio"`
+
+		// DisableBenefitGating controls whether load-based balancing may accept moves that do not
+		// strictly improve the objective function (currently: sum of squared error around mean load).
+		// Default: false (benefit gating enabled).
+		DisableBenefitGating bool `yaml:"disableBenefitGating"`
 	}
 
 	// YamlNode is a lazy-unmarshaler, because *yaml.Node only exists in gopkg.in/yaml.v3, not v2,
