@@ -21,20 +21,12 @@
 package event
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"go.uber.org/zap"
 )
-
-var enabled = false
-
-func init() {
-	enabled = os.Getenv("MATCHING_LOG_EVENTS") == "true"
-}
 
 type E struct {
 	persistence.TaskInfo
@@ -51,16 +43,15 @@ type E struct {
 }
 
 func Log(events ...E) {
-	if !enabled {
-		return
-	}
 	for _, e := range events {
-		e.EventTime = time.Now()
-		data, err := json.Marshal(e)
-		if err != nil {
-			fmt.Printf("failed to marshal event: %v", err)
-		}
-
-		fmt.Printf("Matching New Event: %s\n", data)
+		zap.L().Debug(e.EventName, zap.Any("event", e),
+			zap.String("taskListName", e.TaskListName),
+			zap.Stringer("taskListKind", e.TaskListKind),
+			zap.Int("taskListType", e.TaskListType),
+			zap.Time("eventTime", e.EventTime),
+			zap.String("wf-domain-id", e.DomainID),
+			zap.String("wf-id", e.WorkflowID),
+			zap.String("wf-run-id", e.RunID),
+			zap.Any("event", e))
 	}
 }
