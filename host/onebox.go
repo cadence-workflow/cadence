@@ -71,6 +71,8 @@ import (
 	"github.com/uber/cadence/service/frontend"
 	"github.com/uber/cadence/service/history"
 	"github.com/uber/cadence/service/matching"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/worker"
 	"github.com/uber/cadence/service/worker/archiver"
 	"github.com/uber/cadence/service/worker/asyncworkflow"
@@ -838,6 +840,17 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 			params.HistoryClientFn = func() historyClient.Client {
 				return c.historyConfig.MockClient
 			}
+		}
+
+		// Set default ShardDistributorMatchingConfig for integration tests
+		params.ShardDistributorMatchingConfig = clientcommon.Config{
+			Namespaces: []clientcommon.NamespaceConfig{{
+				Namespace:         "cadence-matching-integration",
+				HeartBeatInterval: 1 * time.Second,
+				MigrationMode:     sdconfig.MigrationModeLOCALPASSTHROUGH,
+				TTLShard:          5 * time.Minute,
+				TTLReport:         1 * time.Minute,
+			}},
 		}
 
 		matchingService, err := matching.NewService(params)

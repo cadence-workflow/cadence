@@ -23,6 +23,7 @@ package config
 import (
 	"time"
 
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
@@ -98,6 +99,8 @@ type (
 		AllIsolationGroups      func() []string
 		// hostname info
 		HostName string
+		// RPCConfig contains RPC configuration including ports and bindOnLocalHost
+		RPCConfig config.RPC
 		// rate limiter configuration
 		TaskDispatchRPS    float64
 		TaskDispatchRPSTTL time.Duration
@@ -171,7 +174,7 @@ type (
 )
 
 // NewConfig returns new service config with default values
-func NewConfig(dc *dynamicconfig.Collection, hostName string, getIsolationGroups func() []string) *Config {
+func NewConfig(dc *dynamicconfig.Collection, hostName string, rpcConfig config.RPC, getIsolationGroups func() []string) *Config {
 	return &Config{
 		PersistenceMaxQPS:                         dc.GetIntProperty(dynamicproperties.MatchingPersistenceMaxQPS),
 		PersistenceGlobalMaxQPS:                   dc.GetIntProperty(dynamicproperties.MatchingPersistenceGlobalMaxQPS),
@@ -225,6 +228,7 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string, getIsolationGroups
 		TaskIsolationDuration:                     dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.TaskIsolationDuration),
 		TaskIsolationPollerWindow:                 dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.TaskIsolationPollerWindow),
 		HostName:                                  hostName,
+		RPCConfig:                                 rpcConfig,
 		TaskDispatchRPS:                           100000.0,
 		TaskDispatchRPSTTL:                        time.Minute,
 		MaxTimeBetweenTaskDeletes:                 time.Second,

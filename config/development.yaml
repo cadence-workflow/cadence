@@ -186,3 +186,11 @@ shardDistribution:
   process:
     period: 1s
     heartbeatTTL: 2s
+
+shard-distributor-matching:
+  namespaces:
+    - namespace: cadence-matching-dev
+      heartbeat_interval: 1s
+      migration_mode: local_pass
+      ttl_shard: 5m
+      ttl_report: 1m

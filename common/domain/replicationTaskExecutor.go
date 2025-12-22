@@ -234,7 +234,7 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainUpdateReplicationTask(ct
 	// plus, we need to check whether the config version is <= the config version set in the input
 	// plus, we need to check whether the failover version is <= the failover version set in the input
 	originalDomainState, err := h.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{
-		Name: task.Info.GetName(),
+		ID: task.GetID(),
 	})
 	intendedDomainState := originalDomainState.DeepCopy()
 

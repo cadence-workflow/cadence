@@ -53,6 +53,9 @@ type FloatPropertyFnWithShardIDFilter func(shardID int) float64
 // FloatPropertyFnWithTaskListInfoFilters is a wrapper to get duration property from dynamic config  with three filters: domain, taskList, taskType
 type FloatPropertyFnWithTaskListInfoFilters func(domain string, taskList string, taskType int) float64
 
+// Float64PropertyFnWithNamespaceFilters is a wrapper to get string property from dynamic config with namespace as filter
+type Float64PropertyFnWithNamespaceFilters func(namespace string) float64
+
 // DurationPropertyFn is a wrapper to get duration property from dynamic config
 type DurationPropertyFn func(opts ...FilterOption) time.Duration
 

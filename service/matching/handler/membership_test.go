@@ -138,6 +138,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				isolationgroup.NewMockState(ctrl),
 				mockTimeSource,
 				mockShardDistributorExecutorClient,
+				defaultSDExecutorConfig(),
 			).(*matchingEngineImpl)
 
 			resolverMock.EXPECT().Lookup(gomock.Any(), gomock.Any()).Return(

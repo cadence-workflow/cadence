@@ -29,6 +29,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -77,6 +78,7 @@ func TestNewConfig(t *testing.T) {
 		"LocalPollWaitTime":                         {dynamicproperties.LocalPollWaitTime, time.Duration(10)},
 		"LocalTaskWaitTime":                         {dynamicproperties.LocalTaskWaitTime, time.Duration(10)},
 		"HostName":                                  {nil, hostname},
+		"RPCConfig":                                 {nil, config.RPC{}},
 		"TaskDispatchRPS":                           {nil, 100000.0},
 		"TaskDispatchRPSTTL":                        {nil, time.Minute},
 		"MaxTimeBetweenTaskDeletes":                 {nil, time.Second},
@@ -114,7 +116,7 @@ func TestNewConfig(t *testing.T) {
 	}
 	dc := dynamicconfig.NewCollection(client, testlogger.New(t))
 
-	config := NewConfig(dc, hostname, isolationGroupsHelper)
+	config := NewConfig(dc, hostname, config.RPC{}, isolationGroupsHelper)
 
 	assertFieldsMatch(t, *config, fields)
 }
@@ -222,7 +224,7 @@ func TestGetTasksBatchSizeValidation(t *testing.T) {
 			assert.NoError(t, err)
 
 			dc := dynamicconfig.NewCollection(client, testlogger.New(t))
-			config := NewConfig(dc, "test-host", isolationGroupsHelper)
+			config := NewConfig(dc, "test-host", config.RPC{}, isolationGroupsHelper)
 
 			// Test that GetTasksBatchSize returns the raw value (validation happens at usage site)
 			result := config.GetTasksBatchSize("test-domain", "test-tasklist", int(types.TaskListTypeDecision))

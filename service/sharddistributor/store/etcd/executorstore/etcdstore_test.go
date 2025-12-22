@@ -592,6 +592,12 @@ func TestAssignShardErrors(t *testing.T) {
 func TestShardStatisticsPersistence(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
+	executorStore.(*executorStoreImpl).cfg = &config.Config{
+		LoadBalancingMode: func(namespace string) string {
+			return config.LoadBalancingModeGREEDY
+		},
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -715,10 +721,13 @@ func createStore(t *testing.T, tc *testhelper.StoreTestCluster) store.Store {
 
 	store, err := NewStore(ExecutorStoreParams{
 		Client:     tc.Client,
-		Cfg:        etcdConfig,
+		ETCDConfig: etcdConfig,
 		Lifecycle:  fxtest.NewLifecycle(t),
 		Logger:     testlogger.New(t),
 		TimeSource: clock.NewRealTimeSource(),
+		Config: &config.Config{
+			LoadBalancingMode: func(namespace string) string { return config.LoadBalancingModeNAIVE },
+		},
 	})
 	require.NoError(t, err)
 	return store

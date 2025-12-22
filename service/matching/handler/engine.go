@@ -50,6 +50,7 @@ import (
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
@@ -57,12 +58,17 @@ import (
 	"github.com/uber/cadence/service/matching/tasklist"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
-	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 )
 
-// If sticky poller is not seem in last 10s, we treat it as sticky worker unavailable
-// This seems aggressive, but the default sticky schedule_to_start timeout is 5s, so 10s seems reasonable.
-const _stickyPollerUnavailableWindow = 10 * time.Second
+const (
+	// If sticky poller is not seem in last 10s, we treat it as sticky worker unavailable
+	// This seems aggressive, but the default sticky schedule_to_start timeout is 5s, so 10s seems reasonable.
+	_stickyPollerUnavailableWindow = 10 * time.Second
+
+	// _defaultSDReportTTL is the default TTL for shard status reports from matching executor to shard distributor.
+	// This controls how frequently the executor reports its shard load/status to the distributor.
+	_defaultSDReportTTL = 1 * time.Minute
+)
 
 // Implements matching.Engine
 // TODO: Switch implementation from lock/channel based to a partitioned agent
@@ -83,28 +89,29 @@ type (
 	}
 
 	matchingEngineImpl struct {
-		shutdownCompletion          *sync.WaitGroup
-		shutdown                    chan struct{}
-		taskManager                 persistence.TaskManager
-		clusterMetadata             cluster.Metadata
-		historyService              history.Client
-		matchingClient              matching.Client
-		tokenSerializer             common.TaskTokenSerializer
-		logger                      log.Logger
-		metricsClient               metrics.Client
-		metricsScope                tally.Scope
-		taskListsLock               sync.RWMutex                             // locks mutation of taskLists
-		taskLists                   map[tasklist.Identifier]tasklist.Manager // Convert to LRU cache
-		executor                    executorclient.Executor[tasklist.ShardProcessor]
-		taskListsFactory            *tasklist.ShardProcessorFactory
-		config                      *config.Config
-		lockableQueryTaskMap        lockableQueryTaskMap
-		domainCache                 cache.DomainCache
-		versionChecker              client.VersionChecker
-		membershipResolver          membership.Resolver
-		isolationState              isolationgroup.State
-		timeSource                  clock.TimeSource
-		failoverNotificationVersion int64
+		shutdownCompletion             *sync.WaitGroup
+		shutdown                       chan struct{}
+		taskManager                    persistence.TaskManager
+		clusterMetadata                cluster.Metadata
+		historyService                 history.Client
+		matchingClient                 matching.Client
+		tokenSerializer                common.TaskTokenSerializer
+		logger                         log.Logger
+		metricsClient                  metrics.Client
+		metricsScope                   tally.Scope
+		taskListsLock                  sync.RWMutex                             // locks mutation of taskLists
+		taskLists                      map[tasklist.Identifier]tasklist.Manager // Convert to LRU cache
+		executor                       executorclient.Executor[tasklist.ShardProcessor]
+		taskListsFactory               *tasklist.ShardProcessorFactory
+		config                         *config.Config
+		lockableQueryTaskMap           lockableQueryTaskMap
+		domainCache                    cache.DomainCache
+		versionChecker                 client.VersionChecker
+		membershipResolver             membership.Resolver
+		isolationState                 isolationgroup.State
+		timeSource                     clock.TimeSource
+		failoverNotificationVersion    int64
+		ShardDistributorMatchingConfig clientcommon.Config
 	}
 
 	// HistoryInfo consists of two integer regarding the history size and history count
@@ -143,26 +150,28 @@ func NewEngine(
 	isolationState isolationgroup.State,
 	timeSource clock.TimeSource,
 	shardDistributorClient executorclient.Client,
+	ShardDistributorMatchingConfig clientcommon.Config,
 ) Engine {
 	e := &matchingEngineImpl{
-		shutdown:             make(chan struct{}),
-		shutdownCompletion:   &sync.WaitGroup{},
-		taskManager:          taskManager,
-		clusterMetadata:      clusterMetadata,
-		historyService:       historyService,
-		tokenSerializer:      common.NewJSONTaskTokenSerializer(),
-		taskLists:            make(map[tasklist.Identifier]tasklist.Manager),
-		logger:               logger.WithTags(tag.ComponentMatchingEngine),
-		metricsClient:        metricsClient,
-		metricsScope:         metricsScope,
-		matchingClient:       matchingClient,
-		config:               config,
-		lockableQueryTaskMap: lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
-		domainCache:          domainCache,
-		versionChecker:       client.NewVersionChecker(),
-		membershipResolver:   resolver,
-		isolationState:       isolationState,
-		timeSource:           timeSource,
+		shutdown:                       make(chan struct{}),
+		shutdownCompletion:             &sync.WaitGroup{},
+		taskManager:                    taskManager,
+		clusterMetadata:                clusterMetadata,
+		historyService:                 historyService,
+		tokenSerializer:                common.NewJSONTaskTokenSerializer(),
+		taskLists:                      make(map[tasklist.Identifier]tasklist.Manager),
+		logger:                         logger.WithTags(tag.ComponentMatchingEngine),
+		metricsClient:                  metricsClient,
+		metricsScope:                   metricsScope,
+		matchingClient:                 matchingClient,
+		config:                         config,
+		lockableQueryTaskMap:           lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
+		domainCache:                    domainCache,
+		versionChecker:                 client.NewVersionChecker(),
+		membershipResolver:             resolver,
+		isolationState:                 isolationState,
+		timeSource:                     timeSource,
+		ShardDistributorMatchingConfig: ShardDistributorMatchingConfig,
 	}
 
 	e.setupExecutor(shardDistributorClient)
@@ -189,38 +198,57 @@ func (e *matchingEngineImpl) Stop() {
 }
 
 func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient executorclient.Client) {
-	config := clientcommon.Config{
-		Namespaces: []clientcommon.NamespaceConfig{
-			// TTL for shard is aligned with the default value of the liveness time for a tasklist
-			{Namespace: "cadence-matching",
-				HeartBeatInterval: 1 * time.Second,
-				MigrationMode:     sdconfig.MigrationModeLOCALPASSTHROUGH,
-				TTLShard:          5 * time.Minute,
-				TTLReport:         1 * time.Minute}}}
+	cfg, reportTTL := e.getValidatedShardDistributorConfig()
 
 	taskListFactory := &tasklist.ShardProcessorFactory{
 		TaskListsLock: &e.taskListsLock,
 		TaskLists:     e.taskLists,
-		ReportTTL:     config.Namespaces[0].TTLReport,
-		TimeSource:    e.timeSource}
+		ReportTTL:     reportTTL,
+		TimeSource:    e.timeSource,
+	}
 	e.taskListsFactory = taskListFactory
-	scope := e.metricsScope
-	// Move the configuration to e.config
 
 	params := executorclient.Params[tasklist.ShardProcessor]{
 		ExecutorClient:        shardDistributorExecutorClient,
-		MetricsScope:          scope,
+		MetricsScope:          e.metricsScope,
 		Logger:                e.logger,
 		ShardProcessorFactory: taskListFactory,
-		Config:                config,
+		Config:                cfg,
 		TimeSource:            e.timeSource,
 	}
 	executor, err := executorclient.NewExecutor[tasklist.ShardProcessor](params)
 	if err != nil {
 		panic(err)
 	}
-	e.executor = executor
 
+	// Get the IP address to advertise to external services
+	// This respects bindOnLocalHost config (127.0.0.1 for local dev, external IP for production)
+	hostIP, err := rpc.GetListenIP(e.config.RPCConfig)
+	if err != nil {
+		e.logger.Fatal("Failed to get listen IP", tag.Error(err))
+	}
+
+	executor.SetMetadata(map[string]string{
+		"tchannel": fmt.Sprintf("%d", e.config.RPCConfig.Port),
+		"grpc":     fmt.Sprintf("%d", e.config.RPCConfig.GRPCPort),
+		"hostIP":   hostIP.String(),
+	})
+	e.executor = executor
+}
+
+func (e *matchingEngineImpl) getValidatedShardDistributorConfig() (clientcommon.Config, time.Duration) {
+	cfg := e.ShardDistributorMatchingConfig
+
+	if len(cfg.Namespaces) > 1 {
+		e.logger.Fatal("matching service does not support multiple namespaces", tag.Value(cfg.Namespaces))
+	}
+
+	// Get TTLReport from config, default if not configured
+	reportTTL := _defaultSDReportTTL
+	if len(cfg.Namespaces) == 1 && cfg.Namespaces[0].TTLReport != 0 {
+		reportTTL = cfg.Namespaces[0].TTLReport
+	}
+	return cfg, reportTTL
 }
 
 func (e *matchingEngineImpl) getTaskLists(maxCount int) []tasklist.Manager {
