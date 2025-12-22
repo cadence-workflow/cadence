@@ -11,16 +11,32 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
+const (
+	loadBalanceStopReasonNoLoad               = "no_load"
+	loadBalanceStopReasonMoveBudgetZero       = "move_budget_zero"
+	loadBalanceStopReasonMoveBudgetExhausted  = "move_budget_exhausted"
+	loadBalanceStopReasonNoSources            = "no_sources"
+	loadBalanceStopReasonNoDestinations       = "no_destinations_not_severe"
+	loadBalanceStopReasonNoActiveDestinations = "no_active_destinations"
+	loadBalanceStopReasonNoDestinationExec    = "no_destination_executor"
+	loadBalanceStopReasonNoEligibleShard      = "no_eligible_shard"
+)
+
 func (p *namespaceProcessor) loadBalance(
 	currentAssignments map[string][]string,
 	namespaceState *store.NamespaceState,
 	deletedShards map[string]store.ShardState,
 	metricsScope metrics.Scope,
 ) (bool, error) {
+	if metricsScope != nil {
+		metricsScope.AddCounter(metrics.ShardDistributorLoadBalanceCycles, 1)
+	}
+
 	loads, totalLoad := computeExecutorLoads(currentAssignments, namespaceState)
 	if len(loads) == 0 {
 		if metricsScope != nil {
-			metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceMovesPerCycle, 0)
+			metricsScope.Tagged(metrics.ReasonTag(loadBalanceStopReasonNoLoad)).
+				IncCounter(metrics.ShardDistributorLoadBalanceStopReason)
 		}
 		return false, nil
 	}
@@ -31,6 +47,27 @@ func (p *namespaceProcessor) loadBalance(
 	shardsMoved := false
 	movesPlanned := 0
 	now := p.timeSource.Now().UTC()
+	stopReason := loadBalanceStopReasonMoveBudgetExhausted
+	initialSourceCount := 0
+	initialDestinationCount := 0
+
+	if moveBudget <= 0 {
+		if metricsScope != nil {
+			metricsScope.Tagged(metrics.ReasonTag(loadBalanceStopReasonMoveBudgetZero)).
+				IncCounter(metrics.ShardDistributorLoadBalanceStopReason)
+		}
+		return false, nil
+	}
+
+	initialSources, initialDestinations := classifySourcesAndDestinations(
+		loads,
+		namespaceState,
+		meanLoad,
+		p.cfg.LoadBalance.HysteresisUpperBand,
+		p.cfg.LoadBalance.HysteresisLowerBand,
+	)
+	initialSourceCount = len(initialSources)
+	initialDestinationCount = len(initialDestinations)
 
 	// Plan multiple moves per cycle (within budget), recomputing eligibility after each move.
 	// Stop early once sources/destinations are empty, i.e. imbalance is within hysteresis bands.
@@ -44,20 +81,25 @@ func (p *namespaceProcessor) loadBalance(
 		)
 
 		if len(sourceExecutors) == 0 {
+			stopReason = loadBalanceStopReasonNoSources
 			break
 		}
 
 		// Escape hatch: if we have sources but no destinations under the normal lower band,
 		// allow moving to the least-loaded ACTIVE executor when imbalance is severe.
 		if len(destinationExecutors) == 0 {
-			relaxed, ok := destinationsForSevereImbalance(
-				loads,
-				meanLoad,
-				p.cfg.LoadBalance.SevereImbalanceRatio,
-				currentAssignments,
-				namespaceState,
-			)
-			if !ok {
+			if !isSevereImbalance(loads, meanLoad, p.cfg.LoadBalance.SevereImbalanceRatio) {
+				stopReason = loadBalanceStopReasonNoDestinations
+				break
+			}
+			relaxed := make(map[string]struct{})
+			for executorID := range currentAssignments {
+				if namespaceState.Executors[executorID].Status == types.ExecutorStatusACTIVE {
+					relaxed[executorID] = struct{}{}
+				}
+			}
+			if len(relaxed) == 0 {
+				stopReason = loadBalanceStopReasonNoActiveDestinations
 				break
 			}
 			destinationExecutors = relaxed
@@ -67,6 +109,7 @@ func (p *namespaceProcessor) loadBalance(
 
 		destExecutor := p.findBestDestination(destinationExecutors, loads)
 		if destExecutor == "" {
+			stopReason = loadBalanceStopReasonNoDestinationExec
 			break
 		}
 
@@ -105,12 +148,19 @@ func (p *namespaceProcessor) loadBalance(
 
 		// No eligible shard could be moved from any source.
 		if !movedThisIteration {
+			stopReason = loadBalanceStopReasonNoEligibleShard
 			break
 		}
 	}
 
 	if metricsScope != nil {
-		metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceMovesPerCycle, float64(movesPlanned))
+		if movesPlanned > 0 {
+			metricsScope.AddCounter(metrics.ShardDistributorLoadBalanceMoves, int64(movesPlanned))
+		}
+		metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceSourceExecutorsInitial, float64(initialSourceCount))
+		metricsScope.UpdateGauge(metrics.ShardDistributorLoadBalanceDestinationExecutorsInitial, float64(initialDestinationCount))
+		metricsScope.Tagged(metrics.ReasonTag(stopReason)).
+			IncCounter(metrics.ShardDistributorLoadBalanceStopReason)
 	}
 	return shardsMoved, nil
 }
@@ -134,38 +184,18 @@ func computeExecutorLoads(currentAssignments map[string][]string, namespaceState
 	return loads, total
 }
 
-func destinationsForSevereImbalance(
-	executorLoads map[string]float64,
-	meanLoad float64,
-	severeImbalanceRatio float64,
-	currentAssignments map[string][]string,
-	namespaceState *store.NamespaceState,
-) (map[string]struct{}, bool) {
+func isSevereImbalance(executorLoads map[string]float64, meanLoad, severeImbalanceRatio float64) bool {
+	if meanLoad <= 0 || severeImbalanceRatio <= 0 {
+		return false
+	}
+
 	maxLoad := 0.0
 	for _, load := range executorLoads {
 		if load > maxLoad {
 			maxLoad = load
 		}
 	}
-
-	severe := meanLoad > 0 &&
-		severeImbalanceRatio > 0 &&
-		maxLoad/meanLoad >= severeImbalanceRatio
-	if !severe {
-		return nil, false
-	}
-
-	relaxed := make(map[string]struct{})
-	for executorID := range currentAssignments {
-		if namespaceState.Executors[executorID].Status == types.ExecutorStatusACTIVE {
-			relaxed[executorID] = struct{}{}
-		}
-	}
-	if len(relaxed) == 0 {
-		return nil, false
-	}
-
-	return relaxed, true
+	return maxLoad/meanLoad >= severeImbalanceRatio
 }
 
 // classifySourcesAndDestinations returns the source and destination executor sets for rebalancing.

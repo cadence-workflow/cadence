@@ -16,7 +16,6 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-	metricsmocks "github.com/uber/cadence/common/metrics/mocks"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -404,42 +403,6 @@ func TestRunLoop_MigrationNotOnboarded(t *testing.T) {
 
 	// Wait for the main process loop to exit gracefully
 	processor.wg.Wait()
-}
-
-// TestEmitShardMovesLastMinute verifies the churn gauge reports how many shards were moved in the last minute.
-func TestEmitShardMovesLastMinute(t *testing.T) {
-	mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
-	defer mocks.ctrl.Finish()
-	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
-
-	now := processor.timeSource.Now().UTC()
-	namespaceState := &store.NamespaceState{
-		ShardStats: map[string]store.ShardStatistics{
-			"moved-recent-1": {LastMoveTime: now.Add(-30 * time.Second)},
-			"moved-recent-2": {LastMoveTime: now.Add(-59 * time.Second)},
-			"moved-old":      {LastMoveTime: now.Add(-2 * time.Minute)},
-			"never-moved":    {},
-		},
-	}
-
-	scope := &metricsmocks.Scope{}
-	scope.On("UpdateGauge", metrics.ShardDistributorShardMovesLastMinute, 2.0).Once()
-
-	processor.emitShardMovesLastMinute(scope, namespaceState)
-	scope.AssertExpectations(t)
-}
-
-// TestEmitShardMovesLastMinute_EmptyState verifies the churn gauge emits 0 when no shard stats exist.
-func TestEmitShardMovesLastMinute_EmptyState(t *testing.T) {
-	mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
-	defer mocks.ctrl.Finish()
-	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
-
-	scope := &metricsmocks.Scope{}
-	scope.On("UpdateGauge", metrics.ShardDistributorShardMovesLastMinute, 0.0).Once()
-
-	processor.emitShardMovesLastMinute(scope, &store.NamespaceState{ShardStats: nil})
-	scope.AssertExpectations(t)
 }
 
 func TestRebalanceShards_NoShardsToReassign(t *testing.T) {
@@ -852,74 +815,6 @@ func TestAddHandoverStatsToExecutorAssignedState(t *testing.T) {
 			}
 			stats := processor.addHandoverStatsToExecutorAssignedState(namespaceState, executorID, shardIDs)
 			assert.Equal(t, tc.expected, stats)
-		})
-	}
-}
-
-func TestComputeExecutorLoadCV(t *testing.T) {
-	t.Parallel()
-
-	namespaceState := &store.NamespaceState{
-		Executors: map[string]store.HeartbeatState{
-			"exec-1": {
-				ReportedShards: map[string]*types.ShardStatusReport{
-					"shard-1": {ShardLoad: 1},
-					"shard-2": {ShardLoad: 2},
-				},
-			},
-			"exec-2": {
-				ReportedShards: map[string]*types.ShardStatusReport{
-					"shard-3": {ShardLoad: 3},
-					"shard-4": {ShardLoad: 1},
-				},
-			},
-		},
-	}
-
-	tests := []struct {
-		name        string
-		assignments map[string][]string
-		expectedCV  float64
-	}{
-		{
-			name: "balanced loads",
-			assignments: map[string][]string{
-				"exec-1": {"shard-1", "shard-2"},
-				"exec-2": {"shard-3"},
-			},
-			expectedCV: 0,
-		},
-		{
-			name: "unbalanced loads",
-			assignments: map[string][]string{
-				"exec-1": {"shard-1"},
-				"exec-2": {"shard-3"},
-			},
-			// exec-1 load=1, exec-2 load=3 -> mean=2, stddev=1 -> cv=0.5
-			expectedCV: 0.5,
-		},
-		{
-			name: "executor missing heartbeat treated as zero load",
-			assignments: map[string][]string{
-				"exec-3": {"shard-unknown"},
-				"exec-1": {"shard-2"},
-			},
-			// loads: exec-3=0, exec-1=2 -> mean=1, stddev=1 -> cv=1
-			expectedCV: 1,
-		},
-		{
-			name: "single executor",
-			assignments: map[string][]string{
-				"exec-1": {"shard-1"},
-			},
-			expectedCV: 0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := computeExecutorLoadCV(tt.assignments, namespaceState)
-			assert.InDelta(t, tt.expectedCV, actual, 1e-9)
 		})
 	}
 }

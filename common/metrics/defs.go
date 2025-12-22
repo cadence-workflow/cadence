@@ -2968,18 +2968,37 @@ const (
 
 	ShardDistributorActiveShards
 	ShardDistributorActiveExecutors
-	// ShardDistributorAssignmentLoadCV measures coefficient of variation across executor loads
-	ShardDistributorAssignmentLoadCV
+	// ShardDistributorAssignmentLoadMaxOverMean measures max/mean across executor loads
+	ShardDistributorAssignmentLoadMaxOverMean
+	// ShardDistributorAssignmentSmoothedLoadMaxOverMean measures max/mean across executor smoothed loads
+	ShardDistributorAssignmentSmoothedLoadMaxOverMean
+	// ShardDistributorAssignmentReportedLoadMissingRatio measures the fraction of assigned shards that have no
+	// per-shard load report on the currently assigned executor.
+	ShardDistributorAssignmentReportedLoadMissingRatio
+	// ShardDistributorAssignmentSmoothedLoadMissingRatio measures the fraction of assigned shards that are missing
+	// smoothed load statistics (ShardStats entry absent or no update time).
+	ShardDistributorAssignmentSmoothedLoadMissingRatio
+	// ShardDistributorAssignmentSmoothedLoadStaleRatio measures the fraction of assigned shards whose smoothed load
+	// statistics are stale relative to the leader's staleness threshold.
+	ShardDistributorAssignmentSmoothedLoadStaleRatio
 
 	ShardDistributorStoreExecutorNotFound
 	ShardDistributorStoreFailuresPerNamespace
 	ShardDistributorStoreRequestsPerNamespace
 	ShardDistributorStoreLatencyHistogramPerNamespace
 
-	// ShardDistributorLoadBalanceMovesPerCycle reports number of shards moved in a single load-balance pass.
-	ShardDistributorLoadBalanceMovesPerCycle
-	// ShardDistributorShardMovesLastMinute reports how many shards were moved in the last minute.
-	ShardDistributorShardMovesLastMinute
+	// ShardDistributorLoadBalanceCycles reports number of load-balance cycles executed (counter).
+	ShardDistributorLoadBalanceCycles
+	// ShardDistributorLoadBalanceMoves reports number of shards moved by the load balancer (counter).
+	ShardDistributorLoadBalanceMoves
+	// ShardDistributorLoadBalanceSourceExecutorsInitial reports the count of source executors (above upper band)
+	// at the start of the load-balance cycle.
+	ShardDistributorLoadBalanceSourceExecutorsInitial
+	// ShardDistributorLoadBalanceDestinationExecutorsInitial reports the count of destination executors (below lower band)
+	// at the start of the load-balance cycle.
+	ShardDistributorLoadBalanceDestinationExecutorsInitial
+	// ShardDistributorLoadBalanceStopReason increments once per cycle with a low-cardinality `reason` tag describing why load-balance stopped.
+	ShardDistributorLoadBalanceStopReason
 
 	// ShardDistributorShardAssignmentDistributionLatency measures the time taken between assignment of a shard
 	// and the time it is fully distributed to executors
@@ -3768,17 +3787,42 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ShardDistributorAssignLoopSuccess:               {metricName: "shard_distrubutor_shard_assign_success", metricType: Counter},
 		ShardDistributorAssignLoopFail:                  {metricName: "shard_distrubutor_shard_assign_fail", metricType: Counter},
 
-		ShardDistributorActiveShards:     {metricName: "shard_distributor_active_shards", metricType: Gauge},
-		ShardDistributorActiveExecutors:  {metricName: "shard_distributor_active_executors", metricType: Gauge},
-		ShardDistributorAssignmentLoadCV: {metricName: "shard_distributor_assignment_load_cv", metricType: Gauge},
+		ShardDistributorActiveShards:                      {metricName: "shard_distributor_active_shards", metricType: Gauge},
+		ShardDistributorActiveExecutors:                   {metricName: "shard_distributor_active_executors", metricType: Gauge},
+		ShardDistributorAssignmentLoadMaxOverMean:         {metricName: "shard_distributor_assignment_load_max_over_mean", metricType: Gauge},
+		ShardDistributorAssignmentSmoothedLoadMaxOverMean: {metricName: "shard_distributor_assignment_smoothed_load_max_over_mean", metricType: Gauge},
+		ShardDistributorAssignmentReportedLoadMissingRatio: {
+			metricName: "shard_distributor_assignment_reported_load_missing_ratio",
+			metricType: Gauge,
+		},
+		ShardDistributorAssignmentSmoothedLoadMissingRatio: {
+			metricName: "shard_distributor_assignment_smoothed_load_missing_ratio",
+			metricType: Gauge,
+		},
+		ShardDistributorAssignmentSmoothedLoadStaleRatio: {
+			metricName: "shard_distributor_assignment_smoothed_load_stale_ratio",
+			metricType: Gauge,
+		},
 
 		ShardDistributorStoreExecutorNotFound:             {metricName: "shard_distributor_store_executor_not_found", metricType: Counter},
 		ShardDistributorStoreFailuresPerNamespace:         {metricName: "shard_distributor_store_failures_per_namespace", metricType: Counter},
 		ShardDistributorStoreRequestsPerNamespace:         {metricName: "shard_distributor_store_requests_per_namespace", metricType: Counter},
 		ShardDistributorStoreLatencyHistogramPerNamespace: {metricName: "shard_distributor_store_latency_histogram_per_namespace", metricType: Histogram, buckets: ShardDistributorExecutorStoreLatencyBuckets},
 
-		ShardDistributorLoadBalanceMovesPerCycle: {metricName: "shard_distributor_load_balance_moves_per_cycle", metricType: Gauge},
-		ShardDistributorShardMovesLastMinute:     {metricName: "shard_distributor_shard_moves_last_minute", metricType: Gauge},
+		ShardDistributorLoadBalanceCycles: {metricName: "shard_distributor_load_balance_cycles", metricType: Counter},
+		ShardDistributorLoadBalanceMoves:  {metricName: "shard_distributor_load_balance_moves", metricType: Counter},
+		ShardDistributorLoadBalanceSourceExecutorsInitial: {
+			metricName: "shard_distributor_load_balance_source_executors_initial",
+			metricType: Gauge,
+		},
+		ShardDistributorLoadBalanceDestinationExecutorsInitial: {
+			metricName: "shard_distributor_load_balance_destination_executors_initial",
+			metricType: Gauge,
+		},
+		ShardDistributorLoadBalanceStopReason: {
+			metricName: "shard_distributor_load_balance_stop_reason",
+			metricType: Counter,
+		},
 
 		ShardDistributorShardAssignmentDistributionLatency: {metricName: "shard_distributor_shard_assignment_distribution_latency", metricType: Histogram, buckets: Default1ms100s.buckets()},
 		ShardDistributorShardHandoverLatency:               {metricName: "shard_distributor_shard_handover_latency", metricType: Histogram, buckets: Default1ms100s.buckets()},

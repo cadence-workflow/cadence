@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"math"
 	"math/rand"
 	"slices"
 	"sort"
@@ -423,8 +422,7 @@ func (p *namespaceProcessor) executeRebalanceCycle(ctx context.Context, metricsL
 		return fmt.Errorf("load balance: %w", err)
 	}
 
-	p.emitAssignmentLoadCV(metricsLoopScope, currentAssignments, namespaceState)
-	p.emitShardMovesLastMinute(metricsLoopScope, namespaceState)
+	p.emitAssignmentImbalanceMetrics(metricsLoopScope, currentAssignments, namespaceState)
 
 	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || didAssignToEmpty || didAssignShardsNeedingReassignment || didLoadBalance
 	if !distributionChanged {
@@ -717,91 +715,94 @@ func makeShards(num int64) []string {
 	return shards
 }
 
-func (p *namespaceProcessor) emitAssignmentLoadCV(
+func (p *namespaceProcessor) emitAssignmentImbalanceMetrics(
 	metricsLoopScope metrics.Scope,
 	assignments map[string][]string,
-	namespaceState *store.NamespaceState,
-) {
-	if metricsLoopScope == nil {
-		return
-	}
-	cv := computeExecutorLoadCV(assignments, namespaceState)
-	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentLoadCV, cv)
-}
-
-func (p *namespaceProcessor) emitShardMovesLastMinute(
-	metricsLoopScope metrics.Scope,
 	namespaceState *store.NamespaceState,
 ) {
 	if metricsLoopScope == nil || namespaceState == nil {
 		return
 	}
 
-	if len(namespaceState.ShardStats) == 0 {
-		metricsLoopScope.UpdateGauge(metrics.ShardDistributorShardMovesLastMinute, 0)
+	now := p.timeSource.Now().UTC()
+	staleAfter := p.cfg.HeartbeatTTL
+
+	reportedLoads := make([]float64, 0, len(assignments))
+	smoothedLoads := make([]float64, 0, len(assignments))
+
+	totalAssigned := 0
+	reportedMissing := 0
+	smoothedMissing := 0
+	smoothedStale := 0
+
+	for executorID, shards := range assignments {
+		reportedLoad := 0.0
+		smoothedLoad := 0.0
+
+		heartbeat, heartbeatOK := namespaceState.Executors[executorID]
+		for _, shardID := range shards {
+			totalAssigned++
+
+			// Reported load (from current executor heartbeat), primarily used as an operator-facing signal.
+			if !heartbeatOK || heartbeat.ReportedShards == nil {
+				reportedMissing++
+			} else if shardReport, ok := heartbeat.ReportedShards[shardID]; ok && shardReport != nil {
+				reportedLoad += shardReport.ShardLoad
+			} else {
+				reportedMissing++
+			}
+
+			// Smoothed load (EWMA), used by the control loop for load balancing decisions.
+			if namespaceState.ShardStats == nil {
+				smoothedMissing++
+				continue
+			}
+			stats, ok := namespaceState.ShardStats[shardID]
+			if !ok || stats.LastUpdateTime.IsZero() {
+				smoothedMissing++
+				continue
+			}
+			if staleAfter > 0 && now.Sub(stats.LastUpdateTime) > staleAfter {
+				smoothedStale++
+			}
+			smoothedLoad += stats.SmoothedLoad
+		}
+
+		reportedLoads = append(reportedLoads, reportedLoad)
+		smoothedLoads = append(smoothedLoads, smoothedLoad)
+	}
+
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentLoadMaxOverMean, maxOverMean(reportedLoads))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadMaxOverMean, maxOverMean(smoothedLoads))
+
+	if totalAssigned == 0 {
+		metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentReportedLoadMissingRatio, 0)
+		metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadMissingRatio, 0)
+		metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadStaleRatio, 0)
 		return
 	}
 
-	window := time.Minute
-	now := p.timeSource.Now().UTC()
-	recentMoves := 0
-	for _, stats := range namespaceState.ShardStats {
-		if stats.LastMoveTime.IsZero() {
-			continue
-		}
-		if now.Sub(stats.LastMoveTime) <= window {
-			recentMoves++
-		}
-	}
-	metricsLoopScope.UpdateGauge(metrics.ShardDistributorShardMovesLastMinute, float64(recentMoves))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentReportedLoadMissingRatio, float64(reportedMissing)/float64(totalAssigned))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadMissingRatio, float64(smoothedMissing)/float64(totalAssigned))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadStaleRatio, float64(smoothedStale)/float64(totalAssigned))
 }
 
-func computeExecutorLoadCV(assignments map[string][]string, namespaceState *store.NamespaceState) float64 {
-	if len(assignments) == 0 || namespaceState == nil || len(namespaceState.Executors) == 0 {
-		return 0
-	}
-
-	loads := make([]float64, 0, len(assignments))
-	for executorID, shards := range assignments {
-		load := 0.0
-		heartbeat, ok := namespaceState.Executors[executorID]
-		for _, shardID := range shards {
-			if !ok || heartbeat.ReportedShards == nil {
-				continue
-			}
-			if shardReport, exists := heartbeat.ReportedShards[shardID]; exists && shardReport != nil {
-				load += shardReport.ShardLoad
-			}
-		}
-		loads = append(loads, load)
-	}
-
-	return coefficientOfVariation(loads)
-}
-
-func coefficientOfVariation(values []float64) float64 {
-	if len(values) <= 1 {
+func maxOverMean(values []float64) float64 {
+	if len(values) == 0 {
 		return 0
 	}
 
 	total := 0.0
+	max := 0.0
 	for _, value := range values {
 		total += value
+		if value > max {
+			max = value
+		}
 	}
 	mean := total / float64(len(values))
 	if mean == 0 {
 		return 0
 	}
-
-	variance := 0.0
-	for _, value := range values {
-		diff := value - mean
-		variance += diff * diff
-	}
-	variance /= float64(len(values))
-	if variance == 0 {
-		return 0
-	}
-
-	return math.Sqrt(variance) / mean
+	return max / mean
 }
