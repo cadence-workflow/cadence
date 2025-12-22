@@ -2970,8 +2970,12 @@ const (
 	ShardDistributorActiveExecutors
 	// ShardDistributorAssignmentLoadMaxOverMean measures max/mean across executor loads
 	ShardDistributorAssignmentLoadMaxOverMean
+	// ShardDistributorAssignmentLoadCV measures coefficient of variation across executor loads
+	ShardDistributorAssignmentLoadCV
 	// ShardDistributorAssignmentSmoothedLoadMaxOverMean measures max/mean across executor smoothed loads
 	ShardDistributorAssignmentSmoothedLoadMaxOverMean
+	// ShardDistributorAssignmentSmoothedLoadCV measures coefficient of variation across executor smoothed loads
+	ShardDistributorAssignmentSmoothedLoadCV
 	// ShardDistributorAssignmentReportedLoadMissingRatio measures the fraction of assigned shards that have no
 	// per-shard load report on the currently assigned executor.
 	ShardDistributorAssignmentReportedLoadMissingRatio
@@ -3790,7 +3794,9 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ShardDistributorActiveShards:                      {metricName: "shard_distributor_active_shards", metricType: Gauge},
 		ShardDistributorActiveExecutors:                   {metricName: "shard_distributor_active_executors", metricType: Gauge},
 		ShardDistributorAssignmentLoadMaxOverMean:         {metricName: "shard_distributor_assignment_load_max_over_mean", metricType: Gauge},
+		ShardDistributorAssignmentLoadCV:                  {metricName: "shard_distributor_assignment_load_cv", metricType: Gauge},
 		ShardDistributorAssignmentSmoothedLoadMaxOverMean: {metricName: "shard_distributor_assignment_smoothed_load_max_over_mean", metricType: Gauge},
+		ShardDistributorAssignmentSmoothedLoadCV:          {metricName: "shard_distributor_assignment_smoothed_load_cv", metricType: Gauge},
 		ShardDistributorAssignmentReportedLoadMissingRatio: {
 			metricName: "shard_distributor_assignment_reported_load_missing_ratio",
 			metricType: Gauge,

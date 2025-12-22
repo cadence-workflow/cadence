@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"math/rand"
 	"slices"
 	"sort"
@@ -773,7 +774,9 @@ func (p *namespaceProcessor) emitAssignmentImbalanceMetrics(
 	}
 
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentLoadMaxOverMean, maxOverMean(reportedLoads))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentLoadCV, coefficientOfVariation(reportedLoads))
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadMaxOverMean, maxOverMean(smoothedLoads))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadCV, coefficientOfVariation(smoothedLoads))
 
 	if totalAssigned == 0 {
 		metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentReportedLoadMissingRatio, 0)
@@ -805,4 +808,28 @@ func maxOverMean(values []float64) float64 {
 		return 0
 	}
 	return max / mean
+}
+
+func coefficientOfVariation(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+
+	total := 0.0
+	for _, value := range values {
+		total += value
+	}
+	mean := total / float64(len(values))
+	if mean == 0 {
+		return 0
+	}
+
+	variance := 0.0
+	for _, value := range values {
+		delta := value - mean
+		variance += delta * delta
+	}
+	variance /= float64(len(values))
+
+	return math.Sqrt(variance) / mean
 }

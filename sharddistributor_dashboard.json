@@ -110,14 +110,21 @@
       "targets": [
         {
           "editorMode": "builder",
-          "expr": "shard_distributor_assignment_smoothed_load_max_over_mean{namespace=\"$namespace\", namespace_type=~\"$namespace_type\", operation=~\"$operation\", instance=~\"$instance\"}",
+          "expr": "shard_distributor_assignment_smoothed_load_max_over_mean",
           "legendFormat": "smoothed",
           "range": true,
           "refId": "A"
+        },
+        {
+          "editorMode": "builder",
+          "expr": "shard_distributor_assignment_load_max_over_mean",
+          "legendFormat": "reported",
+          "range": true,
+          "refId": "B"
         }
       ],
       "description": "Smoothed max/mean (decision signal).",
-      "title": "Imbalance (Smoothed Max/Mean)",
+      "title": "Imbalance (Max/Mean)",
       "type": "timeseries"
     },
     {
@@ -201,14 +208,21 @@
       "targets": [
         {
           "editorMode": "builder",
-          "expr": "shard_distributor_assignment_load_max_over_mean{namespace=\"$namespace\", namespace_type=~\"$namespace_type\", operation=~\"$operation\", instance=~\"$instance\"}",
-          "legendFormat": "reported",
+          "expr": "shard_distributor_assignment_smoothed_load_cv",
+          "legendFormat": "smoothed",
           "range": true,
           "refId": "A"
+        },
+        {
+          "editorMode": "builder",
+          "expr": "shard_distributor_assignment_load_cv",
+          "legendFormat": "reported",
+          "range": true,
+          "refId": "B"
         }
       ],
       "description": "Reported max/mean (raw load from heartbeats).",
-      "title": "Imbalance (Reported Max/Mean)",
+      "title": "Imbalance (CV)",
       "type": "timeseries"
     },
     {
@@ -719,7 +733,10 @@
   "preload": false,
   "refresh": "15s",
   "schemaVersion": 42,
-  "tags": ["sharddistributor", "load-balance"],
+  "tags": [
+    "sharddistributor",
+    "load-balance"
+  ],
   "templating": {
     "list": [
       {
