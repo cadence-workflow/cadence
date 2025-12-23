@@ -22,7 +22,7 @@ type ShardProcessorParams struct {
 
 type shardProcessorImpl struct {
 	shardID       string
-	taskListsLock sync.RWMutex           // locks mutation of taskLists
+	taskListsLock *sync.RWMutex          // locks mutation of taskLists
 	taskLists     map[Identifier]Manager // Convert to LRU cache
 	Status        atomic.Int32
 	reportLock    sync.RWMutex
@@ -38,12 +38,13 @@ func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
 		return nil, err
 	}
 	shardprocessor := &shardProcessorImpl{
-		shardID:     params.ShardID,
-		taskLists:   params.TaskLists,
-		shardReport: executorclient.ShardReport{},
-		reportTime:  params.TimeSource.Now(),
-		reportTTL:   params.ReportTTL,
-		timeSource:  params.TimeSource,
+		shardID:       params.ShardID,
+		taskListsLock: params.TaskListsLock,
+		taskLists:     params.TaskLists,
+		shardReport:   executorclient.ShardReport{},
+		reportTime:    params.TimeSource.Now(),
+		reportTTL:     params.ReportTTL,
+		timeSource:    params.TimeSource,
 	}
 	shardprocessor.SetShardStatus(types.ShardStatusREADY)
 	shardprocessor.shardReport = executorclient.ShardReport{
