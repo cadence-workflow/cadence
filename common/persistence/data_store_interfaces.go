@@ -460,20 +460,22 @@ type (
 		StartVersion     int64
 		LastWriteVersion int64
 
-		UpsertActivityInfos       []*InternalActivityInfo
-		DeleteActivityInfos       []int64
-		UpsertTimerInfos          []*TimerInfo
-		DeleteTimerInfos          []string
-		UpsertChildExecutionInfos []*InternalChildExecutionInfo
-		DeleteChildExecutionInfos []int64
-		UpsertRequestCancelInfos  []*RequestCancelInfo
-		DeleteRequestCancelInfos  []int64
-		UpsertSignalInfos         []*SignalInfo
-		DeleteSignalInfos         []int64
-		UpsertSignalRequestedIDs  []string
-		DeleteSignalRequestedIDs  []string
-		NewBufferedEvents         *DataBlob
-		ClearBufferedEvents       bool
+		UpsertActivityInfos          []*InternalActivityInfo
+		DeleteActivityInfos          []int64
+		UpsertTimerInfos             []*TimerInfo
+		DeleteTimerInfos             []string
+		UpsertWorkflowTimerTaskInfos []*WorkflowTimerTaskInfo
+		DeleteWorkflowTimerTaskInfos []int
+		UpsertChildExecutionInfos    []*InternalChildExecutionInfo
+		DeleteChildExecutionInfos    []int64
+		UpsertRequestCancelInfos     []*RequestCancelInfo
+		DeleteRequestCancelInfos     []int64
+		UpsertSignalInfos            []*SignalInfo
+		DeleteSignalInfos            []int64
+		UpsertSignalRequestedIDs     []string
+		DeleteSignalRequestedIDs     []string
+		NewBufferedEvents            *DataBlob
+		ClearBufferedEvents          bool
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 
@@ -492,12 +494,13 @@ type (
 		StartVersion     int64
 		LastWriteVersion int64
 
-		ActivityInfos       []*InternalActivityInfo
-		TimerInfos          []*TimerInfo
-		ChildExecutionInfos []*InternalChildExecutionInfo
-		RequestCancelInfos  []*RequestCancelInfo
-		SignalInfos         []*SignalInfo
-		SignalRequestedIDs  []string
+		ActivityInfos          []*InternalActivityInfo
+		TimerInfos             []*TimerInfo
+		WorkflowTimerTaskInfos []*WorkflowTimerTaskInfo
+		ChildExecutionInfos    []*InternalChildExecutionInfo
+		RequestCancelInfos     []*RequestCancelInfo
+		SignalInfos            []*SignalInfo
+		SignalRequestedIDs     []string
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 

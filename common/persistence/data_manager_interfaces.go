@@ -881,20 +881,22 @@ type (
 		ExecutionStats   *ExecutionStats
 		VersionHistories *VersionHistories
 
-		UpsertActivityInfos       []*ActivityInfo
-		DeleteActivityInfos       []int64
-		UpsertTimerInfos          []*TimerInfo
-		DeleteTimerInfos          []string
-		UpsertChildExecutionInfos []*ChildExecutionInfo
-		DeleteChildExecutionInfos []int64
-		UpsertRequestCancelInfos  []*RequestCancelInfo
-		DeleteRequestCancelInfos  []int64
-		UpsertSignalInfos         []*SignalInfo
-		DeleteSignalInfos         []int64
-		UpsertSignalRequestedIDs  []string
-		DeleteSignalRequestedIDs  []string
-		NewBufferedEvents         []*types.HistoryEvent
-		ClearBufferedEvents       bool
+		UpsertActivityInfos          []*ActivityInfo
+		DeleteActivityInfos          []int64
+		UpsertTimerInfos             []*TimerInfo
+		DeleteTimerInfos             []string
+		UpsertWorkflowTimerTaskInfos []*WorkflowTimerTaskInfo
+		DeleteWorkflowTimerTaskInfos []int
+		UpsertChildExecutionInfos    []*ChildExecutionInfo
+		DeleteChildExecutionInfos    []int64
+		UpsertRequestCancelInfos     []*RequestCancelInfo
+		DeleteRequestCancelInfos     []int64
+		UpsertSignalInfos            []*SignalInfo
+		DeleteSignalInfos            []int64
+		UpsertSignalRequestedIDs     []string
+		DeleteSignalRequestedIDs     []string
+		NewBufferedEvents            []*types.HistoryEvent
+		ClearBufferedEvents          bool
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 
@@ -910,12 +912,13 @@ type (
 		ExecutionStats   *ExecutionStats
 		VersionHistories *VersionHistories
 
-		ActivityInfos       []*ActivityInfo
-		TimerInfos          []*TimerInfo
-		ChildExecutionInfos []*ChildExecutionInfo
-		RequestCancelInfos  []*RequestCancelInfo
-		SignalInfos         []*SignalInfo
-		SignalRequestedIDs  []string
+		ActivityInfos          []*ActivityInfo
+		TimerInfos             []*TimerInfo
+		WorkflowTimerTaskInfos []*WorkflowTimerTaskInfo
+		ChildExecutionInfos    []*ChildExecutionInfo
+		RequestCancelInfos     []*RequestCancelInfo
+		SignalInfos            []*SignalInfo
+		SignalRequestedIDs     []string
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 

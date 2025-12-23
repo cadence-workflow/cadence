@@ -57,6 +57,10 @@ func (d *nosqlExecutionStore) prepareCreateWorkflowExecutionRequestWithMaps(newW
 	if err != nil {
 		return nil, err
 	}
+	executionRequest.WorkflowTimerTaskInfos, err = d.prepareWorkflowTimerTaskInfosForWorkflowTxn(newWorkflow.WorkflowTimerTaskInfos)
+	if err != nil {
+		return nil, err
+	}
 	executionRequest.ChildWorkflowInfos, err = d.prepareChildWFInfosForWorkflowTxn(newWorkflow.ChildExecutionInfos)
 	if err != nil {
 		return nil, err
@@ -122,12 +126,16 @@ func (d *nosqlExecutionStore) prepareResetWorkflowExecutionRequestWithMapsAndEve
 	if err != nil {
 		return nil, err
 	}
-	// reset 6 maps
+	// reset maps
 	executionRequest.ActivityInfos, err = d.prepareActivityInfosForWorkflowTxn(resetWorkflow.ActivityInfos)
 	if err != nil {
 		return nil, err
 	}
 	executionRequest.TimerInfos, err = d.prepareTimerInfosForWorkflowTxn(resetWorkflow.TimerInfos)
+	if err != nil {
+		return nil, err
+	}
+	executionRequest.WorkflowTimerTaskInfos, err = d.prepareWorkflowTimerTaskInfosForWorkflowTxn(resetWorkflow.WorkflowTimerTaskInfos)
 	if err != nil {
 		return nil, err
 	}
@@ -167,12 +175,16 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 		return nil, err
 	}
 
-	// merge 6 maps
+	// merge maps
 	executionRequest.ActivityInfos, err = d.prepareActivityInfosForWorkflowTxn(workflowMutation.UpsertActivityInfos)
 	if err != nil {
 		return nil, err
 	}
 	executionRequest.TimerInfos, err = d.prepareTimerInfosForWorkflowTxn(workflowMutation.UpsertTimerInfos)
+	if err != nil {
+		return nil, err
+	}
+	executionRequest.WorkflowTimerTaskInfos, err = d.prepareWorkflowTimerTaskInfosForWorkflowTxn(workflowMutation.UpsertWorkflowTimerTaskInfos)
 	if err != nil {
 		return nil, err
 	}
@@ -190,9 +202,10 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 	}
 	executionRequest.SignalRequestedIDs = workflowMutation.UpsertSignalRequestedIDs
 
-	// delete from 6 maps
+	// delete from maps
 	executionRequest.ActivityInfoKeysToDelete = workflowMutation.DeleteActivityInfos
 	executionRequest.TimerInfoKeysToDelete = workflowMutation.DeleteTimerInfos
+	executionRequest.WorkflowTimerTaskInfoKeysToDelete = workflowMutation.DeleteWorkflowTimerTaskInfos
 	executionRequest.ChildWorkflowInfoKeysToDelete = workflowMutation.DeleteChildExecutionInfos
 	executionRequest.RequestCancelInfoKeysToDelete = workflowMutation.DeleteRequestCancelInfos
 	executionRequest.SignalInfoKeysToDelete = workflowMutation.DeleteSignalInfos
@@ -502,6 +515,14 @@ func (d *nosqlExecutionStore) prepareTimerInfosForWorkflowTxn(timerInfo []*persi
 	m := map[string]*persistence.TimerInfo{}
 	for _, a := range timerInfo {
 		m[a.TimerID] = a
+	}
+	return m, nil
+}
+
+func (d *nosqlExecutionStore) prepareWorkflowTimerTaskInfosForWorkflowTxn(workflowTimerTaskInfos []*persistence.WorkflowTimerTaskInfo) (map[int]*persistence.WorkflowTimerTaskInfo, error) {
+	m := map[int]*persistence.WorkflowTimerTaskInfo{}
+	for _, info := range workflowTimerTaskInfos {
+		m[info.TimerTaskType] = info
 	}
 	return m, nil
 }

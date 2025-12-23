@@ -1481,20 +1481,22 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		ExecutionInfo:    e.executionInfo,
 		VersionHistories: e.versionHistories,
 
-		UpsertActivityInfos:       maps.Values(e.updateActivityInfos),
-		DeleteActivityInfos:       maps.Keys(e.deleteActivityInfos),
-		UpsertTimerInfos:          maps.Values(e.updateTimerInfos),
-		DeleteTimerInfos:          maps.Keys(e.deleteTimerInfos),
-		UpsertChildExecutionInfos: maps.Values(e.updateChildExecutionInfos),
-		DeleteChildExecutionInfos: maps.Keys(e.deleteChildExecutionInfos),
-		UpsertRequestCancelInfos:  maps.Values(e.updateRequestCancelInfos),
-		DeleteRequestCancelInfos:  maps.Keys(e.deleteRequestCancelInfos),
-		UpsertSignalInfos:         maps.Values(e.updateSignalInfos),
-		DeleteSignalInfos:         maps.Keys(e.deleteSignalInfos),
-		UpsertSignalRequestedIDs:  maps.Keys(e.updateSignalRequestedIDs),
-		DeleteSignalRequestedIDs:  maps.Keys(e.deleteSignalRequestedIDs),
-		NewBufferedEvents:         e.updateBufferedEvents,
-		ClearBufferedEvents:       e.clearBufferedEvents,
+		UpsertActivityInfos:          maps.Values(e.updateActivityInfos),
+		DeleteActivityInfos:          maps.Keys(e.deleteActivityInfos),
+		UpsertTimerInfos:             maps.Values(e.updateTimerInfos),
+		DeleteTimerInfos:             maps.Keys(e.deleteTimerInfos),
+		UpsertWorkflowTimerTaskInfos: maps.Values(e.updateWorkflowTimerTaskInfos),
+		DeleteWorkflowTimerTaskInfos: maps.Keys(e.deleteWorkflowTimerTaskInfos),
+		UpsertChildExecutionInfos:    maps.Values(e.updateChildExecutionInfos),
+		DeleteChildExecutionInfos:    maps.Keys(e.deleteChildExecutionInfos),
+		UpsertRequestCancelInfos:     maps.Values(e.updateRequestCancelInfos),
+		DeleteRequestCancelInfos:     maps.Keys(e.deleteRequestCancelInfos),
+		UpsertSignalInfos:            maps.Values(e.updateSignalInfos),
+		DeleteSignalInfos:            maps.Keys(e.deleteSignalInfos),
+		UpsertSignalRequestedIDs:     maps.Keys(e.updateSignalRequestedIDs),
+		DeleteSignalRequestedIDs:     maps.Keys(e.deleteSignalRequestedIDs),
+		NewBufferedEvents:            e.updateBufferedEvents,
+		ClearBufferedEvents:          e.clearBufferedEvents,
 
 		TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
 			persistence.HistoryTaskCategoryTransfer:    e.insertTransferTasks,
@@ -1570,12 +1572,13 @@ func (e *mutableStateBuilder) CloseTransactionAsSnapshot(
 		ExecutionInfo:    e.executionInfo,
 		VersionHistories: e.versionHistories,
 
-		ActivityInfos:       maps.Values(e.pendingActivityInfoIDs),
-		TimerInfos:          maps.Values(e.pendingTimerInfoIDs),
-		ChildExecutionInfos: maps.Values(e.pendingChildExecutionInfoIDs),
-		RequestCancelInfos:  maps.Values(e.pendingRequestCancelInfoIDs),
-		SignalInfos:         maps.Values(e.pendingSignalInfoIDs),
-		SignalRequestedIDs:  maps.Keys(e.pendingSignalRequestedIDs),
+		ActivityInfos:          maps.Values(e.pendingActivityInfoIDs),
+		TimerInfos:             maps.Values(e.pendingTimerInfoIDs),
+		WorkflowTimerTaskInfos: maps.Values(e.pendingWorkflowTimerTaskInfos),
+		ChildExecutionInfos:    maps.Values(e.pendingChildExecutionInfoIDs),
+		RequestCancelInfos:     maps.Values(e.pendingRequestCancelInfoIDs),
+		SignalInfos:            maps.Values(e.pendingSignalInfoIDs),
+		SignalRequestedIDs:     maps.Keys(e.pendingSignalRequestedIDs),
 
 		TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
 			persistence.HistoryTaskCategoryTransfer:    e.insertTransferTasks,
@@ -1671,6 +1674,9 @@ func (e *mutableStateBuilder) cleanupTransaction() error {
 
 	e.updateTimerInfos = make(map[string]*persistence.TimerInfo)
 	e.deleteTimerInfos = make(map[string]struct{})
+
+	e.updateWorkflowTimerTaskInfos = make(map[int]*persistence.WorkflowTimerTaskInfo)
+	e.deleteWorkflowTimerTaskInfos = make(map[int]struct{})
 
 	e.updateChildExecutionInfos = make(map[int64]*persistence.ChildExecutionInfo)
 	e.deleteChildExecutionInfos = make(map[int64]struct{})

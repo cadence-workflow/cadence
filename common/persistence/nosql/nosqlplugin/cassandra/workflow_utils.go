@@ -936,6 +936,21 @@ func resetTimerInfoMap(timerInfos map[string]*persistence.TimerInfo) map[string]
 	return tMap
 }
 
+func resetWorkflowTimerTaskInfoMap(workflowTimerTaskInfos map[int]*persistence.WorkflowTimerTaskInfo) map[int]map[string]interface{} {
+	wtMap := make(map[int]map[string]interface{})
+	for _, wt := range workflowTimerTaskInfos {
+		wtInfo := make(map[string]interface{})
+		wtInfo["version"] = wt.Version
+		wtInfo["timer_task_type"] = wt.TimerTaskType
+		wtInfo["task_id"] = wt.TaskID
+		wtInfo["visibility_ts"] = wt.VisibilityTimestamp
+
+		wtMap[wt.TimerTaskType] = wtInfo
+	}
+
+	return wtMap
+}
+
 func updateTimerInfos(
 	batch gocql.Batch,
 	shardID int,
@@ -1016,6 +1031,28 @@ func updateWorkflowTimerTaskInfos(
 			defaultVisibilityTimestamp,
 			rowTypeExecutionTaskID)
 	}
+	return nil
+}
+
+func resetWorkflowTimerTaskInfos(
+	batch gocql.Batch,
+	shardID int,
+	domainID string,
+	workflowID string,
+	runID string,
+	workflowTimerTaskInfos map[int]*persistence.WorkflowTimerTaskInfo,
+	timeStamp time.Time,
+) error {
+	batch.Query(templateResetWorkflowTimerTaskInfoQuery,
+		resetWorkflowTimerTaskInfoMap(workflowTimerTaskInfos),
+		timeStamp,
+		shardID,
+		rowTypeExecution,
+		domainID,
+		workflowID,
+		runID,
+		defaultVisibilityTimestamp,
+		rowTypeExecutionTaskID)
 	return nil
 }
 
@@ -1255,6 +1292,10 @@ func resetWorkflowExecutionAndMapsAndEventBuffer(
 		return err
 	}
 	err = resetTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, timeStamp)
+	if err != nil {
+		return err
+	}
+	err = resetWorkflowTimerTaskInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTaskInfos, timeStamp)
 	if err != nil {
 		return err
 	}
