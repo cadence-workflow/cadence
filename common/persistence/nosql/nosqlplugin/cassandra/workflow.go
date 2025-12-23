@@ -538,13 +538,9 @@ func (db *CDB) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, v
 func (db *CDB) DeleteWorkflowTimerTask(
 	ctx context.Context,
 	shardID int,
-	domainID string,
-	workflowID string,
-	runID string,
 	visibilityTimestamp time.Time,
 	taskID int64,
 ) error {
-	fmt.Printf(">>>>>> DeleteWorkflowTimerTask: %+v, %+v\n", visibilityTimestamp, taskID)
 	ts := persistence.UnixNanoToDBTimestamp(visibilityTimestamp.UnixNano())
 	query := db.session.Query(templateCompleteTimerTaskQuery,
 		shardID,

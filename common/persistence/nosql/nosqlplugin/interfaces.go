@@ -479,7 +479,7 @@ type (
 		// delete a single timer task
 		DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error
 		// delete a single workflow timer task with specific workflow identifiers
-		DeleteWorkflowTimerTask(ctx context.Context, shardID int, domainID, workflowID, runID string, visibilityTimestamp time.Time, taskID int64) error
+		DeleteWorkflowTimerTask(ctx context.Context, shardID int, visibilityTimestamp time.Time, taskID int64) error
 		// delete a range of timer tasks
 		RangeDeleteTimerTasks(ctx context.Context, shardID int, inclusiveMinTime, exclusiveMaxTime time.Time) error
 

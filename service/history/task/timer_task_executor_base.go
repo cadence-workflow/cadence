@@ -22,7 +22,6 @@ package task
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
@@ -153,8 +152,6 @@ func (t *timerTaskExecutorBase) deleteWorkflow(
 	context execution.Context,
 	msBuilder execution.MutableState,
 ) error {
-	fmt.Println(">>>>>> deleteWorkflow")
-
 	if err := t.deleteWorkflowHistory(ctx, task, msBuilder); err != nil {
 		return err
 	}
@@ -177,9 +174,7 @@ func (t *timerTaskExecutorBase) deleteWorkflow(
 	}
 
 	// it's ok for this to be best-effort, as the timer tasks will be removed once they're processed
-	if err := t.deleteWorkflowTimerTasks(ctx, task, msBuilder); err != nil {
-		return err
-	}
+	_ = t.deleteWorkflowTimerTasks(ctx, task, msBuilder)
 
 	// calling clear here to force accesses of mutable state to read database
 	// if this is not called then callers will get mutable state even though its been removed from database
@@ -365,19 +360,17 @@ func (t *timerTaskExecutorBase) deleteWorkflowTimerTasks(
 ) error {
 	workflowTimerTasks := msBuilder.GetPendingWorkflowTimerTaskInfos()
 
-	fmt.Printf(">>>>>> deleteWorkflowTimerTasks: %+v\n", workflowTimerTasks)
 	for _, taskInfo := range workflowTimerTasks {
 		op := func(ctx context.Context) error {
 			return t.shard.GetExecutionManager().DeleteTimerTask(ctx, &persistence.DeleteTimerTaskRequest{
-				DomainID:            task.DomainID,
-				WorkflowID:          task.WorkflowID,
-				RunID:               task.RunID,
 				TaskID:              taskInfo.TaskID,
 				VisibilityTimestamp: taskInfo.VisibilityTimestamp,
 			})
 		}
 		if err := t.throttleRetry.Do(ctx, op); err != nil {
 			t.logger.Warn("Failed to delete workflow timer task",
+				tag.ShardID(t.shard.GetShardID()),
+				tag.WorkflowDomainID(task.DomainID),
 				tag.WorkflowID(task.WorkflowID),
 				tag.WorkflowRunID(task.RunID),
 				tag.TaskID(taskInfo.TaskID),

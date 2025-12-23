@@ -978,9 +978,6 @@ func (d *nosqlExecutionStore) DeleteTimerTask(
 	return d.db.DeleteWorkflowTimerTask(
 		ctx,
 		d.shardID,
-		request.DomainID,
-		request.WorkflowID,
-		request.RunID,
 		request.VisibilityTimestamp,
 		request.TaskID,
 	)

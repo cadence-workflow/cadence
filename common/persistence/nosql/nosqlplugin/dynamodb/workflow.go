@@ -157,6 +157,6 @@ func (db *ddb) DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID i
 	panic("TODO")
 }
 
-func (db *ddb) DeleteWorkflowTimerTask(ctx context.Context, shardID int, domainID, workflowID, runID string, visibilityTimestamp time.Time, taskID int64) error {
+func (db *ddb) DeleteWorkflowTimerTask(ctx context.Context, shardID int, visibilityTimestamp time.Time, taskID int64) error {
 	panic("TODO")
 }

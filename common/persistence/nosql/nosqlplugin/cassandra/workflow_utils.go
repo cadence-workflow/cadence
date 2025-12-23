@@ -1034,28 +1034,6 @@ func updateWorkflowTimerTaskInfos(
 	return nil
 }
 
-func resetWorkflowTimerTaskInfos(
-	batch gocql.Batch,
-	shardID int,
-	domainID string,
-	workflowID string,
-	runID string,
-	workflowTimerTaskInfos map[int]*persistence.WorkflowTimerTaskInfo,
-	timeStamp time.Time,
-) error {
-	batch.Query(templateResetWorkflowTimerTaskInfoQuery,
-		resetWorkflowTimerTaskInfoMap(workflowTimerTaskInfos),
-		timeStamp,
-		shardID,
-		rowTypeExecution,
-		domainID,
-		workflowID,
-		runID,
-		defaultVisibilityTimestamp,
-		rowTypeExecutionTaskID)
-	return nil
-}
-
 func resetActivityInfos(
 	batch gocql.Batch,
 	shardID int,
@@ -1292,10 +1270,6 @@ func resetWorkflowExecutionAndMapsAndEventBuffer(
 		return err
 	}
 	err = resetTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, timeStamp)
-	if err != nil {
-		return err
-	}
-	err = resetWorkflowTimerTaskInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTaskInfos, timeStamp)
 	if err != nil {
 		return err
 	}

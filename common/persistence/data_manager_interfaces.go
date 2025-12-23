@@ -946,9 +946,6 @@ type (
 
 	// DeleteTimerTaskRequest is used to delete a timer task
 	DeleteTimerTaskRequest struct {
-		DomainID            string
-		WorkflowID          string
-		RunID               string
 		VisibilityTimestamp time.Time
 		TaskID              int64
 	}
