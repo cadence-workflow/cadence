@@ -23,9 +23,10 @@ package event
 import (
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
-	"go.uber.org/zap"
 )
 
 type E struct {
