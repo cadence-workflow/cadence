@@ -650,14 +650,17 @@ func (s *contextImpl) CreateWorkflowExecution(
 	defer s.Unlock()
 
 	immediateTaskMaxReadLevel := int64(0)
-	if err := s.allocateTaskIDsLocked(
+	timerTasks, err := s.allocateTaskIDsLocked(
 		domainEntry,
 		workflowID,
 		request.NewWorkflowSnapshot.TasksByCategory,
 		&immediateTaskMaxReadLevel,
-	); err != nil {
+	)
+	if err != nil {
 		return nil, err
 	}
+
+	syncWorkflowTimerTaskInfosFromSlice(timerTasks, request.NewWorkflowSnapshot.WorkflowTimerTaskInfos)
 
 	if err := s.closedError(); err != nil {
 		return nil, err
@@ -745,23 +748,28 @@ func (s *contextImpl) UpdateWorkflowExecution(
 	defer s.Unlock()
 
 	immediateTaskMaxReadLevel := int64(0)
-	if err := s.allocateTaskIDsLocked(
+	timerTasks, err := s.allocateTaskIDsLocked(
 		domainEntry,
 		workflowID,
 		request.UpdateWorkflowMutation.TasksByCategory,
 		&immediateTaskMaxReadLevel,
-	); err != nil {
+	)
+	if err != nil {
 		return nil, err
 	}
+	syncWorkflowTimerTaskInfosFromSlice(timerTasks, request.UpdateWorkflowMutation.UpsertWorkflowTimerTaskInfos)
+
 	if request.NewWorkflowSnapshot != nil {
-		if err := s.allocateTaskIDsLocked(
+		timerTasks, err = s.allocateTaskIDsLocked(
 			domainEntry,
 			workflowID,
 			request.NewWorkflowSnapshot.TasksByCategory,
 			&immediateTaskMaxReadLevel,
-		); err != nil {
+		)
+		if err != nil {
 			return nil, err
 		}
+		syncWorkflowTimerTaskInfosFromSlice(timerTasks, request.NewWorkflowSnapshot.WorkflowTimerTaskInfos)
 	}
 
 	if err := s.closedError(); err != nil {
@@ -846,33 +854,42 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 	defer s.Unlock()
 
 	immediateTaskMaxReadLevel := int64(0)
+	var timerTasks []persistence.Task
 	if request.CurrentWorkflowMutation != nil {
-		if err := s.allocateTaskIDsLocked(
+		timerTasks, err = s.allocateTaskIDsLocked(
 			domainEntry,
 			workflowID,
 			request.CurrentWorkflowMutation.TasksByCategory,
 			&immediateTaskMaxReadLevel,
-		); err != nil {
+		)
+		if err != nil {
 			return nil, err
 		}
+		syncWorkflowTimerTaskInfosFromSlice(timerTasks, request.CurrentWorkflowMutation.UpsertWorkflowTimerTaskInfos)
 	}
-	if err := s.allocateTaskIDsLocked(
+
+	timerTasks, err = s.allocateTaskIDsLocked(
 		domainEntry,
 		workflowID,
 		request.ResetWorkflowSnapshot.TasksByCategory,
 		&immediateTaskMaxReadLevel,
-	); err != nil {
+	)
+	if err != nil {
 		return nil, err
 	}
+	syncWorkflowTimerTaskInfosFromSlice(timerTasks, request.ResetWorkflowSnapshot.WorkflowTimerTaskInfos)
+
 	if request.NewWorkflowSnapshot != nil {
-		if err := s.allocateTaskIDsLocked(
+		timerTasks, err = s.allocateTaskIDsLocked(
 			domainEntry,
 			workflowID,
 			request.NewWorkflowSnapshot.TasksByCategory,
 			&immediateTaskMaxReadLevel,
-		); err != nil {
+		)
+		if err != nil {
 			return nil, err
 		}
+		syncWorkflowTimerTaskInfosFromSlice(timerTasks, request.NewWorkflowSnapshot.WorkflowTimerTaskInfos)
 	}
 
 	if err := s.closedError(); err != nil {
@@ -1246,9 +1263,10 @@ func (s *contextImpl) allocateTaskIDsLocked(
 	workflowID string,
 	tasksByCategory map[persistence.HistoryTaskCategory][]persistence.Task,
 	immediateTaskMaxReadLevel *int64,
-) error {
+) ([]persistence.Task, error) {
 	var err error
 	var replicationTasks []persistence.Task
+	var timerTasks []persistence.Task
 	for c, tasks := range tasksByCategory {
 		switch c.Type() {
 		case persistence.HistoryTaskCategoryTypeImmediate:
@@ -1258,19 +1276,21 @@ func (s *contextImpl) allocateTaskIDsLocked(
 			}
 			err = s.allocateTransferIDsLocked(tasks, immediateTaskMaxReadLevel)
 		case persistence.HistoryTaskCategoryTypeScheduled:
+			timerTasks = tasks
 			err = s.allocateTimerIDsLocked(domainEntry, workflowID, tasks)
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	// Ensure that task IDs for replication tasks are generated last.
 	// This allows optimizing replication by checking whether there no potential tasks to read.
-	return s.allocateTransferIDsLocked(
+	err = s.allocateTransferIDsLocked(
 		replicationTasks,
 		immediateTaskMaxReadLevel,
 	)
+	return timerTasks, err
 }
 
 func (s *contextImpl) allocateTransferIDsLocked(
@@ -1293,6 +1313,29 @@ func (s *contextImpl) allocateTransferIDsLocked(
 		*immediateTaskMaxReadLevel = id
 	}
 	return nil
+}
+
+// syncWorkflowTimerTaskInfosFromSlice updates WorkflowTimerTaskInfo objects with TaskIDs
+// that were assigned to their corresponding timer tasks by the shard.
+// This is necessary so that when a workflow is deleted, we can clean up the
+// timer task records from the executions table using the TaskID.
+func syncWorkflowTimerTaskInfosFromSlice(timerTasks []persistence.Task, workflowTimerTaskInfos []*persistence.WorkflowTimerTaskInfo) {
+	infoMap := make(map[int]*persistence.WorkflowTimerTaskInfo, len(workflowTimerTaskInfos))
+	for _, info := range workflowTimerTaskInfos {
+		infoMap[info.TimerTaskType] = info
+	}
+
+	for _, task := range timerTasks {
+		timerTaskInfo, err := task.ToTimerTaskInfo()
+		if err != nil {
+			continue
+		}
+
+		if info, ok := infoMap[timerTaskInfo.TaskType]; ok {
+			info.TaskID = task.GetTaskID()
+			info.VisibilityTimestamp = task.GetVisibilityTimestamp()
+		}
+	}
 }
 
 // NOTE: allocateTimerIDsLocked should always been called after assigning taskID for transferTasks when assigning taskID together,
