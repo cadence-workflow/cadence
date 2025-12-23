@@ -47,20 +47,22 @@ type (
 		MapsWriteMode WorkflowExecutionMapsWriteMode
 
 		// For WorkflowExecutionMapsWriteMode of create, update and reset
-		ActivityInfos      map[int64]*persistence.InternalActivityInfo
-		TimerInfos         map[string]*persistence.TimerInfo
-		ChildWorkflowInfos map[int64]*persistence.InternalChildExecutionInfo
-		RequestCancelInfos map[int64]*persistence.RequestCancelInfo
-		SignalInfos        map[int64]*persistence.SignalInfo
-		SignalRequestedIDs []string // This map has no value, hence use array to store keys
+		ActivityInfos          map[int64]*persistence.InternalActivityInfo
+		TimerInfos             map[string]*persistence.TimerInfo
+		WorkflowTimerTaskInfos map[int]*persistence.WorkflowTimerTaskInfo
+		ChildWorkflowInfos     map[int64]*persistence.InternalChildExecutionInfo
+		RequestCancelInfos     map[int64]*persistence.RequestCancelInfo
+		SignalInfos            map[int64]*persistence.SignalInfo
+		SignalRequestedIDs     []string // This map has no value, hence use array to store keys
 
 		// For WorkflowExecutionMapsWriteMode of update only
-		ActivityInfoKeysToDelete       []int64
-		TimerInfoKeysToDelete          []string
-		ChildWorkflowInfoKeysToDelete  []int64
-		RequestCancelInfoKeysToDelete  []int64
-		SignalInfoKeysToDelete         []int64
-		SignalRequestedIDsKeysToDelete []string
+		ActivityInfoKeysToDelete          []int64
+		TimerInfoKeysToDelete             []string
+		WorkflowTimerTaskInfoKeysToDelete []int
+		ChildWorkflowInfoKeysToDelete     []int64
+		RequestCancelInfoKeysToDelete     []int64
+		SignalInfoKeysToDelete            []int64
+		SignalRequestedIDsKeysToDelete    []string
 
 		// EventBufferWriteMode controls how to write into the buffered event list
 		// only needed for UpdateWorkflowExecutionWithTasks API

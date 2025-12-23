@@ -111,6 +111,10 @@ type (
 		updateSignalRequestedIDs  map[string]struct{} // Set of signaled requestIds since last update
 		deleteSignalRequestedIDs  map[string]struct{} // Deleted signaled requestIds
 
+		pendingWorkflowTimerTaskInfos map[int]*persistence.WorkflowTimerTaskInfo // Timer Task Type -> WorkflowTimerTaskInfo
+		updateWorkflowTimerTaskInfos  map[int]*persistence.WorkflowTimerTaskInfo // Modified WorkflowTimerTaskInfos since last update
+		deleteWorkflowTimerTaskInfos  map[int]struct{}                           // Deleted WorkflowTimerTaskInfos since last update
+
 		bufferedEvents       []*types.HistoryEvent // buffered history events that are already persisted
 		updateBufferedEvents []*types.HistoryEvent // buffered history events that needs to be persisted
 		clearBufferedEvents  bool                  // delete buffered events from persistence
@@ -218,6 +222,10 @@ func newMutableStateBuilder(
 		pendingSignalRequestedIDs: make(map[string]struct{}),
 		deleteSignalRequestedIDs:  make(map[string]struct{}),
 
+		updateWorkflowTimerTaskInfos:  make(map[int]*persistence.WorkflowTimerTaskInfo),
+		pendingWorkflowTimerTaskInfos: make(map[int]*persistence.WorkflowTimerTaskInfo),
+		deleteWorkflowTimerTaskInfos:  make(map[int]struct{}),
+
 		currentVersion:        currentVersion,
 		hasBufferedEventsInDB: false,
 		stateInDB:             persistence.WorkflowStateVoid,
@@ -316,6 +324,7 @@ func (e *mutableStateBuilder) CopyToPersistence() *persistence.WorkflowMutableSt
 	state.RequestCancelInfos = e.pendingRequestCancelInfoIDs
 	state.SignalInfos = e.pendingSignalInfoIDs
 	state.SignalRequestedIDs = e.pendingSignalRequestedIDs
+	state.WorkflowTimerTaskInfos = e.pendingWorkflowTimerTaskInfos
 	state.ExecutionInfo = e.executionInfo
 	state.BufferedEvents = e.bufferedEvents
 	state.VersionHistories = e.versionHistories
@@ -343,6 +352,7 @@ func (e *mutableStateBuilder) Load(
 	e.pendingRequestCancelInfoIDs = state.RequestCancelInfos
 	e.pendingSignalInfoIDs = state.SignalInfos
 	e.pendingSignalRequestedIDs = state.SignalRequestedIDs
+	e.pendingWorkflowTimerTaskInfos = state.WorkflowTimerTaskInfos
 	e.executionInfo = state.ExecutionInfo
 	e.bufferedEvents = e.reorderAndFilterDuplicateEvents(state.BufferedEvents, "load")
 

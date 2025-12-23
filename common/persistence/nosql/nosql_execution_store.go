@@ -970,3 +970,18 @@ func (d *nosqlExecutionStore) GetActiveClusterSelectionPolicy(
 
 	return row.Policy, nil
 }
+
+func (d *nosqlExecutionStore) DeleteTimerTask(
+	ctx context.Context,
+	request *persistence.DeleteTimerTaskRequest,
+) error {
+	return d.db.DeleteWorkflowTimerTask(
+		ctx,
+		d.shardID,
+		request.DomainID,
+		request.WorkflowID,
+		request.RunID,
+		request.VisibilityTimestamp,
+		request.TaskID,
+	)
+}

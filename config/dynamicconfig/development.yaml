@@ -1,3 +1,6 @@
+matching.shardDistributionMode:
+  - value: "hash_ring-shadow-shard_distributor"
+    constraints: {}
 frontend.enableClientVersionCheck:
 - value: true
   constraints: {}
@@ -88,3 +91,63 @@ shardDistributor.migrationMode:
   - value: "distributed_pass"
     constraints:
       namespace: "test-external-assignment"
+
+system.minRetentionDays:
+- value: 0    # Minimum 1 day retention (default)
+  constraints: {}
+system.workflowDeletionJitterRange:
+- value: 1
+  constraints: {}
+history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation:
+- value: true
+  constraints: {}
+history.standbyClusterDelay:
+  - value: 30s
+    constraints: {}
+history.standbyTaskMissingEventsResendDelay:
+  - value: 50s
+    constraints: {}
+history.standbyTaskMissingEventsDiscardDelay:
+  - value: 2m
+    constraints: {}
+
+# inject errors in the persistence
+system.persistenceErrorInjectionRate:
+- value: 0.0
+  constraints: {}
+
+history.workflowDeletionJitterRange:
+- value: 1
+  constraints: {}
+
+# Inject errors in 10% of history service client calls
+history.errorInjectionRate:
+  - value: 0.0
+    constraints: {}
+matching.errorInjectionRate:
+  - value: 0.00
+    constraints: {}
+frontend.errorInjectionRate:
+  - value: 0.0
+    constraints: {}
+admin.errorInjectionRate:
+  - value: 0.0
+    constraints: {}
+
+# turn off execution scanners
+worker.executionsScannerEnabled:
+  - value: false
+    constraints: {}
+history.enableHistoryCorruptionCheck:
+  - value: false
+    constraints: {}
+worker.executionsScannerInvariantCollectionMutableState:
+  - value: false
+    constraints: {}
+worker.executionsScannerInvariantCollectionHistory:
+  - value: false
+    constraints: {}
+worker.executionsScannerInvariantCollectionStale:
+  - value: false
+    constraints: {}
+

@@ -355,6 +355,26 @@ func parseTimerInfo(
 	return info
 }
 
+func parseWorkflowTimerTaskInfo(
+	result map[string]interface{},
+) *persistence.WorkflowTimerTaskInfo {
+
+	info := &persistence.WorkflowTimerTaskInfo{}
+	for k, v := range result {
+		switch k {
+		case "version":
+			info.Version = v.(int64)
+		case "timer_task_type":
+			info.TimerTaskType = v.(int)
+		case "task_id":
+			info.TaskID = v.(int64)
+		case "visibility_ts":
+			info.VisibilityTimestamp = v.(time.Time)
+		}
+	}
+	return info
+}
+
 func parseChildExecutionInfo(
 	result map[string]interface{},
 ) *persistence.InternalChildExecutionInfo {

@@ -791,6 +791,18 @@ func (mr *MockMutableStateMockRecorder) AddWorkflowExecutionTerminatedEvent(firs
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddWorkflowExecutionTerminatedEvent", reflect.TypeOf((*MockMutableState)(nil).AddWorkflowExecutionTerminatedEvent), firstEventID, reason, details, identity)
 }
 
+// AddWorkflowTimerTaskInfo mocks base method.
+func (m *MockMutableState) AddWorkflowTimerTaskInfo(info *persistence.WorkflowTimerTaskInfo) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddWorkflowTimerTaskInfo", info)
+}
+
+// AddWorkflowTimerTaskInfo indicates an expected call of AddWorkflowTimerTaskInfo.
+func (mr *MockMutableStateMockRecorder) AddWorkflowTimerTaskInfo(info any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddWorkflowTimerTaskInfo", reflect.TypeOf((*MockMutableState)(nil).AddWorkflowTimerTaskInfo), info)
+}
+
 // ByteSize mocks base method.
 func (m *MockMutableState) ByteSize() uint64 {
 	m.ctrl.T.Helper()
@@ -994,6 +1006,18 @@ func (m *MockMutableState) DeleteUserTimer(timerID string) error {
 func (mr *MockMutableStateMockRecorder) DeleteUserTimer(timerID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserTimer", reflect.TypeOf((*MockMutableState)(nil).DeleteUserTimer), timerID)
+}
+
+// DeleteWorkflowTimerTaskInfo mocks base method.
+func (m *MockMutableState) DeleteWorkflowTimerTaskInfo(timerTaskType int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "DeleteWorkflowTimerTaskInfo", timerTaskType)
+}
+
+// DeleteWorkflowTimerTaskInfo indicates an expected call of DeleteWorkflowTimerTaskInfo.
+func (mr *MockMutableStateMockRecorder) DeleteWorkflowTimerTaskInfo(timerTaskType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowTimerTaskInfo", reflect.TypeOf((*MockMutableState)(nil).DeleteWorkflowTimerTaskInfo), timerTaskType)
 }
 
 // FailDecision mocks base method.
@@ -1384,6 +1408,20 @@ func (mr *MockMutableStateMockRecorder) GetPendingTimerInfos() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingTimerInfos", reflect.TypeOf((*MockMutableState)(nil).GetPendingTimerInfos))
 }
 
+// GetPendingWorkflowTimerTaskInfos mocks base method.
+func (m *MockMutableState) GetPendingWorkflowTimerTaskInfos() map[int]*persistence.WorkflowTimerTaskInfo {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPendingWorkflowTimerTaskInfos")
+	ret0, _ := ret[0].(map[int]*persistence.WorkflowTimerTaskInfo)
+	return ret0
+}
+
+// GetPendingWorkflowTimerTaskInfos indicates an expected call of GetPendingWorkflowTimerTaskInfos.
+func (mr *MockMutableStateMockRecorder) GetPendingWorkflowTimerTaskInfos() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingWorkflowTimerTaskInfos", reflect.TypeOf((*MockMutableState)(nil).GetPendingWorkflowTimerTaskInfos))
+}
+
 // GetPreviousStartedEventID mocks base method.
 func (m *MockMutableState) GetPreviousStartedEventID() int64 {
 	m.ctrl.T.Helper()
@@ -1585,6 +1623,21 @@ func (m *MockMutableState) GetWorkflowStateCloseStatus() (int, int) {
 func (mr *MockMutableStateMockRecorder) GetWorkflowStateCloseStatus() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkflowStateCloseStatus", reflect.TypeOf((*MockMutableState)(nil).GetWorkflowStateCloseStatus))
+}
+
+// GetWorkflowTimerTaskInfo mocks base method.
+func (m *MockMutableState) GetWorkflowTimerTaskInfo(timerTaskType int) (*persistence.WorkflowTimerTaskInfo, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkflowTimerTaskInfo", timerTaskType)
+	ret0, _ := ret[0].(*persistence.WorkflowTimerTaskInfo)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// GetWorkflowTimerTaskInfo indicates an expected call of GetWorkflowTimerTaskInfo.
+func (mr *MockMutableStateMockRecorder) GetWorkflowTimerTaskInfo(timerTaskType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkflowTimerTaskInfo", reflect.TypeOf((*MockMutableState)(nil).GetWorkflowTimerTaskInfo), timerTaskType)
 }
 
 // GetWorkflowType mocks base method.

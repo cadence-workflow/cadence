@@ -282,3 +282,23 @@ func checkAndClearTimerFiredEvent(
 	timerEvent := events[timerFiredIdx]
 	return append(events[:timerFiredIdx], events[timerFiredIdx+1:]...), timerEvent
 }
+
+func (e *mutableStateBuilder) GetPendingWorkflowTimerTaskInfos() map[int]*persistence.WorkflowTimerTaskInfo {
+	return e.pendingWorkflowTimerTaskInfos
+}
+
+func (e *mutableStateBuilder) GetWorkflowTimerTaskInfo(timerTaskType int) (*persistence.WorkflowTimerTaskInfo, bool) {
+	info, ok := e.pendingWorkflowTimerTaskInfos[timerTaskType]
+	return info, ok
+}
+
+func (e *mutableStateBuilder) AddWorkflowTimerTaskInfo(info *persistence.WorkflowTimerTaskInfo) {
+	e.pendingWorkflowTimerTaskInfos[info.TimerTaskType] = info
+	e.updateWorkflowTimerTaskInfos[info.TimerTaskType] = info
+}
+
+func (e *mutableStateBuilder) DeleteWorkflowTimerTaskInfo(timerTaskType int) {
+	delete(e.pendingWorkflowTimerTaskInfos, timerTaskType)
+	delete(e.updateWorkflowTimerTaskInfos, timerTaskType)
+	e.deleteWorkflowTimerTaskInfos[timerTaskType] = struct{}{}
+}

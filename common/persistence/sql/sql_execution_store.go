@@ -1434,3 +1434,12 @@ func (m *sqlExecutionStore) DeleteActiveClusterSelectionPolicy(
 	// It requires creating a new table in the database to store the active cluster selection policy
 	return nil
 }
+
+func (m *sqlExecutionStore) DeleteTimerTask(
+	ctx context.Context,
+	request *p.DeleteTimerTaskRequest,
+) error {
+	// TODO: Implement workflow timer task deletion for SQL stores
+	// This requires storing workflow timer task info in the execution table or a separate table
+	return nil
+}

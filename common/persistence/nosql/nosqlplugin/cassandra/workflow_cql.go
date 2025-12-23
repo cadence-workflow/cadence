@@ -184,6 +184,13 @@ const (
 		`task_id: ?` +
 		`}`
 
+	templateWorkflowTimerTaskInfoType = `{` +
+		`version: ?, ` +
+		`timer_task_type: ?, ` +
+		`task_id: ?, ` +
+		`visibility_ts: ?` +
+		`}`
+
 	templateChildExecutionInfoType = `{` +
 		`version: ?, ` +
 		`initiated_id: ?, ` +
@@ -309,7 +316,7 @@ const (
 
 	// TODO: remove replication_state after all 2DC workflows complete
 	templateGetWorkflowExecutionQuery = `SELECT execution, replication_state, activity_map, timer_map, ` +
-		`child_executions_map, request_cancel_map, signal_map, signal_requested, buffered_events_list, ` +
+		`workflow_timer_task_map, child_executions_map, request_cancel_map, signal_map, signal_requested, buffered_events_list, ` +
 		`buffered_replication_tasks_map, version_histories, version_histories_encoding, checksum ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +
@@ -403,6 +410,28 @@ const (
 
 	templateResetTimerInfoQuery = `UPDATE executions ` +
 		`SET timer_map = ? ` +
+		`, last_updated_time = ? ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
+	templateUpdateWorkflowTimerTaskInfoQuery = `UPDATE executions ` +
+		`SET workflow_timer_task_map[ ? ] = ` + templateWorkflowTimerTaskInfoType + ` ` +
+		`, last_updated_time = ? ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
+	templateResetWorkflowTimerTaskInfoQuery = `UPDATE executions ` +
+		`SET workflow_timer_task_map = ? ` +
 		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
@@ -533,6 +562,16 @@ const (
 		`and task_id = ? `
 
 	templateDeleteTimerInfoQuery = `DELETE timer_map[ ? ] ` +
+		`FROM executions ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
+	templateDeleteWorkflowTimerTaskInfoQuery = `DELETE workflow_timer_task_map[ ? ] ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +

@@ -146,6 +146,21 @@ func (c *injectorExecutionManager) DeleteReplicationTaskFromDLQ(ctx context.Cont
 	return
 }
 
+func (c *injectorExecutionManager) DeleteTimerTask(ctx context.Context, request *persistence.DeleteTimerTaskRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		err = c.wrapped.DeleteTimerTask(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.DeleteTimerTask", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorExecutionManager) DeleteWorkflowExecution(ctx context.Context, request *persistence.DeleteWorkflowExecutionRequest) (err error) {
 	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
