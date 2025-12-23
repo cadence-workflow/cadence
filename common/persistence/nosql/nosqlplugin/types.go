@@ -56,13 +56,12 @@ type (
 		SignalRequestedIDs     []string // This map has no value, hence use array to store keys
 
 		// For WorkflowExecutionMapsWriteMode of update only
-		ActivityInfoKeysToDelete          []int64
-		TimerInfoKeysToDelete             []string
-		WorkflowTimerTaskInfoKeysToDelete []int
-		ChildWorkflowInfoKeysToDelete     []int64
-		RequestCancelInfoKeysToDelete     []int64
-		SignalInfoKeysToDelete            []int64
-		SignalRequestedIDsKeysToDelete    []string
+		ActivityInfoKeysToDelete       []int64
+		TimerInfoKeysToDelete          []string
+		ChildWorkflowInfoKeysToDelete  []int64
+		RequestCancelInfoKeysToDelete  []int64
+		SignalInfoKeysToDelete         []int64
+		SignalRequestedIDsKeysToDelete []string
 
 		// EventBufferWriteMode controls how to write into the buffered event list
 		// only needed for UpdateWorkflowExecutionWithTasks API

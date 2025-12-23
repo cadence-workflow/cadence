@@ -1374,7 +1374,7 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 	if err != nil {
 		return err
 	}
-	err = updateWorkflowTimerTaskInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTaskInfos, execution.WorkflowTimerTaskInfoKeysToDelete, timeStamp)
+	err = updateWorkflowTimerTaskInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTaskInfos, nil, timeStamp)
 	if err != nil {
 		return err
 	}

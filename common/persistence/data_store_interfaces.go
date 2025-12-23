@@ -465,7 +465,6 @@ type (
 		UpsertTimerInfos             []*TimerInfo
 		DeleteTimerInfos             []string
 		UpsertWorkflowTimerTaskInfos []*WorkflowTimerTaskInfo
-		DeleteWorkflowTimerTaskInfos []int
 		UpsertChildExecutionInfos    []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos    []int64
 		UpsertRequestCancelInfos     []*RequestCancelInfo

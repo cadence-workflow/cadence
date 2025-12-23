@@ -146,7 +146,6 @@ type (
 		GetPendingWorkflowTimerTaskInfos() map[int]*persistence.WorkflowTimerTaskInfo
 		GetWorkflowTimerTaskInfo(timerTaskType int) (*persistence.WorkflowTimerTaskInfo, bool)
 		AddWorkflowTimerTaskInfo(info *persistence.WorkflowTimerTaskInfo)
-		DeleteWorkflowTimerTaskInfo(timerTaskType int)
 		GetRequestCancelInfo(int64) (*persistence.RequestCancelInfo, bool)
 		GetRetryBackoffDuration(errReason string) time.Duration
 		GetCronBackoffDuration(context.Context) (time.Duration, error)

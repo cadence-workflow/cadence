@@ -113,7 +113,6 @@ type (
 
 		pendingWorkflowTimerTaskInfos map[int]*persistence.WorkflowTimerTaskInfo // Timer Task Type -> WorkflowTimerTaskInfo
 		updateWorkflowTimerTaskInfos  map[int]*persistence.WorkflowTimerTaskInfo // Modified WorkflowTimerTaskInfos since last update
-		deleteWorkflowTimerTaskInfos  map[int]struct{}                           // Deleted WorkflowTimerTaskInfos since last update
 
 		bufferedEvents       []*types.HistoryEvent // buffered history events that are already persisted
 		updateBufferedEvents []*types.HistoryEvent // buffered history events that needs to be persisted
@@ -224,7 +223,6 @@ func newMutableStateBuilder(
 
 		updateWorkflowTimerTaskInfos:  make(map[int]*persistence.WorkflowTimerTaskInfo),
 		pendingWorkflowTimerTaskInfos: make(map[int]*persistence.WorkflowTimerTaskInfo),
-		deleteWorkflowTimerTaskInfos:  make(map[int]struct{}),
 
 		currentVersion:        currentVersion,
 		hasBufferedEventsInDB: false,
@@ -1486,7 +1484,6 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		UpsertTimerInfos:             maps.Values(e.updateTimerInfos),
 		DeleteTimerInfos:             maps.Keys(e.deleteTimerInfos),
 		UpsertWorkflowTimerTaskInfos: maps.Values(e.updateWorkflowTimerTaskInfos),
-		DeleteWorkflowTimerTaskInfos: maps.Keys(e.deleteWorkflowTimerTaskInfos),
 		UpsertChildExecutionInfos:    maps.Values(e.updateChildExecutionInfos),
 		DeleteChildExecutionInfos:    maps.Keys(e.deleteChildExecutionInfos),
 		UpsertRequestCancelInfos:     maps.Values(e.updateRequestCancelInfos),
@@ -1676,7 +1673,6 @@ func (e *mutableStateBuilder) cleanupTransaction() error {
 	e.deleteTimerInfos = make(map[string]struct{})
 
 	e.updateWorkflowTimerTaskInfos = make(map[int]*persistence.WorkflowTimerTaskInfo)
-	e.deleteWorkflowTimerTaskInfos = make(map[int]struct{})
 
 	e.updateChildExecutionInfos = make(map[int64]*persistence.ChildExecutionInfo)
 	e.deleteChildExecutionInfos = make(map[int64]struct{})

@@ -296,9 +296,3 @@ func (e *mutableStateBuilder) AddWorkflowTimerTaskInfo(info *persistence.Workflo
 	e.pendingWorkflowTimerTaskInfos[info.TimerTaskType] = info
 	e.updateWorkflowTimerTaskInfos[info.TimerTaskType] = info
 }
-
-func (e *mutableStateBuilder) DeleteWorkflowTimerTaskInfo(timerTaskType int) {
-	delete(e.pendingWorkflowTimerTaskInfos, timerTaskType)
-	delete(e.updateWorkflowTimerTaskInfos, timerTaskType)
-	e.deleteWorkflowTimerTaskInfos[timerTaskType] = struct{}{}
-}

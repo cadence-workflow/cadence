@@ -695,7 +695,6 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		UpsertTimerInfos:             input.UpsertTimerInfos,
 		DeleteTimerInfos:             input.DeleteTimerInfos,
 		UpsertWorkflowTimerTaskInfos: input.UpsertWorkflowTimerTaskInfos,
-		DeleteWorkflowTimerTaskInfos: input.DeleteWorkflowTimerTaskInfos,
 		UpsertChildExecutionInfos:    serializedUpsertChildExecutionInfos,
 		DeleteChildExecutionInfos:    input.DeleteChildExecutionInfos,
 		UpsertRequestCancelInfos:     input.UpsertRequestCancelInfos,
