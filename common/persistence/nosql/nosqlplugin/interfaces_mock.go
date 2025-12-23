@@ -374,17 +374,17 @@ func (mr *MockDBMockRecorder) DeleteWorkflowExecution(ctx, shardID, domainID, wo
 }
 
 // DeleteWorkflowTimerTask mocks base method.
-func (m *MockDB) DeleteWorkflowTimerTask(ctx context.Context, shardID int, domainID, workflowID, runID string, visibilityTimestamp time.Time, taskID int64) error {
+func (m *MockDB) DeleteWorkflowTimerTask(ctx context.Context, shardID int, visibilityTimestamp time.Time, taskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteWorkflowTimerTask", ctx, shardID, domainID, workflowID, runID, visibilityTimestamp, taskID)
+	ret := m.ctrl.Call(m, "DeleteWorkflowTimerTask", ctx, shardID, visibilityTimestamp, taskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteWorkflowTimerTask indicates an expected call of DeleteWorkflowTimerTask.
-func (mr *MockDBMockRecorder) DeleteWorkflowTimerTask(ctx, shardID, domainID, workflowID, runID, visibilityTimestamp, taskID any) *gomock.Call {
+func (mr *MockDBMockRecorder) DeleteWorkflowTimerTask(ctx, shardID, visibilityTimestamp, taskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowTimerTask", reflect.TypeOf((*MockDB)(nil).DeleteWorkflowTimerTask), ctx, shardID, domainID, workflowID, runID, visibilityTimestamp, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowTimerTask", reflect.TypeOf((*MockDB)(nil).DeleteWorkflowTimerTask), ctx, shardID, visibilityTimestamp, taskID)
 }
 
 // GetQueueSize mocks base method.
@@ -1533,17 +1533,17 @@ func (mr *MocktableCRUDMockRecorder) DeleteWorkflowExecution(ctx, shardID, domai
 }
 
 // DeleteWorkflowTimerTask mocks base method.
-func (m *MocktableCRUD) DeleteWorkflowTimerTask(ctx context.Context, shardID int, domainID, workflowID, runID string, visibilityTimestamp time.Time, taskID int64) error {
+func (m *MocktableCRUD) DeleteWorkflowTimerTask(ctx context.Context, shardID int, visibilityTimestamp time.Time, taskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteWorkflowTimerTask", ctx, shardID, domainID, workflowID, runID, visibilityTimestamp, taskID)
+	ret := m.ctrl.Call(m, "DeleteWorkflowTimerTask", ctx, shardID, visibilityTimestamp, taskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteWorkflowTimerTask indicates an expected call of DeleteWorkflowTimerTask.
-func (mr *MocktableCRUDMockRecorder) DeleteWorkflowTimerTask(ctx, shardID, domainID, workflowID, runID, visibilityTimestamp, taskID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) DeleteWorkflowTimerTask(ctx, shardID, visibilityTimestamp, taskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowTimerTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteWorkflowTimerTask), ctx, shardID, domainID, workflowID, runID, visibilityTimestamp, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowTimerTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteWorkflowTimerTask), ctx, shardID, visibilityTimestamp, taskID)
 }
 
 // GetQueueSize mocks base method.
@@ -3345,17 +3345,17 @@ func (mr *MockWorkflowCRUDMockRecorder) DeleteWorkflowExecution(ctx, shardID, do
 }
 
 // DeleteWorkflowTimerTask mocks base method.
-func (m *MockWorkflowCRUD) DeleteWorkflowTimerTask(ctx context.Context, shardID int, domainID, workflowID, runID string, visibilityTimestamp time.Time, taskID int64) error {
+func (m *MockWorkflowCRUD) DeleteWorkflowTimerTask(ctx context.Context, shardID int, visibilityTimestamp time.Time, taskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteWorkflowTimerTask", ctx, shardID, domainID, workflowID, runID, visibilityTimestamp, taskID)
+	ret := m.ctrl.Call(m, "DeleteWorkflowTimerTask", ctx, shardID, visibilityTimestamp, taskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteWorkflowTimerTask indicates an expected call of DeleteWorkflowTimerTask.
-func (mr *MockWorkflowCRUDMockRecorder) DeleteWorkflowTimerTask(ctx, shardID, domainID, workflowID, runID, visibilityTimestamp, taskID any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) DeleteWorkflowTimerTask(ctx, shardID, visibilityTimestamp, taskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowTimerTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteWorkflowTimerTask), ctx, shardID, domainID, workflowID, runID, visibilityTimestamp, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowTimerTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteWorkflowTimerTask), ctx, shardID, visibilityTimestamp, taskID)
 }
 
 // InsertReplicationDLQTask mocks base method.

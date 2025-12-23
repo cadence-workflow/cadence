@@ -1008,18 +1008,6 @@ func (mr *MockMutableStateMockRecorder) DeleteUserTimer(timerID any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserTimer", reflect.TypeOf((*MockMutableState)(nil).DeleteUserTimer), timerID)
 }
 
-// DeleteWorkflowTimerTaskInfo mocks base method.
-func (m *MockMutableState) DeleteWorkflowTimerTaskInfo(timerTaskType int) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DeleteWorkflowTimerTaskInfo", timerTaskType)
-}
-
-// DeleteWorkflowTimerTaskInfo indicates an expected call of DeleteWorkflowTimerTaskInfo.
-func (mr *MockMutableStateMockRecorder) DeleteWorkflowTimerTaskInfo(timerTaskType any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowTimerTaskInfo", reflect.TypeOf((*MockMutableState)(nil).DeleteWorkflowTimerTaskInfo), timerTaskType)
-}
-
 // FailDecision mocks base method.
 func (m *MockMutableState) FailDecision(arg0 bool) {
 	m.ctrl.T.Helper()
