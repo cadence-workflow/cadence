@@ -33,6 +33,7 @@ import (
 	clientworker "go.uber.org/cadence/worker"
 
 	"github.com/uber/cadence/common/constants"
+	cadencectx "github.com/uber/cadence/common/context"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -70,7 +71,8 @@ type (
 
 	// Result is result from authority.
 	Result struct {
-		Decision Decision
+		Decision   Decision
+		CallerInfo *cadencectx.CallerInfo
 	}
 
 	// Decision is enum type for auth decision

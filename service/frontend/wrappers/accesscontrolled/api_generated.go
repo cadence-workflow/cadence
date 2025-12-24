@@ -47,7 +47,7 @@ func (a *apiHandler) CountWorkflowExecutions(ctx context.Context, cp1 *types.Cou
 		RequestBody: authorization.NewFilteredRequestBody(cp1),
 		DomainName:  cp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (a *apiHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRe
 		Permission:  authorization.PermissionAdmin,
 		RequestBody: authorization.NewFilteredRequestBody(dp1),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func (a *apiHandler) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDo
 		Permission:  authorization.PermissionAdmin,
 		RequestBody: authorization.NewFilteredRequestBody(dp1),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func (a *apiHandler) DescribeDomain(ctx context.Context, dp1 *types.DescribeDoma
 		RequestBody: authorization.NewFilteredRequestBody(dp1),
 		DomainName:  dp1.GetName(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (a *apiHandler) DescribeTaskList(ctx context.Context, dp1 *types.DescribeTa
 		RequestBody: authorization.NewFilteredRequestBody(dp1),
 		DomainName:  dp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func (a *apiHandler) DescribeWorkflowExecution(ctx context.Context, dp1 *types.D
 		RequestBody: authorization.NewFilteredRequestBody(dp1),
 		DomainName:  dp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func (a *apiHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDoma
 		RequestBody: authorization.NewFilteredRequestBody(fp1),
 		DomainName:  fp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,7 @@ func (a *apiHandler) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTas
 		RequestBody: authorization.NewFilteredRequestBody(gp1),
 		DomainName:  gp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +201,7 @@ func (a *apiHandler) GetWorkflowExecutionHistory(ctx context.Context, gp1 *types
 		RequestBody: authorization.NewFilteredRequestBody(gp1),
 		DomainName:  gp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +223,7 @@ func (a *apiHandler) ListArchivedWorkflowExecutions(ctx context.Context, lp1 *ty
 		RequestBody: authorization.NewFilteredRequestBody(lp1),
 		DomainName:  lp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +241,7 @@ func (a *apiHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *type
 		RequestBody: authorization.NewFilteredRequestBody(lp1),
 		DomainName:  lp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +267,7 @@ func (a *apiHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.
 		RequestBody: authorization.NewFilteredRequestBody(lp1),
 		DomainName:  lp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +285,7 @@ func (a *apiHandler) ListTaskListPartitions(ctx context.Context, lp1 *types.List
 		RequestBody: authorization.NewFilteredRequestBody(lp1),
 		DomainName:  lp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -303,7 +303,7 @@ func (a *apiHandler) ListWorkflowExecutions(ctx context.Context, lp1 *types.List
 		RequestBody: authorization.NewFilteredRequestBody(lp1),
 		DomainName:  lp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -322,7 +322,7 @@ func (a *apiHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollFor
 		DomainName:  pp1.GetDomain(),
 		TaskList:    pp1.TaskList,
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +341,7 @@ func (a *apiHandler) PollForDecisionTask(ctx context.Context, pp1 *types.PollFor
 		DomainName:  pp1.GetDomain(),
 		TaskList:    pp1.TaskList,
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -359,7 +359,7 @@ func (a *apiHandler) QueryWorkflow(ctx context.Context, qp1 *types.QueryWorkflow
 		RequestBody: authorization.NewFilteredRequestBody(qp1),
 		DomainName:  qp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -385,7 +385,7 @@ func (a *apiHandler) RefreshWorkflowTasks(ctx context.Context, rp1 *types.Refres
 		RequestBody: authorization.NewFilteredRequestBody(rp1),
 		DomainName:  rp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return err
 	}
@@ -402,7 +402,7 @@ func (a *apiHandler) RegisterDomain(ctx context.Context, rp1 *types.RegisterDoma
 		Permission:  authorization.PermissionAdmin,
 		RequestBody: authorization.NewFilteredRequestBody(rp1),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return err
 	}
@@ -420,7 +420,7 @@ func (a *apiHandler) RequestCancelWorkflowExecution(ctx context.Context, rp1 *ty
 		RequestBody: authorization.NewFilteredRequestBody(rp1),
 		DomainName:  rp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return err
 	}
@@ -442,7 +442,7 @@ func (a *apiHandler) ResetWorkflowExecution(ctx context.Context, rp1 *types.Rese
 		RequestBody: authorization.NewFilteredRequestBody(rp1),
 		DomainName:  rp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -496,7 +496,7 @@ func (a *apiHandler) RestartWorkflowExecution(ctx context.Context, rp1 *types.Re
 		RequestBody: authorization.NewFilteredRequestBody(rp1),
 		DomainName:  rp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -514,7 +514,7 @@ func (a *apiHandler) ScanWorkflowExecutions(ctx context.Context, lp1 *types.List
 		RequestBody: authorization.NewFilteredRequestBody(lp1),
 		DomainName:  lp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -534,7 +534,7 @@ func (a *apiHandler) SignalWithStartWorkflowExecution(ctx context.Context, sp1 *
 		WorkflowType: sp1.WorkflowType,
 		TaskList:     sp1.TaskList,
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -554,7 +554,7 @@ func (a *apiHandler) SignalWithStartWorkflowExecutionAsync(ctx context.Context, 
 		WorkflowType: sp1.WorkflowType,
 		TaskList:     sp1.TaskList,
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -572,7 +572,7 @@ func (a *apiHandler) SignalWorkflowExecution(ctx context.Context, sp1 *types.Sig
 		RequestBody: authorization.NewFilteredRequestBody(sp1),
 		DomainName:  sp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return err
 	}
@@ -592,7 +592,7 @@ func (a *apiHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.Star
 		WorkflowType: sp1.WorkflowType,
 		TaskList:     sp1.TaskList,
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -612,7 +612,7 @@ func (a *apiHandler) StartWorkflowExecutionAsync(ctx context.Context, sp1 *types
 		WorkflowType: sp1.WorkflowType,
 		TaskList:     sp1.TaskList,
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -630,7 +630,7 @@ func (a *apiHandler) TerminateWorkflowExecution(ctx context.Context, tp1 *types.
 		RequestBody: authorization.NewFilteredRequestBody(tp1),
 		DomainName:  tp1.GetDomain(),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return err
 	}
@@ -647,7 +647,7 @@ func (a *apiHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRe
 		Permission:  authorization.PermissionAdmin,
 		RequestBody: authorization.NewFilteredRequestBody(up1),
 	}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
 		return nil, err
 	}

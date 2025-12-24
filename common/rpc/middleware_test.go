@@ -36,6 +36,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
+	cadencectx "github.com/uber/cadence/common/context"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/metrics"
 )
@@ -326,6 +327,167 @@ func TestClientPartitionConfigMiddleware(t *testing.T) {
 		assert.Nil(t, isolationgroup.ConfigFromContext(h.ctx))
 		assert.Equal(t, "", isolationgroup.IsolationGroupFromContext(h.ctx))
 		assert.Equal(t, ctx, h.ctx)
+	})
+}
+
+func TestCallerInfoForwardingMiddleware(t *testing.T) {
+	t.Run("inbound middleware", func(t *testing.T) {
+		testCases := []struct {
+			name               string
+			headers            transport.Headers
+			expectedCallerInfo *cadencectx.CallerInfo
+		}{
+			{
+				name: "all headers present",
+				headers: transport.NewHeaders().
+					With(common.CallerTypeHeaderName, "cli").
+					With(common.CallerSubjectHeaderName, "user@example.com").
+					With(common.CallerNameHeaderName, "John Doe").
+					With(common.CallerIsAdminHeaderName, "true"),
+				expectedCallerInfo: &cadencectx.CallerInfo{
+					Subject:    "user@example.com",
+					Name:       "John Doe",
+					CallerType: cadencectx.CallerTypeCLI,
+					IsAdmin:    true,
+				},
+			},
+			{
+				name: "minimal headers",
+				headers: transport.NewHeaders().
+					With(common.CallerTypeHeaderName, "sdk"),
+				expectedCallerInfo: &cadencectx.CallerInfo{
+					Subject:    "",
+					Name:       "",
+					CallerType: cadencectx.CallerTypeSDK,
+					IsAdmin:    false,
+				},
+			},
+			{
+				name: "unknown caller type",
+				headers: transport.NewHeaders().
+					With(common.CallerTypeHeaderName, "unknown-type").
+					With(common.CallerSubjectHeaderName, "test@example.com"),
+				expectedCallerInfo: &cadencectx.CallerInfo{
+					Subject:    "test@example.com",
+					CallerType: cadencectx.CallerTypeUnknown,
+					IsAdmin:    false,
+				},
+			},
+			{
+				name: "isAdmin false when not 'true'",
+				headers: transport.NewHeaders().
+					With(common.CallerTypeHeaderName, "ui").
+					With(common.CallerIsAdminHeaderName, "false"),
+				expectedCallerInfo: &cadencectx.CallerInfo{
+					CallerType: cadencectx.CallerTypeUI,
+					IsAdmin:    false,
+				},
+			},
+			{
+				name:               "no caller type header",
+				headers:            transport.NewHeaders(),
+				expectedCallerInfo: nil,
+			},
+		}
+
+		for _, tt := range testCases {
+			t.Run(tt.name, func(t *testing.T) {
+				m := &CallerInfoForwardingMiddleware{}
+				h := &fakeHandler{}
+				err := m.Handle(context.Background(), &transport.Request{Headers: tt.headers}, nil, h)
+				assert.NoError(t, err)
+
+				callerInfo := cadencectx.GetCallerInfo(h.ctx)
+				if tt.expectedCallerInfo == nil {
+					assert.Nil(t, callerInfo)
+				} else {
+					require.NotNil(t, callerInfo)
+					assert.Equal(t, tt.expectedCallerInfo.Subject, callerInfo.Subject)
+					assert.Equal(t, tt.expectedCallerInfo.Name, callerInfo.Name)
+					assert.Equal(t, tt.expectedCallerInfo.CallerType, callerInfo.CallerType)
+					assert.Equal(t, tt.expectedCallerInfo.IsAdmin, callerInfo.IsAdmin)
+				}
+			})
+		}
+	})
+
+	t.Run("outbound middleware", func(t *testing.T) {
+		testCases := []struct {
+			name            string
+			callerInfo      *cadencectx.CallerInfo
+			expectedHeaders map[string]string
+		}{
+			{
+				name: "all fields populated",
+				callerInfo: &cadencectx.CallerInfo{
+					Subject:    "user@example.com",
+					Name:       "John Doe",
+					CallerType: cadencectx.CallerTypeCLI,
+					IsAdmin:    true,
+				},
+				expectedHeaders: map[string]string{
+					common.CallerTypeHeaderName:    "cli",
+					common.CallerSubjectHeaderName: "user@example.com",
+					common.CallerNameHeaderName:    "John Doe",
+					common.CallerIsAdminHeaderName: "true",
+				},
+			},
+			{
+				name: "minimal fields",
+				callerInfo: &cadencectx.CallerInfo{
+					CallerType: cadencectx.CallerTypeSDK,
+					IsAdmin:    false,
+				},
+				expectedHeaders: map[string]string{
+					common.CallerTypeHeaderName: "sdk",
+				},
+			},
+			{
+				name: "service caller type",
+				callerInfo: &cadencectx.CallerInfo{
+					Subject:    "service-account",
+					CallerType: cadencectx.CallerTypeService,
+					IsAdmin:    true,
+				},
+				expectedHeaders: map[string]string{
+					common.CallerTypeHeaderName:    "service",
+					common.CallerSubjectHeaderName: "service-account",
+					common.CallerIsAdminHeaderName: "true",
+				},
+			},
+			{
+				name:            "nil caller info",
+				callerInfo:      nil,
+				expectedHeaders: map[string]string{},
+			},
+		}
+
+		for _, tt := range testCases {
+			t.Run(tt.name, func(t *testing.T) {
+				m := &CallerInfoForwardingMiddleware{}
+				ctx := context.Background()
+				if tt.callerInfo != nil {
+					ctx = cadencectx.WithCallerInfo(ctx, tt.callerInfo)
+				}
+
+				o := &fakeOutbound{
+					verify: func(r *transport.Request) {
+						for key, expectedValue := range tt.expectedHeaders {
+							actualValue, ok := r.Headers.Get(key)
+							assert.True(t, ok, "expected header %s to be present", key)
+							assert.Equal(t, expectedValue, actualValue, "header %s value mismatch", key)
+						}
+						// Verify no unexpected headers are set
+						if tt.callerInfo == nil {
+							_, ok := r.Headers.Get(common.CallerTypeHeaderName)
+							assert.False(t, ok, "should not set caller type header when no caller info")
+						}
+					},
+				}
+				_, err := m.Call(ctx, &transport.Request{Headers: transport.NewHeaders()}, o)
+				assert.NoError(t, err)
+			})
+		}
 	})
 }
 

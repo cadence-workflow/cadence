@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/config"
+	cadencectx "github.com/uber/cadence/common/context"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 )
@@ -59,10 +60,11 @@ type oauthAuthority struct {
 type JWTClaims struct {
 	jwt.RegisteredClaims
 
-	Name   string
-	Groups string // separated by space
-	Admin  bool
-	TTL    int64 // TODO should be removed. ExpiresAt should be used
+	Name       string
+	Groups     string // separated by space
+	Admin      bool
+	TTL        int64  // TODO should be removed. ExpiresAt should be used
+	CallerType string // caller type: "cli", "ui", "sdk", "service"
 }
 
 func (j JWTClaims) GetGroups() []string {
@@ -147,8 +149,10 @@ func (a *oauthAuthority) Authorize(ctx context.Context, attributes *Attributes) 
 		return Result{Decision: DecisionDeny}, nil
 	}
 
+	callerInfo := extractCallerInfo(&claims)
+
 	if claims.Admin {
-		return Result{Decision: DecisionAllow}, nil
+		return Result{Decision: DecisionAllow, CallerInfo: callerInfo}, nil
 	}
 
 	domain, err := a.domainCache.GetDomain(attributes.DomainName)
@@ -161,7 +165,7 @@ func (a *oauthAuthority) Authorize(ctx context.Context, attributes *Attributes) 
 		return Result{Decision: DecisionDeny}, nil
 	}
 
-	return Result{Decision: DecisionAllow}, nil
+	return Result{Decision: DecisionAllow, CallerInfo: callerInfo}, nil
 }
 
 // keyFunc returns correct key to check signature
@@ -242,4 +246,20 @@ func (a *oauthAuthority) parseExternal(rawClaims map[string]interface{}, claims 
 	}
 
 	return nil
+}
+
+func extractCallerInfo(claims *JWTClaims) *cadencectx.CallerInfo {
+	if claims == nil {
+		return nil
+	}
+
+	subject, _ := claims.GetSubject()
+	callerType := cadencectx.ParseCallerType(claims.CallerType)
+
+	return &cadencectx.CallerInfo{
+		Subject:    subject,
+		Name:       claims.Name,
+		CallerType: callerType,
+		IsAdmin:    claims.Admin,
+	}
 }

@@ -26,39 +26,64 @@ import (
 	"context"
 
 	"github.com/uber/cadence/common/authorization"
+	cadencectx "github.com/uber/cadence/common/context"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
 
 var errUnauthorized = &types.AccessDeniedError{Message: "Request unauthorized."}
 
-func (a *adminHandler) isAuthorized(ctx context.Context, attr *authorization.Attributes) (bool, error) {
+func (a *adminHandler) isAuthorized(ctx context.Context, attr *authorization.Attributes) (context.Context, bool, error) {
 	result, err := a.authorizer.Authorize(ctx, attr)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 	isAuth := result.Decision == authorization.DecisionAllow
-	return isAuth, nil
+	if isAuth {
+		ctx = enrichContextWithCaller(ctx, result)
+	}
+	return ctx, isAuth, nil
 }
 
 func (a *apiHandler) isAuthorized(
 	ctx context.Context,
 	attr *authorization.Attributes,
 	scope metrics.Scope,
-) (bool, error) {
+) (context.Context, bool, error) {
 	sw := scope.StartTimer(metrics.CadenceAuthorizationLatency)
 	defer sw.Stop()
 
 	result, err := a.authorizer.Authorize(ctx, attr)
 	if err != nil {
 		scope.IncCounter(metrics.CadenceErrAuthorizeFailedCounter)
-		return false, err
+		return ctx, false, err
 	}
 	isAuth := result.Decision == authorization.DecisionAllow
 	if !isAuth {
 		scope.IncCounter(metrics.CadenceErrUnauthorizedCounter)
+		return ctx, false, nil
 	}
-	return isAuth, nil
+	ctx = enrichContextWithCaller(ctx, result)
+	if result.CallerInfo == nil || result.CallerInfo.CallerType == cadencectx.CallerTypeUnknown {
+		scope.IncCounter(metrics.CadenceRequestsWithoutCallerType)
+		tags := []tag.Tag{
+			tag.WorkflowDomainName(attr.DomainName),
+			tag.Name(attr.APIName),
+		}
+		if result.CallerInfo != nil && result.CallerInfo.Subject != "" {
+			tags = append(tags, tag.ActorID(result.CallerInfo.Subject))
+		}
+		a.GetLogger().Debug("request without caller type", tags...)
+	}
+	return ctx, true, nil
+}
+
+func enrichContextWithCaller(ctx context.Context, result authorization.Result) context.Context {
+	if result.CallerInfo == nil {
+		return ctx
+	}
+	return cadencectx.WithCallerInfo(ctx, result.CallerInfo)
 }
 
 // getMetricsScopeWithDomain return metrics scope with domain tag
