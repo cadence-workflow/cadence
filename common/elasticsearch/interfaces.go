@@ -165,24 +165,27 @@ type (
 
 	// VisibilityRecord is a struct of doc for deserialization
 	VisibilityRecord struct {
-		WorkflowID            string
-		RunID                 string
-		WorkflowType          string
-		DomainID              string
-		StartTime             int64
-		ExecutionTime         int64
-		CloseTime             int64
-		CloseStatus           workflow.WorkflowExecutionCloseStatus
-		HistoryLength         int64
-		Memo                  []byte
-		Encoding              string
-		TaskList              string
-		IsCron                bool
-		NumClusters           int16
-		ClusterAttributeScope string
-		ClusterAttributeName  string
-		UpdateTime            int64
-		Attr                  map[string]interface{}
+		WorkflowID             string
+		RunID                  string
+		WorkflowType           string
+		DomainID               string
+		StartTime              int64
+		ExecutionTime          int64
+		CloseTime              int64
+		CloseStatus            workflow.WorkflowExecutionCloseStatus
+		HistoryLength          int64
+		Memo                   []byte
+		Encoding               string
+		TaskList               string
+		IsCron                 bool
+		NumClusters            int16
+		ClusterAttributeScope  string
+		ClusterAttributeName   string
+		UpdateTime             int64
+		Attr                   map[string]interface{}
+		CronSchedule           string
+		ExecutionStatus        int32
+		ScheduledExecutionTime int64
 	}
 
 	SearchHits struct {

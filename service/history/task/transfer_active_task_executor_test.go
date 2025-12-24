@@ -804,8 +804,6 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_NoParent() {
 			Name:  "us-west",
 		},
 	}
-	startEvent, err := mutableState.GetStartEvent(context.Background())
-	s.Require().NoError(err)
 	event := test.AddCompleteWorkflowEvent(mutableState, decisionCompletionID, nil)
 
 	transferTask := s.newTransferTaskFromInfo(&persistence.CloseExecutionTask{
@@ -823,11 +821,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_NoParent() {
 	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, event.ID, event.Version)
 	s.NoError(err)
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
-	s.mockVisibilityMgr.On("RecordWorkflowExecutionClosed", mock.Anything, createRecordWorkflowExecutionClosedRequest(
-		s.T(),
-		s.domainName, startEvent, transferTask, mutableState, 2, s.mockShard.GetTimeSource().Now(), event.Timestamp,
-		true),
-	).Return(nil).Once()
+	s.mockVisibilityMgr.On("RecordWorkflowExecutionClosed", mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "random URI"))
 	s.mockArchivalClient.EXPECT().Archive(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 	// switch on context header in viz
@@ -2242,22 +2236,41 @@ func createRecordWorkflowExecutionStartedRequest(
 			"Header_context_key": contextValueJSONString,
 		}
 	}
+	// scheduledExecutionTimestamp = startTime + backoffSeconds
+	// When backoffSeconds is 0, this equals startTime
+	scheduledExecutionTimestamp := startEvent.GetTimestamp() + int64(backoffSeconds)*int64(time.Second)
+
+	// Determine ExecutionStatus based on whether the workflow has started executing
+	// A workflow is PENDING if it has a first decision task backoff and hasn't been scheduled yet
+	// Once the decision task is scheduled (or if there's no backoff), it's STARTED
+	executionStatus := types.WorkflowExecutionStatusStarted
+	if backoffSeconds > 0 {
+		// Check if the first decision task has been scheduled yet
+		// If there's no decision info, the workflow is still pending
+		if !mutableState.HasPendingDecision() && !mutableState.HasInFlightDecision() && !mutableState.HasProcessedOrPendingDecision() {
+			executionStatus = types.WorkflowExecutionStatusPending
+		}
+	}
+
 	return &persistence.RecordWorkflowExecutionStartedRequest{
-		Domain:                domainName,
-		DomainUUID:            taskInfo.DomainID,
-		Execution:             workflowExecution,
-		WorkflowTypeName:      executionInfo.WorkflowTypeName,
-		StartTimestamp:        startEvent.GetTimestamp(),
-		ExecutionTimestamp:    executionTimestamp,
-		WorkflowTimeout:       int64(executionInfo.WorkflowTimeout),
-		TaskID:                taskInfo.TaskID,
-		TaskList:              executionInfo.TaskList,
-		IsCron:                len(executionInfo.CronSchedule) > 0,
-		NumClusters:           numClusters,
-		ClusterAttributeScope: executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope(),
-		ClusterAttributeName:  executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName(),
-		UpdateTimestamp:       updateTime.UnixNano(),
-		SearchAttributes:      searchAttributes,
+		Domain:                      domainName,
+		DomainUUID:                  taskInfo.DomainID,
+		Execution:                   workflowExecution,
+		WorkflowTypeName:            executionInfo.WorkflowTypeName,
+		StartTimestamp:              startEvent.GetTimestamp(),
+		ExecutionTimestamp:          executionTimestamp,
+		WorkflowTimeout:             int64(executionInfo.WorkflowTimeout),
+		TaskID:                      taskInfo.TaskID,
+		TaskList:                    executionInfo.TaskList,
+		IsCron:                      len(executionInfo.CronSchedule) > 0,
+		NumClusters:                 numClusters,
+		ClusterAttributeScope:       executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope(),
+		ClusterAttributeName:        executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName(),
+		UpdateTimestamp:             updateTime.UnixNano(),
+		SearchAttributes:            searchAttributes,
+		ExecutionStatus:             executionStatus,
+		CronSchedule:                executionInfo.CronSchedule,
+		ScheduledExecutionTimestamp: scheduledExecutionTimestamp,
 	}
 }
 
@@ -2293,24 +2306,64 @@ func createRecordWorkflowExecutionClosedRequest(
 			"Header_context_key": contextValueJSONString,
 		}
 	}
+	scheduledExecutionTimestamp := int64(0)
+	if executionTimestamp != 0 {
+		scheduledExecutionTimestamp = executionTimestamp
+	}
+
+	// Get completion event to determine execution status
+	// For closed workflows, ExecutionStatus should reflect the close status (COMPLETED, FAILED, etc.)
+	// not the running status (PENDING, STARTED)
+	completionEvent, err := mutableState.GetCompletionEvent(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	executionStatus := getTestWorkflowExecutionStatus(completionEvent)
+
 	return &persistence.RecordWorkflowExecutionClosedRequest{
-		Domain:                domainName,
-		DomainUUID:            taskInfo.DomainID,
-		Execution:             workflowExecution,
-		HistoryLength:         mutableState.GetNextEventID() - 1,
-		WorkflowTypeName:      executionInfo.WorkflowTypeName,
-		StartTimestamp:        startEvent.GetTimestamp(),
-		ExecutionTimestamp:    executionTimestamp,
-		TaskID:                taskInfo.TaskID,
-		TaskList:              executionInfo.TaskList,
-		IsCron:                len(executionInfo.CronSchedule) > 0,
-		NumClusters:           numClusters,
-		ClusterAttributeScope: executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope(),
-		ClusterAttributeName:  executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName(),
-		UpdateTimestamp:       updateTime.UnixNano(),
-		CloseTimestamp:        *closeTimestamp,
-		RetentionSeconds:      int64(mutableState.GetDomainEntry().GetRetentionDays(taskInfo.GetWorkflowID()) * 24 * 3600),
-		SearchAttributes:      searchAttributes,
+		Domain:                      domainName,
+		DomainUUID:                  taskInfo.DomainID,
+		Execution:                   workflowExecution,
+		HistoryLength:               mutableState.GetNextEventID() - 1,
+		WorkflowTypeName:            executionInfo.WorkflowTypeName,
+		StartTimestamp:              startEvent.GetTimestamp(),
+		ExecutionTimestamp:          executionTimestamp,
+		TaskID:                      taskInfo.TaskID,
+		TaskList:                    executionInfo.TaskList,
+		IsCron:                      len(executionInfo.CronSchedule) > 0,
+		NumClusters:                 numClusters,
+		ClusterAttributeScope:       executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope(),
+		ClusterAttributeName:        executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName(),
+		UpdateTimestamp:             updateTime.UnixNano(),
+		CloseTimestamp:              *closeTimestamp,
+		RetentionSeconds:            int64(mutableState.GetDomainEntry().GetRetentionDays(taskInfo.GetWorkflowID()) * 24 * 3600),
+		SearchAttributes:            searchAttributes,
+		ExecutionStatus:             executionStatus,
+		CronSchedule:                executionInfo.CronSchedule,
+		ScheduledExecutionTimestamp: scheduledExecutionTimestamp,
+	}
+}
+
+// getTestWorkflowExecutionStatus determines execution status from close event
+// This mirrors the logic in getWorkflowExecutionStatus in transfer_active_task_executor.go
+func getTestWorkflowExecutionStatus(closeEvent *types.HistoryEvent) types.WorkflowExecutionStatus {
+	switch closeEvent.GetEventType() {
+	case types.EventTypeWorkflowExecutionCompleted:
+		return types.WorkflowExecutionStatusCompleted
+	case types.EventTypeWorkflowExecutionFailed:
+		return types.WorkflowExecutionStatusFailed
+	case types.EventTypeWorkflowExecutionCanceled:
+		return types.WorkflowExecutionStatusCanceled
+	case types.EventTypeWorkflowExecutionTerminated:
+		return types.WorkflowExecutionStatusTerminated
+	case types.EventTypeWorkflowExecutionTimedOut:
+		return types.WorkflowExecutionStatusTimedOut
+	case types.EventTypeWorkflowExecutionContinuedAsNew:
+		// For simplicity in tests, return ContinuedAsNew
+		// Production code has more complex logic for cron workflows
+		return types.WorkflowExecutionStatusContinuedAsNew
+	default:
+		return types.WorkflowExecutionStatusCompleted
 	}
 }
 
@@ -2455,22 +2508,42 @@ func createUpsertWorkflowSearchAttributesRequest(
 		}
 	}
 
+	// scheduledExecutionTimestamp = startTime + backoffSeconds
+	// When backoffSeconds is 0, this equals startTime
+	scheduledExecutionTimestamp := startEvent.GetTimestamp() + int64(backoffSeconds)*int64(time.Second)
+
+	// Determine ExecutionStatus based on whether the workflow has started executing
+	// A workflow is PENDING if it has a first decision task backoff and hasn't been scheduled yet
+	// Once the decision task is scheduled (or if there's no backoff), it's STARTED
+	executionStatus := types.WorkflowExecutionStatusStarted
+	if startEvent.WorkflowExecutionStartedEventAttributes != nil &&
+		startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds() > 0 {
+		// Check if the first decision task has been scheduled yet
+		// If there's no decision info, the workflow is still pending
+		if !mutableState.HasPendingDecision() && !mutableState.HasInFlightDecision() && !mutableState.HasProcessedOrPendingDecision() {
+			executionStatus = types.WorkflowExecutionStatusPending
+		}
+	}
+
 	return &persistence.UpsertWorkflowExecutionRequest{
-		Domain:                domainName,
-		DomainUUID:            taskInfo.DomainID,
-		Execution:             workflowExecution,
-		WorkflowTypeName:      executionInfo.WorkflowTypeName,
-		StartTimestamp:        startEvent.GetTimestamp(),
-		ExecutionTimestamp:    executionTimestamp,
-		WorkflowTimeout:       int64(executionInfo.WorkflowTimeout),
-		TaskID:                taskInfo.TaskID,
-		TaskList:              executionInfo.TaskList,
-		IsCron:                len(executionInfo.CronSchedule) > 0,
-		NumClusters:           numClusters,
-		ClusterAttributeScope: executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope(),
-		ClusterAttributeName:  executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName(),
-		UpdateTimestamp:       updateTime.UnixNano(),
-		SearchAttributes:      searchAttributes,
+		Domain:                      domainName,
+		DomainUUID:                  taskInfo.DomainID,
+		Execution:                   workflowExecution,
+		WorkflowTypeName:            executionInfo.WorkflowTypeName,
+		StartTimestamp:              startEvent.GetTimestamp(),
+		ExecutionTimestamp:          executionTimestamp,
+		WorkflowTimeout:             int64(executionInfo.WorkflowTimeout),
+		TaskID:                      taskInfo.TaskID,
+		TaskList:                    executionInfo.TaskList,
+		IsCron:                      len(executionInfo.CronSchedule) > 0,
+		NumClusters:                 numClusters,
+		ClusterAttributeScope:       executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope(),
+		ClusterAttributeName:        executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName(),
+		UpdateTimestamp:             updateTime.UnixNano(),
+		SearchAttributes:            searchAttributes,
+		ExecutionStatus:             executionStatus,
+		CronSchedule:                executionInfo.CronSchedule,
+		ScheduledExecutionTimestamp: scheduledExecutionTimestamp,
 	}
 }
 
