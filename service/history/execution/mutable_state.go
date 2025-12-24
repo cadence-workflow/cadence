@@ -144,7 +144,6 @@ type (
 		GetPendingRequestCancelExternalInfos() map[int64]*persistence.RequestCancelInfo
 		GetPendingSignalExternalInfos() map[int64]*persistence.SignalInfo
 		GetPendingWorkflowTimerTaskInfos() map[int]*persistence.WorkflowTimerTaskInfo
-		GetWorkflowTimerTaskInfo(timerTaskType int) (*persistence.WorkflowTimerTaskInfo, bool)
 		AddWorkflowTimerTaskInfo(info *persistence.WorkflowTimerTaskInfo)
 		GetRequestCancelInfo(int64) (*persistence.RequestCancelInfo, bool)
 		GetRetryBackoffDuration(errReason string) time.Duration
