@@ -1000,7 +1000,6 @@ func updateWorkflowTimerTaskInfos(
 	workflowID string,
 	runID string,
 	workflowTimerTaskInfos map[int]*persistence.WorkflowTimerTaskInfo,
-	deleteInfos []int,
 	timeStamp time.Time,
 ) error {
 	for _, info := range workflowTimerTaskInfos {
@@ -1020,17 +1019,6 @@ func updateWorkflowTimerTaskInfos(
 			rowTypeExecutionTaskID)
 	}
 
-	for _, timerTaskType := range deleteInfos {
-		batch.Query(templateDeleteWorkflowTimerTaskInfoQuery,
-			timerTaskType,
-			shardID,
-			rowTypeExecution,
-			domainID,
-			workflowID,
-			runID,
-			defaultVisibilityTimestamp,
-			rowTypeExecutionTaskID)
-	}
 	return nil
 }
 
@@ -1219,7 +1207,7 @@ func createWorkflowExecutionWithMergeMaps(
 	if err != nil {
 		return err
 	}
-	err = updateWorkflowTimerTaskInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTaskInfos, nil, timeStamp)
+	err = updateWorkflowTimerTaskInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTaskInfos, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -1374,7 +1362,7 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 	if err != nil {
 		return err
 	}
-	err = updateWorkflowTimerTaskInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTaskInfos, nil, timeStamp)
+	err = updateWorkflowTimerTaskInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTaskInfos, timeStamp)
 	if err != nil {
 		return err
 	}

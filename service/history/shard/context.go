@@ -1317,7 +1317,7 @@ func (s *contextImpl) allocateTransferIDsLocked(
 
 // syncWorkflowTimerTaskInfosFromSlice updates WorkflowTimerTaskInfo objects with TaskIDs
 // that were assigned to their corresponding timer tasks by the shard.
-// This is necessary so that when a workflow is deleted, we can clean up the
+// This is necessary for tracking operations, including so that when a workflow is deleted, we can clean up the
 // timer task records from the executions table using the TaskID.
 func syncWorkflowTimerTaskInfosFromSlice(timerTasks []persistence.Task, workflowTimerTaskInfos []*persistence.WorkflowTimerTaskInfo) {
 	infoMap := make(map[int]*persistence.WorkflowTimerTaskInfo, len(workflowTimerTaskInfos))
