@@ -54,4 +54,16 @@ const (
 
 	// ClientIsolationGroupHeaderName refers to the name of the header that contains the isolation group which the client request is from
 	ClientIsolationGroupHeaderName = "cadence-client-isolation-group"
+
+	// CallerTypeHeaderName refers to the name of the header that contains the caller type (cli, ui, sdk, service)
+	CallerTypeHeaderName = "cadence-caller-type"
+
+	// CallerSubjectHeaderName refers to the name of the header that contains the caller subject from JWT
+	CallerSubjectHeaderName = "cadence-caller-subject"
+
+	// CallerNameHeaderName refers to the name of the header that contains the caller name from JWT
+	CallerNameHeaderName = "cadence-caller-name"
+
+	// CallerIsAdminHeaderName refers to the name of the header that contains whether the caller is an admin
+	CallerIsAdminHeaderName = "cadence-caller-is-admin"
 )

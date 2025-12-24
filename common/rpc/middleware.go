@@ -31,6 +31,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
+	cadencectx "github.com/uber/cadence/common/context"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/metrics"
 )
@@ -219,6 +220,43 @@ func (m *ForwardPartitionConfigMiddleware) Call(ctx context.Context, request *tr
 			request.Headers = request.Headers.With(common.IsolationGroupHeaderName, isolationGroup)
 		} else {
 			request.Headers.Del(common.IsolationGroupHeaderName)
+		}
+	}
+	return out.Call(ctx, request)
+}
+
+// CallerInfoForwardingMiddleware forwards caller information from context to headers on outbound calls,
+// and extracts caller information from headers to context on inbound calls.
+type CallerInfoForwardingMiddleware struct{}
+
+func (m *CallerInfoForwardingMiddleware) Handle(ctx context.Context, req *transport.Request, resw transport.ResponseWriter, h transport.UnaryHandler) error {
+	if callerType, ok := req.Headers.Get(common.CallerTypeHeaderName); ok {
+		callerSubject, _ := req.Headers.Get(common.CallerSubjectHeaderName)
+		callerName, _ := req.Headers.Get(common.CallerNameHeaderName)
+		callerIsAdmin, _ := req.Headers.Get(common.CallerIsAdminHeaderName)
+
+		callerInfo := &cadencectx.CallerInfo{
+			Subject:    callerSubject,
+			Name:       callerName,
+			CallerType: cadencectx.ParseCallerType(callerType),
+			IsAdmin:    callerIsAdmin == "true",
+		}
+		ctx = cadencectx.WithCallerInfo(ctx, callerInfo)
+	}
+	return h.Handle(ctx, req, resw)
+}
+
+func (m *CallerInfoForwardingMiddleware) Call(ctx context.Context, request *transport.Request, out transport.UnaryOutbound) (*transport.Response, error) {
+	if callerInfo := cadencectx.GetCallerInfo(ctx); callerInfo != nil {
+		request.Headers = request.Headers.With(common.CallerTypeHeaderName, callerInfo.CallerType.String())
+		if callerInfo.Subject != "" {
+			request.Headers = request.Headers.With(common.CallerSubjectHeaderName, callerInfo.Subject)
+		}
+		if callerInfo.Name != "" {
+			request.Headers = request.Headers.With(common.CallerNameHeaderName, callerInfo.Name)
+		}
+		if callerInfo.IsAdmin {
+			request.Headers = request.Headers.With(common.CallerIsAdminHeaderName, "true")
 		}
 	}
 	return out.Call(ctx, request)

@@ -120,9 +120,9 @@ func (a *{{$decorator}}) {{$method.Declaration}} {
 		{{- end}}
 	}
 	{{- if eq $interfaceType "admin.Handler"}}
-	isAuthorized, err := a.isAuthorized(ctx, attr)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr)
 	{{- else}}
-	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	ctx, isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	{{- end}}
 	if err != nil {
 		{{- if eq (len $method.Results) 1}}

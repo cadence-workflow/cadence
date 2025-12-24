@@ -84,7 +84,7 @@ func TestIsAuthorized(t *testing.T) {
 			tc.mockSetup(mockAuthorizer, mockMetricsScope)
 
 			handler := &apiHandler{authorizer: mockAuthorizer}
-			got, err := handler.isAuthorized(context.Background(), &authorization.Attributes{}, mockMetricsScope)
+			_, got, err := handler.isAuthorized(context.Background(), &authorization.Attributes{}, mockMetricsScope)
 			if tc.wantErr {
 				assert.Error(t, err)
 			} else {

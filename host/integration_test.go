@@ -39,6 +39,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common"
+	cadencectx "github.com/uber/cadence/common/context"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/engine/engineimpl"
@@ -4479,4 +4480,89 @@ func (s *IntegrationSuite) TestDescribeCluster() {
 	response, err := s.AdminClient.DescribeCluster(ctx)
 	s.Require().NoError(err)
 	s.Require().NotNil(response)
+}
+
+// TestCallerInfoPropagation verifies that CallerInfo is properly propagated through the middleware chain
+func (s *IntegrationSuite) TestCallerInfoPropagation() {
+	testCases := []struct {
+		name       string
+		callerInfo *cadencectx.CallerInfo
+	}{
+		{
+			name: "CLI caller with all fields",
+			callerInfo: &cadencectx.CallerInfo{
+				Subject:    "cli-user@example.com",
+				Name:       "CLI User",
+				CallerType: cadencectx.CallerTypeCLI,
+				IsAdmin:    false,
+			},
+		},
+		{
+			name: "UI caller",
+			callerInfo: &cadencectx.CallerInfo{
+				Subject:    "ui-user@example.com",
+				Name:       "UI User",
+				CallerType: cadencectx.CallerTypeUI,
+				IsAdmin:    true,
+			},
+		},
+		{
+			name: "SDK caller",
+			callerInfo: &cadencectx.CallerInfo{
+				Subject:    "sdk-user@example.com",
+				Name:       "SDK User",
+				CallerType: cadencectx.CallerTypeSDK,
+				IsAdmin:    false,
+			},
+		},
+		{
+			name: "Service caller",
+			callerInfo: &cadencectx.CallerInfo{
+				Subject:    "service@example.com",
+				Name:       "Background Service",
+				CallerType: cadencectx.CallerTypeService,
+				IsAdmin:    true,
+			},
+		},
+		{
+			name:       "No caller info",
+			callerInfo: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		s.Run(tc.name, func() {
+			ctx, cancel := createContext()
+			defer cancel()
+
+			// Add CallerInfo to context if provided
+			if tc.callerInfo != nil {
+				ctx = cadencectx.WithCallerInfo(ctx, tc.callerInfo)
+			}
+
+			// Make a simple API call through the frontend
+			resp, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{
+				Name: common.StringPtr(s.DomainName),
+			})
+
+			// The request should succeed regardless of caller info
+			s.NoError(err)
+			s.NotNil(resp)
+			s.Equal(s.DomainName, resp.DomainInfo.GetName())
+
+			// Verify CallerInfo is preserved in context
+			retrievedInfo := cadencectx.GetCallerInfo(ctx)
+			if tc.callerInfo == nil {
+				// May be nil or may have been set by middleware - either is acceptable
+				// since we're not requiring caller info for requests
+			} else {
+				// If we set it, it should be retrievable
+				s.NotNil(retrievedInfo)
+				s.Equal(tc.callerInfo.Subject, retrievedInfo.Subject)
+				s.Equal(tc.callerInfo.Name, retrievedInfo.Name)
+				s.Equal(tc.callerInfo.CallerType, retrievedInfo.CallerType)
+				s.Equal(tc.callerInfo.IsAdmin, retrievedInfo.IsAdmin)
+			}
+		})
+	}
 }

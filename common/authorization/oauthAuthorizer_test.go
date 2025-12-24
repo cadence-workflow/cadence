@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
+	cadencectx "github.com/uber/cadence/common/context"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -465,6 +466,134 @@ func Test_oauthAuthority_parseExternal(t *testing.T) {
 			tt.wantErr(t, err)
 			assert.Equal(t, tt.wantGroups, actualClaim.Groups)
 			assert.Equal(t, tt.wantAdmin, actualClaim.Admin)
+		})
+	}
+}
+
+func Test_extractCallerInfo(t *testing.T) {
+	tests := []struct {
+		name     string
+		claims   *JWTClaims
+		expected *cadencectx.CallerInfo
+	}{
+		{
+			name:     "nil claims",
+			claims:   nil,
+			expected: nil,
+		},
+		{
+			name: "all fields populated",
+			claims: &JWTClaims{
+				RegisteredClaims: jwt.RegisteredClaims{
+					Subject: "user@example.com",
+				},
+				Name:       "John Doe",
+				CallerType: "cli",
+				Admin:      true,
+			},
+			expected: &cadencectx.CallerInfo{
+				Subject:    "user@example.com",
+				Name:       "John Doe",
+				CallerType: cadencectx.CallerTypeCLI,
+				IsAdmin:    true,
+			},
+		},
+		{
+			name: "minimal fields",
+			claims: &JWTClaims{
+				RegisteredClaims: jwt.RegisteredClaims{
+					Subject: "test@example.com",
+				},
+				CallerType: "sdk",
+			},
+			expected: &cadencectx.CallerInfo{
+				Subject:    "test@example.com",
+				Name:       "",
+				CallerType: cadencectx.CallerTypeSDK,
+				IsAdmin:    false,
+			},
+		},
+		{
+			name: "unknown caller type",
+			claims: &JWTClaims{
+				RegisteredClaims: jwt.RegisteredClaims{
+					Subject: "service@example.com",
+				},
+				Name:       "Service Account",
+				CallerType: "unknown-type",
+				Admin:      false,
+			},
+			expected: &cadencectx.CallerInfo{
+				Subject:    "service@example.com",
+				Name:       "Service Account",
+				CallerType: cadencectx.CallerTypeUnknown,
+				IsAdmin:    false,
+			},
+		},
+		{
+			name: "service caller type",
+			claims: &JWTClaims{
+				RegisteredClaims: jwt.RegisteredClaims{
+					Subject: "internal-service",
+				},
+				Name:       "Background Worker",
+				CallerType: "service",
+				Admin:      true,
+			},
+			expected: &cadencectx.CallerInfo{
+				Subject:    "internal-service",
+				Name:       "Background Worker",
+				CallerType: cadencectx.CallerTypeService,
+				IsAdmin:    true,
+			},
+		},
+		{
+			name: "ui caller type",
+			claims: &JWTClaims{
+				RegisteredClaims: jwt.RegisteredClaims{
+					Subject: "admin@example.com",
+				},
+				Name:       "Admin User",
+				CallerType: "ui",
+				Admin:      true,
+			},
+			expected: &cadencectx.CallerInfo{
+				Subject:    "admin@example.com",
+				Name:       "Admin User",
+				CallerType: cadencectx.CallerTypeUI,
+				IsAdmin:    true,
+			},
+		},
+		{
+			name: "empty caller type defaults to unknown",
+			claims: &JWTClaims{
+				RegisteredClaims: jwt.RegisteredClaims{
+					Subject: "user@example.com",
+				},
+				Name:       "Test User",
+				CallerType: "",
+			},
+			expected: &cadencectx.CallerInfo{
+				Subject:    "user@example.com",
+				Name:       "Test User",
+				CallerType: cadencectx.CallerTypeUnknown,
+				IsAdmin:    false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractCallerInfo(tt.claims)
+			if tt.expected == nil {
+				assert.Nil(t, result)
+			} else {
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.expected.Subject, result.Subject)
+				assert.Equal(t, tt.expected.Name, result.Name)
+				assert.Equal(t, tt.expected.CallerType, result.CallerType)
+				assert.Equal(t, tt.expected.IsAdmin, result.IsAdmin)
+			}
 		})
 	}
 }
