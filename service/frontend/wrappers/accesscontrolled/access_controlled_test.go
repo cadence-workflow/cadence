@@ -31,8 +31,11 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/authorization"
+	cadencectx "github.com/uber/cadence/common/context"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/mocks"
+	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/admin"
 )
@@ -47,7 +50,15 @@ func TestIsAuthorized(t *testing.T) {
 		{
 			name: "Succes case",
 			mockSetup: func(authorizer *authorization.MockAuthorizer, scope *mocks.Scope) {
-				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{Decision: authorization.DecisionAllow}, nil)
+				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{
+					Decision: authorization.DecisionAllow,
+					CallerInfo: &cadencectx.CallerInfo{
+						Subject:    "test-user",
+						Name:       "Test User",
+						CallerType: cadencectx.CallerTypeCLI,
+						IsAdmin:    false,
+					},
+				}, nil)
 				scope.On("StartTimer", metrics.CadenceAuthorizationLatency).Return(metrics.NewTestStopwatch()).Once()
 			},
 			isAuthorized: true,
@@ -81,9 +92,13 @@ func TestIsAuthorized(t *testing.T) {
 
 			mockAuthorizer := authorization.NewMockAuthorizer(controller)
 			mockMetricsScope := &mocks.Scope{}
+			mockLogger := log.NewMockLogger(controller)
+			mockResource := resource.NewMockResource(controller)
+			mockResource.EXPECT().GetLogger().Return(mockLogger).AnyTimes()
+			mockLogger.EXPECT().Debug(gomock.Any(), gomock.Any()).AnyTimes()
 			tc.mockSetup(mockAuthorizer, mockMetricsScope)
 
-			handler := &apiHandler{authorizer: mockAuthorizer}
+			handler := &apiHandler{authorizer: mockAuthorizer, Resource: mockResource}
 			_, got, err := handler.isAuthorized(context.Background(), &authorization.Attributes{}, mockMetricsScope)
 			if tc.wantErr {
 				assert.Error(t, err)
