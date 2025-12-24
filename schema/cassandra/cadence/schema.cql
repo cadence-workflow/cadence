@@ -216,6 +216,7 @@ CREATE TYPE timer_info (
   -- the purpose of indicating whether a timer task is
   -- generated for this timer info
   task_id       bigint,
+  timer_task_id bigint,    -- The actual task ID of the timer task record (type=3) for cleanup
 );
 
 -- Workflow-level timer task info for tracking tasks that need cleanup

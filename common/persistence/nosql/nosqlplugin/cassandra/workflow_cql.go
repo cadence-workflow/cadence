@@ -181,7 +181,8 @@ const (
 		`timer_id: ?, ` +
 		`started_id: ?, ` +
 		`expiry_time: ?, ` +
-		`task_id: ?` +
+		`task_id: ?, ` +
+		`timer_task_id: ?` +
 		`}`
 
 	templateWorkflowTimerTaskInfoType = `{` +

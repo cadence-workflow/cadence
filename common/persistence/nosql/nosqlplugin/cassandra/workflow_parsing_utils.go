@@ -350,6 +350,8 @@ func parseTimerInfo(
 			// the purpose of indicating whether a timer task is
 			// generated for this timer info
 			info.TaskStatus = v.(int64)
+		case "timer_task_id":
+			info.TaskID = v.(int64)
 		}
 	}
 	return info

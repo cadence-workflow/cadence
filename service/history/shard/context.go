@@ -661,6 +661,7 @@ func (s *contextImpl) CreateWorkflowExecution(
 	}
 
 	syncWorkflowTimerTaskInfosFromSlice(timerTasks, request.NewWorkflowSnapshot.WorkflowTimerTaskInfos)
+	syncUserTimerInfosFromSlice(timerTasks, request.NewWorkflowSnapshot.TimerInfos)
 
 	if err := s.closedError(); err != nil {
 		return nil, err
@@ -758,6 +759,7 @@ func (s *contextImpl) UpdateWorkflowExecution(
 		return nil, err
 	}
 	syncWorkflowTimerTaskInfosFromSlice(timerTasks, request.UpdateWorkflowMutation.UpsertWorkflowTimerTaskInfos)
+	syncUserTimerInfosFromSlice(timerTasks, request.UpdateWorkflowMutation.UpsertTimerInfos)
 
 	if request.NewWorkflowSnapshot != nil {
 		timerTasks, err = s.allocateTaskIDsLocked(
@@ -770,6 +772,7 @@ func (s *contextImpl) UpdateWorkflowExecution(
 			return nil, err
 		}
 		syncWorkflowTimerTaskInfosFromSlice(timerTasks, request.NewWorkflowSnapshot.WorkflowTimerTaskInfos)
+		syncUserTimerInfosFromSlice(timerTasks, request.NewWorkflowSnapshot.TimerInfos)
 	}
 
 	if err := s.closedError(); err != nil {
@@ -866,6 +869,7 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 			return nil, err
 		}
 		syncWorkflowTimerTaskInfosFromSlice(timerTasks, request.CurrentWorkflowMutation.UpsertWorkflowTimerTaskInfos)
+		syncUserTimerInfosFromSlice(timerTasks, request.CurrentWorkflowMutation.UpsertTimerInfos)
 	}
 
 	timerTasks, err = s.allocateTaskIDsLocked(
@@ -878,6 +882,7 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 		return nil, err
 	}
 	syncWorkflowTimerTaskInfosFromSlice(timerTasks, request.ResetWorkflowSnapshot.WorkflowTimerTaskInfos)
+	syncUserTimerInfosFromSlice(timerTasks, request.ResetWorkflowSnapshot.TimerInfos)
 
 	if request.NewWorkflowSnapshot != nil {
 		timerTasks, err = s.allocateTaskIDsLocked(
@@ -890,6 +895,7 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 			return nil, err
 		}
 		syncWorkflowTimerTaskInfosFromSlice(timerTasks, request.NewWorkflowSnapshot.WorkflowTimerTaskInfos)
+		syncUserTimerInfosFromSlice(timerTasks, request.NewWorkflowSnapshot.TimerInfos)
 	}
 
 	if err := s.closedError(); err != nil {
@@ -1334,6 +1340,28 @@ func syncWorkflowTimerTaskInfosFromSlice(timerTasks []persistence.Task, workflow
 		if info, ok := infoMap[timerTaskInfo.TaskType]; ok {
 			info.TaskID = task.GetTaskID()
 			info.VisibilityTimestamp = task.GetVisibilityTimestamp()
+		}
+	}
+}
+
+// syncUserTimerInfosFromSlice updates TimerInfo objects with TaskIDs
+// that were assigned to their corresponding timer tasks by the shard.
+// This is necessary so that when a workflow is deleted, we can clean up the
+// user timer task records from the executions table using the TaskID.
+func syncUserTimerInfosFromSlice(timerTasks []persistence.Task, userTimerInfos []*persistence.TimerInfo) {
+	infoMap := make(map[int64]*persistence.TimerInfo, len(userTimerInfos))
+	for _, info := range userTimerInfos {
+		infoMap[info.StartedID] = info
+	}
+
+	for _, task := range timerTasks {
+		userTimerTask, ok := task.(*persistence.UserTimerTask)
+		if !ok {
+			continue
+		}
+
+		if info, ok := infoMap[userTimerTask.EventID]; ok {
+			info.TaskID = task.GetTaskID()
 		}
 	}
 }

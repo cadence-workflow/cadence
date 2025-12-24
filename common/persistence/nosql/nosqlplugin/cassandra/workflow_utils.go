@@ -929,6 +929,7 @@ func resetTimerInfoMap(timerInfos map[string]*persistence.TimerInfo) map[string]
 		// the purpose of indicating whether a timer task is
 		// generated for this timer info
 		tInfo["task_id"] = t.TaskStatus
+		tInfo["timer_task_id"] = t.TaskID
 
 		tMap[t.TimerID] = tInfo
 	}
@@ -969,6 +970,7 @@ func updateTimerInfos(
 			timerInfo.StartedID,
 			timerInfo.ExpiryTime,
 			timerInfo.TaskStatus,
+			timerInfo.TaskID,
 			timeStamp,
 			shardID,
 			rowTypeExecution,

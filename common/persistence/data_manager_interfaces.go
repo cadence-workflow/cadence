@@ -658,6 +658,7 @@ type (
 		StartedID  int64
 		ExpiryTime time.Time
 		TaskStatus int64
+		TaskID     int64
 	}
 
 	// WorkflowTimerTaskInfo contains metadata about workflow-level timer tasks.
