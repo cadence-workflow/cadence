@@ -36,6 +36,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
@@ -1912,4 +1913,56 @@ func persistencePartitions(num int) map[int]*persistence.TaskListPartition {
 		result[i] = &persistence.TaskListPartition{}
 	}
 	return result
+}
+
+func TestTaskListUsesOverrideRPS(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		overrideRPS          float64
+		maxDispatchPerSecond *float64
+		expectedRPS          float64
+	}{
+		{
+			name:                 "Uses maxDispatchPerSecond when overrideRPS is zero",
+			overrideRPS:          0.0,
+			maxDispatchPerSecond: common.Float64Ptr(75.0),
+			expectedRPS:          75.0,
+		},
+		{
+			name:                 "Uses maxDispatchPerSecond when overrideRPS is negative",
+			overrideRPS:          -1.0,
+			maxDispatchPerSecond: common.Float64Ptr(60.0),
+			expectedRPS:          60.0,
+		},
+		{
+			name:                 "OverrideRPS takes precedence when higher than maxDispatchPerSecond",
+			overrideRPS:          200.0,
+			maxDispatchPerSecond: common.Float64Ptr(50.0),
+			expectedRPS:          200.0,
+		},
+		{
+			name:                 "OverrideRPS takes precedence when lower than maxDispatchPerSecond",
+			overrideRPS:          25.0,
+			maxDispatchPerSecond: common.Float64Ptr(100.0),
+			expectedRPS:          25.0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			logger := testlogger.New(t)
+
+			cfg := defaultTestConfig()
+			cfg.OverrideTaskListRPS = func(domain, taskList string, taskType int) float64 {
+				return tc.overrideRPS
+			}
+
+			tlm := createTestTaskListManagerWithConfig(t, logger, controller, cfg, clock.NewMockedTimeSource())
+
+			_, _ = tlm.GetTask(context.Background(), tc.maxDispatchPerSecond)
+
+			assert.Equal(t, rate.Limit(tc.expectedRPS), tlm.limiter.Limit())
+		})
+	}
 }
