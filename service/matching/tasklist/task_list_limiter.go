@@ -71,7 +71,7 @@ func (l *taskListLimiter) ReportLimit(rps float64) {
 	// unless it is the overrideRPS
 	if now.Sub(l.lastUpdate.Load()) < l.ttl {
 		current := l.value.Load()
-		if rps > current && rps != l.overrideRPS() {
+		if rps > current && (l.overrideRPS() <= 0 || rps != l.overrideRPS()) {
 			return
 		}
 		// If it's roughly equal to the current value, track the timestamp
@@ -97,7 +97,7 @@ func (l *taskListLimiter) tryUpdate(rps float64) {
 
 	// Take the lower value, or if the ttl expired and haven't received the current low value within the TTL, take the
 	// new value. If the new rps is the overrideRPS, always take it.
-	if rps < current || (ttlElapsed && !l.lastReceivedValue.Load().After(now.Add(-l.ttl))) || rps == l.overrideRPS() {
+	if rps < current || (ttlElapsed && !l.lastReceivedValue.Load().After(now.Add(-l.ttl))) || (l.overrideRPS() > 0 && rps == l.overrideRPS()) {
 		l.lastUpdate.Store(now)
 		l.value.Store(rps)
 		l.lastReceivedValue.Store(now)
