@@ -1439,7 +1439,8 @@ func (m *sqlExecutionStore) DeleteTimerTask(
 	ctx context.Context,
 	request *p.DeleteTimerTaskRequest,
 ) error {
-	// TODO: Implement workflow timer task deletion for SQL stores
-	// This requires storing workflow timer task info in the execution table or a separate table
+	// TODO: Implement timer task deletion for SQL stores. See issue #7567
+	// This should delete timer task records (both workflow timers and user timers) from the timer_tasks table.
+	// Reference implementation: common/persistence/nosql/nosqlplugin/cassandra/workflow.go:523-536
 	return nil
 }

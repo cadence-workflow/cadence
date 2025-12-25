@@ -937,21 +937,6 @@ func resetTimerInfoMap(timerInfos map[string]*persistence.TimerInfo) map[string]
 	return tMap
 }
 
-func resetWorkflowTimerTaskInfoMap(workflowTimerTaskInfos map[int]*persistence.WorkflowTimerTaskInfo) map[int]map[string]interface{} {
-	wtMap := make(map[int]map[string]interface{})
-	for _, wt := range workflowTimerTaskInfos {
-		wtInfo := make(map[string]interface{})
-		wtInfo["version"] = wt.Version
-		wtInfo["timer_task_type"] = wt.TimerTaskType
-		wtInfo["task_id"] = wt.TaskID
-		wtInfo["visibility_ts"] = wt.VisibilityTimestamp
-
-		wtMap[wt.TimerTaskType] = wtInfo
-	}
-
-	return wtMap
-}
-
 func updateTimerInfos(
 	batch gocql.Batch,
 	shardID int,
