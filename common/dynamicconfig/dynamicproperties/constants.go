@@ -2304,6 +2304,14 @@ const (
 
 	MatchingPartitionDownscaleFactor
 
+	// MatchingOverrideTaskListRPS is the RPS override for a specific TaskList.
+	// When set to a non-zero value, this overrides the RPS value that pollers specify.
+	// KeyName: matching.overrideTaskListRps
+	// Value type: Float64
+	// Default value: 0
+	// Allowed filters: DomainName, TaskListName, TaskType
+	MatchingOverrideTaskListRPS
+
 	// Key for shard distributor
 
 	// ShardDistributorErrorInjectionRate is rate for injecting random error in shard distributor client
@@ -4910,6 +4918,12 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		Description:  "MatchingPartitionDownscaleFactor introduces hysteresis to prevent oscillation by setting a lower QPS threshold for downscaling, ensuring partitions are only removed when the load decreases significantly below the capacity of fewer partitions.",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		DefaultValue: 0.75,
+	},
+	MatchingOverrideTaskListRPS: {
+		KeyName:      "matching.overrideTaskListRps",
+		Description:  "MatchingOverrideTaskListRPS is the RPS override for a specific TaskList. When set to a non-zero value, this overrides the RPS value that pollers specify. By default (0), the pollers' specified RPS is respected.",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		DefaultValue: 0,
 	},
 	ShardDistributorErrorInjectionRate: {
 		KeyName:      "sharddistributor.errorInjectionRate",
