@@ -70,6 +70,7 @@ type (
 		EnableStandbyTaskCompletion               dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
 		EnableClientAutoConfig                    dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
 		QPSTrackerInterval                        dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
+		OverrideTaskListRPS                       dynamicproperties.FloatPropertyFnWithTaskListInfoFilters
 		EnablePartitionIsolationGroupAssignment   dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
 		IsolationGroupUpscaleSustainedDuration    dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		IsolationGroupDownscaleSustainedDuration  dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
@@ -140,6 +141,7 @@ type (
 		PartitionDownscaleSustainedDuration       func() time.Duration
 		AdaptiveScalerUpdateInterval              func() time.Duration
 		QPSTrackerInterval                        func() time.Duration
+		OverrideTaskListRPS                       func() float64
 		EnablePartitionIsolationGroupAssignment   func() bool
 		IsolationGroupUpscaleSustainedDuration    func() time.Duration
 		IsolationGroupDownscaleSustainedDuration  func() time.Duration
@@ -219,6 +221,7 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string, rpcConfig config.R
 		EnableAdaptiveScaler:                      dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableAdaptiveScaler),
 		EnablePartitionEmptyCheck:                 dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnablePartitionEmptyCheck),
 		QPSTrackerInterval:                        dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingQPSTrackerInterval),
+		OverrideTaskListRPS:                       dc.GetFloat64PropertyFilteredByTaskListInfo(dynamicproperties.MatchingOverrideTaskListRPS),
 		EnablePartitionIsolationGroupAssignment:   dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.EnablePartitionIsolationGroupAssignment),
 		IsolationGroupUpscaleSustainedDuration:    dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupUpscaleSustainedDuration),
 		IsolationGroupDownscaleSustainedDuration:  dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupDownscaleSustainedDuration),
