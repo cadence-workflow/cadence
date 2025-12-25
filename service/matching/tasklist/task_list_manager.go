@@ -683,15 +683,17 @@ func (c *taskListManagerImpl) getTask(ctx context.Context, maxDispatchPerSecond 
 	isolationGroup := IsolationGroupFromContext(ctx)
 	pollerID := PollerIDFromContext(ctx)
 	identity := IdentityFromContext(ctx)
-	rps := 0.0
+	rps := -1.0
 	rpsOverride := c.limiter.overrideRPS()
 	if rpsOverride > 0 {
 		rps = rpsOverride
 	} else if maxDispatchPerSecond != nil {
 		rps = *maxDispatchPerSecond
 	}
-	if rps > 0 {
+	if rps >= 0 {
 		c.limiter.ReportLimit(rps)
+	} else {
+		rps = c.config.TaskDispatchRPS
 	}
 	c.pollers.StartPoll(pollerID, cancel, &poller.Info{
 		Identity:       identity,
