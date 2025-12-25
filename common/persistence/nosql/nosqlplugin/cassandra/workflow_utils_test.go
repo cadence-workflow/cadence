@@ -1832,7 +1832,7 @@ func TestResetTimerInfos(t *testing.T) {
 			},
 			wantQueries: []string{
 				`UPDATE executions SET timer_map = map[` +
-					`timer1:map[expiry_time:2023-12-12 22:08:41 +0000 UTC started_id:2 task_id:1 timer_id:timer1 version:1]` +
+					`timer1:map[expiry_time:2023-12-12 22:08:41 +0000 UTC started_id:2 task_id:1 timer_id:timer1 timer_task_id:0 version:1]` +
 					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
@@ -1891,7 +1891,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 			deleteInfos: []string{"timer2"},
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
-					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
+					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1, timer_task_id: 0` +
 					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
