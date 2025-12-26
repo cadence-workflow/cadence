@@ -216,6 +216,15 @@ CREATE TYPE timer_info (
   -- the purpose of indicating whether a timer task is
   -- generated for this timer info
   task_id       bigint,
+  timer_task_id bigint,    -- The actual task ID of the timer task record (type=3) for cleanup
+);
+
+-- Workflow-level timer task info for tracking tasks that need cleanup
+CREATE TYPE workflow_timer_task_info (
+  version             bigint,
+  timer_task_type     int,
+  task_id             bigint,
+  visibility_ts       timestamp
 );
 
 -- Child execution in progress mutable state
@@ -375,6 +384,7 @@ CREATE TABLE executions (
   range_id                       bigint, -- Increasing sequence identifier for transfer queue, checkpointed into shard info
   activity_map                   map<bigint, frozen<activity_info>>,
   timer_map                      map<text, frozen<timer_info>>,
+  workflow_timer_task_map        map<int, frozen<workflow_timer_task_info>>,
   child_executions_map           map<bigint, frozen<child_execution_info>>,
   request_cancel_map             map<bigint, frozen<request_cancel_info>>,
   signal_map                     map<bigint, frozen<signal_info>>,

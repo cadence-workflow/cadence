@@ -791,6 +791,18 @@ func (mr *MockMutableStateMockRecorder) AddWorkflowExecutionTerminatedEvent(firs
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddWorkflowExecutionTerminatedEvent", reflect.TypeOf((*MockMutableState)(nil).AddWorkflowExecutionTerminatedEvent), firstEventID, reason, details, identity)
 }
 
+// AddWorkflowTimerTaskInfo mocks base method.
+func (m *MockMutableState) AddWorkflowTimerTaskInfo(info *persistence.WorkflowTimerTaskInfo) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddWorkflowTimerTaskInfo", info)
+}
+
+// AddWorkflowTimerTaskInfo indicates an expected call of AddWorkflowTimerTaskInfo.
+func (mr *MockMutableStateMockRecorder) AddWorkflowTimerTaskInfo(info any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddWorkflowTimerTaskInfo", reflect.TypeOf((*MockMutableState)(nil).AddWorkflowTimerTaskInfo), info)
+}
+
 // ByteSize mocks base method.
 func (m *MockMutableState) ByteSize() uint64 {
 	m.ctrl.T.Helper()
@@ -1382,6 +1394,20 @@ func (m *MockMutableState) GetPendingTimerInfos() map[string]*persistence.TimerI
 func (mr *MockMutableStateMockRecorder) GetPendingTimerInfos() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingTimerInfos", reflect.TypeOf((*MockMutableState)(nil).GetPendingTimerInfos))
+}
+
+// GetPendingWorkflowTimerTaskInfos mocks base method.
+func (m *MockMutableState) GetPendingWorkflowTimerTaskInfos() map[int]*persistence.WorkflowTimerTaskInfo {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPendingWorkflowTimerTaskInfos")
+	ret0, _ := ret[0].(map[int]*persistence.WorkflowTimerTaskInfo)
+	return ret0
+}
+
+// GetPendingWorkflowTimerTaskInfos indicates an expected call of GetPendingWorkflowTimerTaskInfos.
+func (mr *MockMutableStateMockRecorder) GetPendingWorkflowTimerTaskInfos() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingWorkflowTimerTaskInfos", reflect.TypeOf((*MockMutableState)(nil).GetPendingWorkflowTimerTaskInfos))
 }
 
 // GetPreviousStartedEventID mocks base method.

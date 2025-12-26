@@ -929,6 +929,7 @@ func resetTimerInfoMap(timerInfos map[string]*persistence.TimerInfo) map[string]
 		// the purpose of indicating whether a timer task is
 		// generated for this timer info
 		tInfo["task_id"] = t.TaskStatus
+		tInfo["timer_task_id"] = t.TaskID
 
 		tMap[t.TimerID] = tInfo
 	}
@@ -954,6 +955,7 @@ func updateTimerInfos(
 			timerInfo.StartedID,
 			timerInfo.ExpiryTime,
 			timerInfo.TaskStatus,
+			timerInfo.TaskID,
 			timeStamp,
 			shardID,
 			rowTypeExecution,
@@ -975,6 +977,35 @@ func updateTimerInfos(
 			defaultVisibilityTimestamp,
 			rowTypeExecutionTaskID)
 	}
+	return nil
+}
+
+func updateWorkflowTimerTaskInfos(
+	batch gocql.Batch,
+	shardID int,
+	domainID string,
+	workflowID string,
+	runID string,
+	workflowTimerTaskInfos map[int]*persistence.WorkflowTimerTaskInfo,
+	timeStamp time.Time,
+) error {
+	for _, info := range workflowTimerTaskInfos {
+		batch.Query(templateUpdateWorkflowTimerTaskInfoQuery,
+			info.TimerTaskType,
+			info.Version,
+			info.TimerTaskType,
+			info.TaskID,
+			info.VisibilityTimestamp,
+			timeStamp,
+			shardID,
+			rowTypeExecution,
+			domainID,
+			workflowID,
+			runID,
+			defaultVisibilityTimestamp,
+			rowTypeExecutionTaskID)
+	}
+
 	return nil
 }
 
@@ -1163,6 +1194,10 @@ func createWorkflowExecutionWithMergeMaps(
 	if err != nil {
 		return err
 	}
+	err = updateWorkflowTimerTaskInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTaskInfos, timeStamp)
+	if err != nil {
+		return err
+	}
 	err = updateChildExecutionInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ChildWorkflowInfos, nil, timeStamp)
 	if err != nil {
 		return err
@@ -1311,6 +1346,10 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 		return err
 	}
 	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete, timeStamp)
+	if err != nil {
+		return err
+	}
+	err = updateWorkflowTimerTaskInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTaskInfos, timeStamp)
 	if err != nil {
 		return err
 	}

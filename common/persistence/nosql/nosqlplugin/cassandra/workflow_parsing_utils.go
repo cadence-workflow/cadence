@@ -350,6 +350,28 @@ func parseTimerInfo(
 			// the purpose of indicating whether a timer task is
 			// generated for this timer info
 			info.TaskStatus = v.(int64)
+		case "timer_task_id":
+			info.TaskID = v.(int64)
+		}
+	}
+	return info
+}
+
+func parseWorkflowTimerTaskInfo(
+	result map[string]interface{},
+) *persistence.WorkflowTimerTaskInfo {
+
+	info := &persistence.WorkflowTimerTaskInfo{}
+	for k, v := range result {
+		switch k {
+		case "version":
+			info.Version = v.(int64)
+		case "timer_task_type":
+			info.TimerTaskType = v.(int)
+		case "task_id":
+			info.TaskID = v.(int64)
+		case "visibility_ts":
+			info.VisibilityTimestamp = v.(time.Time)
 		}
 	}
 	return info
