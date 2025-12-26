@@ -204,6 +204,7 @@ func CopyTimerInfo(t *testing.T, sourceInfo *persistence.TimerInfo) *persistence
 		StartedID:  sourceInfo.StartedID,
 		ExpiryTime: sourceInfo.ExpiryTime,
 		TaskStatus: sourceInfo.TaskStatus,
+		TaskID:     sourceInfo.TaskID,
 	}
 }
 

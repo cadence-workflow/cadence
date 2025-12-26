@@ -370,6 +370,12 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowStartTasks() {
 					Version:             tc.startEvent.Version,
 				},
 			}).Times(1)
+			s.mockMutableState.EXPECT().AddWorkflowTimerTaskInfo(&persistence.WorkflowTimerTaskInfo{
+				Version:             tc.startEvent.Version,
+				TimerTaskType:       persistence.TaskTypeWorkflowTimeout,
+				TaskID:              0,
+				VisibilityTimestamp: tc.visibilityTimestamp,
+			}).Times(1)
 
 			err := s.taskGenerator.GenerateWorkflowStartTasks(startTime, tc.startEvent)
 
