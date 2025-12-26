@@ -351,6 +351,12 @@ func (e *mutableStateBuilder) Load(
 	e.pendingSignalInfoIDs = state.SignalInfos
 	e.pendingSignalRequestedIDs = state.SignalRequestedIDs
 	e.pendingWorkflowTimerTaskInfos = state.WorkflowTimerTaskInfos
+	if e.pendingWorkflowTimerTaskInfos == nil {
+		e.pendingWorkflowTimerTaskInfos = make(map[int]*persistence.WorkflowTimerTaskInfo)
+	}
+	if e.updateWorkflowTimerTaskInfos == nil {
+		e.updateWorkflowTimerTaskInfos = make(map[int]*persistence.WorkflowTimerTaskInfo)
+	}
 	e.executionInfo = state.ExecutionInfo
 	e.bufferedEvents = e.reorderAndFilterDuplicateEvents(state.BufferedEvents, "load")
 
