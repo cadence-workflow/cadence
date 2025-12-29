@@ -70,6 +70,7 @@ func TestNewConfig(t *testing.T) {
 		"GlobalDomainWorkerRPS":                             {dynamicproperties.FrontendGlobalDomainWorkerRPS, 17},
 		"GlobalDomainVisibilityRPS":                         {dynamicproperties.FrontendGlobalDomainVisibilityRPS, 18},
 		"GlobalDomainAsyncRPS":                              {dynamicproperties.FrontendGlobalDomainAsyncRPS, 19},
+		"MaxWorkerPollWait":                                 {dynamicproperties.FrontendMaxWorkerPollWait, time.Duration(30)},
 		"MaxIDLengthWarnLimit":                              {dynamicproperties.MaxIDLengthWarnLimit, 20},
 		"DomainNameMaxLength":                               {dynamicproperties.DomainNameMaxLength, 21},
 		"IdentityMaxLength":                                 {dynamicproperties.IdentityMaxLength, 22},

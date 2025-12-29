@@ -20,6 +20,8 @@
 
 package quotas
 
+import "context"
+
 // MultiStageRateLimiter indicates a domain specific rate limit policy
 type MultiStageRateLimiter struct {
 	domainLimiters ICollection
@@ -60,4 +62,28 @@ func (d *MultiStageRateLimiter) Allow(info Info) (allowed bool) {
 		return false
 	}
 	return true
+}
+
+// Wait waits up till the context deadline for a rate limit token to allow the request
+// to go through. This waits on the per-domain limiter, then waits on the global limiter.
+func (d *MultiStageRateLimiter) Wait(ctx context.Context, info Info) error {
+	domain := info.Domain
+	if len(domain) == 0 {
+		return d.globalLimiter.Wait(ctx)
+	}
+
+	err := d.domainLimiters.For(domain).Wait(ctx)
+	if err != nil {
+		return err
+	}
+
+	// A limitation in this implementation is that when domain limiter
+	// allows but global limiter does not, we have already consumed a token
+	// from the domain limiter and cannot return it, because Wait() doesn't
+	// return a reservation. This should not affect throughput since 
+	// global limiter is the bottleneck in this situation.
+	if err := d.globalLimiter.Wait(ctx); err != nil {
+		return err
+	}
+	return nil
 }

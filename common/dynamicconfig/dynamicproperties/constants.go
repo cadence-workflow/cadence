@@ -2532,6 +2532,13 @@ const (
 	// Value type: Duration
 	// Default value: 3 seconds
 	GlobalRatelimiterUpdateInterval
+	// FrontendMaxWorkerPollWait is the maximum duration a worker poll request (PollForActivityTask, PollForDecisionTask)
+	// will wait for a rate limit token before being rejected
+	// KeyName: frontend.maxWorkerPollWait
+	// Value type: Duration
+	// Default value: 0
+	// Allowed filters: DomainName
+	FrontendMaxWorkerPollWait
 
 	// MatchingLongPollExpirationInterval is the long poll expiration interval in the matching service
 	// KeyName: matching.longPollExpirationInterval
@@ -5111,6 +5118,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "frontend.globalRatelimiterUpdateInterval",
 		Description:  "GlobalRatelimiterUpdateInterval defines how often each global ratelimiter collection submits load information, and the expected update rate in aggregators (used to determine when hosts are lost)",
 		DefaultValue: 3 * time.Second,
+	},
+	FrontendMaxWorkerPollWait: {
+		KeyName:      "frontend.maxWorkerPollWait",
+		Filters:      []Filter{DomainName},
+		Description:  "FrontendMaxWorkerPollWait is the maximum duration a worker poll request will wait for a rate limit token before being rejected",
+		DefaultValue: 0,
 	},
 	MatchingLongPollExpirationInterval: {
 		KeyName:      "matching.longPollExpirationInterval",

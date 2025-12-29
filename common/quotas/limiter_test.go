@@ -88,6 +88,65 @@ func TestMultiStageRateLimitingMultipleDomains(t *testing.T) {
 	check(" after refill")
 }
 
+func TestMultiStageRateLimitingWaitDomainRPS(t *testing.T) {
+	t.Parallel()
+	policy := newFixedRpsMultiStageRateLimiter(t, 2, 1)
+
+	check := func(suffix string) {
+		withTimeout100(func(ctx context.Context) {
+			assert.NoError(t, policy.Wait(ctx, Info{Domain: "one"}), "first should work"+suffix)
+		})
+		withTimeout100(func(ctx context.Context) {
+			err := policy.Wait(ctx, Info{Domain: "one"})
+			assert.Error(t, err, "second should be limited"+suffix) // per domain limited
+			assert.ErrorIs(t, err, clock.ErrCannotWait, "should return ErrCannotWait when rate limited"+suffix)
+		})
+		withTimeout1010(func(ctx context.Context) {
+			assert.NoError(t, policy.Wait(ctx, Info{Domain: "one"}), "third should work after waiting 1.01s"+suffix) // domain token replenished
+		})
+	}
+
+	check("")
+	// allow bucket to refill
+	time.Sleep(time.Second)
+	check(" after refill")
+}
+
+func TestMultiStageRateLimiterWaitGlobalRPS(t *testing.T) {
+	t.Parallel()
+	policy := newFixedRpsMultiStageRateLimiter(t, 1, 2)
+	check := func(suffix string) {
+		withTimeout100(func(ctx context.Context) {
+			assert.NoError(t, policy.Wait(ctx, Info{Domain: defaultDomain}), "first should work"+suffix)
+		})
+		withTimeout100(func(ctx context.Context) {
+			err := policy.Wait(ctx, Info{Domain: defaultDomain})
+			assert.Error(t, err, "second should be limited"+suffix) // global limited
+			assert.ErrorIs(t, err, clock.ErrCannotWait, "should return ErrCannotWait when rate limited"+suffix)
+		})
+		withTimeout1010(func(ctx context.Context) {
+			assert.NoError(t, policy.Wait(ctx, Info{Domain: defaultDomain}), "third should work after waiting 1.01s"+suffix) // global token replenished
+		})
+	}
+
+	check("")
+	// allow bucket to refill
+	time.Sleep(time.Second)
+	check(" after refill")
+}
+
+// helper functions for setting context timeouts
+func withTimeout100(f func(ctx context.Context)) {
+    ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond) // 0.1 second timeout
+    defer cancel()
+    f(ctx)
+}
+func withTimeout1010(f func(ctx context.Context)) {
+    ctx, cancel := context.WithTimeout(context.Background(), 1010*time.Millisecond) // 1.01 second timeout
+    defer cancel()
+    f(ctx)
+}
+
 func BenchmarkMultiStageRateLimiter(b *testing.B) {
 	policy := newFixedRpsMultiStageRateLimiter(b, defaultRps, defaultRps)
 	for n := 0; n < b.N; n++ {

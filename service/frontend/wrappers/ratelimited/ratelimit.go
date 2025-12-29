@@ -23,6 +23,8 @@
 package ratelimited
 
 import (
+	"context"
+
 	"github.com/uber/cadence/common/quotas"
 )
 
@@ -36,17 +38,39 @@ const (
 	ratelimitTypeAsync
 )
 
-func (h *apiHandler) allowDomain(requestType ratelimitType, domain string) bool {
+func (h *apiHandler) allowDomain(ctx context.Context, requestType ratelimitType, domain string) (bool, error) {
+	info := quotas.Info{Domain: domain}
+	var policy quotas.Policy
 	switch requestType {
 	case ratelimitTypeUser:
-		return h.userRateLimiter.Allow(quotas.Info{Domain: domain})
+		policy = h.userRateLimiter
 	case ratelimitTypeWorker:
-		return h.workerRateLimiter.Allow(quotas.Info{Domain: domain})
+		policy = h.workerRateLimiter
 	case ratelimitTypeVisibility:
-		return h.visibilityRateLimiter.Allow(quotas.Info{Domain: domain})
+		policy = h.visibilityRateLimiter
 	case ratelimitTypeAsync:
-		return h.asyncRateLimiter.Allow(quotas.Info{Domain: domain})
+		policy = h.asyncRateLimiter
 	default:
 		panic("coding error, unrecognized request ratelimit type value")
 	}
+	
+	// If context has a deadline, use Wait() to potentially wait for a token
+	// Otherwise, use Allow() for an immediate check
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		err := policy.Wait(ctx, info)
+		if err != nil {
+			ctxErr := ctx.Err()
+			switch ctxErr {
+				case nil:
+					return false, nil // rate limited
+				case context.DeadlineExceeded:
+					return policy.Allow(info), nil // Race condition: context deadline hit right around wait completion
+				default:
+					return false, ctxErr
+			}
+		}
+		return true, nil
+	}
+	
+	return policy.Allow(info), nil
 }
