@@ -11,6 +11,7 @@ import (
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/rpc"
@@ -32,8 +33,8 @@ func TestFxServiceStartStop(t *testing.T) {
 				factory.EXPECT().GetDispatcher().Return(testDispatcher)
 				return factory
 			},
-			func() *config.Config {
-				return &config.Config{}
+			func() *dynamicconfig.Collection {
+				return dynamicconfig.NewNopCollection()
 			},
 			fx.Annotated{Target: func() string { return "testHost" }, Name: "hostname"},
 			func() store.Elector {
