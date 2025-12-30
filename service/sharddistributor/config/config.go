@@ -23,14 +23,12 @@
 package config
 
 import (
-	"testing"
 	"time"
 
 	"gopkg.in/yaml.v2"
 
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -192,22 +190,4 @@ func (y *YamlNode) Decode(out any) error {
 		return nil
 	}
 	return y.unmarshal(out)
-}
-
-type ConfigEntry struct {
-	Key   dynamicproperties.Key
-	Value interface{}
-}
-
-func NewTestMigrationConfig(t *testing.T, configEntries []ConfigEntry) *Config {
-	client := dynamicconfig.NewInMemoryClient()
-	for _, entry := range configEntries {
-		err := client.UpdateValue(entry.Key, entry.Value)
-		if err != nil {
-			t.Errorf("Failed to update config ")
-		}
-	}
-	dc := dynamicconfig.NewCollection(client, testlogger.New(t))
-	migrationConfig := NewConfig(dc)
-	return migrationConfig
 }

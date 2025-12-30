@@ -397,6 +397,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	newState := p.getNewAssignmentsState(namespaceState, currentAssignments)
 	if p.sdConfig.GetMigrationMode(p.namespaceCfg.Name) != types.MigrationModeONBOARDED {
 		p.logger.Info("Running rebalancing in shadow mode", tag.Dynamic("old_assignments", namespaceState.ShardAssignments), tag.Dynamic("new_assignments", newState))
+		p.emitActiveShardMetric(namespaceState.ShardAssignments, metricsLoopScope)
 		return nil
 	}
 
@@ -412,13 +413,16 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 		return fmt.Errorf("assign shards: %w", err)
 	}
 
+	p.emitActiveShardMetric(namespaceState.ShardAssignments, metricsLoopScope)
+	return nil
+}
+
+func (p *namespaceProcessor) emitActiveShardMetric(shardAssignments map[string]store.AssignedState, metricsLoopScope metrics.Scope) {
 	totalActiveShards := 0
-	for _, assignedState := range namespaceState.ShardAssignments {
+	for _, assignedState := range shardAssignments {
 		totalActiveShards += len(assignedState.AssignedShards)
 	}
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorActiveShards, float64(totalActiveShards))
-
-	return nil
 }
 
 func (p *namespaceProcessor) findDeletedShards(namespaceState *store.NamespaceState) map[string]store.ShardState {

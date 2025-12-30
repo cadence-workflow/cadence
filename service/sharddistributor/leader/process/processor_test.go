@@ -19,35 +19,37 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/config/configtest"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
 type testDependencies struct {
-	ctrl          *gomock.Controller
-	store         *store.MockStore
-	election      *store.MockElection
-	timeSource    clock.MockedTimeSource
-	factory       Factory
-	cfg           config.Namespace
-	sdConfig      *config.Config
-	migrationMode string
+	ctrl       *gomock.Controller
+	store      *store.MockStore
+	election   *store.MockElection
+	timeSource clock.MockedTimeSource
+	factory    Factory
+	cfg        config.Namespace
+	sdConfig   *config.Config
 }
 
 func setupProcessorTest(t *testing.T, namespaceType string) *testDependencies {
-	migrationConfig := config.NewTestMigrationConfig(t, []config.ConfigEntry{{dynamicproperties.MigrationMode, config.MigrationModeONBOARDED}})
+	migrationConfig := configtest.NewTestMigrationConfig(t,
+		configtest.ConfigEntry{
+			Key:   dynamicproperties.ShardDistributorMigrationMode,
+			Value: config.MigrationModeONBOARDED})
 	return setupProcessorTestWithMigrationConfig(t, namespaceType, migrationConfig)
 }
 
-func setupProcessorTestWithMigrationConfig(t *testing.T, namespaceType string, migrationConfig config.MigrationConfig) *testDependencies {
+func setupProcessorTestWithMigrationConfig(t *testing.T, namespaceType string, migrationConfig *config.Config) *testDependencies {
 	ctrl := gomock.NewController(t)
 	mockedClock := clock.NewMockedTimeSource()
 	deps := &testDependencies{
-		ctrl:          ctrl,
-		store:         store.NewMockStore(ctrl),
-		election:      store.NewMockElection(ctrl),
-		timeSource:    mockedClock,
-		cfg:           config.Namespace{Name: "test-ns", ShardNum: 2, Type: namespaceType, Mode: config.MigrationModeONBOARDED},
-		migrationMode: config.MigrationModeONBOARDED,
+		ctrl:       ctrl,
+		store:      store.NewMockStore(ctrl),
+		election:   store.NewMockElection(ctrl),
+		timeSource: mockedClock,
+		cfg:        config.Namespace{Name: "test-ns", ShardNum: 2, Type: namespaceType, Mode: config.MigrationModeONBOARDED},
 	}
 	deps.sdConfig = &config.Config{
 		LoadBalancingMode: func(namespace string) string {
@@ -58,32 +60,9 @@ func setupProcessorTestWithMigrationConfig(t *testing.T, namespaceType string, m
 				return 2.0
 			},
 		},
-		MigrationMode: func(namespace string) string {
-			return deps.migrationMode
-		},
+		MigrationMode: migrationConfig.MigrationMode,
 	}
 
-	return &testDependencies{
-		ctrl:       ctrl,
-		store:      store.NewMockStore(ctrl),
-		election:   store.NewMockElection(ctrl),
-		timeSource: mockedClock,
-		factory: NewProcessorFactory(
-			testlogger.New(t),
-			metrics.NewNoopMetricsClient(),
-			mockedClock,
-			config.ShardDistribution{
-				Process: config.LeaderProcess{
-					Period:       time.Second,
-					HeartbeatTTL: time.Second,
-				},
-			},
-			dynamicConfig,
-			sdConfig,
-		),
-		cfg:      config.Namespace{Name: "test-ns", ShardNum: 2, Type: namespaceType, Mode: config.MigrationModeONBOARDED},
-		sdConfig: sdConfig,
-	}
 	deps.factory = NewProcessorFactory(
 		testlogger.New(t),
 		metrics.NewNoopMetricsClient(),
@@ -421,7 +400,9 @@ func TestRunLoop_ContextCancellation(t *testing.T) {
 }
 
 func TestRebalanceShards_WithUnassignedShardsButNigrationModeNotOnboarded(t *testing.T) {
-	migrationConfig := config.NewTestMigrationConfig(t, []config.ConfigEntry{{dynamicproperties.ShardDistributorMigrationMode, config.MigrationModeDISTRIBUTEDPASSTHROUGH}})
+	migrationConfig := configtest.NewTestMigrationConfig(t, configtest.ConfigEntry{
+		Key:   dynamicproperties.ShardDistributorMigrationMode,
+		Value: config.MigrationModeDISTRIBUTEDPASSTHROUGH})
 	mocks := setupProcessorTestWithMigrationConfig(t, config.NamespaceTypeFixed, migrationConfig)
 	defer mocks.ctrl.Finish()
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
