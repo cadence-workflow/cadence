@@ -665,6 +665,33 @@ func (t *MatcherTestSuite) TestOffer_RateLimited() {
 	t.False(matched)
 }
 
+func (t *MatcherTestSuite) TestOfferOrTimeout_RateLimited() {
+	t.matcher.limiter = clock.NewRatelimiter(0, 0)
+	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", false, &types.ActivityTaskDispatchInfo{}, "")
+
+	ctx := context.Background()
+
+	matched, err := t.matcher.OfferOrTimeout(ctx, time.Now(), task)
+
+	t.ErrorIs(err, ErrTasklistThrottled)
+	t.False(matched)
+}
+
+func (t *MatcherTestSuite) TestOfferOrTimeout_ForwardedNotRateLimited() {
+	// Forwarded tasks should not be rate limited
+	t.matcher.limiter = clock.NewRatelimiter(0, 0)
+	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "forwarded-from", false, &types.ActivityTaskDispatchInfo{}, "")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	// Should timeout instead of being rate limited since forwarded tasks bypass rate limiting
+	matched, err := t.matcher.OfferOrTimeout(ctx, time.Now(), task)
+
+	t.NoError(err)
+	t.False(matched)
+}
+
 func (t *MatcherTestSuite) TestOffer_NoTimeoutSyncMatchedNoError() {
 	defer goleak.VerifyNone(t.T())
 
