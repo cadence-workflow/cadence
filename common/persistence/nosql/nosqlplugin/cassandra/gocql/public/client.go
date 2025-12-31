@@ -79,9 +79,8 @@ func (c client) IsThrottlingError(err error) bool {
 func (c client) IsDBUnavailableError(err error) bool {
 	var e gogocql.RequestError
 	if errors.As(err, &e) {
-		// 0x1000 == UNAVAILABLE
-		// if this is not the expected error code, bail out early
-		if e.Code() != 0x1000 {
+		// sanity check that the error is the expected error
+		if e.Code() != gogocql.ErrCodeUnavailable {
 			return false
 		}
 		// emit these errors in the condition that the database is in trouble
