@@ -22,7 +22,6 @@ type taskListLimiter struct {
 	scope             metrics.Scope
 	ttl               time.Duration
 	minBurst          int
-	overrideRPS       func() float64
 	lock              sync.Mutex
 	value             atomic.Float64
 	lastReceivedValue atomic.Time
@@ -38,7 +37,6 @@ func newTaskListLimiter(timeSource clock.TimeSource, scope metrics.Scope, config
 		ttl:             config.TaskDispatchRPSTTL,
 		countPartitions: numPartitions,
 		minBurst:        config.MinTaskThrottlingBurstSize(),
-		overrideRPS:     config.OverrideTaskListRPS,
 	}
 	l.value.Store(config.TaskDispatchRPS)
 	l.partitions = numPartitions()
@@ -68,10 +66,9 @@ func (l *taskListLimiter) Limit() rate.Limit {
 func (l *taskListLimiter) ReportLimit(rps float64) {
 	now := l.timeSource.Now()
 	// Optimistically reject it without locking if it's >= current and within the TTL
-	// unless it is the overrideRPS
 	if now.Sub(l.lastUpdate.Load()) < l.ttl {
 		current := l.value.Load()
-		if rps > current && (l.overrideRPS() <= 0 || rps != l.overrideRPS()) {
+		if rps > current {
 			return
 		}
 		// If it's roughly equal to the current value, track the timestamp
@@ -96,8 +93,8 @@ func (l *taskListLimiter) tryUpdate(rps float64) {
 	changed := false
 
 	// Take the lower value, or if the ttl expired and haven't received the current low value within the TTL, take the
-	// new value. If the new rps is the overrideRPS, always take it.
-	if rps < current || (ttlElapsed && !l.lastReceivedValue.Load().After(now.Add(-l.ttl))) || (l.overrideRPS() > 0 && rps == l.overrideRPS()) {
+	// new value
+	if rps < current || (ttlElapsed && !l.lastReceivedValue.Load().After(now.Add(-l.ttl))) {
 		l.lastUpdate.Store(now)
 		l.value.Store(rps)
 		l.lastReceivedValue.Store(now)
