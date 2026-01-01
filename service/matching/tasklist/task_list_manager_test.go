@@ -1946,6 +1946,18 @@ func TestTaskListUsesOverrideRPS(t *testing.T) {
 			maxDispatchPerSecond: common.Float64Ptr(100.0),
 			expectedRPS:          25.0,
 		},
+		{
+			name:                 "No maxDispatchPerSecond and no overrideRPS",
+			overrideRPS:          0.0,
+			maxDispatchPerSecond: nil,
+			expectedRPS:          100000.0,
+		},
+		{
+			name:                 "OverrideRPS only, with no maxDispatchPerSecond",
+			overrideRPS:          150.0,
+			maxDispatchPerSecond: nil,
+			expectedRPS:          150.0,
+		},
 	}
 
 	for _, tc := range testCases {
