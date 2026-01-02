@@ -24,8 +24,10 @@ package ratelimited
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/quotas"
+	"github.com/uber/cadence/common/types"
 )
 
 // ratelimitType differentiates between the three categories of ratelimiters
@@ -34,17 +36,19 @@ type ratelimitType int
 const (
 	ratelimitTypeUser ratelimitType = iota + 1
 	ratelimitTypeWorker
+	ratelimitTypeWorkerPoll
 	ratelimitTypeVisibility
 	ratelimitTypeAsync
 )
 
-func (h *apiHandler) allowDomain(ctx context.Context, requestType ratelimitType, domain string) (bool, error) {
-	info := quotas.Info{Domain: domain}
+var ErrRateLimited = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+
+func (h *apiHandler) allowDomain(ctx context.Context, requestType ratelimitType, domain string) error {
 	var policy quotas.Policy
 	switch requestType {
 	case ratelimitTypeUser:
 		policy = h.userRateLimiter
-	case ratelimitTypeWorker:
+	case ratelimitTypeWorker, ratelimitTypeWorkerPoll:
 		policy = h.workerRateLimiter
 	case ratelimitTypeVisibility:
 		policy = h.visibilityRateLimiter
@@ -53,24 +57,39 @@ func (h *apiHandler) allowDomain(ctx context.Context, requestType ratelimitType,
 	default:
 		panic("coding error, unrecognized request ratelimit type value")
 	}
-	
-	// If context has a deadline, use Wait() to potentially wait for a token
-	// Otherwise, use Allow() for an immediate check
-	if _, hasDeadline := ctx.Deadline(); hasDeadline {
-		err := policy.Wait(ctx, info)
-		if err != nil {
-			ctxErr := ctx.Err()
-			switch ctxErr {
-				case nil:
-					return false, nil // rate limited
-				case context.DeadlineExceeded:
-					return policy.Allow(info), nil // Race condition: context deadline hit right around wait completion
-				default:
-					return false, ctxErr
-			}
+
+	// If it is a poll request and there is a maxWorkerPollDelay configured, use Wait()
+	// to potentially wait for a token. Otherwise, use Allow() for an immediate check
+	if requestType == ratelimitTypeWorkerPoll {
+		waitTime := h.maxWorkerPollDelay(domain)
+		if waitTime > 0 {
+			return h.waitForPolicy(ctx, waitTime, policy, domain)
 		}
-		return true, nil
 	}
-	
-	return policy.Allow(info), nil
+	if !policy.Allow(quotas.Info{Domain: domain}) {
+		return ErrRateLimited
+	}
+	return nil
+}
+
+func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, policy quotas.Policy, domain string) error {
+	ctx, cancel := context.WithTimeout(ctx, waitTime)
+	defer cancel()
+	err := policy.Wait(ctx, quotas.Info{Domain: domain})
+	if err != nil {
+		ctxErr := ctx.Err()
+		switch ctxErr {
+		case nil:
+			return ErrRateLimited // rate limited
+		case context.DeadlineExceeded:
+			// Race condition: context deadline hit right around wait completion
+			if !policy.Allow(quotas.Info{Domain: domain}) {
+				return ErrRateLimited
+			}
+			return nil
+		default:
+			return ctxErr
+		}
+	}
+	return nil
 }
