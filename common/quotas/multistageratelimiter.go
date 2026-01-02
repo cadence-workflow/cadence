@@ -80,10 +80,7 @@ func (d *MultiStageRateLimiter) Wait(ctx context.Context, info Info) error {
 	// A limitation in this implementation is that when domain limiter
 	// allows but global limiter does not, we have already consumed a token
 	// from the domain limiter and cannot return it, because Wait() doesn't
-	// return a reservation. This should not affect throughput since 
+	// return a reservation. This should not affect throughput since
 	// global limiter is the bottleneck in this situation.
-	if err := d.globalLimiter.Wait(ctx); err != nil {
-		return err
-	}
-	return nil
+	return d.globalLimiter.Wait(ctx)
 }

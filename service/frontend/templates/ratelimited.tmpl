@@ -1,17 +1,15 @@
 import (
     "context"
 
-    "github.com/uber/cadence/common"
     "github.com/uber/cadence/common/cache"
-    "github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
     "github.com/uber/cadence/common/quotas"
     "github.com/uber/cadence/common/types"
     "github.com/uber/cadence/service/frontend/api"
     "github.com/uber/cadence/service/frontend/validate"
 )
 
-{{$ratelimitTypeMap := dict "PollForActivityTask" "ratelimitTypeWorker"}}
-{{$ratelimitTypeMap = set $ratelimitTypeMap "PollForDecisionTask" "ratelimitTypeWorker"}}
+{{$ratelimitTypeMap := dict "PollForActivityTask" "ratelimitTypeWorkerPoll"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "PollForDecisionTask" "ratelimitTypeWorkerPoll"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "RecordActivityTaskHeartbeat" "ratelimitTypeWorker"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "RecordActivityTaskHeartbeatByID" "ratelimitTypeWorker"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "ResetStickyTaskList" "ratelimitTypeWorker"}}
@@ -63,7 +61,6 @@ import (
 {{$ratelimitTypeMap = set $ratelimitTypeMap "RegisterDomain" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "UpdateDomain" "ratelimitTypeNoop"}}
 
-{{$pollAPIs := list "PollForActivityTask" "PollForDecisionTask"}}
 {{$domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
 {{$nonBlockingAPIs := list "RecordActivityTaskHeartbeat" "RecordActivityTaskHeartbeatByID" "RespondActivityTaskCompleted" "RespondActivityTaskCompletedByID" "RespondActivityTaskFailed" "RespondActivityTaskFailedByID" "RespondActivityTaskCanceled" "RespondActivityTaskCanceledByID" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted" "ResetStickyTaskList"}}
@@ -82,7 +79,7 @@ type {{$decorator}} struct {
     workerRateLimiter quotas.Policy
     visibilityRateLimiter quotas.Policy
     asyncRateLimiter quotas.Policy
-    maxWorkerPollWait dynamicproperties.DurationPropertyFnWithDomainFilter
+    maxWorkerPollDelay dynamicproperties.DurationPropertyFnWithDomainFilter
 }
 
 // New{{$Decorator}} creates a new instance of {{$interfaceName}} with ratelimiter.
@@ -93,7 +90,6 @@ func New{{$Decorator}}(
     workerRateLimiter quotas.Policy,
     visibilityRateLimiter quotas.Policy,
     asyncRateLimiter quotas.Policy,
-    maxWorkerPollWait dynamicproperties.DurationPropertyFnWithDomainFilter,
 ) {{.Interface.Type}} {
     return &{{$decorator}}{
         wrapped: wrapped,
@@ -103,7 +99,6 @@ func New{{$Decorator}}(
         workerRateLimiter: workerRateLimiter,
         visibilityRateLimiter: visibilityRateLimiter,
         asyncRateLimiter: asyncRateLimiter,
-        maxWorkerPollWait: maxWorkerPollWait,
     }
 }
 
@@ -149,24 +144,8 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
             // but we still accept it even if RPS is exceeded
             h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, {{$domain}})
         {{- else}}
-            {{- if has $method.Name $pollAPIs}}
-                checkCtx := {{(index $method.Params 0).Name}}
-                maxWait := h.maxWorkerPollWait({{$domain}})
-                if maxWait > 0 {
-                    var cancel context.CancelFunc
-                    checkCtx, cancel = context.WithTimeout({{(index $method.Params 0).Name}}, maxWait)
-                    defer cancel()
-                }
-                allowed, allowErr := h.allowDomain(checkCtx, {{$ratelimitType}}, {{$domain}})
-            {{- else}}
-                allowed, allowErr := h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, {{$domain}})
-            {{- end}}
-            if allowErr != nil {
-                err = allowErr
-                return
-            }
-            if !allowed {
-                err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+            if limitErr := h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, {{$domain}}); limitErr != nil {
+                err = limitErr
                 return
             }
         {{- end}}

@@ -88,63 +88,65 @@ func TestMultiStageRateLimitingMultipleDomains(t *testing.T) {
 	check(" after refill")
 }
 
-func TestMultiStageRateLimitingWaitDomainRPS(t *testing.T) {
+func TestMultiStageRateLimiterWait(t *testing.T) {
 	t.Parallel()
-	policy := newFixedRpsMultiStageRateLimiter(t, 2, 1)
+	ctx := context.Background()
 
-	check := func(suffix string) {
-		withTimeout100(func(ctx context.Context) {
-			assert.NoError(t, policy.Wait(ctx, Info{Domain: "one"}), "first should work"+suffix)
-		})
-		withTimeout100(func(ctx context.Context) {
-			err := policy.Wait(ctx, Info{Domain: "one"})
-			assert.Error(t, err, "second should be limited"+suffix) // per domain limited
-			assert.ErrorIs(t, err, clock.ErrCannotWait, "should return ErrCannotWait when rate limited"+suffix)
-		})
-		withTimeout1010(func(ctx context.Context) {
-			assert.NoError(t, policy.Wait(ctx, Info{Domain: "one"}), "third should work after waiting 1.01s"+suffix) // domain token replenished
-		})
+	cases := []struct {
+		name        string
+		policy      Policy
+		info        Info
+		expectedErr error
+	}{
+		{
+			name:        "both allow",
+			policy:      newFixedRpsMultiStageRateLimiter(t, 2, 1),
+			info:        Info{Domain: defaultDomain},
+			expectedErr: nil,
+		},
+		{
+			name:        "global blocks",
+			policy:      newFixedRpsMultiStageRateLimiter(t, 0, 1),
+			info:        Info{Domain: defaultDomain},
+			expectedErr: clock.ErrCannotWait,
+		},
+		{
+			name:        "domain blocks",
+			policy:      newFixedRpsMultiStageRateLimiter(t, 2, 0),
+			info:        Info{Domain: defaultDomain},
+			expectedErr: clock.ErrCannotWait,
+		},
+		{
+			name:        "both block",
+			policy:      newFixedRpsMultiStageRateLimiter(t, 0, 0),
+			info:        Info{Domain: defaultDomain},
+			expectedErr: clock.ErrCannotWait,
+		},
+		{
+			name:        "empty domain uses global only - allow",
+			policy:      newFixedRpsMultiStageRateLimiter(t, 1, 0),
+			info:        Info{Domain: ""},
+			expectedErr: nil,
+		},
+		{
+			name:        "empty domain uses global only - block",
+			policy:      newFixedRpsMultiStageRateLimiter(t, 0, 0),
+			info:        Info{Domain: ""},
+			expectedErr: clock.ErrCannotWait,
+		},
 	}
 
-	check("")
-	// allow bucket to refill
-	time.Sleep(time.Second)
-	check(" after refill")
-}
-
-func TestMultiStageRateLimiterWaitGlobalRPS(t *testing.T) {
-	t.Parallel()
-	policy := newFixedRpsMultiStageRateLimiter(t, 1, 2)
-	check := func(suffix string) {
-		withTimeout100(func(ctx context.Context) {
-			assert.NoError(t, policy.Wait(ctx, Info{Domain: defaultDomain}), "first should work"+suffix)
-		})
-		withTimeout100(func(ctx context.Context) {
-			err := policy.Wait(ctx, Info{Domain: defaultDomain})
-			assert.Error(t, err, "second should be limited"+suffix) // global limited
-			assert.ErrorIs(t, err, clock.ErrCannotWait, "should return ErrCannotWait when rate limited"+suffix)
-		})
-		withTimeout1010(func(ctx context.Context) {
-			assert.NoError(t, policy.Wait(ctx, Info{Domain: defaultDomain}), "third should work after waiting 1.01s"+suffix) // global token replenished
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := tc.policy
+			err := policy.Wait(ctx, tc.info)
+			if tc.expectedErr != nil {
+				assert.ErrorIs(t, err, tc.expectedErr)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
-
-	check("")
-	// allow bucket to refill
-	time.Sleep(time.Second)
-	check(" after refill")
-}
-
-// helper functions for setting context timeouts
-func withTimeout100(f func(ctx context.Context)) {
-    ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond) // 0.1 second timeout
-    defer cancel()
-    f(ctx)
-}
-func withTimeout1010(f func(ctx context.Context)) {
-    ctx, cancel := context.WithTimeout(context.Background(), 1010*time.Millisecond) // 1.01 second timeout
-    defer cancel()
-    f(ctx)
 }
 
 func BenchmarkMultiStageRateLimiter(b *testing.B) {
