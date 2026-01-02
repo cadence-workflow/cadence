@@ -210,6 +210,7 @@ func TestNewConfig(t *testing.T) {
 		"MaxDecisionStartToCloseSeconds":                       {dynamicproperties.MaxDecisionStartToCloseSeconds, 81},
 		"DecisionRetryCriticalAttempts":                        {dynamicproperties.DecisionRetryCriticalAttempts, 82},
 		"DecisionRetryMaxAttempts":                             {dynamicproperties.DecisionRetryMaxAttempts, 83},
+		"DecisionTimeoutMaxAttempts":                           {dynamicproperties.DecisionTimeoutMaxAttempts, 5},
 		"NormalDecisionScheduleToStartMaxAttempts":             {dynamicproperties.NormalDecisionScheduleToStartMaxAttempts, 84},
 		"NormalDecisionScheduleToStartTimeout":                 {dynamicproperties.NormalDecisionScheduleToStartTimeout, time.Second},
 		"ReplicationTaskFetcherParallelism":                    {dynamicproperties.ReplicationTaskFetcherParallelism, 85},

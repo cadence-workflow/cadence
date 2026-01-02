@@ -1218,6 +1218,12 @@ const (
 	// Default value: 1000
 	// Allowed filters: DomainName
 	DecisionRetryMaxAttempts
+	// DecisionTimeoutMaxAttempts is the max limit for decision timeout retry attempts. 0 indicates infinite number of attempts.
+	// KeyName: history.decisionTimeoutMaxAttempts
+	// Value type: Int
+	// Default value: 10
+	// Allowed filters: DomainName
+	DecisionTimeoutMaxAttempts
 	// NormalDecisionScheduleToStartMaxAttempts is the maximum decision attempt for creating a scheduleToStart timeout
 	// timer for normal (non-sticky) decision
 	// KeyName: history.normalDecisionScheduleToStartMaxAttempts
@@ -3874,6 +3880,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName},
 		Description:  "DecisionRetryMaxAttempts is the max limit for decision retry attempts. 0 indicates infinite number of attempts.",
 		DefaultValue: 1000,
+	},
+	DecisionTimeoutMaxAttempts: {
+		KeyName:      "history.decisionTimeoutMaxAttempts",
+		Filters:      []Filter{DomainName},
+		Description:  "DecisionTimeoutMaxAttempts is the max limit for decision timeout retry attempts. 0 indicates infinite number of attempts.",
+		DefaultValue: 3,
 	},
 	NormalDecisionScheduleToStartMaxAttempts: {
 		KeyName:      "history.normalDecisionScheduleToStartMaxAttempts",

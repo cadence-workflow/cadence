@@ -478,6 +478,7 @@ func (t *timerActiveTaskExecutor) executeDecisionTimeoutTask(
 	if err != nil {
 		return fmt.Errorf("unable to find domainID: %v, err: %v", task.DomainID, err)
 	}
+	maxAttempts := t.config.DecisionTimeoutMaxAttempts(domainName)
 
 	mutableState, err := loadMutableState(ctx, wfContext, task, t.metricsClient.Scope(metrics.TimerQueueProcessorScope), t.logger, task.EventID)
 	if err != nil {
@@ -528,6 +529,27 @@ func (t *timerActiveTaskExecutor) executeDecisionTimeoutTask(
 		); err != nil {
 			return err
 		}
+
+		if maxAttempts > 0 && mutableState.GetExecutionInfo().DecisionAttempt >= int64(maxAttempts) {
+			message := fmt.Sprintf("Decision timeout attempt exceeds limit: %v", maxAttempts)
+			executionInfo := mutableState.GetExecutionInfo()
+			t.logger.Error(message,
+				tag.WorkflowDomainID(executionInfo.DomainID),
+				tag.WorkflowID(executionInfo.WorkflowID),
+				tag.WorkflowRunID(executionInfo.RunID))
+			t.metricsClient.IncCounter(metrics.TimerActiveTaskDecisionTimeoutScope, metrics.DecisionTimeoutRetriesExceededCounter)
+
+			if _, err := mutableState.AddWorkflowExecutionTerminatedEvent(
+				mutableState.GetNextEventID(),
+				common.FailureReasonDecisionTimeoutAttemptsExceedsLimit,
+				[]byte(message),
+				execution.IdentityHistoryService,
+			); err != nil {
+				return err
+			}
+			return t.updateWorkflowExecution(ctx, wfContext, mutableState, false)
+		}
+
 		scheduleDecision = true
 
 	case execution.TimerTypeScheduleToStart:
@@ -825,7 +847,7 @@ func (t *timerActiveTaskExecutor) updateWorkflowExecution(
 	mutableState execution.MutableState,
 	scheduleNewDecision bool,
 ) error {
-
+	fmt.Printf("!!!Current decision timeout: %d\n", mutableState.GetExecutionInfo().DecisionTimeout)
 	var err error
 	if scheduleNewDecision {
 		// Schedule a new decision.
