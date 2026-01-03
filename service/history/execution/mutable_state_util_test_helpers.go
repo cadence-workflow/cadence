@@ -137,6 +137,8 @@ func CopyWorkflowExecutionInfo(t *testing.T, sourceInfo *persistence.WorkflowExe
 		Memo:                               sourceInfo.Memo,
 		SearchAttributes:                   sourceInfo.SearchAttributes,
 		PartitionConfig:                    sourceInfo.PartitionConfig,
+		ExecutionStatus:                    sourceInfo.ExecutionStatus,
+		ScheduledExecutionTimestamp:        sourceInfo.ScheduledExecutionTimestamp,
 		Attempt:                            sourceInfo.Attempt,
 		HasRetryPolicy:                     sourceInfo.HasRetryPolicy,
 		InitialInterval:                    sourceInfo.InitialInterval,
