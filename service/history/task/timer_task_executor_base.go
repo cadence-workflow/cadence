@@ -152,7 +152,6 @@ func (t *timerTaskExecutorBase) deleteWorkflow(
 	context execution.Context,
 	msBuilder execution.MutableState,
 ) error {
-
 	if err := t.deleteWorkflowHistory(ctx, task, msBuilder); err != nil {
 		return err
 	}
@@ -173,6 +172,10 @@ func (t *timerTaskExecutorBase) deleteWorkflow(
 	if err := t.deleteWorkflowExecution(ctx, task); err != nil {
 		return err
 	}
+
+	// it's ok for this to be best-effort, as the timer tasks will be removed once they're processed
+	_ = t.deleteWorkflowTimerTasks(ctx, task, msBuilder)
+	_ = t.deleteUserTimerTasks(ctx, task, msBuilder)
 
 	// calling clear here to force accesses of mutable state to read database
 	// if this is not called then callers will get mutable state even though its been removed from database
@@ -247,6 +250,9 @@ func (t *timerTaskExecutorBase) archiveWorkflow(
 	if err := t.deleteWorkflowExecution(ctx, task); err != nil {
 		return err
 	}
+	// it's ok for this to be best-effort, as it'll be removed once it's processed
+	_ = t.deleteWorkflowTimerTasks(ctx, task, msBuilder)
+
 	// calling clear here to force accesses of mutable state to read database
 	// if this is not called then callers will get mutable state even though its been removed from database
 	workflowContext.Clear()
@@ -321,7 +327,6 @@ func (t *timerTaskExecutorBase) deleteWorkflowHistory(
 			ShardID:     common.IntPtr(t.shard.GetShardID()),
 			DomainName:  domainName,
 		})
-
 	}
 	return t.throttleRetry.Do(ctx, op)
 }
@@ -347,6 +352,63 @@ func (t *timerTaskExecutorBase) deleteWorkflowVisibility(
 		return t.shard.GetService().GetVisibilityManager().DeleteWorkflowExecution(ctx, request) // delete from db
 	}
 	return t.throttleRetry.Do(ctx, op)
+}
+
+func (t *timerTaskExecutorBase) deleteWorkflowTimerTasks(
+	ctx context.Context,
+	task *persistence.DeleteHistoryEventTask,
+	msBuilder execution.MutableState,
+) error {
+	workflowTimerTasks := msBuilder.GetPendingWorkflowTimerTaskInfos()
+
+	for _, taskInfo := range workflowTimerTasks {
+		op := func(ctx context.Context) error {
+			return t.shard.GetExecutionManager().DeleteTimerTask(ctx, &persistence.DeleteTimerTaskRequest{
+				TaskID:              taskInfo.TaskID,
+				VisibilityTimestamp: taskInfo.VisibilityTimestamp,
+			})
+		}
+		if err := t.throttleRetry.Do(ctx, op); err != nil {
+			t.logger.Warn("Failed to delete workflow timer task",
+				tag.ShardID(t.shard.GetShardID()),
+				tag.WorkflowDomainID(task.DomainID),
+				tag.WorkflowID(task.WorkflowID),
+				tag.WorkflowRunID(task.RunID),
+				tag.TaskID(taskInfo.TaskID),
+				tag.Error(err),
+			)
+		}
+	}
+	return nil
+}
+
+func (t *timerTaskExecutorBase) deleteUserTimerTasks(
+	ctx context.Context,
+	task *persistence.DeleteHistoryEventTask,
+	msBuilder execution.MutableState,
+) error {
+	userTimerInfos := msBuilder.GetPendingTimerInfos()
+
+	for _, timerInfo := range userTimerInfos {
+		op := func(ctx context.Context) error {
+			return t.shard.GetExecutionManager().DeleteTimerTask(ctx, &persistence.DeleteTimerTaskRequest{
+				TaskID:              timerInfo.TaskID,
+				VisibilityTimestamp: timerInfo.ExpiryTime,
+			})
+		}
+		if err := t.throttleRetry.Do(ctx, op); err != nil {
+			t.logger.Warn("Failed to delete user timer task",
+				tag.ShardID(t.shard.GetShardID()),
+				tag.WorkflowDomainID(task.DomainID),
+				tag.WorkflowID(task.WorkflowID),
+				tag.WorkflowRunID(task.RunID),
+				tag.WorkflowTimerID(timerInfo.TimerID),
+				tag.TaskID(timerInfo.TaskID),
+				tag.Error(err),
+			)
+		}
+	}
+	return nil
 }
 
 func (t *timerTaskExecutorBase) Stop() {

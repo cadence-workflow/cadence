@@ -89,12 +89,13 @@ func (m *executionManagerImpl) GetWorkflowExecution(
 	}
 	newResponse := &GetWorkflowExecutionResponse{
 		State: &WorkflowMutableState{
-			TimerInfos:         response.State.TimerInfos,
-			RequestCancelInfos: response.State.RequestCancelInfos,
-			SignalInfos:        response.State.SignalInfos,
-			SignalRequestedIDs: response.State.SignalRequestedIDs,
-			ReplicationState:   response.State.ReplicationState, // TODO: remove this after all 2DC workflows complete
-			Checksum:           response.State.Checksum,
+			TimerInfos:             response.State.TimerInfos,
+			WorkflowTimerTaskInfos: response.State.WorkflowTimerTaskInfos,
+			RequestCancelInfos:     response.State.RequestCancelInfos,
+			SignalInfos:            response.State.SignalInfos,
+			SignalRequestedIDs:     response.State.SignalRequestedIDs,
+			ReplicationState:       response.State.ReplicationState, // TODO: remove this after all 2DC workflows complete
+			Checksum:               response.State.Checksum,
 		},
 	}
 
@@ -689,20 +690,21 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		StartVersion:     startVersion,
 		LastWriteVersion: lastWriteVersion,
 
-		UpsertActivityInfos:       serializedUpsertActivityInfos,
-		DeleteActivityInfos:       input.DeleteActivityInfos,
-		UpsertTimerInfos:          input.UpsertTimerInfos,
-		DeleteTimerInfos:          input.DeleteTimerInfos,
-		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
-		DeleteChildExecutionInfos: input.DeleteChildExecutionInfos,
-		UpsertRequestCancelInfos:  input.UpsertRequestCancelInfos,
-		DeleteRequestCancelInfos:  input.DeleteRequestCancelInfos,
-		UpsertSignalInfos:         input.UpsertSignalInfos,
-		DeleteSignalInfos:         input.DeleteSignalInfos,
-		UpsertSignalRequestedIDs:  input.UpsertSignalRequestedIDs,
-		DeleteSignalRequestedIDs:  input.DeleteSignalRequestedIDs,
-		NewBufferedEvents:         serializedNewBufferedEvents,
-		ClearBufferedEvents:       input.ClearBufferedEvents,
+		UpsertActivityInfos:          serializedUpsertActivityInfos,
+		DeleteActivityInfos:          input.DeleteActivityInfos,
+		UpsertTimerInfos:             input.UpsertTimerInfos,
+		DeleteTimerInfos:             input.DeleteTimerInfos,
+		UpsertWorkflowTimerTaskInfos: input.UpsertWorkflowTimerTaskInfos,
+		UpsertChildExecutionInfos:    serializedUpsertChildExecutionInfos,
+		DeleteChildExecutionInfos:    input.DeleteChildExecutionInfos,
+		UpsertRequestCancelInfos:     input.UpsertRequestCancelInfos,
+		DeleteRequestCancelInfos:     input.DeleteRequestCancelInfos,
+		UpsertSignalInfos:            input.UpsertSignalInfos,
+		DeleteSignalInfos:            input.DeleteSignalInfos,
+		UpsertSignalRequestedIDs:     input.UpsertSignalRequestedIDs,
+		DeleteSignalRequestedIDs:     input.DeleteSignalRequestedIDs,
+		NewBufferedEvents:            serializedNewBufferedEvents,
+		ClearBufferedEvents:          input.ClearBufferedEvents,
 
 		TasksByCategory: input.TasksByCategory,
 
@@ -760,12 +762,13 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 		StartVersion:     startVersion,
 		LastWriteVersion: lastWriteVersion,
 
-		ActivityInfos:       serializedActivityInfos,
-		TimerInfos:          input.TimerInfos,
-		ChildExecutionInfos: serializedChildExecutionInfos,
-		RequestCancelInfos:  input.RequestCancelInfos,
-		SignalInfos:         input.SignalInfos,
-		SignalRequestedIDs:  input.SignalRequestedIDs,
+		ActivityInfos:          serializedActivityInfos,
+		TimerInfos:             input.TimerInfos,
+		WorkflowTimerTaskInfos: input.WorkflowTimerTaskInfos,
+		ChildExecutionInfos:    serializedChildExecutionInfos,
+		RequestCancelInfos:     input.RequestCancelInfos,
+		SignalInfos:            input.SignalInfos,
+		SignalRequestedIDs:     input.SignalRequestedIDs,
 
 		TasksByCategory: input.TasksByCategory,
 
@@ -1015,6 +1018,13 @@ func (m *executionManagerImpl) RangeCompleteHistoryTask(
 	request *RangeCompleteHistoryTaskRequest,
 ) (*RangeCompleteHistoryTaskResponse, error) {
 	return m.persistence.RangeCompleteHistoryTask(ctx, request)
+}
+
+func (m *executionManagerImpl) DeleteTimerTask(
+	ctx context.Context,
+	request *DeleteTimerTaskRequest,
+) error {
+	return m.persistence.DeleteTimerTask(ctx, request)
 }
 
 func getStartVersion(

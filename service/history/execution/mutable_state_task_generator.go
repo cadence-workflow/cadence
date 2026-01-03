@@ -147,6 +147,13 @@ func (r *mutableStateTaskGeneratorImpl) GenerateWorkflowStartTasks(
 		},
 	})
 
+	r.mutableState.AddWorkflowTimerTaskInfo(&persistence.WorkflowTimerTaskInfo{
+		Version:             startVersion,
+		TimerTaskType:       persistence.TaskTypeWorkflowTimeout,
+		TaskID:              0,
+		VisibilityTimestamp: workflowTimeoutTimestamp,
+	})
+
 	return nil
 }
 

@@ -47,12 +47,13 @@ type (
 		MapsWriteMode WorkflowExecutionMapsWriteMode
 
 		// For WorkflowExecutionMapsWriteMode of create, update and reset
-		ActivityInfos      map[int64]*persistence.InternalActivityInfo
-		TimerInfos         map[string]*persistence.TimerInfo
-		ChildWorkflowInfos map[int64]*persistence.InternalChildExecutionInfo
-		RequestCancelInfos map[int64]*persistence.RequestCancelInfo
-		SignalInfos        map[int64]*persistence.SignalInfo
-		SignalRequestedIDs []string // This map has no value, hence use array to store keys
+		ActivityInfos          map[int64]*persistence.InternalActivityInfo
+		TimerInfos             map[string]*persistence.TimerInfo
+		WorkflowTimerTaskInfos map[int]*persistence.WorkflowTimerTaskInfo
+		ChildWorkflowInfos     map[int64]*persistence.InternalChildExecutionInfo
+		RequestCancelInfos     map[int64]*persistence.RequestCancelInfo
+		SignalInfos            map[int64]*persistence.SignalInfo
+		SignalRequestedIDs     []string // This map has no value, hence use array to store keys
 
 		// For WorkflowExecutionMapsWriteMode of update only
 		ActivityInfoKeysToDelete       []int64

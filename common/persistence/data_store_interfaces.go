@@ -130,6 +130,7 @@ type (
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
+		DeleteTimerTask(ctx context.Context, request *DeleteTimerTaskRequest) error
 
 		// Scan related methods
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*InternalListConcreteExecutionsResponse, error)
@@ -345,12 +346,13 @@ type (
 		ReplicationState *ReplicationState // TODO: remove this after all 2DC workflows complete
 		ActivityInfos    map[int64]*InternalActivityInfo
 
-		TimerInfos          map[string]*TimerInfo
-		ChildExecutionInfos map[int64]*InternalChildExecutionInfo
-		RequestCancelInfos  map[int64]*RequestCancelInfo
-		SignalInfos         map[int64]*SignalInfo
-		SignalRequestedIDs  map[string]struct{}
-		BufferedEvents      []*DataBlob
+		TimerInfos             map[string]*TimerInfo
+		ChildExecutionInfos    map[int64]*InternalChildExecutionInfo
+		RequestCancelInfos     map[int64]*RequestCancelInfo
+		SignalInfos            map[int64]*SignalInfo
+		SignalRequestedIDs     map[string]struct{}
+		BufferedEvents         []*DataBlob
+		WorkflowTimerTaskInfos map[int]*WorkflowTimerTaskInfo
 
 		// Checksum field is used by Cassandra storage
 		// ChecksumData is used by All SQL storage
@@ -458,20 +460,21 @@ type (
 		StartVersion     int64
 		LastWriteVersion int64
 
-		UpsertActivityInfos       []*InternalActivityInfo
-		DeleteActivityInfos       []int64
-		UpsertTimerInfos          []*TimerInfo
-		DeleteTimerInfos          []string
-		UpsertChildExecutionInfos []*InternalChildExecutionInfo
-		DeleteChildExecutionInfos []int64
-		UpsertRequestCancelInfos  []*RequestCancelInfo
-		DeleteRequestCancelInfos  []int64
-		UpsertSignalInfos         []*SignalInfo
-		DeleteSignalInfos         []int64
-		UpsertSignalRequestedIDs  []string
-		DeleteSignalRequestedIDs  []string
-		NewBufferedEvents         *DataBlob
-		ClearBufferedEvents       bool
+		UpsertActivityInfos          []*InternalActivityInfo
+		DeleteActivityInfos          []int64
+		UpsertTimerInfos             []*TimerInfo
+		DeleteTimerInfos             []string
+		UpsertWorkflowTimerTaskInfos []*WorkflowTimerTaskInfo
+		UpsertChildExecutionInfos    []*InternalChildExecutionInfo
+		DeleteChildExecutionInfos    []int64
+		UpsertRequestCancelInfos     []*RequestCancelInfo
+		DeleteRequestCancelInfos     []int64
+		UpsertSignalInfos            []*SignalInfo
+		DeleteSignalInfos            []int64
+		UpsertSignalRequestedIDs     []string
+		DeleteSignalRequestedIDs     []string
+		NewBufferedEvents            *DataBlob
+		ClearBufferedEvents          bool
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 
@@ -490,12 +493,13 @@ type (
 		StartVersion     int64
 		LastWriteVersion int64
 
-		ActivityInfos       []*InternalActivityInfo
-		TimerInfos          []*TimerInfo
-		ChildExecutionInfos []*InternalChildExecutionInfo
-		RequestCancelInfos  []*RequestCancelInfo
-		SignalInfos         []*SignalInfo
-		SignalRequestedIDs  []string
+		ActivityInfos          []*InternalActivityInfo
+		TimerInfos             []*TimerInfo
+		WorkflowTimerTaskInfos []*WorkflowTimerTaskInfo
+		ChildExecutionInfos    []*InternalChildExecutionInfo
+		RequestCancelInfos     []*RequestCancelInfo
+		SignalInfos            []*SignalInfo
+		SignalRequestedIDs     []string
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 
