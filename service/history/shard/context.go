@@ -248,7 +248,12 @@ func (s *contextImpl) updateScheduledTaskMaxReadLevel(cluster string) persistenc
 		currentTime = s.remoteClusterCurrentTime[cluster]
 	}
 
-	newMaxReadLevel := currentTime.Add(s.config.TimerProcessorMaxTimeShift()).Truncate(persistence.DBTimestampMinPrecision)
+	maxTimeShift := s.config.TimerProcessorMaxTimeShift()
+	if s.config.TimerProcessorInMemoryQueueMaxTimeShift(s.shardID) > 0 {
+		maxTimeShift = s.config.TimerProcessorInMemoryQueueMaxTimeShift(s.shardID)
+	}
+
+	newMaxReadLevel := currentTime.Add(maxTimeShift).Truncate(persistence.DBTimestampMinPrecision)
 	if newMaxReadLevel.After(s.scheduledTaskMaxReadLevelMap[cluster]) {
 		s.scheduledTaskMaxReadLevelMap[cluster] = newMaxReadLevel
 	}
@@ -1333,23 +1338,29 @@ func (s *contextImpl) allocateTimerIDsLocked(
 		}
 
 		readCursorTS := s.scheduledTaskMaxReadLevelMap[cluster]
+
 		// make sure scheduled task timestamp is higher than
 		// 1. max read level, so that queue processor can read the task back.
 		// 2. current time. Otherwise the task timestamp is in the past and causes aritical load latency in queue processor metrics.
 		// Above cases can happen if shard move and new host have a time SKU,
 		// or there is db write delay, or we are simply (re-)generating tasks for an old workflow.
-		if ts.Before(readCursorTS) {
-			// This can happen if shard move and new host have a time SKU, or there is db write delay.
-			// We generate a new timer ID using timerMaxReadLevel.
-			s.logger.Warn("New timer generated is less than read level",
-				tag.WorkflowDomainID(domainEntry.GetInfo().ID),
-				tag.WorkflowID(workflowID),
-				tag.Timestamp(ts),
-				tag.CursorTimestamp(readCursorTS),
-				tag.ClusterName(cluster),
-				tag.ValueShardAllocateTimerBeforeRead)
-			ts = readCursorTS.Add(persistence.DBTimestampMinPrecision)
+
+		if s.config.TimerProcessorInMemoryQueueMaxTimeShift(s.shardID) == 0 {
+			// this check is only required when an in memory queue is disabled. If it's enabled, we expect timers below read level to be enqueued in memory
+			if ts.Before(readCursorTS) {
+				// This can happen if shard move and new host have a time SKU, or there is db write delay.
+				// We generate a new timer ID using timerMaxReadLevel.
+				s.logger.Warn("New timer generated is less than read level",
+					tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+					tag.WorkflowID(workflowID),
+					tag.Timestamp(ts),
+					tag.CursorTimestamp(readCursorTS),
+					tag.ClusterName(cluster),
+					tag.ValueShardAllocateTimerBeforeRead)
+				ts = readCursorTS.Add(persistence.DBTimestampMinPrecision)
+			}
 		}
+
 		if ts.Before(now) {
 			s.logger.Warn("New timer generated is in the past",
 				tag.WorkflowDomainID(domainEntry.GetInfo().ID),
@@ -1358,6 +1369,15 @@ func (s *contextImpl) allocateTimerIDsLocked(
 				tag.ValueShardAllocateTimerBeforeRead)
 			ts = now.Add(persistence.DBTimestampMinPrecision)
 		}
+
+		if ts.Before(s.shardInfo.TimerAckLevel) {
+			s.logger.Warn("New timer generated is less than ack level",
+				tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+				tag.WorkflowID(workflowID),
+				tag.Timestamp(ts))
+			ts = s.shardInfo.TimerAckLevel.Add(persistence.DBTimestampMinPrecision)
+		}
+
 		task.SetVisibilityTimestamp(ts)
 
 		seqNum, err := s.generateTaskIDLocked()

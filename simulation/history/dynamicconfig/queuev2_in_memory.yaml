@@ -1,0 +1,39 @@
+system.workflowDeletionJitterRange:
+- value: 0
+  constraints: {}
+history.enableTimerQueueV2:
+- value: true
+  constraints: {}
+history.enableTransferQueueV2:
+- value: true
+  constraints: {}
+history.queueMaxPendingTaskCount:
+- value: 10000
+  constraints: {}
+history.timerTaskBatchSize:
+- value: 100
+  constraints: {}
+history.timerProcessorUpdateAckInterval:
+- value: 30s
+  constraints: {}
+history.timerProcessorUpdateAckIntervalJitterCoefficient:
+- value: 0
+  constraints: {}
+history.timerProcessorMaxPollRPS:
+- value: 20
+  constraints: {}
+history.transferTaskBatchSize:
+- value: 100
+  constraints: {}
+history.transferProcessorUpdateAckInterval:
+- value: 30s
+  constraints: {}
+history.transferProcessorUpdateAckIntervalJitterCoefficient:
+- value: 0
+  constraints: {}
+history.transferProcessorMaxPollRPS:
+- value: 20
+  constraints: {}
+history.timerProcessorInMemoryQueueMaxTimeShift:
+- value: 30s
+  constraints: {}
