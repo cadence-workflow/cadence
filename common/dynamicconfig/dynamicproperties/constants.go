@@ -2533,7 +2533,7 @@ const (
 	// Default value: 3 seconds
 	GlobalRatelimiterUpdateInterval
 	// FrontendMaxWorkerPollDelay is the maximum duration a worker poll request (PollForActivityTask, PollForDecisionTask)
-	// will wait for a rate limit token before being rejected in microseconds. This setting doesn't completely control how 
+	// will wait for a rate limit token before being rejected in microseconds. This setting doesn't completely control how
 	// long a request can take - the request will complete after the minimum of the configured request timeout.
 	// KeyName: frontend.maxWorkerPollDelay
 	// Value type: Duration
