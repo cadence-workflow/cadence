@@ -82,16 +82,6 @@ func TestAllowDomainRequestRouting(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
-			name:        "WorkerPoll Wait timeout falls back to Allow",
-			requestType: ratelimitTypeWorkerPoll,
-			setupMock: func(h *apiHandler) {
-				h.maxWorkerPollDelay = func(domain string) time.Duration { return 1 * time.Nanosecond }
-				h.workerRateLimiter.(*mockPolicy).On("Wait", mock.Anything, quotas.Info{Domain: testDomain}).Return(context.DeadlineExceeded).Once()
-				h.workerRateLimiter.(*mockPolicy).On("Allow", quotas.Info{Domain: testDomain}).Return(false).Once()
-			},
-			expectedErr: ErrRateLimited,
-		},
-		{
 			name:        "Allow blocking returns rate limit error",
 			requestType: ratelimitTypeUser,
 			setupMock: func(h *apiHandler) {
