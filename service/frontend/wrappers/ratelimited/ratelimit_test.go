@@ -87,7 +87,7 @@ func TestAllowDomainRequestRouting(t *testing.T) {
 			setupMock: func(h *apiHandler) {
 				h.userRateLimiter.(*mockPolicy).On("Allow", quotas.Info{Domain: testDomain}).Return(false).Once()
 			},
-			expectedErr: ErrRateLimited,
+			expectedErr: newErrRateLimited(),
 		},
 	}
 
