@@ -76,7 +76,7 @@ func (h *apiHandler) allowDomain(ctx context.Context, requestType ratelimitType,
 }
 
 func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, policy quotas.Policy, domain string) error {
-	ctx, cancel := context.WithTimeout(ctx, waitTime*time.Microsecond)
+	ctx, cancel := context.WithTimeout(ctx, waitTime)
 	defer cancel()
 	err := policy.Wait(ctx, quotas.Info{Domain: domain})
 	if err != nil {
