@@ -91,6 +91,7 @@ func New{{$Decorator}}(
     workerRateLimiter quotas.Policy,
     visibilityRateLimiter quotas.Policy,
     asyncRateLimiter quotas.Policy,
+    maxWorkerPollDelay dynamicproperties.DurationPropertyFnWithDomainFilter
 ) {{.Interface.Type}} {
     return &{{$decorator}}{
         wrapped: wrapped,
@@ -100,6 +101,7 @@ func New{{$Decorator}}(
         workerRateLimiter: workerRateLimiter,
         visibilityRateLimiter: visibilityRateLimiter,
         asyncRateLimiter: asyncRateLimiter,
+        maxWorkerPollDelay: maxWorkerPollDelay,
     }
 }
 

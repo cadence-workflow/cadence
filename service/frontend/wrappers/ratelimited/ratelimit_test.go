@@ -29,6 +29,7 @@ func setupHandler(t *testing.T) *apiHandler {
 		&mockPolicy{}, // workerRateLimiter
 		&mockPolicy{}, // visibilityRateLimiter
 		&mockPolicy{}, // asyncRateLimiter
+		func(domain string) time.Duration { return 0 }, // maxWorkerPollDelay
 	).(*apiHandler)
 }
 
