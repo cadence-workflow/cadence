@@ -36,7 +36,7 @@ func NewAPIHandler(
 	workerRateLimiter quotas.Policy,
 	visibilityRateLimiter quotas.Policy,
 	asyncRateLimiter quotas.Policy,
-	maxWorkerPollDelay    dynamicproperties.DurationPropertyFnWithDomainFilter,
+	maxWorkerPollDelay dynamicproperties.DurationPropertyFnWithDomainFilter,
 ) api.Handler {
 	return &apiHandler{
 		wrapped:               wrapped,

@@ -42,6 +42,7 @@ const (
 )
 
 var errRateLimited = types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+
 func newErrRateLimited() error {
 	return &errRateLimited
 }
@@ -76,12 +77,15 @@ func (h *apiHandler) allowDomain(ctx context.Context, requestType ratelimitType,
 }
 
 func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, policy quotas.Policy, domain string) error {
-	ctx, cancel := context.WithTimeout(ctx, waitTime)
+	waitCtx, cancel := context.WithTimeout(ctx, waitTime)
 	defer cancel()
-	err := policy.Wait(ctx, quotas.Info{Domain: domain})
+	err := policy.Wait(waitCtx, quotas.Info{Domain: domain})
 	if err != nil {
-		ctxErr := ctx.Err()
-		switch ctxErr {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		waitCtxErr := waitCtx.Err()
+		switch waitCtxErr {
 		case nil:
 			return newErrRateLimited() // rate limited
 		case context.DeadlineExceeded:
@@ -91,7 +95,7 @@ func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, 
 			}
 			return nil
 		default:
-			return ctxErr
+			return waitCtxErr
 		}
 	}
 	return nil
