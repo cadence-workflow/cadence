@@ -2577,7 +2577,6 @@ const (
 	FailedDecisionsCounter
 	DecisionAttemptTimer
 	DecisionRetriesExceededCounter
-	DecisionTimeoutRetriesExceededCounter
 	StaleMutableStateCounter
 	DataInconsistentCounter
 	DuplicateActivityTaskEventCounter
@@ -3386,7 +3385,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		FailedDecisionsCounter:                                       {metricName: "failed_decisions", metricType: Counter},
 		DecisionAttemptTimer:                                         {metricName: "decision_attempt", metricType: Timer},
 		DecisionRetriesExceededCounter:                               {metricName: "decision_retries_exceeded", metricType: Counter},
-		DecisionTimeoutRetriesExceededCounter:                        {metricName: "decision_timeout_retries_exceeded", metricType: Counter},
 		StaleMutableStateCounter:                                     {metricName: "stale_mutable_state", metricType: Counter},
 		DataInconsistentCounter:                                      {metricName: "data_inconsistent", metricType: Counter},
 		DuplicateActivityTaskEventCounter:                            {metricName: "duplicate_activity_task_event", metricType: Counter},

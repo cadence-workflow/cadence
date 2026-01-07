@@ -478,7 +478,6 @@ func (t *timerActiveTaskExecutor) executeDecisionTimeoutTask(
 	if err != nil {
 		return fmt.Errorf("unable to find domainID: %v, err: %v", task.DomainID, err)
 	}
-	maxAttempts := t.config.DecisionTimeoutMaxAttempts(domainName)
 
 	mutableState, err := loadMutableState(ctx, wfContext, task, t.metricsClient.Scope(metrics.TimerQueueProcessorScope), t.logger, task.EventID)
 	if err != nil {
@@ -529,28 +528,33 @@ func (t *timerActiveTaskExecutor) executeDecisionTimeoutTask(
 		); err != nil {
 			return err
 		}
-
-		if maxAttempts > 0 && mutableState.GetExecutionInfo().DecisionAttempt >= int64(maxAttempts) {
-			message := fmt.Sprintf("Decision timeout attempt exceeds limit: %v", maxAttempts)
+		maxAttempts := t.config.DecisionRetryMaxAttempts(domainName)
+		enforceDecisionTaskAttempts := t.config.EnforceDecisionTaskAttempts(domainName)
+		if enforceDecisionTaskAttempts && maxAttempts > 0 && mutableState.GetExecutionInfo().DecisionAttempt >= int64(maxAttempts) {
+			failCause := types.DecisionTaskFailedCauseWorkerTimeout
+			failMessage := "Decision task failed because retries exceeded max attempts due to repeated timeouts."
+			message := fmt.Sprintf(
+				"Decision attempt exceeds limit. Last decision failure cause and details: %v - %v",
+				failCause,
+				failMessage)
 			executionInfo := mutableState.GetExecutionInfo()
 			t.logger.Error(message,
 				tag.WorkflowDomainID(executionInfo.DomainID),
 				tag.WorkflowID(executionInfo.WorkflowID),
 				tag.WorkflowRunID(executionInfo.RunID))
-			t.metricsClient.IncCounter(metrics.TimerActiveTaskDecisionTimeoutScope, metrics.DecisionTimeoutRetriesExceededCounter)
+			t.metricsClient.IncCounter(metrics.TimerActiveTaskDecisionTimeoutScope, metrics.DecisionRetriesExceededCounter)
 
 			if _, err := mutableState.AddWorkflowExecutionTerminatedEvent(
 				mutableState.GetNextEventID(),
-				common.FailureReasonDecisionTimeoutAttemptsExceedsLimit,
+				common.FailureReasonDecisionAttemptsExceedsLimit,
 				[]byte(message),
 				execution.IdentityHistoryService,
 			); err != nil {
 				return err
 			}
-			return t.updateWorkflowExecution(ctx, wfContext, mutableState, false)
+		} else {
+			scheduleDecision = true
 		}
-
-		scheduleDecision = true
 
 	case execution.TimerTypeScheduleToStart:
 		if decision.StartedID != constants.EmptyEventID {
@@ -847,7 +851,6 @@ func (t *timerActiveTaskExecutor) updateWorkflowExecution(
 	mutableState execution.MutableState,
 	scheduleNewDecision bool,
 ) error {
-	fmt.Printf("!!!Current decision timeout: %d\n", mutableState.GetExecutionInfo().DecisionTimeout)
 	var err error
 	if scheduleNewDecision {
 		// Schedule a new decision.

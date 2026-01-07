@@ -845,7 +845,8 @@ func (s *timerActiveTaskExecutorSuite) TestDecisionStartToCloseTimeout_Fire() {
 }
 
 func (s *timerActiveTaskExecutorSuite) TestDecisionStartToCloseTimeout_ExceedsMaxAttempts() {
-	s.mockShard.GetConfig().DecisionTimeoutMaxAttempts = dynamicproperties.GetIntPropertyFilteredByDomain(1)
+	s.mockShard.GetConfig().DecisionRetryMaxAttempts = dynamicproperties.GetIntPropertyFilteredByDomain(1)
+	s.mockShard.GetConfig().EnforceDecisionTaskAttempts = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 
 	workflowExecution, mutableState, err := test.StartWorkflow(s.T(), s.mockShard, s.domainID)
 	s.NoError(err)
@@ -884,7 +885,8 @@ func (s *timerActiveTaskExecutorSuite) TestDecisionStartToCloseTimeout_ExceedsMa
 }
 
 func (s *timerActiveTaskExecutorSuite) TestDecisionStartToCloseTimeout_BelowMaxAttempts() {
-	s.mockShard.GetConfig().DecisionTimeoutMaxAttempts = dynamicproperties.GetIntPropertyFilteredByDomain(5)
+	s.mockShard.GetConfig().DecisionRetryMaxAttempts = dynamicproperties.GetIntPropertyFilteredByDomain(5)
+	s.mockShard.GetConfig().EnforceDecisionTaskAttempts = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 
 	workflowExecution, mutableState, err := test.StartWorkflow(s.T(), s.mockShard, s.domainID)
 	s.NoError(err)
@@ -925,9 +927,9 @@ func (s *timerActiveTaskExecutorSuite) TestDecisionStartToCloseTimeout_BelowMaxA
 	s.True(s.getMutableStateFromCache(s.domainID, workflowExecution.GetWorkflowID(), workflowExecution.GetRunID()).IsWorkflowExecutionRunning())
 }
 
-func (s *timerActiveTaskExecutorSuite) TestDecisionStartToCloseTimeout_InfiniteMaxAttempts() {
-	s.mockShard.GetConfig().DecisionTimeoutMaxAttempts = dynamicproperties.GetIntPropertyFilteredByDomain(0)
-
+func (s *timerActiveTaskExecutorSuite) TestDecisionStartToCloseTimeout_AttemptsNotEnforced() {
+	s.mockShard.GetConfig().DecisionRetryMaxAttempts = dynamicproperties.GetIntPropertyFilteredByDomain(1)
+	s.mockShard.GetConfig().EnforceDecisionTaskAttempts = dynamicproperties.GetBoolPropertyFnFilteredByDomain(false)
 	workflowExecution, mutableState, err := test.StartWorkflow(s.T(), s.mockShard, s.domainID)
 	s.NoError(err)
 
