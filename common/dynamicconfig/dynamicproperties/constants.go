@@ -1218,12 +1218,6 @@ const (
 	// Default value: 1000
 	// Allowed filters: DomainName
 	DecisionRetryMaxAttempts
-	// DecisionTimeoutMaxAttempts is the max limit for decision timeout retry attempts. 0 indicates infinite number of attempts.
-	// KeyName: history.decisionTimeoutMaxAttempts
-	// Value type: Int
-	// Default value: 10
-	// Allowed filters: DomainName
-	DecisionTimeoutMaxAttempts
 	// NormalDecisionScheduleToStartMaxAttempts is the maximum decision attempt for creating a scheduleToStart timeout
 	// timer for normal (non-sticky) decision
 	// KeyName: history.normalDecisionScheduleToStartMaxAttempts
@@ -2129,6 +2123,13 @@ const (
 	EnableTimerQueueV2PendingTaskCountAlert
 
 	EnableActiveClusterSelectionPolicyInStartWorkflow
+
+	// EnforceDecisionTaskAttempts is the key for enforcing decision retry attempts limit in case of timeouts.
+	// KeyName: history.enforceDecisionTaskAttempts
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnforceDecisionTaskAttempts
 
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
@@ -3881,12 +3882,6 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "DecisionRetryMaxAttempts is the max limit for decision retry attempts. 0 indicates infinite number of attempts.",
 		DefaultValue: 1000,
 	},
-	DecisionTimeoutMaxAttempts: {
-		KeyName:      "history.decisionTimeoutMaxAttempts",
-		Filters:      []Filter{DomainName},
-		Description:  "DecisionTimeoutMaxAttempts is the max limit for decision timeout retry attempts. 0 indicates infinite number of attempts.",
-		DefaultValue: 3,
-	},
 	NormalDecisionScheduleToStartMaxAttempts: {
 		KeyName:      "history.normalDecisionScheduleToStartMaxAttempts",
 		Filters:      []Filter{DomainName},
@@ -4773,6 +4768,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain",
 		DefaultValue: false,
 		Filters:      []Filter{DomainName},
+	},
+	EnforceDecisionTaskAttempts: {
+		KeyName:      "history.enforceDecisionTaskAttempts",
+		Filters:      []Filter{DomainName},
+		Description:  "EnforceDecisionTaskAttempts is the key for enforcing decision retry attempts limit in case of timeouts",
+		DefaultValue: false,
 	},
 }
 
