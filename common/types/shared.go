@@ -1153,8 +1153,6 @@ func (e DecisionTaskFailedCause) String() string {
 		return "SCHEDULE_ACTIVITY_DUPLICATE_I_D"
 	case 22:
 		return "BAD_SEARCH_ATTRIBUTES"
-	case 23:
-		return "WORKER_TIMEOUT"
 	}
 	return fmt.Sprintf("DecisionTaskFailedCause(%d)", w)
 }
@@ -1231,9 +1229,6 @@ func (e *DecisionTaskFailedCause) UnmarshalText(value []byte) error {
 	case "BAD_SEARCH_ATTRIBUTES":
 		*e = DecisionTaskFailedCauseBadSearchAttributes
 		return nil
-	case "WORKER_TIMEOUT":
-		*e = DecisionTaskFailedCauseWorkerTimeout
-		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
@@ -1296,8 +1291,6 @@ const (
 	DecisionTaskFailedCauseScheduleActivityDuplicateID
 	// DecisionTaskFailedCauseBadSearchAttributes is an option for DecisionTaskFailedCause
 	DecisionTaskFailedCauseBadSearchAttributes
-	// DecisionTaskFailedCauseWorkerTimeout is an option for DecisionTaskFailedCause
-	DecisionTaskFailedCauseWorkerTimeout
 )
 
 // DecisionTaskFailedEventAttributes is an internal type (TBD...)

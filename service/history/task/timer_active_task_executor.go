@@ -530,13 +530,8 @@ func (t *timerActiveTaskExecutor) executeDecisionTimeoutTask(
 		}
 		maxAttempts := t.config.DecisionRetryMaxAttempts(domainName)
 		enforceDecisionTaskAttempts := t.config.EnforceDecisionTaskAttempts(domainName)
-		if enforceDecisionTaskAttempts && maxAttempts > 0 && mutableState.GetExecutionInfo().DecisionAttempt >= int64(maxAttempts) {
-			failCause := types.DecisionTaskFailedCauseWorkerTimeout
-			failMessage := "Decision task failed because retries exceeded max attempts due to repeated timeouts."
-			message := fmt.Sprintf(
-				"Decision attempt exceeds limit. Last decision failure cause and details: %v - %v",
-				failCause,
-				failMessage)
+		if enforceDecisionTaskAttempts && maxAttempts > 0 && mutableState.GetExecutionInfo().DecisionAttempt > int64(maxAttempts) {
+			message := "Decision attempt exceeds limit. Last decision attempt failed due to start-to-close timeout."
 			executionInfo := mutableState.GetExecutionInfo()
 			t.logger.Error(message,
 				tag.WorkflowDomainID(executionInfo.DomainID),
