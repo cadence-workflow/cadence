@@ -617,6 +617,12 @@ func (c *taskListManagerImpl) DispatchTask(ctx context.Context, task *InternalTa
 	}
 
 	if domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
+		c.logger.Debug("Domain is active in the current cluster, dispatching task",
+			tag.WorkflowDomainID(task.Event.TaskInfo.DomainID),
+			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.WorkflowID(task.Event.TaskInfo.WorkflowID),
+			tag.WorkflowRunID(task.Event.TaskInfo.RunID),
+		)
 		return c.matcher.MustOffer(ctx, task)
 	}
 
