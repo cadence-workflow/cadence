@@ -739,12 +739,14 @@ pollLoop:
 				)
 				task.Finish(nil)
 			default:
-				e.emitInfoOrDebugLog(
-					task.Event.DomainID,
-					"unknown error recording task started",
+				e.logger.Error("unknown error recording task started",
 					tag.WorkflowDomainID(domainID),
-					tag.Error(err),
+					tag.WorkflowID(task.Event.WorkflowID),
+					tag.WorkflowRunID(task.Event.RunID),
 					tag.WorkflowTaskListName(taskListName),
+					tag.WorkflowScheduleID(task.Event.ScheduleID),
+					tag.TaskID(task.Event.TaskID),
+					tag.Error(err),
 				)
 				task.Finish(err)
 			}
