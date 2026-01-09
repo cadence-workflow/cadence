@@ -1487,6 +1487,7 @@ const (
 	ShardDistributorStoreRecordHeartbeatScope
 	ShardDistributorStoreSubscribeScope
 	ShardDistributorStoreSubscribeToAssignmentChangesScope
+	ShardDistributorStoreDeleteAssignedStatesScope
 
 	// The scope for the shard distributor executor
 	ShardDistributorExecutorScope
