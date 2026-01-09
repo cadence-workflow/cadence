@@ -683,10 +683,17 @@ func (c *taskListManagerImpl) getTask(ctx context.Context, maxDispatchPerSecond 
 	isolationGroup := IsolationGroupFromContext(ctx)
 	pollerID := PollerIDFromContext(ctx)
 	identity := IdentityFromContext(ctx)
-	rps := c.config.TaskDispatchRPS
-	if maxDispatchPerSecond != nil {
+	rps := -1.0
+	rpsOverride := c.config.OverrideTaskListRPS()
+	if rpsOverride > 0 {
+		rps = rpsOverride
+	} else if maxDispatchPerSecond != nil {
 		rps = *maxDispatchPerSecond
+	}
+	if rps >= 0 {
 		c.limiter.ReportLimit(rps)
+	} else {
+		rps = c.config.TaskDispatchRPS
 	}
 	c.pollers.StartPoll(pollerID, cancel, &poller.Info{
 		Identity:       identity,
@@ -1111,6 +1118,9 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		},
 		QPSTrackerInterval: func() time.Duration {
 			return cfg.QPSTrackerInterval(domainName, taskListName, taskType)
+		},
+		OverrideTaskListRPS: func() float64 {
+			return cfg.OverrideTaskListRPS(domainName, taskListName, taskType)
 		},
 		EnableAdaptiveScaler: func() bool {
 			return cfg.EnableAdaptiveScaler(domainName, taskListName, taskType)

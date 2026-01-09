@@ -93,6 +93,7 @@ func TestNewConfig(t *testing.T) {
 		"AdaptiveScalerUpdateInterval":              {dynamicproperties.MatchingAdaptiveScalerUpdateInterval, time.Duration(34)},
 		"EnableAdaptiveScaler":                      {dynamicproperties.MatchingEnableAdaptiveScaler, true},
 		"QPSTrackerInterval":                        {dynamicproperties.MatchingQPSTrackerInterval, 5 * time.Second},
+		"OverrideTaskListRPS":                       {dynamicproperties.MatchingOverrideTaskListRPS, 1500.0},
 		"EnableStandbyTaskCompletion":               {dynamicproperties.MatchingEnableStandbyTaskCompletion, false},
 		"EnableClientAutoConfig":                    {dynamicproperties.MatchingEnableClientAutoConfig, false},
 		"TaskIsolationDuration":                     {dynamicproperties.TaskIsolationDuration, time.Duration(35)},

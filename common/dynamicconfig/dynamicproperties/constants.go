@@ -2304,6 +2304,14 @@ const (
 
 	MatchingPartitionDownscaleFactor
 
+	// MatchingOverrideTaskListRPS is the RPS override for a specific TaskList.
+	// When set to a non-zero value, this overrides the RPS value that pollers specify.
+	// KeyName: matching.overrideTaskListRps
+	// Value type: Float64
+	// Default value: 0
+	// Allowed filters: DomainName, TaskListName, TaskType
+	MatchingOverrideTaskListRPS
+
 	// Key for shard distributor
 
 	// ShardDistributorErrorInjectionRate is rate for injecting random error in shard distributor client
@@ -2524,6 +2532,14 @@ const (
 	// Value type: Duration
 	// Default value: 3 seconds
 	GlobalRatelimiterUpdateInterval
+	// FrontendMaxWorkerPollDelay is the maximum duration a worker poll request (PollForActivityTask, PollForDecisionTask)
+	// will wait for a rate limit token before being rejected. This setting doesn't completely control how
+	// long a request can take - the request will complete after the minimum of the configured request timeout
+	// KeyName: frontend.maxWorkerPollDelay
+	// Value type: Duration
+	// Default value: 0
+	// Allowed filters: DomainName
+	FrontendMaxWorkerPollDelay
 
 	// MatchingLongPollExpirationInterval is the long poll expiration interval in the matching service
 	// KeyName: matching.longPollExpirationInterval
@@ -4911,6 +4927,12 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		DefaultValue: 0.75,
 	},
+	MatchingOverrideTaskListRPS: {
+		KeyName:      "matching.overrideTaskListRps",
+		Description:  "MatchingOverrideTaskListRPS is the RPS override for a specific TaskList. When set to a non-zero value, this overrides the RPS value that pollers specify. By default (0), the pollers' specified RPS is respected.",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		DefaultValue: 0,
+	},
 	ShardDistributorErrorInjectionRate: {
 		KeyName:      "sharddistributor.errorInjectionRate",
 		Description:  "ShardDistributorInjectionRate is rate for injecting random error in shard distributor client",
@@ -5097,6 +5119,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "frontend.globalRatelimiterUpdateInterval",
 		Description:  "GlobalRatelimiterUpdateInterval defines how often each global ratelimiter collection submits load information, and the expected update rate in aggregators (used to determine when hosts are lost)",
 		DefaultValue: 3 * time.Second,
+	},
+	FrontendMaxWorkerPollDelay: {
+		KeyName:      "frontend.maxWorkerPollDelay",
+		Filters:      []Filter{DomainName},
+		Description:  "FrontendMaxWorkerPollDelay is the maximum duration a worker poll request will wait for a rate limit token before being rejected",
+		DefaultValue: 0,
 	},
 	MatchingLongPollExpirationInterval: {
 		KeyName:      "matching.longPollExpirationInterval",
