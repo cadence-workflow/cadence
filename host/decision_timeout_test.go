@@ -40,13 +40,13 @@ import (
 func TestDecisionTimeoutMaxAttemptsIntegrationSuite(t *testing.T) {
 	flag.Parse()
 
-	clusterConfig, err := GetTestClusterConfig("testdata/integration_test_cluster.yaml")
+	clusterConfig, err := GetTestClusterConfig("testdata/integration_decision_timeout_cluster.yaml")
 	if err != nil {
 		panic(err)
 	}
 
 	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
-		dynamicproperties.DecisionRetryMaxAttempts:    2,
+		dynamicproperties.DecisionRetryMaxAttempts:    1,
 		dynamicproperties.EnforceDecisionTaskAttempts: true,
 	}
 
@@ -117,9 +117,7 @@ func (s *DecisionTimeoutMaxAttemptsIntegrationSuite) TestDecisionTimeoutExceedsM
 
 	poller.PollAndProcessDecisionTask(false, true)
 	s.Logger.Info("Waiting for decision task timeout (attempt 1)")
-	time.Sleep(2 * time.Second)
-
-	time.Sleep(2 * time.Second)
+	time.Sleep(4 * time.Second)
 
 	we := &types.WorkflowExecution{
 		WorkflowID: id,
