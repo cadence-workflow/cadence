@@ -719,6 +719,24 @@ pollLoop:
 
 		if err != nil {
 			switch err.(type) {
+			case *types.DomainNotActiveError:
+				e.emitInfoOrDebugLog(
+					task.Event.DomainID,
+					"Decision task dropped because domain is not active",
+					tag.WorkflowDomainID(domainID),
+					tag.WorkflowID(task.Event.WorkflowID),
+					tag.WorkflowRunID(task.Event.RunID),
+					tag.WorkflowTaskListName(taskListName),
+					tag.WorkflowScheduleID(task.Event.ScheduleID),
+					tag.TaskID(task.Event.TaskID),
+				)
+				// NOTE: There is a risk that if the domain is failed over back immediately. To prevent the decision task from being stuck, we must let
+				// history service to regenerate the decision transfer task before dropping the task in matching
+				if err := e.refreshWorkflowTasks(hCtx.Context, task.Event.DomainID, task.WorkflowExecution()); err != nil {
+					task.Finish(err)
+				} else {
+					task.Finish(nil)
+				}
 			case *types.EntityNotExistsError, *types.WorkflowExecutionAlreadyCompletedError, *types.EventAlreadyStartedError:
 				domainName, _ := e.domainCache.GetDomainName(domainID)
 				hCtx.scope.
@@ -857,6 +875,24 @@ pollLoop:
 		resp, err := e.recordActivityTaskStarted(hCtx.Context, request, task)
 		if err != nil {
 			switch err.(type) {
+			case *types.DomainNotActiveError:
+				e.emitInfoOrDebugLog(
+					task.Event.DomainID,
+					"Decision task dropped because domain is not active",
+					tag.WorkflowDomainID(domainID),
+					tag.WorkflowID(task.Event.WorkflowID),
+					tag.WorkflowRunID(task.Event.RunID),
+					tag.WorkflowTaskListName(taskListName),
+					tag.WorkflowScheduleID(task.Event.ScheduleID),
+					tag.TaskID(task.Event.TaskID),
+				)
+				// NOTE: There is a risk that if the domain is failed over back immediately. To prevent the decision task from being stuck, we must let
+				// history service to regenerate the decision transfer task before dropping the task in matching
+				if err := e.refreshWorkflowTasks(hCtx.Context, task.Event.DomainID, task.WorkflowExecution()); err != nil {
+					task.Finish(err)
+				} else {
+					task.Finish(nil)
+				}
 			case *types.EntityNotExistsError, *types.WorkflowExecutionAlreadyCompletedError, *types.EventAlreadyStartedError:
 				domainName, _ := e.domainCache.GetDomainName(domainID)
 
@@ -1413,6 +1449,28 @@ func (e *matchingEngineImpl) recordActivityTaskStarted(
 	)
 	err := throttleRetry.Do(ctx, op)
 	return resp, err
+}
+
+func (e *matchingEngineImpl) refreshWorkflowTasks(
+	ctx context.Context,
+	domainID string,
+	workflowExecution *types.WorkflowExecution,
+) error {
+	request := &types.HistoryRefreshWorkflowTasksRequest{
+		DomainUIID: domainID,
+		Request: &types.RefreshWorkflowTasksRequest{
+			Execution: workflowExecution,
+		},
+	}
+	err := e.historyService.RefreshWorkflowTasks(ctx, request)
+	if err != nil {
+		var e *types.EntityNotExistsError
+		if errors.As(err, &e) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (e *matchingEngineImpl) emitForwardedFromStats(
