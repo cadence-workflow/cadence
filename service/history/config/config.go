@@ -259,6 +259,7 @@ type Config struct {
 	MaxDecisionStartToCloseSeconds           dynamicproperties.IntPropertyFnWithDomainFilter
 	DecisionRetryCriticalAttempts            dynamicproperties.IntPropertyFn
 	DecisionRetryMaxAttempts                 dynamicproperties.IntPropertyFnWithDomainFilter
+	EnforceDecisionTaskAttempts              dynamicproperties.BoolPropertyFnWithDomainFilter
 	NormalDecisionScheduleToStartMaxAttempts dynamicproperties.IntPropertyFnWithDomainFilter
 	NormalDecisionScheduleToStartTimeout     dynamicproperties.DurationPropertyFnWithDomainFilter
 
@@ -538,6 +539,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		DecisionHeartbeatTimeout:                 dc.GetDurationPropertyFilteredByDomain(dynamicproperties.DecisionHeartbeatTimeout),
 		DecisionRetryCriticalAttempts:            dc.GetIntProperty(dynamicproperties.DecisionRetryCriticalAttempts),
 		DecisionRetryMaxAttempts:                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.DecisionRetryMaxAttempts),
+		EnforceDecisionTaskAttempts:              dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnforceDecisionTaskAttempts),
 		NormalDecisionScheduleToStartMaxAttempts: dc.GetIntPropertyFilteredByDomain(dynamicproperties.NormalDecisionScheduleToStartMaxAttempts),
 		NormalDecisionScheduleToStartTimeout:     dc.GetDurationPropertyFilteredByDomain(dynamicproperties.NormalDecisionScheduleToStartTimeout),
 

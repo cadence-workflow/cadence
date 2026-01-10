@@ -528,7 +528,28 @@ func (t *timerActiveTaskExecutor) executeDecisionTimeoutTask(
 		); err != nil {
 			return err
 		}
-		scheduleDecision = true
+		maxAttempts := t.config.DecisionRetryMaxAttempts(domainName)
+		enforceDecisionTaskAttempts := t.config.EnforceDecisionTaskAttempts(domainName)
+		if enforceDecisionTaskAttempts && maxAttempts > 0 && mutableState.GetExecutionInfo().DecisionAttempt > int64(maxAttempts) {
+			message := "Decision attempt exceeds limit. Last decision attempt failed due to start-to-close timeout."
+			executionInfo := mutableState.GetExecutionInfo()
+			t.logger.Error(message,
+				tag.WorkflowDomainID(executionInfo.DomainID),
+				tag.WorkflowID(executionInfo.WorkflowID),
+				tag.WorkflowRunID(executionInfo.RunID))
+			t.metricsClient.IncCounter(metrics.TimerActiveTaskDecisionTimeoutScope, metrics.DecisionRetriesExceededCounter)
+
+			if _, err := mutableState.AddWorkflowExecutionTerminatedEvent(
+				mutableState.GetNextEventID(),
+				common.FailureReasonDecisionAttemptsExceedsLimit,
+				[]byte(message),
+				execution.IdentityHistoryService,
+			); err != nil {
+				return err
+			}
+		} else {
+			scheduleDecision = true
+		}
 
 	case execution.TimerTypeScheduleToStart:
 		if decision.StartedID != constants.EmptyEventID {
@@ -825,7 +846,6 @@ func (t *timerActiveTaskExecutor) updateWorkflowExecution(
 	mutableState execution.MutableState,
 	scheduleNewDecision bool,
 ) error {
-
 	var err error
 	if scheduleNewDecision {
 		// Schedule a new decision.

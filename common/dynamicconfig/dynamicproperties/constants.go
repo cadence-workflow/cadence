@@ -2124,6 +2124,13 @@ const (
 
 	EnableActiveClusterSelectionPolicyInStartWorkflow
 
+	// EnforceDecisionTaskAttempts is the key for enforcing decision retry attempts limit in case of timeouts.
+	// KeyName: history.enforceDecisionTaskAttempts
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnforceDecisionTaskAttempts
+
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
 )
@@ -4769,6 +4776,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain",
 		DefaultValue: false,
 		Filters:      []Filter{DomainName},
+	},
+	EnforceDecisionTaskAttempts: {
+		KeyName:      "history.enforceDecisionTaskAttempts",
+		Filters:      []Filter{DomainName},
+		Description:  "EnforceDecisionTaskAttempts is the key for enforcing decision retry attempts limit in case of timeouts",
+		DefaultValue: false,
 	},
 }
 

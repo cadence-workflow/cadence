@@ -86,4 +86,9 @@ type (
 		*require.Assertions
 		*IntegrationBase
 	}
+
+	DecisionTimeoutMaxAttemptsIntegrationSuite struct {
+		*require.Assertions
+		*IntegrationBase
+	}
 )
