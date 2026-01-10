@@ -64,6 +64,15 @@
         "ShardID": {
           "type": "long"
         },
+        "CronSchedule": {
+          "type": "keyword"
+        },
+        "ExecutionStatus": {
+          "type": "integer"
+        },
+        "ScheduledExecutionTime": {
+          "type": "long"
+        },
         "Attr": {
           "properties": {
             "CadenceChangeVersion":  { "type": "keyword" },

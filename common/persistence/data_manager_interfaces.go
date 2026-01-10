@@ -415,6 +415,8 @@ type (
 		Memo                               map[string][]byte
 		SearchAttributes                   map[string][]byte
 		PartitionConfig                    map[string]string
+		ExecutionStatus                    types.WorkflowExecutionStatus
+		ScheduledExecutionTimestamp        int64 // unit is unix nano, used to record the actual execution timestamp if it's a cron workflow
 		// for retry
 		Attempt            int32
 		HasRetryPolicy     bool
@@ -426,10 +428,10 @@ type (
 		NonRetriableErrors []string
 		BranchToken        []byte
 		// Cron
-		CronSchedule      string
 		IsCron            bool
 		CronOverlapPolicy types.CronOverlapPolicy
 		ExpirationSeconds int32 // TODO: is this field useful?
+		CronSchedule      string
 
 		ActiveClusterSelectionPolicy *types.ActiveClusterSelectionPolicy
 	}
