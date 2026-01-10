@@ -59,6 +59,16 @@ func (c *meteredStore) AssignShards(ctx context.Context, namespace string, reque
 	return
 }
 
+func (c *meteredStore) DeleteAssignedStates(ctx context.Context, namespace string, executorIDs []string, guard store.GuardFunc) (err error) {
+	op := func() error {
+		err = c.wrapped.DeleteAssignedStates(ctx, namespace, executorIDs, guard)
+		return err
+	}
+
+	err = c.call(metrics.ShardDistributorStoreDeleteAssignedStatesScope, op, metrics.NamespaceTag(namespace))
+	return
+}
+
 func (c *meteredStore) DeleteExecutors(ctx context.Context, namespace string, executorIDs []string, guard store.GuardFunc) (err error) {
 	op := func() error {
 		err = c.wrapped.DeleteExecutors(ctx, namespace, executorIDs, guard)

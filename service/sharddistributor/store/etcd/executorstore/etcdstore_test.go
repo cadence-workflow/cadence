@@ -530,10 +530,11 @@ func TestParseExecutorKey_Errors(t *testing.T) {
 // TestAssignAndGetShardOwnerRoundtrip verifies the successful assignment and retrieval of a shard owner.
 func TestAssignAndGetShardOwnerRoundtrip(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
-	executorStore := createStore(t, tc)
+	executorStore := createStore(t, tc).(*executorStoreImpl)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	now := executorStore.timeSource.Now().UTC()
 	executorID := "executor-roundtrip"
 	shardID := "shard-roundtrip"
 
@@ -549,6 +550,7 @@ func TestAssignAndGetShardOwnerRoundtrip(t *testing.T) {
 	state, err := executorStore.GetState(ctx, tc.Namespace)
 	require.NoError(t, err)
 	assert.Contains(t, state.ShardAssignments[executorID].AssignedShards, shardID)
+	assert.Equal(t, now, state.ShardAssignments[executorID].LastUpdated)
 }
 
 // TestAssignShardErrors tests the various error conditions when assigning a shard.
@@ -724,7 +726,7 @@ func createStore(t *testing.T, tc *testhelper.StoreTestCluster) store.Store {
 		ETCDConfig: etcdConfig,
 		Lifecycle:  fxtest.NewLifecycle(t),
 		Logger:     testlogger.New(t),
-		TimeSource: clock.NewRealTimeSource(),
+		TimeSource: clock.NewMockedTimeSourceAt(time.Now()),
 		Config: &config.Config{
 			LoadBalancingMode: func(namespace string) string { return config.LoadBalancingModeNAIVE },
 		},

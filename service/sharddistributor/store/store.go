@@ -73,6 +73,9 @@ type Store interface {
 	Subscribe(ctx context.Context, namespace string) (<-chan int64, error)
 	DeleteExecutors(ctx context.Context, namespace string, executorIDs []string, guard GuardFunc) error
 
+	// DeleteAssignedStates deletes the assigned states of multiple executors within a namespace.
+	DeleteAssignedStates(ctx context.Context, namespace string, executorIDs []string, guard GuardFunc) error
+
 	// GetShardOwner retrieves the owner of a specific shard within a namespace.
 	// It returns ErrShardNotFound if the shard does not exist.
 	GetShardOwner(ctx context.Context, namespace, shardID string) (*ShardOwner, error)
