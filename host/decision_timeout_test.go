@@ -25,7 +25,6 @@ package host
 import (
 	"flag"
 	"testing"
-	"time"
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
@@ -111,13 +110,11 @@ func (s *DecisionTimeoutMaxAttemptsIntegrationSuite) TestDecisionTimeoutExceedsM
 		T:        s.T(),
 	}
 
+	// First decision task and drop
 	poller.PollAndProcessDecisionTask(false, true)
-	s.Logger.Info("Waiting for decision task timeout (attempt 0)")
-	time.Sleep(2 * time.Second)
 
+	// Second decision task and drop
 	poller.PollAndProcessDecisionTask(false, true)
-	s.Logger.Info("Waiting for decision task timeout (attempt 1)")
-	time.Sleep(4 * time.Second)
 
 	we := &types.WorkflowExecution{
 		WorkflowID: id,
@@ -127,8 +124,10 @@ func (s *DecisionTimeoutMaxAttemptsIntegrationSuite) TestDecisionTimeoutExceedsM
 	ctx, cancel = createContext()
 	defer cancel()
 	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain:    s.DomainName,
-		Execution: we,
+		Domain:                 s.DomainName,
+		Execution:              we,
+		HistoryEventFilterType: types.HistoryEventFilterTypeCloseEvent.Ptr(),
+		WaitForNewEvent:        true,
 	})
 	s.NoError(err)
 
