@@ -140,6 +140,8 @@ func (s *timerQueueTaskExecutorBaseSuite) TestDeleteWorkflow_NoErr() {
 	s.mockVisibilityManager.On("DeleteWorkflowExecution", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockMutableState.EXPECT().GetCurrentBranchToken().Return([]byte{1, 2, 3}, nil).Times(1)
 	s.mockMutableState.EXPECT().GetLastWriteVersion().Return(int64(1234), nil).AnyTimes()
+	s.mockMutableState.EXPECT().GetPendingWorkflowTimerTaskInfos().Return(map[int]*persistence.WorkflowTimerTaskInfo{}).Times(1)
+	s.mockMutableState.EXPECT().GetPendingTimerInfos().Return(map[string]*persistence.TimerInfo{}).Times(1)
 
 	err := s.timerQueueTaskExecutorBase.deleteWorkflow(context.Background(), task, wfContext, s.mockMutableState)
 	s.NoError(err)
@@ -161,6 +163,7 @@ func (s *timerQueueTaskExecutorBaseSuite) TestArchiveHistory_NoErr_InlineArchiva
 	s.mockExecutionManager.On("DeleteWorkflowExecution", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockExecutionManager.On("DeleteActiveClusterSelectionPolicy", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockVisibilityManager.On("DeleteWorkflowExecution", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+	s.mockMutableState.EXPECT().GetPendingWorkflowTimerTaskInfos().Return(map[int]*persistence.WorkflowTimerTaskInfo{}).Times(1)
 
 	s.mockArchivalClient.EXPECT().Archive(gomock.Any(), gomock.Cond(func(req *archiver.ClientRequest) bool {
 		return req.CallerService == service.History && req.AttemptArchiveInline && req.ArchiveRequest.Targets[0] == archiver.ArchiveTargetHistory

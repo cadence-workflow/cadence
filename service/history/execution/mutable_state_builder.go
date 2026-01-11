@@ -111,6 +111,9 @@ type (
 		updateSignalRequestedIDs  map[string]struct{} // Set of signaled requestIds since last update
 		deleteSignalRequestedIDs  map[string]struct{} // Deleted signaled requestIds
 
+		pendingWorkflowTimerTaskInfos map[int]*persistence.WorkflowTimerTaskInfo // Timer Task Type -> WorkflowTimerTaskInfo
+		updateWorkflowTimerTaskInfos  map[int]*persistence.WorkflowTimerTaskInfo // Modified WorkflowTimerTaskInfos since last update
+
 		bufferedEvents       []*types.HistoryEvent // buffered history events that are already persisted
 		updateBufferedEvents []*types.HistoryEvent // buffered history events that needs to be persisted
 		clearBufferedEvents  bool                  // delete buffered events from persistence
@@ -218,6 +221,9 @@ func newMutableStateBuilder(
 		pendingSignalRequestedIDs: make(map[string]struct{}),
 		deleteSignalRequestedIDs:  make(map[string]struct{}),
 
+		updateWorkflowTimerTaskInfos:  make(map[int]*persistence.WorkflowTimerTaskInfo),
+		pendingWorkflowTimerTaskInfos: make(map[int]*persistence.WorkflowTimerTaskInfo),
+
 		currentVersion:        currentVersion,
 		hasBufferedEventsInDB: false,
 		stateInDB:             persistence.WorkflowStateVoid,
@@ -316,6 +322,7 @@ func (e *mutableStateBuilder) CopyToPersistence() *persistence.WorkflowMutableSt
 	state.RequestCancelInfos = e.pendingRequestCancelInfoIDs
 	state.SignalInfos = e.pendingSignalInfoIDs
 	state.SignalRequestedIDs = e.pendingSignalRequestedIDs
+	state.WorkflowTimerTaskInfos = e.pendingWorkflowTimerTaskInfos
 	state.ExecutionInfo = e.executionInfo
 	state.BufferedEvents = e.bufferedEvents
 	state.VersionHistories = e.versionHistories
@@ -343,6 +350,13 @@ func (e *mutableStateBuilder) Load(
 	e.pendingRequestCancelInfoIDs = state.RequestCancelInfos
 	e.pendingSignalInfoIDs = state.SignalInfos
 	e.pendingSignalRequestedIDs = state.SignalRequestedIDs
+	e.pendingWorkflowTimerTaskInfos = state.WorkflowTimerTaskInfos
+	if e.pendingWorkflowTimerTaskInfos == nil {
+		e.pendingWorkflowTimerTaskInfos = make(map[int]*persistence.WorkflowTimerTaskInfo)
+	}
+	if e.updateWorkflowTimerTaskInfos == nil {
+		e.updateWorkflowTimerTaskInfos = make(map[int]*persistence.WorkflowTimerTaskInfo)
+	}
 	e.executionInfo = state.ExecutionInfo
 	e.bufferedEvents = e.reorderAndFilterDuplicateEvents(state.BufferedEvents, "load")
 
@@ -1471,20 +1485,21 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		ExecutionInfo:    e.executionInfo,
 		VersionHistories: e.versionHistories,
 
-		UpsertActivityInfos:       maps.Values(e.updateActivityInfos),
-		DeleteActivityInfos:       maps.Keys(e.deleteActivityInfos),
-		UpsertTimerInfos:          maps.Values(e.updateTimerInfos),
-		DeleteTimerInfos:          maps.Keys(e.deleteTimerInfos),
-		UpsertChildExecutionInfos: maps.Values(e.updateChildExecutionInfos),
-		DeleteChildExecutionInfos: maps.Keys(e.deleteChildExecutionInfos),
-		UpsertRequestCancelInfos:  maps.Values(e.updateRequestCancelInfos),
-		DeleteRequestCancelInfos:  maps.Keys(e.deleteRequestCancelInfos),
-		UpsertSignalInfos:         maps.Values(e.updateSignalInfos),
-		DeleteSignalInfos:         maps.Keys(e.deleteSignalInfos),
-		UpsertSignalRequestedIDs:  maps.Keys(e.updateSignalRequestedIDs),
-		DeleteSignalRequestedIDs:  maps.Keys(e.deleteSignalRequestedIDs),
-		NewBufferedEvents:         e.updateBufferedEvents,
-		ClearBufferedEvents:       e.clearBufferedEvents,
+		UpsertActivityInfos:          maps.Values(e.updateActivityInfos),
+		DeleteActivityInfos:          maps.Keys(e.deleteActivityInfos),
+		UpsertTimerInfos:             maps.Values(e.updateTimerInfos),
+		DeleteTimerInfos:             maps.Keys(e.deleteTimerInfos),
+		UpsertWorkflowTimerTaskInfos: maps.Values(e.updateWorkflowTimerTaskInfos),
+		UpsertChildExecutionInfos:    maps.Values(e.updateChildExecutionInfos),
+		DeleteChildExecutionInfos:    maps.Keys(e.deleteChildExecutionInfos),
+		UpsertRequestCancelInfos:     maps.Values(e.updateRequestCancelInfos),
+		DeleteRequestCancelInfos:     maps.Keys(e.deleteRequestCancelInfos),
+		UpsertSignalInfos:            maps.Values(e.updateSignalInfos),
+		DeleteSignalInfos:            maps.Keys(e.deleteSignalInfos),
+		UpsertSignalRequestedIDs:     maps.Keys(e.updateSignalRequestedIDs),
+		DeleteSignalRequestedIDs:     maps.Keys(e.deleteSignalRequestedIDs),
+		NewBufferedEvents:            e.updateBufferedEvents,
+		ClearBufferedEvents:          e.clearBufferedEvents,
 
 		TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
 			persistence.HistoryTaskCategoryTransfer:    e.insertTransferTasks,
@@ -1560,12 +1575,13 @@ func (e *mutableStateBuilder) CloseTransactionAsSnapshot(
 		ExecutionInfo:    e.executionInfo,
 		VersionHistories: e.versionHistories,
 
-		ActivityInfos:       maps.Values(e.pendingActivityInfoIDs),
-		TimerInfos:          maps.Values(e.pendingTimerInfoIDs),
-		ChildExecutionInfos: maps.Values(e.pendingChildExecutionInfoIDs),
-		RequestCancelInfos:  maps.Values(e.pendingRequestCancelInfoIDs),
-		SignalInfos:         maps.Values(e.pendingSignalInfoIDs),
-		SignalRequestedIDs:  maps.Keys(e.pendingSignalRequestedIDs),
+		ActivityInfos:          maps.Values(e.pendingActivityInfoIDs),
+		TimerInfos:             maps.Values(e.pendingTimerInfoIDs),
+		WorkflowTimerTaskInfos: maps.Values(e.pendingWorkflowTimerTaskInfos),
+		ChildExecutionInfos:    maps.Values(e.pendingChildExecutionInfoIDs),
+		RequestCancelInfos:     maps.Values(e.pendingRequestCancelInfoIDs),
+		SignalInfos:            maps.Values(e.pendingSignalInfoIDs),
+		SignalRequestedIDs:     maps.Keys(e.pendingSignalRequestedIDs),
 
 		TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
 			persistence.HistoryTaskCategoryTransfer:    e.insertTransferTasks,
@@ -1661,6 +1677,8 @@ func (e *mutableStateBuilder) cleanupTransaction() error {
 
 	e.updateTimerInfos = make(map[string]*persistence.TimerInfo)
 	e.deleteTimerInfos = make(map[string]struct{})
+
+	e.updateWorkflowTimerTaskInfos = make(map[int]*persistence.WorkflowTimerTaskInfo)
 
 	e.updateChildExecutionInfos = make(map[int64]*persistence.ChildExecutionInfo)
 	e.deleteChildExecutionInfos = make(map[int64]struct{})
