@@ -145,7 +145,7 @@ func (n *namespaceShardToExecutor) watch() error {
 		// WithRequireLeader ensures that the etcd cluster has a leader
 		clientv3.WithRequireLeader(ctx),
 		etcdkeys.BuildExecutorsPrefix(n.etcdPrefix, n.namespace),
-		clientv3.WithPrefix(), clientv3.WithPrevKV(),
+		clientv3.WithPrefix(),
 	)
 
 	for {
@@ -165,18 +165,13 @@ func (n *namespaceShardToExecutor) watch() error {
 			for _, event := range watchResp.Events {
 				_, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(event.Kv.Key))
 				if keyErr == nil && (keyType == etcdkeys.ExecutorAssignedStateKey || keyType == etcdkeys.ExecutorMetadataKey) {
-					// Check if value actually changed (skip if same value written again)
-					if event.PrevKv != nil && string(event.Kv.Value) == string(event.PrevKv.Value) {
-						continue
-					}
 					shouldRefresh = true
 					break
 				}
 			}
 
 			if shouldRefresh {
-				err := n.refresh(context.Background())
-				if err != nil {
+				if err := n.refresh(context.Background()); err != nil {
 					n.logger.Error("failed to refresh namespace shard to executor", tag.Error(err))
 				}
 			}

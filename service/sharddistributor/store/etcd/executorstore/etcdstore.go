@@ -3,7 +3,6 @@ package executorstore
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=executorstore_mock.go ExecutorStore
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -277,17 +276,13 @@ func (s *executorStoreImpl) Subscribe(ctx context.Context, namespace string) (<-
 	watchPrefix := etcdkeys.BuildExecutorsPrefix(s.prefix, namespace)
 	go func() {
 		defer close(revisionChan)
-		watchChan := s.client.Watch(ctx, watchPrefix, clientv3.WithPrefix(), clientv3.WithPrevKV())
+		watchChan := s.client.Watch(ctx, watchPrefix, clientv3.WithPrefix())
 		for watchResp := range watchChan {
 			if err := watchResp.Err(); err != nil {
 				return
 			}
 			isSignificantChange := false
 			for _, event := range watchResp.Events {
-				if event.IsModify() && bytes.Equal(event.Kv.Value, event.PrevKv.Value) {
-					continue // Value is unchanged, ignore this event.
-				}
-
 				if !event.IsCreate() && !event.IsModify() {
 					isSignificantChange = true
 					break
