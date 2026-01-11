@@ -26,9 +26,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand"
 	"reflect"
 	"runtime"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -40,7 +42,6 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc/yarpcerrors"
-	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/constants"
@@ -1657,7 +1658,7 @@ func TestCheckEventBlobSizeLimit(t *testing.T) {
 			assertMetrics: func(snapshot tally.Snapshot) {
 				counters := snapshot.Counters()
 				assert.Len(t, counters, 1)
-				values := maps.Values(counters)
+				values := slices.Collect(maps.Values(counters))
 				assert.Equal(t, "test.blob_size_exceed_limit", values[0].Name())
 				assert.Equal(t, int64(1), values[0].Value())
 			},
