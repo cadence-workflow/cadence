@@ -1,4 +1,7 @@
-<!-- Describe what has changed in this PR -->
+<!-- 1-2 line summary of WHAT changed technically:
+- Focus on the key modification, not implementation details
+- Good: "Modified FailoverDomain mapper to allow null ActiveClusterName"
+- Bad: "Changed line 47 in mapper.go to add a nil check and updated the function signature" -->
 **What changed?**
 
 
