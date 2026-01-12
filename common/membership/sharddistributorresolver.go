@@ -24,12 +24,15 @@ package membership
 
 import (
 	"context"
+	"fmt"
+	"net"
+	"strconv"
+	"time"
 
-	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
-	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 )
 
 type modeKey string
@@ -42,9 +45,8 @@ var (
 )
 
 type shardDistributorResolver struct {
-	namespace             string
 	shardDistributionMode dynamicproperties.StringPropertyFn
-	client                sharddistributor.Client
+	spectator             spectatorclient.Spectator
 	ring                  SingleProvider
 	logger                log.Logger
 }
@@ -54,15 +56,13 @@ func (s shardDistributorResolver) AddressToHost(owner string) (HostInfo, error) 
 }
 
 func NewShardDistributorResolver(
-	namespace string,
-	client sharddistributor.Client,
+	spectator spectatorclient.Spectator,
 	shardDistributionMode dynamicproperties.StringPropertyFn,
 	ring SingleProvider,
 	logger log.Logger,
 ) SingleProvider {
 	return &shardDistributorResolver{
-		namespace:             namespace,
-		client:                client,
+		spectator:             spectator,
 		shardDistributionMode: shardDistributionMode,
 		ring:                  ring,
 		logger:                logger,
@@ -79,43 +79,49 @@ func (s shardDistributorResolver) Stop() {
 	s.ring.Stop()
 }
 
-func (s shardDistributorResolver) LookupRaw(key string) (string, error) {
-	if s.shardDistributionMode() != "hash_ring" && s.client == nil {
+func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
+	if s.shardDistributionMode() != "hash_ring" && s.spectator == nil {
 		// This will avoid panics when the shard distributor is not configured
 		s.logger.Warn("No shard distributor client, defaulting to hash ring", tag.Value(s.shardDistributionMode()))
 
-		return s.ring.LookupRaw(key)
+		return s.ring.Lookup(key)
 	}
 
 	switch modeKey(s.shardDistributionMode()) {
 	case modeKeyHashRing:
-		return s.ring.LookupRaw(key)
+		return s.ring.Lookup(key)
 	case modeKeyShardDistributor:
 		return s.lookUpInShardDistributor(key)
 	case modeKeyHashRingShadowShardDistributor:
-		hashRingResult, err := s.ring.LookupRaw(key)
+		hashRingResult, err := s.ring.Lookup(key)
 		if err != nil {
-			return "", err
+			return HostInfo{}, err
 		}
-		shardDistributorResult, err := s.lookUpInShardDistributor(key)
-		if err != nil {
-			s.logger.Warn("Failed to lookup in shard distributor shadow", tag.Error(err))
-		} else if hashRingResult != shardDistributorResult {
-			s.logger.Warn("Shadow lookup mismatch", tag.HashRingResult(hashRingResult), tag.ShardDistributorResult(shardDistributorResult))
-		}
+		// Asynchronously lookup in shard distributor to avoid blocking the main thread
+		go func() {
+			shardDistributorResult, err := s.lookUpInShardDistributor(key)
+			if err != nil {
+				s.logger.Warn("Failed to lookup in shard distributor shadow", tag.Error(err))
+			} else {
+				logDifferencesInHostInfo(s.logger, hashRingResult, shardDistributorResult)
+			}
+		}()
 
 		return hashRingResult, nil
 	case modeKeyShardDistributorShadowHashRing:
 		shardDistributorResult, err := s.lookUpInShardDistributor(key)
 		if err != nil {
-			return "", err
+			return HostInfo{}, err
 		}
-		hashRingResult, err := s.ring.LookupRaw(key)
-		if err != nil {
-			s.logger.Warn("Failed to lookup in hash ring shadow", tag.Error(err))
-		} else if hashRingResult != shardDistributorResult {
-			s.logger.Warn("Shadow lookup mismatch", tag.HashRingResult(hashRingResult), tag.ShardDistributorResult(shardDistributorResult))
-		}
+		// Asynchronously lookup in hash ring to avoid blocking the main thread
+		go func() {
+			hashRingResult, err := s.ring.Lookup(key)
+			if err != nil {
+				s.logger.Warn("Failed to lookup in hash ring shadow", tag.Error(err))
+			} else {
+				logDifferencesInHostInfo(s.logger, hashRingResult, shardDistributorResult)
+			}
+		}()
 
 		return shardDistributorResult, nil
 	}
@@ -123,16 +129,7 @@ func (s shardDistributorResolver) LookupRaw(key string) (string, error) {
 	// Default to hash ring
 	s.logger.Warn("Unknown shard distribution mode, defaulting to hash ring", tag.Value(s.shardDistributionMode()))
 
-	return s.ring.LookupRaw(key)
-}
-
-func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
-	owner, err := s.LookupRaw(key)
-	if err != nil {
-		return HostInfo{}, err
-	}
-
-	return s.ring.AddressToHost(owner)
+	return s.ring.Lookup(key)
 }
 
 func (s shardDistributorResolver) Subscribe(name string, channel chan<- *ChangedEvent) error {
@@ -160,15 +157,61 @@ func (s shardDistributorResolver) Refresh() error {
 	return s.ring.Refresh()
 }
 
-func (s shardDistributorResolver) lookUpInShardDistributor(key string) (string, error) {
-	request := &types.GetShardOwnerRequest{
-		ShardKey:  key,
-		Namespace: s.namespace,
-	}
-	response, err := s.client.GetShardOwner(context.Background(), request)
+// TODO: cache the hostinfos, creating them on every request is relatively expensive (we need to do string parsing etc.)
+func (s shardDistributorResolver) lookUpInShardDistributor(key string) (HostInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	owner, err := s.spectator.GetShardOwner(ctx, key)
 	if err != nil {
-		return "", err
+		return HostInfo{}, err
 	}
 
-	return response.Owner, nil
+	portMap := make(PortMap)
+	for _, portType := range []string{PortTchannel, PortGRPC} {
+		portString, ok := owner.Metadata[portType]
+		if !ok {
+			s.logger.Warn(fmt.Sprintf("Port %s not found in metadata", portType), tag.Value(owner))
+			continue
+		}
+
+		port, err := strconv.ParseUint(portString, 10, 16)
+		if err != nil {
+			s.logger.Warn(fmt.Sprintf("Failed to convert %s port to int", portType), tag.Error(err), tag.Value(owner))
+			continue
+		}
+		// This is safe because the conversion above ensures the port is within the uint16 range
+		portMap[portType] = uint16(port)
+	}
+
+	hostaddress := owner.Metadata["hostIP"]
+	if hostaddress == "" {
+		return HostInfo{}, fmt.Errorf("hostIP not found in metadata")
+	}
+
+	address := net.JoinHostPort(hostaddress, strconv.Itoa(int(portMap[PortTchannel])))
+
+	hostInfo := NewDetailedHostInfo(address, owner.ExecutorID, portMap)
+	return hostInfo, nil
+}
+
+func logDifferencesInHostInfo(logger log.Logger, hashRingResult, shardDistributorResult HostInfo) {
+	for _, portName := range []string{PortTchannel, PortGRPC} {
+		hashRingAddr, err := hashRingResult.GetNamedAddress(portName)
+		if err != nil {
+			logger.Warn(fmt.Sprintf("Failed to get hash ring %s address", portName), tag.Error(err))
+			continue
+		}
+
+		shardDistributorAddr, err := shardDistributorResult.GetNamedAddress(portName)
+		if err != nil {
+			logger.Warn(fmt.Sprintf("Failed to get shard distributor %s address", portName), tag.Error(err))
+			continue
+		}
+
+		if hashRingAddr != shardDistributorAddr {
+			logger.Warn(fmt.Sprintf("Shadow lookup mismatch %s addresses", portName),
+				tag.HashRingResult(hashRingAddr),
+				tag.ShardDistributorResult(shardDistributorAddr))
+		}
+	}
 }

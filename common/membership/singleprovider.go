@@ -29,7 +29,6 @@ import "github.com/uber/cadence/common"
 type SingleProvider interface {
 	common.Daemon
 	Lookup(key string) (HostInfo, error)
-	LookupRaw(key string) (string, error)
 	Subscribe(name string, channel chan<- *ChangedEvent) error
 	AddressToHost(owner string) (HostInfo, error)
 	Unsubscribe(name string) error

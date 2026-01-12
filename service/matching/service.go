@@ -59,6 +59,7 @@ func NewService(
 			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
 		),
 		params.HostName,
+		params.RPCConfig,
 		params.GetIsolationGroups,
 	)
 

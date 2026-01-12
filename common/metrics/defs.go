@@ -2204,6 +2204,7 @@ const (
 	CadenceErrNonDeterministicCounter
 	CadenceErrUnauthorizedCounter
 	CadenceErrAuthorizeFailedCounter
+	CadenceRequestsWithoutCallerType
 	CadenceErrRemoteSyncMatchFailedCounter
 	CadenceErrDomainNameExceededWarnLimit
 	CadenceErrIdentityExceededWarnLimit
@@ -3008,6 +3009,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CadenceErrNonDeterministicCounter:                            {metricName: "cadence_errors_nondeterministic", metricType: Counter},
 		CadenceErrUnauthorizedCounter:                                {metricName: "cadence_errors_unauthorized", metricType: Counter},
 		CadenceErrAuthorizeFailedCounter:                             {metricName: "cadence_errors_authorize_failed", metricType: Counter},
+		CadenceRequestsWithoutCallerType:                             {metricName: "cadence_requests_without_caller_type", metricType: Counter},
 		CadenceErrRemoteSyncMatchFailedCounter:                       {metricName: "cadence_errors_remote_syncmatch_failed", metricType: Counter},
 		CadenceErrDomainNameExceededWarnLimit:                        {metricName: "cadence_errors_domain_name_exceeded_warn_limit", metricType: Counter},
 		CadenceErrIdentityExceededWarnLimit:                          {metricName: "cadence_errors_identity_exceeded_warn_limit", metricType: Counter},

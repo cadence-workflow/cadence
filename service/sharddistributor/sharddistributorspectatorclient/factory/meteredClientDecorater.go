@@ -1,4 +1,4 @@
-package spectatorclient
+package factory
 
 import (
 	"context"

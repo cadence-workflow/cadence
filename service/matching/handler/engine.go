@@ -50,6 +50,7 @@ import (
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
@@ -219,6 +220,19 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 	if err != nil {
 		panic(err)
 	}
+
+	// Get the IP address to advertise to external services
+	// This respects bindOnLocalHost config (127.0.0.1 for local dev, external IP for production)
+	hostIP, err := rpc.GetListenIP(e.config.RPCConfig)
+	if err != nil {
+		e.logger.Fatal("Failed to get listen IP", tag.Error(err))
+	}
+
+	executor.SetMetadata(map[string]string{
+		"tchannel": fmt.Sprintf("%d", e.config.RPCConfig.Port),
+		"grpc":     fmt.Sprintf("%d", e.config.RPCConfig.GRPCPort),
+		"hostIP":   hostIP.String(),
+	})
 	e.executor = executor
 }
 
@@ -725,12 +739,14 @@ pollLoop:
 				)
 				task.Finish(nil)
 			default:
-				e.emitInfoOrDebugLog(
-					task.Event.DomainID,
-					"unknown error recording task started",
+				e.logger.Error("unknown error recording task started",
 					tag.WorkflowDomainID(domainID),
-					tag.Error(err),
+					tag.WorkflowID(task.Event.WorkflowID),
+					tag.WorkflowRunID(task.Event.RunID),
 					tag.WorkflowTaskListName(taskListName),
+					tag.WorkflowScheduleID(task.Event.ScheduleID),
+					tag.TaskID(task.Event.TaskID),
+					tag.Error(err),
 				)
 				task.Finish(err)
 			}

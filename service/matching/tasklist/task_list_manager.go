@@ -617,6 +617,12 @@ func (c *taskListManagerImpl) DispatchTask(ctx context.Context, task *InternalTa
 	}
 
 	if domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
+		c.logger.Debug("Domain is active in the current cluster, dispatching task",
+			tag.WorkflowDomainID(task.Event.TaskInfo.DomainID),
+			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.WorkflowID(task.Event.TaskInfo.WorkflowID),
+			tag.WorkflowRunID(task.Event.TaskInfo.RunID),
+		)
 		return c.matcher.MustOffer(ctx, task)
 	}
 
@@ -683,10 +689,17 @@ func (c *taskListManagerImpl) getTask(ctx context.Context, maxDispatchPerSecond 
 	isolationGroup := IsolationGroupFromContext(ctx)
 	pollerID := PollerIDFromContext(ctx)
 	identity := IdentityFromContext(ctx)
-	rps := c.config.TaskDispatchRPS
-	if maxDispatchPerSecond != nil {
+	rps := -1.0
+	rpsOverride := c.config.OverrideTaskListRPS()
+	if rpsOverride > 0 {
+		rps = rpsOverride
+	} else if maxDispatchPerSecond != nil {
 		rps = *maxDispatchPerSecond
+	}
+	if rps >= 0 {
 		c.limiter.ReportLimit(rps)
+	} else {
+		rps = c.config.TaskDispatchRPS
 	}
 	c.pollers.StartPoll(pollerID, cancel, &poller.Info{
 		Identity:       identity,
@@ -1111,6 +1124,9 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		},
 		QPSTrackerInterval: func() time.Duration {
 			return cfg.QPSTrackerInterval(domainName, taskListName, taskType)
+		},
+		OverrideTaskListRPS: func() float64 {
+			return cfg.OverrideTaskListRPS(domainName, taskListName, taskType)
 		},
 		EnableAdaptiveScaler: func() bool {
 			return cfg.EnableAdaptiveScaler(domainName, taskListName, taskType)

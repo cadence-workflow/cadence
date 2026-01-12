@@ -69,21 +69,6 @@ func (mr *MockSingleProviderMockRecorder) Lookup(key any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Lookup", reflect.TypeOf((*MockSingleProvider)(nil).Lookup), key)
 }
 
-// LookupRaw mocks base method.
-func (m *MockSingleProvider) LookupRaw(key string) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupRaw", key)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// LookupRaw indicates an expected call of LookupRaw.
-func (mr *MockSingleProviderMockRecorder) LookupRaw(key any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupRaw", reflect.TypeOf((*MockSingleProvider)(nil).LookupRaw), key)
-}
-
 // MemberCount mocks base method.
 func (m *MockSingleProvider) MemberCount() int {
 	m.ctrl.T.Helper()

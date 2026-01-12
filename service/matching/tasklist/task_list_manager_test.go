@@ -36,6 +36,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
@@ -43,6 +44,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/isolationgroup"
@@ -86,7 +88,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 		dynamicClient:      dynamicClient,
 	}
 	deps.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).Times(1)
-	config := config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "hostname", getIsolationgroupsHelper)
+	config := config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
 	mockHistoryService := history.NewMockClient(ctrl)
 	params := ManagerParams{
 		deps.mockDomainCache,
@@ -110,7 +112,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 }
 
 func defaultTestConfig() *config.Config {
-	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
+	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
 	config.LongPollExpirationInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
 	config.MaxTaskDeleteBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(1)
 	config.AllIsolationGroups = getIsolationgroupsHelper
@@ -418,7 +420,7 @@ func TestDescribeTaskList(t *testing.T) {
 
 func TestCheckIdleTaskList(t *testing.T) {
 	defer goleak.VerifyNone(t)
-	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
+	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
 	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
 	t.Run("Idle task-list", func(t *testing.T) {
@@ -489,7 +491,7 @@ func TestAddTaskStandby(t *testing.T) {
 	controller := gomock.NewController(t)
 	logger := testlogger.New(t)
 
-	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
+	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
 	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
 	tlm := createTestTaskListManagerWithConfig(t, logger, controller, cfg, clock.NewMockedTimeSource())
@@ -1911,4 +1913,68 @@ func persistencePartitions(num int) map[int]*persistence.TaskListPartition {
 		result[i] = &persistence.TaskListPartition{}
 	}
 	return result
+}
+
+func TestTaskListUsesOverrideRPS(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		overrideRPS          float64
+		maxDispatchPerSecond *float64
+		expectedRPS          float64
+	}{
+		{
+			name:                 "Uses maxDispatchPerSecond when overrideRPS is zero",
+			overrideRPS:          0.0,
+			maxDispatchPerSecond: common.Float64Ptr(75.0),
+			expectedRPS:          75.0,
+		},
+		{
+			name:                 "Uses maxDispatchPerSecond when overrideRPS is negative",
+			overrideRPS:          -1.0,
+			maxDispatchPerSecond: common.Float64Ptr(60.0),
+			expectedRPS:          60.0,
+		},
+		{
+			name:                 "OverrideRPS takes precedence when higher than maxDispatchPerSecond",
+			overrideRPS:          200.0,
+			maxDispatchPerSecond: common.Float64Ptr(50.0),
+			expectedRPS:          200.0,
+		},
+		{
+			name:                 "OverrideRPS takes precedence when lower than maxDispatchPerSecond",
+			overrideRPS:          25.0,
+			maxDispatchPerSecond: common.Float64Ptr(100.0),
+			expectedRPS:          25.0,
+		},
+		{
+			name:                 "No maxDispatchPerSecond and no overrideRPS",
+			overrideRPS:          0.0,
+			maxDispatchPerSecond: nil,
+			expectedRPS:          100000.0,
+		},
+		{
+			name:                 "OverrideRPS only, with no maxDispatchPerSecond",
+			overrideRPS:          150.0,
+			maxDispatchPerSecond: nil,
+			expectedRPS:          150.0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			logger := testlogger.New(t)
+
+			cfg := defaultTestConfig()
+			cfg.OverrideTaskListRPS = func(domain, taskList string, taskType int) float64 {
+				return tc.overrideRPS
+			}
+
+			tlm := createTestTaskListManagerWithConfig(t, logger, controller, cfg, clock.NewMockedTimeSource())
+
+			_, _ = tlm.GetTask(context.Background(), tc.maxDispatchPerSecond)
+
+			assert.Equal(t, rate.Limit(tc.expectedRPS), tlm.limiter.Limit())
+		})
+	}
 }

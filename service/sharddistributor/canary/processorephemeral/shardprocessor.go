@@ -89,7 +89,6 @@ func (p *ShardProcessor) process() {
 		case <-ticker.Chan():
 			p.logger.Info("Processing shard", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", p.status.String()))
 		case <-stopTicker.Chan():
-			p.logger.Info("Deciding to set shard processor to done", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", p.status.String()))
 			p.processSteps++
 			if rand.Intn(shardProcessorDoneChance) == 0 {
 				p.logger.Info("Setting shard processor to done", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", p.status.String()))
