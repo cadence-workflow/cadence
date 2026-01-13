@@ -1,13 +1,13 @@
 package tasklist
 
 import (
-	"go.uber.org/mock/gomock"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/persistence"
