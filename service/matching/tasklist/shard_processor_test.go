@@ -33,7 +33,7 @@ func paramsForTaskListManagerWithStopCallback(t *testing.T, taskListID *Identifi
 	mockManager := NewMockManager(mockCtrl)
 	params.TaskLists[*taskListID] = mockManager
 	mockManager.EXPECT().TaskListID().Return(
-		taskListID).Times(2)
+		taskListID).Times(1)
 	mockManager.EXPECT().Stop().Do(
 		func() {
 			delete(params.TaskLists, *taskListID)
