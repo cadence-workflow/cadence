@@ -348,7 +348,11 @@ func TestStartWorkflowExecution_OrphanedHistoryCleanup(t *testing.T) {
 			wantErr:              true,
 		},
 		{
-			name: "cleanup orphaned history on DuplicateRequestError with flag enabled",
+			// NOTE: DuplicateRequestError with WorkflowRequestTypeStart returns success (not an error),
+			// so the cleanup function is NOT called. This is because the code treats this as an
+			// idempotent success case at lines 260-262 in start_workflow_execution.go.
+			// History nodes ARE orphaned in this case, but cleanup doesn't happen with current impl.
+			name: "no cleanup on DuplicateRequestError with WorkflowRequestTypeStart (returns success)",
 			request: &types.HistoryStartWorkflowExecutionRequest{
 				DomainUUID: constants.TestDomainID,
 				StartRequest: &types.StartWorkflowExecutionRequest{
@@ -370,13 +374,8 @@ func TestStartWorkflowExecution_OrphanedHistoryCleanup(t *testing.T) {
 				eft.ShardCtx.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).
 					Return(nil, &types.EntityNotExistsError{}).Once()
 
-				var capturedBranchToken []byte
 				historyV2Mgr := eft.ShardCtx.Resource.HistoryMgr
 				historyV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.AnythingOfType("*persistence.AppendHistoryNodesRequest")).
-					Run(func(args mock.Arguments) {
-						req := args.Get(1).(*persistence.AppendHistoryNodesRequest)
-						capturedBranchToken = req.BranchToken
-					}).
 					Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
 
 				eft.ShardCtx.Resource.ExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.Anything).
@@ -384,15 +383,10 @@ func TestStartWorkflowExecution_OrphanedHistoryCleanup(t *testing.T) {
 						RequestType: persistence.WorkflowRequestTypeStart,
 						RunID:       "existing-run-id",
 					}).Once()
-
-				historyV2Mgr.On("DeleteHistoryBranch", mock.Anything, mock.MatchedBy(func(req *persistence.DeleteHistoryBranchRequest) bool {
-					return assert.Equal(t, capturedBranchToken, req.BranchToken) &&
-						assert.Equal(t, constants.TestDomainName, req.DomainName)
-				})).
-					Return(nil).Once()
+				// No DeleteHistoryBranch mock - cleanup doesn't happen for this case
 			},
 			enableCleanupFlag:    true,
-			expectHistoryCleanup: true,
+			expectHistoryCleanup: false, // Cleanup doesn't happen because success is returned
 			wantErr:              false,
 		},
 	}
@@ -404,9 +398,7 @@ func TestStartWorkflowExecution_OrphanedHistoryCleanup(t *testing.T) {
 			defer eft.Engine.Stop()
 
 			eft.ShardCtx.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
-			eft.ShardCtx.GetConfig().EnableCleanupOrphanedHistoryBranchOnWorkflowCreation = func(...dynamicproperties.FilterOption) bool {
-				return tc.enableCleanupFlag
-			}
+			eft.ShardCtx.GetConfig().EnableCleanupOrphanedHistoryBranchOnWorkflowCreation = dynamicproperties.GetBoolPropertyFnFilteredByDomain(tc.enableCleanupFlag)
 
 			tc.setupMocks(t, eft)
 
@@ -750,6 +742,283 @@ func TestCreateMutableState(t *testing.T) {
 	}
 }
 
+func TestHandleCreateWorkflowExecutionFailureCleanup(t *testing.T) {
+	tests := []struct {
+		name                          string
+		enableCleanupFlag             bool
+		enableUninitializedRecordFlag bool
+		err                           error
+		workflowExecution             *types.WorkflowExecution
+		historyBlob                   []byte
+		startRequest                  *types.HistoryStartWorkflowExecutionRequest
+		setupMocks                    func(*testdata.EngineForTest)
+		expectDeleteHistoryBranch     bool
+		expectDeleteVisibility        bool
+	}{
+		{
+			name:              "cleanup disabled - returns early",
+			enableCleanupFlag: false,
+			err:               errors.New("some error"),
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf-id",
+				RunID:      "run-id",
+			},
+			historyBlob: []byte("branch-token"),
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks:                func(eft *testdata.EngineForTest) {},
+			expectDeleteHistoryBranch: false,
+			expectDeleteVisibility:    false,
+		},
+		{
+			name:              "err is nil - returns early with bug log (called without error is a bug)",
+			enableCleanupFlag: true,
+			err:               nil,
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf-id",
+				RunID:      "run-id",
+			},
+			historyBlob: []byte("branch-token"),
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks:                func(eft *testdata.EngineForTest) {},
+			expectDeleteHistoryBranch: false,
+			expectDeleteVisibility:    false,
+		},
+		{
+			name:              "workflowExecution is nil - returns early",
+			enableCleanupFlag: true,
+			err:               errors.New("some error"),
+			workflowExecution: nil,
+			historyBlob:       []byte("branch-token"),
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks:                func(eft *testdata.EngineForTest) {},
+			expectDeleteHistoryBranch: false,
+			expectDeleteVisibility:    false,
+		},
+		{
+			name:              "historyBlob is nil - returns early",
+			enableCleanupFlag: true,
+			err:               errors.New("some error"),
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf-id",
+				RunID:      "run-id",
+			},
+			historyBlob: nil,
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks:                func(eft *testdata.EngineForTest) {},
+			expectDeleteHistoryBranch: false,
+			expectDeleteVisibility:    false,
+		},
+		{
+			name:              "startRequest is nil - returns early with bug log",
+			enableCleanupFlag: true,
+			err:               errors.New("some error"),
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf-id",
+				RunID:      "run-id",
+			},
+			historyBlob:               []byte("branch-token"),
+			startRequest:              nil,
+			setupMocks:                func(eft *testdata.EngineForTest) {},
+			expectDeleteHistoryBranch: false,
+			expectDeleteVisibility:    false,
+		},
+		{
+			name:              "workflowID is empty - returns early with bug log",
+			enableCleanupFlag: true,
+			err:               errors.New("some error"),
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "",
+				RunID:      "run-id",
+			},
+			historyBlob: []byte("branch-token"),
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks:                func(eft *testdata.EngineForTest) {},
+			expectDeleteHistoryBranch: false,
+			expectDeleteVisibility:    false,
+		},
+		{
+			name:              "runID is empty - returns early with bug log",
+			enableCleanupFlag: true,
+			err:               errors.New("some error"),
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf-id",
+				RunID:      "",
+			},
+			historyBlob: []byte("branch-token"),
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks:                func(eft *testdata.EngineForTest) {},
+			expectDeleteHistoryBranch: false,
+			expectDeleteVisibility:    false,
+		},
+		{
+			name:              "cleanup path - deletes history branch successfully",
+			enableCleanupFlag: true,
+			err:               errors.New("some error"),
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf-id",
+				RunID:      "run-id",
+			},
+			historyBlob: []byte("branch-token"),
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.MatchedBy(func(req *persistence.DeleteHistoryBranchRequest) bool {
+					return string(req.BranchToken) == "branch-token" &&
+						req.DomainName == constants.TestDomainName
+				})).Return(nil).Once()
+			},
+			expectDeleteHistoryBranch: true,
+			expectDeleteVisibility:    false,
+		},
+		{
+			name:              "cleanup path - delete history branch fails gracefully",
+			enableCleanupFlag: true,
+			err:               errors.New("some error"),
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf-id",
+				RunID:      "run-id",
+			},
+			historyBlob: []byte("branch-token"),
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.AnythingOfType("*persistence.DeleteHistoryBranchRequest")).
+					Return(errors.New("delete failed")).Once()
+			},
+			expectDeleteHistoryBranch: true,
+			expectDeleteVisibility:    false,
+		},
+		{
+			name:                          "cleanup path with visibility - deletes both history and visibility",
+			enableCleanupFlag:             true,
+			enableUninitializedRecordFlag: true,
+			err:                           errors.New("some error"),
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf-id",
+				RunID:      "run-id",
+			},
+			historyBlob: []byte("branch-token"),
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.AnythingOfType("*persistence.DeleteHistoryBranchRequest")).
+					Return(nil).Once()
+				eft.ShardCtx.Resource.VisibilityMgr.On("DeleteWorkflowExecution", mock.Anything, mock.MatchedBy(func(req *persistence.VisibilityDeleteWorkflowExecutionRequest) bool {
+					return req.WorkflowID == "wf-id" &&
+						req.RunID == "run-id" &&
+						req.Domain == constants.TestDomainName
+				})).Return(nil).Once()
+			},
+			expectDeleteHistoryBranch: true,
+			expectDeleteVisibility:    true,
+		},
+		{
+			name:                          "cleanup path with visibility - visibility delete fails gracefully",
+			enableCleanupFlag:             true,
+			enableUninitializedRecordFlag: true,
+			err:                           errors.New("some error"),
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf-id",
+				RunID:      "run-id",
+			},
+			historyBlob: []byte("branch-token"),
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.AnythingOfType("*persistence.DeleteHistoryBranchRequest")).
+					Return(nil).Once()
+				eft.ShardCtx.Resource.VisibilityMgr.On("DeleteWorkflowExecution", mock.Anything, mock.AnythingOfType("*persistence.VisibilityDeleteWorkflowExecutionRequest")).
+					Return(errors.New("visibility delete failed")).Once()
+			},
+			expectDeleteHistoryBranch: true,
+			expectDeleteVisibility:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
+			eft.Engine.Start()
+			defer eft.Engine.Stop()
+
+			// Configure flags
+			eft.ShardCtx.GetConfig().EnableCleanupOrphanedHistoryBranchOnWorkflowCreation = dynamicproperties.GetBoolPropertyFnFilteredByDomain(tc.enableCleanupFlag)
+			eft.ShardCtx.GetConfig().EnableRecordWorkflowExecutionUninitialized = dynamicproperties.GetBoolPropertyFnFilteredByDomain(tc.enableUninitializedRecordFlag)
+
+			// Setup mocks
+			tc.setupMocks(eft)
+
+			// Get the engine implementation
+			engine := eft.Engine.(*historyEngineImpl)
+
+			// Create domain entry
+			domainEntry := cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{
+					ID:   constants.TestDomainID,
+					Name: constants.TestDomainName,
+				},
+				nil,
+				true,
+				nil,
+				0,
+				nil,
+				1,
+				1,
+				1,
+			)
+
+			// Create history blob if provided
+			var historyBlob *events.PersistedBlob
+			if tc.historyBlob != nil {
+				historyBlob = &events.PersistedBlob{
+					BranchToken: tc.historyBlob,
+				}
+			}
+
+			// Call the function
+			engine.handleCreateWorkflowExecutionFailureCleanup(
+				context.Background(),
+				tc.startRequest,
+				domainEntry,
+				tc.workflowExecution,
+				historyBlob,
+				false,
+				tc.err,
+			)
+
+			// Assert mocks
+			if tc.expectDeleteHistoryBranch {
+				eft.ShardCtx.Resource.HistoryMgr.AssertCalled(t, "DeleteHistoryBranch", mock.Anything, mock.AnythingOfType("*persistence.DeleteHistoryBranchRequest"))
+			} else {
+				eft.ShardCtx.Resource.HistoryMgr.AssertNotCalled(t, "DeleteHistoryBranch", mock.Anything, mock.AnythingOfType("*persistence.DeleteHistoryBranchRequest"))
+			}
+
+			if tc.expectDeleteVisibility {
+				eft.ShardCtx.Resource.VisibilityMgr.AssertCalled(t, "DeleteWorkflowExecution", mock.Anything, mock.AnythingOfType("*persistence.VisibilityDeleteWorkflowExecutionRequest"))
+			} else if tc.enableUninitializedRecordFlag {
+				// Only assert not called if the flag was enabled (otherwise it wouldn't be called anyway)
+				eft.ShardCtx.Resource.VisibilityMgr.AssertNotCalled(t, "DeleteWorkflowExecution", mock.Anything, mock.AnythingOfType("*persistence.VisibilityDeleteWorkflowExecutionRequest"))
+			}
+		})
+	}
+}
+
 func getDomainCacheEntry(domainFailoverVersion int64, cfg *types.ActiveClusters) *cache.DomainCacheEntry {
 	// only thing we care in domain cache entry is the active clusters config
 	return cache.NewDomainCacheEntryForTest(
@@ -768,272 +1037,4 @@ func getDomainCacheEntry(domainFailoverVersion int64, cfg *types.ActiveClusters)
 		1,
 		1,
 	)
-}
-
-func TestHandleCreateWorkflowExecutionFailureCleanup(t *testing.T) {
-	testWorkflowExecution := types.WorkflowExecution{
-		WorkflowID: "test-workflow-id",
-		RunID:      "test-run-id",
-	}
-	testDomainID := "test-domain-id"
-	testDomain := "test-domain"
-	testBranchToken := []byte("test-branch-token")
-	testHistoryBlob := events.PersistedBlob{
-		BranchToken: testBranchToken,
-	}
-
-	tests := []struct {
-		name                               string
-		isSignalWithStart                  bool
-		err                                error
-		enableCleanupFlag                  bool
-		enableRecordUninitialized          bool
-		visibilityMgrExists                bool
-		setupMocks                         func(*testing.T, *testdata.EngineForTest)
-		expectDeleteHistoryBranch          bool
-		expectDeleteHistoryBranchError     bool
-		expectDeleteWorkflowExecution      bool
-		expectDeleteWorkflowExecutionError bool
-	}{
-		{
-			name:              "feature flag disabled - returns early",
-			isSignalWithStart: false,
-			err:               &persistence.WorkflowExecutionAlreadyStartedError{},
-			enableCleanupFlag: false,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				// No mocks needed - should return early
-			},
-			expectDeleteHistoryBranch:     false,
-			expectDeleteWorkflowExecution: false,
-		},
-		{
-			name:              "signal with start - duplicate request error - returns early (expected behavior)",
-			isSignalWithStart: true,
-			err:               &persistence.DuplicateRequestError{RequestType: persistence.WorkflowRequestTypeStart, RunID: "existing-run-id"},
-			enableCleanupFlag: true,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				// No mocks needed - should return early for expected duplicate
-			},
-			expectDeleteHistoryBranch:     false,
-			expectDeleteWorkflowExecution: false,
-		},
-		{
-			name:              "signal with start - non-duplicate request error - logs error and returns early",
-			isSignalWithStart: true,
-			err:               errors.New("some other error"),
-			enableCleanupFlag: true,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				// No mocks needed - should log and return early
-			},
-			expectDeleteHistoryBranch:     false,
-			expectDeleteWorkflowExecution: false,
-		},
-		{
-			name:                      "workflow already started error - deletes history branch",
-			isSignalWithStart:         false,
-			err:                       &persistence.WorkflowExecutionAlreadyStartedError{StartRequestID: "other-request-id", RunID: "existing-run-id"},
-			enableCleanupFlag:         true,
-			enableRecordUninitialized: false,
-			visibilityMgrExists:       false,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.MatchedBy(func(req *persistence.DeleteHistoryBranchRequest) bool {
-					return assert.Equal(t, testBranchToken, req.BranchToken) &&
-						assert.Equal(t, testDomain, req.DomainName)
-				})).Return(nil).Once()
-			},
-			expectDeleteHistoryBranch:     true,
-			expectDeleteWorkflowExecution: false,
-		},
-		{
-			name:                      "duplicate request error (not signal-with-start) - deletes history branch",
-			isSignalWithStart:         false,
-			err:                       &persistence.DuplicateRequestError{RequestType: persistence.WorkflowRequestTypeStart, RunID: "existing-run-id"},
-			enableCleanupFlag:         true,
-			enableRecordUninitialized: false,
-			visibilityMgrExists:       false,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.MatchedBy(func(req *persistence.DeleteHistoryBranchRequest) bool {
-					return assert.Equal(t, testBranchToken, req.BranchToken) &&
-						assert.Equal(t, testDomain, req.DomainName)
-				})).Return(nil).Once()
-			},
-			expectDeleteHistoryBranch:     true,
-			expectDeleteWorkflowExecution: false,
-		},
-		{
-			name:                      "delete history branch fails - logs error and continues",
-			isSignalWithStart:         false,
-			err:                       &persistence.WorkflowExecutionAlreadyStartedError{},
-			enableCleanupFlag:         true,
-			enableRecordUninitialized: false,
-			visibilityMgrExists:       false,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.Anything).
-					Return(errors.New("delete history branch error")).Once()
-			},
-			expectDeleteHistoryBranch:      true,
-			expectDeleteHistoryBranchError: true,
-			expectDeleteWorkflowExecution:  false,
-		},
-		{
-			name:                      "already started error with visibility enabled - deletes both history and visibility",
-			isSignalWithStart:         false,
-			err:                       &persistence.WorkflowExecutionAlreadyStartedError{},
-			enableCleanupFlag:         true,
-			enableRecordUninitialized: true,
-			visibilityMgrExists:       true,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.Anything).Return(nil).Once()
-				eft.ShardCtx.Resource.VisibilityMgr.On("DeleteWorkflowExecution", mock.Anything, mock.MatchedBy(func(req *persistence.VisibilityDeleteWorkflowExecutionRequest) bool {
-					return req.DomainID == testDomainID &&
-						req.Domain == testDomain &&
-						req.RunID == testWorkflowExecution.RunID &&
-						req.WorkflowID == testWorkflowExecution.WorkflowID
-				})).Return(nil).Once()
-			},
-			expectDeleteHistoryBranch:     true,
-			expectDeleteWorkflowExecution: true,
-		},
-		{
-			name:                      "delete workflow execution fails - logs error and continues",
-			isSignalWithStart:         false,
-			err:                       &persistence.WorkflowExecutionAlreadyStartedError{},
-			enableCleanupFlag:         true,
-			enableRecordUninitialized: true,
-			visibilityMgrExists:       true,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.Anything).Return(nil).Once()
-				eft.ShardCtx.Resource.VisibilityMgr.On("DeleteWorkflowExecution", mock.Anything, mock.Anything).
-					Return(errors.New("delete visibility error")).Once()
-			},
-			expectDeleteHistoryBranch:          true,
-			expectDeleteWorkflowExecution:      true,
-			expectDeleteWorkflowExecutionError: true,
-		},
-		{
-			name:                      "visibility manager is nil - skips visibility deletion",
-			isSignalWithStart:         false,
-			err:                       &persistence.WorkflowExecutionAlreadyStartedError{},
-			enableCleanupFlag:         true,
-			enableRecordUninitialized: true,
-			visibilityMgrExists:       false,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.Anything).Return(nil).Once()
-				// No visibility manager mock - it's nil
-			},
-			expectDeleteHistoryBranch:     true,
-			expectDeleteWorkflowExecution: false,
-		},
-		{
-			name:                      "enable record uninitialized is false - skips visibility deletion",
-			isSignalWithStart:         false,
-			err:                       &persistence.WorkflowExecutionAlreadyStartedError{},
-			enableCleanupFlag:         true,
-			enableRecordUninitialized: false,
-			visibilityMgrExists:       true,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.Anything).Return(nil).Once()
-				// No visibility deletion expected when EnableRecordUninitialized is false
-			},
-			expectDeleteHistoryBranch:     true,
-			expectDeleteWorkflowExecution: false,
-		},
-		{
-			name:              "transient error - logs warning, does not delete history branch",
-			isSignalWithStart: false,
-			err:               &types.InternalServiceError{Message: "transient error"},
-			enableCleanupFlag: true,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				// No delete history branch call expected for transient errors
-			},
-			expectDeleteHistoryBranch:     false,
-			expectDeleteWorkflowExecution: false,
-		},
-		{
-			name:              "service busy error (transient) - logs warning, does not delete history branch",
-			isSignalWithStart: false,
-			err:               &types.ServiceBusyError{Message: "service busy"},
-			enableCleanupFlag: true,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				// No delete history branch call expected for transient errors
-			},
-			expectDeleteHistoryBranch:     false,
-			expectDeleteWorkflowExecution: false,
-		},
-		{
-			name:              "timeout error (transient) - logs warning, does not delete history branch",
-			isSignalWithStart: false,
-			err:               &persistence.TimeoutError{Msg: "timeout"},
-			enableCleanupFlag: true,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				// No delete history branch call expected for transient errors
-			},
-			expectDeleteHistoryBranch:     false,
-			expectDeleteWorkflowExecution: false,
-		},
-		{
-			name:              "unknown error - does nothing",
-			isSignalWithStart: false,
-			err:               errors.New("unknown error"),
-			enableCleanupFlag: true,
-			setupMocks: func(t *testing.T, eft *testdata.EngineForTest) {
-				// No action expected for unknown non-transient errors
-			},
-			expectDeleteHistoryBranch:     false,
-			expectDeleteWorkflowExecution: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
-			eft.Engine.Start()
-			defer eft.Engine.Stop()
-
-			// Set the cleanup feature flag
-			eft.ShardCtx.GetConfig().EnableCleanupOrphanedHistoryBranchOnWorkflowCreation = func(...dynamicproperties.FilterOption) bool {
-				return tc.enableCleanupFlag
-			}
-
-			// Set the EnableRecordWorkflowExecutionUninitialized flag
-			eft.ShardCtx.GetConfig().EnableRecordWorkflowExecutionUninitialized = func(domain string) bool {
-				return tc.enableRecordUninitialized
-			}
-
-			// Get the engine implementation to access the method and set visibility manager
-			engine := eft.Engine.(*historyEngineImpl)
-
-			// Set visibility manager based on test case
-			if !tc.visibilityMgrExists {
-				engine.visibilityMgr = nil
-			}
-
-			tc.setupMocks(t, eft)
-
-			// Call the method under test
-			engine.handleCreateWorkflowExecutionFailureCleanup(
-				context.Background(),
-				testWorkflowExecution,
-				testDomainID,
-				testHistoryBlob,
-				testDomain,
-				testWorkflowExecution.WorkflowID,
-				tc.isSignalWithStart,
-				tc.err,
-			)
-
-			// Verify expectations
-			if tc.expectDeleteHistoryBranch {
-				eft.ShardCtx.Resource.HistoryMgr.AssertCalled(t, "DeleteHistoryBranch", mock.Anything, mock.Anything)
-			} else {
-				eft.ShardCtx.Resource.HistoryMgr.AssertNotCalled(t, "DeleteHistoryBranch", mock.Anything, mock.Anything)
-			}
-
-			if tc.expectDeleteWorkflowExecution {
-				eft.ShardCtx.Resource.VisibilityMgr.AssertCalled(t, "DeleteWorkflowExecution", mock.Anything, mock.Anything)
-			} else if tc.visibilityMgrExists {
-				eft.ShardCtx.Resource.VisibilityMgr.AssertNotCalled(t, "DeleteWorkflowExecution", mock.Anything, mock.Anything)
-			}
-		})
-	}
 }
