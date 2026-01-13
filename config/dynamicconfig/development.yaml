@@ -74,6 +74,8 @@ matching.enableClientAutoConfig:
 - value: true
 frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
 - value: true
+history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation:
+- value: true
 shardDistributor.migrationMode:
   - value: "onboarded"
   - value: "local_pass"
