@@ -1491,6 +1491,9 @@ const (
 	// The scope for the shard distributor executor
 	ShardDistributorExecutorScope
 
+	// ShardDistributorWatchScope tracks etcd watch stream processing
+	ShardDistributorWatchScope
+
 	NumShardDistributorScopes
 )
 
@@ -2177,6 +2180,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		ShardDistributorStoreRecordHeartbeatScope:              {operation: "StoreRecordHeartbeat"},
 		ShardDistributorStoreSubscribeScope:                    {operation: "StoreSubscribe"},
 		ShardDistributorStoreSubscribeToAssignmentChangesScope: {operation: "StoreSubscribeToAssignmentChanges"},
+		ShardDistributorWatchScope:                             {operation: "Watch"},
 	},
 }
 
@@ -2981,6 +2985,15 @@ const (
 	// ShardDistributorShardHandoverLatency measures the time taken to hand over a shard from one executor to another
 	ShardDistributorShardHandoverLatency
 
+	// ShardDistributorWatchConsumerLag measures the lag between latest etcd revision and last processed revision
+	ShardDistributorWatchConsumerLag
+	// ShardDistributorWatchProcessingLatency measures how long it takes to process a single WatchResponse
+	ShardDistributorWatchProcessingLatency
+	// ShardDistributorWatchEventsReceived counts the total number of watch events received
+	ShardDistributorWatchEventsReceived
+	// ShardDistributorWatchRefreshTotal counts the total number of refresh operations triggered by watch
+	ShardDistributorWatchRefreshTotal
+
 	NumShardDistributorMetrics
 )
 
@@ -3771,6 +3784,11 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		ShardDistributorShardAssignmentDistributionLatency: {metricName: "shard_distributor_shard_assignment_distribution_latency", metricType: Histogram, buckets: Default1ms100s.buckets()},
 		ShardDistributorShardHandoverLatency:               {metricName: "shard_distributor_shard_handover_latency", metricType: Histogram, buckets: Default1ms100s.buckets()},
+
+		ShardDistributorWatchConsumerLag:       {metricName: "shard_distributor_watch_consumer_lag", metricType: Gauge},
+		ShardDistributorWatchProcessingLatency: {metricName: "shard_distributor_watch_processing_latency", metricType: Histogram, buckets: Default1ms100s.buckets()},
+		ShardDistributorWatchEventsReceived:    {metricName: "shard_distributor_watch_events_received", metricType: Counter},
+		ShardDistributorWatchRefreshTotal:      {metricName: "shard_distributor_watch_refresh_total", metricType: Counter},
 	},
 }
 

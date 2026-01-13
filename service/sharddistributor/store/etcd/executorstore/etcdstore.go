@@ -3,7 +3,6 @@ package executorstore
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=executorstore_mock.go ExecutorStore
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,6 +14,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -30,13 +30,14 @@ var (
 )
 
 type executorStoreImpl struct {
-	client       etcdclient.Client
-	prefix       string
-	logger       log.Logger
-	shardCache   *shardcache.ShardToExecutorCache
-	timeSource   clock.TimeSource
-	recordWriter *common.RecordWriter
-	cfg          *config.Config
+	client        etcdclient.Client
+	prefix        string
+	logger        log.Logger
+	shardCache    *shardcache.ShardToExecutorCache
+	timeSource    clock.TimeSource
+	recordWriter  *common.RecordWriter
+	cfg           *config.Config
+	metricsClient metrics.Client
 }
 
 // shardStatisticsUpdate holds the staged statistics for a shard so we can write them
@@ -50,17 +51,18 @@ type shardStatisticsUpdate struct {
 type ExecutorStoreParams struct {
 	fx.In
 
-	Client     etcdclient.Client `name:"executorstore"`
-	ETCDConfig ETCDConfig
-	Lifecycle  fx.Lifecycle
-	Logger     log.Logger
-	TimeSource clock.TimeSource
-	Config     *config.Config
+	Client        etcdclient.Client `name:"executorstore"`
+	ETCDConfig    ETCDConfig
+	Lifecycle     fx.Lifecycle
+	Logger        log.Logger
+	TimeSource    clock.TimeSource
+	Config        *config.Config
+	MetricsClient metrics.Client
 }
 
 // NewStore creates a new etcd-backed store and provides it to the fx application.
 func NewStore(p ExecutorStoreParams) (store.Store, error) {
-	shardCache := shardcache.NewShardToExecutorCache(p.ETCDConfig.Prefix, p.Client, p.Logger, p.TimeSource)
+	shardCache := shardcache.NewShardToExecutorCache(p.ETCDConfig.Prefix, p.Client, p.Logger, p.TimeSource, p.MetricsClient)
 
 	timeSource := p.TimeSource
 	if timeSource == nil {
@@ -73,13 +75,14 @@ func NewStore(p ExecutorStoreParams) (store.Store, error) {
 	}
 
 	store := &executorStoreImpl{
-		client:       p.Client,
-		prefix:       p.ETCDConfig.Prefix,
-		logger:       p.Logger,
-		shardCache:   shardCache,
-		timeSource:   timeSource,
-		recordWriter: recordWriter,
-		cfg:          p.Config,
+		client:        p.Client,
+		prefix:        p.ETCDConfig.Prefix,
+		logger:        p.Logger,
+		shardCache:    shardCache,
+		timeSource:    timeSource,
+		recordWriter:  recordWriter,
+		cfg:           p.Config,
+		metricsClient: p.MetricsClient,
 	}
 
 	p.Lifecycle.Append(fx.StartStopHook(store.Start, store.Stop))
@@ -275,19 +278,37 @@ func (s *executorStoreImpl) SubscribeToAssignmentChanges(ctx context.Context, na
 func (s *executorStoreImpl) Subscribe(ctx context.Context, namespace string) (<-chan int64, error) {
 	revisionChan := make(chan int64, 1)
 	watchPrefix := etcdkeys.BuildExecutorsPrefix(s.prefix, namespace)
+
+	// Get metrics scope for this namespace's subscription
+	metricsScope := s.metricsClient.Scope(metrics.ShardDistributorWatchScope, metrics.NamespaceTag(namespace))
+
 	go func() {
 		defer close(revisionChan)
-		watchChan := s.client.Watch(ctx, watchPrefix, clientv3.WithPrefix(), clientv3.WithPrevKV())
+
+		watchChan := s.client.Watch(ctx, watchPrefix, clientv3.WithPrefix())
 		for watchResp := range watchChan {
 			if err := watchResp.Err(); err != nil {
 				return
 			}
+
+			// Metric: Track events received
+			metricsScope.AddCounter(metrics.ShardDistributorWatchEventsReceived, int64(len(watchResp.Events)))
+
+			// Metric: Track consumer lag
+			// Header.Revision is the current revision of etcd
+			// lastEvent.Kv.ModRevision is the revision of the event we just received
+			// The difference tells us how far behind we are from etcd's current state
+			if len(watchResp.Events) > 0 {
+				lastEvent := watchResp.Events[len(watchResp.Events)-1]
+				lag := watchResp.Header.Revision - lastEvent.Kv.ModRevision
+				metricsScope.UpdateGauge(metrics.ShardDistributorWatchConsumerLag, float64(lag))
+			}
+
+			// Metric: Track processing latency
+			processingStart := s.timeSource.Now()
+
 			isSignificantChange := false
 			for _, event := range watchResp.Events {
-				if event.IsModify() && bytes.Equal(event.Kv.Value, event.PrevKv.Value) {
-					continue // Value is unchanged, ignore this event.
-				}
-
 				if !event.IsCreate() && !event.IsModify() {
 					isSignificantChange = true
 					break
@@ -311,6 +332,9 @@ func (s *executorStoreImpl) Subscribe(ctx context.Context, namespace string) (<-
 				}
 				revisionChan <- watchResp.Header.Revision
 			}
+
+			// Record processing latency
+			metricsScope.RecordTimer(metrics.ShardDistributorWatchProcessingLatency, s.timeSource.Since(processingStart))
 		}
 	}()
 	return revisionChan, nil
