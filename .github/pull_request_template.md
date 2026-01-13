@@ -65,6 +65,8 @@
 
 - [ ] **"What changed"** provides a clear 1-2 line summary
 - [ ] **"Why"** explains the full motivation with sufficient context
+- [ ] Project Issue is linked
+- [ ] Release Issue is linked
 - [ ] **Testing is documented:**
   - [ ] Unit test commands are included (with exact `go test` invocation)
   - [ ] Integration test setup/commands included (if integration tests were run)
