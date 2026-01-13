@@ -30,11 +30,12 @@ another maintainer or contributor can reproduce the test steps taken.
 **How did you test it?**
 
 
-<!-- Think about deployment risks:
-- Backward/forward compatibility concerns?
-- Performance impact?
-- What could break in production?
-- Safe to rollback?
+<!-- If there are risks that the release engineer should know about document them here. 
+For example:
+- Has an API/IDL been modified? Is it backwards/forwards compatible? If not, what are the repecussions? 
+- Has a schema change been introduced? Is it possible to roll back?
+- Has a feature flag been re-used for a new purpose? 
+- Is there a potential performance concern? Is the change modifying core task processing logic? 
 - If truly N/A, you can mark it as such -->
 **Potential risks**
 
