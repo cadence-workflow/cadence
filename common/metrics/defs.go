@@ -2178,6 +2178,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		ShardDistributorStoreRecordHeartbeatScope:              {operation: "StoreRecordHeartbeat"},
 		ShardDistributorStoreSubscribeScope:                    {operation: "StoreSubscribe"},
 		ShardDistributorStoreSubscribeToAssignmentChangesScope: {operation: "StoreSubscribeToAssignmentChanges"},
+		ShardDistributorStoreDeleteAssignedStatesScope:         {operation: "StoreDeleteAssignedStates"},
 	},
 }
 
