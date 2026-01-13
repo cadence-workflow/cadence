@@ -70,7 +70,6 @@ func (sp *shardProcessorImpl) Stop() {
 	for _, tlMgr := range sp.taskLists {
 		if tlMgr.TaskListID().name == sp.shardID {
 			toShutDown = append(toShutDown, tlMgr)
-			delete(sp.taskLists, *tlMgr.TaskListID())
 		}
 	}
 	sp.taskListsLock.RUnlock()
