@@ -71,7 +71,6 @@ func (sp *shardProcessorImpl) Stop() {
 		if tlMgr.TaskListID().name == sp.shardID {
 			toShutDown = append(toShutDown, tlMgr)
 			delete(sp.taskLists, *tlMgr.TaskListID())
-			tlMgr.Stop()
 		}
 	}
 	sp.taskListsLock.RUnlock()
