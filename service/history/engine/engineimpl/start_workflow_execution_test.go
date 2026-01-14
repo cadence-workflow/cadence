@@ -348,10 +348,6 @@ func TestStartWorkflowExecution_OrphanedHistoryCleanup(t *testing.T) {
 			wantErr:              true,
 		},
 		{
-			// NOTE: DuplicateRequestError with WorkflowRequestTypeStart returns success (not an error),
-			// so the cleanup function is NOT called. This is because the code treats this as an
-			// idempotent success case at lines 260-262 in start_workflow_execution.go.
-			// History nodes ARE orphaned in this case, but cleanup doesn't happen with current impl.
 			name: "no cleanup on DuplicateRequestError with WorkflowRequestTypeStart (returns success)",
 			request: &types.HistoryStartWorkflowExecutionRequest{
 				DomainUUID: constants.TestDomainID,

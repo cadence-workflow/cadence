@@ -85,11 +85,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	domainEntry *cache.DomainCacheEntry,
 	metricsScope metrics.ScopeIdx,
 	signalWithStartArg *signalWithStartArg,
-) (resp *types.StartWorkflowExecutionResponse,
-	workflowExecution *types.WorkflowExecution,
-	historyBlob *events.PersistedBlob,
-	retError error,
-) {
+) (_ *types.StartWorkflowExecutionResponse, _ *types.WorkflowExecution, _ *events.PersistedBlob, retError error) {
 	if domainEntry.GetInfo().Status != persistence.DomainStatusRegistered {
 		return nil, nil, nil, errDomainDeprecated
 	}
@@ -116,7 +112,6 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		workflowID,
 	)
 	if err != nil {
-		// todo (david.porter): have another look at this, this doesn't seem correct
 		if err == context.DeadlineExceeded {
 			return nil, nil, nil, workflow.ErrConcurrentStartRequest
 		}
@@ -124,7 +119,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	}
 	defer func() { currentRelease(retError) }()
 
-	workflowExecution = &types.WorkflowExecution{
+	workflowExecution := &types.WorkflowExecution{
 		WorkflowID: workflowID,
 		RunID:      uuid.New(),
 	}
@@ -183,7 +178,6 @@ func (e *historyEngineImpl) startWorkflowHelper(
 			e.logger.Error("Failed to record uninitialized workflow execution", tag.Error(err))
 		}
 	}
-
 	err = e.addStartEventsAndTasks(
 		curMutableState,
 		*workflowExecution,
@@ -216,9 +210,9 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	}
 	b, err := wfContext.PersistStartWorkflowBatchEvents(ctx, newWorkflowEventsSeq[0])
 	if err != nil {
-		return nil, workflowExecution, historyBlob, err
+		return nil, workflowExecution, nil, err
 	}
-	historyBlob = &b
+	historyBlob := &b
 
 	// create as brand new
 	createMode := persistence.CreateWorkflowModeBrandNew
@@ -269,7 +263,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		}
 
 		if isSignalWithStart {
-			e.logger.Debug("signal-with-start might have left an orphaned history branch",
+			e.logger.Warn("signal-with-start might have left an orphaned history branch",
 				tag.WorkflowDomainID(domainEntry.GetInfo().ID),
 				tag.WorkflowID(workflowExecution.WorkflowID),
 				tag.WorkflowRunID(workflowExecution.RunID),
@@ -302,7 +296,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 			}
 			defer func() { runningWFCtx.GetReleaseFn()(retError) }()
 
-			resp, err = e.terminateAndStartWorkflow(
+			resp, err := e.terminateAndStartWorkflow(
 				ctx,
 				runningWFCtx,
 				*workflowExecution,
@@ -383,15 +377,6 @@ func (e *historyEngineImpl) handleCreateWorkflowExecutionFailureCleanup(
 			tag.Dynamic("debug-isSignalWithStart", isSignalWithStart),
 			tag.Error(err),
 		)
-		return
-	}
-
-	if err == nil {
-		e.logger.Error("a cleanup was called when there was no error, This is a bug",
-			tag.WorkflowDomainID(domainEntry.GetInfo().ID),
-			tag.WorkflowID(workflowExecution.WorkflowID),
-			tag.WorkflowRunID(workflowExecution.RunID),
-			tag.Error(err))
 		return
 	}
 
