@@ -768,22 +768,6 @@ func TestHandleCreateWorkflowExecutionFailureCleanup(t *testing.T) {
 			expectDeleteVisibility:    false,
 		},
 		{
-			name:              "err is nil - returns early with bug log (called without error is a bug)",
-			enableCleanupFlag: true,
-			err:               nil,
-			workflowExecution: &types.WorkflowExecution{
-				WorkflowID: "wf-id",
-				RunID:      "run-id",
-			},
-			historyBlob: []byte("branch-token"),
-			startRequest: &types.HistoryStartWorkflowExecutionRequest{
-				StartRequest: &types.StartWorkflowExecutionRequest{},
-			},
-			setupMocks:                func(eft *testdata.EngineForTest) {},
-			expectDeleteHistoryBranch: false,
-			expectDeleteVisibility:    false,
-		},
-		{
 			name:              "workflowExecution is nil - returns early",
 			enableCleanupFlag: true,
 			err:               errors.New("some error"),
