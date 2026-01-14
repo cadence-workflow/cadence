@@ -62,8 +62,7 @@ func (sp *shardProcessorImpl) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop is noop since the shard lifecycle management is still handled by the logic in matching.
-// In the future the executor client will stop the shard processor modelling the tasklist when a shard is not assigned to this executor anymore.
+// Stop is stopping the tasklist when a shard is not assigned to this executor anymore.
 func (sp *shardProcessorImpl) Stop() {
 	sp.taskListsLock.RLock()
 	var toShutDown []Manager
