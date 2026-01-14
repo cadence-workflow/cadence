@@ -334,17 +334,18 @@ func (e *matchingEngineImpl) getTaskListManager(ctx context.Context, taskList *t
 		return nil, err
 	}
 
-	e.taskLists[*taskList] = mgr
-	e.metricsClient.Scope(metrics.MatchingTaskListMgrScope).UpdateGauge(
-		metrics.TaskListManagersGauge,
-		float64(len(e.taskLists)),
-	)
 	e.taskListsLock.Unlock()
 	err = mgr.Start(context.Background())
 	if err != nil {
 		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
 		return nil, err
 	}
+
+	e.taskLists[*taskList] = mgr
+	e.metricsClient.Scope(metrics.MatchingTaskListMgrScope).UpdateGauge(
+		metrics.TaskListManagersGauge,
+		float64(len(e.taskLists)),
+	)
 
 	// If the ShardDistributor is not responsible for the shard assignment, the assignment is handled by the local logic
 	if !e.executor.IsOnboardedToSD() {
