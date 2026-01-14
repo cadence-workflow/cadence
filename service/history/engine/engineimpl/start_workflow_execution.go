@@ -252,9 +252,6 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		return nil, workflowExecution, historyBlob, t
 	}
 	// handle already started error
-	// todo (davidporter): check if signal-with-start history still needs cleanup,
-	// it probably does, as signalling an existing wf is probably going to leave an orphaned history branch.
-	// but need to confirm this
 	if t, ok := err.(*persistence.WorkflowExecutionAlreadyStartedError); ok {
 		if t.StartRequestID == request.GetRequestID() {
 			return &types.StartWorkflowExecutionResponse{
