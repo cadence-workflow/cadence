@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.uber.org/fx"
+	"go.uber.org/multierr"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
@@ -166,7 +167,7 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool) (err er
 		return fmt.Errorf("context cancelled during pre-campaign delay: %w", ctx.Err())
 	}
 
-	e.logger.Debug("Creating election")
+	e.logger.Info("Creating election")
 	election, err := e.leaderStore.CreateElection(ctx, e.namespace.Name)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
@@ -190,7 +191,7 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool) (err er
 		leaderCh <- false
 	}()
 
-	e.logger.Debug("Starting campaign for leader")
+	e.logger.Info("Starting campaign for leader")
 	// Campaign to become leader
 	if err := election.Campaign(ctx, e.hostname); err != nil {
 		return fmt.Errorf("failed to campaign: %w", err)
@@ -237,25 +238,22 @@ func (e *elector) resign(election store.Election, processor process.Processor) e
 	var resignErr error
 
 	if processor != nil {
-		// First try to call onResign
-		resignErr = processor.Terminate(ctx)
+		// First try to terminate the processor to stop leader processing
+		if err := processor.Terminate(ctx); err != nil {
+			resignErr = fmt.Errorf("terminate processor: %w", err)
+		}
 	}
 
-	// Then try to resign leadership, regardless of whether onResign succeeded
-	resignElectionErr := election.Resign(ctx)
-
-	// Combine errors if both failed
-	if resignErr != nil && resignElectionErr != nil {
-		return fmt.Errorf("multiple errors: OnResign: %w; election resign: %v", resignErr, resignElectionErr)
+	// Then try to resign leadership
+	if err := election.Resign(ctx); err != nil {
+		resignErr = multierr.Append(resignErr, fmt.Errorf("resign election: %w", err))
 	}
 
-	// Return whichever error occurred
-	if resignErr != nil {
-		return fmt.Errorf("OnResign: %w", resignErr)
-	}
-	if resignElectionErr != nil {
-		return fmt.Errorf("election resign: %w", resignElectionErr)
+	// Finally, try to clean up the election
+	// to be sure all resources are released
+	if err := election.Cleanup(ctx); err != nil {
+		resignErr = multierr.Append(resignErr, fmt.Errorf("cleanup election: %w", err))
 	}
 
-	return nil
+	return resignErr
 }
