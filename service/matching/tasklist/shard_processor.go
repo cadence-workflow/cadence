@@ -65,8 +65,8 @@ func (sp *shardProcessorImpl) Start(ctx context.Context) error {
 // Stop is noop since the shard lifecycle management is still handled by the logic in matching.
 // In the future the executor client will stop the shard processor modelling the tasklist when a shard is not assigned to this executor anymore.
 func (sp *shardProcessorImpl) Stop() {
-	var toShutDown []Manager
 	sp.taskListsLock.RLock()
+	var toShutDown []Manager
 	for _, tlMgr := range sp.taskLists {
 		if tlMgr.TaskListID().name == sp.shardID {
 			toShutDown = append(toShutDown, tlMgr)
