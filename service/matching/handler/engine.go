@@ -312,7 +312,6 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	}
 	mgr, err := tasklist.NewManager(params)
 	if err != nil {
-		e.taskListsLock.Unlock()
 		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
 		return nil, err
 	}
