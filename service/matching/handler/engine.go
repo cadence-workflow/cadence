@@ -286,13 +286,6 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 		return nil, err
 	}
 
-	// If it gets here, write lock and check again in case a task list is created between the two locks
-	e.taskListsLock.Lock()
-	if result, ok := e.taskLists[*taskList]; ok {
-		e.taskListsLock.Unlock()
-		return result, nil
-	}
-
 	// common tagged logger
 	logger := e.logger.WithTags(
 		tag.WorkflowTaskListName(taskList.GetName()),
@@ -324,17 +317,26 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 		return nil, err
 	}
 
+	err = mgr.Start(context.Background())
+	if err != nil {
+		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
+		return nil, err
+	}
+
+	// If it gets here, write lock and check again in case a task list is already created during new manager starting
+	e.taskListsLock.Lock()
+	if result, ok := e.taskLists[*taskList]; ok {
+		e.taskListsLock.Unlock()
+		mgr.Stop() // stop the new manager if it is already created
+		logger.Info("Task list manager state changed", tag.LifeCycleStopped)
+		return result, nil
+	}
 	e.taskLists[*taskList] = mgr
 	e.metricsClient.Scope(metrics.MatchingTaskListMgrScope).UpdateGauge(
 		metrics.TaskListManagersGauge,
 		float64(len(e.taskLists)),
 	)
 	e.taskListsLock.Unlock()
-	err = mgr.Start(context.Background())
-	if err != nil {
-		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
-		return nil, err
-	}
 
 	// If the ShardDistributor is not responsible for the shard assignment, the assignment is handled by the local logic
 	if !e.executor.IsOnboardedToSD() {
