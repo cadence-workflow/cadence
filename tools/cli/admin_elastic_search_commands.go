@@ -209,6 +209,10 @@ func AdminDelete(c *cli.Context) error {
 	}
 	batchSize := c.Int(FlagBatchSize)
 	rps := c.Int(FlagRPS)
+	if rps <= 0 {
+		err = fmt.Errorf("FlagRPS must be positive value but got %v", rps)
+		return commoncli.Problem("Invalid RPS value: ", err)
+	}
 	ratelimiter := clock.NewRatelimiter(rate.Limit(rps), rps)
 
 	// This is only executed from the CLI by an admin user
