@@ -2,31 +2,36 @@
 name: Bug report
 about: Create a report to help us improve
 title: ''
-labels: ''
+labels: bug
 assignees: ''
 
 ---
-**Version of Cadence server, and client(which language)**
-This is very important to root cause bugs.
-- Server version: 
-- Client version:
-- Client langauge:
-
-**Describe the bug**
+### Description
 A clear and concise description of what the bug is.
 
-**To Reproduce**
-Is the issue reproducible? 
-- [Yes | No]
+### Steps to Reproduce / How to Trigger
+Provide a minimal set of steps or a script to reproduce the issue.
 
-**Steps to reproduce the behavior:**
-A clear and concise description of the reproduce steps.
+### Expected Behavior
+What you expected to happen.
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+### Actual Behavior
+What actually happened.
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+### Logs / Screenshots
+Relevant logs, stack traces, workflow history, or screenshots.
 
-**Additional context**
-Add any other context about the problem here, E.g. Stackstace, workflow history.
+### Environment
+OS, runtime, and deployment details.
+
+### Cadence server version
+Server version or build SHA.
+
+### Cadence SDK language and version
+Language and SDK version.
+
+### DB
+Database type and version.
+
+### Scale
+Cluster size, workload volume, or other scale details.
