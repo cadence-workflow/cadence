@@ -1,7 +1,7 @@
 <!-- 1-2 line summary of WHAT changed technically:
 - Always link the relevant projects GitHub issue, unless it is a minor bugfix
 - Good: "Modified FailoverDomain mapper to allow null ActiveClusterName #320"
-- Bad: "Changed line 47 in mapper.go to add a nil check and updated the function signature" -->
+- Bad: "added nil check" -->
 **What changed?**
 
 
@@ -40,10 +40,9 @@ For example:
 **Potential risks**
 
 
-<!-- Consider if this completes a user-facing feature:
-- Always ensure that the description contains a link to the relevant GitHub issue.
-- If this PR completes a feature users should know about, add release notes here
-- Format: Brief user-facing description of what has been enabled with this feature -->
+<!-- If this PR completes a user facing feature or changes functionality add release notes here.
+Your release notes should allow a user and the release engineer to understand the changes with little context.
+Always ensure that the description contains a link to the relevant GitHub issue. -->
 **Release notes**
 
 
@@ -61,9 +60,8 @@ For example:
 **PR Description Quality** (check these before reviewing code):
 
 - [ ] **"What changed"** provides a clear 1-2 line summary
+  - [ ] Project Issue is linked
 - [ ] **"Why"** explains the full motivation with sufficient context
-- [ ] Project Issue is linked
-- [ ] Release Issue is linked
 - [ ] **Testing is documented:**
   - [ ] Unit test commands are included (with exact `go test` invocation)
   - [ ] Integration test setup/commands included (if integration tests were run)
