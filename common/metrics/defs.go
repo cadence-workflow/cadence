@@ -848,6 +848,8 @@ const (
 	// TaskSchedulerRateLimiterScope is used by task scheduler rate limiter logic
 	TaskSchedulerRateLimiterScope
 
+	// HistoryEngineScope is used by history engine for areas that aren't covered by other, more specific scopes
+	HistoryEngineScope
 	// HistoryArchiverScope is used by history archivers
 	HistoryArchiverScope
 	// VisibilityArchiverScope is used by visibility archivers
@@ -1849,6 +1851,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		TaskSchedulerScope:                                         {operation: "TaskScheduler"},
 		TaskSchedulerRateLimiterScope:                              {operation: "TaskSchedulerRateLimiter"},
 
+		HistoryEngineScope:      {operation: "HistoryEngine"},
 		HistoryArchiverScope:    {operation: "HistoryArchiver"},
 		VisibilityArchiverScope: {operation: "VisibilityArchiver"},
 
@@ -2684,6 +2687,14 @@ const (
 	WorkflowTerminateCount
 	WorkflowContinuedAsNew
 	WorkflowCompletedUnknownType
+	// WorkflowCreationFailedCleanupHaltedTimeoutCount is where the attempt to cleanup after wf start failure was halted due to a timeout making it uncertain if it's safe
+	WorkflowCreationFailedCleanupHaltedTimeoutCount
+	// WorkflowCreationFailedCleanupUnknownCount is where the attempt to cleanup after wf start failure was halted due to not having enough certainty
+	WorkflowCreationFailedCleanupUnknownCount
+	// WorkflowCreationFailedCleanupSuccessCount is where the attempt to cleanup after wf start failure was successful
+	WorkflowCreationFailedCleanupSuccessCount
+	// WorkflowCreationFailedCleanupFailureCount is where the attempt to cleanup after wf start failure also resulted in failure
+	WorkflowCreationFailedCleanupFailureCount
 	ArchiverClientSendSignalCount
 	ArchiverClientSendSignalFailureCount
 	ArchiverClientHistoryRequestCount
@@ -3488,6 +3499,10 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		WorkflowTerminateCount:                                       {metricName: "workflow_terminate", metricType: Counter},
 		WorkflowContinuedAsNew:                                       {metricName: "workflow_continued_as_new", metricType: Counter},
 		WorkflowCompletedUnknownType:                                 {metricName: "workflow_completed_unknown_type", metricType: Counter},
+		WorkflowCreationFailedCleanupHaltedTimeoutCount:              {metricName: "workflow_creation_failed_cleanup_halted_timeout_count", metricType: Counter}, // where an attempt to cleanup after wf start failure was halted due to a timeout making it uncertain if it's safe
+		WorkflowCreationFailedCleanupUnknownCount:                    {metricName: "workflow_creation_failed_cleanup_unknown_count", metricType: Counter},        // where an attempt to cleanup after wf start failure was halted due to not having enough certainty
+		WorkflowCreationFailedCleanupSuccessCount:                    {metricName: "workflow_creation_failed_cleanup_success_count", metricType: Counter},        // where an attempt to cleanup after wf start failure failure was successful
+		WorkflowCreationFailedCleanupFailureCount:                    {metricName: "workflow_creation_failed_cleanup_failure_count", metricType: Counter},        // where an attempt to cleanup in failure also resulted in failure
 		ArchiverClientSendSignalCount:                                {metricName: "archiver_client_sent_signal", metricType: Counter},
 		ArchiverClientSendSignalFailureCount:                         {metricName: "archiver_client_send_signal_error", metricType: Counter},
 		ArchiverClientHistoryRequestCount:                            {metricName: "archiver_client_history_request", metricType: Counter},

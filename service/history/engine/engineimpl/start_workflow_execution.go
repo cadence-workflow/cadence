@@ -366,6 +366,42 @@ func (e *historyEngineImpl) handleCreateWorkflowExecutionFailureCleanup(
 		return
 	}
 
+	// we cannot know if the workflow has succeeded, so the safest thing to do is
+	// to do nothing. Deleting the history risks breaking a valid execution and prevrenting it from being restarted
+	if persistence.IsTimeoutError(err) {
+		e.logger.Warn("timeout error detected when creating execution. If the excution was not created successfully this has probably left some orphaned history branch that needs cleaning up",
+			tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+			tag.WorkflowID(workflowExecution.WorkflowID),
+			tag.WorkflowRunID(workflowExecution.RunID),
+			tag.Error(err))
+		e.metricsClient.IncCounter(metrics.HistoryEngineScope, metrics.WorkflowCreationFailedCleanupHaltedTimeoutCount)
+		return
+	}
+
+	// this is the set of errors for which we condider safe to history branch created
+	// earlier when starting the workflow. It does not include any
+	// errors where the state of the workflow is not known (like timeouts, DB internal errors)
+	isKnownFailureRequiringCleanup := errors.As(err, new(*types.WorkflowExecutionAlreadyStartedError)) ||
+		errors.As(err, new(*types.ShardOwnershipLostError)) ||
+		errors.As(err, new(*persistence.CurrentWorkflowConditionFailedError)) ||
+		errors.As(err, new(*persistence.ConditionFailedError)) ||
+		errors.As(err, new(*persistence.ShardAlreadyExistError)) ||
+		errors.As(err, new(*persistence.WorkflowExecutionAlreadyStartedError)) ||
+		errors.As(err, new(*types.ShardOwnershipLostError)) ||
+		errors.As(err, new(*types.WorkflowExecutionAlreadyStartedError)) ||
+		errors.As(err, new(*types.WorkflowExecutionAlreadyCompletedError)) ||
+		errors.As(err, new(*persistence.DuplicateRequestError))
+
+	if !isKnownFailureRequiringCleanup {
+		e.logger.Warn("unknown failure detected when creating execution. If the excution was not created successfully this has probably left some orphaned history branch that needs cleaning up",
+			tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+			tag.WorkflowID(workflowExecution.WorkflowID),
+			tag.WorkflowRunID(workflowExecution.RunID),
+			tag.Error(err))
+		e.metricsClient.IncCounter(metrics.HistoryEngineScope, metrics.WorkflowCreationFailedCleanupUnknownCount)
+		return
+	}
+
 	if !e.shard.GetConfig().EnableCleanupOrphanedHistoryBranchOnWorkflowCreation(domainEntry.GetInfo().Name) {
 		e.logger.Warn("cleanup of orphaned history branch is disabled, but possible orphaned history branch was detected",
 			tag.WorkflowDomainID(domainEntry.GetInfo().ID),
@@ -410,7 +446,10 @@ func (e *historyEngineImpl) handleCreateWorkflowExecutionFailureCleanup(
 			tag.WorkflowID(workflowExecution.WorkflowID),
 			tag.WorkflowRunID(workflowExecution.RunID),
 			tag.Error(cleanupErr))
+		e.metricsClient.IncCounter(metrics.HistoryEngineScope, metrics.WorkflowCreationFailedCleanupFailureCount)
+		return
 	}
+	e.metricsClient.IncCounter(metrics.HistoryEngineScope, metrics.WorkflowCreationFailedCleanupSuccessCount)
 	if e.shard.GetConfig().EnableRecordWorkflowExecutionUninitialized(domainEntry.GetInfo().Name) && e.visibilityMgr != nil {
 		// delete the uninitialized workflow execution record since it failed to start the workflow
 		// uninitialized record is used to find wfs that didn't make a progress or stuck during the start process

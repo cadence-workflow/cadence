@@ -739,6 +739,11 @@ func TestCreateMutableState(t *testing.T) {
 }
 
 func TestHandleCreateWorkflowExecutionFailureCleanup(t *testing.T) {
+	// Known error types that should trigger cleanup
+	knownCleanupError := &persistence.WorkflowExecutionAlreadyStartedError{
+		Msg: "workflow already started",
+	}
+
 	tests := []struct {
 		name                          string
 		enableCleanupFlag             bool
@@ -752,25 +757,9 @@ func TestHandleCreateWorkflowExecutionFailureCleanup(t *testing.T) {
 		expectDeleteVisibility        bool
 	}{
 		{
-			name:              "cleanup disabled - returns early",
-			enableCleanupFlag: false,
-			err:               errors.New("some error"),
-			workflowExecution: &types.WorkflowExecution{
-				WorkflowID: "wf-id",
-				RunID:      "run-id",
-			},
-			historyBlob: []byte("branch-token"),
-			startRequest: &types.HistoryStartWorkflowExecutionRequest{
-				StartRequest: &types.StartWorkflowExecutionRequest{},
-			},
-			setupMocks:                func(eft *testdata.EngineForTest) {},
-			expectDeleteHistoryBranch: false,
-			expectDeleteVisibility:    false,
-		},
-		{
 			name:              "workflowExecution is nil - returns early",
 			enableCleanupFlag: true,
-			err:               errors.New("some error"),
+			err:               knownCleanupError,
 			workflowExecution: nil,
 			historyBlob:       []byte("branch-token"),
 			startRequest: &types.HistoryStartWorkflowExecutionRequest{
@@ -783,7 +772,7 @@ func TestHandleCreateWorkflowExecutionFailureCleanup(t *testing.T) {
 		{
 			name:              "historyBlob is nil - returns early",
 			enableCleanupFlag: true,
-			err:               errors.New("some error"),
+			err:               knownCleanupError,
 			workflowExecution: &types.WorkflowExecution{
 				WorkflowID: "wf-id",
 				RunID:      "run-id",
@@ -797,9 +786,57 @@ func TestHandleCreateWorkflowExecutionFailureCleanup(t *testing.T) {
 			expectDeleteVisibility:    false,
 		},
 		{
+			name:              "timeout error - returns early without cleanup",
+			enableCleanupFlag: true,
+			err:               &persistence.TimeoutError{Msg: "timeout"},
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf-id",
+				RunID:      "run-id",
+			},
+			historyBlob: []byte("branch-token"),
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks:                func(eft *testdata.EngineForTest) {},
+			expectDeleteHistoryBranch: false,
+			expectDeleteVisibility:    false,
+		},
+		{
+			name:              "unknown error - returns early without cleanup",
+			enableCleanupFlag: true,
+			err:               errors.New("some unknown error"),
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf-id",
+				RunID:      "run-id",
+			},
+			historyBlob: []byte("branch-token"),
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks:                func(eft *testdata.EngineForTest) {},
+			expectDeleteHistoryBranch: false,
+			expectDeleteVisibility:    false,
+		},
+		{
+			name:              "cleanup disabled - returns early",
+			enableCleanupFlag: false,
+			err:               knownCleanupError,
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf-id",
+				RunID:      "run-id",
+			},
+			historyBlob: []byte("branch-token"),
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks:                func(eft *testdata.EngineForTest) {},
+			expectDeleteHistoryBranch: false,
+			expectDeleteVisibility:    false,
+		},
+		{
 			name:              "startRequest is nil - returns early with bug log",
 			enableCleanupFlag: true,
-			err:               errors.New("some error"),
+			err:               knownCleanupError,
 			workflowExecution: &types.WorkflowExecution{
 				WorkflowID: "wf-id",
 				RunID:      "run-id",
@@ -813,7 +850,7 @@ func TestHandleCreateWorkflowExecutionFailureCleanup(t *testing.T) {
 		{
 			name:              "workflowID is empty - returns early with bug log",
 			enableCleanupFlag: true,
-			err:               errors.New("some error"),
+			err:               knownCleanupError,
 			workflowExecution: &types.WorkflowExecution{
 				WorkflowID: "",
 				RunID:      "run-id",
@@ -829,7 +866,7 @@ func TestHandleCreateWorkflowExecutionFailureCleanup(t *testing.T) {
 		{
 			name:              "runID is empty - returns early with bug log",
 			enableCleanupFlag: true,
-			err:               errors.New("some error"),
+			err:               knownCleanupError,
 			workflowExecution: &types.WorkflowExecution{
 				WorkflowID: "wf-id",
 				RunID:      "",
@@ -843,9 +880,9 @@ func TestHandleCreateWorkflowExecutionFailureCleanup(t *testing.T) {
 			expectDeleteVisibility:    false,
 		},
 		{
-			name:              "cleanup path - deletes history branch successfully",
+			name:              "cleanup path with WorkflowExecutionAlreadyStartedError - deletes history branch successfully",
 			enableCleanupFlag: true,
-			err:               errors.New("some error"),
+			err:               knownCleanupError,
 			workflowExecution: &types.WorkflowExecution{
 				WorkflowID: "wf-id",
 				RunID:      "run-id",
@@ -864,9 +901,31 @@ func TestHandleCreateWorkflowExecutionFailureCleanup(t *testing.T) {
 			expectDeleteVisibility:    false,
 		},
 		{
+			name:              "cleanup path with DuplicateRequestError - deletes history branch successfully",
+			enableCleanupFlag: true,
+			err: &persistence.DuplicateRequestError{
+				RequestType: persistence.WorkflowRequestTypeStart,
+				RunID:       "existing-run-id",
+			},
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf-id",
+				RunID:      "run-id",
+			},
+			historyBlob: []byte("branch-token"),
+			startRequest: &types.HistoryStartWorkflowExecutionRequest{
+				StartRequest: &types.StartWorkflowExecutionRequest{},
+			},
+			setupMocks: func(eft *testdata.EngineForTest) {
+				eft.ShardCtx.Resource.HistoryMgr.On("DeleteHistoryBranch", mock.Anything, mock.AnythingOfType("*persistence.DeleteHistoryBranchRequest")).
+					Return(nil).Once()
+			},
+			expectDeleteHistoryBranch: true,
+			expectDeleteVisibility:    false,
+		},
+		{
 			name:              "cleanup path - delete history branch fails gracefully",
 			enableCleanupFlag: true,
-			err:               errors.New("some error"),
+			err:               knownCleanupError,
 			workflowExecution: &types.WorkflowExecution{
 				WorkflowID: "wf-id",
 				RunID:      "run-id",
@@ -886,7 +945,7 @@ func TestHandleCreateWorkflowExecutionFailureCleanup(t *testing.T) {
 			name:                          "cleanup path with visibility - deletes both history and visibility",
 			enableCleanupFlag:             true,
 			enableUninitializedRecordFlag: true,
-			err:                           errors.New("some error"),
+			err:                           knownCleanupError,
 			workflowExecution: &types.WorkflowExecution{
 				WorkflowID: "wf-id",
 				RunID:      "run-id",
@@ -911,7 +970,7 @@ func TestHandleCreateWorkflowExecutionFailureCleanup(t *testing.T) {
 			name:                          "cleanup path with visibility - visibility delete fails gracefully",
 			enableCleanupFlag:             true,
 			enableUninitializedRecordFlag: true,
-			err:                           errors.New("some error"),
+			err:                           knownCleanupError,
 			workflowExecution: &types.WorkflowExecution{
 				WorkflowID: "wf-id",
 				RunID:      "run-id",
