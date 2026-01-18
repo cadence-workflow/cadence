@@ -9518,6 +9518,11 @@ type StickyWorkerUnavailableError struct {
 	Message string `json:"message,required"`
 }
 
+// ReadOnlyPartitionError is an internal type (TBD...)
+type ReadOnlyPartitionError struct {
+	Message string `json:"message,required"`
+}
+
 // Any is an internal mirror of google.protobuf.Any, serving the same purposes, but
 // intentionally breaking direct compatibility because it may hold data that is not
 // actually protobuf encoded.

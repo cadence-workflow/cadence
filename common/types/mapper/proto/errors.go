@@ -85,6 +85,8 @@ func FromError(err error) error {
 		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, fromStickyWorkerUnavailableErr); ok {
 		return typedErr
+	} else if ok, typedErr = errorutils.ConvertError(err, fromReadOnlyPartitionErr); ok {
+		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, fromNamespaceNotFoundErr); ok {
 		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, fromShardNotFoundErr); ok {
@@ -242,6 +244,10 @@ func ToError(err error) error {
 					ActiveCluster:  details.ActiveCluster,
 					ActiveClusters: details.ActiveClusters,
 				}
+			}
+		case *apiv1.ReadOnlyPartitionError:
+			return &types.ReadOnlyPartitionError{
+				Message: status.Message(),
 			}
 		}
 	case yarpcerrors.CodeResourceExhausted:
@@ -403,6 +409,10 @@ func fromRemoteSyncMatchedErr(e *types.RemoteSyncMatchedError) error {
 
 func fromStickyWorkerUnavailableErr(e *types.StickyWorkerUnavailableError) error {
 	return protobuf.NewError(yarpcerrors.CodeUnavailable, e.Message, protobuf.WithErrorDetails(&apiv1.StickyWorkerUnavailableError{}))
+}
+
+func fromReadOnlyPartitionErr(e *types.ReadOnlyPartitionError) error {
+	return protobuf.NewError(yarpcerrors.CodeFailedPrecondition, e.Message, protobuf.WithErrorDetails(&apiv1.ReadOnlyPartitionError{}))
 }
 
 func fromNamespaceNotFoundErr(e *types.NamespaceNotFoundError) error {
