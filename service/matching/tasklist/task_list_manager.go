@@ -533,7 +533,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 	if c.config.EnableGetNumberOfPartitionsFromCache() {
 		_, ok := c.PartitionWriteConfig()
 		if !ok {
-			return false, &types.InternalServiceError{Message: "Current partition is drained."}
+			return false, &types.ReadOnlyPartitionError{Message: "Current partition is drained."}
 		}
 	}
 	if params.ForwardedFrom == "" {

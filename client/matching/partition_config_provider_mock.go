@@ -124,3 +124,15 @@ func (mr *MockPartitionConfigProviderMockRecorder) UpdatePartitionConfig(domainI
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePartitionConfig", reflect.TypeOf((*MockPartitionConfigProvider)(nil).UpdatePartitionConfig), domainID, taskList, taskListType, config)
 }
+
+// InvalidatePartitionCache mocks base method.
+func (m *MockPartitionConfigProvider) InvalidatePartitionCache(domainID string, taskList types.TaskList, taskListType int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "InvalidatePartitionCache", domainID, taskList, taskListType)
+}
+
+// InvalidatePartitionCache indicates an expected call of InvalidatePartitionCache.
+func (mr *MockPartitionConfigProviderMockRecorder) InvalidatePartitionCache(domainID, taskList, taskListType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InvalidatePartitionCache", reflect.TypeOf((*MockPartitionConfigProvider)(nil).InvalidatePartitionCache), domainID, taskList, taskListType)
+}

@@ -75,6 +75,10 @@ func (c *clientImpl) AddActivityTask(
 	}
 	resp, err := c.client.AddActivityTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
 	if err != nil {
+		// ReadOnlyPartitionError indicates the partition is being drained - invalidate cache to force next request to route to root partition
+		if _, ok := err.(*types.ReadOnlyPartitionError); ok {
+			c.provider.InvalidatePartitionCache(request.GetDomainUUID(), *originalTaskList, persistence.TaskListTypeActivity)
+		}
 		return nil, err
 	}
 	request.TaskList = originalTaskList
@@ -107,6 +111,10 @@ func (c *clientImpl) AddDecisionTask(
 	}
 	resp, err := c.client.AddDecisionTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
 	if err != nil {
+		// ReadOnlyPartitionError indicates the partition is being drained - invalidate cache to force next request to route to root partition
+		if _, ok := err.(*types.ReadOnlyPartitionError); ok {
+			c.provider.InvalidatePartitionCache(request.GetDomainUUID(), *originalTaskList, persistence.TaskListTypeDecision)
+		}
 		return nil, err
 	}
 	request.TaskList = originalTaskList
