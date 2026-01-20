@@ -4058,7 +4058,7 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	TaskSchedulerMigrationRatio: {
 		KeyName:      "history.taskSchedulerMigrationRatio",
-		Description:  "TaskSchedulerMigrationRatio is the ratio of task that is migrated to new scheduler",
+		Description:  "DEPRECATED: TaskSchedulerMigrationRatio is the ratio of task that is migrated to new scheduler",
 		DefaultValue: 0,
 	},
 	MaxActivityCountDispatchByDomain: {
@@ -4549,7 +4549,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	},
 	TaskSchedulerEnableMigration: {
 		KeyName:      "history.taskSchedulerEnableMigration",
-		Description:  "TaskSchedulerEnableMigration indicates whether the task scheduler migration is enabled",
+		Description:  "DEPRECATED: TaskSchedulerEnableMigration indicates whether the task scheduler migration is enabled",
 		DefaultValue: false,
 	},
 	EnableAdminProtection: {

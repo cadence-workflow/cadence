@@ -101,8 +101,6 @@ func TestNewConfig(t *testing.T) {
 		"TaskSchedulerDispatcherCount":                         {dynamicproperties.TaskSchedulerDispatcherCount, 35},
 		"TaskSchedulerRoundRobinWeights":                       {dynamicproperties.TaskSchedulerRoundRobinWeights, map[string]interface{}{"key": 1}},
 		"TaskSchedulerDomainRoundRobinWeights":                 {dynamicproperties.TaskSchedulerDomainRoundRobinWeights, map[string]interface{}{"key": 2}},
-		"TaskSchedulerEnableMigration":                         {dynamicproperties.TaskSchedulerEnableMigration, true},
-		"TaskSchedulerMigrationRatio":                          {dynamicproperties.TaskSchedulerMigrationRatio, 36},
 		"TaskCriticalRetryCount":                               {dynamicproperties.TaskCriticalRetryCount, 37},
 		"ActiveTaskRedispatchInterval":                         {dynamicproperties.ActiveTaskRedispatchInterval, time.Second},
 		"StandbyTaskRedispatchInterval":                        {dynamicproperties.StandbyTaskRedispatchInterval, time.Second},

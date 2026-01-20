@@ -102,8 +102,6 @@ type Config struct {
 	TaskSchedulerGlobalDomainRPS             dynamicproperties.IntPropertyFnWithDomainFilter
 	TaskSchedulerEnableRateLimiter           dynamicproperties.BoolPropertyFn
 	TaskSchedulerEnableRateLimiterShadowMode dynamicproperties.BoolPropertyFnWithDomainFilter
-	TaskSchedulerEnableMigration             dynamicproperties.BoolPropertyFn
-	TaskSchedulerMigrationRatio              dynamicproperties.IntPropertyFn
 	TaskCriticalRetryCount                   dynamicproperties.IntPropertyFn
 	ActiveTaskRedispatchInterval             dynamicproperties.DurationPropertyFn
 	StandbyTaskRedispatchInterval            dynamicproperties.DurationPropertyFn
@@ -409,8 +407,6 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TaskSchedulerGlobalDomainRPS:             dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskSchedulerGlobalDomainRPS),
 		TaskSchedulerEnableRateLimiter:           dc.GetBoolProperty(dynamicproperties.TaskSchedulerEnableRateLimiter),
 		TaskSchedulerEnableRateLimiterShadowMode: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.TaskSchedulerEnableRateLimiterShadowMode),
-		TaskSchedulerEnableMigration:             dc.GetBoolProperty(dynamicproperties.TaskSchedulerEnableMigration),
-		TaskSchedulerMigrationRatio:              dc.GetIntProperty(dynamicproperties.TaskSchedulerMigrationRatio),
 		TaskCriticalRetryCount:                   dc.GetIntProperty(dynamicproperties.TaskCriticalRetryCount),
 		ActiveTaskRedispatchInterval:             dc.GetDurationProperty(dynamicproperties.ActiveTaskRedispatchInterval),
 		StandbyTaskRedispatchInterval:            dc.GetDurationProperty(dynamicproperties.StandbyTaskRedispatchInterval),

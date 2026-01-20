@@ -88,17 +88,6 @@ func (s *queueTaskProcessorSuite) TestStartStop() {
 	s.processor.Stop()
 }
 
-func (s *queueTaskProcessorSuite) TestStartStopWithNewScheduler() {
-	mockScheduler := task.NewMockScheduler(s.controller)
-	mockScheduler.EXPECT().Start().Times(2)
-	mockScheduler.EXPECT().Stop().Times(2)
-	s.processor.scheduler = mockScheduler
-	s.processor.newScheduler = mockScheduler
-
-	s.processor.Start()
-	s.processor.Stop()
-}
-
 func (s *queueTaskProcessorSuite) TestSubmit() {
 	mockTask := NewMockTask(s.controller)
 	s.mockPriorityAssigner.EXPECT().Assign(NewMockTaskMatcher(mockTask)).Return(nil).Times(1)
@@ -107,20 +96,6 @@ func (s *queueTaskProcessorSuite) TestSubmit() {
 	mockScheduler.EXPECT().Submit(NewMockTaskMatcher(mockTask)).Return(nil).Times(1)
 
 	s.processor.scheduler = mockScheduler
-
-	err := s.processor.Submit(mockTask)
-	s.NoError(err)
-}
-
-func (s *queueTaskProcessorSuite) TestSubmitNewScheduler() {
-	mockTask := NewMockTask(s.controller)
-	s.mockPriorityAssigner.EXPECT().Assign(NewMockTaskMatcher(mockTask)).Return(nil).Times(1)
-
-	mockScheduler := task.NewMockScheduler(s.controller)
-	mockScheduler.EXPECT().Submit(NewMockTaskMatcher(mockTask)).Return(nil).Times(1)
-
-	s.processor.newScheduler = mockScheduler
-	s.processor.newSchedulerProbabilityFn = func(...dynamicproperties.FilterOption) int { return 100 }
 
 	err := s.processor.Submit(mockTask)
 	s.NoError(err)
@@ -152,21 +127,6 @@ func (s *queueTaskProcessorSuite) TestTrySubmit_Fail() {
 	s.False(submitted)
 }
 
-func (s *queueTaskProcessorSuite) TestTrySubmit_Fail_NewScheduler() {
-	mockTask := NewMockTask(s.controller)
-	s.mockPriorityAssigner.EXPECT().Assign(NewMockTaskMatcher(mockTask)).Return(nil).Times(1)
-
-	errTrySubmit := errors.New("some randome error")
-	mockScheduler := task.NewMockScheduler(s.controller)
-	mockScheduler.EXPECT().TrySubmit(NewMockTaskMatcher(mockTask)).Return(false, errTrySubmit).Times(1)
-
-	s.processor.newScheduler = mockScheduler
-	s.processor.newSchedulerProbabilityFn = func(...dynamicproperties.FilterOption) int { return 100 }
-
-	submitted, err := s.processor.TrySubmit(mockTask)
-	s.Equal(errTrySubmit, err)
-	s.False(submitted)
-}
 func (s *queueTaskProcessorSuite) TestNewSchedulerOptions_UnknownSchedulerType() {
 	options, err := task.NewSchedulerOptions[int](0, 100, dynamicproperties.GetIntPropertyFn(10), 1, func(task.PriorityTask) int { return 1 }, func(int) int { return 1 })
 	s.Error(err)
