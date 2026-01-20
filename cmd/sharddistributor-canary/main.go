@@ -34,6 +34,8 @@ const (
 	defaultEphemeralNamespace       = "shard-distributor-canary-ephemeral"
 	defaultCanaryGRPCPort           = 7953 // Port for canary to receive ping requests
 	defaultNumExecutors             = 1
+	defaultNumShardCreators         = 1
+	defaultShardCreationInterval    = 1 * time.Second
 
 	shardDistributorServiceName = "cadence-shard-distributor"
 )
@@ -47,11 +49,18 @@ func runApp(c *cli.Context) {
 	numExecutors := c.Int("num-executors")
 	numFixedExecutors := max(c.Int("num-fixed-executors"), numExecutors)
 	numEphemeralxecutors := max(c.Int("num-ephemeral-executors"), numExecutors)
+	numShardCreators := c.Int("num-shard-creators")
+	shardCreationInterval := c.Duration("shard-creation-interval")
 
-	fx.New(opts(fixedNamespace, ephemeralNamespace, endpoint, canaryGRPCPort, numFixedExecutors, numEphemeralxecutors)).Run()
+	fx.New(opts(fixedNamespace, ephemeralNamespace, endpoint, canaryGRPCPort, numFixedExecutors, numEphemeralxecutors, numShardCreators, shardCreationInterval)).Run()
 }
 
-func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort int, numFixedExecutors, numEphemeral int) fx.Option {
+func opts(
+	fixedNamespace, ephemeralNamespace, endpoint string,
+	canaryGRPCPort int,
+	numFixedExecutors, numEphemeral, numShardCreators int,
+	shardCreationInterval time.Duration,
+) fx.Option {
 	configuration := clientcommon.Config{
 		Namespaces: []clientcommon.NamespaceConfig{
 			{Namespace: fixedNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
@@ -145,6 +154,8 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort in
 				Canary: canaryConfig.CanaryConfig{
 					NumFixedExecutors:     numFixedExecutors,
 					NumEphemeralExecutors: numEphemeral,
+					NumShardCreators:      numShardCreators,
+					ShardCreationInterval: shardCreationInterval,
 				},
 			},
 		}),
@@ -197,6 +208,16 @@ func buildCLI() *cli.App {
 					Name:  "num-ephemeral-executors",
 					Value: defaultNumExecutors,
 					Usage: "number of executors of ephemeral namespace to start. Don't use with num-executors",
+				},
+				&cli.IntFlag{
+					Name:  "num-shard-creators",
+					Usage: "number of shard creators to start. Each shard creator will create new ephemeral shards at regular intervals",
+					Value: defaultNumShardCreators,
+				},
+				&cli.DurationFlag{
+					Name:  "shard-creation-interval",
+					Usage: "interval between creating new ephemeral shards by each shard creator",
+					Value: defaultShardCreationInterval,
 				},
 			},
 			Action: func(c *cli.Context) error {

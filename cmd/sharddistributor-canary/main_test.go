@@ -15,5 +15,7 @@ func TestDependenciesAreSatisfied(t *testing.T) {
 		defaultCanaryGRPCPort,
 		defaultNumExecutors,
 		defaultNumExecutors,
+		defaultNumShardCreators,
+		defaultShardCreationInterval,
 	)))
 }
