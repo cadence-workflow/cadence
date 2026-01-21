@@ -22,16 +22,8 @@ What actually happened.
 Relevant logs, stack traces, workflow history, or screenshots.
 
 ### Environment
-OS, runtime, and deployment details.
-
-### Cadence server version
-Server version or build SHA.
-
-### Cadence SDK language and version
-Language and SDK version.
-
-### DB
-Database type and version.
-
-### Scale
-Cluster size, workload volume, or other scale details.
+- **Cadence server version**: Server version or build SHA
+- **Cadence SDK language and version** (if applicable): Language and SDK version
+- **Cadence web version** (if applicable): Web UI version
+- **DB & version**: Database type and version
+- **Scale**: Cluster size, workload volume, or other scale details

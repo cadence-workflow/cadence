@@ -42,15 +42,11 @@ jobs:
               "Actual Behavior",
               "Logs / Screenshots",
               "Environment",
-              "Cadence server version",
-              "Cadence SDK language and version",
-              "DB",
-              "Scale",
             ];
 
             const FALLBACK_ENHANCEMENT_REQUIRED = [
               "Description",
-              "Breaking Change or not",
+              "Is this a breaking change?",
               "Scope of the feature (server, specific client, all clients)",
             ];
 
@@ -66,10 +62,49 @@ jobs:
               .filter(Boolean)
               .map((label) => label.toLowerCase());
 
-            const hasTypeLabel = TYPE_LABELS.some((label) => labelNames.includes(label));
-            const isBug = labelNames.includes(BUG_LABEL);
-            const isEnhancement = ENHANCEMENT_LABELS.some((label) => labelNames.includes(label));
-            const missingLabel = !hasTypeLabel;
+            let hasTypeLabel = TYPE_LABELS.some((label) => labelNames.includes(label));
+            let isBug = labelNames.includes(BUG_LABEL);
+            let isEnhancement = ENHANCEMENT_LABELS.some((label) => labelNames.includes(label));
+            let missingLabel = !hasTypeLabel;
+
+            // Detect issue type from template usage and auto-apply label
+            const detectIssueType = (body) => {
+              if (!body) return null;
+              const normalizedBody = body.toLowerCase();
+              
+              // Check for bug template sections
+              if (normalizedBody.includes("steps to reproduce") || 
+                  normalizedBody.includes("expected behavior") || 
+                  normalizedBody.includes("actual behavior")) {
+                return "bug";
+              }
+              
+              // Check for feature template sections
+              if (normalizedBody.includes("breaking change") || 
+                  normalizedBody.includes("scope of the feature")) {
+                return "feature";
+              }
+              
+              return null;
+            };
+
+            const detectedType = detectIssueType(issue.body);
+            
+            // Auto-apply type label if missing but detected
+            if (missingLabel && detectedType) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                labels: [detectedType],
+              });
+              // Refresh label check
+              labelNames.push(detectedType);
+              hasTypeLabel = TYPE_LABELS.some((label) => labelNames.includes(label));
+              isBug = labelNames.includes(BUG_LABEL);
+              isEnhancement = ENHANCEMENT_LABELS.some((label) => labelNames.includes(label));
+              missingLabel = !hasTypeLabel;
+            }
 
             const readTemplateHeadings = (fileName) => {
               try {
