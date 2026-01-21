@@ -1731,6 +1731,9 @@ type (
 
 // IsTimeoutError check whether error is TimeoutError
 func IsTimeoutError(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
 	var timeoutError *TimeoutError
 	ok := errors.As(err, &timeoutError)
 	return ok

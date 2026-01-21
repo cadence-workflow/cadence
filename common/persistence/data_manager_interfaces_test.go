@@ -22,6 +22,7 @@ package persistence
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -167,9 +168,79 @@ func TestIsTransientError(t *testing.T) {
 }
 
 func TestIsTimeoutError(t *testing.T) {
-	notTimeoutError := fmt.Errorf("not timeout error")
-	assert.False(t, IsTimeoutError(notTimeoutError))
-	assert.True(t, IsTimeoutError(&TimeoutError{}))
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "regular error",
+			err:      fmt.Errorf("not timeout error"),
+			expected: false,
+		},
+		{
+			name:     "context.DeadlineExceeded",
+			err:      context.DeadlineExceeded,
+			expected: true,
+		},
+		{
+			name:     "context.Canceled",
+			err:      context.Canceled,
+			expected: true,
+		},
+		{
+			name:     "wrapped context.DeadlineExceeded",
+			err:      fmt.Errorf("operation failed: %w", context.DeadlineExceeded),
+			expected: true,
+		},
+		{
+			name:     "wrapped context.Canceled",
+			err:      fmt.Errorf("operation failed: %w", context.Canceled),
+			expected: true,
+		},
+		{
+			name:     "doubly wrapped context.DeadlineExceeded",
+			err:      fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", context.DeadlineExceeded)),
+			expected: true,
+		},
+		{
+			name:     "doubly wrapped context.Canceled",
+			err:      fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", context.Canceled)),
+			expected: true,
+		},
+		{
+			name:     "TimeoutError",
+			err:      &TimeoutError{Msg: "timeout"},
+			expected: true,
+		},
+		{
+			name:     "wrapped TimeoutError",
+			err:      fmt.Errorf("operation failed: %w", &TimeoutError{Msg: "timeout"}),
+			expected: true,
+		},
+		{
+			name:     "doubly wrapped TimeoutError",
+			err:      fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", &TimeoutError{Msg: "timeout"})),
+			expected: true,
+		},
+		{
+			name:     "empty TimeoutError",
+			err:      &TimeoutError{},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := IsTimeoutError(tc.err)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
 }
 
 func TestIsBackgroundTransientError(t *testing.T) {

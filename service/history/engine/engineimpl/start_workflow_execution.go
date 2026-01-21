@@ -390,6 +390,7 @@ func (e *historyEngineImpl) handleCreateWorkflowExecutionFailureCleanup(
 		errors.As(err, new(*types.ShardOwnershipLostError)) ||
 		errors.As(err, new(*types.WorkflowExecutionAlreadyStartedError)) ||
 		errors.As(err, new(*types.WorkflowExecutionAlreadyCompletedError)) ||
+		errors.As(err, new(*persistence.ShardOwnershipLostError)) ||
 		errors.As(err, new(*persistence.DuplicateRequestError))
 
 	if !isKnownFailureRequiringCleanup {
