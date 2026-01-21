@@ -558,29 +558,7 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 	searchAttr := copySearchAttributes(executionInfo.SearchAttributes)
 	headers := getWorkflowHeaders(startEvent)
 
-	// Determine ExecutionStatus based on whether the workflow has started executing
-	// A workflow is PENDING if it has a first decision task backoff and hasn't been scheduled yet
-	// Once the decision task is scheduled (or if there's no backoff), it's STARTED
-	executionStatus := types.WorkflowExecutionStatusStarted
-	backoffSeconds := int32(0)
-	if startEvent.WorkflowExecutionStartedEventAttributes != nil {
-		backoffSeconds = startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds()
-	}
-
-	if backoffSeconds > 0 {
-		hasPending := mutableState.HasPendingDecision()
-		hasInFlight := mutableState.HasInFlightDecision()
-		hasProcessed := mutableState.HasProcessedOrPendingDecision()
-
-		// Check if the first decision task has been scheduled yet
-		// If there's no decision info, the workflow is still pending
-		if !hasPending && !hasInFlight && !hasProcessed {
-			executionStatus = types.WorkflowExecutionStatusPending
-		}
-	}
-
-	// startTime + firstDecisionTaskBackoffSeconds
-	scheduledExecutionTimestamp := startEvent.GetTimestamp() + int64(startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds())*int64(time.Second)
+	executionStatus, scheduledExecutionTimestamp := determineExecutionStatus(startEvent, mutableState)
 
 	if isRecordStart {
 		workflowStartedScope.IncCounter(metrics.WorkflowStartedCount)

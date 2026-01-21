@@ -582,3 +582,45 @@ func shouldRedactContextHeader(key string, hiddenValueKeys map[string]interface{
 	}
 	return false
 }
+
+// determineExecutionStatus determines whether a workflow execution is PENDING or STARTED
+// based on whether it has a first decision task backoff and if the decision task has been scheduled.
+//
+// A workflow is PENDING if:
+// - It has a firstDecisionTaskBackoffSeconds > 0, AND
+// - No decision task has been scheduled/processed yet
+//
+// Otherwise, it's STARTED.
+//
+// Returns:
+// - executionStatus: either WorkflowExecutionStatusPending or WorkflowExecutionStatusStarted
+// - scheduledExecutionTimestamp: startTime + firstDecisionTaskBackoffSeconds (in nanoseconds)
+func determineExecutionStatus(
+	startEvent *types.HistoryEvent,
+	mutableState execution.MutableState,
+) (executionStatus types.WorkflowExecutionStatus, scheduledExecutionTimestamp int64) {
+	executionStatus = types.WorkflowExecutionStatusStarted
+	backoffSeconds := int32(0)
+
+	if startEvent.WorkflowExecutionStartedEventAttributes != nil {
+		backoffSeconds = startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds()
+	}
+
+	if backoffSeconds > 0 {
+		hasPending := mutableState.HasPendingDecision()
+		hasInFlight := mutableState.HasInFlightDecision()
+		hasProcessed := mutableState.HasProcessedOrPendingDecision()
+
+		// Check if the first decision task has been scheduled yet
+		// If there's no decision info, the workflow is still pending
+		if !hasPending && !hasInFlight && !hasProcessed {
+			executionStatus = types.WorkflowExecutionStatusPending
+		}
+	}
+
+	// startTime + firstDecisionTaskBackoffSeconds
+	scheduledExecutionTimestamp = startEvent.GetTimestamp() +
+		int64(backoffSeconds)*int64(time.Second)
+
+	return executionStatus, scheduledExecutionTimestamp
+}
