@@ -31,12 +31,14 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 )
 
 func TestGetOrCreateChannel(t *testing.T) {
 	timeSource := clock.NewMockedTimeSource()
 	pool := NewWeightedRoundRobinChannelPool[string, int](
 		testlogger.New(t),
+		metrics.NoopScope,
 		timeSource,
 		WeightedRoundRobinChannelPoolOptions{
 			BufferSize:              1000,
@@ -61,6 +63,7 @@ func TestGetOrCreateChannelConcurrent(t *testing.T) {
 	timeSource := clock.NewMockedTimeSource()
 	pool := NewWeightedRoundRobinChannelPool[string, int](
 		testlogger.New(t),
+		metrics.NoopScope,
 		timeSource,
 		WeightedRoundRobinChannelPoolOptions{
 			BufferSize:              1000,
@@ -107,6 +110,7 @@ func TestGetSchedule(t *testing.T) {
 	timeSource := clock.NewMockedTimeSource()
 	pool := NewWeightedRoundRobinChannelPool[string, int](
 		testlogger.New(t),
+		metrics.NoopScope,
 		timeSource,
 		WeightedRoundRobinChannelPoolOptions{
 			BufferSize:              1000,
@@ -151,6 +155,7 @@ func TestCleanup(t *testing.T) {
 	timeSource := clock.NewRealTimeSource()
 	pool := NewWeightedRoundRobinChannelPool[string, int](
 		testlogger.New(t),
+		metrics.NoopScope,
 		timeSource,
 		WeightedRoundRobinChannelPoolOptions{
 			BufferSize:              1000,

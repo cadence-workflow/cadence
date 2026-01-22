@@ -2469,6 +2469,8 @@ const (
 	BudgetManagerHardCapExceeded
 	BudgetManagerSoftCapExceeded
 
+	WeightedChannelPoolSizeGauge
+
 	NumCommonMetrics // Needs to be last on this list for iota numbering
 )
 
@@ -3293,6 +3295,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		BudgetManagerActiveCacheCount: {metricName: "budget_manager_active_cache_count", metricType: Gauge},
 		BudgetManagerHardCapExceeded:  {metricName: "budget_manager_hard_cap_exceeded", metricType: Counter},
 		BudgetManagerSoftCapExceeded:  {metricName: "budget_manager_soft_cap_exceeded", metricType: Counter},
+
+		WeightedChannelPoolSizeGauge: {metricName: "weighted_channel_pool_size", metricType: Gauge},
 	},
 	History: {
 		TaskRequests:                     {metricName: "task_requests", metricType: Counter},
