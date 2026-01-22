@@ -132,8 +132,13 @@ func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Ta
 	scope := m.scope.Tagged(metrics.SourceClusterTag(cluster))
 
 	scope.IncCounter(metrics.CacheRequests)
+	// Keep timer (backwards compatible), dual-emit exponential histogram for migration.
+	cacheLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CacheLatency)
 	defer sw.Stop()
+	defer func() {
+		scope.ExponentialHistogram(metrics.ExponentialCacheLatency, time.Since(cacheLatencyStart))
+	}()
 
 	task := cacheForTargetCluster.Get(info.GetTaskID())
 

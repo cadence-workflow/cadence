@@ -127,7 +127,14 @@ services:
                     - {{ . }}
                 {{- end }}
             {{- end }}
-        {{- if .Env.STATSD_ENDPOINT }}
+        {{- if .Env.M3_ENDPOINT }}
+        metrics:
+            m3:
+                hostPort: {{ .Env.M3_ENDPOINT }}
+                service: {{ default .Env.M3_SERVICE "cadence" }}
+                env: {{ default .Env.M3_ENV "local" }}
+                includeHost: true
+        {{- else if .Env.STATSD_ENDPOINT }}
         metrics:
             statsd:
                 hostPort: {{ .Env.STATSD_ENDPOINT }}
@@ -153,7 +160,14 @@ services:
             port: {{ default .Env.MATCHING_PORT "7935" }}
             grpcPort: {{ default .Env.GRPC_MATCHING_PORT "7835" }}
             bindOnIP: {{ default .Env.BIND_ON_IP "127.0.0.1" }}
-        {{- if .Env.STATSD_ENDPOINT }}
+        {{- if .Env.M3_ENDPOINT }}
+        metrics:
+            m3:
+                hostPort: {{ .Env.M3_ENDPOINT }}
+                service: {{ default .Env.M3_SERVICE "cadence" }}
+                env: {{ default .Env.M3_ENV "local" }}
+                includeHost: true
+        {{- else if .Env.STATSD_ENDPOINT }}
         metrics:
             statsd:
                 hostPort: {{ .Env.STATSD_ENDPOINT }}
@@ -179,7 +193,14 @@ services:
             port: {{ default .Env.HISTORY_PORT "7934" }}
             grpcPort: {{ default .Env.GRPC_HISTORY_PORT "7834" }}
             bindOnIP: {{ default .Env.BIND_ON_IP "127.0.0.1" }}
-        {{- if .Env.STATSD_ENDPOINT }}
+        {{- if .Env.M3_ENDPOINT }}
+        metrics:
+            m3:
+                hostPort: {{ .Env.M3_ENDPOINT }}
+                service: {{ default .Env.M3_SERVICE "cadence" }}
+                env: {{ default .Env.M3_ENV "local" }}
+                includeHost: true
+        {{- else if .Env.STATSD_ENDPOINT }}
         metrics:
             statsd:
                 hostPort: {{ .Env.STATSD_ENDPOINT }}
@@ -204,7 +225,14 @@ services:
         rpc:
             port: {{ default .Env.WORKER_PORT "7939" }}
             bindOnIP: {{ default .Env.BIND_ON_IP "127.0.0.1" }}
-        {{- if .Env.STATSD_ENDPOINT }}
+        {{- if .Env.M3_ENDPOINT }}
+        metrics:
+            m3:
+                hostPort: {{ .Env.M3_ENDPOINT }}
+                service: {{ default .Env.M3_SERVICE "cadence" }}
+                env: {{ default .Env.M3_ENV "local" }}
+                includeHost: true
+        {{- else if .Env.STATSD_ENDPOINT }}
         metrics:
             statsd:
                 hostPort: {{ .Env.STATSD_ENDPOINT }}
@@ -225,6 +253,17 @@ services:
             port: {{ .Env.WORKER_PPROF_PORT }}
             host: {{ default .Env.BIND_ON_IP "localhost" }}
       {{- end }}
+
+# Controls timer vs histogram metric emission while timers are being migrated away.
+# Keep both enabled during rollout for backwards compatibility.
+histograms:
+    default: both
+    names:
+        task_latency: true
+        task_latency_ns: true
+        cache_latency: true
+        cache_latency_ns: true
+
 clusterGroupMetadata:
     clusterRedirectionPolicy:
         policy: {{ default .Env.CLUSTER_REDIRECT_POLICY "all-domain-apis-forwarding" }}
