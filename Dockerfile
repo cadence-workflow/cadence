@@ -38,7 +38,7 @@ FROM alpine:3.18 AS dockerize
 # appears to require `docker buildx` or an explicit `--platform` at build time
 ARG TARGETARCH
 
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl ca-certificates && update-ca-certificates
 
 ENV DOCKERIZE_VERSION=v0.9.3
 RUN wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-$TARGETARCH-$DOCKERIZE_VERSION.tar.gz \

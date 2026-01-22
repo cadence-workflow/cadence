@@ -1,0 +1,9 @@
+services:
+  # Override the cadence images to use your locally-built image that includes your code changes.
+  cadence-schema-setup:
+    image: cadence-local:auto-setup
+  cadence:
+    image: cadence-local:auto-setup
+  cadence-secondary:
+    image: cadence-local:auto-setup
+
