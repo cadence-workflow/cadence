@@ -75,7 +75,7 @@ func NewExecutorsWithEphemeralNamespace(params executorclient.Params[*processore
 	for i := 0; i < numExecutors; i++ {
 		executor, err := executorclient.NewExecutorWithNamespace(params, namespace)
 		if err != nil {
-			return result, err
+			return ExecutorsEphemeralResult{}, err
 		}
 		result.Executors = append(result.Executors, executor)
 	}
