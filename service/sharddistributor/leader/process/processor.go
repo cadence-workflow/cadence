@@ -354,7 +354,10 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 }
 
 func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoopScope metrics.Scope) (err error) {
+	// Phase 1: Get state from store
+	getStateStart := p.timeSource.Now()
 	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
+	metricsLoopScope.RecordHistogramDuration(metrics.ShardDistributorAssignLoopGetStateLatency, p.timeSource.Now().Sub(getStateStart))
 	if err != nil {
 		return fmt.Errorf("get state: %w", err)
 	}
@@ -365,6 +368,9 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	}
 	p.lastAppliedRevision = namespaceState.GlobalRevision
 
+	// Phase 2: Calculate new assignments
+	calculateStart := p.timeSource.Now()
+
 	// Identify stale executors that need to be removed
 	staleExecutors := p.identifyStaleExecutors(namespaceState)
 	if len(staleExecutors) > 0 {
@@ -374,6 +380,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	activeExecutors := p.getActiveExecutors(namespaceState, staleExecutors)
 	if len(activeExecutors) == 0 {
 		p.logger.Info("No active executors found. Cannot assign shards.")
+		metricsLoopScope.RecordHistogramDuration(metrics.ShardDistributorAssignLoopCalculateLatency, p.timeSource.Now().Sub(calculateStart))
 		return nil
 	}
 	p.logger.Info("Active executors", tag.ShardExecutors(activeExecutors))
@@ -382,6 +389,14 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	shardsToReassign, currentAssignments := p.findShardsToReassign(activeExecutors, namespaceState, deletedShards, staleExecutors)
 
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumRebalancedShards, float64(len(shardsToReassign)))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumExecutors, float64(len(activeExecutors)))
+
+	// Count total shards across all executors
+	totalShards := 0
+	for _, shards := range currentAssignments {
+		totalShards += len(shards)
+	}
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumShards, float64(totalShards))
 
 	// If there are deleted shards or stale executors, the distribution has changed.
 	assignedToEmptyExecutors := assignShardsToEmptyExecutors(currentAssignments)
@@ -391,24 +406,38 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments || isRebalancedByShardLoad
 	if !distributionChanged {
 		p.logger.Info("No changes to distribution detected. Skipping rebalance.")
+		metricsLoopScope.RecordHistogramDuration(metrics.ShardDistributorAssignLoopCalculateLatency, p.timeSource.Now().Sub(calculateStart))
 		return nil
 	}
 
 	newState := p.getNewAssignmentsState(namespaceState, currentAssignments)
+	metricsLoopScope.RecordHistogramDuration(metrics.ShardDistributorAssignLoopCalculateLatency, p.timeSource.Now().Sub(calculateStart))
+
 	if p.sdConfig.GetMigrationMode(p.namespaceCfg.Name) != types.MigrationModeONBOARDED {
 		p.logger.Info("Running rebalancing in shadow mode", tag.Dynamic("old_assignments", namespaceState.ShardAssignments), tag.Dynamic("new_assignments", newState))
 		p.emitActiveShardMetric(namespaceState.ShardAssignments, metricsLoopScope)
+
+		// Even in shadow mode, cleanup stale executors to prevent data accumulation
+		if len(staleExecutors) > 0 {
+			p.logger.Info("Cleaning up stale executors in shadow mode", tag.ShardExecutors(slices.Collect(maps.Keys(staleExecutors))))
+			if err := p.shardStore.DeleteExecutors(ctx, p.namespaceCfg.Name, slices.Collect(maps.Keys(staleExecutors)), p.election.Guard()); err != nil {
+				p.logger.Error("Failed to delete stale executors in shadow mode", tag.Error(err))
+				// Don't return error - shadow mode should be resilient
+			}
+		}
 		return nil
 	}
 
 	namespaceState.ShardAssignments = newState
 	p.logger.Info("Applying new shard distribution.")
 
-	// Use the leader guard for the assign and delete operation.
+	// Phase 3: Write new assignments to store
+	writeStart := p.timeSource.Now()
 	err = p.shardStore.AssignShards(ctx, p.namespaceCfg.Name, store.AssignShardsRequest{
 		NewState:          namespaceState,
 		ExecutorsToDelete: staleExecutors,
 	}, p.election.Guard())
+	metricsLoopScope.RecordHistogramDuration(metrics.ShardDistributorAssignLoopWriteLatency, p.timeSource.Now().Sub(writeStart))
 	if err != nil {
 		return fmt.Errorf("assign shards: %w", err)
 	}

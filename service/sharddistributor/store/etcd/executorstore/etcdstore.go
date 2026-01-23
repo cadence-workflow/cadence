@@ -14,6 +14,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -29,13 +30,14 @@ var (
 )
 
 type executorStoreImpl struct {
-	client       etcdclient.Client
-	prefix       string
-	logger       log.Logger
-	shardCache   *shardcache.ShardToExecutorCache
-	timeSource   clock.TimeSource
-	recordWriter *common.RecordWriter
-	cfg          *config.Config
+	client        etcdclient.Client
+	prefix        string
+	logger        log.Logger
+	shardCache    *shardcache.ShardToExecutorCache
+	timeSource    clock.TimeSource
+	recordWriter  *common.RecordWriter
+	cfg           *config.Config
+	metricsClient metrics.Client
 }
 
 // shardStatisticsUpdate holds the staged statistics for a shard so we can write them
@@ -49,12 +51,13 @@ type shardStatisticsUpdate struct {
 type ExecutorStoreParams struct {
 	fx.In
 
-	Client     etcdclient.Client `name:"executorstore"`
-	ETCDConfig ETCDConfig
-	Lifecycle  fx.Lifecycle
-	Logger     log.Logger
-	TimeSource clock.TimeSource
-	Config     *config.Config
+	Client        etcdclient.Client `name:"executorstore"`
+	ETCDConfig    ETCDConfig
+	Lifecycle     fx.Lifecycle
+	Logger        log.Logger
+	TimeSource    clock.TimeSource
+	Config        *config.Config
+	MetricsClient metrics.Client
 }
 
 // NewStore creates a new etcd-backed store and provides it to the fx application.
@@ -72,13 +75,14 @@ func NewStore(p ExecutorStoreParams) (store.Store, error) {
 	}
 
 	store := &executorStoreImpl{
-		client:       p.Client,
-		prefix:       p.ETCDConfig.Prefix,
-		logger:       p.Logger,
-		shardCache:   shardCache,
-		timeSource:   timeSource,
-		recordWriter: recordWriter,
-		cfg:          p.Config,
+		client:        p.Client,
+		prefix:        p.ETCDConfig.Prefix,
+		logger:        p.Logger,
+		shardCache:    shardCache,
+		timeSource:    timeSource,
+		recordWriter:  recordWriter,
+		cfg:           p.Config,
+		metricsClient: p.MetricsClient,
 	}
 
 	p.Lifecycle.Append(fx.StartStopHook(store.Start, store.Stop))
@@ -201,16 +205,26 @@ func (s *executorStoreImpl) GetHeartbeat(ctx context.Context, namespace string, 
 // --- ShardStore Implementation ---
 
 func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*store.NamespaceState, error) {
+	metricsScope := s.metricsClient.Scope(metrics.ShardDistributorGetShardOwnerScope, metrics.NamespaceTag(namespace))
+
 	heartbeatStates := make(map[string]store.HeartbeatState)
 	assignedStates := make(map[string]store.AssignedState)
 	shardStats := make(map[string]store.ShardStatistics)
 
+	// Phase 1: Fetch from etcd
+	etcdFetchStart := s.timeSource.Now()
 	executorPrefix := etcdkeys.BuildExecutorsPrefix(s.prefix, namespace)
 	resp, err := s.client.Get(ctx, executorPrefix, clientv3.WithPrefix())
+	metricsScope.RecordHistogramDuration(metrics.ShardDistributorGetStateEtcdFetchLatency, s.timeSource.Now().Sub(etcdFetchStart))
 	if err != nil {
 		return nil, fmt.Errorf("get executor data: %w", err)
 	}
 
+	// Record number of keys fetched
+	metricsScope.UpdateGauge(metrics.ShardDistributorGetStateNumKeys, float64(len(resp.Kvs)))
+
+	// Phase 2: Deserialize all keys
+	deserializeStart := s.timeSource.Now()
 	for _, kv := range resp.Kvs {
 		key := string(kv.Key)
 		value := string(kv.Value)
@@ -258,6 +272,7 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 		heartbeatStates[executorID] = heartbeat
 		assignedStates[executorID] = assigned
 	}
+	metricsScope.RecordHistogramDuration(metrics.ShardDistributorGetStateDeserializeLatency, s.timeSource.Now().Sub(deserializeStart))
 
 	return &store.NamespaceState{
 		Executors:        heartbeatStates,
