@@ -14,6 +14,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -29,13 +30,14 @@ var (
 )
 
 type executorStoreImpl struct {
-	client       etcdclient.Client
-	prefix       string
-	logger       log.Logger
-	shardCache   *shardcache.ShardToExecutorCache
-	timeSource   clock.TimeSource
-	recordWriter *common.RecordWriter
-	cfg          *config.Config
+	client        etcdclient.Client
+	prefix        string
+	logger        log.Logger
+	shardCache    *shardcache.ShardToExecutorCache
+	timeSource    clock.TimeSource
+	recordWriter  *common.RecordWriter
+	cfg           *config.Config
+	metricsClient metrics.Client
 }
 
 // shardStatisticsUpdate holds the staged statistics for a shard so we can write them
@@ -49,12 +51,13 @@ type shardStatisticsUpdate struct {
 type ExecutorStoreParams struct {
 	fx.In
 
-	Client     etcdclient.Client `name:"executorstore"`
-	ETCDConfig ETCDConfig
-	Lifecycle  fx.Lifecycle
-	Logger     log.Logger
-	TimeSource clock.TimeSource
-	Config     *config.Config
+	Client        etcdclient.Client `name:"executorstore"`
+	ETCDConfig    ETCDConfig
+	Lifecycle     fx.Lifecycle
+	Logger        log.Logger
+	TimeSource    clock.TimeSource
+	Config        *config.Config
+	MetricsClient metrics.Client
 }
 
 // NewStore creates a new etcd-backed store and provides it to the fx application.
@@ -72,13 +75,14 @@ func NewStore(p ExecutorStoreParams) (store.Store, error) {
 	}
 
 	store := &executorStoreImpl{
-		client:       p.Client,
-		prefix:       p.ETCDConfig.Prefix,
-		logger:       p.Logger,
-		shardCache:   shardCache,
-		timeSource:   timeSource,
-		recordWriter: recordWriter,
-		cfg:          p.Config,
+		client:        p.Client,
+		prefix:        p.ETCDConfig.Prefix,
+		logger:        p.Logger,
+		shardCache:    shardCache,
+		timeSource:    timeSource,
+		recordWriter:  recordWriter,
+		cfg:           p.Config,
+		metricsClient: p.MetricsClient,
 	}
 
 	p.Lifecycle.Append(fx.StartStopHook(store.Start, store.Stop))
@@ -201,16 +205,26 @@ func (s *executorStoreImpl) GetHeartbeat(ctx context.Context, namespace string, 
 // --- ShardStore Implementation ---
 
 func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*store.NamespaceState, error) {
+	metricsScope := s.metricsClient.Scope(metrics.ShardDistributorGetShardOwnerScope, metrics.NamespaceTag(namespace))
+
 	heartbeatStates := make(map[string]store.HeartbeatState)
 	assignedStates := make(map[string]store.AssignedState)
 	shardStats := make(map[string]store.ShardStatistics)
 
+	// Phase 1: Fetch from etcd
+	etcdFetchStart := s.timeSource.Now()
 	executorPrefix := etcdkeys.BuildExecutorsPrefix(s.prefix, namespace)
 	resp, err := s.client.Get(ctx, executorPrefix, clientv3.WithPrefix())
+	metricsScope.RecordHistogramDuration(metrics.ShardDistributorGetStateEtcdFetchLatency, s.timeSource.Now().Sub(etcdFetchStart))
 	if err != nil {
 		return nil, fmt.Errorf("get executor data: %w", err)
 	}
 
+	// Record number of keys fetched
+	metricsScope.UpdateGauge(metrics.ShardDistributorGetStateNumKeys, float64(len(resp.Kvs)))
+
+	// Phase 2: Deserialize all keys
+	deserializeStart := s.timeSource.Now()
 	for _, kv := range resp.Kvs {
 		key := string(kv.Key)
 		value := string(kv.Value)
@@ -258,6 +272,7 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 		heartbeatStates[executorID] = heartbeat
 		assignedStates[executorID] = assigned
 	}
+	metricsScope.RecordHistogramDuration(metrics.ShardDistributorGetStateDeserializeLatency, s.timeSource.Now().Sub(deserializeStart))
 
 	return &store.NamespaceState{
 		Executors:        heartbeatStates,
@@ -587,10 +602,33 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 
 // DeleteExecutors deletes the given executors from the store. It does not delete the shards owned by the executors, this
 // should be handled by the namespace processor loop as we want to reassign, not delete the shards.
+// Deletions are batched to avoid exceeding etcd's transaction size limit (default 128 ops).
 func (s *executorStoreImpl) DeleteExecutors(ctx context.Context, namespace string, executorIDs []string, guard store.GuardFunc) error {
 	if len(executorIDs) == 0 {
 		return nil
 	}
+
+	// etcd has a default limit of 128 operations per transaction.
+	// Batch deletions to stay under this limit.
+	const batchSize = 100
+
+	for i := 0; i < len(executorIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(executorIDs) {
+			end = len(executorIDs)
+		}
+		batch := executorIDs[i:end]
+
+		if err := s.deleteExecutorsBatch(ctx, namespace, batch, guard); err != nil {
+			return fmt.Errorf("delete batch %d-%d: %w", i, end, err)
+		}
+	}
+
+	return nil
+}
+
+// deleteExecutorsBatch deletes a batch of executors in a single transaction.
+func (s *executorStoreImpl) deleteExecutorsBatch(ctx context.Context, namespace string, executorIDs []string, guard store.GuardFunc) error {
 	var ops []clientv3.Op
 
 	for _, executorID := range executorIDs {
