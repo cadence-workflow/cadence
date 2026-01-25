@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.7",
+  "MinCompatibleVersion": "0.7",
+  "Description": "create domain_audit_log table",
+  "SchemaUpdateCqlFiles": [
+    "domain_audit_log.sql"
+  ]
+}
