@@ -191,6 +191,10 @@ func ToError(err error) error {
 					EndEventVersion:   ToEventVersion(details.EndEvent),
 				}
 			}
+		case *apiv1.ReadOnlyPartitionError:
+			return &types.ReadOnlyPartitionError{
+				Message: status.Message(),
+			}
 		}
 	case yarpcerrors.CodeAlreadyExists:
 		switch details := getErrorDetails(err).(type) {
@@ -244,10 +248,6 @@ func ToError(err error) error {
 					ActiveCluster:  details.ActiveCluster,
 					ActiveClusters: details.ActiveClusters,
 				}
-			}
-		case *apiv1.ReadOnlyPartitionError:
-			return &types.ReadOnlyPartitionError{
-				Message: status.Message(),
 			}
 		}
 	case yarpcerrors.CodeResourceExhausted:
@@ -412,7 +412,7 @@ func fromStickyWorkerUnavailableErr(e *types.StickyWorkerUnavailableError) error
 }
 
 func fromReadOnlyPartitionErr(e *types.ReadOnlyPartitionError) error {
-	return protobuf.NewError(yarpcerrors.CodeFailedPrecondition, e.Message, protobuf.WithErrorDetails(&apiv1.ReadOnlyPartitionError{}))
+	return protobuf.NewError(yarpcerrors.CodeAborted, e.Message, protobuf.WithErrorDetails(&apiv1.ReadOnlyPartitionError{}))
 }
 
 func fromNamespaceNotFoundErr(e *types.NamespaceNotFoundError) error {
