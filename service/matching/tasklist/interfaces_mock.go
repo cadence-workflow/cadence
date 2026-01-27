@@ -221,6 +221,20 @@ func (mr *MockManagerMockRecorder) LoadBalancerHints() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBalancerHints", reflect.TypeOf((*MockManager)(nil).LoadBalancerHints))
 }
 
+// QueriesPerSecond mocks base method.
+func (m *MockManager) QueriesPerSecond() float64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueriesPerSecond")
+	ret0, _ := ret[0].(float64)
+	return ret0
+}
+
+// QueriesPerSecond indicates an expected call of QueriesPerSecond.
+func (mr *MockManagerMockRecorder) QueriesPerSecond() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueriesPerSecond", reflect.TypeOf((*MockManager)(nil).QueriesPerSecond))
+}
+
 // RefreshTaskListPartitionConfig mocks base method.
 func (m *MockManager) RefreshTaskListPartitionConfig(arg0 context.Context, arg1 *types.TaskListPartitionConfig) error {
 	m.ctrl.T.Helper()
