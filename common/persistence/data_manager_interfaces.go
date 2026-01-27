@@ -1695,21 +1695,91 @@ type (
 		GetDomainAuditLogs(ctx context.Context, request *GetDomainAuditLogsRequest) (*GetDomainAuditLogsResponse, error)
 	}
 
+	EnqueueMessageRequest struct {
+		MessagePayload []byte
+	}
+
+	ReadMessagesRequest struct {
+		LastMessageID int64
+		MaxCount      int
+	}
+
+	ReadMessagesResponse struct {
+		Messages QueueMessageList
+	}
+
+	DeleteMessagesBeforeRequest struct {
+		MessageID int64
+	}
+
+	UpdateAckLevelRequest struct {
+		MessageID   int64
+		ClusterName string
+	}
+
+	GetAckLevelsRequest struct{}
+
+	GetAckLevelsResponse struct {
+		AckLevels map[string]int64
+	}
+
+	EnqueueMessageToDLQRequest struct {
+		MessagePayload []byte
+	}
+
+	ReadMessagesFromDLQRequest struct {
+		FirstMessageID int64
+		LastMessageID  int64
+		PageSize       int
+		PageToken      []byte
+	}
+
+	ReadMessagesFromDLQResponse struct {
+		Messages      []*QueueMessage
+		NextPageToken []byte
+	}
+
+	DeleteMessageFromDLQRequest struct {
+		MessageID int64
+	}
+
+	RangeDeleteMessagesFromDLQRequest struct {
+		FirstMessageID int64
+		LastMessageID  int64
+	}
+
+	UpdateDLQAckLevelRequest struct {
+		MessageID   int64
+		ClusterName string
+	}
+
+	GetDLQAckLevelsRequest struct{}
+
+	GetDLQAckLevelsResponse struct {
+		AckLevels map[string]int64
+	}
+
+	GetDLQSizeRequest struct{}
+
+	GetDLQSizeResponse struct {
+		Size int64
+	}
+
 	// QueueManager is used to manage queue store
 	QueueManager interface {
 		Closeable
-		EnqueueMessage(ctx context.Context, messagePayload []byte) error
-		ReadMessages(ctx context.Context, lastMessageID int64, maxCount int) (QueueMessageList, error)
-		DeleteMessagesBefore(ctx context.Context, messageID int64) error
-		UpdateAckLevel(ctx context.Context, messageID int64, clusterName string) error
-		GetAckLevels(ctx context.Context) (map[string]int64, error)
-		EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte) error
-		ReadMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64, pageSize int, pageToken []byte) ([]*QueueMessage, []byte, error)
-		DeleteMessageFromDLQ(ctx context.Context, messageID int64) error
-		RangeDeleteMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64) error
-		UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string) error
-		GetDLQAckLevels(ctx context.Context) (map[string]int64, error)
-		GetDLQSize(ctx context.Context) (int64, error)
+		EnqueueMessage(ctx context.Context, request *EnqueueMessageRequest) error
+		ReadMessages(ctx context.Context, request *ReadMessagesRequest) (*ReadMessagesResponse, error)
+		DeleteMessagesBefore(ctx context.Context, request *DeleteMessagesBeforeRequest) error
+		UpdateAckLevel(ctx context.Context, request *UpdateAckLevelRequest) error
+		GetAckLevels(ctx context.Context, request *GetAckLevelsRequest) (*GetAckLevelsResponse, error)
+		EnqueueMessageToDLQ(ctx context.Context, request *EnqueueMessageToDLQRequest) error
+		ReadMessagesFromDLQ(ctx context.Context, request *ReadMessagesFromDLQRequest) (*ReadMessagesFromDLQResponse, error)
+		DeleteMessageFromDLQ(ctx context.Context, request *DeleteMessageFromDLQRequest) error
+		RangeDeleteMessagesFromDLQ(ctx context.Context, request *RangeDeleteMessagesFromDLQRequest) error
+		UpdateDLQAckLevel(ctx context.Context, request *UpdateDLQAckLevelRequest) error
+		GetDLQAckLevels(ctx context.Context, request *GetDLQAckLevelsRequest) (*GetDLQAckLevelsResponse, error)
+		GetDLQSize(ctx context.Context, request *GetDLQSizeRequest) (*GetDLQSizeResponse, error)
 	}
 
 	// QueueMessage is the message that stores in the queue

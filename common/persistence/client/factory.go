@@ -97,7 +97,7 @@ type (
 		// TODO We temporarily using sortByCloseTime to determine whether or not ListClosedWorkflowExecutions should
 		// be ordering by CloseTime. This will be removed when implementing https://github.com/uber/cadence/issues/3621
 		NewVisibilityStore(sortByCloseTime bool) (p.VisibilityStore, error)
-		NewQueue(queueType p.QueueType) (p.Queue, error)
+		NewQueue(queueType p.QueueType) (p.QueueStore, error)
 		// NewConfigStore returns a new config store
 		NewConfigStore() (p.ConfigStore, error)
 	}
