@@ -1415,7 +1415,7 @@ func TestRatelimitBehavior(t *testing.T) {
 		},
 	}
 	for name, test := range tests {
-		test := test // closure copy
+		// closure copy
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			check := func(t *testing.T, allow func() bool, allowable func(ctx context.Context) (*rate.Reservation, error)) {
