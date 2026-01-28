@@ -67,6 +67,10 @@ type (
 		SplitSlices(func(VirtualSlice) (remaining []VirtualSlice, split bool))
 		// Pause pauses the virtual queue for a while
 		Pause(time.Duration)
+		// InsertSingleTask inserts a single task to the virtual queue. Return false if the task's timestamp is out of range of the current queue slice or the task does not satisfy the predicate
+		InsertSingleTask(task task.Task) bool
+		// ResetProgress removes the scheduled tasks after the given time
+		ResetProgress(persistence.HistoryTaskKey)
 	}
 
 	VirtualQueueOptions struct {
@@ -394,34 +398,13 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 
 	now := q.timeSource.Now()
 	for _, task := range tasks {
-		if persistence.IsTaskCorrupted(task) {
-			q.logger.Error("Virtual queue encountered a corrupted task", tag.Dynamic("task", task))
-			q.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
-			task.Ack()
-			continue
-		}
-
-		scheduledTime := task.GetTaskKey().GetScheduledTime()
-		// if the scheduled time is in the future, we need to reschedule the task
-		if now.Before(scheduledTime) {
-			q.rescheduler.RescheduleTask(task, scheduledTime)
-			continue
-		}
-		// shard level metrics for the duration between a task being written to a queue and being fetched from it
-		q.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(task.GetVisibilityTimestamp()))
-		task.SetInitialSubmitTime(now)
-		submitted, err := q.processor.TrySubmit(task)
-		if err != nil {
+		if err := q.submitOrRescheduleTask(now, task); err != nil {
 			select {
 			case <-q.ctx.Done():
 				return
 			default:
 				q.logger.Error("Virtual queue failed to submit task", tag.Error(err))
 			}
-		}
-		if !submitted {
-			q.metricsScope.IncCounter(metrics.ProcessingQueueThrottledCounter)
-			q.rescheduler.RescheduleTask(task, q.timeSource.Now().Add(taskSchedulerThrottleBackoffInterval))
 		}
 	}
 
@@ -434,6 +417,72 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 	if q.sliceToRead != nil {
 		q.notify()
 	}
+}
+
+func (q *virtualQueueImpl) InsertSingleTask(task task.Task) bool {
+	q.Lock()
+	defer q.Unlock()
+
+	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
+		slice := e.Value.(VirtualSlice)
+		inserted := slice.InsertTask(task)
+		if inserted {
+			q.monitor.SetSlicePendingTaskCount(slice, slice.GetPendingTaskCount())
+			now := q.timeSource.Now()
+			if err := q.submitOrRescheduleTask(now, task); err != nil {
+				q.logger.Error("Error submitting task to virtual queue", tag.Error(err))
+			}
+
+			return true
+		}
+	}
+
+	return false
+}
+
+func (q *virtualQueueImpl) ResetProgress(key persistence.HistoryTaskKey) {
+	q.Lock()
+	defer q.Unlock()
+
+	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
+		slice := e.Value.(VirtualSlice)
+		slice.ResetProgress(key)
+		q.monitor.SetSlicePendingTaskCount(slice, slice.GetPendingTaskCount())
+
+		if e == q.sliceToRead {
+			break
+		}
+	}
+
+	q.resetNextReadSliceLocked()
+}
+
+func (q *virtualQueueImpl) submitOrRescheduleTask(now time.Time, task task.Task) error {
+	if persistence.IsTaskCorrupted(task) {
+		q.logger.Error("Virtual queue encountered a corrupted task", tag.Dynamic("task", task))
+		q.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
+
+		task.Ack()
+		return nil
+	}
+
+	scheduledTime := task.GetTaskKey().GetScheduledTime()
+	// if the scheduled time is in the future, we need to reschedule the task
+	if now.Before(scheduledTime) {
+		q.rescheduler.RescheduleTask(task, scheduledTime)
+		return nil
+	}
+	// shard level metrics for the duration between a task being written to a queue and being fetched from it
+	q.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(task.GetVisibilityTimestamp()))
+	task.SetInitialSubmitTime(now)
+	submitted, err := q.processor.TrySubmit(task)
+
+	if !submitted {
+		q.metricsScope.IncCounter(metrics.ProcessingQueueThrottledCounter)
+		q.rescheduler.RescheduleTask(task, q.timeSource.Now().Add(taskSchedulerThrottleBackoffInterval))
+	}
+
+	return err
 }
 
 func (q *virtualQueueImpl) resetNextReadSliceLocked() {
