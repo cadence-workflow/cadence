@@ -1,8 +1,5 @@
 name: Semantic Pull Request
 
-permissions:
-  pull-requests: write
-
 on:
   pull_request:
     types:
@@ -10,19 +7,22 @@ on:
       - edited
       - synchronize
 
+permissions:
+  pull-requests: write
+
 jobs:
   semantic-pr:
     name: Validate PR title follows conventional commit format
     runs-on: ubuntu-latest
     # TODO: Remove this once we commit to conventional commits
     continue-on-error: true
+    permissions:
+      pull-requests: write
 
     steps:
       - name: Validate PR title
         id: lint_pr_title
         uses: amannn/action-semantic-pull-request@v6.1.1
-        permissions:
-          pull-requests: read
         with:
           # Allow standard conventional commit types
           types: |
