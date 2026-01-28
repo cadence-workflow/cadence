@@ -374,7 +374,15 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	activeExecutors := p.getActiveExecutors(namespaceState, staleExecutors)
 	if len(activeExecutors) == 0 {
 		p.logger.Info("No active executors found. Cannot assign shards.")
-		return p.deleteStaleExecutorsAssignedStates(ctx, staleExecutors)
+
+		// Cleanup stale executors even if no active executors remain
+		if len(staleExecutors) > 0 {
+			p.logger.Info("Cleaning up stale executors (no active executors)", tag.ShardExecutors(slices.Collect(maps.Keys(staleExecutors))))
+			if err := p.shardStore.DeleteExecutors(ctx, p.namespaceCfg.Name, slices.Collect(maps.Keys(staleExecutors)), p.election.Guard()); err != nil {
+				p.logger.Error("Failed to delete stale executors", tag.Error(err))
+			}
+		}
+		return nil
 	}
 	p.logger.Info("Active executors", tag.ShardExecutors(activeExecutors))
 
@@ -708,25 +716,6 @@ func (p *namespaceProcessor) newHandoverStats(
 		HandoverType:                      handoverType,
 		PreviousExecutorLastHeartbeatTime: prevExecutorHeartbeat.LastHeartbeat,
 	}
-}
-
-// deleteStaleExecutorsAssignedStates removes the assigned states of stale executors from the store.
-func (p *namespaceProcessor) deleteStaleExecutorsAssignedStates(ctx context.Context, staleExecutors map[string]int64) error {
-	if len(staleExecutors) == 0 {
-		return nil
-	}
-
-	staleExecutorIDs := make([]string, 0, len(staleExecutors))
-	for executorID := range staleExecutors {
-		staleExecutorIDs = append(staleExecutorIDs, executorID)
-	}
-
-	p.logger.Info("Deleting assigned states of stale executors", tag.ShardExecutors(staleExecutorIDs))
-	if err := p.shardStore.DeleteAssignedStates(ctx, p.namespaceCfg.Name, staleExecutorIDs, p.election.Guard()); err != nil {
-		return fmt.Errorf("delete assigned states: %w", err)
-	}
-
-	return nil
 }
 
 func (*namespaceProcessor) getActiveExecutors(namespaceState *store.NamespaceState, staleExecutors map[string]int64) []string {
