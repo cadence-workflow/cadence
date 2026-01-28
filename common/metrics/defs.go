@@ -213,6 +213,8 @@ const (
 	PersistenceCompleteHistoryTaskScope
 	// PersistenceRangeCompleteHistoryTaskScope tracks RangeCompleteHistoryTask calls made by service to persistence layer
 	PersistenceRangeCompleteHistoryTaskScope
+	// PersistenceDeleteTimerTaskScope tracks DeleteTimerTask calls made by service to persistence layer
+	PersistenceDeleteTimerTaskScope
 	// PersistenceCreateTasksScope tracks CreateTask calls made by service to persistence layer
 	PersistenceCreateTasksScope
 	// PersistenceGetTasksScope tracks GetTasks calls made by service to persistence layer
@@ -1532,6 +1534,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistenceGetHistoryTasksScope:                          {operation: "GetHistoryTasks"},
 		PersistenceCompleteHistoryTaskScope:                      {operation: "CompleteHistoryTask"},
 		PersistenceRangeCompleteHistoryTaskScope:                 {operation: "RangeCompleteHistoryTask"},
+		PersistenceDeleteTimerTaskScope:                          {operation: "DeleteTimerTask"},
 		PersistenceCreateTasksScope:                              {operation: "CreateTask"},
 		PersistenceGetTasksScope:                                 {operation: "GetTasks"},
 		PersistenceCompleteTaskScope:                             {operation: "CompleteTask"},

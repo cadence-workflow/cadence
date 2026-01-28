@@ -309,6 +309,7 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 	mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 	mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 	mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+	mockedSerializer.EXPECT().SerializeWorkflowTimerTasks(gomock.Any(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(2)
 	mockedSerializer.EXPECT().SerializeResetPoints(generateResetPoints(), constants.EncodingTypeThriftRW).Return(expectedInfo.ExecutionInfo.AutoResetPoints, nil).Times(2)
 	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(2)
 
@@ -374,6 +375,7 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeWorkflowTimerTasks(gomock.Any(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(1)
 			},
@@ -386,6 +388,7 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 		{
 			name: "nil info",
 			prepareMocks: func(mockedSerializer *MockPayloadSerializer) {
+				mockedSerializer.EXPECT().SerializeWorkflowTimerTasks(gomock.Any(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).Times(1)
 			},
 			input: &WorkflowSnapshot{},
@@ -393,6 +396,7 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, &InternalWorkflowSnapshot{
 					ExecutionInfo:       &InternalWorkflowExecutionInfo{},
+					WorkflowTimerTasks:  sampleEventData(),
 					ChecksumData:        sampleTestCheckSumData(),
 					StartVersion:        constants.EmptyVersion,
 					LastWriteVersion:    constants.EmptyVersion,
@@ -946,6 +950,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeWorkflowTimerTasks(gomock.Any(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(1)
 			},
@@ -976,6 +981,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeWorkflowTimerTasks(gomock.Any(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(1)
 
@@ -1062,6 +1068,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeWorkflowTimerTasks(gomock.Any(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(1)
 			},
@@ -1137,6 +1144,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(2)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeWorkflowTimerTasks(gomock.Any(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(2)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(2)
 				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(2)
 			},
@@ -1433,6 +1441,7 @@ func sampleInternalWorkflowMutation() *InternalWorkflowMutation {
 				TimerID: "test-timer",
 			},
 		},
+		WorkflowTimerTasks: sampleEventData(),
 		UpsertChildExecutionInfos: []*InternalChildExecutionInfo{
 			{
 				DomainID:         testDomainID,
@@ -1576,8 +1585,9 @@ func sampleInternalWorkflowSnapshot() *InternalWorkflowSnapshot {
 				WorkflowTypeName: testWorkflowType,
 			},
 		},
-		Checksum:     generateChecksum(),
-		ChecksumData: sampleCheckSumData(),
+		WorkflowTimerTasks: sampleEventData(),
+		Checksum:           generateChecksum(),
+		ChecksumData:       sampleCheckSumData(),
 	}
 }
 

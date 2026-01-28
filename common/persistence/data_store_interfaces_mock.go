@@ -151,6 +151,20 @@ func (mr *MockExecutionStoreMockRecorder) DeleteReplicationTaskFromDLQ(ctx, requ
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicationTaskFromDLQ", reflect.TypeOf((*MockExecutionStore)(nil).DeleteReplicationTaskFromDLQ), ctx, request)
 }
 
+// DeleteTimerTask mocks base method.
+func (m *MockExecutionStore) DeleteTimerTask(ctx context.Context, request *DeleteTimerTaskRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteTimerTask", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteTimerTask indicates an expected call of DeleteTimerTask.
+func (mr *MockExecutionStoreMockRecorder) DeleteTimerTask(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerTask", reflect.TypeOf((*MockExecutionStore)(nil).DeleteTimerTask), ctx, request)
+}
+
 // DeleteWorkflowExecution mocks base method.
 func (m *MockExecutionStore) DeleteWorkflowExecution(ctx context.Context, request *DeleteWorkflowExecutionRequest) error {
 	m.ctrl.T.Helper()

@@ -1649,6 +1649,14 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableGRPCOutbound
+	// EnableExecutionInfoTracking is the key for enabling execution info tracking tasks on the mutable state.
+	// for the purpose of cleaning them up after workflow closed. This is a feature-flag with the intention
+	// of it being removed in the future and defaulted to true
+	// KeyName: system.enableExecutionInfoTracking
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableExecutionInfoTracking
 	// EnableSQLAsyncTransaction is the key for enabling async transaction
 	// KeyName: system.enableSQLAsyncTransaction
 	// Value type: Bool
@@ -2808,6 +2816,14 @@ const (
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: N/A
 	StandbyClusterDelay
+	// WorkflowTaskCleanupThreshold Is the time, above which, it will attempt to cleanup tasks on workflow deletion
+	// but below which, it will skip cleanup attempts, based on the assumption that short-lived workflows will be mostly
+	// creating extremely short-lived timer tasks and there's no real value in explicitly going and deleting them
+	// KeyName: history.taskCleanupTimeoutThreshold
+	// Value type: Duration
+	// Default value: 1d (24 hours)
+	// Allowed filters: N/A
+	TaskCleanupTimeoutThreshold
 	// StandbyTaskMissingEventsResendDelay is the amount of time standby cluster's will wait (if events are missing)before calling remote for missing events
 	// KeyName: history.standbyTaskMissingEventsResendDelay
 	// Value type: Duration
@@ -4410,6 +4426,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableGRPCOutbound is the key for enabling outbound GRPC traffic",
 		DefaultValue: true,
 	},
+	EnableExecutionInfoTracking: {
+		KeyName:      "system.enableExecutionInfoTracking",
+		Description:  "EnableExecutionInfoTracking is the key for enabling execution info tracking tasks on the mutable state. for the purpose of cleaning them up after workflow closed. This is a feature-flag with the intention of it being removed in the future and defaulted to true",
+		DefaultValue: false,
+	},
 	EnableSQLAsyncTransaction: {
 		KeyName:      "system.enableSQLAsyncTransaction",
 		Description:  "EnableSQLAsyncTransaction is the key for enabling async transaction",
@@ -5386,6 +5407,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.standbyClusterDelay",
 		Description:  "StandbyClusterDelay is the artificial delay added to standby cluster's view of active cluster's time",
 		DefaultValue: time.Minute * 5,
+	},
+	TaskCleanupTimeoutThreshold: {
+		KeyName:      "history.taskCleanupTimeoutThreshold",
+		Description:  "TaskCleanupTimeoutThreshold is the time, above which, it will attempt to cleanup tasks on workflow deletion but below which, it will skip cleanup attempts, based on the assumption that short-lived workflows will be mostly creating extremely short-lived timer tasks and there's no real value in explicitly going and deleting them",
+		DefaultValue: time.Hour * 24,
 	},
 	StandbyTaskMissingEventsResendDelay: {
 		KeyName:      "history.standbyTaskMissingEventsResendDelay",

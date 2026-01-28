@@ -93,3 +93,8 @@ shardDistributor.migrationMode:
   - value: "distributed_pass"
     constraints:
       namespace: "test-external-assignment"
+system.workflowDeletionJitterRange:
+- value: 1
+  constraints: {}
+system.enableExecutionInfoTracking:
+- value: true

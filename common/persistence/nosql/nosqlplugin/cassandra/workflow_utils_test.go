@@ -1832,7 +1832,7 @@ func TestResetTimerInfos(t *testing.T) {
 			},
 			wantQueries: []string{
 				`UPDATE executions SET timer_map = map[` +
-					`timer1:map[expiry_time:2023-12-12 22:08:41 +0000 UTC started_id:2 task_id:1 timer_id:timer1 version:1]` +
+					`timer1:map[expiry_time:2023-12-12 22:08:41 +0000 UTC started_id:2 task_id:1 timer_id:timer1 timer_task_id:0 version:1]` +
 					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
@@ -1891,7 +1891,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 			deleteInfos: []string{"timer2"},
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
-					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
+					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1, timer_task_id: 0` +
 					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
@@ -2587,6 +2587,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 					CronOverlapPolicy:    0,
 				},
 				PreviousNextEventIDCondition: common.Int64Ptr(10),
+				WorkflowTimerTasks:           &persistence.DataBlob{},
 				VersionHistories:             &persistence.DataBlob{},
 				Checksums:                    &checksum.Checksum{},
 			},
@@ -2673,11 +2674,12 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					CronOverlapPolicy: types.CronOverlapPolicyBufferOne,
 				},
 				PreviousNextEventIDCondition: common.Int64Ptr(10),
+				WorkflowTimerTasks:           &persistence.DataBlob{},
 				VersionHistories:             &persistence.DataBlob{},
 				Checksums:                    &checksum.Checksum{},
 			},
 			wantQueries: []string{
-				`INSERT INTO executions (shard_id, domain_id, workflow_id, run_id, type, execution, next_event_id, visibility_ts, task_id, version_histories, version_histories_encoding, checksum, workflow_last_write_version, workflow_state, created_time) ` +
+				`INSERT INTO executions (shard_id, domain_id, workflow_id, run_id, type, execution, next_event_id, visibility_ts, task_id, workflow_timer_tasks, workflow_timer_tasks_encoding, version_histories, version_histories_encoding, checksum, workflow_last_write_version, workflow_state, created_time) ` +
 					`VALUES(1000, domain1, workflow1, runid1, 1, ` +
 					`{domain_id: domain1, workflow_id: workflow1, run_id: runid1, first_run_id: , parent_domain_id: , parent_workflow_id: , ` +
 					`parent_run_id: parentRunID1, initiated_id: 0, completion_event_batch_id: 0, completion_event: [], completion_event_data_encoding: , ` +
