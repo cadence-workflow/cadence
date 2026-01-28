@@ -1,5 +1,9 @@
 name: Semantic Pull Request
 
+permissions:
+  pull-requests: write
+  issues: write
+
 on:
   pull_request:
     types:
