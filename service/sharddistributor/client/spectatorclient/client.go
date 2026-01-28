@@ -71,6 +71,10 @@ type Params struct {
 	Logger       log.Logger
 	Config       clientcommon.Config
 	TimeSource   clock.TimeSource
+
+	// Enabled is a function that returns true if the spectator is enabled
+	// This is used to disable the spectator in the case of a migration
+	Enabled func() bool `optional:"true"`
 }
 
 // NewSpectatorWithNamespace creates a spectator for a specific namespace
@@ -98,6 +102,11 @@ func newSpectatorImpl(params Params, namespace string) (Spectator, error) {
 }
 
 func newSpectatorWithConfig(params Params, namespaceConfig *clientcommon.NamespaceConfig) (Spectator, error) {
+	enabled := params.Enabled
+	if enabled == nil {
+		enabled = func() bool { return true }
+	}
+
 	impl := &spectatorImpl{
 		namespace:    namespaceConfig.Namespace,
 		config:       *namespaceConfig,
@@ -106,6 +115,7 @@ func newSpectatorWithConfig(params Params, namespaceConfig *clientcommon.Namespa
 		scope:        params.MetricsScope,
 		timeSource:   params.TimeSource,
 		firstStateCh: make(chan struct{}),
+		enabled:      enabled,
 	}
 
 	return impl, nil
