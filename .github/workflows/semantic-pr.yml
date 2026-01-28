@@ -7,17 +7,12 @@ on:
       - edited
       - synchronize
 
-permissions:
-  pull-requests: write
-
 jobs:
   semantic-pr:
     name: Validate PR title follows conventional commit format
     runs-on: ubuntu-latest
     # TODO: Remove this once we commit to conventional commits
     continue-on-error: true
-    permissions:
-      pull-requests: write
 
     steps:
       - name: Validate PR title
