@@ -3258,6 +3258,13 @@ const (
 	// Default value: forward all headers.  (this is a problematic value, and it will be changing as we reduce to a list of known values)
 	HeaderForwardingRules
 
+	// PersistenceRateLimiterBypassCallerTypes is the list of caller types that should bypass persistence rate limiting
+	// KeyName: persistence.rateLimiterBypassCallerTypes
+	// Value type: []string (list of caller type strings like "cli", "ui", "internal", etc.)
+	// Default value: empty list (no bypass)
+	// Allowed filters: N/A
+	PersistenceRateLimiterBypassCallerTypes
+
 	LastListKey
 )
 
@@ -5771,6 +5778,11 @@ var ListKeys = map[ListKey]DynamicList{
 				"Match": "",
 			},
 		},
+	},
+	PersistenceRateLimiterBypassCallerTypes: {
+		KeyName:      "persistence.rateLimiterBypassCallerTypes",
+		Description:  "List of caller types that should bypass persistence rate limiting (e.g., ['cli', 'internal'])",
+		DefaultValue: []interface{}{},
 	},
 }
 

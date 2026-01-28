@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/common/codec"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig"
 	es "github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -110,13 +111,14 @@ type (
 	}
 	factoryImpl struct {
 		sync.RWMutex
-		config        *config.Persistence
-		metricsClient metrics.Client
-		logger        log.Logger
-		datastores    map[storeType]Datastore
-		clusterName   string
-		dc            *p.DynamicConfiguration
-		hostname      string
+		config            *config.Persistence
+		metricsClient     metrics.Client
+		logger            log.Logger
+		datastores        map[storeType]Datastore
+		clusterName       string
+		dc                *p.DynamicConfiguration
+		hostname          string
+		dynamicCollection *dynamicconfig.Collection
 	}
 
 	storeType int
@@ -159,14 +161,16 @@ func NewFactory(
 	logger log.Logger,
 	dc *p.DynamicConfiguration,
 	hostname string,
+	dynamicCollection *dynamicconfig.Collection,
 ) Factory {
 	factory := &factoryImpl{
-		config:        cfg,
-		metricsClient: metricsClient,
-		logger:        logger,
-		clusterName:   clusterName,
-		dc:            dc,
-		hostname:      hostname,
+		config:            cfg,
+		metricsClient:     metricsClient,
+		logger:            logger,
+		clusterName:       clusterName,
+		dc:                dc,
+		hostname:          hostname,
+		dynamicCollection: dynamicCollection,
 	}
 	limiters := buildRatelimiters(cfg, persistenceMaxQPS)
 	factory.init(clusterName, limiters)
@@ -185,7 +189,7 @@ func (f *factoryImpl) NewTaskManager() (p.TaskManager, error) {
 		result = errorinjectors.NewTaskManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewTaskManager(result, ds.ratelimit, f.metricsClient, ds.name)
+		result = ratelimited.NewTaskManager(result, ds.ratelimit, f.metricsClient, ds.name, f.dynamicCollection)
 	}
 	if f.metricsClient != nil {
 		result = metered.NewTaskManager(result, f.metricsClient, f.logger, f.config, f.hostname, ds.name)
@@ -205,7 +209,7 @@ func (f *factoryImpl) NewShardManager() (p.ShardManager, error) {
 		result = errorinjectors.NewShardManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewShardManager(result, ds.ratelimit, f.metricsClient, ds.name)
+		result = ratelimited.NewShardManager(result, ds.ratelimit, f.metricsClient, ds.name, f.dynamicCollection)
 	}
 	if f.metricsClient != nil {
 		result = metered.NewShardManager(result, f.metricsClient, f.logger, f.config, f.hostname, ds.name)
@@ -225,7 +229,7 @@ func (f *factoryImpl) NewHistoryManager() (p.HistoryManager, error) {
 		result = errorinjectors.NewHistoryManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewHistoryManager(result, ds.ratelimit, f.metricsClient, ds.name)
+		result = ratelimited.NewHistoryManager(result, ds.ratelimit, f.metricsClient, ds.name, f.dynamicCollection)
 	}
 	if f.metricsClient != nil {
 		result = metered.NewHistoryManager(result, f.metricsClient, f.logger, f.config, f.hostname, ds.name)
@@ -247,7 +251,7 @@ func (f *factoryImpl) NewDomainManager() (p.DomainManager, error) {
 		result = errorinjectors.NewDomainManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewDomainManager(result, ds.ratelimit, f.metricsClient, ds.name)
+		result = ratelimited.NewDomainManager(result, ds.ratelimit, f.metricsClient, ds.name, f.dynamicCollection)
 	}
 	if f.metricsClient != nil {
 		result = metered.NewDomainManager(result, f.metricsClient, f.logger, f.config, f.hostname, ds.name)
@@ -284,7 +288,7 @@ func (f *factoryImpl) NewExecutionManager(shardID int) (p.ExecutionManager, erro
 		result = errorinjectors.NewExecutionManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewExecutionManager(result, ds.ratelimit, f.metricsClient, ds.name)
+		result = ratelimited.NewExecutionManager(result, ds.ratelimit, f.metricsClient, ds.name, f.dynamicCollection)
 	}
 	if f.metricsClient != nil {
 		result = metered.NewExecutionManager(result, f.metricsClient, f.logger, f.config, f.dc.PersistenceSampleLoggingRate, f.dc.EnableShardIDMetrics, f.hostname, ds.name)
@@ -477,7 +481,7 @@ func (f *factoryImpl) newDBVisibilityManager(
 		result = errorinjectors.NewVisibilityManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewVisibilityManager(result, ds.ratelimit, f.metricsClient, ds.name)
+		result = ratelimited.NewVisibilityManager(result, ds.ratelimit, f.metricsClient, ds.name, f.dynamicCollection)
 	}
 	if visibilityConfig.EnableDBVisibilitySampling != nil && visibilityConfig.EnableDBVisibilitySampling() {
 		result = sampled.NewVisibilityManager(result, sampled.Params{
@@ -510,7 +514,7 @@ func (f *factoryImpl) NewDomainReplicationQueueManager() (p.QueueManager, error)
 		result = errorinjectors.NewQueueManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewQueueManager(result, ds.ratelimit, f.metricsClient, ds.name)
+		result = ratelimited.NewQueueManager(result, ds.ratelimit, f.metricsClient, ds.name, f.dynamicCollection)
 	}
 	if f.metricsClient != nil {
 		result = metered.NewQueueManager(result, f.metricsClient, f.logger, f.config, f.hostname, ds.name)
@@ -530,7 +534,7 @@ func (f *factoryImpl) NewConfigStoreManager() (p.ConfigStoreManager, error) {
 		result = errorinjectors.NewConfigStoreManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewConfigStoreManager(result, ds.ratelimit, f.metricsClient, ds.name)
+		result = ratelimited.NewConfigStoreManager(result, ds.ratelimit, f.metricsClient, ds.name, f.dynamicCollection)
 	}
 	if f.metricsClient != nil {
 		result = metered.NewConfigStoreManager(result, f.metricsClient, f.logger, f.config, f.hostname, ds.name)

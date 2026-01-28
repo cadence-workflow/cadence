@@ -62,7 +62,7 @@ func (s *DBVisibilityPersistenceSuite) SetupSuite() {
 	}
 	clusterName := s.ClusterMetadata.GetCurrentClusterName()
 	vCfg := s.VisibilityTestCluster.Config()
-	visibilityFactory := client.NewFactory(&vCfg, nil, clusterName, nil, s.Logger, &s.DynamicConfiguration, "test-host")
+	visibilityFactory := client.NewFactory(&vCfg, nil, clusterName, nil, s.Logger, &s.DynamicConfiguration, "test-host", nil)
 	// SQL currently doesn't have support for visibility manager
 	var err error
 	s.VisibilityMgr, err = visibilityFactory.NewVisibilityManager(

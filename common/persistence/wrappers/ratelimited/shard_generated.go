@@ -7,9 +7,12 @@ package ratelimited
 import (
 	"context"
 
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
+	"github.com/uber/cadence/common/types"
 )
 
 // ratelimitedShardManager implements persistence.ShardManager interface instrumented with rate limiter.
@@ -18,6 +21,7 @@ type ratelimitedShardManager struct {
 	rateLimiter   quotas.Limiter
 	metricsClient metrics.Client
 	datastoreName string
+	dc            *dynamicconfig.Collection
 }
 
 // NewShardManager creates a new instance of ShardManager with ratelimiter.
@@ -26,12 +30,14 @@ func NewShardManager(
 	rateLimiter quotas.Limiter,
 	metricsClient metrics.Client,
 	datastoreName string,
+	dc *dynamicconfig.Collection,
 ) persistence.ShardManager {
 	return &ratelimitedShardManager{
 		wrapped:       wrapped,
 		rateLimiter:   rateLimiter,
 		metricsClient: metricsClient,
 		datastoreName: datastoreName,
+		dc:            dc,
 	}
 }
 
@@ -45,6 +51,12 @@ func (c *ratelimitedShardManager) CreateShard(ctx context.Context, request *pers
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.CreateShard(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -61,6 +73,12 @@ func (c *ratelimitedShardManager) GetShard(ctx context.Context, request *persist
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.GetShard(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -73,9 +91,31 @@ func (c *ratelimitedShardManager) UpdateShard(ctx context.Context, request *pers
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.UpdateShard(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.UpdateShard(ctx, request)
+}
+
+func (c *ratelimitedShardManager) shouldBypassRateLimit(callerType types.CallerType) bool {
+	if c.dc == nil {
+		return false
+	}
+
+	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
+	for _, bypassType := range bypassCallerTypes {
+		if bypassTypeStr, ok := bypassType.(string); ok {
+			if types.ParseCallerType(bypassTypeStr) == callerType {
+				return true
+			}
+		}
+	}
+	return false
 }

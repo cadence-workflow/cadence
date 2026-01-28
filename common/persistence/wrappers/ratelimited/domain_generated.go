@@ -7,9 +7,12 @@ package ratelimited
 import (
 	"context"
 
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
+	"github.com/uber/cadence/common/types"
 )
 
 // ratelimitedDomainManager implements persistence.DomainManager interface instrumented with rate limiter.
@@ -18,6 +21,7 @@ type ratelimitedDomainManager struct {
 	rateLimiter   quotas.Limiter
 	metricsClient metrics.Client
 	datastoreName string
+	dc            *dynamicconfig.Collection
 }
 
 // NewDomainManager creates a new instance of DomainManager with ratelimiter.
@@ -26,12 +30,14 @@ func NewDomainManager(
 	rateLimiter quotas.Limiter,
 	metricsClient metrics.Client,
 	datastoreName string,
+	dc *dynamicconfig.Collection,
 ) persistence.DomainManager {
 	return &ratelimitedDomainManager{
 		wrapped:       wrapped,
 		rateLimiter:   rateLimiter,
 		metricsClient: metricsClient,
 		datastoreName: datastoreName,
+		dc:            dc,
 	}
 }
 
@@ -45,6 +51,12 @@ func (c *ratelimitedDomainManager) CreateDomain(ctx context.Context, request *pe
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.CreateDomain(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -57,6 +69,12 @@ func (c *ratelimitedDomainManager) DeleteDomain(ctx context.Context, request *pe
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.DeleteDomain(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -69,6 +87,12 @@ func (c *ratelimitedDomainManager) DeleteDomainByName(ctx context.Context, reque
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.DeleteDomainByName(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -81,6 +105,12 @@ func (c *ratelimitedDomainManager) GetDomain(ctx context.Context, request *persi
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.GetDomain(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -93,6 +123,12 @@ func (c *ratelimitedDomainManager) GetMetadata(ctx context.Context) (gp1 *persis
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.GetMetadata(ctx)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -109,6 +145,12 @@ func (c *ratelimitedDomainManager) ListDomains(ctx context.Context, request *per
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.ListDomains(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -121,9 +163,31 @@ func (c *ratelimitedDomainManager) UpdateDomain(ctx context.Context, request *pe
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.UpdateDomain(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.UpdateDomain(ctx, request)
+}
+
+func (c *ratelimitedDomainManager) shouldBypassRateLimit(callerType types.CallerType) bool {
+	if c.dc == nil {
+		return false
+	}
+
+	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
+	for _, bypassType := range bypassCallerTypes {
+		if bypassTypeStr, ok := bypassType.(string); ok {
+			if types.ParseCallerType(bypassTypeStr) == callerType {
+				return true
+			}
+		}
+	}
+	return false
 }

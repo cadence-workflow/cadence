@@ -7,6 +7,8 @@ package ratelimited
 import (
 	"context"
 
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
@@ -19,6 +21,7 @@ type ratelimitedExecutionManager struct {
 	rateLimiter   quotas.Limiter
 	metricsClient metrics.Client
 	datastoreName string
+	dc            *dynamicconfig.Collection
 }
 
 // NewExecutionManager creates a new instance of ExecutionManager with ratelimiter.
@@ -27,12 +30,14 @@ func NewExecutionManager(
 	rateLimiter quotas.Limiter,
 	metricsClient metrics.Client,
 	datastoreName string,
+	dc *dynamicconfig.Collection,
 ) persistence.ExecutionManager {
 	return &ratelimitedExecutionManager{
 		wrapped:       wrapped,
 		rateLimiter:   rateLimiter,
 		metricsClient: metricsClient,
 		datastoreName: datastoreName,
+		dc:            dc,
 	}
 }
 
@@ -46,6 +51,12 @@ func (c *ratelimitedExecutionManager) CompleteHistoryTask(ctx context.Context, r
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.CompleteHistoryTask(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -58,6 +69,12 @@ func (c *ratelimitedExecutionManager) ConflictResolveWorkflowExecution(ctx conte
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.ConflictResolveWorkflowExecution(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -70,6 +87,12 @@ func (c *ratelimitedExecutionManager) CreateFailoverMarkerTasks(ctx context.Cont
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.CreateFailoverMarkerTasks(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -82,6 +105,12 @@ func (c *ratelimitedExecutionManager) CreateWorkflowExecution(ctx context.Contex
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.CreateWorkflowExecution(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -94,6 +123,12 @@ func (c *ratelimitedExecutionManager) DeleteActiveClusterSelectionPolicy(ctx con
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -106,6 +141,12 @@ func (c *ratelimitedExecutionManager) DeleteCurrentWorkflowExecution(ctx context
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.DeleteCurrentWorkflowExecution(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -118,6 +159,12 @@ func (c *ratelimitedExecutionManager) DeleteReplicationTaskFromDLQ(ctx context.C
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.DeleteReplicationTaskFromDLQ(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -130,6 +177,12 @@ func (c *ratelimitedExecutionManager) DeleteWorkflowExecution(ctx context.Contex
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.DeleteWorkflowExecution(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -142,6 +195,12 @@ func (c *ratelimitedExecutionManager) GetActiveClusterSelectionPolicy(ctx contex
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -154,6 +213,12 @@ func (c *ratelimitedExecutionManager) GetCurrentExecution(ctx context.Context, r
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.GetCurrentExecution(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -166,6 +231,12 @@ func (c *ratelimitedExecutionManager) GetHistoryTasks(ctx context.Context, reque
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.GetHistoryTasks(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -182,6 +253,12 @@ func (c *ratelimitedExecutionManager) GetReplicationDLQSize(ctx context.Context,
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.GetReplicationDLQSize(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -194,6 +271,12 @@ func (c *ratelimitedExecutionManager) GetReplicationTasksFromDLQ(ctx context.Con
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.GetReplicationTasksFromDLQ(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -210,6 +293,12 @@ func (c *ratelimitedExecutionManager) GetWorkflowExecution(ctx context.Context, 
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.GetWorkflowExecution(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -222,6 +311,12 @@ func (c *ratelimitedExecutionManager) IsWorkflowExecutionExists(ctx context.Cont
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.IsWorkflowExecutionExists(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -234,6 +329,12 @@ func (c *ratelimitedExecutionManager) ListConcreteExecutions(ctx context.Context
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.ListConcreteExecutions(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -246,6 +347,12 @@ func (c *ratelimitedExecutionManager) ListCurrentExecutions(ctx context.Context,
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.ListCurrentExecutions(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -258,6 +365,12 @@ func (c *ratelimitedExecutionManager) PutReplicationTaskToDLQ(ctx context.Contex
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.PutReplicationTaskToDLQ(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -270,6 +383,12 @@ func (c *ratelimitedExecutionManager) RangeCompleteHistoryTask(ctx context.Conte
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.RangeCompleteHistoryTask(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -282,6 +401,12 @@ func (c *ratelimitedExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx cont
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.RangeDeleteReplicationTaskFromDLQ(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
@@ -294,9 +419,31 @@ func (c *ratelimitedExecutionManager) UpdateWorkflowExecution(ctx context.Contex
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
+	callerInfo := types.GetCallerInfoFromContext(ctx)
+	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		return c.wrapped.UpdateWorkflowExecution(ctx, request)
+	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.UpdateWorkflowExecution(ctx, request)
+}
+
+func (c *ratelimitedExecutionManager) shouldBypassRateLimit(callerType types.CallerType) bool {
+	if c.dc == nil {
+		return false
+	}
+
+	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
+	for _, bypassType := range bypassCallerTypes {
+		if bypassTypeStr, ok := bypassType.(string); ok {
+			if types.ParseCallerType(bypassTypeStr) == callerType {
+				return true
+			}
+		}
+	}
+	return false
 }
