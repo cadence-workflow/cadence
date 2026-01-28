@@ -556,10 +556,6 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 		TaskListType: c.taskListID.GetType(),
 		TaskInfo:     *params.TaskInfo,
 	}
-	if err := ctx.Err(); err != nil {
-		// If the context has an error, the sync match fails
-		return false, err
-	}
 
 	domainEntry, err := c.domainCache.GetDomainByID(params.TaskInfo.DomainID)
 	if err != nil {
@@ -826,24 +822,6 @@ func (c *taskListManagerImpl) GetTaskListKind() types.TaskListKind {
 
 func (c *taskListManagerImpl) TaskListID() *Identifier {
 	return c.taskListID
-}
-
-// Retry operation on transient error. On rangeID update by another process calls c.Stop().
-func (c *taskListManagerImpl) executeWithRetry(
-	operation func() (interface{}, error),
-) (result interface{}, err error) {
-
-	op := func(ctx context.Context) error {
-		result, err = operation()
-		return err
-	}
-
-	throttleRetry := backoff.NewThrottleRetry(
-		backoff.WithRetryPolicy(persistenceOperationRetryPolicy),
-		backoff.WithRetryableError(persistence.IsTransientError),
-	)
-	err = c.handleErr(throttleRetry.Do(context.Background(), op))
-	return
 }
 
 func (c *taskListManagerImpl) trySyncMatch(ctx context.Context, params AddTaskParams, isolationGroup string) (bool, error) {
