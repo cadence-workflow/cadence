@@ -575,6 +575,9 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 		// Persist the standby task, but the sync match still fails.
 		// Return the false syncMatch flag along with any error
 		_, err = c.taskWriter.appendTask(params.TaskInfo)
+		if err != nil {
+			c.taskReader.Signal()
+		}
 		return syncMatch, err
 	}
 
