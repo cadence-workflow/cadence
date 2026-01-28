@@ -40,7 +40,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Comment on PR if validation fails
-        if: steps.lint_pr_title.outputs.error_message != null
+        if: always() && (steps.lint_pr_title.outputs.error_message != null)
         uses: actions/github-script@v7
         with:
           script: |
