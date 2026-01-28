@@ -45,7 +45,7 @@ var testPayload = []byte("test-message")
 
 type queueStoreTestData struct {
 	mockDB *nosqlplugin.MockDB
-	queue  persistence.Queue
+	queue  persistence.QueueStore
 }
 
 func newQueueStoreTestData(t *testing.T) *queueStoreTestData {
@@ -60,12 +60,12 @@ func newQueueStoreTestData(t *testing.T) *queueStoreTestData {
 	return &testData
 }
 
-func (td *queueStoreTestData) newQueueStore() (persistence.Queue, error) {
+func (td *queueStoreTestData) newQueueStore() (persistence.QueueStore, error) {
 	cfg := getValidShardedNoSQLConfig()
 	return newNoSQLQueueStore(cfg, log.NewNoop(), metrics.NewNoopMetricsClient(), testQueueType, nil)
 }
 
-func (td *queueStoreTestData) createValidQueueStore(t *testing.T) persistence.Queue {
+func (td *queueStoreTestData) createValidQueueStore(t *testing.T) persistence.QueueStore {
 	const initialQueueVersion = int64(0)
 
 	row := nosqlplugin.QueueMetadataRow{
@@ -229,7 +229,10 @@ func TestEnqueueMessage_Succeeds(t *testing.T) {
 			)
 		}).Return(nil)
 
-	require.NoError(t, store.EnqueueMessage(ctx, testPayload, FixedTime))
+	require.NoError(t, store.EnqueueMessage(ctx, &persistence.InternalEnqueueMessageRequest{
+		MessagePayload:   testPayload,
+		CurrentTimeStamp: FixedTime,
+	}))
 }
 
 func TestEnqueueMessage_FailsIfCantSelectLastMessageID(t *testing.T) {
@@ -243,7 +246,10 @@ func TestEnqueueMessage_FailsIfCantSelectLastMessageID(t *testing.T) {
 	td.mockIsNotFoundErrCheck(errSelect, false)
 	td.mockErrConversion(errSelect)
 
-	assert.ErrorContains(t, store.EnqueueMessage(ctx, testPayload, FixedTime), errSelect.Error())
+	assert.ErrorContains(t, store.EnqueueMessage(ctx, &persistence.InternalEnqueueMessageRequest{
+		MessagePayload:   testPayload,
+		CurrentTimeStamp: FixedTime,
+	}), errSelect.Error())
 }
 
 func TestEnqueueMessage_FailsIfCantSelectQueueMetadata(t *testing.T) {
@@ -257,7 +263,10 @@ func TestEnqueueMessage_FailsIfCantSelectQueueMetadata(t *testing.T) {
 	td.mockIsNotFoundErrCheck(errSelect, false)
 	td.mockErrConversion(errSelect)
 
-	assert.ErrorContains(t, store.EnqueueMessage(ctx, testPayload, FixedTime), errSelect.Error())
+	assert.ErrorContains(t, store.EnqueueMessage(ctx, &persistence.InternalEnqueueMessageRequest{
+		MessagePayload:   testPayload,
+		CurrentTimeStamp: FixedTime,
+	}), errSelect.Error())
 }
 
 func TestEnqueueMessage_FailsIfCantInsertMessageToQueue(t *testing.T) {
@@ -272,7 +281,10 @@ func TestEnqueueMessage_FailsIfCantInsertMessageToQueue(t *testing.T) {
 	td.mockDB.EXPECT().InsertIntoQueue(ctx, gomock.Any()).Return(errInsert)
 	td.mockErrConversion(errInsert)
 
-	assert.ErrorContains(t, store.EnqueueMessage(ctx, testPayload, FixedTime), errInsert.Error())
+	assert.ErrorContains(t, store.EnqueueMessage(ctx, &persistence.InternalEnqueueMessageRequest{
+		MessagePayload:   testPayload,
+		CurrentTimeStamp: FixedTime,
+	}), errInsert.Error())
 }
 
 func TestEnqueueMessageToDLQ_Succeeds(t *testing.T) {
@@ -297,7 +309,10 @@ func TestEnqueueMessageToDLQ_Succeeds(t *testing.T) {
 			)
 		}).Return(nil)
 
-	require.NoError(t, store.EnqueueMessageToDLQ(ctx, testPayload, FixedTime))
+	require.NoError(t, store.EnqueueMessageToDLQ(ctx, &persistence.InternalEnqueueMessageToDLQRequest{
+		MessagePayload:   testPayload,
+		CurrentTimeStamp: FixedTime,
+	}))
 }
 
 func TestEnqueueMessageToDLQ_FailsIfCantSelectLastMessageID(t *testing.T) {
@@ -311,7 +326,10 @@ func TestEnqueueMessageToDLQ_FailsIfCantSelectLastMessageID(t *testing.T) {
 	td.mockIsNotFoundErrCheck(errSelect, false)
 	td.mockErrConversion(errSelect)
 
-	assert.ErrorContains(t, store.EnqueueMessageToDLQ(ctx, testPayload, FixedTime), errSelect.Error())
+	assert.ErrorContains(t, store.EnqueueMessageToDLQ(ctx, &persistence.InternalEnqueueMessageToDLQRequest{
+		MessagePayload:   testPayload,
+		CurrentTimeStamp: FixedTime,
+	}), errSelect.Error())
 }
 
 func TestEnqueueMessageToDLQ_FailsIfCantInsertMessageToQueue(t *testing.T) {
@@ -324,7 +342,10 @@ func TestEnqueueMessageToDLQ_FailsIfCantInsertMessageToQueue(t *testing.T) {
 	td.mockDB.EXPECT().InsertIntoQueue(ctx, gomock.Any()).Return(errInsert)
 	td.mockErrConversion(errInsert)
 
-	assert.ErrorContains(t, store.EnqueueMessageToDLQ(ctx, testPayload, FixedTime), errInsert.Error())
+	assert.ErrorContains(t, store.EnqueueMessageToDLQ(ctx, &persistence.InternalEnqueueMessageToDLQRequest{
+		MessagePayload:   testPayload,
+		CurrentTimeStamp: FixedTime,
+	}), errInsert.Error())
 }
 
 func TestReadMessages_Succeeds(t *testing.T) {
@@ -347,8 +368,12 @@ func TestReadMessages_Succeeds(t *testing.T) {
 	}
 	td.mockDB.EXPECT().SelectMessagesFrom(ctx, testQueueType, lastMessageID, len(messages)).Return(messages, nil)
 
-	resMessages, err := store.ReadMessages(ctx, lastMessageID, len(messages))
+	res, err := store.ReadMessages(ctx, &persistence.InternalReadMessagesRequest{
+		LastMessageID: lastMessageID,
+		MaxCount:      len(messages),
+	})
 	require.NoError(t, err)
+	resMessages := res.Messages
 
 	// resMessages has different type than messages, should compare explicitly
 	assert.Len(t, resMessages, len(messages), "should match the amount of messages returned by SelectMessagesFrom()")
@@ -369,9 +394,12 @@ func TestReadMessages_FailsIfCantSelectMessages(t *testing.T) {
 	td.mockDB.EXPECT().SelectMessagesFrom(ctx, testQueueType, lastMessageID, 2).Return(nil, errSelect)
 	td.mockErrConversion(errSelect)
 
-	resMessages, err := store.ReadMessages(ctx, lastMessageID, 2)
+	res, err := store.ReadMessages(ctx, &persistence.InternalReadMessagesRequest{
+		LastMessageID: lastMessageID,
+		MaxCount:      2,
+	})
 	assert.ErrorContains(t, err, errSelect.Error())
-	assert.Nil(t, resMessages)
+	assert.Nil(t, res)
 }
 
 func TestReadMessagesFromDLQ_Succeeds(t *testing.T) {
@@ -409,8 +437,15 @@ func TestReadMessagesFromDLQ_Succeeds(t *testing.T) {
 			assert.Equal(t, expectedReq, req)
 		}).Return(&nosqlplugin.SelectMessagesBetweenResponse{NextPageToken: nextPageToken, Rows: messages}, nil)
 
-	resMessages, resPageToken, err := store.ReadMessagesFromDLQ(ctx, firsMessageID, lastMessageID, len(messages), pageToken)
+	res, err := store.ReadMessagesFromDLQ(ctx, &persistence.InternalReadMessagesFromDLQRequest{
+		FirstMessageID: firsMessageID,
+		LastMessageID:  lastMessageID,
+		PageSize:       len(messages),
+		PageToken:      pageToken,
+	})
 	require.NoError(t, err)
+	resMessages := res.Messages
+	resPageToken := res.NextPageToken
 
 	// resMessages has different type than messages, should compare explicitly
 	assert.Len(t, resMessages, 2, "should match the amount of messages returned by SelectMessagesFrom()")
@@ -437,10 +472,14 @@ func TestReadMessagesFromDLQ_FailsIfSelectMessagesFails(t *testing.T) {
 	td.mockDB.EXPECT().SelectMessagesBetween(ctx, gomock.Any()).Return(nil, errSelect)
 	td.mockErrConversion(errSelect)
 
-	resMessages, resPageToken, err := store.ReadMessagesFromDLQ(ctx, firsMessageID, lastMessageID, pageSize, pageToken)
+	res, err := store.ReadMessagesFromDLQ(ctx, &persistence.InternalReadMessagesFromDLQRequest{
+		FirstMessageID: firsMessageID,
+		LastMessageID:  lastMessageID,
+		PageSize:       pageSize,
+		PageToken:      pageToken,
+	})
 	assert.ErrorContains(t, err, errSelect.Error())
-	assert.Nil(t, resMessages)
-	assert.Nil(t, resPageToken)
+	assert.Nil(t, res)
 }
 
 func TestDeleteMessagesBefore_Succeeds(t *testing.T) {
@@ -450,7 +489,9 @@ func TestDeleteMessagesBefore_Succeeds(t *testing.T) {
 	ctx := context.Background()
 
 	td.mockDB.EXPECT().DeleteMessagesBefore(ctx, testQueueType, messageID).Return(nil)
-	assert.NoError(t, store.DeleteMessagesBefore(ctx, messageID))
+	assert.NoError(t, store.DeleteMessagesBefore(ctx, &persistence.InternalDeleteMessagesBeforeRequest{
+		MessageID: messageID,
+	}))
 }
 
 func TestDeleteMessagesBefore_FailsIfDeleteFails(t *testing.T) {
@@ -462,7 +503,9 @@ func TestDeleteMessagesBefore_FailsIfDeleteFails(t *testing.T) {
 	td.mockDB.EXPECT().DeleteMessagesBefore(ctx, testQueueType, gomock.Any()).Return(errDelete)
 	td.mockErrConversion(errDelete)
 
-	assert.ErrorContains(t, store.DeleteMessagesBefore(ctx, 0), errDelete.Error())
+	assert.ErrorContains(t, store.DeleteMessagesBefore(ctx, &persistence.InternalDeleteMessagesBeforeRequest{
+		MessageID: 0,
+	}), errDelete.Error())
 }
 
 func TestDeleteMessageFromDLQ_Succeeds(t *testing.T) {
@@ -472,7 +515,9 @@ func TestDeleteMessageFromDLQ_Succeeds(t *testing.T) {
 	ctx := context.Background()
 
 	td.mockDB.EXPECT().DeleteMessage(ctx, testDLQueueType, messageID).Return(nil)
-	assert.NoError(t, store.DeleteMessageFromDLQ(ctx, messageID))
+	assert.NoError(t, store.DeleteMessageFromDLQ(ctx, &persistence.InternalDeleteMessageFromDLQRequest{
+		MessageID: messageID,
+	}))
 }
 
 func TestDeleteMessageFromDLQ_FailsIfDeleteFails(t *testing.T) {
@@ -484,7 +529,9 @@ func TestDeleteMessageFromDLQ_FailsIfDeleteFails(t *testing.T) {
 	td.mockDB.EXPECT().DeleteMessage(ctx, testDLQueueType, gomock.Any()).Return(errDelete)
 	td.mockErrConversion(errDelete)
 
-	assert.ErrorContains(t, store.DeleteMessageFromDLQ(ctx, 0), errDelete.Error())
+	assert.ErrorContains(t, store.DeleteMessageFromDLQ(ctx, &persistence.InternalDeleteMessageFromDLQRequest{
+		MessageID: 0,
+	}), errDelete.Error())
 }
 
 func TestRangeDeleteMessagesFromDLQ_Succeeds(t *testing.T) {
@@ -496,7 +543,10 @@ func TestRangeDeleteMessagesFromDLQ_Succeeds(t *testing.T) {
 	ctx := context.Background()
 
 	td.mockDB.EXPECT().DeleteMessagesInRange(ctx, testDLQueueType, fistMessageID, lastMessageID).Return(nil)
-	assert.NoError(t, store.RangeDeleteMessagesFromDLQ(ctx, fistMessageID, lastMessageID))
+	assert.NoError(t, store.RangeDeleteMessagesFromDLQ(ctx, &persistence.InternalRangeDeleteMessagesFromDLQRequest{
+		FirstMessageID: fistMessageID,
+		LastMessageID:  lastMessageID,
+	}))
 }
 
 func TestRangeDeleteMessagesFromDLQ_FailsIfDeleteFails(t *testing.T) {
@@ -513,7 +563,10 @@ func TestRangeDeleteMessagesFromDLQ_FailsIfDeleteFails(t *testing.T) {
 
 	assert.ErrorContains(
 		t,
-		store.RangeDeleteMessagesFromDLQ(ctx, fistMessageID, lastMessageID),
+		store.RangeDeleteMessagesFromDLQ(ctx, &persistence.InternalRangeDeleteMessagesFromDLQRequest{
+			FirstMessageID: fistMessageID,
+			LastMessageID:  lastMessageID,
+		}),
 		errDelete.Error(),
 	)
 }
@@ -548,7 +601,11 @@ func TestUpdateAckLevel_Succeeds(t *testing.T) {
 			assert.Equal(t, expectedClusterAckLevels, newMeta.ClusterAckLevels)
 		}).Return(nil)
 
-	assert.NoError(t, store.UpdateAckLevel(ctx, messageID, clusterName, FixedTime))
+	assert.NoError(t, store.UpdateAckLevel(ctx, &persistence.InternalUpdateAckLevelRequest{
+		MessageID:        messageID,
+		ClusterName:      clusterName,
+		CurrentTimeStamp: FixedTime,
+	}))
 }
 
 func TestUpdateAckLevel_FailsIfSelectMetadataFails(t *testing.T) {
@@ -562,7 +619,11 @@ func TestUpdateAckLevel_FailsIfSelectMetadataFails(t *testing.T) {
 	td.mockDB.EXPECT().SelectQueueMetadata(ctx, testQueueType).Return(nil, errSelect)
 	td.mockIsNotFoundErrCheck(errSelect, false)
 	td.mockErrConversion(errSelect)
-	assert.ErrorContains(t, store.UpdateAckLevel(ctx, messageID, clusterName, FixedTime), errSelect.Error())
+	assert.ErrorContains(t, store.UpdateAckLevel(ctx, &persistence.InternalUpdateAckLevelRequest{
+		MessageID:        messageID,
+		ClusterName:      clusterName,
+		CurrentTimeStamp: FixedTime,
+	}), errSelect.Error())
 }
 
 func TestUpdateAckLevel_FailsIfUpdateMetadataFails(t *testing.T) {
@@ -579,7 +640,11 @@ func TestUpdateAckLevel_FailsIfUpdateMetadataFails(t *testing.T) {
 	td.mockDB.EXPECT().UpdateQueueMetadataCas(ctx, gomock.Any()).Return(errUpdate)
 	td.mockErrConversion(errUpdate)
 
-	assert.ErrorContains(t, store.UpdateAckLevel(ctx, messageID, clusterName, FixedTime), errUpdate.Error())
+	assert.ErrorContains(t, store.UpdateAckLevel(ctx, &persistence.InternalUpdateAckLevelRequest{
+		MessageID:        messageID,
+		ClusterName:      clusterName,
+		CurrentTimeStamp: FixedTime,
+	}), errUpdate.Error())
 }
 
 func TestUpdateDLQAckLevel_Succeeds(t *testing.T) {
@@ -612,7 +677,11 @@ func TestUpdateDLQAckLevel_Succeeds(t *testing.T) {
 			assert.Equal(t, expectedClusterAckLevels, newMeta.ClusterAckLevels)
 		}).Return(nil)
 
-	assert.NoError(t, store.UpdateDLQAckLevel(ctx, messageID, clusterName, FixedTime))
+	assert.NoError(t, store.UpdateDLQAckLevel(ctx, &persistence.InternalUpdateDLQAckLevelRequest{
+		MessageID:        messageID,
+		ClusterName:      clusterName,
+		CurrentTimeStamp: FixedTime,
+	}))
 }
 
 func TestGetDLQAckLevels_Succeeds(t *testing.T) {
@@ -633,9 +702,9 @@ func TestGetDLQAckLevels_Succeeds(t *testing.T) {
 
 	td.mockDB.EXPECT().SelectQueueMetadata(ctx, testDLQueueType).Return(&metadata, nil)
 
-	ackLevels, err := store.GetDLQAckLevels(ctx)
+	resp, err := store.GetDLQAckLevels(ctx, &persistence.InternalGetDLQAckLevelsRequest{})
 	require.NoError(t, err)
-	assert.Equal(t, expectedAckLevels, ackLevels)
+	assert.Equal(t, expectedAckLevels, resp.AckLevels)
 }
 
 func TestGetDLQAckLevels_FailsIfSelectMetadataFails(t *testing.T) {
@@ -648,9 +717,9 @@ func TestGetDLQAckLevels_FailsIfSelectMetadataFails(t *testing.T) {
 	td.mockIsNotFoundErrCheck(errSelect, false)
 	td.mockErrConversion(errSelect)
 
-	ackLevels, err := store.GetDLQAckLevels(ctx)
+	resp, err := store.GetDLQAckLevels(ctx, &persistence.InternalGetDLQAckLevelsRequest{})
 	assert.ErrorContains(t, err, errSelect.Error())
-	assert.Nil(t, ackLevels)
+	assert.Nil(t, resp)
 }
 
 func TestGetDLQSize_Succeeds(t *testing.T) {
@@ -661,9 +730,9 @@ func TestGetDLQSize_Succeeds(t *testing.T) {
 
 	td.mockDB.EXPECT().GetQueueSize(ctx, testDLQueueType).Return(expectedSize, nil)
 
-	size, err := store.GetDLQSize(ctx)
+	resp, err := store.GetDLQSize(ctx, &persistence.InternalGetDLQSizeRequest{})
 	require.NoError(t, err)
-	assert.Equal(t, expectedSize, size)
+	assert.Equal(t, expectedSize, resp.Size)
 }
 
 func TestGetDLQSize_FailsIfGetQueueSizeFails(t *testing.T) {
@@ -675,9 +744,9 @@ func TestGetDLQSize_FailsIfGetQueueSizeFails(t *testing.T) {
 	td.mockDB.EXPECT().GetQueueSize(ctx, testDLQueueType).Return(int64(0), expectedErr)
 	td.mockErrConversion(expectedErr)
 
-	size, err := store.GetDLQSize(ctx)
+	resp, err := store.GetDLQSize(ctx, &persistence.InternalGetDLQSizeRequest{})
 	assert.ErrorContains(t, err, expectedErr.Error())
-	assert.Zero(t, size)
+	assert.Nil(t, resp)
 }
 
 func TestGetNextID(t *testing.T) {
