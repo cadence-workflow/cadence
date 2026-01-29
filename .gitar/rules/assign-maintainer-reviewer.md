@@ -14,4 +14,6 @@ When a pull request is opened by someone not listed in `.github/CODEOWNERS`, ass
 - @natemort
 - @c-warren
 
+You must modify the assignees field on the Pull Request - being a reviewer is not sufficient.
+
 Do not assign a reviewer if the PR author is already a maintainer listed in CODEOWNERS.
