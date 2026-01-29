@@ -288,23 +288,86 @@ func builderForPassThrough(t *testing.T, injector any, limiter quotas.Limiter, e
 	return
 }
 
-func TestVisibilityManagerBypassRateLimitForCLI(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mocked := persistence.NewMockVisibilityManager(ctrl)
+func TestVisibilityManagerBypassRateLimitForCallerTypes(t *testing.T) {
+	tests := []struct {
+		name              string
+		callerType        types.CallerType
+		bypassCallerTypes []interface{}
+		shouldBypass      bool
+	}{
+		{
+			name:              "CLI bypasses when configured",
+			callerType:        types.CallerTypeCLI,
+			bypassCallerTypes: []interface{}{"cli"},
+			shouldBypass:      true,
+		},
+		{
+			name:              "UI bypasses when configured",
+			callerType:        types.CallerTypeUI,
+			bypassCallerTypes: []interface{}{"ui"},
+			shouldBypass:      true,
+		},
+		{
+			name:              "SDK bypasses when configured",
+			callerType:        types.CallerTypeSDK,
+			bypassCallerTypes: []interface{}{"sdk"},
+			shouldBypass:      true,
+		},
+		{
+			name:              "Internal bypasses when configured",
+			callerType:        types.CallerTypeInternal,
+			bypassCallerTypes: []interface{}{"internal"},
+			shouldBypass:      true,
+		},
+		{
+			name:              "Multiple types can bypass",
+			callerType:        types.CallerTypeCLI,
+			bypassCallerTypes: []interface{}{"cli", "internal"},
+			shouldBypass:      true,
+		},
+		{
+			name:              "Caller type not in bypass list is rate limited",
+			callerType:        types.CallerTypeSDK,
+			bypassCallerTypes: []interface{}{"cli", "internal"},
+			shouldBypass:      false,
+		},
+		{
+			name:              "Unknown does not bypass",
+			callerType:        types.CallerTypeUnknown,
+			bypassCallerTypes: []interface{}{"cli", "ui", "sdk", "internal"},
+			shouldBypass:      false,
+		},
+	}
 
-	dc := dynamicconfig.NewCollection(
-		dynamicconfig.NewNopClient(),
-		testlogger.New(t),
-	)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mocked := persistence.NewMockVisibilityManager(ctrl)
 
-	vm := NewVisibilityManager(mocked, &limiterNeverAllow{}, nil, "test", dc)
+			configClient := dynamicconfig.NewInMemoryClient()
+			_ = configClient.UpdateValue(dynamicproperties.PersistenceRateLimiterBypassCallerTypes, tt.bypassCallerTypes)
 
-	ctx := types.ContextWithCallerInfo(context.Background(), types.NewCallerInfo(types.CallerTypeCLI))
+			dc := dynamicconfig.NewCollection(
+				configClient,
+				testlogger.New(t),
+			)
 
-	mocked.EXPECT().RecordWorkflowExecutionStarted(ctx, gomock.Any()).Return(nil)
+			vm := NewVisibilityManager(mocked, &limiterNeverAllow{}, nil, "test", dc)
 
-	err := vm.RecordWorkflowExecutionStarted(ctx, &persistence.RecordWorkflowExecutionStartedRequest{})
-	assert.NoError(t, err)
+			ctx := types.ContextWithCallerInfo(context.Background(), types.NewCallerInfo(tt.callerType))
+
+			if tt.shouldBypass {
+				mocked.EXPECT().RecordWorkflowExecutionStarted(gomock.Any(), gomock.Any()).Return(nil)
+				err := vm.RecordWorkflowExecutionStarted(ctx, &persistence.RecordWorkflowExecutionStartedRequest{})
+				assert.NoError(t, err)
+			} else {
+				err := vm.RecordWorkflowExecutionStarted(ctx, &persistence.RecordWorkflowExecutionStartedRequest{})
+				var expectedErr *types.ServiceBusyError
+				assert.True(t, errors.As(err, &expectedErr))
+				assert.Equal(t, ErrPersistenceLimitExceeded.Message, expectedErr.Message)
+			}
+		})
+	}
 }
 
 func TestVisibilityManagerBypassRateLimitWithDynamicConfig(t *testing.T) {
