@@ -53,7 +53,7 @@ func (c *ratelimitedVisibilityManager) CountWorkflowExecutions(ctx context.Conte
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.CountWorkflowExecutions(ctx, request)
 	}
 
@@ -71,7 +71,7 @@ func (c *ratelimitedVisibilityManager) DeleteUninitializedWorkflowExecution(ctx 
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.DeleteUninitializedWorkflowExecution(ctx, request)
 	}
 
@@ -89,7 +89,7 @@ func (c *ratelimitedVisibilityManager) DeleteWorkflowExecution(ctx context.Conte
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.DeleteWorkflowExecution(ctx, request)
 	}
 
@@ -107,7 +107,7 @@ func (c *ratelimitedVisibilityManager) GetClosedWorkflowExecution(ctx context.Co
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetClosedWorkflowExecution(ctx, request)
 	}
 
@@ -129,7 +129,7 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutions(ctx context.
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ListClosedWorkflowExecutions(ctx, request)
 	}
 
@@ -147,7 +147,7 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByStatus(ctx 
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ListClosedWorkflowExecutionsByStatus(ctx, request)
 	}
 
@@ -165,7 +165,7 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByType(ctx co
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ListClosedWorkflowExecutionsByType(ctx, request)
 	}
 
@@ -183,7 +183,7 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByWorkflowID(
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ListClosedWorkflowExecutionsByWorkflowID(ctx, request)
 	}
 
@@ -201,7 +201,7 @@ func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutions(ctx context.Co
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ListOpenWorkflowExecutions(ctx, request)
 	}
 
@@ -219,7 +219,7 @@ func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutionsByType(ctx cont
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ListOpenWorkflowExecutionsByType(ctx, request)
 	}
 
@@ -237,7 +237,7 @@ func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutionsByWorkflowID(ct
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ListOpenWorkflowExecutionsByWorkflowID(ctx, request)
 	}
 
@@ -255,7 +255,7 @@ func (c *ratelimitedVisibilityManager) ListWorkflowExecutions(ctx context.Contex
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ListWorkflowExecutions(ctx, request)
 	}
 
@@ -273,7 +273,7 @@ func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionClosed(ctx context
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.RecordWorkflowExecutionClosed(ctx, request)
 	}
 
@@ -291,7 +291,7 @@ func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionStarted(ctx contex
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.RecordWorkflowExecutionStarted(ctx, request)
 	}
 
@@ -309,7 +309,7 @@ func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionUninitialized(ctx 
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.RecordWorkflowExecutionUninitialized(ctx, request)
 	}
 
@@ -327,7 +327,7 @@ func (c *ratelimitedVisibilityManager) ScanWorkflowExecutions(ctx context.Contex
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ScanWorkflowExecutions(ctx, request)
 	}
 
@@ -345,7 +345,7 @@ func (c *ratelimitedVisibilityManager) UpsertWorkflowExecution(ctx context.Conte
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.UpsertWorkflowExecution(ctx, request)
 	}
 

@@ -421,7 +421,7 @@ func newPinotVisibilityManager(
 	// wrap with rate limiter
 	if visibilityConfig.PersistenceMaxQPS != nil && visibilityConfig.PersistenceMaxQPS() != 0 {
 		pinotRateLimiter := quotas.NewDynamicRateLimiter(visibilityConfig.PersistenceMaxQPS.AsFloat64())
-		visibilityFromPinot = ratelimited.NewVisibilityManager(visibilityFromPinot, pinotRateLimiter, metricsClient, "pinot")
+		visibilityFromPinot = ratelimited.NewVisibilityManager(visibilityFromPinot, pinotRateLimiter, metricsClient, "pinot", nil)
 	}
 
 	if metricsClient != nil {
@@ -451,7 +451,7 @@ func newESVisibilityManager(
 	// wrap with rate limiter
 	if visibilityConfig.PersistenceMaxQPS != nil && visibilityConfig.PersistenceMaxQPS() != 0 {
 		esRateLimiter := quotas.NewDynamicRateLimiter(visibilityConfig.PersistenceMaxQPS.AsFloat64())
-		visibilityFromES = ratelimited.NewVisibilityManager(visibilityFromES, esRateLimiter, metricsClient, "elasticsearch")
+		visibilityFromES = ratelimited.NewVisibilityManager(visibilityFromES, esRateLimiter, metricsClient, "elasticsearch", nil)
 	}
 	if metricsClient != nil {
 		// wrap with metrics

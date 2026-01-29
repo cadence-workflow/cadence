@@ -53,7 +53,7 @@ func (c *ratelimitedExecutionManager) CompleteHistoryTask(ctx context.Context, r
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.CompleteHistoryTask(ctx, request)
 	}
 
@@ -71,7 +71,7 @@ func (c *ratelimitedExecutionManager) ConflictResolveWorkflowExecution(ctx conte
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ConflictResolveWorkflowExecution(ctx, request)
 	}
 
@@ -89,7 +89,7 @@ func (c *ratelimitedExecutionManager) CreateFailoverMarkerTasks(ctx context.Cont
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.CreateFailoverMarkerTasks(ctx, request)
 	}
 
@@ -107,7 +107,7 @@ func (c *ratelimitedExecutionManager) CreateWorkflowExecution(ctx context.Contex
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.CreateWorkflowExecution(ctx, request)
 	}
 
@@ -125,7 +125,7 @@ func (c *ratelimitedExecutionManager) DeleteActiveClusterSelectionPolicy(ctx con
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
 	}
 
@@ -143,7 +143,7 @@ func (c *ratelimitedExecutionManager) DeleteCurrentWorkflowExecution(ctx context
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.DeleteCurrentWorkflowExecution(ctx, request)
 	}
 
@@ -161,7 +161,7 @@ func (c *ratelimitedExecutionManager) DeleteReplicationTaskFromDLQ(ctx context.C
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.DeleteReplicationTaskFromDLQ(ctx, request)
 	}
 
@@ -179,7 +179,7 @@ func (c *ratelimitedExecutionManager) DeleteWorkflowExecution(ctx context.Contex
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.DeleteWorkflowExecution(ctx, request)
 	}
 
@@ -197,7 +197,7 @@ func (c *ratelimitedExecutionManager) GetActiveClusterSelectionPolicy(ctx contex
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
 	}
 
@@ -215,7 +215,7 @@ func (c *ratelimitedExecutionManager) GetCurrentExecution(ctx context.Context, r
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetCurrentExecution(ctx, request)
 	}
 
@@ -233,7 +233,7 @@ func (c *ratelimitedExecutionManager) GetHistoryTasks(ctx context.Context, reque
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetHistoryTasks(ctx, request)
 	}
 
@@ -255,7 +255,7 @@ func (c *ratelimitedExecutionManager) GetReplicationDLQSize(ctx context.Context,
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetReplicationDLQSize(ctx, request)
 	}
 
@@ -273,7 +273,7 @@ func (c *ratelimitedExecutionManager) GetReplicationTasksFromDLQ(ctx context.Con
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetReplicationTasksFromDLQ(ctx, request)
 	}
 
@@ -295,7 +295,7 @@ func (c *ratelimitedExecutionManager) GetWorkflowExecution(ctx context.Context, 
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetWorkflowExecution(ctx, request)
 	}
 
@@ -313,7 +313,7 @@ func (c *ratelimitedExecutionManager) IsWorkflowExecutionExists(ctx context.Cont
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.IsWorkflowExecutionExists(ctx, request)
 	}
 
@@ -331,7 +331,7 @@ func (c *ratelimitedExecutionManager) ListConcreteExecutions(ctx context.Context
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ListConcreteExecutions(ctx, request)
 	}
 
@@ -349,7 +349,7 @@ func (c *ratelimitedExecutionManager) ListCurrentExecutions(ctx context.Context,
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ListCurrentExecutions(ctx, request)
 	}
 
@@ -367,7 +367,7 @@ func (c *ratelimitedExecutionManager) PutReplicationTaskToDLQ(ctx context.Contex
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.PutReplicationTaskToDLQ(ctx, request)
 	}
 
@@ -385,7 +385,7 @@ func (c *ratelimitedExecutionManager) RangeCompleteHistoryTask(ctx context.Conte
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.RangeCompleteHistoryTask(ctx, request)
 	}
 
@@ -403,7 +403,7 @@ func (c *ratelimitedExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx cont
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.RangeDeleteReplicationTaskFromDLQ(ctx, request)
 	}
 
@@ -421,7 +421,7 @@ func (c *ratelimitedExecutionManager) UpdateWorkflowExecution(ctx context.Contex
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.UpdateWorkflowExecution(ctx, request)
 	}
 

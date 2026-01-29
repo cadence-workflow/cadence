@@ -46,7 +46,7 @@ func New{{.Interface.Name}}(
 	        }
 
 	        callerInfo := types.GetCallerInfoFromContext({{(index $method.Params 0).Name}})
-	        if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	        if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		        {{ $method.Pass "c.wrapped." }}
 	        }
 

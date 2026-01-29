@@ -53,7 +53,7 @@ func (c *ratelimitedShardManager) CreateShard(ctx context.Context, request *pers
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.CreateShard(ctx, request)
 	}
 
@@ -75,7 +75,7 @@ func (c *ratelimitedShardManager) GetShard(ctx context.Context, request *persist
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetShard(ctx, request)
 	}
 
@@ -93,7 +93,7 @@ func (c *ratelimitedShardManager) UpdateShard(ctx context.Context, request *pers
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.UpdateShard(ctx, request)
 	}
 

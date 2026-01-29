@@ -53,7 +53,7 @@ func (c *ratelimitedConfigStoreManager) FetchDynamicConfig(ctx context.Context, 
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.FetchDynamicConfig(ctx, cfgType)
 	}
 
@@ -71,7 +71,7 @@ func (c *ratelimitedConfigStoreManager) UpdateDynamicConfig(ctx context.Context,
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.UpdateDynamicConfig(ctx, request, cfgType)
 	}
 

@@ -53,7 +53,7 @@ func (c *ratelimitedTaskManager) CompleteTask(ctx context.Context, request *pers
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.CompleteTask(ctx, request)
 	}
 
@@ -71,7 +71,7 @@ func (c *ratelimitedTaskManager) CompleteTasksLessThan(ctx context.Context, requ
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.CompleteTasksLessThan(ctx, request)
 	}
 
@@ -89,7 +89,7 @@ func (c *ratelimitedTaskManager) CreateTasks(ctx context.Context, request *persi
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.CreateTasks(ctx, request)
 	}
 
@@ -107,7 +107,7 @@ func (c *ratelimitedTaskManager) DeleteTaskList(ctx context.Context, request *pe
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.DeleteTaskList(ctx, request)
 	}
 
@@ -129,7 +129,7 @@ func (c *ratelimitedTaskManager) GetOrphanTasks(ctx context.Context, request *pe
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetOrphanTasks(ctx, request)
 	}
 
@@ -147,7 +147,7 @@ func (c *ratelimitedTaskManager) GetTaskList(ctx context.Context, request *persi
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetTaskList(ctx, request)
 	}
 
@@ -165,7 +165,7 @@ func (c *ratelimitedTaskManager) GetTaskListSize(ctx context.Context, request *p
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetTaskListSize(ctx, request)
 	}
 
@@ -183,7 +183,7 @@ func (c *ratelimitedTaskManager) GetTasks(ctx context.Context, request *persiste
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetTasks(ctx, request)
 	}
 
@@ -201,7 +201,7 @@ func (c *ratelimitedTaskManager) LeaseTaskList(ctx context.Context, request *per
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.LeaseTaskList(ctx, request)
 	}
 
@@ -219,7 +219,7 @@ func (c *ratelimitedTaskManager) ListTaskList(ctx context.Context, request *pers
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ListTaskList(ctx, request)
 	}
 
@@ -237,7 +237,7 @@ func (c *ratelimitedTaskManager) UpdateTaskList(ctx context.Context, request *pe
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.UpdateTaskList(ctx, request)
 	}
 

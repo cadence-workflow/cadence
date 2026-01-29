@@ -53,7 +53,7 @@ func (c *ratelimitedQueueManager) DeleteMessageFromDLQ(ctx context.Context, mess
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.DeleteMessageFromDLQ(ctx, messageID)
 	}
 
@@ -71,7 +71,7 @@ func (c *ratelimitedQueueManager) DeleteMessagesBefore(ctx context.Context, mess
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.DeleteMessagesBefore(ctx, messageID)
 	}
 
@@ -89,7 +89,7 @@ func (c *ratelimitedQueueManager) EnqueueMessage(ctx context.Context, messagePay
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.EnqueueMessage(ctx, messagePayload)
 	}
 
@@ -107,7 +107,7 @@ func (c *ratelimitedQueueManager) EnqueueMessageToDLQ(ctx context.Context, messa
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.EnqueueMessageToDLQ(ctx, messagePayload)
 	}
 
@@ -125,7 +125,7 @@ func (c *ratelimitedQueueManager) GetAckLevels(ctx context.Context) (m1 map[stri
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetAckLevels(ctx)
 	}
 
@@ -143,7 +143,7 @@ func (c *ratelimitedQueueManager) GetDLQAckLevels(ctx context.Context) (m1 map[s
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetDLQAckLevels(ctx)
 	}
 
@@ -161,7 +161,7 @@ func (c *ratelimitedQueueManager) GetDLQSize(ctx context.Context) (i1 int64, err
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetDLQSize(ctx)
 	}
 
@@ -179,7 +179,7 @@ func (c *ratelimitedQueueManager) RangeDeleteMessagesFromDLQ(ctx context.Context
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.RangeDeleteMessagesFromDLQ(ctx, firstMessageID, lastMessageID)
 	}
 
@@ -197,7 +197,7 @@ func (c *ratelimitedQueueManager) ReadMessages(ctx context.Context, lastMessageI
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ReadMessages(ctx, lastMessageID, maxCount)
 	}
 
@@ -215,7 +215,7 @@ func (c *ratelimitedQueueManager) ReadMessagesFromDLQ(ctx context.Context, first
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ReadMessagesFromDLQ(ctx, firstMessageID, lastMessageID, pageSize, pageToken)
 	}
 
@@ -233,7 +233,7 @@ func (c *ratelimitedQueueManager) UpdateAckLevel(ctx context.Context, messageID 
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.UpdateAckLevel(ctx, messageID, clusterName)
 	}
 
@@ -251,7 +251,7 @@ func (c *ratelimitedQueueManager) UpdateDLQAckLevel(ctx context.Context, message
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.UpdateDLQAckLevel(ctx, messageID, clusterName)
 	}
 

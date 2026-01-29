@@ -48,7 +48,7 @@ func (c *ratelimitedHistoryManager) AppendHistoryNodes(ctx context.Context, requ
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.AppendHistoryNodes(ctx, request)
 	}
 
@@ -71,7 +71,7 @@ func (c *ratelimitedHistoryManager) DeleteHistoryBranch(ctx context.Context, req
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.DeleteHistoryBranch(ctx, request)
 	}
 
@@ -89,7 +89,7 @@ func (c *ratelimitedHistoryManager) ForkHistoryBranch(ctx context.Context, reque
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ForkHistoryBranch(ctx, request)
 	}
 
@@ -107,7 +107,7 @@ func (c *ratelimitedHistoryManager) GetAllHistoryTreeBranches(ctx context.Contex
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetAllHistoryTreeBranches(ctx, request)
 	}
 
@@ -125,7 +125,7 @@ func (c *ratelimitedHistoryManager) GetHistoryTree(ctx context.Context, request 
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetHistoryTree(ctx, request)
 	}
 
@@ -147,7 +147,7 @@ func (c *ratelimitedHistoryManager) ReadHistoryBranch(ctx context.Context, reque
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ReadHistoryBranch(ctx, request)
 	}
 
@@ -165,7 +165,7 @@ func (c *ratelimitedHistoryManager) ReadHistoryBranchByBatch(ctx context.Context
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ReadHistoryBranchByBatch(ctx, request)
 	}
 
@@ -183,7 +183,7 @@ func (c *ratelimitedHistoryManager) ReadRawHistoryBranch(ctx context.Context, re
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ReadRawHistoryBranch(ctx, request)
 	}
 

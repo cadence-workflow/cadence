@@ -53,7 +53,7 @@ func (c *ratelimitedDomainManager) CreateDomain(ctx context.Context, request *pe
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.CreateDomain(ctx, request)
 	}
 
@@ -71,7 +71,7 @@ func (c *ratelimitedDomainManager) DeleteDomain(ctx context.Context, request *pe
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.DeleteDomain(ctx, request)
 	}
 
@@ -89,7 +89,7 @@ func (c *ratelimitedDomainManager) DeleteDomainByName(ctx context.Context, reque
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.DeleteDomainByName(ctx, request)
 	}
 
@@ -107,7 +107,7 @@ func (c *ratelimitedDomainManager) GetDomain(ctx context.Context, request *persi
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetDomain(ctx, request)
 	}
 
@@ -125,7 +125,7 @@ func (c *ratelimitedDomainManager) GetMetadata(ctx context.Context) (gp1 *persis
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.GetMetadata(ctx)
 	}
 
@@ -147,7 +147,7 @@ func (c *ratelimitedDomainManager) ListDomains(ctx context.Context, request *per
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.ListDomains(ctx, request)
 	}
 
@@ -165,7 +165,7 @@ func (c *ratelimitedDomainManager) UpdateDomain(ctx context.Context, request *pe
 	}
 
 	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if callerInfo != nil && c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
 		return c.wrapped.UpdateDomain(ctx, request)
 	}
 
