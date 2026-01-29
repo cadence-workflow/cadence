@@ -11,6 +11,7 @@ When evaluating a pull request description:
 
 1. **Read the PR template** at `.github/pull_request_template.md` to understand the expected guidance for each section
 2. Apply that guidance to evaluate the current PR description
+3. Provide recommendations for how to improve the description. 
 
 ## Core Principle: Why Not How
 
