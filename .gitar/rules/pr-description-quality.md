@@ -2,7 +2,7 @@
 title: PR Description Quality Standards
 description: Ensures PR descriptions meet Cadence quality criteria using guidance from PR template
 when: PR description is created or updated
-actions: Read PR template for guidance, then post comment with specific recommendations
+actions: Read PR template for guidance then report requirement status
 ---
 
 # PR Description Quality Standards
@@ -11,7 +11,6 @@ When evaluating a pull request description:
 
 1. **Read the PR template** at `.github/pull_request_template.md` to understand the expected guidance for each section
 2. Apply that guidance to evaluate the current PR description
-3. Respond in the strict format below
 
 ## Core Principle: Why Not How
 
@@ -61,38 +60,6 @@ From https://cbea.ms/git-commit/#why-not-how:
 - **Skip obvious things** - Don't flag items clear from folder structure
 - **Skip trivial refactors** - Minor formatting/style changes don't need deep rationale
 - **Don't check automated items** - Issue links, CI, linting are automated
-
-## CRITICAL OUTPUT INSTRUCTIONS - FOLLOW EXACTLY
-
-### If Issues Found
-
-```
-# PR Review: [PR Title] (#[PR Number])
-
-**PR URL**: [PR URL]
-
----
-
-## Recommendations
-
-1. **[Section Name]**: [One-line issue description]
-   ```
-   [Example fix text following PR template guidance]
-   ```
-
-2. **[Section Name]**: [One-line issue description]
-   ```
-   [Example fix text following PR template guidance]
-   ```
-```
-
-**STOP after the last recommendation. Output NOTHING else.**
-
-### If No Issues
-
-```
-✅ PR description meets quality standards.
-```
 
 ## FORBIDDEN - Never Include
 
