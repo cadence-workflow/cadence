@@ -522,7 +522,8 @@ func (c *taskListManagerImpl) notifyPartitionConfig(ctx context.Context, oldConf
 
 // AddTask adds a task to the task list. This method will first attempt a synchronous
 // match with a poller. When there are no pollers or if rate limit is exceeded, task will
-// be written to database and later asynchronously matched with a poller
+// be written to database and later asynchronously matched with a poller.
+// It returns whether the sync match succeeded, along with any error that occurred.
 func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams) (bool, error) {
 	c.startWG.Wait()
 
@@ -533,7 +534,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 	if c.config.EnableGetNumberOfPartitionsFromCache() {
 		_, ok := c.PartitionWriteConfig()
 		if !ok {
-			return false, &types.InternalServiceError{Message: "Current partition is drained."}
+			return false, &types.ReadOnlyPartitionError{Message: "Current partition is drained."}
 		}
 	}
 	if params.ForwardedFrom == "" {
@@ -546,6 +547,8 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 		}
 		c.scope.UpdateGauge(metrics.EstimatedAddTaskQPSGauge, c.qpsTracker.QPS())
 	}
+
+	// Sync match flow
 	var syncMatch bool
 	e := event.E{
 		TaskListName: c.taskListID.GetName(),
@@ -553,59 +556,59 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 		TaskListType: c.taskListID.GetType(),
 		TaskInfo:     *params.TaskInfo,
 	}
-	_, err := c.executeWithRetry(func() (interface{}, error) {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
 
-		domainEntry, err := c.domainCache.GetDomainByID(params.TaskInfo.DomainID)
-		if err != nil {
-			return nil, err
-		}
-
-		isForwarded := params.ForwardedFrom != ""
-
-		if !domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
-			// standby task, only persist when task is not forwarded from child partition
-			syncMatch = false
-			if isForwarded {
-				return &persistence.CreateTasksResponse{}, errRemoteSyncMatchFailed
-			}
-
-			r, err := c.taskWriter.appendTask(params.TaskInfo)
-			return r, err
-		}
-
-		isolationGroup, _ := c.getIsolationGroupForTask(ctx, params.TaskInfo)
-		// active task, try sync match first
-		syncMatch, err = c.trySyncMatch(ctx, params, isolationGroup)
-		if syncMatch {
-			e.EventName = "SyncMatched so not persisted"
-			event.Log(e)
-			return &persistence.CreateTasksResponse{}, err
-		}
-		if params.ActivityTaskDispatchInfo != nil {
-			return false, errRemoteSyncMatchFailed
-		}
-
-		if isForwarded {
-			// forwarded from child partition - only do sync match
-			// child partition will persist the task when sync match fails
-			e.EventName = "Could not SyncMatched Forwarded Task so not persisted"
-			event.Log(e)
-			return &persistence.CreateTasksResponse{}, errRemoteSyncMatchFailed
-		}
-
-		e.EventName = "Task Sent to Writer"
-		event.Log(e)
-		return c.taskWriter.appendTask(params.TaskInfo)
-	})
-
-	if err == nil && !syncMatch {
-		c.taskReader.Signal()
+	domainEntry, err := c.domainCache.GetDomainByID(params.TaskInfo.DomainID)
+	if err != nil {
+		// If we cannot fetch the domain entry from the cache, we cannot proceed. Sync match fails.
+		return false, err
 	}
 
-	return syncMatch, err
+	// Check if the task was forwarded from another partition
+	isForwarded := params.ForwardedFrom != ""
+	if !domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
+		// standby task, only persist when task is not forwarded from child partition
+		syncMatch = false
+		if isForwarded {
+			return syncMatch, errRemoteSyncMatchFailed
+		}
+
+		// Persist the standby task, but the sync match still fails.
+		// Return the false syncMatch flag along with any error
+		_, err = c.taskWriter.appendTask(params.TaskInfo)
+		if err == nil {
+			// Signal the task reader only if appendTask succeeded
+			c.taskReader.Signal()
+		}
+		return syncMatch, err
+	}
+
+	isolationGroup, _ := c.getIsolationGroupForTask(ctx, params.TaskInfo)
+	// active task, try sync match first
+	syncMatch, err = c.trySyncMatch(ctx, params, isolationGroup)
+	if syncMatch {
+		e.EventName = "SyncMatched so not persisted"
+		event.Log(e)
+		return syncMatch, err
+	}
+	if params.ActivityTaskDispatchInfo != nil {
+		return syncMatch, errRemoteSyncMatchFailed
+	}
+
+	if isForwarded {
+		// forwarded from child partition - only do sync match
+		// child partition will persist the task when sync match fails
+		e.EventName = "Could not SyncMatched Forwarded Task so not persisted"
+		event.Log(e)
+		return syncMatch, errRemoteSyncMatchFailed
+	}
+
+	e.EventName = "Task Sent to Writer"
+	event.Log(e)
+	if _, err := c.taskWriter.appendTask(params.TaskInfo); err != nil {
+		return syncMatch, err
+	}
+	c.taskReader.Signal()
+	return syncMatch, nil
 }
 
 // DispatchTask dispatches a task to a poller on the active side. When there are no pollers to pick
@@ -823,24 +826,6 @@ func (c *taskListManagerImpl) GetTaskListKind() types.TaskListKind {
 
 func (c *taskListManagerImpl) TaskListID() *Identifier {
 	return c.taskListID
-}
-
-// Retry operation on transient error. On rangeID update by another process calls c.Stop().
-func (c *taskListManagerImpl) executeWithRetry(
-	operation func() (interface{}, error),
-) (result interface{}, err error) {
-
-	op := func(ctx context.Context) error {
-		result, err = operation()
-		return err
-	}
-
-	throttleRetry := backoff.NewThrottleRetry(
-		backoff.WithRetryPolicy(persistenceOperationRetryPolicy),
-		backoff.WithRetryableError(persistence.IsTransientError),
-	)
-	err = c.handleErr(throttleRetry.Do(context.Background(), op))
-	return
 }
 
 func (c *taskListManagerImpl) trySyncMatch(ctx context.Context, params AddTaskParams, isolationGroup string) (bool, error) {

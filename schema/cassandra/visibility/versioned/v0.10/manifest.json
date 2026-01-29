@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.10",
+  "MinCompatibleVersion": "0.1",
+  "Description": "add cron_schedule, execution_status, and scheduled_execution_time to visibility",
+  "SchemaUpdateCqlFiles": [
+    "add_execution_fields.cql"
+  ]
+}

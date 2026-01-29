@@ -13,6 +13,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -251,7 +252,12 @@ func TestRebalanceShards_NoActiveExecutors_OneStaleExecutors(t *testing.T) {
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: state, GlobalRevision: int64(1)}, nil)
 
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
-	mocks.store.EXPECT().DeleteAssignedStates(gomock.Any(), mocks.cfg.Name, []string{"exec-2"}, gomock.Any()).Return(nil)
+	mocks.store.EXPECT().DeleteAssignedStates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, namespace string, executorIDs []string, _ store.GuardFunc) error {
+			assert.ElementsMatch(t, []string{"exec-2"}, executorIDs)
+			assert.Equal(t, mocks.cfg.Name, namespace)
+			return nil
+		})
 
 	err := processor.rebalanceShards(context.Background())
 	require.NoError(t, err)
@@ -270,7 +276,12 @@ func TestRebalanceShards_NoActiveExecutors_AllStaleExecutors(t *testing.T) {
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: state, GlobalRevision: int64(1)}, nil)
 
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
-	mocks.store.EXPECT().DeleteAssignedStates(gomock.Any(), mocks.cfg.Name, []string{"exec-1", "exec-2"}, gomock.Any()).Return(nil)
+	mocks.store.EXPECT().DeleteAssignedStates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, namespace string, executorIDs []string, _ store.GuardFunc) error {
+			assert.ElementsMatch(t, []string{"exec-1", "exec-2"}, executorIDs)
+			assert.Equal(t, mocks.cfg.Name, namespace)
+			return nil
+		})
 
 	err := processor.rebalanceShards(context.Background())
 	require.NoError(t, err)
@@ -1312,6 +1323,80 @@ func TestEmitExecutorMetric(t *testing.T) {
 			}
 
 			processor.emitExecutorMetric(namespaceState, metricsScope)
+
+			metricsScope.AssertExpectations(t)
+		})
+	}
+}
+
+func TestEmitOldestExecutorHeartbeatLag(t *testing.T) {
+	tests := []struct {
+		name        string
+		executors   map[string]store.HeartbeatState
+		expectedLag *float64
+	}{
+		{
+			name:        "empty executors",
+			executors:   map[string]store.HeartbeatState{},
+			expectedLag: nil,
+		},
+		{
+			name: "single executor",
+			executors: map[string]store.HeartbeatState{
+				"exec-1": {Status: types.ExecutorStatusACTIVE},
+			},
+			expectedLag: common.Float64Ptr(5000),
+		},
+		{
+			name: "multiple executors",
+			executors: map[string]store.HeartbeatState{
+				"exec-1": {Status: types.ExecutorStatusACTIVE},   // 5 seconds
+				"exec-2": {Status: types.ExecutorStatusACTIVE},   // 10 seconds (oldest)
+				"exec-3": {Status: types.ExecutorStatusDRAINING}, // 3 seconds
+			},
+			expectedLag: common.Float64Ptr(10000), // 10 seconds
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+			defer mocks.ctrl.Finish()
+			processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+			now := mocks.timeSource.Now()
+
+			if tt.name == "single executor" {
+				tt.executors["exec-1"] = store.HeartbeatState{
+					Status:        types.ExecutorStatusACTIVE,
+					LastHeartbeat: now.Add(-5 * time.Second),
+				}
+			} else if tt.name == "multiple executors" {
+				tt.executors["exec-1"] = store.HeartbeatState{
+					Status:        types.ExecutorStatusACTIVE,
+					LastHeartbeat: now.Add(-5 * time.Second),
+				}
+				tt.executors["exec-2"] = store.HeartbeatState{
+					Status:        types.ExecutorStatusACTIVE,
+					LastHeartbeat: now.Add(-10 * time.Second), // oldest
+				}
+				tt.executors["exec-3"] = store.HeartbeatState{
+					Status:        types.ExecutorStatusDRAINING,
+					LastHeartbeat: now.Add(-3 * time.Second),
+				}
+			}
+
+			namespaceState := &store.NamespaceState{
+				Executors: tt.executors,
+			}
+
+			metricsScope := &metricmocks.Scope{}
+
+			if tt.expectedLag != nil {
+				metricsScope.On("UpdateGauge", metrics.ShardDistributorOldestExecutorHeartbeatLag, *tt.expectedLag).Once()
+			}
+
+			processor.emitOldestExecutorHeartbeatLag(namespaceState, metricsScope)
 
 			metricsScope.AssertExpectations(t)
 		})

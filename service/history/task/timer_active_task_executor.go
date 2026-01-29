@@ -622,6 +622,29 @@ func (t *timerActiveTaskExecutor) executeWorkflowBackoffTimerTask(
 		return nil
 	}
 
+	// Check if this is a cron backoff for the first decision task
+	// When the first decision is scheduled after the backoff, we need to trigger a visibility update
+	// to change ExecutionStatus from PENDING to STARTED
+	executionInfo := mutableState.GetExecutionInfo()
+	isCronBackoff := task.TimeoutType == persistence.WorkflowBackoffTimeoutTypeCron
+	isFirstDecision := executionInfo.DecisionScheduleID == constants.EmptyEventID
+
+	if isCronBackoff && isFirstDecision {
+		// Add UpsertWorkflowSearchAttributes task to trigger visibility update
+		// This will update ExecutionStatus from PENDING to STARTED in visibility
+		// The status is calculated dynamically in the upsert handler based on decision task state
+		mutableState.AddTransferTasks(&persistence.UpsertWorkflowSearchAttributesTask{
+			WorkflowIdentifier: persistence.WorkflowIdentifier{
+				DomainID:   executionInfo.DomainID,
+				WorkflowID: executionInfo.WorkflowID,
+				RunID:      executionInfo.RunID,
+			},
+			TaskData: persistence.TaskData{
+				Version: mutableState.GetCurrentVersion(),
+			},
+		})
+	}
+
 	// schedule first decision task
 	return t.updateWorkflowExecution(ctx, wfContext, mutableState, true)
 }

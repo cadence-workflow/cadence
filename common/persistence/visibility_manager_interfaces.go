@@ -49,48 +49,54 @@ type (
 	// RecordWorkflowExecutionStartedRequest is used to add a record of a newly
 	// started execution
 	RecordWorkflowExecutionStartedRequest struct {
-		DomainUUID            string
-		Domain                string // not persisted, used as config filter key
-		Execution             types.WorkflowExecution
-		WorkflowTypeName      string
-		StartTimestamp        int64
-		ExecutionTimestamp    int64
-		WorkflowTimeout       int64 // not persisted, used for cassandra ttl
-		TaskID                int64 // not persisted, used as condition update version for ES
-		Memo                  *types.Memo
-		TaskList              string
-		IsCron                bool
-		NumClusters           int16
-		ClusterAttributeScope string
-		ClusterAttributeName  string
-		UpdateTimestamp       int64 // unit is unix nano, consistent with start/execution timestamp, same in other requests
-		SearchAttributes      map[string][]byte
-		ShardID               int16
+		DomainUUID                  string
+		Domain                      string // not persisted, used as config filter key
+		Execution                   types.WorkflowExecution
+		WorkflowTypeName            string
+		StartTimestamp              int64
+		ExecutionTimestamp          int64
+		WorkflowTimeout             int64 // not persisted, used for cassandra ttl
+		TaskID                      int64 // not persisted, used as condition update version for ES
+		Memo                        *types.Memo
+		TaskList                    string
+		IsCron                      bool
+		NumClusters                 int16
+		ClusterAttributeScope       string
+		ClusterAttributeName        string
+		UpdateTimestamp             int64 // unit is unix nano, consistent with start/execution timestamp, same in other requests
+		SearchAttributes            map[string][]byte
+		ShardID                     int16
+		ExecutionStatus             types.WorkflowExecutionStatus
+		CronSchedule                string
+		ScheduledExecutionTimestamp int64 // unit is unix nano, used to record the actual execution timestamp if it's a cron workflow
 	}
 
 	// RecordWorkflowExecutionClosedRequest is used to add a record of a newly
 	// closed execution
 	RecordWorkflowExecutionClosedRequest struct {
-		DomainUUID            string
-		Domain                string // not persisted, used as config filter key
-		Execution             types.WorkflowExecution
-		WorkflowTypeName      string
-		StartTimestamp        int64
-		ExecutionTimestamp    int64
-		CloseTimestamp        int64
-		Status                types.WorkflowExecutionCloseStatus
-		HistoryLength         int64
-		RetentionSeconds      int64
-		TaskID                int64 // not persisted, used as condition update version for ES
-		Memo                  *types.Memo
-		TaskList              string
-		IsCron                bool
-		NumClusters           int16
-		ClusterAttributeScope string
-		ClusterAttributeName  string
-		UpdateTimestamp       int64
-		SearchAttributes      map[string][]byte
-		ShardID               int16
+		DomainUUID                  string
+		Domain                      string // not persisted, used as config filter key
+		Execution                   types.WorkflowExecution
+		WorkflowTypeName            string
+		StartTimestamp              int64
+		ExecutionTimestamp          int64
+		CloseTimestamp              int64
+		Status                      types.WorkflowExecutionCloseStatus
+		HistoryLength               int64
+		RetentionSeconds            int64
+		TaskID                      int64 // not persisted, used as condition update version for ES
+		Memo                        *types.Memo
+		TaskList                    string
+		IsCron                      bool
+		CronSchedule                string
+		NumClusters                 int16
+		ClusterAttributeScope       string
+		ClusterAttributeName        string
+		UpdateTimestamp             int64
+		SearchAttributes            map[string][]byte
+		ShardID                     int16
+		ExecutionStatus             types.WorkflowExecutionStatus
+		ScheduledExecutionTimestamp int64
 	}
 
 	// RecordWorkflowExecutionUninitializedRequest is used to add a record of a newly uninitialized execution
@@ -105,23 +111,26 @@ type (
 
 	// UpsertWorkflowExecutionRequest is used to upsert workflow execution
 	UpsertWorkflowExecutionRequest struct {
-		DomainUUID            string
-		Domain                string // not persisted, used as config filter key
-		Execution             types.WorkflowExecution
-		WorkflowTypeName      string
-		StartTimestamp        int64
-		ExecutionTimestamp    int64
-		WorkflowTimeout       int64 // not persisted, used for cassandra ttl
-		TaskID                int64 // not persisted, used as condition update version for ES
-		Memo                  *types.Memo
-		TaskList              string
-		IsCron                bool
-		NumClusters           int16
-		ClusterAttributeScope string
-		ClusterAttributeName  string
-		UpdateTimestamp       int64
-		SearchAttributes      map[string][]byte
-		ShardID               int64
+		DomainUUID                  string
+		Domain                      string // not persisted, used as config filter key
+		Execution                   types.WorkflowExecution
+		WorkflowTypeName            string
+		StartTimestamp              int64
+		ExecutionTimestamp          int64
+		WorkflowTimeout             int64 // not persisted, used for cassandra ttl
+		TaskID                      int64 // not persisted, used as condition update version for ES
+		Memo                        *types.Memo
+		TaskList                    string
+		IsCron                      bool
+		NumClusters                 int16
+		ClusterAttributeScope       string
+		ClusterAttributeName        string
+		UpdateTimestamp             int64
+		SearchAttributes            map[string][]byte
+		ShardID                     int64
+		ExecutionStatus             types.WorkflowExecutionStatus
+		CronSchedule                string
+		ScheduledExecutionTimestamp int64 // unit is unix nano, used to record the actual execution timestamp if it's a cron workflow
 	}
 
 	// ListWorkflowExecutionsRequest is used to list executions in a domain

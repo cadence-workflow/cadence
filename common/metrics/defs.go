@@ -2391,6 +2391,7 @@ const (
 	CadenceErrAuthorizeFailedPerTaskListCounter
 	CadenceErrRemoteSyncMatchFailedPerTaskListCounter
 	CadenceErrStickyWorkerUnavailablePerTaskListCounter
+	CadenceErrReadOnlyPartitionPerTaskListCounter
 	CadenceErrTaskListNotOwnedByHostPerTaskListCounter
 
 	CadenceShardSuccessGauge
@@ -2984,6 +2985,7 @@ const (
 
 	ShardDistributorActiveShards
 	ShardDistributorTotalExecutors
+	ShardDistributorOldestExecutorHeartbeatLag
 
 	ShardDistributorStoreExecutorNotFound
 	ShardDistributorStoreFailuresPerNamespace
@@ -3226,6 +3228,9 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		},
 		CadenceErrStickyWorkerUnavailablePerTaskListCounter: {
 			metricName: "cadence_errors_sticky_worker_unavailable_per_tl", metricRollupName: "cadence_errors_sticky_worker_unavailable_per_tl", metricType: Counter,
+		},
+		CadenceErrReadOnlyPartitionPerTaskListCounter: {
+			metricName: "cadence_errors_read_only_partition_per_tl", metricRollupName: "cadence_errors_read_only_partition", metricType: Counter,
 		},
 		CadenceErrTaskListNotOwnedByHostPerTaskListCounter: {
 			metricName: "cadence_errors_task_list_not_owned_by_host_per_tl", metricRollupName: "cadence_errors_task_list_not_owned_by_host", metricType: Counter,
@@ -3784,8 +3789,9 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ShardDistributorAssignLoopSuccess:               {metricName: "shard_distrubutor_shard_assign_success", metricType: Counter},
 		ShardDistributorAssignLoopFail:                  {metricName: "shard_distrubutor_shard_assign_fail", metricType: Counter},
 
-		ShardDistributorActiveShards:   {metricName: "shard_distributor_active_shards", metricType: Gauge},
-		ShardDistributorTotalExecutors: {metricName: "shard_distributor_total_executors", metricType: Gauge},
+		ShardDistributorActiveShards:               {metricName: "shard_distributor_active_shards", metricType: Gauge},
+		ShardDistributorTotalExecutors:             {metricName: "shard_distributor_total_executors", metricType: Gauge},
+		ShardDistributorOldestExecutorHeartbeatLag: {metricName: "shard_distributor_oldest_executor_heartbeat_lag", metricType: Gauge},
 
 		ShardDistributorStoreExecutorNotFound:             {metricName: "shard_distributor_store_executor_not_found", metricType: Counter},
 		ShardDistributorStoreFailuresPerNamespace:         {metricName: "shard_distributor_store_failures_per_namespace", metricType: Counter},

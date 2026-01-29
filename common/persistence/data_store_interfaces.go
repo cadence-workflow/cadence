@@ -655,25 +655,28 @@ type (
 
 	// InternalVisibilityWorkflowExecutionInfo is visibility info for internal response
 	InternalVisibilityWorkflowExecutionInfo struct {
-		DomainID              string
-		WorkflowType          string
-		WorkflowID            string
-		RunID                 string
-		TypeName              string
-		StartTime             time.Time
-		ExecutionTime         time.Time
-		CloseTime             time.Time
-		Status                *types.WorkflowExecutionCloseStatus
-		HistoryLength         int64
-		Memo                  *DataBlob
-		TaskList              string
-		IsCron                bool
-		NumClusters           int16
-		ClusterAttributeScope string
-		ClusterAttributeName  string
-		UpdateTime            time.Time
-		SearchAttributes      map[string]interface{}
-		ShardID               int16
+		DomainID               string
+		WorkflowType           string
+		WorkflowID             string
+		RunID                  string
+		TypeName               string
+		StartTime              time.Time
+		ExecutionTime          time.Time
+		CloseTime              time.Time
+		Status                 *types.WorkflowExecutionCloseStatus
+		HistoryLength          int64
+		Memo                   *DataBlob
+		TaskList               string
+		IsCron                 bool
+		NumClusters            int16
+		ClusterAttributeScope  string
+		ClusterAttributeName   string
+		UpdateTime             time.Time
+		SearchAttributes       map[string]interface{}
+		ShardID                int16
+		CronSchedule           string
+		ExecutionStatus        types.WorkflowExecutionStatus
+		ScheduledExecutionTime time.Time
 	}
 
 	// InternalListWorkflowExecutionsResponse is response from ListWorkflowExecutions
@@ -716,47 +719,53 @@ type (
 
 	// InternalRecordWorkflowExecutionStartedRequest request to RecordWorkflowExecutionStarted
 	InternalRecordWorkflowExecutionStartedRequest struct {
-		DomainUUID            string
-		WorkflowID            string
-		RunID                 string
-		WorkflowTypeName      string
-		StartTimestamp        time.Time
-		ExecutionTimestamp    time.Time
-		WorkflowTimeout       time.Duration
-		TaskID                int64
-		Memo                  *DataBlob
-		TaskList              string
-		IsCron                bool
-		NumClusters           int16
-		ClusterAttributeScope string
-		ClusterAttributeName  string
-		UpdateTimestamp       time.Time
-		SearchAttributes      map[string][]byte
-		ShardID               int16
+		DomainUUID             string
+		WorkflowID             string
+		RunID                  string
+		WorkflowTypeName       string
+		StartTimestamp         time.Time
+		ExecutionTimestamp     time.Time
+		WorkflowTimeout        time.Duration
+		TaskID                 int64
+		Memo                   *DataBlob
+		TaskList               string
+		IsCron                 bool
+		CronSchedule           string
+		NumClusters            int16
+		ClusterAttributeScope  string
+		ClusterAttributeName   string
+		UpdateTimestamp        time.Time
+		SearchAttributes       map[string][]byte
+		ShardID                int16
+		ExecutionStatus        types.WorkflowExecutionStatus
+		ScheduledExecutionTime time.Time
 	}
 
 	// InternalRecordWorkflowExecutionClosedRequest is request to RecordWorkflowExecutionClosed
 	InternalRecordWorkflowExecutionClosedRequest struct {
-		DomainUUID            string
-		WorkflowID            string
-		RunID                 string
-		WorkflowTypeName      string
-		StartTimestamp        time.Time
-		ExecutionTimestamp    time.Time
-		TaskID                int64
-		Memo                  *DataBlob
-		TaskList              string
-		SearchAttributes      map[string][]byte
-		CloseTimestamp        time.Time
-		Status                types.WorkflowExecutionCloseStatus
-		HistoryLength         int64
-		RetentionPeriod       time.Duration
-		IsCron                bool
-		NumClusters           int16
-		ClusterAttributeScope string
-		ClusterAttributeName  string
-		UpdateTimestamp       time.Time
-		ShardID               int16
+		DomainUUID             string
+		WorkflowID             string
+		RunID                  string
+		WorkflowTypeName       string
+		StartTimestamp         time.Time
+		ExecutionTimestamp     time.Time
+		TaskID                 int64
+		Memo                   *DataBlob
+		TaskList               string
+		SearchAttributes       map[string][]byte
+		CloseTimestamp         time.Time
+		Status                 types.WorkflowExecutionCloseStatus
+		HistoryLength          int64
+		RetentionPeriod        time.Duration
+		IsCron                 bool
+		CronSchedule           string
+		NumClusters            int16
+		ClusterAttributeScope  string
+		ClusterAttributeName   string
+		UpdateTimestamp        time.Time
+		ShardID                int16
+		ExecutionStatus        types.WorkflowExecutionStatus
+		ScheduledExecutionTime time.Time
 	}
 
 	// InternalRecordWorkflowExecutionUninitializedRequest is used to add a record of a newly uninitialized execution
@@ -771,23 +780,26 @@ type (
 
 	// InternalUpsertWorkflowExecutionRequest is request to UpsertWorkflowExecution
 	InternalUpsertWorkflowExecutionRequest struct {
-		DomainUUID            string
-		WorkflowID            string
-		RunID                 string
-		WorkflowTypeName      string
-		StartTimestamp        time.Time
-		ExecutionTimestamp    time.Time
-		WorkflowTimeout       time.Duration
-		TaskID                int64
-		Memo                  *DataBlob
-		TaskList              string
-		IsCron                bool
-		NumClusters           int16
-		ClusterAttributeScope string
-		ClusterAttributeName  string
-		UpdateTimestamp       time.Time
-		SearchAttributes      map[string][]byte
-		ShardID               int64
+		DomainUUID                  string
+		WorkflowID                  string
+		RunID                       string
+		WorkflowTypeName            string
+		StartTimestamp              time.Time
+		ExecutionTimestamp          time.Time
+		WorkflowTimeout             time.Duration
+		TaskID                      int64
+		Memo                        *DataBlob
+		TaskList                    string
+		IsCron                      bool
+		CronSchedule                string
+		NumClusters                 int16
+		ClusterAttributeScope       string
+		ClusterAttributeName        string
+		UpdateTimestamp             time.Time
+		SearchAttributes            map[string][]byte
+		ShardID                     int64
+		ExecutionStatus             types.WorkflowExecutionStatus
+		ScheduledExecutionTimestamp int64
 	}
 
 	// InternalListWorkflowExecutionsRequest is used to list executions in a domain

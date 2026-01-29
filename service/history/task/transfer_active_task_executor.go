@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pborman/uuid"
@@ -427,6 +428,7 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 	workflowCloseStatus := persistence.ToInternalWorkflowExecutionCloseStatus(executionInfo.CloseStatus)
 	workflowHistoryLength := mutableState.GetNextEventID() - 1
 	isCron := len(executionInfo.CronSchedule) > 0
+	cronSchedule := executionInfo.CronSchedule
 	numClusters := (int16)(len(domainEntry.GetReplicationConfig().Clusters))
 	updateTimestamp := t.shard.GetTimeSource().Now()
 
@@ -441,6 +443,16 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 	headers := getWorkflowHeaders(startEvent)
 	domainName := mutableState.GetDomainEntry().GetInfo().Name
 	children := mutableState.GetPendingChildExecutionInfos()
+
+	executionStatus := getWorkflowExecutionStatus(mutableState, completionEvent)
+
+	// Calculate ScheduledExecutionTime
+	scheduledExecutionTimestamp := startEvent.GetTimestamp()
+	if startEvent.WorkflowExecutionStartedEventAttributes != nil &&
+		startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds() > 0 {
+		scheduledExecutionTimestamp = startEvent.GetTimestamp() +
+			int64(startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds())*int64(time.Second)
+	}
 
 	// we've gathered all necessary information from mutable state.
 	// release the context lock since we no longer need mutable state builder and
@@ -464,11 +476,14 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 			visibilityMemo,
 			executionInfo.TaskList,
 			isCron,
+			cronSchedule,
 			numClusters,
 			updateTimestamp.UnixNano(),
 			searchAttr,
 			headers,
 			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+			executionStatus,
+			scheduledExecutionTimestamp,
 		); err != nil {
 			return err
 		}
@@ -1004,8 +1019,14 @@ func (t *transferActiveTaskExecutor) processRecordWorkflowStartedOrUpsertHelper(
 	searchAttr := copySearchAttributes(executionInfo.SearchAttributes)
 	headers := getWorkflowHeaders(startEvent)
 	isCron := len(executionInfo.CronSchedule) > 0
+	cronSchedule := ""
+	if isCron {
+		cronSchedule = executionInfo.CronSchedule
+	}
 	numClusters := (int16)(len(domainEntry.GetReplicationConfig().Clusters))
 	updateTimestamp := t.shard.GetTimeSource().Now()
+
+	executionStatus, scheduledExecutionTimestamp := determineExecutionStatus(startEvent, mutableState)
 
 	// release the context lock since we no longer need mutable state builder and
 	// the rest of logic is making RPC call, which takes time.
@@ -1031,6 +1052,9 @@ func (t *transferActiveTaskExecutor) processRecordWorkflowStartedOrUpsertHelper(
 			searchAttr,
 			headers,
 			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+			cronSchedule,
+			executionStatus,
+			scheduledExecutionTimestamp,
 		)
 	}
 	return t.upsertWorkflowExecution(
@@ -1051,6 +1075,9 @@ func (t *transferActiveTaskExecutor) processRecordWorkflowStartedOrUpsertHelper(
 		searchAttr,
 		headers,
 		executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+		cronSchedule,
+		executionStatus,
+		scheduledExecutionTimestamp,
 	)
 }
 
@@ -1946,4 +1973,64 @@ func filterPendingChildExecutions(
 	}
 
 	return filteredChildren, nil
+}
+
+func getWorkflowExecutionStatus(mutableState execution.MutableState, closeEvent *types.HistoryEvent) types.WorkflowExecutionStatus {
+	// Extract close status from the close event
+	var closeStatus types.WorkflowExecutionCloseStatus
+
+	switch closeEvent.GetEventType() {
+	case types.EventTypeWorkflowExecutionCompleted:
+		closeStatus = types.WorkflowExecutionCloseStatusCompleted
+	case types.EventTypeWorkflowExecutionFailed:
+		closeStatus = types.WorkflowExecutionCloseStatusFailed
+	case types.EventTypeWorkflowExecutionCanceled:
+		closeStatus = types.WorkflowExecutionCloseStatusCanceled
+	case types.EventTypeWorkflowExecutionTerminated:
+		closeStatus = types.WorkflowExecutionCloseStatusTerminated
+	case types.EventTypeWorkflowExecutionTimedOut:
+		closeStatus = types.WorkflowExecutionCloseStatusTimedOut
+	case types.EventTypeWorkflowExecutionContinuedAsNew:
+		closeStatus = types.WorkflowExecutionCloseStatusContinuedAsNew
+
+		// For cron workflows that continue as new:
+		// - If FailureReason is present and non-empty, the workflow failed
+		// - If FailureReason is nil/empty, the workflow completed successfully
+		if attr := closeEvent.WorkflowExecutionContinuedAsNewEventAttributes; attr != nil {
+			failureReason := attr.GetFailureReason()
+			if failureReason != "" {
+				// Workflow failed - check if it's a timeout or generic failure
+				if strings.Contains(strings.ToLower(failureReason), "timeout") ||
+					strings.Contains(strings.ToLower(failureReason), "timed out") {
+					closeStatus = types.WorkflowExecutionCloseStatusTimedOut
+				} else {
+					closeStatus = types.WorkflowExecutionCloseStatusFailed
+				}
+			} else {
+				// No failure reason means successful completion
+				closeStatus = types.WorkflowExecutionCloseStatusCompleted
+			}
+		}
+	default:
+		// Unknown close event, default to completed
+		closeStatus = types.WorkflowExecutionCloseStatusCompleted
+	}
+
+	// Map close status to execution status
+	switch closeStatus {
+	case types.WorkflowExecutionCloseStatusCompleted:
+		return types.WorkflowExecutionStatusCompleted
+	case types.WorkflowExecutionCloseStatusFailed:
+		return types.WorkflowExecutionStatusFailed
+	case types.WorkflowExecutionCloseStatusCanceled:
+		return types.WorkflowExecutionStatusCanceled
+	case types.WorkflowExecutionCloseStatusTerminated:
+		return types.WorkflowExecutionStatusTerminated
+	case types.WorkflowExecutionCloseStatusContinuedAsNew:
+		return types.WorkflowExecutionStatusContinuedAsNew
+	case types.WorkflowExecutionCloseStatusTimedOut:
+		return types.WorkflowExecutionStatusTimedOut
+	default:
+		return types.WorkflowExecutionStatusCompleted
+	}
 }
