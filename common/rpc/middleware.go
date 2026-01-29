@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/types"
 )
 
 type authOutboundMiddleware struct {
@@ -112,6 +113,14 @@ func (m *InboundMetricsMiddleware) Handle(ctx context.Context, req *transport.Re
 		metrics.CallerTag(req.Caller),
 		metrics.TransportTag(req.Transport),
 	)
+	return h.Handle(ctx, req, resw)
+}
+
+// CallerInfoMiddleware extracts caller information from headers and adds it to the context.
+type CallerInfoMiddleware struct{}
+
+func (m *CallerInfoMiddleware) Handle(ctx context.Context, req *transport.Request, resw transport.ResponseWriter, h transport.UnaryHandler) error {
+	ctx = types.GetContextWithCallerInfoFromHeaders(ctx, req.Headers)
 	return h.Handle(ctx, req, resw)
 }
 
