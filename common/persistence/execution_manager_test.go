@@ -1019,7 +1019,8 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			}
 
 			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+				SerializationEncoding:       dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+				EnableExecutionInfoTracking: dynamicproperties.GetBoolPropertyFn(false),
 			})
 
 			res, err := manager.CreateWorkflowExecution(context.Background(), request)
