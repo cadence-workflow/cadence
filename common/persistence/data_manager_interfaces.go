@@ -597,18 +597,19 @@ type (
 
 	// WorkflowMutableState indicates workflow related state
 	WorkflowMutableState struct {
-		ActivityInfos       map[int64]*ActivityInfo
-		TimerInfos          map[string]*TimerInfo
-		ChildExecutionInfos map[int64]*ChildExecutionInfo
-		RequestCancelInfos  map[int64]*RequestCancelInfo
-		SignalInfos         map[int64]*SignalInfo
-		SignalRequestedIDs  map[string]struct{}
-		ExecutionInfo       *WorkflowExecutionInfo
-		ExecutionStats      *ExecutionStats
-		BufferedEvents      []*types.HistoryEvent
-		VersionHistories    *VersionHistories
-		ReplicationState    *ReplicationState // TODO: remove this after all 2DC workflows complete
-		Checksum            checksum.Checksum
+		ActivityInfos          map[int64]*ActivityInfo
+		TimerInfos             map[string]*TimerInfo
+		ChildExecutionInfos    map[int64]*ChildExecutionInfo
+		RequestCancelInfos     map[int64]*RequestCancelInfo
+		SignalInfos            map[int64]*SignalInfo
+		SignalRequestedIDs     map[string]struct{}
+		WorkflowTimerTaskInfos []*WorkflowTimerTaskInfo
+		ExecutionInfo          *WorkflowExecutionInfo
+		ExecutionStats         *ExecutionStats
+		BufferedEvents         []*types.HistoryEvent
+		VersionHistories       *VersionHistories
+		ReplicationState       *ReplicationState // TODO: remove this after all 2DC workflows complete
+		Checksum               checksum.Checksum
 	}
 
 	// ActivityInfo details.
@@ -659,6 +660,15 @@ type (
 		StartedID  int64
 		ExpiryTime time.Time
 		TaskStatus int64
+	}
+
+	// WorkflowTimerTaskInfo contains metadata about workflow-level timer tasks.
+	// These are timer tasks that are associated with the workflow execution itself
+	// rather than user-created timers or activities (e.g., WorkflowTimeoutTask).
+	WorkflowTimerTaskInfo struct {
+		TimeoutType         int
+		TaskID              int64
+		VisibilityTimestamp time.Time
 	}
 
 	// ChildExecutionInfo has details for pending child executions.
@@ -876,6 +886,7 @@ type (
 		DeleteActivityInfos       []int64
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
+		WorkflowTimerTasks        []*WorkflowTimerTaskInfo
 		UpsertChildExecutionInfos []*ChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
@@ -903,6 +914,7 @@ type (
 
 		ActivityInfos       []*ActivityInfo
 		TimerInfos          []*TimerInfo
+		WorkflowTimerTasks  []*WorkflowTimerTaskInfo
 		ChildExecutionInfos []*ChildExecutionInfo
 		RequestCancelInfos  []*RequestCancelInfo
 		SignalInfos         []*SignalInfo
@@ -930,6 +942,12 @@ type (
 		WorkflowID string
 		RunID      string
 		DomainName string
+	}
+
+	// DeleteTimerTaskRequest is used to delete a timer task
+	DeleteTimerTaskRequest struct {
+		VisibilityTimestamp time.Time
+		TaskID              int64
 	}
 
 	// PutReplicationTaskToDLQRequest is used to put a replication task to dlq
@@ -1614,6 +1632,7 @@ type (
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
+		DeleteTimerTask(ctx context.Context, request *DeleteTimerTaskRequest) error
 
 		// Scan operations
 

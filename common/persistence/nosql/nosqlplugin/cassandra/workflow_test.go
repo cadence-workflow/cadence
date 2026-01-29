@@ -595,6 +595,7 @@ func TestSelectWorkflowExecution(t *testing.T) {
 				BufferedEvents: []*persistence.DataBlob{
 					{Encoding: constants.EncodingTypeThriftRW, Data: []byte("test-buffered-events-1")},
 				},
+				WorkflowTimerTasks: nil,
 			},
 		},
 	}

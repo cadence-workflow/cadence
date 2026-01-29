@@ -60,6 +60,7 @@ type Config struct {
 	ShutdownDrainDuration            dynamicproperties.DurationPropertyFn
 	WorkflowDeletionJitterRange      dynamicproperties.IntPropertyFnWithDomainFilter
 	DeleteHistoryEventContextTimeout dynamicproperties.IntPropertyFn
+	EnableExecutionInfoTracking      dynamicproperties.BoolPropertyFn
 	MaxResponseSize                  int
 
 	// HistoryCache settings
@@ -294,6 +295,8 @@ type Config struct {
 	EnableConsistentQueryByDomain dynamicproperties.BoolPropertyFnWithDomainFilter
 	MaxBufferedQueryCount         dynamicproperties.IntPropertyFn
 
+	TaskCleanupTimeoutThreshold dynamicproperties.DurationPropertyFn
+
 	// EnableContextHeaderInVisibility whether to enable indexing context header in visibility
 	EnableContextHeaderInVisibility dynamicproperties.BoolPropertyFnWithDomainFilter
 
@@ -394,6 +397,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		StandbyTaskMissingEventsResendDelay:  dc.GetDurationProperty(dynamicproperties.StandbyTaskMissingEventsResendDelay),
 		StandbyTaskMissingEventsDiscardDelay: dc.GetDurationProperty(dynamicproperties.StandbyTaskMissingEventsDiscardDelay),
 		WorkflowDeletionJitterRange:          dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowDeletionJitterRange),
+		EnableExecutionInfoTracking:          dc.GetBoolProperty(dynamicproperties.EnableExecutionInfoTracking),
 		DeleteHistoryEventContextTimeout:     dc.GetIntProperty(dynamicproperties.DeleteHistoryEventContextTimeout),
 		MaxResponseSize:                      maxMessageSize,
 
@@ -567,6 +571,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 
 		EnableConsistentQuery:                 dc.GetBoolProperty(dynamicproperties.EnableConsistentQuery),
 		EnableConsistentQueryByDomain:         dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableConsistentQueryByDomain),
+		TaskCleanupTimeoutThreshold:           dc.GetDurationProperty(dynamicproperties.TaskCleanupTimeoutThreshold),
 		EnableContextHeaderInVisibility:       dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableContextHeaderInVisibility),
 		EnableCrossClusterOperationsForDomain: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCrossClusterOperationsForDomain),
 		MaxBufferedQueryCount:                 dc.GetIntProperty(dynamicproperties.MaxBufferedQueryCount),
