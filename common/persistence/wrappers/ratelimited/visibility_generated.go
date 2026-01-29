@@ -52,12 +52,11 @@ func (c *ratelimitedVisibilityManager) CountWorkflowExecutions(ctx context.Conte
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.CountWorkflowExecutions(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.CountWorkflowExecutions(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -70,12 +69,11 @@ func (c *ratelimitedVisibilityManager) DeleteUninitializedWorkflowExecution(ctx 
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.DeleteUninitializedWorkflowExecution(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.DeleteUninitializedWorkflowExecution(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -88,12 +86,11 @@ func (c *ratelimitedVisibilityManager) DeleteWorkflowExecution(ctx context.Conte
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.DeleteWorkflowExecution(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.DeleteWorkflowExecution(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -106,12 +103,11 @@ func (c *ratelimitedVisibilityManager) GetClosedWorkflowExecution(ctx context.Co
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.GetClosedWorkflowExecution(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetClosedWorkflowExecution(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -128,12 +124,11 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutions(ctx context.
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ListClosedWorkflowExecutions(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ListClosedWorkflowExecutions(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -146,12 +141,11 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByStatus(ctx 
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ListClosedWorkflowExecutionsByStatus(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ListClosedWorkflowExecutionsByStatus(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -164,12 +158,11 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByType(ctx co
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ListClosedWorkflowExecutionsByType(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ListClosedWorkflowExecutionsByType(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -182,12 +175,11 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByWorkflowID(
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ListClosedWorkflowExecutionsByWorkflowID(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ListClosedWorkflowExecutionsByWorkflowID(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -200,12 +192,11 @@ func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutions(ctx context.Co
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ListOpenWorkflowExecutions(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ListOpenWorkflowExecutions(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -218,12 +209,11 @@ func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutionsByType(ctx cont
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ListOpenWorkflowExecutionsByType(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ListOpenWorkflowExecutionsByType(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -236,12 +226,11 @@ func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutionsByWorkflowID(ct
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ListOpenWorkflowExecutionsByWorkflowID(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ListOpenWorkflowExecutionsByWorkflowID(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -254,12 +243,11 @@ func (c *ratelimitedVisibilityManager) ListWorkflowExecutions(ctx context.Contex
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ListWorkflowExecutions(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ListWorkflowExecutions(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -272,12 +260,11 @@ func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionClosed(ctx context
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.RecordWorkflowExecutionClosed(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.RecordWorkflowExecutionClosed(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -290,12 +277,11 @@ func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionStarted(ctx contex
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.RecordWorkflowExecutionStarted(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.RecordWorkflowExecutionStarted(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -308,12 +294,11 @@ func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionUninitialized(ctx 
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.RecordWorkflowExecutionUninitialized(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.RecordWorkflowExecutionUninitialized(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -326,12 +311,11 @@ func (c *ratelimitedVisibilityManager) ScanWorkflowExecutions(ctx context.Contex
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ScanWorkflowExecutions(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ScanWorkflowExecutions(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -344,12 +328,11 @@ func (c *ratelimitedVisibilityManager) UpsertWorkflowExecution(ctx context.Conte
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.UpsertWorkflowExecution(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.UpsertWorkflowExecution(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}

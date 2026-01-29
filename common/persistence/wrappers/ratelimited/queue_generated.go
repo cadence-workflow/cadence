@@ -52,12 +52,11 @@ func (c *ratelimitedQueueManager) DeleteMessageFromDLQ(ctx context.Context, mess
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.DeleteMessageFromDLQ(ctx, messageID)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.DeleteMessageFromDLQ(ctx, messageID)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -70,12 +69,11 @@ func (c *ratelimitedQueueManager) DeleteMessagesBefore(ctx context.Context, mess
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.DeleteMessagesBefore(ctx, messageID)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.DeleteMessagesBefore(ctx, messageID)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -88,12 +86,11 @@ func (c *ratelimitedQueueManager) EnqueueMessage(ctx context.Context, messagePay
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.EnqueueMessage(ctx, messagePayload)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.EnqueueMessage(ctx, messagePayload)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -106,12 +103,11 @@ func (c *ratelimitedQueueManager) EnqueueMessageToDLQ(ctx context.Context, messa
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.EnqueueMessageToDLQ(ctx, messagePayload)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.EnqueueMessageToDLQ(ctx, messagePayload)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -124,12 +120,11 @@ func (c *ratelimitedQueueManager) GetAckLevels(ctx context.Context) (m1 map[stri
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.GetAckLevels(ctx)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetAckLevels(ctx)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -142,12 +137,11 @@ func (c *ratelimitedQueueManager) GetDLQAckLevels(ctx context.Context) (m1 map[s
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.GetDLQAckLevels(ctx)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetDLQAckLevels(ctx)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -160,12 +154,11 @@ func (c *ratelimitedQueueManager) GetDLQSize(ctx context.Context) (i1 int64, err
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.GetDLQSize(ctx)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetDLQSize(ctx)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -178,12 +171,11 @@ func (c *ratelimitedQueueManager) RangeDeleteMessagesFromDLQ(ctx context.Context
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.RangeDeleteMessagesFromDLQ(ctx, firstMessageID, lastMessageID)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.RangeDeleteMessagesFromDLQ(ctx, firstMessageID, lastMessageID)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -196,12 +188,11 @@ func (c *ratelimitedQueueManager) ReadMessages(ctx context.Context, lastMessageI
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ReadMessages(ctx, lastMessageID, maxCount)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ReadMessages(ctx, lastMessageID, maxCount)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -214,12 +205,11 @@ func (c *ratelimitedQueueManager) ReadMessagesFromDLQ(ctx context.Context, first
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ReadMessagesFromDLQ(ctx, firstMessageID, lastMessageID, pageSize, pageToken)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ReadMessagesFromDLQ(ctx, firstMessageID, lastMessageID, pageSize, pageToken)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -232,12 +222,11 @@ func (c *ratelimitedQueueManager) UpdateAckLevel(ctx context.Context, messageID 
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.UpdateAckLevel(ctx, messageID, clusterName)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.UpdateAckLevel(ctx, messageID, clusterName)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -250,12 +239,11 @@ func (c *ratelimitedQueueManager) UpdateDLQAckLevel(ctx context.Context, message
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.UpdateDLQAckLevel(ctx, messageID, clusterName)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.UpdateDLQAckLevel(ctx, messageID, clusterName)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}

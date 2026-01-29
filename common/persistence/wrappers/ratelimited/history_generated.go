@@ -47,12 +47,11 @@ func (c *ratelimitedHistoryManager) AppendHistoryNodes(ctx context.Context, requ
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.AppendHistoryNodes(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.AppendHistoryNodes(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -70,12 +69,11 @@ func (c *ratelimitedHistoryManager) DeleteHistoryBranch(ctx context.Context, req
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.DeleteHistoryBranch(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.DeleteHistoryBranch(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -88,12 +86,11 @@ func (c *ratelimitedHistoryManager) ForkHistoryBranch(ctx context.Context, reque
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ForkHistoryBranch(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ForkHistoryBranch(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -106,12 +103,11 @@ func (c *ratelimitedHistoryManager) GetAllHistoryTreeBranches(ctx context.Contex
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.GetAllHistoryTreeBranches(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetAllHistoryTreeBranches(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -124,12 +120,11 @@ func (c *ratelimitedHistoryManager) GetHistoryTree(ctx context.Context, request 
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.GetHistoryTree(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetHistoryTree(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -146,12 +141,11 @@ func (c *ratelimitedHistoryManager) ReadHistoryBranch(ctx context.Context, reque
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ReadHistoryBranch(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ReadHistoryBranch(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -164,12 +158,11 @@ func (c *ratelimitedHistoryManager) ReadHistoryBranchByBatch(ctx context.Context
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ReadHistoryBranchByBatch(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ReadHistoryBranchByBatch(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -182,12 +175,11 @@ func (c *ratelimitedHistoryManager) ReadRawHistoryBranch(ctx context.Context, re
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ReadRawHistoryBranch(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ReadRawHistoryBranch(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}

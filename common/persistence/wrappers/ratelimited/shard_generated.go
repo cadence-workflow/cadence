@@ -52,12 +52,11 @@ func (c *ratelimitedShardManager) CreateShard(ctx context.Context, request *pers
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.CreateShard(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.CreateShard(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -74,12 +73,11 @@ func (c *ratelimitedShardManager) GetShard(ctx context.Context, request *persist
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.GetShard(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetShard(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -92,12 +90,11 @@ func (c *ratelimitedShardManager) UpdateShard(ctx context.Context, request *pers
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.UpdateShard(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.UpdateShard(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}

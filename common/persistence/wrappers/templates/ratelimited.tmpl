@@ -45,12 +45,11 @@ func New{{.Interface.Name}}(
 		        scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	        }
 
-	        callerInfo := types.GetCallerInfoFromContext({{(index $method.Params 0).Name}})
-	        if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		        {{ $method.Pass "c.wrapped." }}
-	        }
-
 	        if ok := c.rateLimiter.Allow(); !ok {
+		        callerInfo := types.GetCallerInfoFromContext({{(index $method.Params 0).Name}})
+		        if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			        {{ $method.Pass "c.wrapped." }}
+		        }
 		        err = ErrPersistenceLimitExceeded
 		        return
             }

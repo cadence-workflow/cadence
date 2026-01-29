@@ -52,12 +52,11 @@ func (c *ratelimitedTaskManager) CompleteTask(ctx context.Context, request *pers
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.CompleteTask(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.CompleteTask(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -70,12 +69,11 @@ func (c *ratelimitedTaskManager) CompleteTasksLessThan(ctx context.Context, requ
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.CompleteTasksLessThan(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.CompleteTasksLessThan(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -88,12 +86,11 @@ func (c *ratelimitedTaskManager) CreateTasks(ctx context.Context, request *persi
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.CreateTasks(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.CreateTasks(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -106,12 +103,11 @@ func (c *ratelimitedTaskManager) DeleteTaskList(ctx context.Context, request *pe
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.DeleteTaskList(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.DeleteTaskList(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -128,12 +124,11 @@ func (c *ratelimitedTaskManager) GetOrphanTasks(ctx context.Context, request *pe
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.GetOrphanTasks(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetOrphanTasks(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -146,12 +141,11 @@ func (c *ratelimitedTaskManager) GetTaskList(ctx context.Context, request *persi
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.GetTaskList(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetTaskList(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -164,12 +158,11 @@ func (c *ratelimitedTaskManager) GetTaskListSize(ctx context.Context, request *p
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.GetTaskListSize(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetTaskListSize(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -182,12 +175,11 @@ func (c *ratelimitedTaskManager) GetTasks(ctx context.Context, request *persiste
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.GetTasks(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetTasks(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -200,12 +192,11 @@ func (c *ratelimitedTaskManager) LeaseTaskList(ctx context.Context, request *per
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.LeaseTaskList(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.LeaseTaskList(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -218,12 +209,11 @@ func (c *ratelimitedTaskManager) ListTaskList(ctx context.Context, request *pers
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.ListTaskList(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ListTaskList(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -236,12 +226,11 @@ func (c *ratelimitedTaskManager) UpdateTaskList(ctx context.Context, request *pe
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.UpdateTaskList(ctx, request)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.UpdateTaskList(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}

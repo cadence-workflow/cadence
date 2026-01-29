@@ -52,12 +52,11 @@ func (c *ratelimitedConfigStoreManager) FetchDynamicConfig(ctx context.Context, 
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.FetchDynamicConfig(ctx, cfgType)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.FetchDynamicConfig(ctx, cfgType)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -70,12 +69,11 @@ func (c *ratelimitedConfigStoreManager) UpdateDynamicConfig(ctx context.Context,
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	callerInfo := types.GetCallerInfoFromContext(ctx)
-	if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-		return c.wrapped.UpdateDynamicConfig(ctx, request, cfgType)
-	}
-
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.UpdateDynamicConfig(ctx, request, cfgType)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
