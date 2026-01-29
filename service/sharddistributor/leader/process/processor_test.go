@@ -252,7 +252,12 @@ func TestRebalanceShards_NoActiveExecutors_OneStaleExecutors(t *testing.T) {
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: state, GlobalRevision: int64(1)}, nil)
 
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
-	mocks.store.EXPECT().DeleteAssignedStates(gomock.Any(), mocks.cfg.Name, []string{"exec-2"}, gomock.Any()).Return(nil)
+	mocks.store.EXPECT().DeleteAssignedStates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, namespace string, executorIDs []string, _ store.GuardFunc) error {
+			assert.ElementsMatch(t, []string{"exec-2"}, executorIDs)
+			assert.Equal(t, mocks.cfg.Name, namespace)
+			return nil
+		})
 
 	err := processor.rebalanceShards(context.Background())
 	require.NoError(t, err)
@@ -271,7 +276,12 @@ func TestRebalanceShards_NoActiveExecutors_AllStaleExecutors(t *testing.T) {
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: state, GlobalRevision: int64(1)}, nil)
 
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
-	mocks.store.EXPECT().DeleteAssignedStates(gomock.Any(), mocks.cfg.Name, []string{"exec-1", "exec-2"}, gomock.Any()).Return(nil)
+	mocks.store.EXPECT().DeleteAssignedStates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, namespace string, executorIDs []string, _ store.GuardFunc) error {
+			assert.ElementsMatch(t, []string{"exec-1", "exec-2"}, executorIDs)
+			assert.Equal(t, mocks.cfg.Name, namespace)
+			return nil
+		})
 
 	err := processor.rebalanceShards(context.Background())
 	require.NoError(t, err)
