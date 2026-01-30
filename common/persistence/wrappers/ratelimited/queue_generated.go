@@ -7,9 +7,12 @@ package ratelimited
 import (
 	"context"
 
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
+	"github.com/uber/cadence/common/types"
 )
 
 // ratelimitedQueueManager implements persistence.QueueManager interface instrumented with rate limiter.
@@ -18,6 +21,7 @@ type ratelimitedQueueManager struct {
 	rateLimiter   quotas.Limiter
 	metricsClient metrics.Client
 	datastoreName string
+	dc            *dynamicconfig.Collection
 }
 
 // NewQueueManager creates a new instance of QueueManager with ratelimiter.
@@ -26,12 +30,14 @@ func NewQueueManager(
 	rateLimiter quotas.Limiter,
 	metricsClient metrics.Client,
 	datastoreName string,
+	dc *dynamicconfig.Collection,
 ) persistence.QueueManager {
 	return &ratelimitedQueueManager{
 		wrapped:       wrapped,
 		rateLimiter:   rateLimiter,
 		metricsClient: metricsClient,
 		datastoreName: datastoreName,
+		dc:            dc,
 	}
 }
 
@@ -45,7 +51,12 @@ func (c *ratelimitedQueueManager) DeleteMessageFromDLQ(ctx context.Context, requ
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.DeleteMessageFromDLQ(ctx, messageID)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -57,7 +68,12 @@ func (c *ratelimitedQueueManager) DeleteMessagesBefore(ctx context.Context, requ
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.DeleteMessagesBefore(ctx, messageID)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -69,7 +85,12 @@ func (c *ratelimitedQueueManager) EnqueueMessage(ctx context.Context, request *p
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.EnqueueMessage(ctx, messagePayload)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -81,7 +102,12 @@ func (c *ratelimitedQueueManager) EnqueueMessageToDLQ(ctx context.Context, reque
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.EnqueueMessageToDLQ(ctx, messagePayload)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -93,7 +119,12 @@ func (c *ratelimitedQueueManager) GetAckLevels(ctx context.Context, request *per
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetAckLevels(ctx)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -105,7 +136,12 @@ func (c *ratelimitedQueueManager) GetDLQAckLevels(ctx context.Context, request *
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetDLQAckLevels(ctx)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -117,7 +153,12 @@ func (c *ratelimitedQueueManager) GetDLQSize(ctx context.Context, request *persi
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetDLQSize(ctx)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -129,7 +170,12 @@ func (c *ratelimitedQueueManager) RangeDeleteMessagesFromDLQ(ctx context.Context
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.RangeDeleteMessagesFromDLQ(ctx, firstMessageID, lastMessageID)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -141,7 +187,12 @@ func (c *ratelimitedQueueManager) ReadMessages(ctx context.Context, request *per
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ReadMessages(ctx, lastMessageID, maxCount)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -153,7 +204,12 @@ func (c *ratelimitedQueueManager) ReadMessagesFromDLQ(ctx context.Context, reque
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ReadMessagesFromDLQ(ctx, firstMessageID, lastMessageID, pageSize, pageToken)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -165,7 +221,12 @@ func (c *ratelimitedQueueManager) UpdateAckLevel(ctx context.Context, request *p
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.UpdateAckLevel(ctx, messageID, clusterName)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -177,9 +238,30 @@ func (c *ratelimitedQueueManager) UpdateDLQAckLevel(ctx context.Context, request
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.UpdateDLQAckLevel(ctx, messageID, clusterName)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.UpdateDLQAckLevel(ctx, request)
+}
+
+func (c *ratelimitedQueueManager) shouldBypassRateLimit(callerType types.CallerType) bool {
+	if c.dc == nil {
+		return false
+	}
+
+	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
+	for _, bypassType := range bypassCallerTypes {
+		if bypassTypeStr, ok := bypassType.(string); ok {
+			if types.ParseCallerType(bypassTypeStr) == callerType {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -213,6 +213,7 @@ func New(
 		logger,
 		persistence.NewDynamicConfiguration(dynamicCollection),
 		params.HostName,
+		dynamicCollection,
 	), &persistenceClient.Params{
 		PersistenceConfig: params.PersistenceConfig,
 		MetricsClient:     params.MetricsClient,

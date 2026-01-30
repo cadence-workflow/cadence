@@ -7,9 +7,12 @@ package ratelimited
 import (
 	"context"
 
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
+	"github.com/uber/cadence/common/types"
 )
 
 // ratelimitedHistoryManager implements persistence.HistoryManager interface instrumented with rate limiter.
@@ -18,6 +21,7 @@ type ratelimitedHistoryManager struct {
 	rateLimiter   quotas.Limiter
 	metricsClient metrics.Client
 	datastoreName string
+	dc            *dynamicconfig.Collection
 }
 
 // NewHistoryManager creates a new instance of HistoryManager with ratelimiter.
@@ -26,12 +30,14 @@ func NewHistoryManager(
 	rateLimiter quotas.Limiter,
 	metricsClient metrics.Client,
 	datastoreName string,
+	dc *dynamicconfig.Collection,
 ) persistence.HistoryManager {
 	return &ratelimitedHistoryManager{
 		wrapped:       wrapped,
 		rateLimiter:   rateLimiter,
 		metricsClient: metricsClient,
 		datastoreName: datastoreName,
+		dc:            dc,
 	}
 }
 
@@ -40,7 +46,12 @@ func (c *ratelimitedHistoryManager) AppendHistoryNodes(ctx context.Context, requ
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.AppendHistoryNodes(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -57,7 +68,12 @@ func (c *ratelimitedHistoryManager) DeleteHistoryBranch(ctx context.Context, req
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.DeleteHistoryBranch(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -69,7 +85,12 @@ func (c *ratelimitedHistoryManager) ForkHistoryBranch(ctx context.Context, reque
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ForkHistoryBranch(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -81,7 +102,12 @@ func (c *ratelimitedHistoryManager) GetAllHistoryTreeBranches(ctx context.Contex
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetAllHistoryTreeBranches(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -93,7 +119,12 @@ func (c *ratelimitedHistoryManager) GetHistoryTree(ctx context.Context, request 
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.GetHistoryTree(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -109,7 +140,12 @@ func (c *ratelimitedHistoryManager) ReadHistoryBranch(ctx context.Context, reque
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ReadHistoryBranch(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -121,7 +157,12 @@ func (c *ratelimitedHistoryManager) ReadHistoryBranchByBatch(ctx context.Context
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ReadHistoryBranchByBatch(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -133,9 +174,30 @@ func (c *ratelimitedHistoryManager) ReadRawHistoryBranch(ctx context.Context, re
 		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
+
 	if ok := c.rateLimiter.Allow(); !ok {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			return c.wrapped.ReadRawHistoryBranch(ctx, request)
+		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.ReadRawHistoryBranch(ctx, request)
+}
+
+func (c *ratelimitedHistoryManager) shouldBypassRateLimit(callerType types.CallerType) bool {
+	if c.dc == nil {
+		return false
+	}
+
+	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
+	for _, bypassType := range bypassCallerTypes {
+		if bypassTypeStr, ok := bypassType.(string); ok {
+			if types.ParseCallerType(bypassTypeStr) == callerType {
+				return true
+			}
+		}
+	}
+	return false
 }
