@@ -253,7 +253,7 @@ func TestCallerTypeBypass(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := dynamicconfig.NewInMemoryClient()
-			client.UpdateValue(dynamicproperties.FrontendRateLimiterBypassCallerTypes, tt.bypassCallerTypes)
+			client.UpdateValue(dynamicproperties.RateLimiterBypassCallerTypes, tt.bypassCallerTypes)
 			dc := dynamicconfig.NewCollection(client, testlogger.New(t))
 
 			handler := setupHandlerWithDC(t, dc)
@@ -307,7 +307,7 @@ func TestCallerTypeBypassWithWait(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := dynamicconfig.NewInMemoryClient()
-			client.UpdateValue(dynamicproperties.FrontendRateLimiterBypassCallerTypes, tt.bypassCallerTypes)
+			client.UpdateValue(dynamicproperties.RateLimiterBypassCallerTypes, tt.bypassCallerTypes)
 			dc := dynamicconfig.NewCollection(client, testlogger.New(t))
 
 			handler := setupHandlerWithDC(t, dc)

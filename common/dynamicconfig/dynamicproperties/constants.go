@@ -3248,6 +3248,13 @@ const (
 	// Allowed filters: N/A
 	AllIsolationGroups
 
+	// RateLimiterBypassCallerTypes defines which caller types bypass rate limiters (both frontend and persistence)
+	// KeyName: system.rateLimiterBypassCallerTypes
+	// Value type: []string
+	// Default value: empty list
+	// Allowed filters: N/A
+	RateLimiterBypassCallerTypes
+
 	// HeaderForwardingRules defines which headers are forwarded from inbound calls to outbound.
 	// This value is only loaded at startup.
 	//
@@ -5752,6 +5759,11 @@ var ListKeys = map[ListKey]DynamicList{
 	AllIsolationGroups: {
 		KeyName:     "system.allIsolationGroups",
 		Description: "A list of all the isolation groups in a system",
+	},
+	RateLimiterBypassCallerTypes: {
+		KeyName:      "system.rateLimiterBypassCallerTypes",
+		Description:  "List of caller types that bypass rate limiters (both frontend and persistence)",
+		DefaultValue: []interface{}{},
 	},
 	DefaultIsolationGroupConfigStoreManagerGlobalMapping: {
 		KeyName: "system.defaultIsolationGroupConfigStoreManagerGlobalMapping",

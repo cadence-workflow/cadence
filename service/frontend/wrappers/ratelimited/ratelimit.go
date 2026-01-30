@@ -73,7 +73,9 @@ func (h *apiHandler) allowDomain(ctx context.Context, requestType ratelimitType,
 	}
 	if !policy.Allow(quotas.Info{Domain: domain}) {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if h.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if h.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return h.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return nil
 		}
 		return newErrRateLimited()
@@ -93,7 +95,9 @@ func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, 
 		switch waitCtxErr {
 		case nil:
 			callerInfo := types.GetCallerInfoFromContext(ctx)
-			if h.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			if h.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+				return h.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+			}) {
 				return nil
 			}
 			return newErrRateLimited() // rate limited
@@ -101,7 +105,9 @@ func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, 
 			// Race condition: context deadline hit right around wait completion
 			if !policy.Allow(quotas.Info{Domain: domain}) {
 				callerInfo := types.GetCallerInfoFromContext(ctx)
-				if h.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+				if h.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+					return h.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+				}) {
 					return nil
 				}
 				return newErrRateLimited()
@@ -114,18 +120,3 @@ func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, 
 	return nil
 }
 
-func (h *apiHandler) shouldBypassRateLimit(callerType types.CallerType) bool {
-	if h.dc == nil {
-		return false
-	}
-
-	bypassCallerTypes := h.dc.GetListProperty(dynamicproperties.FrontendRateLimiterBypassCallerTypes)()
-	for _, bypassType := range bypassCallerTypes {
-		if bypassTypeStr, ok := bypassType.(string); ok {
-			if types.ParseCallerType(bypassTypeStr) == callerType {
-				return true
-			}
-		}
-	}
-	return false
-}
