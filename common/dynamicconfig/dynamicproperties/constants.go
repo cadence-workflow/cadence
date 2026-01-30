@@ -4360,7 +4360,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableCleanupOrphanedHistoryBranchOnWorkflowCreation: {
 		KeyName:      "history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation",
 		Description:  "EnableCleanupOrphanedHistoryBranchOnWorkflowCreation enables cleanup of orphaned history branches when CreateWorkflowExecution fails",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	DisableListVisibilityByFilter: {
 		KeyName:      "frontend.disableListVisibilityByFilter",
