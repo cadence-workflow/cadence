@@ -54,7 +54,9 @@ func (c *ratelimitedShardManager) CreateShard(ctx context.Context, request *pers
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.CreateShard(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -75,7 +77,9 @@ func (c *ratelimitedShardManager) GetShard(ctx context.Context, request *persist
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.GetShard(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -92,27 +96,13 @@ func (c *ratelimitedShardManager) UpdateShard(ctx context.Context, request *pers
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.UpdateShard(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.UpdateShard(ctx, request)
-}
-
-func (c *ratelimitedShardManager) shouldBypassRateLimit(callerType types.CallerType) bool {
-	if c.dc == nil {
-		return false
-	}
-
-	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
-	for _, bypassType := range bypassCallerTypes {
-		if bypassTypeStr, ok := bypassType.(string); ok {
-			if types.ParseCallerType(bypassTypeStr) == callerType {
-				return true
-			}
-		}
-	}
-	return false
 }

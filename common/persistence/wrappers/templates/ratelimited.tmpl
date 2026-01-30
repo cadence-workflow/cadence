@@ -47,7 +47,9 @@ func New{{.Interface.Name}}(
 
 	        if ok := c.rateLimiter.Allow(); !ok {
 		        callerInfo := types.GetCallerInfoFromContext({{(index $method.Params 0).Name}})
-		        if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		        if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			        return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		        }) {
 			        {{ $method.Pass "c.wrapped." }}
 		        }
 		        err = ErrPersistenceLimitExceeded
@@ -61,19 +63,3 @@ func New{{.Interface.Name}}(
            }
     {{end}}
 {{end}}
-
-func (c *{{$decorator}}) shouldBypassRateLimit(callerType types.CallerType) bool {
-	if c.dc == nil {
-		return false
-	}
-
-	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
-	for _, bypassType := range bypassCallerTypes {
-		if bypassTypeStr, ok := bypassType.(string); ok {
-			if types.ParseCallerType(bypassTypeStr) == callerType {
-				return true
-			}
-		}
-	}
-	return false
-}

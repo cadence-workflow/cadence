@@ -207,11 +207,11 @@ func (m *mockPolicy) Wait(ctx context.Context, info quotas.Info) error {
 
 func TestCallerTypeBypass(t *testing.T) {
 	tests := []struct {
-		name                 string
-		bypassCallerTypes    []interface{}
-		callerType           types.CallerType
-		rateLimitBlocks      bool
-		expectBypass         bool
+		name              string
+		bypassCallerTypes []interface{}
+		callerType        types.CallerType
+		rateLimitBlocks   bool
+		expectBypass      bool
 	}{
 		{
 			name:              "Bypass CLI caller when configured",

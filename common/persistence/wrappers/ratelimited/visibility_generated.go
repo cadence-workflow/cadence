@@ -54,7 +54,9 @@ func (c *ratelimitedVisibilityManager) CountWorkflowExecutions(ctx context.Conte
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.CountWorkflowExecutions(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -71,7 +73,9 @@ func (c *ratelimitedVisibilityManager) DeleteUninitializedWorkflowExecution(ctx 
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.DeleteUninitializedWorkflowExecution(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -88,7 +92,9 @@ func (c *ratelimitedVisibilityManager) DeleteWorkflowExecution(ctx context.Conte
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.DeleteWorkflowExecution(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -105,7 +111,9 @@ func (c *ratelimitedVisibilityManager) GetClosedWorkflowExecution(ctx context.Co
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.GetClosedWorkflowExecution(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -126,7 +134,9 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutions(ctx context.
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.ListClosedWorkflowExecutions(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -143,7 +153,9 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByStatus(ctx 
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.ListClosedWorkflowExecutionsByStatus(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -160,7 +172,9 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByType(ctx co
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.ListClosedWorkflowExecutionsByType(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -177,7 +191,9 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByWorkflowID(
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.ListClosedWorkflowExecutionsByWorkflowID(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -194,7 +210,9 @@ func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutions(ctx context.Co
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.ListOpenWorkflowExecutions(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -211,7 +229,9 @@ func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutionsByType(ctx cont
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.ListOpenWorkflowExecutionsByType(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -228,7 +248,9 @@ func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutionsByWorkflowID(ct
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.ListOpenWorkflowExecutionsByWorkflowID(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -245,7 +267,9 @@ func (c *ratelimitedVisibilityManager) ListWorkflowExecutions(ctx context.Contex
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.ListWorkflowExecutions(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -262,7 +286,9 @@ func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionClosed(ctx context
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.RecordWorkflowExecutionClosed(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -279,7 +305,9 @@ func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionStarted(ctx contex
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.RecordWorkflowExecutionStarted(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -296,7 +324,9 @@ func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionUninitialized(ctx 
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.RecordWorkflowExecutionUninitialized(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -313,7 +343,9 @@ func (c *ratelimitedVisibilityManager) ScanWorkflowExecutions(ctx context.Contex
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.ScanWorkflowExecutions(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -330,27 +362,13 @@ func (c *ratelimitedVisibilityManager) UpsertWorkflowExecution(ctx context.Conte
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.UpsertWorkflowExecution(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.UpsertWorkflowExecution(ctx, request)
-}
-
-func (c *ratelimitedVisibilityManager) shouldBypassRateLimit(callerType types.CallerType) bool {
-	if c.dc == nil {
-		return false
-	}
-
-	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
-	for _, bypassType := range bypassCallerTypes {
-		if bypassTypeStr, ok := bypassType.(string); ok {
-			if types.ParseCallerType(bypassTypeStr) == callerType {
-				return true
-			}
-		}
-	}
-	return false
 }

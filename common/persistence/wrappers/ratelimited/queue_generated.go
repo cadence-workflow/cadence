@@ -54,7 +54,9 @@ func (c *ratelimitedQueueManager) DeleteMessageFromDLQ(ctx context.Context, requ
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.DeleteMessageFromDLQ(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -71,7 +73,9 @@ func (c *ratelimitedQueueManager) DeleteMessagesBefore(ctx context.Context, requ
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.DeleteMessagesBefore(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -88,7 +92,9 @@ func (c *ratelimitedQueueManager) EnqueueMessage(ctx context.Context, request *p
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.EnqueueMessage(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -105,7 +111,9 @@ func (c *ratelimitedQueueManager) EnqueueMessageToDLQ(ctx context.Context, reque
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.EnqueueMessageToDLQ(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -122,7 +130,9 @@ func (c *ratelimitedQueueManager) GetAckLevels(ctx context.Context, request *per
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.GetAckLevels(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -139,7 +149,9 @@ func (c *ratelimitedQueueManager) GetDLQAckLevels(ctx context.Context, request *
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.GetDLQAckLevels(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -156,7 +168,9 @@ func (c *ratelimitedQueueManager) GetDLQSize(ctx context.Context, request *persi
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.GetDLQSize(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -173,7 +187,9 @@ func (c *ratelimitedQueueManager) RangeDeleteMessagesFromDLQ(ctx context.Context
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.RangeDeleteMessagesFromDLQ(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -190,7 +206,9 @@ func (c *ratelimitedQueueManager) ReadMessages(ctx context.Context, request *per
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.ReadMessages(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -207,7 +225,9 @@ func (c *ratelimitedQueueManager) ReadMessagesFromDLQ(ctx context.Context, reque
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.ReadMessagesFromDLQ(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -224,7 +244,9 @@ func (c *ratelimitedQueueManager) UpdateAckLevel(ctx context.Context, request *p
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.UpdateAckLevel(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -241,27 +263,13 @@ func (c *ratelimitedQueueManager) UpdateDLQAckLevel(ctx context.Context, request
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.UpdateDLQAckLevel(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.UpdateDLQAckLevel(ctx, request)
-}
-
-func (c *ratelimitedQueueManager) shouldBypassRateLimit(callerType types.CallerType) bool {
-	if c.dc == nil {
-		return false
-	}
-
-	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
-	for _, bypassType := range bypassCallerTypes {
-		if bypassTypeStr, ok := bypassType.(string); ok {
-			if types.ParseCallerType(bypassTypeStr) == callerType {
-				return true
-			}
-		}
-	}
-	return false
 }

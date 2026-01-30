@@ -345,7 +345,7 @@ func TestVisibilityManagerBypassRateLimitForCallerTypes(t *testing.T) {
 			mocked := persistence.NewMockVisibilityManager(ctrl)
 
 			configClient := dynamicconfig.NewInMemoryClient()
-			_ = configClient.UpdateValue(dynamicproperties.PersistenceRateLimiterBypassCallerTypes, tt.bypassCallerTypes)
+			_ = configClient.UpdateValue(dynamicproperties.RateLimiterBypassCallerTypes, tt.bypassCallerTypes)
 
 			dc := dynamicconfig.NewCollection(
 				configClient,
@@ -375,7 +375,7 @@ func TestVisibilityManagerBypassRateLimitWithDynamicConfig(t *testing.T) {
 	mocked := persistence.NewMockVisibilityManager(ctrl)
 
 	configClient := dynamicconfig.NewInMemoryClient()
-	configClient.UpdateValue(dynamicproperties.PersistenceRateLimiterBypassCallerTypes, []interface{}{"cli", "internal"})
+	configClient.UpdateValue(dynamicproperties.RateLimiterBypassCallerTypes, []interface{}{"cli", "internal"})
 
 	dc := dynamicconfig.NewCollection(
 		configClient,
@@ -478,7 +478,7 @@ func TestShardManagerBypassRateLimitForCallerTypes(t *testing.T) {
 			mocked := persistence.NewMockShardManager(ctrl)
 
 			configClient := dynamicconfig.NewInMemoryClient()
-			_ = configClient.UpdateValue(dynamicproperties.PersistenceRateLimiterBypassCallerTypes, tt.bypassCallerTypes)
+			_ = configClient.UpdateValue(dynamicproperties.RateLimiterBypassCallerTypes, tt.bypassCallerTypes)
 
 			dc := dynamicconfig.NewCollection(
 				configClient,
@@ -548,7 +548,7 @@ func TestHistoryManagerBypassRateLimitForCallerTypes(t *testing.T) {
 			mocked := persistence.NewMockHistoryManager(ctrl)
 
 			configClient := dynamicconfig.NewInMemoryClient()
-			_ = configClient.UpdateValue(dynamicproperties.PersistenceRateLimiterBypassCallerTypes, tt.bypassCallerTypes)
+			_ = configClient.UpdateValue(dynamicproperties.RateLimiterBypassCallerTypes, tt.bypassCallerTypes)
 
 			dc := dynamicconfig.NewCollection(
 				configClient,

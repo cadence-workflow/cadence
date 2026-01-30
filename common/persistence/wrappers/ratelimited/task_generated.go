@@ -54,7 +54,9 @@ func (c *ratelimitedTaskManager) CompleteTask(ctx context.Context, request *pers
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.CompleteTask(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -71,7 +73,9 @@ func (c *ratelimitedTaskManager) CompleteTasksLessThan(ctx context.Context, requ
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.CompleteTasksLessThan(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -88,7 +92,9 @@ func (c *ratelimitedTaskManager) CreateTasks(ctx context.Context, request *persi
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.CreateTasks(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -105,7 +111,9 @@ func (c *ratelimitedTaskManager) DeleteTaskList(ctx context.Context, request *pe
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.DeleteTaskList(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -126,7 +134,9 @@ func (c *ratelimitedTaskManager) GetOrphanTasks(ctx context.Context, request *pe
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.GetOrphanTasks(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -143,7 +153,9 @@ func (c *ratelimitedTaskManager) GetTaskList(ctx context.Context, request *persi
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.GetTaskList(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -160,7 +172,9 @@ func (c *ratelimitedTaskManager) GetTaskListSize(ctx context.Context, request *p
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.GetTaskListSize(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -177,7 +191,9 @@ func (c *ratelimitedTaskManager) GetTasks(ctx context.Context, request *persiste
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.GetTasks(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -194,7 +210,9 @@ func (c *ratelimitedTaskManager) LeaseTaskList(ctx context.Context, request *per
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.LeaseTaskList(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -211,7 +229,9 @@ func (c *ratelimitedTaskManager) ListTaskList(ctx context.Context, request *pers
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.ListTaskList(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -228,27 +248,13 @@ func (c *ratelimitedTaskManager) UpdateTaskList(ctx context.Context, request *pe
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
+			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
+		}) {
 			return c.wrapped.UpdateTaskList(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.UpdateTaskList(ctx, request)
-}
-
-func (c *ratelimitedTaskManager) shouldBypassRateLimit(callerType types.CallerType) bool {
-	if c.dc == nil {
-		return false
-	}
-
-	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
-	for _, bypassType := range bypassCallerTypes {
-		if bypassTypeStr, ok := bypassType.(string); ok {
-			if types.ParseCallerType(bypassTypeStr) == callerType {
-				return true
-			}
-		}
-	}
-	return false
 }

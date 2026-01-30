@@ -119,4 +119,3 @@ func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, 
 	}
 	return nil
 }
-
