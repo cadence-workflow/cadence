@@ -9,6 +9,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/types"
@@ -26,6 +27,7 @@ type apiHandler struct {
 	visibilityRateLimiter quotas.Policy
 	asyncRateLimiter      quotas.Policy
 	maxWorkerPollDelay    dynamicproperties.DurationPropertyFnWithDomainFilter
+	dc                    *dynamicconfig.Collection
 }
 
 // NewAPIHandler creates a new instance of Handler with ratelimiter.
@@ -37,6 +39,7 @@ func NewAPIHandler(
 	visibilityRateLimiter quotas.Policy,
 	asyncRateLimiter quotas.Policy,
 	maxWorkerPollDelay dynamicproperties.DurationPropertyFnWithDomainFilter,
+	dc *dynamicconfig.Collection,
 ) api.Handler {
 	return &apiHandler{
 		wrapped:               wrapped,
@@ -47,6 +50,7 @@ func NewAPIHandler(
 		visibilityRateLimiter: visibilityRateLimiter,
 		asyncRateLimiter:      asyncRateLimiter,
 		maxWorkerPollDelay:    maxWorkerPollDelay,
+		dc:                    dc,
 	}
 }
 
