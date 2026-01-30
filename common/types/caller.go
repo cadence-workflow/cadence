@@ -86,18 +86,10 @@ func ParseCallerType(s string) CallerType {
 	return CallerType(s)
 }
 
-// BypassCallerTypesProvider is a function that returns a list of caller types that should bypass rate limiting
-type BypassCallerTypesProvider func() []interface{}
-
 // ShouldBypassRateLimit checks if the given caller type should bypass rate limiting
 // based on the provided list of bypass caller types.
-// The bypassCallerTypesProvider function should return a list of caller type strings.
-func ShouldBypassRateLimit(callerType CallerType, bypassCallerTypesProvider BypassCallerTypesProvider) bool {
-	if bypassCallerTypesProvider == nil {
-		return false
-	}
-
-	bypassCallerTypes := bypassCallerTypesProvider()
+// The bypassCallerTypes should be a list of caller type strings.
+func ShouldBypassRateLimit(callerType CallerType, bypassCallerTypes []interface{}) bool {
 	for _, bypassType := range bypassCallerTypes {
 		if bypassTypeStr, ok := bypassType.(string); ok {
 			if ParseCallerType(bypassTypeStr) == callerType {

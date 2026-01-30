@@ -49,9 +49,7 @@ func (c *ratelimitedHistoryManager) AppendHistoryNodes(ctx context.Context, requ
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.AppendHistoryNodes(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -73,9 +71,7 @@ func (c *ratelimitedHistoryManager) DeleteHistoryBranch(ctx context.Context, req
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.DeleteHistoryBranch(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -92,9 +88,7 @@ func (c *ratelimitedHistoryManager) ForkHistoryBranch(ctx context.Context, reque
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.ForkHistoryBranch(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -111,9 +105,7 @@ func (c *ratelimitedHistoryManager) GetAllHistoryTreeBranches(ctx context.Contex
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.GetAllHistoryTreeBranches(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -130,9 +122,7 @@ func (c *ratelimitedHistoryManager) GetHistoryTree(ctx context.Context, request 
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.GetHistoryTree(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -153,9 +143,7 @@ func (c *ratelimitedHistoryManager) ReadHistoryBranch(ctx context.Context, reque
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.ReadHistoryBranch(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -172,9 +160,7 @@ func (c *ratelimitedHistoryManager) ReadHistoryBranchByBatch(ctx context.Context
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.ReadHistoryBranchByBatch(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -191,9 +177,7 @@ func (c *ratelimitedHistoryManager) ReadRawHistoryBranch(ctx context.Context, re
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.ReadRawHistoryBranch(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded

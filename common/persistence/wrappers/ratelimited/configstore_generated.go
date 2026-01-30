@@ -54,9 +54,7 @@ func (c *ratelimitedConfigStoreManager) FetchDynamicConfig(ctx context.Context, 
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.FetchDynamicConfig(ctx, cfgType)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -73,9 +71,7 @@ func (c *ratelimitedConfigStoreManager) UpdateDynamicConfig(ctx context.Context,
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.UpdateDynamicConfig(ctx, request, cfgType)
 		}
 		err = ErrPersistenceLimitExceeded

@@ -54,9 +54,7 @@ func (c *ratelimitedExecutionManager) CompleteHistoryTask(ctx context.Context, r
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.CompleteHistoryTask(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -73,9 +71,7 @@ func (c *ratelimitedExecutionManager) ConflictResolveWorkflowExecution(ctx conte
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.ConflictResolveWorkflowExecution(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -92,9 +88,7 @@ func (c *ratelimitedExecutionManager) CreateFailoverMarkerTasks(ctx context.Cont
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.CreateFailoverMarkerTasks(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -111,9 +105,7 @@ func (c *ratelimitedExecutionManager) CreateWorkflowExecution(ctx context.Contex
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.CreateWorkflowExecution(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -130,9 +122,7 @@ func (c *ratelimitedExecutionManager) DeleteActiveClusterSelectionPolicy(ctx con
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -149,9 +139,7 @@ func (c *ratelimitedExecutionManager) DeleteCurrentWorkflowExecution(ctx context
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.DeleteCurrentWorkflowExecution(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -168,9 +156,7 @@ func (c *ratelimitedExecutionManager) DeleteReplicationTaskFromDLQ(ctx context.C
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.DeleteReplicationTaskFromDLQ(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -187,9 +173,7 @@ func (c *ratelimitedExecutionManager) DeleteWorkflowExecution(ctx context.Contex
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.DeleteWorkflowExecution(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -206,9 +190,7 @@ func (c *ratelimitedExecutionManager) GetActiveClusterSelectionPolicy(ctx contex
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -225,9 +207,7 @@ func (c *ratelimitedExecutionManager) GetCurrentExecution(ctx context.Context, r
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.GetCurrentExecution(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -244,9 +224,7 @@ func (c *ratelimitedExecutionManager) GetHistoryTasks(ctx context.Context, reque
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.GetHistoryTasks(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -267,9 +245,7 @@ func (c *ratelimitedExecutionManager) GetReplicationDLQSize(ctx context.Context,
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.GetReplicationDLQSize(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -286,9 +262,7 @@ func (c *ratelimitedExecutionManager) GetReplicationTasksFromDLQ(ctx context.Con
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.GetReplicationTasksFromDLQ(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -309,9 +283,7 @@ func (c *ratelimitedExecutionManager) GetWorkflowExecution(ctx context.Context, 
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.GetWorkflowExecution(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -328,9 +300,7 @@ func (c *ratelimitedExecutionManager) IsWorkflowExecutionExists(ctx context.Cont
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.IsWorkflowExecutionExists(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -347,9 +317,7 @@ func (c *ratelimitedExecutionManager) ListConcreteExecutions(ctx context.Context
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.ListConcreteExecutions(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -366,9 +334,7 @@ func (c *ratelimitedExecutionManager) ListCurrentExecutions(ctx context.Context,
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.ListCurrentExecutions(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -385,9 +351,7 @@ func (c *ratelimitedExecutionManager) PutReplicationTaskToDLQ(ctx context.Contex
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.PutReplicationTaskToDLQ(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -404,9 +368,7 @@ func (c *ratelimitedExecutionManager) RangeCompleteHistoryTask(ctx context.Conte
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.RangeCompleteHistoryTask(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -423,9 +385,7 @@ func (c *ratelimitedExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx cont
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.RangeDeleteReplicationTaskFromDLQ(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -442,9 +402,7 @@ func (c *ratelimitedExecutionManager) UpdateWorkflowExecution(ctx context.Contex
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.UpdateWorkflowExecution(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded

@@ -73,9 +73,7 @@ func (h *apiHandler) allowDomain(ctx context.Context, requestType ratelimitType,
 	}
 	if !policy.Allow(quotas.Info{Domain: domain}) {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if h.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return h.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if h.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), h.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return nil
 		}
 		return newErrRateLimited()
@@ -95,9 +93,7 @@ func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, 
 		switch waitCtxErr {
 		case nil:
 			callerInfo := types.GetCallerInfoFromContext(ctx)
-			if h.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-				return h.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-			}) {
+			if h.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), h.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 				return nil
 			}
 			return newErrRateLimited() // rate limited
@@ -105,9 +101,7 @@ func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, 
 			// Race condition: context deadline hit right around wait completion
 			if !policy.Allow(quotas.Info{Domain: domain}) {
 				callerInfo := types.GetCallerInfoFromContext(ctx)
-				if h.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-					return h.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-				}) {
+				if h.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), h.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 					return nil
 				}
 				return newErrRateLimited()

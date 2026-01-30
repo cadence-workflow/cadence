@@ -54,9 +54,7 @@ func (c *ratelimitedShardManager) CreateShard(ctx context.Context, request *pers
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.CreateShard(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -77,9 +75,7 @@ func (c *ratelimitedShardManager) GetShard(ctx context.Context, request *persist
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.GetShard(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -96,9 +92,7 @@ func (c *ratelimitedShardManager) UpdateShard(ctx context.Context, request *pers
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), func() []interface{} {
-			return c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()
-		}) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.UpdateShard(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
