@@ -87,16 +87,6 @@ services:
     pprof:
       port: 7942
 
-# Controls timer vs histogram metric emission while timers are being migrated away.
-# Keep both enabled during rollout for backwards compatibility.
-histograms:
-  default: both
-  names:
-    task_latency: true
-    task_latency_ns: true
-    cache_latency: true
-    cache_latency_ns: true
-
 clusterGroupMetadata:
   failoverVersionIncrement: 10
   primaryClusterName: "cluster0"
