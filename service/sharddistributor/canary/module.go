@@ -5,6 +5,7 @@ import (
 	"go.uber.org/yarpc"
 
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
+	"github.com/uber/cadence/service/sharddistributor/canary/config"
 	"github.com/uber/cadence/service/sharddistributor/canary/executors"
 	"github.com/uber/cadence/service/sharddistributor/canary/factory"
 	"github.com/uber/cadence/service/sharddistributor/canary/handler"
@@ -23,6 +24,8 @@ type NamespacesNames struct {
 	EphemeralNamespace          string
 	ExternalAssignmentNamespace string
 	SharddistributorServiceName string
+
+	Config config.Config
 }
 
 func Module(namespacesNames NamespacesNames) fx.Option {
@@ -31,6 +34,8 @@ func Module(namespacesNames NamespacesNames) fx.Option {
 
 func opts(names NamespacesNames) fx.Option {
 	return fx.Options(
+		fx.Supply(names.Config),
+
 		fx.Provide(sharddistributorv1.NewFxShardDistributorExecutorAPIYARPCClient(names.SharddistributorServiceName)),
 		fx.Provide(sharddistributorv1.NewFxShardDistributorAPIYARPCClient(names.SharddistributorServiceName)),
 
