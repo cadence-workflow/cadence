@@ -185,12 +185,11 @@ func TestHeartbeat(t *testing.T) {
 			Status:        types.ExecutorStatusACTIVE,
 		}
 
-		expectedErr := errors.New("migration mode is local passthrough")
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
 
-		_, err := handler.Heartbeat(ctx, req)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), expectedErr.Error())
+		resp, err := handler.Heartbeat(ctx, req)
+		require.NoError(t, err)
+		require.Equal(t, types.MigrationModeLOCALPASSTHROUGH, resp.MigrationMode)
 	})
 
 	// Test Case 7: Heartbeat with executor associated with local passthrough shadow

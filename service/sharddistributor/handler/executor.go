@@ -63,8 +63,8 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 	case types.MigrationModeINVALID:
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("namespace's migration mode is invalid: %v", err)}
 	case types.MigrationModeLOCALPASSTHROUGH:
-		h.logger.Warn("Migration mode is local passthrough, no calls to heartbeat allowed", tag.ShardNamespace(request.Namespace), tag.ShardExecutor(request.ExecutorID))
-		return nil, &types.BadRequestError{Message: "migration mode is local passthrough, no calls to heartbeat allowed"}
+		h.logger.Info("Migration mode is local passthrough, no calls to heartbeat should be allowed", tag.ShardNamespace(request.Namespace), tag.ShardExecutor(request.ExecutorID))
+		return _convertResponse(nil, mode), nil
 	// From SD perspective the behaviour is the same
 	case types.MigrationModeLOCALPASSTHROUGHSHADOW, types.MigrationModeDISTRIBUTEDPASSTHROUGH:
 		assignedShards, err = h.assignShardsInCurrentHeartbeat(ctx, request, assignedShards)
