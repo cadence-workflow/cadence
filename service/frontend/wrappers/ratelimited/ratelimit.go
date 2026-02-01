@@ -26,6 +26,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/types"
 )
@@ -71,6 +72,10 @@ func (h *apiHandler) allowDomain(ctx context.Context, requestType ratelimitType,
 		}
 	}
 	if !policy.Allow(quotas.Info{Domain: domain}) {
+		callerInfo := types.GetCallerInfoFromContext(ctx)
+		if h.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), h.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
+			return nil
+		}
 		return newErrRateLimited()
 	}
 	return nil
@@ -87,10 +92,18 @@ func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, 
 		waitCtxErr := waitCtx.Err()
 		switch waitCtxErr {
 		case nil:
+			callerInfo := types.GetCallerInfoFromContext(ctx)
+			if h.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), h.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
+				return nil
+			}
 			return newErrRateLimited() // rate limited
 		case context.DeadlineExceeded:
 			// Race condition: context deadline hit right around wait completion
 			if !policy.Allow(quotas.Info{Domain: domain}) {
+				callerInfo := types.GetCallerInfoFromContext(ctx)
+				if h.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), h.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
+					return nil
+				}
 				return newErrRateLimited()
 			}
 			return nil

@@ -54,7 +54,7 @@ func (c *ratelimitedDomainManager) CreateDomain(ctx context.Context, request *pe
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.CreateDomain(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -71,7 +71,7 @@ func (c *ratelimitedDomainManager) DeleteDomain(ctx context.Context, request *pe
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.DeleteDomain(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -88,7 +88,7 @@ func (c *ratelimitedDomainManager) DeleteDomainByName(ctx context.Context, reque
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.DeleteDomainByName(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -105,7 +105,7 @@ func (c *ratelimitedDomainManager) GetDomain(ctx context.Context, request *persi
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.GetDomain(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -122,7 +122,7 @@ func (c *ratelimitedDomainManager) GetMetadata(ctx context.Context) (gp1 *persis
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.GetMetadata(ctx)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -143,7 +143,7 @@ func (c *ratelimitedDomainManager) ListDomains(ctx context.Context, request *per
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.ListDomains(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
@@ -160,27 +160,11 @@ func (c *ratelimitedDomainManager) UpdateDomain(ctx context.Context, request *pe
 
 	if ok := c.rateLimiter.Allow(); !ok {
 		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
 			return c.wrapped.UpdateDomain(ctx, request)
 		}
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.UpdateDomain(ctx, request)
-}
-
-func (c *ratelimitedDomainManager) shouldBypassRateLimit(callerType types.CallerType) bool {
-	if c.dc == nil {
-		return false
-	}
-
-	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
-	for _, bypassType := range bypassCallerTypes {
-		if bypassTypeStr, ok := bypassType.(string); ok {
-			if types.ParseCallerType(bypassTypeStr) == callerType {
-				return true
-			}
-		}
-	}
-	return false
 }

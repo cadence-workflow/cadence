@@ -3248,6 +3248,13 @@ const (
 	// Allowed filters: N/A
 	AllIsolationGroups
 
+	// RateLimiterBypassCallerTypes defines which caller types bypass rate limiters (both frontend and persistence)
+	// KeyName: system.rateLimiterBypassCallerTypes
+	// Value type: []string
+	// Default value: empty list
+	// Allowed filters: N/A
+	RateLimiterBypassCallerTypes
+
 	// HeaderForwardingRules defines which headers are forwarded from inbound calls to outbound.
 	// This value is only loaded at startup.
 	//
@@ -3257,13 +3264,6 @@ const (
 	// Value type: []rpc.HeaderRule or an []interface{} containing `map[string]interface{}{"Add":bool,"Match":string}` values.
 	// Default value: forward all headers.  (this is a problematic value, and it will be changing as we reduce to a list of known values)
 	HeaderForwardingRules
-
-	// PersistenceRateLimiterBypassCallerTypes is the list of caller types that should bypass persistence rate limiting
-	// KeyName: persistence.rateLimiterBypassCallerTypes
-	// Value type: []string (list of caller type strings like "cli", "ui", "internal", etc.)
-	// Default value: empty list (no bypass)
-	// Allowed filters: N/A
-	PersistenceRateLimiterBypassCallerTypes
 
 	LastListKey
 )
@@ -5760,6 +5760,11 @@ var ListKeys = map[ListKey]DynamicList{
 		KeyName:     "system.allIsolationGroups",
 		Description: "A list of all the isolation groups in a system",
 	},
+	RateLimiterBypassCallerTypes: {
+		KeyName:      "system.rateLimiterBypassCallerTypes",
+		Description:  "List of caller types that bypass rate limiters (both frontend and persistence)",
+		DefaultValue: []interface{}{},
+	},
 	DefaultIsolationGroupConfigStoreManagerGlobalMapping: {
 		KeyName: "system.defaultIsolationGroupConfigStoreManagerGlobalMapping",
 		Description: "A configuration store for global isolation groups - used in isolation-group config only, not normal dynamic config." +
@@ -5778,11 +5783,6 @@ var ListKeys = map[ListKey]DynamicList{
 				"Match": "",
 			},
 		},
-	},
-	PersistenceRateLimiterBypassCallerTypes: {
-		KeyName:      "persistence.rateLimiterBypassCallerTypes",
-		Description:  "List of caller types that should bypass persistence rate limiting (e.g., ['cli', 'internal'])",
-		DefaultValue: []interface{}{},
 	},
 }
 

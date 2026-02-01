@@ -62,6 +62,7 @@ type Service struct {
 	config                 *config.Config
 	params                 *resource.Params
 	ratelimiterCollections globalRatelimiterCollections
+	dc                     *dynamicconfig.Collection
 }
 
 // NewService builds a new cadence-frontend service
@@ -70,12 +71,13 @@ func NewService(
 ) (resource.Resource, error) {
 
 	isAdvancedVisExistInConfig := len(params.PersistenceConfig.AdvancedVisibilityStore) != 0
+	dc := dynamicconfig.NewCollection(
+		params.DynamicConfig,
+		params.Logger,
+		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
+	)
 	serviceConfig := config.NewConfig(
-		dynamicconfig.NewCollection(
-			params.DynamicConfig,
-			params.Logger,
-			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
-		),
+		dc,
 		params.PersistenceConfig.NumHistoryShards,
 		isAdvancedVisExistInConfig,
 		params.HostName,
@@ -117,6 +119,7 @@ func NewService(
 		config:   serviceConfig,
 		stopC:    make(chan struct{}),
 		params:   params,
+		dc:       dc,
 	}, nil
 }
 
@@ -157,7 +160,7 @@ func (s *Service) Start() {
 	// Additional decorations
 	var handler api.Handler = s.handler
 	handler = versioncheck.NewAPIHandler(handler, s.config, client.NewVersionChecker())
-	handler = ratelimited.NewAPIHandler(handler, s.GetDomainCache(), userRateLimiter, workerRateLimiter, visibilityRateLimiter, asyncRateLimiter, s.config.MaxWorkerPollDelay)
+	handler = ratelimited.NewAPIHandler(handler, s.GetDomainCache(), userRateLimiter, workerRateLimiter, visibilityRateLimiter, asyncRateLimiter, s.config.MaxWorkerPollDelay, s.dc)
 	handler = metered.NewAPIHandler(handler, s.GetLogger(), s.GetMetricsClient(), s.GetDomainCache(), s.config)
 	if s.params.ClusterRedirectionPolicy != nil {
 		handler = clusterredirection.NewAPIHandler(handler, s, s.config, *s.params.ClusterRedirectionPolicy)
