@@ -46,6 +46,13 @@ func newWorkflowCommands() []*cli.Command {
 			Action:  DiagnoseWorkflow,
 		},
 		{
+			Name:    "refresh-tasks",
+			Aliases: []string{"rt"},
+			Usage:   "refreshes all the workflow tasks to resume progress",
+			Flags:   flagsForExecution,
+			Action:  RefreshWorkflowTasks,
+		},
+		{
 			Name:        "activity",
 			Aliases:     []string{"act"},
 			Usage:       "operate activities of workflow",
