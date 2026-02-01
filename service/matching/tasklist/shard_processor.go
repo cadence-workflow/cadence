@@ -107,10 +107,8 @@ func (sp *shardProcessorImpl) getShardLoad() float64 {
 	// we need to sum the rps for each of the tasklist to calculate the load.
 	for _, tlMgr := range sp.taskLists {
 		if tlMgr.TaskListID().name == sp.shardID {
-			lbh := tlMgr.LoadBalancerHints()
-			if lbh != nil {
-				load = load + lbh.RatePerSecond
-			}
+			qps := tlMgr.QueriesPerSecond()
+			load = load + qps
 		}
 	}
 	return load
