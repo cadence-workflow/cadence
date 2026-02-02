@@ -1,6 +1,6 @@
 CREATE TABLE domain_audit_log (
-  domain_id               UUID NOT NULL,
-  event_id                UUID NOT NULL,
+  domain_id               BYTEA NOT NULL,
+  event_id                BYTEA NOT NULL,
   --
   state_before            BYTEA NOT NULL,
   state_before_encoding   TEXT NOT NULL,
@@ -11,6 +11,6 @@ CREATE TABLE domain_audit_log (
   last_updated_time       TIMESTAMP NOT NULL,
   identity                TEXT NOT NULL,
   identity_type           TEXT NOT NULL,
-  comment                 TEXT NOT NULL,
+  comment                 TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (domain_id, operation_type, created_time, event_id)
 );
