@@ -98,12 +98,8 @@ func (stubAckCache) Count() int                                   { return 0 }
 
 type errHydrator struct{}
 
-type errHydrator struct {
-	ts clock.MockedTimeSource
-}
-
-func (r errHydrator) Hydrate(_ context.Context, _ persistence.Task) (*types.ReplicationTask, error) {
-	r.ts.Advance(2 * time.Millisecond)
+func (errHydrator) Hydrate(_ context.Context, _ persistence.Task) (*types.ReplicationTask, error) {
+	time.Sleep(2 * time.Millisecond)
 	return nil, errors.New("hydrate failed")
 }
 
@@ -165,7 +161,6 @@ func TestTaskAckManager_EmitsExponentialTaskLatencyHistogram(t *testing.T) {
 func TestTaskStore_EmitsExponentialCacheLatencyHistogram(t *testing.T) {
 	ts := tally.NewTestScope("", nil)
 	mc := metrics.NewClient(ts, metrics.History, metrics.HistogramMigration{})
-	mockedTS := clock.NewMockedTimeSourceAt(time.Unix(0, 0))
 
 	cluster := "cluster-a"
 	entry := cache.NewLocalDomainCacheEntryForTest(
@@ -182,12 +177,11 @@ func TestTaskStore_EmitsExponentialCacheLatencyHistogram(t *testing.T) {
 			cluster: stubAckCache{},
 		},
 		domains:       stubDomainCache{entry: entry},
-		hydrator:      errHydrator{ts: mockedTS},
+		hydrator:      errHydrator{},
 		rateLimiter:   allowLimiter{},
 		throttleRetry: backoff.NewThrottleRetry(backoff.WithRetryPolicy(retryPolicy)),
 		scope:         mc.Scope(metrics.ReplicatorCacheManagerScope),
 		logger:        log.NewNoop(),
-		timeSource:    mockedTS,
 	}
 
 	_, err := store.Get(context.Background(), cluster, &fakeTask{domainID: "domain-id", taskID: 123})

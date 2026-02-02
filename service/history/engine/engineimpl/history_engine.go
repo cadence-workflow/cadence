@@ -161,7 +161,6 @@ func NewEngineWithShardContext(
 		replicationHydrator,
 		shard.GetReplicationBudgetManager(),
 		shard.GetShardID(),
-		shard.GetTimeSource(),
 	)
 	replicationDynamicTaskBatchSizer := replication.NewDynamicTaskBatchSizer(shard.GetShardID(), logger, config, shard.GetMetricsClient())
 	replicationReader := replication.NewTaskReader(shard.GetShardID(), executionManager)
