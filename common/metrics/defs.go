@@ -2734,6 +2734,7 @@ const (
 	ReplicationTasksReturned
 	ReplicationTasksReturnedDiff
 	ReplicationTasksAppliedLatency
+	ExponentialReplicationTasksAppliedLatency
 	ReplicationTasksBatchSize
 	ReplicationDynamicTaskBatchSizerDecision
 	ReplicationDLQFailed
@@ -3551,6 +3552,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ReplicationTasksReturned:                                     {metricName: "replication_tasks_returned", metricType: Timer},
 		ReplicationTasksReturnedDiff:                                 {metricName: "replication_tasks_returned_diff", metricType: Timer},
 		ReplicationTasksAppliedLatency:                               {metricName: "replication_tasks_applied_latency", metricType: Timer},
+		ExponentialReplicationTasksAppliedLatency:                    {metricName: "replication_tasks_applied_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		ReplicationTasksBatchSize:                                    {metricName: "replication_tasks_batch_size", metricType: Gauge},
 		ReplicationDynamicTaskBatchSizerDecision:                     {metricName: "replication_dynamic_task_batch_sizer_decision", metricType: Counter},
 		ReplicationDLQFailed:                                         {metricName: "replication_dlq_enqueue_failed", metricType: Counter},

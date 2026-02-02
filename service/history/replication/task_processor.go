@@ -314,7 +314,8 @@ func (p *taskProcessorImpl) processResponse(response *types.ReplicationMessages)
 	}
 
 	scope := p.metricsClient.Scope(metrics.ReplicationTaskFetcherScope, metrics.TargetClusterTag(p.sourceCluster))
-	batchRequestStartTime := time.Now()
+	ts := p.shard.GetTimeSource()
+	batchRequestStartTime := ts.Now()
 	ctx := context.Background()
 	for _, replicationTask := range response.ReplicationTasks {
 		// TODO: move to MultiStageRateLimiter
@@ -338,7 +339,9 @@ func (p *taskProcessorImpl) processResponse(response *types.ReplicationMessages)
 		backoffDuration := p.noTaskRetrier.NextBackOff()
 		time.Sleep(backoffDuration)
 	} else {
-		scope.RecordTimer(metrics.ReplicationTasksAppliedLatency, time.Since(batchRequestStartTime))
+		appliedLatency := ts.Since(batchRequestStartTime)
+		scope.RecordTimer(metrics.ReplicationTasksAppliedLatency, appliedLatency)
+		scope.ExponentialHistogram(metrics.ExponentialReplicationTasksAppliedLatency, appliedLatency)
 	}
 
 	if p.isShuttingDown() {
