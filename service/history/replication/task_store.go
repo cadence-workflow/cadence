@@ -213,7 +213,7 @@ func (m *TaskStore) Put(task *types.ReplicationTask) {
 			// Some cluster(s) may be already past this, due to different fetch rates.
 		}
 
-		scope.RecordTimer(metrics.CacheSize, time.Duration(cacheByCluster.Count()))
+		scope.UpdateGauge(metrics.CacheSize, float64(cacheByCluster.Count()))
 	}
 }
 
@@ -228,7 +228,7 @@ func (m *TaskStore) Ack(cluster string, lastTaskID int64) error {
 	_, _ = cache.Ack(lastTaskID)
 
 	scope := m.scope.Tagged(metrics.SourceClusterTag(cluster))
-	scope.RecordTimer(metrics.CacheSize, time.Duration(cache.Count()))
+	scope.UpdateGauge(metrics.CacheSize, float64(cache.Count()))
 
 	return nil
 }
