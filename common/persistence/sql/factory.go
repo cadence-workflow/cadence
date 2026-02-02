@@ -112,7 +112,11 @@ func (f *Factory) NewDomainStore() (p.DomainStore, error) {
 
 // NewDomainAuditStore returns a domain audit store
 func (f *Factory) NewDomainAuditStore() (p.DomainAuditStore, error) {
-	return nil, nil
+	conn, err := f.dbConn.get()
+	if err != nil {
+		return nil, err
+	}
+	return newSQLDomainAuditStore(conn, f.logger, f.parser)
 }
 
 // NewExecutionStore returns an ExecutionStore for a given shardID

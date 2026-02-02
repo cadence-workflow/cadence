@@ -140,3 +140,13 @@ func TestPostgresSQLConfigPersistence(t *testing.T) {
 	s.TestBase.Setup()
 	suite.Run(t, s)
 }
+
+func TestPostgresSQLDomainAuditPersistence(t *testing.T) {
+	testflags.RequirePostgres(t)
+	s := new(pt.DomainAuditPersistenceSuite)
+	options, err := postgres.GetTestClusterOption()
+	assert.NoError(t, err)
+	s.TestBase = pt.NewTestBaseWithSQL(t, options)
+	s.TestBase.Setup()
+	suite.Run(t, s)
+}
