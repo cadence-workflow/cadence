@@ -30,6 +30,7 @@ import (
 
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -56,6 +57,7 @@ type TaskStore struct {
 	hydrator      taskHydrator
 	rateLimiter   quotas.Limiter
 	throttleRetry *backoff.ThrottleRetry
+	timeSource    clock.TimeSource
 
 	scope  metrics.Scope
 	logger log.Logger
@@ -82,6 +84,7 @@ func NewTaskStore(
 	hydrator taskHydrator,
 	budgetManager cache.Manager,
 	shardID int,
+	timeSource clock.TimeSource,
 ) *TaskStore {
 	cacheName := fmt.Sprintf("replication-cache-%d", shardID)
 
@@ -105,6 +108,7 @@ func NewTaskStore(
 		scope:       metricsClient.Scope(metrics.ReplicatorCacheManagerScope),
 		logger:      logger.WithTags(tag.ComponentReplicationCacheManager),
 		rateLimiter: quotas.NewDynamicRateLimiter(config.ReplicationTaskGenerationQPS.AsFloat64()),
+		timeSource:  timeSource,
 	}
 }
 
@@ -133,11 +137,11 @@ func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Ta
 
 	scope.IncCounter(metrics.CacheRequests)
 	// Keep timer (backwards compatible), dual-emit exponential histogram for migration.
-	cacheLatencyStart := time.Now()
+	cacheLatencyStart := m.timeSource.Now()
 	sw := scope.StartTimer(metrics.CacheLatency)
 	defer sw.Stop()
 	defer func() {
-		scope.ExponentialHistogram(metrics.ExponentialCacheLatency, time.Since(cacheLatencyStart))
+		scope.ExponentialHistogram(metrics.ExponentialCacheLatency, m.timeSource.Since(cacheLatencyStart))
 	}()
 
 	task := cacheForTargetCluster.Get(info.GetTaskID())
@@ -200,9 +204,9 @@ func (m *TaskStore) Put(task *types.ReplicationTask) {
 
 			// This will help debug which shard is full. Logger already has ShardID tag attached.
 			// Log only once a minute to not flood the logs.
-			if time.Since(m.lastLogTime) > time.Minute {
+			if m.timeSource.Since(m.lastLogTime) > time.Minute {
 				m.logger.Warn("Replication cache is full")
-				m.lastLogTime = time.Now()
+				m.lastLogTime = m.timeSource.Now()
 			}
 		case errors.Is(err, cache.ErrAlreadyAcked):
 			// No action, this is expected.

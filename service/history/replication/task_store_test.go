@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -242,7 +243,17 @@ func createTestTaskStoreWithBudgetManager(t *testing.T, domains domainCache, hyd
 		testlogger.New(t),
 	)
 
-	return NewTaskStore(&cfg, clusterMetadata, domains, metrics.NewNoopMetricsClient(), log.NewNoop(), hydrator, budgetManager, shardID)
+	return NewTaskStore(
+		&cfg,
+		clusterMetadata,
+		domains,
+		metrics.NewNoopMetricsClient(),
+		log.NewNoop(),
+		hydrator,
+		budgetManager,
+		shardID,
+		clock.NewRealTimeSource(),
+	)
 }
 
 type fakeDomainCache map[string]*cache.DomainCacheEntry
