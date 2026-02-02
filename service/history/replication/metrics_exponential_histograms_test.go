@@ -137,13 +137,7 @@ func (t *fakeTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, 
 
 func TestTaskAckManager_EmitsExponentialTaskLatencyHistogram(t *testing.T) {
 	ts := tally.NewTestScope("", nil)
-	mc := metrics.NewClient(ts, metrics.History, metrics.HistogramMigration{
-		// Emit both timer + histogram for these migration metrics.
-		Names: map[string]bool{
-			"task_latency":    true,
-			"task_latency_ns": true,
-		},
-	})
+	mc := metrics.NewClient(ts, metrics.History, metrics.HistogramMigration{})
 
 	mockedTS := clock.NewMockedTimeSourceAt(time.Unix(0, 0))
 	am := TaskAckManager{
@@ -166,12 +160,7 @@ func TestTaskAckManager_EmitsExponentialTaskLatencyHistogram(t *testing.T) {
 
 func TestTaskStore_EmitsExponentialCacheLatencyHistogram(t *testing.T) {
 	ts := tally.NewTestScope("", nil)
-	mc := metrics.NewClient(ts, metrics.History, metrics.HistogramMigration{
-		Names: map[string]bool{
-			"cache_latency":    true,
-			"cache_latency_ns": true,
-		},
-	})
+	mc := metrics.NewClient(ts, metrics.History, metrics.HistogramMigration{})
 
 	cluster := "cluster-a"
 	entry := cache.NewLocalDomainCacheEntryForTest(
