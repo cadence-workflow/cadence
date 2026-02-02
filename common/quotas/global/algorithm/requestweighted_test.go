@@ -24,8 +24,10 @@ package algorithm
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"math/rand"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -35,7 +37,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/multierr"
-	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
@@ -591,7 +592,7 @@ func TestConcurrent(t *testing.T) {
 					err := agg.Update(UpdateParams{ID: host, Load: updates, Elapsed: updateRate})
 					require.NoError(t, err)
 				} else {
-					_, err := agg.HostUsage(host, maps.Keys(updates))
+					_, err := agg.HostUsage(host, slices.Collect(maps.Keys(updates)))
 					require.NoError(t, err)
 				}
 			}
@@ -1022,7 +1023,7 @@ func BenchmarkNormalUse(b *testing.B) {
 		rounds = append(rounds, round{
 			host:    Identity(fmt.Sprintf("host %d", rand.Intn(hosts))),
 			load:    reqs,
-			keys:    maps.Keys(reqs),
+			keys:    slices.Collect(maps.Keys(reqs)),
 			elapsed: time.Duration(rand.Int63n(updateRate.Nanoseconds())),
 		})
 	}

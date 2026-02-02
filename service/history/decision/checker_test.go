@@ -23,7 +23,8 @@
 package decision
 
 import (
-	"sort"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
@@ -33,7 +34,6 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap/zaptest/observer"
-	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
@@ -812,7 +812,7 @@ func TestWorkflowSizeChecker_failWorkflowIfBlobSizeExceedsLimit(t *testing.T) {
 			assertLogsAndMetrics: func(t *testing.T, logs *observer.ObservedLogs, scope tally.TestScope) {
 				assert.Empty(t, logs.All())
 				// ensure metrics with the size is emitted.
-				timerData := maps.Values(scope.Snapshot().Timers())
+				timerData := slices.Collect(maps.Values(scope.Snapshot().Timers()))
 				assert.Len(t, timerData, 2)
 				assert.Equal(t, "test.event_blob_size", timerData[0].Name())
 			},
@@ -904,13 +904,13 @@ func TestWorkflowSizeChecker_failWorkflowSizeExceedsLimit(t *testing.T) {
 			assertLogsAndMetrics: func(t *testing.T, logs *observer.ObservedLogs, scope tally.TestScope) {
 				assert.Empty(t, logs.All())
 				// ensure metrics with the size is emitted.
-				timerData := maps.Values(scope.Snapshot().Timers())
+				timerData := slices.Collect(maps.Values(scope.Snapshot().Timers()))
 				assert.Len(t, timerData, 4)
 				timerNames := make([]string, 0, 4)
 				for _, timer := range timerData {
 					timerNames = append(timerNames, timer.Name())
 				}
-				sort.Strings(timerNames)
+				slices.Sort(timerNames)
 
 				// timers are duplicated for specific domain and domain: all
 				assert.Equal(t, []string{"test.history_count", "test.history_count", "test.history_size", "test.history_size"}, timerNames)
