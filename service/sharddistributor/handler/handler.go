@@ -123,6 +123,11 @@ func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string
 	minAssignedShards := math.MaxInt
 
 	for assignedExecutor, assignment := range state.ShardAssignments {
+		executorState, ok := state.Executors[assignedExecutor]
+		if !ok || executorState.Status != types.ExecutorStatusACTIVE {
+			continue
+		}
+
 		if len(assignment.AssignedShards) < minAssignedShards {
 			minAssignedShards = len(assignment.AssignedShards)
 			executorID = assignedExecutor

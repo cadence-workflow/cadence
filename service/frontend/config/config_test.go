@@ -79,7 +79,6 @@ func TestNewConfig(t *testing.T) {
 		"WorkflowTypeMaxLength":                             {dynamicproperties.WorkflowTypeMaxLength, 25},
 		"RequestIDMaxLength":                                {dynamicproperties.RequestIDMaxLength, 26},
 		"TaskListNameMaxLength":                             {dynamicproperties.TaskListNameMaxLength, 27},
-		"HistoryMgrNumConns":                                {dynamicproperties.FrontendHistoryMgrNumConns, 28},
 		"EnableAdminProtection":                             {dynamicproperties.EnableAdminProtection, true},
 		"AdminOperationToken":                               {dynamicproperties.AdminOperationToken, "token"},
 		"DisableListVisibilityByFilter":                     {dynamicproperties.DisableListVisibilityByFilter, false},

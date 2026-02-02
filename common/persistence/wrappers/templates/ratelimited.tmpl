@@ -1,9 +1,12 @@
 import (
 	"context"
 
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
+	"github.com/uber/cadence/common/types"
 )
 
 {{ $decorator := (printf "ratelimited%s" .Interface.Name) }}
@@ -14,6 +17,7 @@ type {{$decorator}} struct {
     rateLimiter  quotas.Limiter
     metricsClient metrics.Client
     datastoreName string
+    dc           *dynamicconfig.Collection
 }
 
 // New{{.Interface.Name}} creates a new instance of {{.Interface.Name}} with ratelimiter.
@@ -22,12 +26,14 @@ func New{{.Interface.Name}}(
     rateLimiter quotas.Limiter,
     metricsClient metrics.Client,
     datastoreName string,
+    dc *dynamicconfig.Collection,
 ) persistence.{{.Interface.Name}} {
     return &{{$decorator}}{
         wrapped: wrapped,
         rateLimiter: rateLimiter,
         metricsClient: metricsClient,
         datastoreName: datastoreName,
+        dc: dc,
     }
 }
 
@@ -38,7 +44,12 @@ func New{{.Interface.Name}}(
 		        scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
 		        scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	        }
+
 	        if ok := c.rateLimiter.Allow(); !ok {
+		        callerInfo := types.GetCallerInfoFromContext({{(index $method.Params 0).Name}})
+		        if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
+			        {{ $method.Pass "c.wrapped." }}
+		        }
 		        err = ErrPersistenceLimitExceeded
 		        return
             }
@@ -50,3 +61,19 @@ func New{{.Interface.Name}}(
            }
     {{end}}
 {{end}}
+
+func (c *{{$decorator}}) shouldBypassRateLimit(callerType types.CallerType) bool {
+	if c.dc == nil {
+		return false
+	}
+
+	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
+	for _, bypassType := range bypassCallerTypes {
+		if bypassTypeStr, ok := bypassType.(string); ok {
+			if types.ParseCallerType(bypassTypeStr) == callerType {
+				return true
+			}
+		}
+	}
+	return false
+}

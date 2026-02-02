@@ -267,7 +267,7 @@ func (n *namespaceShardToExecutor) watch() error {
 		// WithRequireLeader ensures that the etcd cluster has a leader
 		clientv3.WithRequireLeader(ctx),
 		etcdkeys.BuildExecutorsPrefix(n.etcdPrefix, n.namespace),
-		clientv3.WithPrefix(), clientv3.WithPrevKV(),
+		clientv3.WithPrefix(),
 	)
 
 	for {

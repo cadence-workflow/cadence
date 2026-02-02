@@ -232,7 +232,7 @@ func (s *TestBase) Setup() {
 	cfg := s.DefaultTestCluster.Config()
 	scope := tally.NewTestScope(service.History, make(map[string]string))
 	metricsClient := metrics.NewClient(scope, service.GetMetricsServiceIdx(service.History, s.Logger), metrics.HistogramMigration{})
-	factory := client.NewFactory(&cfg, nil, clusterName, metricsClient, s.Logger, &s.DynamicConfiguration, "test-host")
+	factory := client.NewFactory(&cfg, nil, clusterName, metricsClient, s.Logger, &s.DynamicConfiguration, "test-host", nil)
 
 	s.TaskMgr, err = factory.NewTaskManager()
 	s.fatalOnError("NewTaskManager", err)
@@ -1946,7 +1946,9 @@ func (s *TestBase) Publish(
 		}),
 	)
 	return throttleRetry.Do(ctx, func(ctx context.Context) error {
-		return s.DomainReplicationQueueMgr.EnqueueMessage(ctx, messagePayload)
+		return s.DomainReplicationQueueMgr.EnqueueMessage(ctx, &persistence.EnqueueMessageRequest{
+			MessagePayload: messagePayload,
+		})
 	})
 }
 
@@ -1962,7 +1964,14 @@ func (s *TestBase) GetReplicationMessages(
 	maxCount int,
 ) ([]*persistence.QueueMessage, error) {
 
-	return s.DomainReplicationQueueMgr.ReadMessages(ctx, lastMessageID, maxCount)
+	resp, err := s.DomainReplicationQueueMgr.ReadMessages(ctx, &persistence.ReadMessagesRequest{
+		LastMessageID: lastMessageID,
+		MaxCount:      maxCount,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Messages, nil
 }
 
 // UpdateAckLevel updates replication queue ack level
@@ -1972,14 +1981,21 @@ func (s *TestBase) UpdateAckLevel(
 	clusterName string,
 ) error {
 
-	return s.DomainReplicationQueueMgr.UpdateAckLevel(ctx, lastProcessedMessageID, clusterName)
+	return s.DomainReplicationQueueMgr.UpdateAckLevel(ctx, &persistence.UpdateAckLevelRequest{
+		MessageID:   lastProcessedMessageID,
+		ClusterName: clusterName,
+	})
 }
 
 // GetAckLevels returns replication queue ack levels
 func (s *TestBase) GetAckLevels(
 	ctx context.Context,
 ) (map[string]int64, error) {
-	return s.DomainReplicationQueueMgr.GetAckLevels(ctx)
+	resp, err := s.DomainReplicationQueueMgr.GetAckLevels(ctx, &persistence.GetAckLevelsRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return resp.AckLevels, nil
 }
 
 // PublishToDomainDLQ is a utility method to add messages to the domain DLQ
@@ -1999,7 +2015,9 @@ func (s *TestBase) PublishToDomainDLQ(
 		}),
 	)
 	return throttleRetry.Do(ctx, func(ctx context.Context) error {
-		return s.DomainReplicationQueueMgr.EnqueueMessageToDLQ(ctx, messagePayload)
+		return s.DomainReplicationQueueMgr.EnqueueMessageToDLQ(ctx, &persistence.EnqueueMessageToDLQRequest{
+			MessagePayload: messagePayload,
+		})
 	})
 }
 
@@ -2012,13 +2030,16 @@ func (s *TestBase) GetMessagesFromDomainDLQ(
 	pageToken []byte,
 ) ([]*persistence.QueueMessage, []byte, error) {
 
-	return s.DomainReplicationQueueMgr.ReadMessagesFromDLQ(
-		ctx,
-		firstMessageID,
-		lastMessageID,
-		pageSize,
-		pageToken,
-	)
+	resp, err := s.DomainReplicationQueueMgr.ReadMessagesFromDLQ(ctx, &persistence.ReadMessagesFromDLQRequest{
+		FirstMessageID: firstMessageID,
+		LastMessageID:  lastMessageID,
+		PageSize:       pageSize,
+		PageToken:      pageToken,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return resp.Messages, resp.NextPageToken, nil
 }
 
 // UpdateDomainDLQAckLevel updates domain dlq ack level
@@ -2028,21 +2049,32 @@ func (s *TestBase) UpdateDomainDLQAckLevel(
 	clusterName string,
 ) error {
 
-	return s.DomainReplicationQueueMgr.UpdateDLQAckLevel(ctx, lastProcessedMessageID, clusterName)
+	return s.DomainReplicationQueueMgr.UpdateDLQAckLevel(ctx, &persistence.UpdateDLQAckLevelRequest{
+		MessageID:   lastProcessedMessageID,
+		ClusterName: clusterName,
+	})
 }
 
 // GetDomainDLQAckLevel returns domain dlq ack level
 func (s *TestBase) GetDomainDLQAckLevel(
 	ctx context.Context,
 ) (map[string]int64, error) {
-	return s.DomainReplicationQueueMgr.GetDLQAckLevels(ctx)
+	resp, err := s.DomainReplicationQueueMgr.GetDLQAckLevels(ctx, &persistence.GetDLQAckLevelsRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return resp.AckLevels, nil
 }
 
 // GetDomainDLQSize returns domain dlq size
 func (s *TestBase) GetDomainDLQSize(
 	ctx context.Context,
 ) (int64, error) {
-	return s.DomainReplicationQueueMgr.GetDLQSize(ctx)
+	resp, err := s.DomainReplicationQueueMgr.GetDLQSize(ctx, &persistence.GetDLQSizeRequest{})
+	if err != nil {
+		return 0, err
+	}
+	return resp.Size, nil
 }
 
 // DeleteMessageFromDomainDLQ deletes one message from domain DLQ
@@ -2051,7 +2083,9 @@ func (s *TestBase) DeleteMessageFromDomainDLQ(
 	messageID int64,
 ) error {
 
-	return s.DomainReplicationQueueMgr.DeleteMessageFromDLQ(ctx, messageID)
+	return s.DomainReplicationQueueMgr.DeleteMessageFromDLQ(ctx, &persistence.DeleteMessageFromDLQRequest{
+		MessageID: messageID,
+	})
 }
 
 // RangeDeleteMessagesFromDomainDLQ deletes messages from domain DLQ
@@ -2061,7 +2095,10 @@ func (s *TestBase) RangeDeleteMessagesFromDomainDLQ(
 	lastMessageID int64,
 ) error {
 
-	return s.DomainReplicationQueueMgr.RangeDeleteMessagesFromDLQ(ctx, firstMessageID, lastMessageID)
+	return s.DomainReplicationQueueMgr.RangeDeleteMessagesFromDLQ(ctx, &persistence.RangeDeleteMessagesFromDLQRequest{
+		FirstMessageID: firstMessageID,
+		LastMessageID:  lastMessageID,
+	})
 }
 
 // GenerateTransferTaskIDs helper

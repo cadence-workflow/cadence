@@ -22,11 +22,8 @@ package task
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
-
-	"golang.org/x/exp/rand"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
@@ -50,13 +47,11 @@ type processorImpl struct {
 	priorityAssigner PriorityAssigner
 	taskProcessor    task.Processor
 	scheduler        task.Scheduler
-	newScheduler     task.Scheduler
 
-	status                    int32
-	logger                    log.Logger
-	metricsClient             metrics.Client
-	timeSource                clock.TimeSource
-	newSchedulerProbabilityFn dynamicproperties.IntPropertyFn
+	status        int32
+	logger        log.Logger
+	metricsClient metrics.Client
+	timeSource    clock.TimeSource
 }
 
 var (
@@ -81,82 +76,45 @@ func NewProcessor(
 			RetryPolicy: common.CreateTaskProcessingRetryPolicy(),
 		},
 	)
-	taskToChannelKeyFn := func(t task.PriorityTask) int {
-		return t.Priority()
-	}
-	channelKeyToWeightFn := func(priority int) int {
-		weights, err := dynamicproperties.ConvertDynamicConfigMapPropertyToIntMap(config.TaskSchedulerRoundRobinWeights())
-		if err != nil {
-			logger.Error("failed to convert dynamic config map to int map", tag.Error(err))
-			weights = dynamicproperties.DefaultTaskSchedulerRoundRobinWeights
+	taskToChannelKeyFn := func(t task.PriorityTask) DomainPriorityKey {
+		var domainID string
+		tt, ok := t.(Task)
+		if ok {
+			domainID = tt.GetDomainID()
+		} else {
+			logger.Error("incorrect task type for task scheduler, this should not happen, there must be a bug in our code")
 		}
-		weight, ok := weights[priority]
-		if !ok {
-			logger.Error("weights not found for task priority", tag.Dynamic("priority", priority), tag.Dynamic("weights", weights))
+		return DomainPriorityKey{
+			DomainID: domainID,
+			Priority: t.Priority(),
 		}
-		return weight
 	}
-	options, err := task.NewSchedulerOptions[int](
-		config.TaskSchedulerType(),
-		config.TaskSchedulerQueueSize(),
-		config.TaskSchedulerWorkerCount,
-		config.TaskSchedulerDispatcherCount(),
-		taskToChannelKeyFn,
-		channelKeyToWeightFn,
+	channelKeyToWeightFn := func(k DomainPriorityKey) int {
+		return getDomainPriorityWeight(logger, config, domainCache, k)
+	}
+	scheduler, err := task.NewWeightedRoundRobinTaskScheduler(
+		logger,
+		metricsClient,
+		timeSource,
+		taskProcessor,
+		&task.WeightedRoundRobinTaskSchedulerOptions[DomainPriorityKey]{
+			QueueSize:            config.TaskSchedulerQueueSize(),
+			DispatcherCount:      config.TaskSchedulerDispatcherCount(),
+			TaskToChannelKeyFn:   taskToChannelKeyFn,
+			ChannelKeyToWeightFn: channelKeyToWeightFn,
+		},
 	)
 	if err != nil {
 		return nil, err
 	}
-	scheduler, err := createTaskScheduler(options, logger, metricsClient, timeSource, taskProcessor)
-	if err != nil {
-		return nil, err
-	}
-	var newScheduler task.Scheduler
-	var newSchedulerProbabilityFn dynamicproperties.IntPropertyFn
-	if config.TaskSchedulerEnableMigration() {
-		taskToChannelKeyFn := func(t task.PriorityTask) DomainPriorityKey {
-			var domainID string
-			tt, ok := t.(Task)
-			if ok {
-				domainID = tt.GetDomainID()
-			} else {
-				logger.Error("incorrect task type for task scheduler, this should not happen, there must be a bug in our code")
-			}
-			return DomainPriorityKey{
-				DomainID: domainID,
-				Priority: t.Priority(),
-			}
-		}
-		channelKeyToWeightFn := func(k DomainPriorityKey) int {
-			return getDomainPriorityWeight(logger, config, domainCache, k)
-		}
-		newScheduler, err = task.NewWeightedRoundRobinTaskScheduler(
-			logger,
-			metricsClient,
-			timeSource,
-			taskProcessor,
-			&task.WeightedRoundRobinTaskSchedulerOptions[DomainPriorityKey]{
-				QueueSize:            config.TaskSchedulerQueueSize(),
-				DispatcherCount:      config.TaskSchedulerDispatcherCount(),
-				TaskToChannelKeyFn:   taskToChannelKeyFn,
-				ChannelKeyToWeightFn: channelKeyToWeightFn,
-			},
-		)
-		if err != nil {
-			return nil, err
-		}
-		newSchedulerProbabilityFn = config.TaskSchedulerMigrationRatio
-	}
 	return &processorImpl{
-		priorityAssigner:          priorityAssigner,
-		taskProcessor:             taskProcessor,
-		scheduler:                 scheduler,
-		newScheduler:              newScheduler,
-		status:                    common.DaemonStatusInitialized,
-		logger:                    logger,
-		metricsClient:             metricsClient,
-		timeSource:                timeSource,
-		newSchedulerProbabilityFn: newSchedulerProbabilityFn,
+		priorityAssigner: priorityAssigner,
+		taskProcessor:    taskProcessor,
+		scheduler:        scheduler,
+		status:           common.DaemonStatusInitialized,
+		logger:           logger,
+		metricsClient:    metricsClient,
+		timeSource:       timeSource,
 	}, nil
 }
 
@@ -167,9 +125,6 @@ func (p *processorImpl) Start() {
 
 	p.taskProcessor.Start()
 	p.scheduler.Start()
-	if p.newScheduler != nil {
-		p.newScheduler.Start()
-	}
 
 	p.logger.Info("Queue task processor started.")
 }
@@ -179,9 +134,6 @@ func (p *processorImpl) Stop() {
 		return
 	}
 
-	if p.newScheduler != nil {
-		p.newScheduler.Stop()
-	}
 	p.scheduler.Stop()
 	p.taskProcessor.Stop()
 
@@ -192,11 +144,6 @@ func (p *processorImpl) Submit(task Task) error {
 	if err := p.priorityAssigner.Assign(task); err != nil {
 		return err
 	}
-	if p.shouldUseNewScheduler() {
-		p.metricsClient.IncCounter(metrics.HistoryTaskSchedulerMigrationScope, metrics.TaskRequestsNewScheduler)
-		return p.newScheduler.Submit(task)
-	}
-	p.metricsClient.IncCounter(metrics.HistoryTaskSchedulerMigrationScope, metrics.TaskRequestsOldScheduler)
 	return p.scheduler.Submit(task)
 }
 
@@ -204,51 +151,7 @@ func (p *processorImpl) TrySubmit(task Task) (bool, error) {
 	if err := p.priorityAssigner.Assign(task); err != nil {
 		return false, err
 	}
-	if p.shouldUseNewScheduler() {
-		p.metricsClient.IncCounter(metrics.HistoryTaskSchedulerMigrationScope, metrics.TaskRequestsNewScheduler)
-		return p.newScheduler.TrySubmit(task)
-	}
-	p.metricsClient.IncCounter(metrics.HistoryTaskSchedulerMigrationScope, metrics.TaskRequestsOldScheduler)
 	return p.scheduler.TrySubmit(task)
-}
-
-func (p *processorImpl) shouldUseNewScheduler() bool {
-	if p.newScheduler == nil {
-		return false
-	}
-	return rand.Intn(100) < p.newSchedulerProbabilityFn()
-}
-
-func createTaskScheduler(
-	options *task.SchedulerOptions[int],
-	logger log.Logger,
-	metricsClient metrics.Client,
-	timeSource clock.TimeSource,
-	taskProcessor task.Processor,
-) (task.Scheduler, error) {
-	var scheduler task.Scheduler
-	var err error
-	switch options.SchedulerType {
-	case task.SchedulerTypeFIFO:
-		scheduler = task.NewFIFOTaskScheduler(
-			logger,
-			metricsClient,
-			options.FIFOSchedulerOptions,
-		)
-	case task.SchedulerTypeWRR:
-		scheduler, err = task.NewWeightedRoundRobinTaskScheduler(
-			logger,
-			metricsClient,
-			timeSource,
-			taskProcessor,
-			options.WRRSchedulerOptions,
-		)
-	default:
-		// the scheduler type has already been verified when initializing the processor
-		panic(fmt.Sprintf("Unknown task scheduler type, %v", options.SchedulerType))
-	}
-
-	return scheduler, err
 }
 
 func getDomainPriorityWeight(

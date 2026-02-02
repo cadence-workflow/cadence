@@ -33,13 +33,13 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/olivere/elastic"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/time/rate"
 
 	"github.com/uber/cadence/.gen/go/indexer"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/elasticsearch"
 	es "github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/elasticsearch/esql"
-	"github.com/uber/cadence/common/tokenbucket"
 	"github.com/uber/cadence/tools/common/commoncli"
 )
 
@@ -209,7 +209,11 @@ func AdminDelete(c *cli.Context) error {
 	}
 	batchSize := c.Int(FlagBatchSize)
 	rps := c.Int(FlagRPS)
-	ratelimiter := tokenbucket.New(rps, clock.NewRealTimeSource())
+	if rps <= 0 {
+		err = fmt.Errorf("FlagRPS must be positive value but got %v", rps)
+		return commoncli.Problem("Invalid RPS value: ", err)
+	}
+	ratelimiter := clock.NewRatelimiter(rate.Limit(rps), rps)
 
 	// This is only executed from the CLI by an admin user
 	// #nosec
@@ -225,11 +229,11 @@ func AdminDelete(c *cli.Context) error {
 
 	bulkRequest := esClient.Bulk()
 	bulkConductFn := func() error {
-		ok, waitTime := ratelimiter.TryConsume(1)
-		if !ok {
-			time.Sleep(waitTime)
+		// Wait for rate limiter token to become available
+		if err = ratelimiter.Wait(c.Context); err != nil {
+			return err
 		}
-		_, err := bulkRequest.Do(c.Context)
+		_, err = bulkRequest.Do(c.Context)
 		if err != nil {
 			return commoncli.Problem(fmt.Sprintf("Bulk failed, current processed row %d", i), err)
 		}
@@ -250,7 +254,7 @@ func AdminDelete(c *cli.Context) error {
 			Version(math.MaxInt64)
 		bulkRequest.Add(req)
 		if i%batchSize == batchSize-1 {
-			if err := bulkConductFn(); err != nil {
+			if err = bulkConductFn(); err != nil {
 				return err
 			}
 		}

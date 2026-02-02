@@ -50,6 +50,8 @@ type (
 		GetPartitionConfig(domainID string, taskList types.TaskList, taskListType int) *types.TaskListPartitionConfig
 		// UpdatePartitionConfig updates the partition configuration for a task list
 		UpdatePartitionConfig(domainID string, taskList types.TaskList, taskListType int, config *types.TaskListPartitionConfig)
+		// InvalidatePartitionCache invalidates the cached partition configuration for a task list
+		InvalidatePartitionCache(domainID string, taskList types.TaskList, taskListType int)
 		// GetMetricsClient returns the metrics client
 		GetMetricsClient() metrics.Client
 		// GetLogger returns the logger
@@ -195,6 +197,19 @@ func (p *partitionConfigProviderImpl) GetMetricsClient() metrics.Client {
 
 func (p *partitionConfigProviderImpl) GetLogger() log.Logger {
 	return p.logger
+}
+
+func (p *partitionConfigProviderImpl) InvalidatePartitionCache(domainID string, taskList types.TaskList, taskListType int) {
+	if taskList.GetKind() != types.TaskListKindNormal {
+		return
+	}
+	taskListKey := key{
+		domainID:     domainID,
+		taskListName: taskList.Name,
+		taskListType: taskListType,
+	}
+	p.configCache.Delete(taskListKey)
+	p.logger.Info("tasklist partition config cache invalidated", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.Name), tag.WorkflowTaskListType(taskListType))
 }
 
 func (p *partitionConfigProviderImpl) getCachedPartitionConfig(domainID string, taskList types.TaskList, taskListType int) *syncedTaskListPartitionConfig {

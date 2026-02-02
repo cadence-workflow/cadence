@@ -24,20 +24,24 @@ import (
 	"context"
 )
 
-type CallerType int
+const (
+	CallerTypeHeaderName = "cadence-caller-type" // need to define it here due to circular dependency with common
+)
+
+type CallerType string
 
 const (
-	CallerTypeUnknown CallerType = iota
-	CallerTypeCLI
-	CallerTypeUI
-	CallerTypeSDK
-	CallerTypeInternal
+	CallerTypeUnknown  CallerType = "unknown"
+	CallerTypeCLI      CallerType = "cli"
+	CallerTypeUI       CallerType = "ui"
+	CallerTypeSDK      CallerType = "sdk"
+	CallerTypeInternal CallerType = "internal"
 )
 
 // CallerInfo captures request source information for observability and resource management.
 //
 // Intent:
-//   - Track the source/origin/actor of API requests (CLI, UI, SDK, internal service calls)
+//   - Track the source/origin/actor of API requests (CLI, UI, SDK, internal service calls, etc.)
 //   - Enable client-specific behavior and resource allocation decisions
 //   - Support future extensibility for additional caller metadata (e.g., identity, version)
 //
@@ -56,15 +60,12 @@ type CallerInfo struct {
 }
 
 // NewCallerInfo creates a new CallerInfo
-func NewCallerInfo(callerType CallerType) *CallerInfo {
-	return &CallerInfo{callerType: callerType}
+func NewCallerInfo(callerType CallerType) CallerInfo {
+	return CallerInfo{callerType: callerType}
 }
 
-// GetCallerType returns the CallerType, or CallerTypeUnknown if CallerInfo is nil
-func (c *CallerInfo) GetCallerType() CallerType {
-	if c == nil {
-		return CallerTypeUnknown
-	}
+// GetCallerType returns the CallerType
+func (c CallerInfo) GetCallerType() CallerType {
 	return c.callerType
 }
 
@@ -73,49 +74,48 @@ type callerInfoContextKey string
 const callerInfoKey = callerInfoContextKey("caller-info")
 
 func (c CallerType) String() string {
-	switch c {
-	case CallerTypeCLI:
-		return "cli"
-	case CallerTypeUI:
-		return "ui"
-	case CallerTypeSDK:
-		return "sdk"
-	case CallerTypeInternal:
-		return "internal"
-	default:
-		return "unknown"
-	}
+	return string(c)
 }
 
 // ParseCallerType converts a string to CallerType
+// Returns CallerTypeUnknown if s is empty
 func ParseCallerType(s string) CallerType {
-	switch s {
-	case "cli":
-		return CallerTypeCLI
-	case "ui":
-		return CallerTypeUI
-	case "sdk":
-		return CallerTypeSDK
-	case "internal":
-		return CallerTypeInternal
-	default:
+	if s == "" {
 		return CallerTypeUnknown
 	}
+	return CallerType(s)
 }
 
 // ContextWithCallerInfo adds CallerInfo to context
-func ContextWithCallerInfo(ctx context.Context, callerInfo *CallerInfo) context.Context {
-	if callerInfo == nil {
-		return ctx
-	}
+func ContextWithCallerInfo(ctx context.Context, callerInfo CallerInfo) context.Context {
 	return context.WithValue(ctx, callerInfoKey, callerInfo)
 }
 
-// CallerInfoFromContext retrieves CallerInfo from context, returns nil if not set
-func CallerInfoFromContext(ctx context.Context) *CallerInfo {
+// GetCallerInfoFromContext retrieves CallerInfo from context
+// Returns CallerInfo with CallerTypeUnknown if not set in context
+func GetCallerInfoFromContext(ctx context.Context) CallerInfo {
 	if ctx == nil {
-		return nil
+		return NewCallerInfo(CallerTypeUnknown)
 	}
-	callerInfo, _ := ctx.Value(callerInfoKey).(*CallerInfo)
-	return callerInfo
+	if callerInfo, ok := ctx.Value(callerInfoKey).(CallerInfo); ok {
+		return callerInfo
+	}
+	return NewCallerInfo(CallerTypeUnknown)
+}
+
+// NewCallerInfoFromTransportHeaders extracts CallerInfo from transport headers
+// This is used by middleware to extract caller information from incoming requests
+func NewCallerInfoFromTransportHeaders(headers interface{ Get(string) (string, bool) }) CallerInfo {
+	callerTypeStr, _ := headers.Get(CallerTypeHeaderName)
+
+	// Future: add more header extractions here
+	// version, _ := headers.Get("cadence-client-version")
+	// identity, _ := headers.Get("cadence-client-identity")
+
+	return NewCallerInfo(ParseCallerType(callerTypeStr))
+}
+
+// GetContextWithCallerInfoFromHeaders extracts CallerInfo from transport headers and adds it to the context
+func GetContextWithCallerInfoFromHeaders(ctx context.Context, headers interface{ Get(string) (string, bool) }) context.Context {
+	return ContextWithCallerInfo(ctx, NewCallerInfoFromTransportHeaders(headers))
 }

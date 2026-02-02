@@ -20,6 +20,42 @@ import (
 	executorclient "github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
+// MockManagerRegistry is a mock of ManagerRegistry interface.
+type MockManagerRegistry struct {
+	ctrl     *gomock.Controller
+	recorder *MockManagerRegistryMockRecorder
+	isgomock struct{}
+}
+
+// MockManagerRegistryMockRecorder is the mock recorder for MockManagerRegistry.
+type MockManagerRegistryMockRecorder struct {
+	mock *MockManagerRegistry
+}
+
+// NewMockManagerRegistry creates a new mock instance.
+func NewMockManagerRegistry(ctrl *gomock.Controller) *MockManagerRegistry {
+	mock := &MockManagerRegistry{ctrl: ctrl}
+	mock.recorder = &MockManagerRegistryMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockManagerRegistry) EXPECT() *MockManagerRegistryMockRecorder {
+	return m.recorder
+}
+
+// UnregisterManager mocks base method.
+func (m *MockManagerRegistry) UnregisterManager(mgr Manager) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UnregisterManager", mgr)
+}
+
+// UnregisterManager indicates an expected call of UnregisterManager.
+func (mr *MockManagerRegistryMockRecorder) UnregisterManager(mgr any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnregisterManager", reflect.TypeOf((*MockManagerRegistry)(nil).UnregisterManager), mgr)
+}
+
 // MockManager is a mock of Manager interface.
 type MockManager struct {
 	ctrl     *gomock.Controller

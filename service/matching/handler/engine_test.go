@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
@@ -1490,4 +1491,202 @@ func Test_registerDomainFailoverCallback(t *testing.T) {
 		assert.Equal(t, int64(3), engine.failoverNotificationVersion)
 	})
 
+}
+
+func TestRefreshWorkflowTasks(t *testing.T) {
+	testCases := []struct {
+		name              string
+		ctx               context.Context
+		domainID          string
+		workflowExecution *types.WorkflowExecution
+		mockSetup         func(*history.MockClient)
+		wantErr           bool
+		assertErr         func(*testing.T, error)
+	}{
+		{
+			name:     "success",
+			ctx:      context.Background(),
+			domainID: "test-domain-id",
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+			},
+			mockSetup: func(mockHistoryService *history.MockClient) {
+				mockHistoryService.EXPECT().RefreshWorkflowTasks(
+					gomock.Any(),
+					&types.HistoryRefreshWorkflowTasksRequest{
+						DomainUIID: "test-domain-id",
+						Request: &types.RefreshWorkflowTasksRequest{
+							Execution: &types.WorkflowExecution{
+								WorkflowID: "test-workflow-id",
+								RunID:      "test-run-id",
+							},
+						},
+					},
+				).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:     "entity not exists error - returns nil",
+			ctx:      context.Background(),
+			domainID: "test-domain-id",
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+			},
+			mockSetup: func(mockHistoryService *history.MockClient) {
+				mockHistoryService.EXPECT().RefreshWorkflowTasks(
+					gomock.Any(),
+					gomock.Any(),
+				).Return(&types.EntityNotExistsError{Message: "workflow not found"})
+			},
+			wantErr: false,
+		},
+		{
+			name:     "internal service error",
+			ctx:      context.Background(),
+			domainID: "test-domain-id",
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+			},
+			mockSetup: func(mockHistoryService *history.MockClient) {
+				mockHistoryService.EXPECT().RefreshWorkflowTasks(
+					gomock.Any(),
+					gomock.Any(),
+				).Return(&types.InternalServiceError{Message: "internal error"})
+			},
+			wantErr: true,
+			assertErr: func(t *testing.T, err error) {
+				var serviceErr *types.InternalServiceError
+				assert.ErrorAs(t, err, &serviceErr)
+				assert.Equal(t, "internal error", serviceErr.Message)
+			},
+		},
+		{
+			name:     "generic error propagated",
+			ctx:      context.Background(),
+			domainID: "test-domain-id",
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+			},
+			mockSetup: func(mockHistoryService *history.MockClient) {
+				mockHistoryService.EXPECT().RefreshWorkflowTasks(
+					gomock.Any(),
+					gomock.Any(),
+				).Return(errors.New("some error"))
+			},
+			wantErr: true,
+			assertErr: func(t *testing.T, err error) {
+				assert.Equal(t, "some error", err.Error())
+			},
+		},
+		{
+			name:     "workflow execution already completed error",
+			ctx:      context.Background(),
+			domainID: "test-domain-id",
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+			},
+			mockSetup: func(mockHistoryService *history.MockClient) {
+				mockHistoryService.EXPECT().RefreshWorkflowTasks(
+					gomock.Any(),
+					gomock.Any(),
+				).Return(&types.WorkflowExecutionAlreadyCompletedError{Message: "workflow already completed"})
+			},
+			wantErr: true,
+			assertErr: func(t *testing.T, err error) {
+				var completedErr *types.WorkflowExecutionAlreadyCompletedError
+				assert.ErrorAs(t, err, &completedErr)
+				assert.Equal(t, "workflow already completed", completedErr.Message)
+			},
+		},
+		{
+			name:     "context canceled",
+			ctx:      func() context.Context { ctx, cancel := context.WithCancel(context.Background()); cancel(); return ctx }(),
+			domainID: "test-domain-id",
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+			},
+			mockSetup: func(mockHistoryService *history.MockClient) {
+				mockHistoryService.EXPECT().RefreshWorkflowTasks(
+					gomock.Any(),
+					gomock.Any(),
+				).Return(context.Canceled)
+			},
+			wantErr: true,
+			assertErr: func(t *testing.T, err error) {
+				assert.Equal(t, context.Canceled, err)
+			},
+		},
+		{
+			name:     "empty domain id",
+			ctx:      context.Background(),
+			domainID: "",
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+			},
+			mockSetup: func(mockHistoryService *history.MockClient) {
+				mockHistoryService.EXPECT().RefreshWorkflowTasks(
+					gomock.Any(),
+					&types.HistoryRefreshWorkflowTasksRequest{
+						DomainUIID: "",
+						Request: &types.RefreshWorkflowTasksRequest{
+							Execution: &types.WorkflowExecution{
+								WorkflowID: "test-workflow-id",
+								RunID:      "test-run-id",
+							},
+						},
+					},
+				).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:              "nil workflow execution",
+			ctx:               context.Background(),
+			domainID:          "test-domain-id",
+			workflowExecution: nil,
+			mockSetup: func(mockHistoryService *history.MockClient) {
+				mockHistoryService.EXPECT().RefreshWorkflowTasks(
+					gomock.Any(),
+					&types.HistoryRefreshWorkflowTasksRequest{
+						DomainUIID: "test-domain-id",
+						Request: &types.RefreshWorkflowTasksRequest{
+							Execution: nil,
+						},
+					},
+				).Return(nil)
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			mockHistoryService := history.NewMockClient(mockCtrl)
+			tc.mockSetup(mockHistoryService)
+
+			engine := &matchingEngineImpl{
+				historyService: mockHistoryService,
+			}
+
+			err := engine.refreshWorkflowTasks(tc.ctx, tc.domainID, tc.workflowExecution)
+
+			if tc.wantErr {
+				require.Error(t, err)
+				if tc.assertErr != nil {
+					tc.assertErr(t, err)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

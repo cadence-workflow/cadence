@@ -96,6 +96,10 @@ func TestHandleErrKnowErrors(t *testing.T) {
 			err:  &types.StickyWorkerUnavailableError{},
 		},
 		{
+			name: "ReadOnlyPartitionError",
+			err:  &types.ReadOnlyPartitionError{},
+		},
+		{
 			name: "TaskListNotOwnedByHostError",
 			err:  &cadence_errors.TaskListNotOwnedByHostError{},
 		},

@@ -1,0 +1,16 @@
+enablearchival: false
+clusterno: 0
+messagingclientconfig:
+  usemock: true
+historyconfig:
+  numhistoryshards: 4
+  numhistoryhosts: 1
+matchingconfig:
+  nummatchinghosts: 1
+workerconfig:
+  enablearchiver: false
+  enablereplicator: false
+  enableindexer: false
+dynamicclientconfig:
+  filepath: "testdata/dynamicconfig/integration_test.yaml"
+  pollInterval: "10s"

@@ -284,6 +284,10 @@ func (t *transferStandbyTaskExecutor) processCloseExecution(
 		searchAttr := executionInfo.SearchAttributes
 		headers := getWorkflowHeaders(startEvent)
 		isCron := len(executionInfo.CronSchedule) > 0
+		cronSchedule := ""
+		if isCron {
+			cronSchedule = executionInfo.CronSchedule
+		}
 		updateTimestamp := t.shard.GetTimeSource().Now()
 
 		lastWriteVersion, err := mutableState.GetLastWriteVersion()
@@ -300,6 +304,16 @@ func (t *transferStandbyTaskExecutor) processCloseExecution(
 			return nil, err
 		}
 		numClusters := (int16)(len(domainEntry.GetReplicationConfig().Clusters))
+
+		executionStatus := getWorkflowExecutionStatus(mutableState, completionEvent)
+
+		// Calculate ScheduledExecutionTime
+		scheduledExecutionTimestamp := startEvent.GetTimestamp()
+		if startEvent.WorkflowExecutionStartedEventAttributes != nil &&
+			startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds() > 0 {
+			scheduledExecutionTimestamp = startEvent.GetTimestamp() +
+				int64(startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds())*int64(time.Second)
+		}
 
 		// DO NOT REPLY TO PARENT
 		// since event replication should be done by active cluster
@@ -318,11 +332,14 @@ func (t *transferStandbyTaskExecutor) processCloseExecution(
 			visibilityMemo,
 			executionInfo.TaskList,
 			isCron,
+			cronSchedule,
 			numClusters,
 			updateTimestamp.UnixNano(),
 			searchAttr,
 			headers,
 			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+			executionStatus,
+			scheduledExecutionTimestamp,
 		)
 	}
 
@@ -526,6 +543,10 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 	executionTimestamp := getWorkflowExecutionTimestamp(mutableState, startEvent)
 	visibilityMemo := getWorkflowMemo(executionInfo.Memo)
 	isCron := len(executionInfo.CronSchedule) > 0
+	cronSchedule := ""
+	if isCron {
+		cronSchedule = executionInfo.CronSchedule
+	}
 	updateTimestamp := t.shard.GetTimeSource().Now()
 
 	domainEntry, err := t.shard.GetDomainCache().GetDomainByID(transferTask.GetDomainID())
@@ -536,6 +557,8 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 
 	searchAttr := copySearchAttributes(executionInfo.SearchAttributes)
 	headers := getWorkflowHeaders(startEvent)
+
+	executionStatus, scheduledExecutionTimestamp := determineExecutionStatus(startEvent, mutableState)
 
 	if isRecordStart {
 		workflowStartedScope.IncCounter(metrics.WorkflowStartedCount)
@@ -557,6 +580,9 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 			searchAttr,
 			headers,
 			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+			cronSchedule,
+			executionStatus,
+			scheduledExecutionTimestamp,
 		)
 	}
 	return t.upsertWorkflowExecution(
@@ -577,6 +603,9 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 		searchAttr,
 		headers,
 		executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+		cronSchedule,
+		executionStatus,
+		scheduledExecutionTimestamp,
 	)
 
 }
