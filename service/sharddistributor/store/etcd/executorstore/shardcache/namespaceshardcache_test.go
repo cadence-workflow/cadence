@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
@@ -159,6 +160,8 @@ func TestNamespaceShardToExecutor_watch_watchChanErrors(t *testing.T) {
 	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, clock.NewRealTimeSource())
 	require.NoError(t, err)
 
+	triggerChan := make(chan struct{}, 1)
+
 	// Test Case #1
 	// Test received compact revision error from watch channel
 	{
@@ -168,7 +171,7 @@ func TestNamespaceShardToExecutor_watch_watchChanErrors(t *testing.T) {
 			}
 		}()
 
-		err = e.watch()
+		err = e.watch(triggerChan)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "etcdserver: mvcc: required revision has been compacted")
 	}
@@ -177,10 +180,145 @@ func TestNamespaceShardToExecutor_watch_watchChanErrors(t *testing.T) {
 	// Test closed watch channel
 	{
 		close(watchChan)
-		err = e.watch()
+		err = e.watch(triggerChan)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "watch channel closed")
 	}
+}
+
+func TestNamespaceShardToExecutor_watch_triggerChBlocking(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := testlogger.New(t)
+	mockClient := etcdclient.NewMockClient(ctrl)
+	stopCh := make(chan struct{})
+	testPrefix := "/test-prefix"
+	testNamespace := "test-namespace"
+
+	watchChan := make(chan clientv3.WatchResponse)
+	mockClient.EXPECT().
+		Watch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(watchChan)
+
+	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, clock.NewRealTimeSource())
+	require.NoError(t, err)
+
+	// Create a triggerCh with buffer size 1, but never read from it
+	triggerChan := make(chan struct{}, 1)
+
+	executorKey := etcdkeys.BuildExecutorKey(testPrefix, testNamespace, "executor-1", etcdkeys.ExecutorAssignedStateKey)
+
+	// Start watch in a goroutine
+	watchDone := make(chan error, 1)
+	go func() {
+		watchDone <- e.watch(triggerChan)
+	}()
+
+	// Send many events - the loop should not block even though triggerCh is full
+	for i := 0; i < 100; i++ {
+		select {
+		case watchChan <- clientv3.WatchResponse{
+			Events: []*clientv3.Event{
+				{
+					Type: clientv3.EventTypePut,
+					Kv: &mvccpb.KeyValue{
+						Key: []byte(executorKey),
+					},
+				},
+			},
+		}:
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("watch loop is stuck - could not send event to watchChan")
+		}
+	}
+
+	// Close stopCh to exit the watch loop
+	close(stopCh)
+
+	select {
+	case err := <-watchDone:
+		assert.NoError(t, err)
+	case <-time.After(1 * time.Second):
+		t.Fatal("watch loop did not exit after stopCh was closed")
+	}
+}
+
+func TestNamespaceShardToExecutor_namespaceRefreshLoop_triggersRefresh(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := testlogger.New(t)
+	mockClient := etcdclient.NewMockClient(ctrl)
+	timeSource := clock.NewMockedTimeSource()
+	stopCh := make(chan struct{})
+	testPrefix := "/test-prefix"
+	testNamespace := "test-namespace"
+	executorID := "executor-1"
+
+	watchChan := make(chan clientv3.WatchResponse)
+	mockClient.EXPECT().
+		Watch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(watchChan)
+
+	executorPrefix := etcdkeys.BuildExecutorsPrefix(testPrefix, testNamespace)
+	executorKey := etcdkeys.BuildMetadataKey(
+		testPrefix,
+		testNamespace,
+		executorID,
+		"metadata-key",
+	)
+
+	// Mock Get call for refresh
+	mockClient.EXPECT().
+		Get(gomock.Any(), executorPrefix, gomock.Any()).
+		Return(
+			&clientv3.GetResponse{Kvs: []*mvccpb.KeyValue{
+				{
+					Key:   []byte(executorKey),
+					Value: []byte("metadata-value"),
+				},
+			}},
+			nil,
+		)
+
+	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, timeSource)
+	require.NoError(t, err)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		e.namespaceRefreshLoop()
+	}()
+
+	// Send a watch event with ExecutorAssignedStateKey to trigger refresh
+	go func() {
+		watchChan <- clientv3.WatchResponse{
+			Events: []*clientv3.Event{
+				{
+					Type: clientv3.EventTypePut,
+					Kv: &mvccpb.KeyValue{
+						Key: []byte(executorKey),
+					},
+				},
+			},
+		}
+	}()
+
+	require.Eventually(t, func() bool {
+		e.RLock()
+		defer e.RUnlock()
+		_, ok := e.shardOwners[executorID]
+		return ok
+	}, time.Second, 1*time.Millisecond, "expected executor to be added to shardOwners")
+
+	// Close stopCh to exit the loop
+	close(stopCh)
+	wg.Wait()
 }
 
 func TestNamespaceShardToExecutor_namespaceRefreshLoop_watchError(t *testing.T) {
@@ -209,9 +347,12 @@ func TestNamespaceShardToExecutor_namespaceRefreshLoop_watchError(t *testing.T) 
 		Return(watchChanClosed)
 
 	// mock for third watch call that will be used when stopCh is closed
+	// maybe called or not if stopCh is closed before retry interval
 	mockClient.EXPECT().
 		Watch(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(make(chan clientv3.WatchResponse))
+		Return(make(chan clientv3.WatchResponse)).
+		MinTimes(0).
+		MaxTimes(1)
 
 	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, timeSource)
 	require.NoError(t, err)
