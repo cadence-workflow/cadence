@@ -347,25 +347,19 @@ func TestNamespaceShardToExecutor_ExecutorStatistics(t *testing.T) {
 	assert.Equal(t, updatedStats, statsFromCacheAfterUpdate)
 
 	nonExistentStats, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), "non-existent-executor")
-	require.NoError(t, err) // No error, just empty map
-	assert.Empty(t, nonExistentStats)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, store.ErrExecutorNotFound)
+	assert.Nil(t, nonExistentStats)
 
 	statsKey := etcdkeys.BuildExecutorKey(testCluster.EtcdPrefix, testCluster.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
 	_, err = testCluster.Client.Delete(context.Background(), statsKey)
 	require.NoError(t, err)
 
-	// Wait for stats to be deleted via watch event
+	// Wait for stats to be deleted via watch event, subsequent calls should error
 	assert.Eventually(t, func() bool {
-		stats, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
-		if err != nil {
-			return false
-		}
-		return len(stats) == 0
-	}, 5*time.Second, 50*time.Millisecond, "stats should be deleted via watch")
-
-	deletedStats, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
-	require.NoError(t, err)
-	assert.Empty(t, deletedStats)
+		_, err := namespaceShardToExecutor.GetExecutorStatistics(context.Background(), executorID)
+		return err != nil && assert.ErrorIs(t, err, store.ErrExecutorNotFound)
+	}, 5*time.Second, 50*time.Millisecond, "GetExecutorStatistics should return an error after deletion")
 }
 
 // putExecutorStatisticsInEtcd is a helper to directly put compressed executor statistics into etcd.
