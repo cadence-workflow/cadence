@@ -22,7 +22,7 @@ type ShardProcessorParams struct {
 
 type shardProcessorImpl struct {
 	shardID       string
-	taskListsLock sync.RWMutex           // locks mutation of taskLists
+	taskListsLock *sync.RWMutex          // locks mutation of taskLists
 	taskLists     map[Identifier]Manager // Convert to LRU cache
 	Status        atomic.Int32
 	reportLock    sync.RWMutex
@@ -38,12 +38,13 @@ func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
 		return nil, err
 	}
 	shardprocessor := &shardProcessorImpl{
-		shardID:     params.ShardID,
-		taskLists:   params.TaskLists,
-		shardReport: executorclient.ShardReport{},
-		reportTime:  params.TimeSource.Now(),
-		reportTTL:   params.ReportTTL,
-		timeSource:  params.TimeSource,
+		shardID:       params.ShardID,
+		taskListsLock: params.TaskListsLock,
+		taskLists:     params.TaskLists,
+		shardReport:   executorclient.ShardReport{},
+		reportTime:    params.TimeSource.Now(),
+		reportTTL:     params.ReportTTL,
+		timeSource:    params.TimeSource,
 	}
 	shardprocessor.SetShardStatus(types.ShardStatusREADY)
 	shardprocessor.shardReport = executorclient.ShardReport{
@@ -61,10 +62,19 @@ func (sp *shardProcessorImpl) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop is noop since the shard lifecycle management is still handled by the logic in matching.
-// In the future the executor client will stop the shard processor modelling the tasklist when a shard is not assigned to this executor anymore.
+// Stop is stopping the tasklist when a shard is not assigned to this executor anymore.
 func (sp *shardProcessorImpl) Stop() {
-
+	sp.taskListsLock.RLock()
+	var toShutDown []Manager
+	for _, tlMgr := range sp.taskLists {
+		if tlMgr.TaskListID().name == sp.shardID {
+			toShutDown = append(toShutDown, tlMgr)
+		}
+	}
+	sp.taskListsLock.RUnlock()
+	for _, tlMgr := range toShutDown {
+		tlMgr.Stop()
+	}
 }
 
 func (sp *shardProcessorImpl) GetShardReport() executorclient.ShardReport {
@@ -92,7 +102,7 @@ func (sp *shardProcessorImpl) getShardLoad() float64 {
 	var load float64
 
 	// We assign a shard only based on the task list name
-	// so task lists of differt task type (decisions/activities), of different kind (normal, sticky, ephemeral) or partitions
+	// so task lists of different task type (decisions/activities), of different kind (normal, sticky, ephemeral) or partitions
 	// will be assigned all to the same matching instance (executor)
 	// we need to sum the rps for each of the tasklist to calculate the load.
 	for _, tlMgr := range sp.taskLists {

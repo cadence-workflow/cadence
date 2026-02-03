@@ -279,7 +279,7 @@ func makeFactoryWithMetrics(t *testing.T, withMetrics bool) Factory {
 		},
 	}
 
-	return NewFactory(cfg, qpsFn, "test cluster", met, logger, pdc, "")
+	return NewFactory(cfg, qpsFn, "test cluster", met, logger, pdc, "", nil)
 }
 
 func mockDatastore(t *testing.T, fact Factory, store storeType) *MockDataStoreFactory {

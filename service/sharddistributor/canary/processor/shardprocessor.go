@@ -2,6 +2,7 @@ package processor
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ const (
 func NewShardProcessor(shardID string, timeSource clock.TimeSource, logger *zap.Logger) *ShardProcessor {
 	return &ShardProcessor{
 		shardID:    shardID,
+		shardLoad:  shardLoadFromID(shardID),
 		timeSource: timeSource,
 		logger:     logger,
 		stopChan:   make(chan struct{}),
@@ -41,6 +43,7 @@ func NewShardProcessorConstructor(loadProvider replay.LoadProvider) func(string,
 // ShardProcessor is a processor for a shard.
 type ShardProcessor struct {
 	shardID      string
+	shardLoad    float64
 	timeSource   clock.TimeSource
 	logger       *zap.Logger
 	stopChan     chan struct{}
@@ -60,6 +63,8 @@ func (p *ShardProcessor) GetShardReport() executorclient.ShardReport {
 		} else {
 			load = 0
 		}
+	} else {
+		load = p.shardLoad // We get a load from shardID
 	}
 	return executorclient.ShardReport{
 		ShardLoad: load,
@@ -98,4 +103,13 @@ func (p *ShardProcessor) process() {
 			p.logger.Info("Processing shard", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps))
 		}
 	}
+}
+
+// shardLoadFromID returns a shard load based on the shard ID.
+// If the shard ID is not a valid integer, it returns 1.0.
+func shardLoadFromID(shardID string) float64 {
+	if parsed, err := strconv.Atoi(shardID); err == nil && parsed > 0 {
+		return float64(parsed)
+	}
+	return 1.0
 }

@@ -45,8 +45,9 @@ type spectatorImpl struct {
 	stateMu      sync.RWMutex
 	shardToOwner map[string]*ShardOwner
 
-	// WaitGroup to ensure first state is received before allowing queries
-	firstStateWG sync.WaitGroup
+	// Channel to signal when first state is received
+	firstStateCh   chan struct{}
+	firstStateOnce sync.Once
 }
 
 func (s *spectatorImpl) Start(ctx context.Context) error {
@@ -67,6 +68,10 @@ func (s *spectatorImpl) Stop() {
 	if s.cancel != nil {
 		s.cancel()
 	}
+	// Close the firstStateCh to unblock any goroutines waiting for first state
+	s.firstStateOnce.Do(func() {
+		close(s.firstStateCh)
+	})
 	s.stopWG.Wait()
 }
 
@@ -90,10 +95,13 @@ func (s *spectatorImpl) watchLoop() {
 			}
 
 			s.logger.Error("Failed to create stream, retrying", tag.Error(err), tag.ShardNamespace(s.namespace))
-			s.timeSource.Sleep(backoff.JitDuration(streamRetryInterval, streamRetryJitterCoeff))
+			if err := s.timeSource.SleepWithContext(s.ctx, backoff.JitDuration(streamRetryInterval, streamRetryJitterCoeff)); err != nil {
+				s.logger.Info("Shutting down waiting to retry stream creation, exiting watch loop", tag.ShardNamespace(s.namespace))
+				return // Context cancelled during sleep
+			}
 			continue
 		}
-
+		s.logger.Info("Stream created, entering receive loop", tag.ShardNamespace(s.namespace))
 		s.receiveLoop(stream)
 
 		if s.ctx.Err() != nil {
@@ -103,7 +111,9 @@ func (s *spectatorImpl) watchLoop() {
 
 		// Server shutdown or network issue - recreate stream (load balancer will route to new server)
 		s.logger.Info("Stream ended, reconnecting", tag.ShardNamespace(s.namespace))
-		s.timeSource.Sleep(backoff.JitDuration(streamRetryInterval, streamRetryJitterCoeff))
+		if err := s.timeSource.SleepWithContext(s.ctx, backoff.JitDuration(streamRetryInterval, streamRetryJitterCoeff)); err != nil {
+			return // Context cancelled during sleep
+		}
 	}
 }
 
@@ -154,9 +164,11 @@ func (s *spectatorImpl) handleResponse(response *types.WatchNamespaceStateRespon
 	s.shardToOwner = shardToOwner
 	s.stateMu.Unlock()
 
-	// Signal that first state has been received
+	// Signal that first state has been received (only once)
 	if isFirstState {
-		s.firstStateWG.Done()
+		s.firstStateOnce.Do(func() {
+			close(s.firstStateCh)
+		})
 	}
 
 	s.logger.Debug("Received namespace state update",
@@ -169,7 +181,13 @@ func (s *spectatorImpl) handleResponse(response *types.WatchNamespaceStateRespon
 // If not found in cache, it falls back to querying the shard distributor directly.
 func (s *spectatorImpl) GetShardOwner(ctx context.Context, shardKey string) (*ShardOwner, error) {
 	// Wait for first state to be received to avoid flooding shard distributor on startup
-	s.firstStateWG.Wait()
+	select {
+	case <-s.firstStateCh:
+		// First state received, continue
+	case <-ctx.Done():
+		// Context cancelled or timed out before first state received
+		return nil, fmt.Errorf("context cancelled while waiting for first state: %w", ctx.Err())
+	}
 
 	// Check cache first
 	s.stateMu.RLock()

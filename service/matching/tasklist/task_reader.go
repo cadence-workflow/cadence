@@ -417,6 +417,9 @@ func (tr *taskReader) newDispatchContext(isolationGroup string, isolationDuratio
 			return context.WithTimeout(tr.cancelCtx, timeout)
 		}
 		if domainEntry.IsActiveIn(tr.clusterMetadata.GetCurrentClusterName()) {
+			tr.logger.Debug("domain is active in the current cluster, setting timeout",
+				tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			)
 			// if the domain is active in the current cluster, set the timeout
 			return context.WithTimeout(tr.cancelCtx, timeout)
 		}

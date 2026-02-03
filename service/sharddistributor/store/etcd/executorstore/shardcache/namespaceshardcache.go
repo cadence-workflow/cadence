@@ -218,9 +218,11 @@ func (n *namespaceShardToExecutor) refreshExecutorStatisticsCache(ctx context.Co
 		if err := common.DecompressAndUnmarshal(resp.Kvs[0].Value, &stats); err != nil {
 			return fmt.Errorf("parse executor shard statistics: %w", err)
 		}
+		n.executorStatistics.stats[executorID] = stats
+	} else {
+		return store.ErrExecutorNotFound
 	}
 
-	n.executorStatistics.stats[executorID] = stats
 	return nil
 }
 
@@ -267,7 +269,7 @@ func (n *namespaceShardToExecutor) watch() error {
 		// WithRequireLeader ensures that the etcd cluster has a leader
 		clientv3.WithRequireLeader(ctx),
 		etcdkeys.BuildExecutorsPrefix(n.etcdPrefix, n.namespace),
-		clientv3.WithPrefix(), clientv3.WithPrevKV(),
+		clientv3.WithPrefix(),
 	)
 
 	for {
@@ -275,12 +277,12 @@ func (n *namespaceShardToExecutor) watch() error {
 		case <-n.stopCh:
 			return nil
 		case watchResp, ok := <-watchChan:
-			if !ok {
-				return fmt.Errorf("watch channel closed")
-			}
-
 			if err := watchResp.Err(); err != nil {
 				return fmt.Errorf("watch response: %w", err)
+			}
+
+			if !ok {
+				return fmt.Errorf("watch channel closed")
 			}
 
 			if n.executorStateChanges(watchResp.Events) {

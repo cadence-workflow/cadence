@@ -179,9 +179,9 @@ func TestDomainReplicationTaskExecutor_Execute(t *testing.T) {
 					Return(&persistence.GetMetadataResponse{NotificationVersion: 123}, nil).
 					Times(1)
 
-				// Mock GetDomain to simulate domain fetch before update
+				// Mock GetDomain to simulate domain fetch before update (using ID)
 				mockDomainManager.EXPECT().
-					GetDomain(gomock.Any(), &persistence.GetDomainRequest{Name: "existingDomainName"}).
+					GetDomain(gomock.Any(), &persistence.GetDomainRequest{ID: "existingDomainID"}).
 					Return(&persistence.GetDomainResponse{
 						Info:              &persistence.DomainInfo{ID: "existingDomainID", Name: "existingDomainName"},
 						Config:            &persistence.DomainConfig{},
@@ -629,6 +629,7 @@ func TestHandleDomainUpdateReplicationTask(t *testing.T) {
 		{
 			name: "GetDomain Returns EntityNotExistsError - Triggers Domain Creation",
 			task: &types.DomainTaskAttributes{
+				ID: "nonexistentDomainID",
 				Info: &types.DomainInfo{
 					Name: "nonexistentDomain",
 				},
@@ -637,7 +638,7 @@ func TestHandleDomainUpdateReplicationTask(t *testing.T) {
 			setup: func(mockDomainManager *persistence.MockDomainManager, mockAuditManager *persistence.MockDomainAuditManager) {
 				mockDomainManager.EXPECT().
 					GetDomain(gomock.Any(), &persistence.GetDomainRequest{
-						Name: "nonexistentDomain",
+						ID: "nonexistentDomainID",
 					}).
 					Return(nil, &types.EntityNotExistsError{}).AnyTimes()
 
@@ -647,13 +648,9 @@ func TestHandleDomainUpdateReplicationTask(t *testing.T) {
 					AnyTimes()
 
 				mockDomainManager.EXPECT().
-					CreateDomain(gomock.Any(), &types.DomainTaskAttributes{
-						Info: &types.DomainInfo{
-							Name: "nonexistentDomain",
-						},
-					}).
+					CreateDomain(gomock.Any(), gomock.Any()).
 					Return(&persistence.CreateDomainResponse{
-						ID: "nonexistentDomain",
+						ID: "nonexistentDomainID",
 					}, nil).
 					AnyTimes()
 			},

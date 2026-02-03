@@ -88,6 +88,67 @@ func TestMultiStageRateLimitingMultipleDomains(t *testing.T) {
 	check(" after refill")
 }
 
+func TestMultiStageRateLimiterWait(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	cases := []struct {
+		name        string
+		policy      Policy
+		info        Info
+		expectedErr error
+	}{
+		{
+			name:        "both allow",
+			policy:      newFixedRpsMultiStageRateLimiter(t, 2, 1),
+			info:        Info{Domain: defaultDomain},
+			expectedErr: nil,
+		},
+		{
+			name:        "global blocks",
+			policy:      newFixedRpsMultiStageRateLimiter(t, 0, 1),
+			info:        Info{Domain: defaultDomain},
+			expectedErr: clock.ErrCannotWait,
+		},
+		{
+			name:        "domain blocks",
+			policy:      newFixedRpsMultiStageRateLimiter(t, 2, 0),
+			info:        Info{Domain: defaultDomain},
+			expectedErr: clock.ErrCannotWait,
+		},
+		{
+			name:        "both block",
+			policy:      newFixedRpsMultiStageRateLimiter(t, 0, 0),
+			info:        Info{Domain: defaultDomain},
+			expectedErr: clock.ErrCannotWait,
+		},
+		{
+			name:        "empty domain uses global only - allow",
+			policy:      newFixedRpsMultiStageRateLimiter(t, 1, 0),
+			info:        Info{Domain: ""},
+			expectedErr: nil,
+		},
+		{
+			name:        "empty domain uses global only - block",
+			policy:      newFixedRpsMultiStageRateLimiter(t, 0, 0),
+			info:        Info{Domain: ""},
+			expectedErr: clock.ErrCannotWait,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := tc.policy
+			err := policy.Wait(ctx, tc.info)
+			if tc.expectedErr != nil {
+				assert.ErrorIs(t, err, tc.expectedErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func BenchmarkMultiStageRateLimiter(b *testing.B) {
 	policy := newFixedRpsMultiStageRateLimiter(b, defaultRps, defaultRps)
 	for n := 0; n < b.N; n++ {

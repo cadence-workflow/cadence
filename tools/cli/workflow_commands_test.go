@@ -2579,6 +2579,79 @@ func Test_DescribeWorkflow_Errors(t *testing.T) {
 	assert.ErrorContains(t, err, fmt.Sprintf("%s is required", FlagWorkflowID))
 }
 
+func Test_RefreshWorkflowTasks(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupMock   func(*frontend.MockClient)
+		args        []clitest.CliArgument
+		errContains string
+	}{
+		{
+			name:        "missing domain",
+			setupMock:   func(_ *frontend.MockClient) {},
+			args:        []clitest.CliArgument{},
+			errContains: "Required flag not found",
+		},
+		{
+			name:      "missing workflowID",
+			setupMock: func(_ *frontend.MockClient) {},
+			args: []clitest.CliArgument{
+				clitest.StringArgument(FlagDomain, "test-domain"),
+			},
+			errContains: "Required flag not found",
+		},
+		{
+			name: "success",
+			setupMock: func(client *frontend.MockClient) {
+				client.EXPECT().RefreshWorkflowTasks(gomock.Any(), &types.RefreshWorkflowTasksRequest{
+					Domain: "test-domain",
+					Execution: &types.WorkflowExecution{
+						WorkflowID: "test-workflow-id",
+						RunID:      "test-run-id",
+					},
+				}).Return(nil)
+			},
+			args: []clitest.CliArgument{
+				clitest.StringArgument(FlagDomain, "test-domain"),
+				clitest.StringArgument(FlagWorkflowID, "test-workflow-id"),
+				clitest.StringArgument(FlagRunID, "test-run-id"),
+			},
+			errContains: "",
+		},
+		{
+			name: "api error",
+			setupMock: func(client *frontend.MockClient) {
+				client.EXPECT().RefreshWorkflowTasks(gomock.Any(), gomock.Any()).
+					Return(errors.New("api error"))
+			},
+			args: []clitest.CliArgument{
+				clitest.StringArgument(FlagDomain, "test-domain"),
+				clitest.StringArgument(FlagWorkflowID, "test-workflow-id"),
+				clitest.StringArgument(FlagRunID, "test-run-id"),
+			},
+			errContains: "Refresh workflow tasks failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			serverFrontendClient := frontend.NewMockClient(mockCtrl)
+			app := NewCliApp(&clientFactoryMock{
+				serverFrontendClient: serverFrontendClient,
+			})
+			tt.setupMock(serverFrontendClient)
+			ctx := clitest.NewCLIContext(t, app, tt.args...)
+			err := RefreshWorkflowTasks(ctx)
+			if tt.errContains == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tt.errContains)
+			}
+		})
+	}
+}
+
 func Test_ObserveHistory_MissingFlags(t *testing.T) {
 	app := NewCliApp(&clientFactoryMock{})
 	set := flag.NewFlagSet("test", 0)

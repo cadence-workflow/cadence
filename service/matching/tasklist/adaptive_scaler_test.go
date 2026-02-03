@@ -34,6 +34,7 @@ import (
 
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/clock"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
@@ -67,7 +68,7 @@ func setupMocksForAdaptiveScaler(t *testing.T, taskListID *Identifier) (*adaptiv
 	mockTimeSource := clock.NewMockedTimeSourceAt(time.Now())
 	mockMatchingClient := matching.NewMockClient(ctrl)
 	dynamicClient := dynamicconfig.NewInMemoryClient()
-	cfg := newTaskListConfig(taskListID, config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "test-host", func() []string { return nil }), "test-domain")
+	cfg := newTaskListConfig(taskListID, config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "test-host", commonConfig.RPC{}, func() []string { return nil }), "test-domain")
 
 	deps := &mockAdaptiveScalerDeps{
 		id:                 taskListID,

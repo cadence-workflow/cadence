@@ -63,3 +63,23 @@ func TestShardProcessor_Start_Process_Stop(t *testing.T) {
 	// Assert that the processor has processed at least once
 	assert.Greater(t, processor.processSteps, 0)
 }
+
+func Test_shardLoadFromID(t *testing.T) {
+	tests := []struct {
+		shardID string
+		want    float64
+	}{
+		{"0", 1.0},
+		{"shard-1", 1.0},
+		{"42", 42.0},
+		{"999", 999.0},
+		{"", 1.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.shardID, func(t *testing.T) {
+			got := shardLoadFromID(tt.shardID)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

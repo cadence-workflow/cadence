@@ -50,6 +50,7 @@ func TestElector_Run(t *testing.T) {
 		close(finished)
 		return nil
 	})
+	election.EXPECT().Cleanup(gomock.Any()).Return(nil)
 
 	leaderStore := store.NewMockElector(ctrl)
 	leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(election, nil)
@@ -228,6 +229,7 @@ func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runP
 
 	election := store.NewMockElection(ctrl)
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
+	election.EXPECT().Cleanup(gomock.Any()).Return(nil)
 	election.EXPECT().Done().Return(electionCh)
 
 	leaderStore := store.NewMockElector(ctrl)
@@ -308,6 +310,7 @@ func TestOnLeader_Error(t *testing.T) {
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
 	// Expect resignation after onLeader failure
 	election.EXPECT().Resign(gomock.Any()).Return(nil)
+	election.EXPECT().Cleanup(gomock.Any()).Return(nil)
 
 	leaderStore := store.NewMockElector(ctrl)
 	leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(election, nil)

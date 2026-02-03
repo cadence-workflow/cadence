@@ -301,10 +301,10 @@ func (mr *MockDataStoreFactoryMockRecorder) NewHistoryStore() *gomock.Call {
 }
 
 // NewQueue mocks base method.
-func (m *MockDataStoreFactory) NewQueue(queueType persistence.QueueType) (persistence.Queue, error) {
+func (m *MockDataStoreFactory) NewQueue(queueType persistence.QueueType) (persistence.QueueStore, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewQueue", queueType)
-	ret0, _ := ret[0].(persistence.Queue)
+	ret0, _ := ret[0].(persistence.QueueStore)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

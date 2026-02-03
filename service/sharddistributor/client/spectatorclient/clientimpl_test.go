@@ -26,13 +26,13 @@ func TestWatchLoopBasicFlow(t *testing.T) {
 	mockStream := sharddistributor.NewMockWatchNamespaceStateClient(ctrl)
 
 	spectator := &spectatorImpl{
-		namespace:  "test-ns",
-		client:     mockClient,
-		logger:     log.NewNoop(),
-		scope:      tally.NoopScope,
-		timeSource: clock.NewRealTimeSource(),
+		namespace:    "test-ns",
+		client:       mockClient,
+		logger:       log.NewNoop(),
+		scope:        tally.NoopScope,
+		timeSource:   clock.NewRealTimeSource(),
+		firstStateCh: make(chan struct{}),
 	}
-	spectator.firstStateWG.Add(1)
 
 	// Expect stream creation
 	mockClient.EXPECT().
@@ -70,7 +70,7 @@ func TestWatchLoopBasicFlow(t *testing.T) {
 	defer spectator.Stop()
 
 	// Wait for first state
-	spectator.firstStateWG.Wait()
+	<-spectator.firstStateCh
 
 	// Query shard owner
 	owner, err := spectator.GetShardOwner(context.Background(), "shard-1")
@@ -91,13 +91,13 @@ func TestGetShardOwner_CacheMiss_FallbackToRPC(t *testing.T) {
 	mockStream := sharddistributor.NewMockWatchNamespaceStateClient(ctrl)
 
 	spectator := &spectatorImpl{
-		namespace:  "test-ns",
-		client:     mockClient,
-		logger:     log.NewNoop(),
-		scope:      tally.NoopScope,
-		timeSource: clock.NewRealTimeSource(),
+		namespace:    "test-ns",
+		client:       mockClient,
+		logger:       log.NewNoop(),
+		scope:        tally.NoopScope,
+		timeSource:   clock.NewRealTimeSource(),
+		firstStateCh: make(chan struct{}),
 	}
-	spectator.firstStateWG.Add(1)
 
 	// Setup stream
 	mockClient.EXPECT().
@@ -142,7 +142,7 @@ func TestGetShardOwner_CacheMiss_FallbackToRPC(t *testing.T) {
 	spectator.Start(context.Background())
 	defer spectator.Stop()
 
-	spectator.firstStateWG.Wait()
+	<-spectator.firstStateCh
 
 	// Cache hit
 	owner, err := spectator.GetShardOwner(context.Background(), "shard-1")
@@ -166,13 +166,13 @@ func TestStreamReconnection(t *testing.T) {
 	mockTimeSource := clock.NewMockedTimeSource()
 
 	spectator := &spectatorImpl{
-		namespace:  "test-ns",
-		client:     mockClient,
-		logger:     log.NewNoop(),
-		scope:      tally.NoopScope,
-		timeSource: mockTimeSource,
+		namespace:    "test-ns",
+		client:       mockClient,
+		logger:       log.NewNoop(),
+		scope:        tally.NoopScope,
+		timeSource:   mockTimeSource,
+		firstStateCh: make(chan struct{}),
 	}
-	spectator.firstStateWG.Add(1)
 
 	// First stream fails immediately
 	mockClient.EXPECT().
@@ -208,5 +208,31 @@ func TestStreamReconnection(t *testing.T) {
 	mockTimeSource.BlockUntil(1) // Wait for 1 goroutine to be blocked in Sleep
 	mockTimeSource.Advance(2 * time.Second)
 
-	spectator.firstStateWG.Wait()
+	<-spectator.firstStateCh
+}
+
+func TestGetShardOwner_TimeoutBeforeFirstState(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctrl := gomock.NewController(t)
+	mockClient := sharddistributor.NewMockClient(ctrl)
+
+	spectator := &spectatorImpl{
+		namespace:    "test-ns",
+		client:       mockClient,
+		logger:       log.NewNoop(),
+		scope:        tally.NoopScope,
+		timeSource:   clock.NewRealTimeSource(),
+		firstStateCh: make(chan struct{}),
+	}
+
+	// Create a context with a short timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+	defer cancel()
+
+	// Try to get shard owner before first state is received
+	// Should timeout and return an error
+	_, err := spectator.GetShardOwner(ctx, "shard-1")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "context cancelled while waiting for first state")
 }

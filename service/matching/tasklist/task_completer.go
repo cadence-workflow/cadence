@@ -97,6 +97,11 @@ func (tc *taskCompleterImpl) CompleteTaskIfStarted(ctx context.Context, task *In
 		}
 
 		if domainEntry.IsActiveIn(tc.clusterMetadata.GetCurrentClusterName()) {
+			tc.logger.Debug("Domain is active in the current cluster, completing task",
+				tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+				tag.WorkflowID(task.Event.WorkflowID),
+				tag.WorkflowRunID(task.Event.RunID),
+			)
 			return errDomainIsActive
 		}
 

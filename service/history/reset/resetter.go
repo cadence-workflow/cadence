@@ -24,6 +24,7 @@ package reset
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
@@ -221,7 +222,7 @@ func (r *workflowResetterImpl) prepareResetWorkflow(
 		return nil, err
 	}
 
-	if err := r.failInflightActivity(resetMutableState, resetReason); err != nil {
+	if err := r.failInflightActivity(resetMutableState.GetExecutionInfo().StartTimestamp, resetMutableState, resetReason); err != nil {
 		return nil, err
 	}
 
@@ -381,6 +382,7 @@ func (r *workflowResetterImpl) replayResetWorkflow(
 }
 
 func (r *workflowResetterImpl) failInflightActivity(
+	now time.Time,
 	mutableState execution.MutableState,
 	terminateReason string,
 ) error {
@@ -389,6 +391,12 @@ func (r *workflowResetterImpl) failInflightActivity(
 		switch ai.StartedID {
 		case constants.EmptyEventID:
 			// activity not started, noop
+			// override the activity time now
+			ai.ScheduledTime = now
+			ai.TimerTaskStatus = execution.TimerTaskStatusNone
+			if err := mutableState.UpdateActivity(ai); err != nil {
+				return err
+			}
 		case constants.TransientEventID:
 			// activity is started (with retry policy)
 			// should not encounter this case when rebuilding mutable state

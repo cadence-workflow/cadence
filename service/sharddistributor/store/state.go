@@ -76,3 +76,12 @@ type ShardOwner struct {
 	ExecutorID string
 	Metadata   map[string]string
 }
+
+// CountExecutorsByStatus returns a map of executor status to the count of executors with that status
+func (ns *NamespaceState) CountExecutorsByStatus() map[types.ExecutorStatus]int {
+	counts := make(map[types.ExecutorStatus]int)
+	for _, executor := range ns.Executors {
+		counts[executor.Status]++
+	}
+	return counts
+}

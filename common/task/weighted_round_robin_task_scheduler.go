@@ -66,16 +66,21 @@ func NewWeightedRoundRobinTaskScheduler[K comparable](
 	processor Processor,
 	options *WeightedRoundRobinTaskSchedulerOptions[K],
 ) (Scheduler, error) {
+	metricsScope := metricsClient.Scope(metrics.TaskSchedulerScope)
 	scheduler := &weightedRoundRobinTaskSchedulerImpl[K]{
 		status: common.DaemonStatusInitialized,
-		pool: NewWeightedRoundRobinChannelPool[K, PriorityTask](logger, timeSource, WeightedRoundRobinChannelPoolOptions{
-			BufferSize:              options.QueueSize,
-			IdleChannelTTLInSeconds: defaultIdleChannelTTLInSeconds,
-		}),
+		pool: NewWeightedRoundRobinChannelPool[K, PriorityTask](
+			logger,
+			metricsScope,
+			timeSource,
+			WeightedRoundRobinChannelPoolOptions{
+				BufferSize:              options.QueueSize,
+				IdleChannelTTLInSeconds: defaultIdleChannelTTLInSeconds,
+			}),
 		shutdownCh:   make(chan struct{}),
 		notifyCh:     make(chan struct{}, 1),
 		logger:       logger,
-		metricsScope: metricsClient.Scope(metrics.TaskSchedulerScope),
+		metricsScope: metricsScope,
 		options:      options,
 		processor:    processor,
 	}

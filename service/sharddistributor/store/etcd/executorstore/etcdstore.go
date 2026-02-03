@@ -3,7 +3,6 @@ package executorstore
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=executorstore_mock.go ExecutorStore
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -333,17 +332,13 @@ func (s *executorStoreImpl) Subscribe(ctx context.Context, namespace string) (<-
 	watchPrefix := etcdkeys.BuildExecutorsPrefix(s.prefix, namespace)
 	go func() {
 		defer close(revisionChan)
-		watchChan := s.client.Watch(ctx, watchPrefix, clientv3.WithPrefix(), clientv3.WithPrevKV())
+		watchChan := s.client.Watch(ctx, watchPrefix, clientv3.WithPrefix())
 		for watchResp := range watchChan {
 			if err := watchResp.Err(); err != nil {
 				return
 			}
 			isSignificantChange := false
 			for _, event := range watchResp.Events {
-				if event.IsModify() && bytes.Equal(event.Kv.Value, event.PrevKv.Value) {
-					continue // Value is unchanged, ignore this event.
-				}
-
 				if !event.IsCreate() && !event.IsModify() {
 					isSignificantChange = true
 					break
@@ -545,6 +540,10 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 			state.AssignedShards[shardID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
 		}
 
+		// Update the last updated timestamp.
+		now := s.timeSource.Now().UTC()
+		state.LastUpdated = etcdtypes.Time(now)
+
 		// Compress new state value
 		newStateValue, err := json.Marshal(state)
 		if err != nil {
@@ -587,7 +586,6 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 				return fmt.Errorf("get shard statistics: %w", err)
 			}
 
-			now := s.timeSource.Now().UTC()
 			executorShardStats := make(map[string]etcdtypes.ShardStatistics)
 			if len(statsResp.Kvs) > 0 {
 				if err := common.DecompressAndUnmarshal(statsResp.Kvs[0].Value, &executorShardStats); err != nil {
@@ -661,6 +659,38 @@ func (s *executorStoreImpl) DeleteExecutors(ctx context.Context, namespace strin
 
 	if len(ops) == 0 {
 		return nil
+	}
+
+	nativeTxn := s.client.Txn(ctx)
+	guardedTxn, err := guard(nativeTxn)
+	if err != nil {
+		return fmt.Errorf("apply transaction guard: %w", err)
+	}
+	etcdGuardedTxn, ok := guardedTxn.(clientv3.Txn)
+	if !ok {
+		return fmt.Errorf("guard function returned invalid transaction type")
+	}
+
+	etcdGuardedTxn = etcdGuardedTxn.Then(ops...)
+	resp, err := etcdGuardedTxn.Commit()
+	if err != nil {
+		return fmt.Errorf("commit executor deletion: %w", err)
+	}
+	if !resp.Succeeded {
+		return fmt.Errorf("transaction failed, leadership may have changed")
+	}
+	return nil
+}
+
+func (s *executorStoreImpl) DeleteAssignedStates(ctx context.Context, namespace string, executorIDs []string, guard store.GuardFunc) error {
+	if len(executorIDs) == 0 {
+		return nil
+	}
+	var ops []clientv3.Op
+
+	for _, executorID := range executorIDs {
+		executorIDPrefix := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, etcdkeys.ExecutorAssignedStateKey)
+		ops = append(ops, clientv3.OpDelete(executorIDPrefix, clientv3.WithPrefix()))
 	}
 
 	nativeTxn := s.client.Txn(ctx)

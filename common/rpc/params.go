@@ -70,7 +70,7 @@ func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Coll
 		return Params{}, err
 	}
 
-	listenIP, err := getListenIP(serviceConfig.RPC)
+	listenIP, err := GetListenIP(serviceConfig.RPC)
 	if err != nil {
 		return Params{}, fmt.Errorf("get listen IP: %v", err)
 	}
@@ -170,7 +170,7 @@ func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Coll
 		OutboundTLS:      outboundTLS,
 		InboundMiddleware: yarpc.InboundMiddleware{
 			// order matters: ForwardPartitionConfigMiddleware must be applied after ClientPartitionConfigMiddleware
-			Unary: yarpc.UnaryInboundMiddleware(&InboundMetricsMiddleware{}, &ClientPartitionConfigMiddleware{}, &ForwardPartitionConfigMiddleware{}),
+			Unary: yarpc.UnaryInboundMiddleware(&InboundMetricsMiddleware{}, &CallerInfoMiddleware{}, &ClientPartitionConfigMiddleware{}, &ForwardPartitionConfigMiddleware{}),
 		},
 		OutboundMiddleware: yarpc.OutboundMiddleware{
 			Unary: yarpc.UnaryOutboundMiddleware(&HeaderForwardingMiddleware{
@@ -210,7 +210,9 @@ func getForwardingRules(dc *dynamicconfig.Collection) ([]config.HeaderRule, erro
 	return forwardingRules, nil
 }
 
-func getListenIP(config config.RPC) (net.IP, error) {
+// GetListenIP returns the IP address to bind/listen on based on RPC config
+// It respects bindOnLocalHost, bindOnIP, or falls back to auto-detection
+func GetListenIP(config config.RPC) (net.IP, error) {
 	if config.BindOnLocalHost && len(config.BindOnIP) > 0 {
 		return nil, fmt.Errorf("bindOnLocalHost and bindOnIP are mutually exclusive")
 	}

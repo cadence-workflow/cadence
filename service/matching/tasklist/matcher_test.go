@@ -41,6 +41,7 @@ import (
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
@@ -72,7 +73,7 @@ func TestMatcherSuite(t *testing.T) {
 func (t *MatcherTestSuite) SetupTest() {
 	t.controller = gomock.NewController(t.T())
 	t.client = matching.NewMockClient(t.controller)
-	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", func() []string { return nil })
+	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, func() []string { return nil })
 	cfg.TaskDispatchRPSTTL = 0
 	t.taskList = NewTestTaskListID(t.T(), uuid.New(), constants.ReservedTaskListPrefix+"tl0/1", persistence.TaskListTypeDecision)
 	tlCfg := newTaskListConfig(t.taskList, cfg, testDomainName)
@@ -661,6 +662,33 @@ func (t *MatcherTestSuite) TestOffer_RateLimited() {
 	matched, err := t.matcher.Offer(ctx, task)
 
 	t.ErrorIs(err, ErrTasklistThrottled)
+	t.False(matched)
+}
+
+func (t *MatcherTestSuite) TestOfferOrTimeout_RateLimited() {
+	t.matcher.limiter = clock.NewRatelimiter(0, 0)
+	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", false, &types.ActivityTaskDispatchInfo{}, "")
+
+	ctx := context.Background()
+
+	matched, err := t.matcher.OfferOrTimeout(ctx, time.Now(), task)
+
+	t.ErrorIs(err, ErrTasklistThrottled)
+	t.False(matched)
+}
+
+func (t *MatcherTestSuite) TestOfferOrTimeout_ForwardedNotRateLimited() {
+	// Forwarded tasks should not be rate limited
+	t.matcher.limiter = clock.NewRatelimiter(0, 0)
+	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "forwarded-from", false, &types.ActivityTaskDispatchInfo{}, "")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	// Should timeout instead of being rate limited since forwarded tasks bypass rate limiting
+	matched, err := t.matcher.OfferOrTimeout(ctx, time.Now(), task)
+
+	t.NoError(err)
 	t.False(matched)
 }
 

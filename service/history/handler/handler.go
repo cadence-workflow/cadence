@@ -406,6 +406,7 @@ func (h *handlerImpl) RecordDecisionTaskStarted(
 			tag.Error(err1),
 			tag.WorkflowID(recordRequest.WorkflowExecution.GetWorkflowID()),
 			tag.WorkflowRunID(runID),
+			tag.WorkflowDomainName(domainID),
 			tag.WorkflowRunID(recordRequest.WorkflowExecution.GetRunID()),
 			tag.WorkflowScheduleID(recordRequest.GetScheduleID()),
 		)

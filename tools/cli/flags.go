@@ -110,6 +110,7 @@ const (
 	FlagPrintDateTime                  = "print_datetime"
 	FlagPrintMemo                      = "print_memo"
 	FlagPrintSearchAttr                = "print_search_attr"
+	FlagPrintCron                      = "print_cron"
 	FlagPrintJSON                      = "print_json" // Deprecated: use --format json
 	FlagDescription                    = "description"
 	FlagOwnerEmail                     = "owner_email"
@@ -570,6 +571,11 @@ func getCommonFlagsForVisibility() []cli.Flag {
 			Name:    FlagPrintSearchAttr,
 			Aliases: []string{"psa"},
 			Usage:   "Print search attributes",
+		},
+		&cli.BoolFlag{
+			Name:    FlagPrintCron,
+			Aliases: []string{"pcr"},
+			Usage:   "Print cron schedule and scheduled execution time",
 		},
 		&cli.BoolFlag{
 			Name:    FlagPrintFullyDetail,
