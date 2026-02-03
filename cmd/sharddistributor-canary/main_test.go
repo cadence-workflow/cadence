@@ -17,5 +17,7 @@ func TestDependenciesAreSatisfied(t *testing.T) {
 		defaultNumExecutors,
 		defaultNumShardCreators,
 		defaultShardCreationInterval,
+		defaultNumSpectators,
+		defaultNumSpectators,
 	)))
 }

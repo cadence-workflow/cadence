@@ -13,10 +13,20 @@ type CanaryConfig struct {
 	// Default: 1
 	NumFixedExecutors int `yaml:"numFixedExecutors"`
 
+	// NumFixedSpectators is the number of spectators of fixed namespace
+	// Values more than 1 will create multiple spectators monitoring the same fixed namespace
+	// Default: 1
+	NumFixedSpectators int `yaml:"numFixedSpectators"`
+
 	// NumEphemeralExecutors is the number of executors of ephemeral namespace
 	// Values more than 1 will create multiple executors processing the same ephemeral namespace
 	// Default: 1
 	NumEphemeralExecutors int `yaml:"numEphemeralExecutors"`
+
+	// NumEphemeralSpectators is the number of spectators of ephemeral namespace
+	// Values more than 1 will create multiple spectators monitoring the same ephemeral namespace
+	// Default: 1
+	NumEphemeralSpectators int `yaml:"numEphemeralSpectators"`
 
 	// NumShardCreators is the number of shard creators creating new ephemeral shards.
 	// ShardCreator uses Ping API of Canary and Spectator library to retrieve an owner of a new ephemeral shard

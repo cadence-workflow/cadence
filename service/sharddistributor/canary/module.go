@@ -14,6 +14,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
 	"github.com/uber/cadence/service/sharddistributor/canary/sharddistributorclient"
 	"github.com/uber/cadence/service/sharddistributor/canary/sharddistributorexecutorclient"
+	"github.com/uber/cadence/service/sharddistributor/canary/spectators"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 )
@@ -58,6 +59,9 @@ func opts(names NamespacesNames) fx.Option {
 
 		// Instantiate executors for multiple namespaces
 		executors.Module(names.FixedNamespace, names.EphemeralNamespace, names.ExternalAssignmentNamespace),
+
+		// Create multiple spectators for fixed and ephemeral namespaces based on config
+		spectators.Module(names.FixedNamespace, names.EphemeralNamespace),
 
 		processorephemeral.ShardCreatorModule([]string{names.EphemeralNamespace}),
 
