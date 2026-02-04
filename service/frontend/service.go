@@ -62,7 +62,6 @@ type Service struct {
 	config                 *config.Config
 	params                 *resource.Params
 	ratelimiterCollections globalRatelimiterCollections
-	dc                     *dynamicconfig.Collection
 }
 
 // NewService builds a new cadence-frontend service
@@ -119,7 +118,6 @@ func NewService(
 		config:   serviceConfig,
 		stopC:    make(chan struct{}),
 		params:   params,
-		dc:       dc,
 	}, nil
 }
 
@@ -160,7 +158,7 @@ func (s *Service) Start() {
 	// Additional decorations
 	var handler api.Handler = s.handler
 	handler = versioncheck.NewAPIHandler(handler, s.config, client.NewVersionChecker())
-	callerBypass := quotas.NewCallerBypass(s.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes))
+	callerBypass := quotas.NewCallerBypass(s.config.RateLimiterBypassCallerTypes)
 	handler = ratelimited.NewAPIHandler(handler, s.GetDomainCache(), userRateLimiter, workerRateLimiter, visibilityRateLimiter, asyncRateLimiter, s.config.MaxWorkerPollDelay, callerBypass)
 	handler = metered.NewAPIHandler(handler, s.GetLogger(), s.GetMetricsClient(), s.GetDomainCache(), s.config)
 	if s.params.ClusterRedirectionPolicy != nil {
