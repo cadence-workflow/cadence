@@ -7,8 +7,6 @@ package ratelimited
 import (
 	"context"
 
-	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
@@ -21,7 +19,7 @@ type ratelimitedExecutionManager struct {
 	rateLimiter   quotas.Limiter
 	metricsClient metrics.Client
 	datastoreName string
-	dc            *dynamicconfig.Collection
+	callerBypass  quotas.CallerBypass
 }
 
 // NewExecutionManager creates a new instance of ExecutionManager with ratelimiter.
@@ -30,14 +28,14 @@ func NewExecutionManager(
 	rateLimiter quotas.Limiter,
 	metricsClient metrics.Client,
 	datastoreName string,
-	dc *dynamicconfig.Collection,
+	callerBypass quotas.CallerBypass,
 ) persistence.ExecutionManager {
 	return &ratelimitedExecutionManager{
 		wrapped:       wrapped,
 		rateLimiter:   rateLimiter,
 		metricsClient: metricsClient,
 		datastoreName: datastoreName,
-		dc:            dc,
+		callerBypass:  callerBypass,
 	}
 }
 
@@ -52,11 +50,7 @@ func (c *ratelimitedExecutionManager) CompleteHistoryTask(ctx context.Context, r
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.CompleteHistoryTask(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -69,11 +63,7 @@ func (c *ratelimitedExecutionManager) ConflictResolveWorkflowExecution(ctx conte
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.ConflictResolveWorkflowExecution(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -86,11 +76,7 @@ func (c *ratelimitedExecutionManager) CreateFailoverMarkerTasks(ctx context.Cont
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.CreateFailoverMarkerTasks(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -103,11 +89,7 @@ func (c *ratelimitedExecutionManager) CreateWorkflowExecution(ctx context.Contex
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.CreateWorkflowExecution(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -120,11 +102,7 @@ func (c *ratelimitedExecutionManager) DeleteActiveClusterSelectionPolicy(ctx con
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -137,11 +115,7 @@ func (c *ratelimitedExecutionManager) DeleteCurrentWorkflowExecution(ctx context
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.DeleteCurrentWorkflowExecution(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -154,11 +128,7 @@ func (c *ratelimitedExecutionManager) DeleteReplicationTaskFromDLQ(ctx context.C
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.DeleteReplicationTaskFromDLQ(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -171,11 +141,7 @@ func (c *ratelimitedExecutionManager) DeleteWorkflowExecution(ctx context.Contex
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.DeleteWorkflowExecution(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -188,11 +154,7 @@ func (c *ratelimitedExecutionManager) GetActiveClusterSelectionPolicy(ctx contex
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -205,11 +167,7 @@ func (c *ratelimitedExecutionManager) GetCurrentExecution(ctx context.Context, r
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.GetCurrentExecution(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -222,11 +180,7 @@ func (c *ratelimitedExecutionManager) GetHistoryTasks(ctx context.Context, reque
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.GetHistoryTasks(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -243,11 +197,7 @@ func (c *ratelimitedExecutionManager) GetReplicationDLQSize(ctx context.Context,
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.GetReplicationDLQSize(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -260,11 +210,7 @@ func (c *ratelimitedExecutionManager) GetReplicationTasksFromDLQ(ctx context.Con
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.GetReplicationTasksFromDLQ(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -281,11 +227,7 @@ func (c *ratelimitedExecutionManager) GetWorkflowExecution(ctx context.Context, 
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.GetWorkflowExecution(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -298,11 +240,7 @@ func (c *ratelimitedExecutionManager) IsWorkflowExecutionExists(ctx context.Cont
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.IsWorkflowExecutionExists(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -315,11 +253,7 @@ func (c *ratelimitedExecutionManager) ListConcreteExecutions(ctx context.Context
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.ListConcreteExecutions(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -332,11 +266,7 @@ func (c *ratelimitedExecutionManager) ListCurrentExecutions(ctx context.Context,
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.ListCurrentExecutions(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -349,11 +279,7 @@ func (c *ratelimitedExecutionManager) PutReplicationTaskToDLQ(ctx context.Contex
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.PutReplicationTaskToDLQ(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -366,11 +292,7 @@ func (c *ratelimitedExecutionManager) RangeCompleteHistoryTask(ctx context.Conte
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.RangeCompleteHistoryTask(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -383,11 +305,7 @@ func (c *ratelimitedExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx cont
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.RangeDeleteReplicationTaskFromDLQ(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -400,11 +318,7 @@ func (c *ratelimitedExecutionManager) UpdateWorkflowExecution(ctx context.Contex
 		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	}
 
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			return c.wrapped.UpdateWorkflowExecution(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}

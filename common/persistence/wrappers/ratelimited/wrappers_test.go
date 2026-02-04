@@ -62,7 +62,7 @@ func TestClientsRateLimitAlwaysAllow(t *testing.T) {
 	for _, injector := range wrappers {
 		name := reflect.TypeOf(injector).String()
 		t.Run(name, func(t *testing.T) {
-			object := builderForPassThrough(t, injector, &limiterAlwaysAllow{}, true, nil)
+			object := builderForPassThrough(t, injector, &limiterAlwaysAllow{}, true, quotas.CallerBypass{}, nil)
 			v := reflect.ValueOf(object)
 			infoT := reflect.TypeOf(v.Interface())
 			for i := 0; i < infoT.NumMethod(); i++ {
@@ -93,7 +93,7 @@ func TestClientsAlwaysRateLimited(t *testing.T) {
 	for _, injector := range wrappers {
 		name := reflect.TypeOf(injector).String()
 		t.Run(name, func(t *testing.T) {
-			object := builderForPassThrough(t, injector, &limiterNeverAllow{}, false, nil)
+			object := builderForPassThrough(t, injector, &limiterNeverAllow{}, false, quotas.CallerBypass{}, nil)
 			v := reflect.ValueOf(object)
 			infoT := reflect.TypeOf(v.Interface())
 			for i := 0; i < infoT.NumMethod(); i++ {
@@ -129,7 +129,7 @@ func TestInjectorsWithUnderlyingErrors(t *testing.T) {
 		name := reflect.TypeOf(injector).String()
 		t.Run(name, func(t *testing.T) {
 			expectedMethodErr := fmt.Errorf("%s: injected error", name)
-			object := builderForPassThrough(t, injector, &limiterAlwaysAllow{}, true, expectedMethodErr)
+			object := builderForPassThrough(t, injector, &limiterAlwaysAllow{}, true, quotas.CallerBypass{}, expectedMethodErr)
 			v := reflect.ValueOf(object)
 			infoT := reflect.TypeOf(v.Interface())
 			for i := 0; i < infoT.NumMethod(); i++ {
@@ -157,19 +157,19 @@ func TestInjectorsWithUnderlyingErrors(t *testing.T) {
 	}
 }
 
-func builderForPassThrough(t *testing.T, injector any, limiter quotas.Limiter, expectCalls bool, expectedErr error) (object any) {
+func builderForPassThrough(t *testing.T, injector any, limiter quotas.Limiter, expectCalls bool, callerBypass quotas.CallerBypass, expectedErr error) (object any) {
 	ctrl := gomock.NewController(t)
 	switch injector.(type) {
 	case *ratelimitedConfigStoreManager:
 		mocked := persistence.NewMockConfigStoreManager(ctrl)
-		object = NewConfigStoreManager(mocked, limiter, nil, "test", nil)
+		object = NewConfigStoreManager(mocked, limiter, nil, "test", callerBypass)
 		if expectCalls {
 			mocked.EXPECT().UpdateDynamicConfig(gomock.Any(), gomock.Any(), gomock.Any()).Return(expectedErr)
 			mocked.EXPECT().FetchDynamicConfig(gomock.Any(), gomock.Any()).Return(&persistence.FetchDynamicConfigResponse{}, expectedErr)
 		}
 	case *ratelimitedDomainManager:
 		mocked := persistence.NewMockDomainManager(ctrl)
-		object = NewDomainManager(mocked, limiter, nil, "test", nil)
+		object = NewDomainManager(mocked, limiter, nil, "test", callerBypass)
 		if expectCalls {
 			mocked.EXPECT().CreateDomain(gomock.Any(), gomock.Any()).Return(&persistence.CreateDomainResponse{}, expectedErr)
 			mocked.EXPECT().GetDomain(gomock.Any(), gomock.Any()).Return(&persistence.GetDomainResponse{}, expectedErr)
@@ -181,7 +181,7 @@ func builderForPassThrough(t *testing.T, injector any, limiter quotas.Limiter, e
 		}
 	case *ratelimitedHistoryManager:
 		mocked := persistence.NewMockHistoryManager(ctrl)
-		object = NewHistoryManager(mocked, limiter, nil, "test", nil)
+		object = NewHistoryManager(mocked, limiter, nil, "test", callerBypass)
 		if expectCalls {
 			mocked.EXPECT().AppendHistoryNodes(gomock.Any(), gomock.Any()).Return(&persistence.AppendHistoryNodesResponse{}, expectedErr)
 			mocked.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).Return(&persistence.ReadHistoryBranchResponse{}, expectedErr)
@@ -194,7 +194,7 @@ func builderForPassThrough(t *testing.T, injector any, limiter quotas.Limiter, e
 		}
 	case *ratelimitedQueueManager:
 		mocked := persistence.NewMockQueueManager(ctrl)
-		object = NewQueueManager(mocked, limiter, nil, "test", nil)
+		object = NewQueueManager(mocked, limiter, nil, "test", callerBypass)
 		if expectCalls {
 			mocked.EXPECT().EnqueueMessage(gomock.Any(), gomock.Any()).Return(expectedErr)
 			mocked.EXPECT().ReadMessages(gomock.Any(), gomock.Any()).Return(&persistence.ReadMessagesResponse{Messages: []*persistence.QueueMessage{}}, expectedErr)
@@ -211,7 +211,7 @@ func builderForPassThrough(t *testing.T, injector any, limiter quotas.Limiter, e
 		}
 	case *ratelimitedShardManager:
 		mocked := persistence.NewMockShardManager(ctrl)
-		object = NewShardManager(mocked, limiter, nil, "test", nil)
+		object = NewShardManager(mocked, limiter, nil, "test", callerBypass)
 		if expectCalls {
 			mocked.EXPECT().GetShard(gomock.Any(), gomock.Any()).Return(&persistence.GetShardResponse{}, expectedErr)
 			mocked.EXPECT().UpdateShard(gomock.Any(), gomock.Any()).Return(expectedErr)
@@ -219,7 +219,7 @@ func builderForPassThrough(t *testing.T, injector any, limiter quotas.Limiter, e
 		}
 	case *ratelimitedTaskManager:
 		mocked := persistence.NewMockTaskManager(ctrl)
-		object = NewTaskManager(mocked, limiter, nil, "test", nil)
+		object = NewTaskManager(mocked, limiter, nil, "test", callerBypass)
 		if expectCalls {
 			mocked.EXPECT().CompleteTasksLessThan(gomock.Any(), gomock.Any()).Return(&persistence.CompleteTasksLessThanResponse{}, expectedErr)
 			mocked.EXPECT().CompleteTask(gomock.Any(), gomock.Any()).Return(expectedErr)
@@ -235,7 +235,7 @@ func builderForPassThrough(t *testing.T, injector any, limiter quotas.Limiter, e
 		}
 	case *ratelimitedVisibilityManager:
 		mocked := persistence.NewMockVisibilityManager(ctrl)
-		object = NewVisibilityManager(mocked, limiter, nil, "test", nil)
+		object = NewVisibilityManager(mocked, limiter, nil, "test", callerBypass)
 		if expectCalls {
 			mocked.EXPECT().DeleteUninitializedWorkflowExecution(gomock.Any(), gomock.Any()).Return(expectedErr)
 			mocked.EXPECT().DeleteWorkflowExecution(gomock.Any(), gomock.Any()).Return(expectedErr)
@@ -257,7 +257,7 @@ func builderForPassThrough(t *testing.T, injector any, limiter quotas.Limiter, e
 		}
 	case *ratelimitedExecutionManager:
 		mocked := persistence.NewMockExecutionManager(ctrl)
-		object = NewExecutionManager(mocked, limiter, nil, "test", nil)
+		object = NewExecutionManager(mocked, limiter, nil, "test", callerBypass)
 		if expectCalls {
 			mocked.EXPECT().CreateWorkflowExecution(gomock.Any(), gomock.Any()).Return(&persistence.CreateWorkflowExecutionResponse{}, expectedErr)
 			mocked.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(&persistence.GetWorkflowExecutionResponse{}, expectedErr)
@@ -352,7 +352,8 @@ func TestVisibilityManagerBypassRateLimitForCallerTypes(t *testing.T) {
 				testlogger.New(t),
 			)
 
-			vm := NewVisibilityManager(mocked, &limiterNeverAllow{}, nil, "test", dc)
+			callerBypass := quotas.NewCallerBypass(dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes))
+			vm := NewVisibilityManager(mocked, &limiterNeverAllow{}, nil, "test", callerBypass)
 
 			ctx := types.ContextWithCallerInfo(context.Background(), types.NewCallerInfo(tt.callerType))
 
@@ -382,7 +383,8 @@ func TestVisibilityManagerBypassRateLimitWithDynamicConfig(t *testing.T) {
 		testlogger.New(t),
 	)
 
-	vm := NewVisibilityManager(mocked, &limiterNeverAllow{}, nil, "test", dc)
+	callerBypass := quotas.NewCallerBypass(dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes))
+	vm := NewVisibilityManager(mocked, &limiterNeverAllow{}, nil, "test", callerBypass)
 
 	t.Run("CLI bypasses rate limit", func(t *testing.T) {
 		ctx := types.ContextWithCallerInfo(context.Background(), types.NewCallerInfo(types.CallerTypeCLI))
@@ -423,7 +425,7 @@ func TestVisibilityManagerNoBypassWithoutDynamicConfig(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mocked := persistence.NewMockVisibilityManager(ctrl)
 
-	vm := NewVisibilityManager(mocked, &limiterNeverAllow{}, nil, "test", nil)
+	vm := NewVisibilityManager(mocked, &limiterNeverAllow{}, nil, "test", quotas.CallerBypass{})
 
 	ctx := types.ContextWithCallerInfo(context.Background(), types.NewCallerInfo(types.CallerTypeCLI))
 
@@ -485,7 +487,8 @@ func TestShardManagerBypassRateLimitForCallerTypes(t *testing.T) {
 				testlogger.New(t),
 			)
 
-			sm := NewShardManager(mocked, &limiterNeverAllow{}, nil, "test", dc)
+			callerBypass := quotas.NewCallerBypass(dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes))
+			sm := NewShardManager(mocked, &limiterNeverAllow{}, nil, "test", callerBypass)
 
 			ctx := types.ContextWithCallerInfo(context.Background(), types.NewCallerInfo(tt.callerType))
 
@@ -555,7 +558,8 @@ func TestHistoryManagerBypassRateLimitForCallerTypes(t *testing.T) {
 				testlogger.New(t),
 			)
 
-			hm := NewHistoryManager(mocked, &limiterNeverAllow{}, nil, "test", dc)
+			callerBypass := quotas.NewCallerBypass(dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes))
+			hm := NewHistoryManager(mocked, &limiterNeverAllow{}, nil, "test", callerBypass)
 
 			ctx := types.ContextWithCallerInfo(context.Background(), types.NewCallerInfo(tt.callerType))
 

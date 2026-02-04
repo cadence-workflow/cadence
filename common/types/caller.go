@@ -86,20 +86,6 @@ func ParseCallerType(s string) CallerType {
 	return CallerType(s)
 }
 
-// ShouldBypassRateLimit checks if the given caller type should bypass rate limiting
-// based on the provided list of bypass caller types.
-// The bypassCallerTypes should be a list of caller type strings.
-func ShouldBypassRateLimit(callerType CallerType, bypassCallerTypes []interface{}) bool {
-	for _, bypassType := range bypassCallerTypes {
-		if bypassTypeStr, ok := bypassType.(string); ok {
-			if ParseCallerType(bypassTypeStr) == callerType {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // ContextWithCallerInfo adds CallerInfo to context
 func ContextWithCallerInfo(ctx context.Context, callerInfo CallerInfo) context.Context {
 	return context.WithValue(ctx, callerInfoKey, callerInfo)

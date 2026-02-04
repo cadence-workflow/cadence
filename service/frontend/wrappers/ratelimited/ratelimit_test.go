@@ -29,6 +29,13 @@ func setupHandlerWithDC(t *testing.T, dc *dynamicconfig.Collection) *apiHandler 
 	mockHandler := api.NewMockHandler(ctrl)
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 
+	var callerBypass quotas.CallerBypass
+	if dc != nil {
+		callerBypass = quotas.NewCallerBypass(dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes))
+	} else {
+		callerBypass = quotas.NewCallerBypass(nil)
+	}
+
 	return NewAPIHandler(
 		mockHandler,
 		mockDomainCache,
@@ -37,7 +44,7 @@ func setupHandlerWithDC(t *testing.T, dc *dynamicconfig.Collection) *apiHandler 
 		&mockPolicy{}, // visibilityRateLimiter
 		&mockPolicy{}, // asyncRateLimiter
 		func(domain string) time.Duration { return 0 }, // maxWorkerPollDelay
-		dc,
+		callerBypass,
 	).(*apiHandler)
 }
 

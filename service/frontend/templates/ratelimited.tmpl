@@ -2,10 +2,8 @@ import (
     "context"
     "github.com/uber/cadence/common"
     "github.com/uber/cadence/common/cache"
-    "github.com/uber/cadence/common/dynamicconfig"
     "github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
     "github.com/uber/cadence/common/quotas"
-    "github.com/uber/cadence/common/types"
     "github.com/uber/cadence/service/frontend/api"
     "github.com/uber/cadence/service/frontend/validate"
 )
@@ -82,7 +80,7 @@ type {{$decorator}} struct {
     visibilityRateLimiter quotas.Policy
     asyncRateLimiter quotas.Policy
     maxWorkerPollDelay dynamicproperties.DurationPropertyFnWithDomainFilter
-    dc *dynamicconfig.Collection
+    callerBypass quotas.CallerBypass
 }
 
 // New{{$Decorator}} creates a new instance of {{$interfaceName}} with ratelimiter.
@@ -94,7 +92,7 @@ func New{{$Decorator}}(
     visibilityRateLimiter quotas.Policy,
     asyncRateLimiter quotas.Policy,
     maxWorkerPollDelay dynamicproperties.DurationPropertyFnWithDomainFilter,
-    dc *dynamicconfig.Collection,
+    callerBypass quotas.CallerBypass,
 ) {{.Interface.Type}} {
     return &{{$decorator}}{
         wrapped: wrapped,
@@ -105,7 +103,7 @@ func New{{$Decorator}}(
         visibilityRateLimiter: visibilityRateLimiter,
         asyncRateLimiter: asyncRateLimiter,
         maxWorkerPollDelay: maxWorkerPollDelay,
-        dc: dc,
+        callerBypass: callerBypass,
     }
 }
 

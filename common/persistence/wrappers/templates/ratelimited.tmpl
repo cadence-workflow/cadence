@@ -1,12 +1,9 @@
 import (
 	"context"
 
-	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
-	"github.com/uber/cadence/common/types"
 )
 
 {{ $decorator := (printf "ratelimited%s" .Interface.Name) }}
@@ -17,7 +14,7 @@ type {{$decorator}} struct {
     rateLimiter  quotas.Limiter
     metricsClient metrics.Client
     datastoreName string
-    dc           *dynamicconfig.Collection
+    callerBypass quotas.CallerBypass
 }
 
 // New{{.Interface.Name}} creates a new instance of {{.Interface.Name}} with ratelimiter.
@@ -26,14 +23,14 @@ func New{{.Interface.Name}}(
     rateLimiter quotas.Limiter,
     metricsClient metrics.Client,
     datastoreName string,
-    dc *dynamicconfig.Collection,
+    callerBypass quotas.CallerBypass,
 ) persistence.{{.Interface.Name}} {
     return &{{$decorator}}{
         wrapped: wrapped,
         rateLimiter: rateLimiter,
         metricsClient: metricsClient,
         datastoreName: datastoreName,
-        dc: dc,
+        callerBypass: callerBypass,
     }
 }
 
@@ -45,11 +42,7 @@ func New{{.Interface.Name}}(
 		        scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
 	        }
 
-	        if ok := c.rateLimiter.Allow(); !ok {
-		        callerInfo := types.GetCallerInfoFromContext({{(index $method.Params 0).Name}})
-		        if c.dc != nil && types.ShouldBypassRateLimit(callerInfo.GetCallerType(), c.dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes)()) {
-			        {{ $method.Pass "c.wrapped." }}
-		        }
+	        if !c.callerBypass.AllowLimiter({{(index $method.Params 0).Name}}, c.rateLimiter) {
 		        err = ErrPersistenceLimitExceeded
 		        return
             }
