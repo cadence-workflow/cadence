@@ -120,6 +120,13 @@ func TestCallerBypass_AllowPolicy(t *testing.T) {
 			callerType:        types.CallerTypeSDK,
 			expected:          false,
 		},
+		{
+			name:              "Empty bypass list blocks",
+			policyAllows:      false,
+			bypassCallerTypes: []interface{}{},
+			callerType:        types.CallerTypeCLI,
+			expected:          false,
+		},
 	}
 
 	for _, tt := range tests {
