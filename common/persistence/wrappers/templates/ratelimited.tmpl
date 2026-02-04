@@ -12,8 +12,6 @@ import (
 type {{$decorator}} struct {
     wrapped      {{.Interface.Type}}
     rateLimiter  quotas.Limiter
-    metricsClient metrics.Client
-    datastoreName string
     callerBypass quotas.CallerBypass
 }
 
@@ -21,15 +19,11 @@ type {{$decorator}} struct {
 func New{{.Interface.Name}}(
     wrapped persistence.{{.Interface.Name}},
     rateLimiter quotas.Limiter,
-    metricsClient metrics.Client,
-    datastoreName string,
     callerBypass quotas.CallerBypass,
 ) persistence.{{.Interface.Name}} {
     return &{{$decorator}}{
         wrapped: wrapped,
         rateLimiter: rateLimiter,
-        metricsClient: metricsClient,
-        datastoreName: datastoreName,
         callerBypass: callerBypass,
     }
 }
@@ -37,11 +31,6 @@ func New{{.Interface.Name}}(
 {{range $method := .Interface.Methods}}
     {{- if (and $method.AcceptsContext $method.ReturnsError)}}
         func (c *{{$decorator}}) {{$method.Declaration}} {
-	        if c.metricsClient != nil {
-		        scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		        scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	        }
-
 	        if !c.callerBypass.AllowLimiter({{(index $method.Params 0).Name}}, c.rateLimiter) {
 		        err = ErrPersistenceLimitExceeded
 		        return
