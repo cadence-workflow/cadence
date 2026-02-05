@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Validate PR title
         id: lint_pr_title
-        uses: amannn/action-semantic-pull-request@v5.4.0
+        uses: amannn/action-semantic-pull-request@v6.1.1
         with:
           # Allow standard conventional commit types
           types: |
@@ -39,34 +39,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Comment on PR if validation fails
-        if: steps.lint_pr_title.outputs.error_message != null
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `⚠️ **Semantic PR Check Failed**
-
-              **Error Details:**
-              \`\`\`
-              ${{ steps.lint_pr_title.outputs.error_message }}
-              \`\`\`
-
-              **Required Format:**
-              \`\`\`
-              <type>: <description>
-              \`\`\`
-
-              **Allowed types:** fix, feat, docs, style, refactor, perf, test, chore, ci, build
-
-              **Examples:**
-              - \`feat: add user authentication system\`
-              - \`fix: resolve memory leak in worker pool\`
-              - \`docs: update API documentation\`
-              - \`test: add integration tests for auth flow\`
-
-              This is currently a **warning only** and won't block your PR from being merged.`
-            })
