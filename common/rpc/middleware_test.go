@@ -381,6 +381,29 @@ func TestCallerInfoMiddleware(t *testing.T) {
 	})
 }
 
+func TestCallerInfoOutboundMiddleware(t *testing.T) {
+	t.Run("sets internal caller type when header is missing", func(t *testing.T) {
+		m := &CallerInfoOutboundMiddleware{}
+		_, err := m.Call(context.Background(), &transport.Request{}, &fakeOutbound{verify: func(r *transport.Request) {
+			callerType, ok := r.Headers.Get(types.CallerTypeHeaderName)
+			assert.True(t, ok)
+			assert.Equal(t, string(types.CallerTypeInternal), callerType)
+		}})
+		assert.NoError(t, err)
+	})
+
+	t.Run("does not override existing caller type header", func(t *testing.T) {
+		m := &CallerInfoOutboundMiddleware{}
+		headers := transport.NewHeaders().With(types.CallerTypeHeaderName, "cli")
+		_, err := m.Call(context.Background(), &transport.Request{Headers: headers}, &fakeOutbound{verify: func(r *transport.Request) {
+			callerType, ok := r.Headers.Get(types.CallerTypeHeaderName)
+			assert.True(t, ok)
+			assert.Equal(t, "cli", callerType)
+		}})
+		assert.NoError(t, err)
+	})
+}
+
 type fakeHandler struct {
 	ctx context.Context
 }

@@ -124,6 +124,17 @@ func (m *CallerInfoMiddleware) Handle(ctx context.Context, req *transport.Reques
 	return h.Handle(ctx, req, resw)
 }
 
+// CallerInfoOutboundMiddleware sets the caller type header on outbound calls.
+// If the caller type is not already set in headers, it defaults to "internal" for service-to-service calls.
+type CallerInfoOutboundMiddleware struct{}
+
+func (m *CallerInfoOutboundMiddleware) Call(ctx context.Context, request *transport.Request, out transport.UnaryOutbound) (*transport.Response, error) {
+	if _, ok := request.Headers.Get(types.CallerTypeHeaderName); !ok {
+		request.Headers = request.Headers.With(types.CallerTypeHeaderName, string(types.CallerTypeInternal))
+	}
+	return out.Call(ctx, request)
+}
+
 type overrideCallerMiddleware struct {
 	caller string
 }
