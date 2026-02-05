@@ -13,8 +13,6 @@
 - Eleonora Di Gregorio (https://github.com/eleonoradgr)
 - Felipe Imanishi (https://github.com/fimanishi)
 - Gaziza Yestemirova (https://github.com/gazi-yestemirova)
-- Ignat Tubylov (https://github.com/tubignat)
-- Ilya Ozherelyev (https://github.com/3vilhamster)
 - Jakob Haahr Taankvist (https://github.com/jakobht)
 - Kevin Burns (https://github.com/Bueller87)
 - Nate Mortensen (https://github.com/natemort)
