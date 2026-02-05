@@ -70,7 +70,7 @@ func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
 	var (
 		apiName = "{{$method.Name}}"
 		cluster string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	{{- if has $method.Name $readAPIsWithStrongConsistency}}
