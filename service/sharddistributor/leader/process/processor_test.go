@@ -1402,3 +1402,177 @@ func TestEmitOldestExecutorHeartbeatLag(t *testing.T) {
 		})
 	}
 }
+
+func TestRunRebalanceTriggeringLoop(t *testing.T) {
+	t.Run("no events from subscribe, trigger from ticker", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		updateChan := make(chan int64)
+		triggerChan := make(chan string, 1)
+
+		go processor.rebalanceTriggeringLoop(ctx, updateChan, triggerChan)
+
+		// Wait for ticker to be created
+		mocks.timeSource.BlockUntil(1)
+
+		// Advance time to trigger the ticker
+		mocks.timeSource.Advance(processor.cfg.Period)
+
+		// Expect trigger from periodic reconciliation
+		select {
+		case reason := <-triggerChan:
+			assert.Equal(t, "Periodic reconciliation triggered", reason)
+		case <-time.After(time.Second):
+			t.Fatal("expected trigger from ticker, but timed out")
+		}
+
+		cancel()
+	})
+
+	t.Run("events from subscribe before period, trigger from state change", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+		processor.lastAppliedRevision = 0
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		updateChan := make(chan int64, 1)
+		triggerChan := make(chan string, 1)
+
+		go processor.rebalanceTriggeringLoop(ctx, updateChan, triggerChan)
+
+		// Wait for ticker to be created
+		mocks.timeSource.BlockUntil(1)
+
+		// Send a state change event before the ticker fires
+		updateChan <- 1
+
+		// Expect trigger from state change
+		select {
+		case reason := <-triggerChan:
+			assert.Equal(t, "State change detected", reason)
+		case <-time.After(time.Second):
+			t.Fatal("expected trigger from state change, but timed out")
+		}
+
+		cancel()
+	})
+
+	t.Run("triggerChan full, multiple subscribe events, loop not stuck", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+		processor.lastAppliedRevision = 0
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Use unbuffered channel for updates to ensure they are processed one at a time
+		updateChan := make(chan int64)
+		triggerChan := make(chan string, 1)
+
+		go processor.rebalanceTriggeringLoop(ctx, updateChan, triggerChan)
+
+		// Wait for ticker to be created
+		mocks.timeSource.BlockUntil(1)
+
+		// Don't read from triggerChan yet to keep it full
+		// Send multiple state change events
+		for i := int64(0); i <= 10; i++ {
+			select {
+			case updateChan <- i:
+			case <-time.After(time.Second):
+				// Expect that the loop is not stuck
+				t.Fatalf("failed to send update %d, channel blocked", i)
+			}
+		}
+
+		// Expect trigger from state change
+		select {
+		case reason := <-triggerChan:
+			assert.Equal(t, "State change detected", reason)
+		case <-time.After(time.Second):
+			t.Fatal("expected trigger from state change, but timed out")
+		}
+
+		cancel()
+	})
+
+	t.Run("stale revision ignored", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+		processor.lastAppliedRevision = 5
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		updateChan := make(chan int64, 1)
+		triggerChan := make(chan string, 1)
+
+		go processor.rebalanceTriggeringLoop(ctx, updateChan, triggerChan)
+
+		// Wait for ticker to be created
+		mocks.timeSource.BlockUntil(1)
+
+		// Send stale revision (less than or equal to lastAppliedRevision)
+		updateChan <- 3
+
+		// Should not trigger - verify by advancing ticker and getting that trigger instead
+		mocks.timeSource.Advance(processor.cfg.Period)
+
+		select {
+		case reason := <-triggerChan:
+			assert.Equal(t, "Periodic reconciliation triggered", reason)
+		case <-time.After(time.Second):
+			t.Fatal("expected trigger from ticker")
+		}
+
+		cancel()
+	})
+
+	t.Run("update channel closed stops loop", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+		ctx := context.Background()
+
+		updateChan := make(chan int64)
+		triggerChan := make(chan string, 1)
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			processor.rebalanceTriggeringLoop(ctx, updateChan, triggerChan)
+		}()
+
+		// Wait for ticker to be created
+		mocks.timeSource.BlockUntil(1)
+
+		// Close update channel
+		close(updateChan)
+
+		// Wait for loop to exit
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			// Loop exited as expected
+		case <-time.After(time.Second):
+			t.Fatal("loop did not exit after updateChan closed")
+		}
+	})
+}
