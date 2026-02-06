@@ -47,6 +47,7 @@ type NamespaceState struct {
 	Executors map[string]HeartbeatState
 
 	// ShardStats holds the statistics of all shards in the namespace.
+	// Only loaded for namespace which types.LoadBalancingMode is types.LoadBalancingModeGREEDY
 	// Key: ShardID
 	ShardStats map[string]ShardStatistics
 
@@ -61,10 +62,10 @@ type ShardState struct {
 }
 
 type ShardStatistics struct {
-	// EWMA of shard load that persists across executor changes
+	// Exponential weighted moving average of shard load that persists across executor changes
 	SmoothedLoad float64
 
-	// LastUpdateTime is the heartbeat timestamp that last updated the EWMA
+	// LastUpdateTime is the heartbeat timestamp that last updated the smoothed load
 	LastUpdateTime time.Time
 
 	// LastMoveTime is the timestamp when this shard was last reassigned
@@ -74,4 +75,13 @@ type ShardStatistics struct {
 type ShardOwner struct {
 	ExecutorID string
 	Metadata   map[string]string
+}
+
+// CountExecutorsByStatus returns a map of executor status to the count of executors with that status
+func (ns *NamespaceState) CountExecutorsByStatus() map[types.ExecutorStatus]int {
+	counts := make(map[types.ExecutorStatus]int)
+	for _, executor := range ns.Executors {
+		counts[executor.Status]++
+	}
+	return counts
 }

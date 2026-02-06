@@ -13,18 +13,21 @@ import (
 
 // ratelimitedDomainManager implements persistence.DomainManager interface instrumented with rate limiter.
 type ratelimitedDomainManager struct {
-	wrapped     persistence.DomainManager
-	rateLimiter quotas.Limiter
+	wrapped      persistence.DomainManager
+	rateLimiter  quotas.Limiter
+	callerBypass quotas.CallerBypass
 }
 
 // NewDomainManager creates a new instance of DomainManager with ratelimiter.
 func NewDomainManager(
 	wrapped persistence.DomainManager,
 	rateLimiter quotas.Limiter,
+	callerBypass quotas.CallerBypass,
 ) persistence.DomainManager {
 	return &ratelimitedDomainManager{
-		wrapped:     wrapped,
-		rateLimiter: rateLimiter,
+		wrapped:      wrapped,
+		rateLimiter:  rateLimiter,
+		callerBypass: callerBypass,
 	}
 }
 
@@ -34,7 +37,7 @@ func (c *ratelimitedDomainManager) Close() {
 }
 
 func (c *ratelimitedDomainManager) CreateDomain(ctx context.Context, request *persistence.CreateDomainRequest) (cp1 *persistence.CreateDomainResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -42,7 +45,7 @@ func (c *ratelimitedDomainManager) CreateDomain(ctx context.Context, request *pe
 }
 
 func (c *ratelimitedDomainManager) DeleteDomain(ctx context.Context, request *persistence.DeleteDomainRequest) (err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -50,7 +53,7 @@ func (c *ratelimitedDomainManager) DeleteDomain(ctx context.Context, request *pe
 }
 
 func (c *ratelimitedDomainManager) DeleteDomainByName(ctx context.Context, request *persistence.DeleteDomainByNameRequest) (err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -58,7 +61,7 @@ func (c *ratelimitedDomainManager) DeleteDomainByName(ctx context.Context, reque
 }
 
 func (c *ratelimitedDomainManager) GetDomain(ctx context.Context, request *persistence.GetDomainRequest) (gp1 *persistence.GetDomainResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -66,7 +69,7 @@ func (c *ratelimitedDomainManager) GetDomain(ctx context.Context, request *persi
 }
 
 func (c *ratelimitedDomainManager) GetMetadata(ctx context.Context) (gp1 *persistence.GetMetadataResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -78,7 +81,7 @@ func (c *ratelimitedDomainManager) GetName() (s1 string) {
 }
 
 func (c *ratelimitedDomainManager) ListDomains(ctx context.Context, request *persistence.ListDomainsRequest) (lp1 *persistence.ListDomainsResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -86,7 +89,7 @@ func (c *ratelimitedDomainManager) ListDomains(ctx context.Context, request *per
 }
 
 func (c *ratelimitedDomainManager) UpdateDomain(ctx context.Context, request *persistence.UpdateDomainRequest) (err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}

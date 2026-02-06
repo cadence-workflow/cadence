@@ -24,6 +24,7 @@ package client
 
 import (
 	"sync"
+	"time"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/codec"
@@ -96,7 +97,7 @@ type (
 		// TODO We temporarily using sortByCloseTime to determine whether or not ListClosedWorkflowExecutions should
 		// be ordering by CloseTime. This will be removed when implementing https://github.com/uber/cadence/issues/3621
 		NewVisibilityStore(sortByCloseTime bool) (p.VisibilityStore, error)
-		NewQueue(queueType p.QueueType) (p.Queue, error)
+		NewQueue(queueType p.QueueType) (p.QueueStore, error)
 		// NewConfigStore returns a new config store
 		NewConfigStore() (p.ConfigStore, error)
 	}
@@ -177,10 +178,10 @@ func (f *factoryImpl) NewTaskManager() (p.TaskManager, error) {
 	}
 	result := p.NewTaskManager(store)
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
-		result = errorinjectors.NewTaskManager(result, errorRate, f.logger)
+		result = errorinjectors.NewTaskManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewTaskManager(result, ds.ratelimit)
+		result = ratelimited.NewTaskManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 	}
 	if f.metricsClient != nil {
 		result = metered.NewTaskManager(result, f.metricsClient, f.logger, f.config)
@@ -197,10 +198,10 @@ func (f *factoryImpl) NewShardManager() (p.ShardManager, error) {
 	}
 	result := p.NewShardManager(store, f.dc)
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
-		result = errorinjectors.NewShardManager(result, errorRate, f.logger)
+		result = errorinjectors.NewShardManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewShardManager(result, ds.ratelimit)
+		result = ratelimited.NewShardManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 	}
 	if f.metricsClient != nil {
 		result = metered.NewShardManager(result, f.metricsClient, f.logger, f.config)
@@ -217,10 +218,10 @@ func (f *factoryImpl) NewHistoryManager() (p.HistoryManager, error) {
 	}
 	result := p.NewHistoryV2ManagerImpl(store, f.logger, p.NewPayloadSerializer(), codec.NewThriftRWEncoder(), f.config.TransactionSizeLimit)
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
-		result = errorinjectors.NewHistoryManager(result, errorRate, f.logger)
+		result = errorinjectors.NewHistoryManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewHistoryManager(result, ds.ratelimit)
+		result = ratelimited.NewHistoryManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 	}
 	if f.metricsClient != nil {
 		result = metered.NewHistoryManager(result, f.metricsClient, f.logger, f.config)
@@ -239,10 +240,10 @@ func (f *factoryImpl) NewDomainManager() (p.DomainManager, error) {
 	}
 	result := p.NewDomainManagerImpl(store, f.logger, p.NewPayloadSerializer(), f.dc)
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
-		result = errorinjectors.NewDomainManager(result, errorRate, f.logger)
+		result = errorinjectors.NewDomainManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewDomainManager(result, ds.ratelimit)
+		result = ratelimited.NewDomainManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 	}
 	if f.metricsClient != nil {
 		result = metered.NewDomainManager(result, f.metricsClient, f.logger, f.config)
@@ -276,10 +277,10 @@ func (f *factoryImpl) NewExecutionManager(shardID int) (p.ExecutionManager, erro
 	}
 	result := p.NewExecutionManagerImpl(store, f.logger, p.NewPayloadSerializer(), f.dc)
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
-		result = errorinjectors.NewExecutionManager(result, errorRate, f.logger)
+		result = errorinjectors.NewExecutionManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewExecutionManager(result, ds.ratelimit)
+		result = ratelimited.NewExecutionManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 	}
 	if f.metricsClient != nil {
 		result = metered.NewExecutionManager(result, f.metricsClient, f.logger, f.config, f.dc.PersistenceSampleLoggingRate, f.dc.EnableShardIDMetrics)
@@ -307,7 +308,7 @@ func (f *factoryImpl) NewVisibilityManager(
 
 	switch params.PersistenceConfig.AdvancedVisibilityStore {
 	case constants.PinotVisibilityStoreName:
-		visibilityFromPinot, err = setupPinotVisibilityManager(params, resourceConfig, f.logger, f.dc)
+		visibilityFromPinot, err = setupPinotVisibilityManager(params, resourceConfig, f.logger, f.dc, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 		if err != nil {
 			f.logger.Fatal("Creating Pinot advanced visibility manager failed", tag.Error(err))
 		}
@@ -318,7 +319,7 @@ func (f *factoryImpl) NewVisibilityManager(
 		}
 
 		if params.PinotConfig.Migration.Enabled {
-			visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger, f.dc)
+			visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger, f.dc, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 			if err != nil {
 				f.logger.Fatal("Creating ES advanced visibility manager failed", tag.Error(err))
 			}
@@ -335,7 +336,7 @@ func (f *factoryImpl) NewVisibilityManager(
 			f.logger,
 		), nil
 	case constants.OSVisibilityStoreName:
-		visibilityFromOS, err = setupOSVisibilityManager(params, resourceConfig, f.logger, f.dc)
+		visibilityFromOS, err = setupOSVisibilityManager(params, resourceConfig, f.logger, f.dc, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 		if err != nil {
 			f.logger.Fatal("Creating OS advanced visibility manager failed", tag.Error(err))
 		}
@@ -345,7 +346,7 @@ func (f *factoryImpl) NewVisibilityManager(
 			constants.VisibilityModeOS: visibilityFromOS,
 		}
 		if params.OSConfig.Migration.Enabled {
-			visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger, f.dc)
+			visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger, f.dc, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 			if err != nil {
 				f.logger.Fatal("Creating ES advanced visibility manager failed", tag.Error(err))
 			}
@@ -361,7 +362,7 @@ func (f *factoryImpl) NewVisibilityManager(
 			f.logger,
 		), nil
 	case constants.ESVisibilityStoreName:
-		visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger, f.dc)
+		visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger, f.dc, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 		if err != nil {
 			f.logger.Fatal("Creating advanced visibility manager failed", tag.Error(err))
 		}
@@ -405,6 +406,7 @@ func newPinotVisibilityManager(
 	metricsClient metrics.Client,
 	log log.Logger,
 	dc *p.DynamicConfiguration,
+	callerBypass quotas.CallerBypass,
 ) p.VisibilityManager {
 	visibilityFromPinotStore := pinotVisibility.NewPinotVisibilityStore(pinotClient, visibilityConfig, producer, log)
 	visibilityFromPinot := p.NewVisibilityManagerImpl(visibilityFromPinotStore, log, dc)
@@ -412,7 +414,7 @@ func newPinotVisibilityManager(
 	// wrap with rate limiter
 	if visibilityConfig.PersistenceMaxQPS != nil && visibilityConfig.PersistenceMaxQPS() != 0 {
 		pinotRateLimiter := quotas.NewDynamicRateLimiter(visibilityConfig.PersistenceMaxQPS.AsFloat64())
-		visibilityFromPinot = ratelimited.NewVisibilityManager(visibilityFromPinot, pinotRateLimiter)
+		visibilityFromPinot = ratelimited.NewVisibilityManager(visibilityFromPinot, pinotRateLimiter, callerBypass)
 	}
 
 	if metricsClient != nil {
@@ -434,6 +436,7 @@ func newESVisibilityManager(
 	metricsClient metrics.Client,
 	log log.Logger,
 	dc *p.DynamicConfiguration,
+	callerBypass quotas.CallerBypass,
 ) p.VisibilityManager {
 
 	visibilityFromESStore := elasticsearch.NewElasticSearchVisibilityStore(esClient, indexName, producer, visibilityConfig, log)
@@ -442,7 +445,7 @@ func newESVisibilityManager(
 	// wrap with rate limiter
 	if visibilityConfig.PersistenceMaxQPS != nil && visibilityConfig.PersistenceMaxQPS() != 0 {
 		esRateLimiter := quotas.NewDynamicRateLimiter(visibilityConfig.PersistenceMaxQPS.AsFloat64())
-		visibilityFromES = ratelimited.NewVisibilityManager(visibilityFromES, esRateLimiter)
+		visibilityFromES = ratelimited.NewVisibilityManager(visibilityFromES, esRateLimiter, callerBypass)
 	}
 	if metricsClient != nil {
 		// wrap with metrics
@@ -469,10 +472,10 @@ func (f *factoryImpl) newDBVisibilityManager(
 	}
 	result := p.NewVisibilityManagerImpl(store, f.logger, f.dc)
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
-		result = errorinjectors.NewVisibilityManager(result, errorRate, f.logger)
+		result = errorinjectors.NewVisibilityManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewVisibilityManager(result, ds.ratelimit)
+		result = ratelimited.NewVisibilityManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 	}
 	if visibilityConfig.EnableDBVisibilitySampling != nil && visibilityConfig.EnableDBVisibilitySampling() {
 		result = sampled.NewVisibilityManager(result, sampled.Params{
@@ -502,10 +505,10 @@ func (f *factoryImpl) NewDomainReplicationQueueManager() (p.QueueManager, error)
 	}
 	result := p.NewQueueManager(store)
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
-		result = errorinjectors.NewQueueManager(result, errorRate, f.logger)
+		result = errorinjectors.NewQueueManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewQueueManager(result, ds.ratelimit)
+		result = ratelimited.NewQueueManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 	}
 	if f.metricsClient != nil {
 		result = metered.NewQueueManager(result, f.metricsClient, f.logger, f.config)
@@ -522,10 +525,10 @@ func (f *factoryImpl) NewConfigStoreManager() (p.ConfigStoreManager, error) {
 	}
 	result := p.NewConfigStoreManagerImpl(store, f.logger)
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
-		result = errorinjectors.NewConfigStoreManager(result, errorRate, f.logger)
+		result = errorinjectors.NewConfigStoreManager(result, errorRate, f.logger, time.Now())
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewConfigStoreManager(result, ds.ratelimit)
+		result = ratelimited.NewConfigStoreManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 	}
 	if f.metricsClient != nil {
 		result = metered.NewConfigStoreManager(result, f.metricsClient, f.logger, f.config)
@@ -621,28 +624,28 @@ func buildRatelimiters(cfg *config.Persistence, maxQPS quotas.RPSFunc) map[strin
 	return result
 }
 
-func setupPinotVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger, dc *p.DynamicConfiguration) (p.VisibilityManager, error) {
+func setupPinotVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger, dc *p.DynamicConfiguration, callerBypass quotas.CallerBypass) (p.VisibilityManager, error) {
 	visibilityProducer, err := params.MessagingClient.NewProducer(constants.PinotVisibilityAppName)
 	if err != nil {
 		return nil, err
 	}
-	return newPinotVisibilityManager(params.PinotClient, resourceConfig, visibilityProducer, params.MetricsClient, logger, dc), nil
+	return newPinotVisibilityManager(params.PinotClient, resourceConfig, visibilityProducer, params.MetricsClient, logger, dc, callerBypass), nil
 }
 
-func setupESVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger, dc *p.DynamicConfiguration) (p.VisibilityManager, error) {
+func setupESVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger, dc *p.DynamicConfiguration, callerBypass quotas.CallerBypass) (p.VisibilityManager, error) {
 	visibilityIndexName := params.ESConfig.Indices[constants.VisibilityAppName]
 	visibilityProducer, err := params.MessagingClient.NewProducer(constants.VisibilityAppName)
 	if err != nil {
 		return nil, err
 	}
-	return newESVisibilityManager(visibilityIndexName, params.ESClient, resourceConfig, visibilityProducer, params.MetricsClient, logger, dc), nil
+	return newESVisibilityManager(visibilityIndexName, params.ESClient, resourceConfig, visibilityProducer, params.MetricsClient, logger, dc, callerBypass), nil
 }
 
-func setupOSVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger, dc *p.DynamicConfiguration) (p.VisibilityManager, error) {
+func setupOSVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger, dc *p.DynamicConfiguration, callerBypass quotas.CallerBypass) (p.VisibilityManager, error) {
 	visibilityIndexName := params.OSConfig.Indices[constants.VisibilityAppName]
 	visibilityProducer, err := params.MessagingClient.NewProducer(constants.VisibilityAppName)
 	if err != nil {
 		return nil, err
 	}
-	return newESVisibilityManager(visibilityIndexName, params.OSClient, resourceConfig, visibilityProducer, params.MetricsClient, logger, dc), nil
+	return newESVisibilityManager(visibilityIndexName, params.OSClient, resourceConfig, visibilityProducer, params.MetricsClient, logger, dc, callerBypass), nil
 }

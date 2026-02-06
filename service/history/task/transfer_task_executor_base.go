@@ -198,6 +198,9 @@ func (t *transferTaskExecutorBase) recordWorkflowStarted(
 	immutableSearchAttributes map[string][]byte,
 	headers map[string][]byte,
 	clusterAttribute *types.ClusterAttribute,
+	cronSchedule string,
+	executionStatus types.WorkflowExecutionStatus,
+	scheduledExecutionTimeUnixNano int64,
 ) error {
 
 	domain := defaultDomainName
@@ -232,20 +235,23 @@ func (t *transferTaskExecutorBase) recordWorkflowStarted(
 			WorkflowID: workflowID,
 			RunID:      runID,
 		},
-		WorkflowTypeName:      workflowTypeName,
-		StartTimestamp:        startTimeUnixNano,
-		ExecutionTimestamp:    executionTimeUnixNano,
-		WorkflowTimeout:       int64(workflowTimeout),
-		TaskID:                taskID,
-		Memo:                  visibilityMemo,
-		TaskList:              taskList,
-		IsCron:                isCron,
-		NumClusters:           numClusters,
-		ClusterAttributeScope: clusterAttribute.GetScope(),
-		ClusterAttributeName:  clusterAttribute.GetName(),
-		UpdateTimestamp:       updateTimeUnixNano,
-		SearchAttributes:      searchAttributes,
-		ShardID:               int16(t.shard.GetShardID()),
+		WorkflowTypeName:            workflowTypeName,
+		StartTimestamp:              startTimeUnixNano,
+		ExecutionTimestamp:          executionTimeUnixNano,
+		WorkflowTimeout:             int64(workflowTimeout),
+		TaskID:                      taskID,
+		Memo:                        visibilityMemo,
+		TaskList:                    taskList,
+		IsCron:                      isCron,
+		CronSchedule:                cronSchedule,
+		NumClusters:                 numClusters,
+		ClusterAttributeScope:       clusterAttribute.GetScope(),
+		ClusterAttributeName:        clusterAttribute.GetName(),
+		UpdateTimestamp:             updateTimeUnixNano,
+		SearchAttributes:            searchAttributes,
+		ShardID:                     int16(t.shard.GetShardID()),
+		ExecutionStatus:             executionStatus,
+		ScheduledExecutionTimestamp: scheduledExecutionTimeUnixNano,
 	}
 
 	if t.config.EnableRecordWorkflowExecutionUninitialized(domain) {
@@ -286,6 +292,9 @@ func (t *transferTaskExecutorBase) upsertWorkflowExecution(
 	immutableSearchAttributes map[string][]byte,
 	headers map[string][]byte,
 	clusterAttribute *types.ClusterAttribute,
+	cronSchedule string,
+	executionStatus types.WorkflowExecutionStatus,
+	scheduledExecutionTimeUnixNano int64,
 ) error {
 
 	domain, err := t.shard.GetDomainCache().GetDomainName(domainID)
@@ -312,20 +321,23 @@ func (t *transferTaskExecutorBase) upsertWorkflowExecution(
 			WorkflowID: workflowID,
 			RunID:      runID,
 		},
-		WorkflowTypeName:      workflowTypeName,
-		StartTimestamp:        startTimeUnixNano,
-		ExecutionTimestamp:    executionTimeUnixNano,
-		WorkflowTimeout:       int64(workflowTimeout),
-		TaskID:                taskID,
-		Memo:                  visibilityMemo,
-		TaskList:              taskList,
-		IsCron:                isCron,
-		NumClusters:           numClusters,
-		ClusterAttributeScope: clusterAttribute.GetScope(),
-		ClusterAttributeName:  clusterAttribute.GetName(),
-		SearchAttributes:      searchAttributes,
-		UpdateTimestamp:       updateTimeUnixNano,
-		ShardID:               int64(t.shard.GetShardID()),
+		WorkflowTypeName:            workflowTypeName,
+		StartTimestamp:              startTimeUnixNano,
+		ExecutionTimestamp:          executionTimeUnixNano,
+		WorkflowTimeout:             int64(workflowTimeout),
+		TaskID:                      taskID,
+		Memo:                        visibilityMemo,
+		TaskList:                    taskList,
+		IsCron:                      isCron,
+		NumClusters:                 numClusters,
+		ClusterAttributeScope:       clusterAttribute.GetScope(),
+		ClusterAttributeName:        clusterAttribute.GetName(),
+		SearchAttributes:            searchAttributes,
+		UpdateTimestamp:             updateTimeUnixNano,
+		ShardID:                     int64(t.shard.GetShardID()),
+		ExecutionStatus:             executionStatus,
+		CronSchedule:                cronSchedule,
+		ScheduledExecutionTimestamp: scheduledExecutionTimeUnixNano,
 	}
 
 	return t.visibilityMgr.UpsertWorkflowExecution(ctx, request)
@@ -346,11 +358,14 @@ func (t *transferTaskExecutorBase) recordWorkflowClosed(
 	visibilityMemo *types.Memo,
 	taskList string,
 	isCron bool,
+	cronSchedule string,
 	numClusters int16,
 	updateTimeUnixNano int64,
 	immutableSearchAttributes map[string][]byte,
 	headers map[string][]byte,
 	clusterAttribute *types.ClusterAttribute,
+	executionStatus types.WorkflowExecutionStatus,
+	scheduledExecutionTimeUnixNano int64,
 ) error {
 
 	// Record closing in visibility store
@@ -396,23 +411,26 @@ func (t *transferTaskExecutorBase) recordWorkflowClosed(
 				WorkflowID: workflowID,
 				RunID:      runID,
 			},
-			WorkflowTypeName:      workflowTypeName,
-			StartTimestamp:        startTimeUnixNano,
-			ExecutionTimestamp:    executionTimeUnixNano,
-			CloseTimestamp:        endTimeUnixNano,
-			Status:                closeStatus,
-			HistoryLength:         historyLength,
-			RetentionSeconds:      retentionSeconds,
-			TaskID:                taskID,
-			Memo:                  visibilityMemo,
-			TaskList:              taskList,
-			SearchAttributes:      searchAttributes,
-			IsCron:                isCron,
-			ClusterAttributeScope: clusterAttribute.GetScope(),
-			ClusterAttributeName:  clusterAttribute.GetName(),
-			UpdateTimestamp:       updateTimeUnixNano,
-			NumClusters:           numClusters,
-			ShardID:               int16(t.shard.GetShardID()),
+			WorkflowTypeName:            workflowTypeName,
+			StartTimestamp:              startTimeUnixNano,
+			ExecutionTimestamp:          executionTimeUnixNano,
+			CloseTimestamp:              endTimeUnixNano,
+			Status:                      closeStatus,
+			HistoryLength:               historyLength,
+			RetentionSeconds:            retentionSeconds,
+			TaskID:                      taskID,
+			Memo:                        visibilityMemo,
+			TaskList:                    taskList,
+			SearchAttributes:            searchAttributes,
+			IsCron:                      isCron,
+			CronSchedule:                cronSchedule,
+			ClusterAttributeScope:       clusterAttribute.GetScope(),
+			ClusterAttributeName:        clusterAttribute.GetName(),
+			UpdateTimestamp:             updateTimeUnixNano,
+			NumClusters:                 numClusters,
+			ShardID:                     int16(t.shard.GetShardID()),
+			ExecutionStatus:             executionStatus,
+			ScheduledExecutionTimestamp: scheduledExecutionTimeUnixNano,
 		}); err != nil {
 			return err
 		}
@@ -563,4 +581,46 @@ func shouldRedactContextHeader(key string, hiddenValueKeys map[string]interface{
 		}
 	}
 	return false
+}
+
+// determineExecutionStatus determines whether a workflow execution is PENDING or STARTED
+// based on whether it has a first decision task backoff and if the decision task has been scheduled.
+//
+// A workflow is PENDING if:
+// - It has a firstDecisionTaskBackoffSeconds > 0, AND
+// - No decision task has been scheduled/processed yet
+//
+// Otherwise, it's STARTED.
+//
+// Returns:
+// - executionStatus: either WorkflowExecutionStatusPending or WorkflowExecutionStatusStarted
+// - scheduledExecutionTimestamp: startTime + firstDecisionTaskBackoffSeconds (in nanoseconds)
+func determineExecutionStatus(
+	startEvent *types.HistoryEvent,
+	mutableState execution.MutableState,
+) (executionStatus types.WorkflowExecutionStatus, scheduledExecutionTimestamp int64) {
+	executionStatus = types.WorkflowExecutionStatusStarted
+	backoffSeconds := int32(0)
+
+	if startEvent.WorkflowExecutionStartedEventAttributes != nil {
+		backoffSeconds = startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds()
+	}
+
+	if backoffSeconds > 0 {
+		hasPending := mutableState.HasPendingDecision()
+		hasInFlight := mutableState.HasInFlightDecision()
+		hasProcessed := mutableState.HasProcessedOrPendingDecision()
+
+		// Check if the first decision task has been scheduled yet
+		// If there's no decision info, the workflow is still pending
+		if !hasPending && !hasInFlight && !hasProcessed {
+			executionStatus = types.WorkflowExecutionStatusPending
+		}
+	}
+
+	// startTime + firstDecisionTaskBackoffSeconds
+	scheduledExecutionTimestamp = startEvent.GetTimestamp() +
+		int64(backoffSeconds)*int64(time.Second)
+
+	return executionStatus, scheduledExecutionTimestamp
 }

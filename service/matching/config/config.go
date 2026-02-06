@@ -23,6 +23,7 @@ package config
 import (
 	"time"
 
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
@@ -69,6 +70,7 @@ type (
 		EnableStandbyTaskCompletion               dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
 		EnableClientAutoConfig                    dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
 		QPSTrackerInterval                        dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
+		OverrideTaskListRPS                       dynamicproperties.FloatPropertyFnWithTaskListInfoFilters
 		EnablePartitionIsolationGroupAssignment   dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
 		IsolationGroupUpscaleSustainedDuration    dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		IsolationGroupDownscaleSustainedDuration  dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
@@ -98,6 +100,8 @@ type (
 		AllIsolationGroups      func() []string
 		// hostname info
 		HostName string
+		// RPCConfig contains RPC configuration including ports and bindOnLocalHost
+		RPCConfig config.RPC
 		// rate limiter configuration
 		TaskDispatchRPS    float64
 		TaskDispatchRPSTTL time.Duration
@@ -137,6 +141,7 @@ type (
 		PartitionDownscaleSustainedDuration       func() time.Duration
 		AdaptiveScalerUpdateInterval              func() time.Duration
 		QPSTrackerInterval                        func() time.Duration
+		OverrideTaskListRPS                       func() float64
 		EnablePartitionIsolationGroupAssignment   func() bool
 		IsolationGroupUpscaleSustainedDuration    func() time.Duration
 		IsolationGroupDownscaleSustainedDuration  func() time.Duration
@@ -171,7 +176,7 @@ type (
 )
 
 // NewConfig returns new service config with default values
-func NewConfig(dc *dynamicconfig.Collection, hostName string, getIsolationGroups func() []string) *Config {
+func NewConfig(dc *dynamicconfig.Collection, hostName string, rpcConfig config.RPC, getIsolationGroups func() []string) *Config {
 	return &Config{
 		PersistenceMaxQPS:                         dc.GetIntProperty(dynamicproperties.MatchingPersistenceMaxQPS),
 		PersistenceGlobalMaxQPS:                   dc.GetIntProperty(dynamicproperties.MatchingPersistenceGlobalMaxQPS),
@@ -216,6 +221,7 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string, getIsolationGroups
 		EnableAdaptiveScaler:                      dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableAdaptiveScaler),
 		EnablePartitionEmptyCheck:                 dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnablePartitionEmptyCheck),
 		QPSTrackerInterval:                        dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingQPSTrackerInterval),
+		OverrideTaskListRPS:                       dc.GetFloat64PropertyFilteredByTaskListInfo(dynamicproperties.MatchingOverrideTaskListRPS),
 		EnablePartitionIsolationGroupAssignment:   dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.EnablePartitionIsolationGroupAssignment),
 		IsolationGroupUpscaleSustainedDuration:    dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupUpscaleSustainedDuration),
 		IsolationGroupDownscaleSustainedDuration:  dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupDownscaleSustainedDuration),
@@ -225,6 +231,7 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string, getIsolationGroups
 		TaskIsolationDuration:                     dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.TaskIsolationDuration),
 		TaskIsolationPollerWindow:                 dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.TaskIsolationPollerWindow),
 		HostName:                                  hostName,
+		RPCConfig:                                 rpcConfig,
 		TaskDispatchRPS:                           100000.0,
 		TaskDispatchRPSTTL:                        time.Minute,
 		MaxTimeBetweenTaskDeletes:                 time.Second,

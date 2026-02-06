@@ -336,3 +336,11 @@ asyncWorkflowQueues:
           - {{ default .Env.KAFKA_SEEDS "" }}:{{ default .Env.KAFKA_PORT "9092" }}
       topic: {{ default .Env.ASYNC_WF_KAFKA_QUEUE_TOPIC "default-topic" }}
 {{- end }}
+
+shard-distributor-matching:
+  namespaces:
+    - namespace: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_NAMESPACE "cadence-matching" }}
+      heartbeat_interval: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_HEARTBEAT_INTERVAL "1s" }}
+      migration_mode: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_MIGRATION_MODE "local_pass" }}
+      ttl_shard: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_TTL_SHARD "5m" }}
+      ttl_report: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_TTL_REPORT "1m" }}

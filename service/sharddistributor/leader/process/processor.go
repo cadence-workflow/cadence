@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"math/rand"
 	"slices"
 	"sort"
@@ -55,6 +56,7 @@ type processorFactory struct {
 	timeSource    clock.TimeSource
 	cfg           config.LeaderProcess
 	metricsClient metrics.Client
+	sdConfig      *config.Config
 }
 
 type namespaceProcessor struct {
@@ -64,6 +66,7 @@ type namespaceProcessor struct {
 	timeSource          clock.TimeSource
 	running             bool
 	cancel              context.CancelFunc
+	sdConfig            *config.Config
 	cfg                 config.LeaderProcess
 	wg                  sync.WaitGroup
 	shardStore          store.Store
@@ -77,6 +80,7 @@ func NewProcessorFactory(
 	metricsClient metrics.Client,
 	timeSource clock.TimeSource,
 	cfg config.ShardDistribution,
+	sdConfig *config.Config,
 ) Factory {
 	if cfg.Process.Period <= 0 {
 		cfg.Process.Period = _defaultPeriod
@@ -93,6 +97,7 @@ func NewProcessorFactory(
 		timeSource:    timeSource,
 		cfg:           cfg.Process,
 		metricsClient: metricsClient,
+		sdConfig:      sdConfig,
 	}
 }
 
@@ -106,6 +111,7 @@ func (f *processorFactory) CreateProcessor(cfg config.Namespace, shardStore stor
 		shardStore:    shardStore,
 		election:      election, // Store the election object
 		metricsClient: f.metricsClient,
+		sdConfig:      f.sdConfig,
 	}
 }
 
@@ -178,11 +184,9 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 	defer ticker.Stop()
 
 	// Perform an initial rebalance on startup.
-	if p.namespaceCfg.Mode == config.MigrationModeONBOARDED {
-		err := p.rebalanceShards(ctx)
-		if err != nil {
-			p.logger.Error("initial rebalance failed", tag.Error(err))
-		}
+	err := p.rebalanceShards(ctx)
+	if err != nil {
+		p.logger.Error("initial rebalance failed", tag.Error(err))
 	}
 
 	updateChan, err := p.shardStore.Subscribe(ctx, p.namespaceCfg.Name)
@@ -204,17 +208,9 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 			if latestRevision <= p.lastAppliedRevision {
 				continue
 			}
-			if p.namespaceCfg.Mode != config.MigrationModeONBOARDED {
-				p.logger.Info("Namespace not onboarded, rebalance not triggered", tag.ShardNamespace(p.namespaceCfg.Name))
-				break
-			}
 			p.logger.Info("State change detected, triggering rebalance.")
 			err = p.rebalanceShards(ctx)
 		case <-ticker.Chan():
-			if p.namespaceCfg.Mode != config.MigrationModeONBOARDED {
-				p.logger.Info("Namespace not onboarded, skipped periodic reconciliation", tag.ShardNamespace(p.namespaceCfg.Name))
-				break
-			}
 			p.logger.Info("Periodic reconciliation triggered, rebalancing.")
 			err = p.rebalanceShards(ctx)
 		}
@@ -235,6 +231,13 @@ func (p *namespaceProcessor) runShardStatsCleanupLoop(ctx context.Context) {
 			p.logger.Info("Shard stats cleanup loop cancelled.")
 			return
 		case <-ticker.Chan():
+			// Only perform shard stats cleanup in GREEDY load balancing mode
+			// TODO: refactor this to not have this loop for non-GREEDY modes
+			if p.sdConfig.GetLoadBalancingMode(p.namespaceCfg.Name) != types.LoadBalancingModeGREEDY {
+				p.logger.Debug("Load balancing mode is not GREEDY, skipping shard stats cleanup.", tag.ShardNamespace(p.namespaceCfg.Name))
+				continue
+			}
+
 			p.logger.Info("Periodic shard stats cleanup triggered.")
 			namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
 			if err != nil {
@@ -371,6 +374,14 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	activeExecutors := p.getActiveExecutors(namespaceState, staleExecutors)
 	if len(activeExecutors) == 0 {
 		p.logger.Info("No active executors found. Cannot assign shards.")
+
+		// Cleanup stale executors even if no active executors remain
+		if len(staleExecutors) > 0 {
+			p.logger.Info("Cleaning up stale executors (no active executors)", tag.ShardExecutors(slices.Collect(maps.Keys(staleExecutors))))
+			if err := p.shardStore.DeleteExecutors(ctx, p.namespaceCfg.Name, slices.Collect(maps.Keys(staleExecutors)), p.election.Guard()); err != nil {
+				p.logger.Error("Failed to delete stale executors", tag.Error(err))
+			}
+		}
 		return nil
 	}
 	p.logger.Info("Active executors", tag.ShardExecutors(activeExecutors))
@@ -383,14 +394,34 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	// If there are deleted shards or stale executors, the distribution has changed.
 	assignedToEmptyExecutors := assignShardsToEmptyExecutors(currentAssignments)
 	updatedAssignments := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
+	isRebalancedByShardLoad := p.rebalanceByShardLoad(calcShardLoad(namespaceState), currentAssignments)
 
-	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments
+	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments || isRebalancedByShardLoad
 	if !distributionChanged {
 		p.logger.Info("No changes to distribution detected. Skipping rebalance.")
 		return nil
 	}
 
-	p.addAssignmentsToNamespaceState(namespaceState, currentAssignments)
+	newState := p.getNewAssignmentsState(namespaceState, currentAssignments)
+
+	p.emitExecutorMetric(namespaceState, metricsLoopScope)
+	p.emitOldestExecutorHeartbeatLag(namespaceState, metricsLoopScope)
+
+	if p.sdConfig.GetMigrationMode(p.namespaceCfg.Name) != types.MigrationModeONBOARDED {
+		p.logger.Info("Running rebalancing in shadow mode", tag.Dynamic("old_assignments", namespaceState.ShardAssignments), tag.Dynamic("new_assignments", newState))
+		p.emitActiveShardMetric(namespaceState.ShardAssignments, metricsLoopScope)
+
+		if len(staleExecutors) > 0 {
+			p.logger.Info("Cleaning up stale executors in shadow mode", tag.ShardExecutors(slices.Collect(maps.Keys(staleExecutors))))
+			if err := p.shardStore.DeleteExecutors(ctx, p.namespaceCfg.Name, slices.Collect(maps.Keys(staleExecutors)), p.election.Guard()); err != nil {
+				p.logger.Error("Failed to delete stale executors in shadow mode", tag.Error(err))
+				// Non-blocking: stale executors in shadow mode will be cleaned up the next cycle
+			}
+		}
+		return nil
+	}
+
+	namespaceState.ShardAssignments = newState
 	p.logger.Info("Applying new shard distribution.")
 
 	// Use the leader guard for the assign and delete operation.
@@ -402,13 +433,38 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 		return fmt.Errorf("assign shards: %w", err)
 	}
 
+	p.emitActiveShardMetric(namespaceState.ShardAssignments, metricsLoopScope)
+	return nil
+}
+
+func (p *namespaceProcessor) emitActiveShardMetric(shardAssignments map[string]store.AssignedState, metricsLoopScope metrics.Scope) {
 	totalActiveShards := 0
-	for _, assignedState := range namespaceState.ShardAssignments {
+	for _, assignedState := range shardAssignments {
 		totalActiveShards += len(assignedState.AssignedShards)
 	}
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorActiveShards, float64(totalActiveShards))
+}
 
-	return nil
+func (p *namespaceProcessor) emitExecutorMetric(namespaceState *store.NamespaceState, metricsLoopScope metrics.Scope) {
+	for status, count := range namespaceState.CountExecutorsByStatus() {
+		metricsLoopScope.Tagged(metrics.ExecutorStatusTag(status.String())).UpdateGauge(metrics.ShardDistributorTotalExecutors, float64(count))
+	}
+}
+
+func (p *namespaceProcessor) emitOldestExecutorHeartbeatLag(namespaceState *store.NamespaceState, metricsLoopScope metrics.Scope) {
+	if len(namespaceState.Executors) == 0 {
+		return
+	}
+
+	var oldestHeartbeat time.Time
+	for _, executor := range namespaceState.Executors {
+		if oldestHeartbeat.IsZero() || executor.LastHeartbeat.Before(oldestHeartbeat) {
+			oldestHeartbeat = executor.LastHeartbeat
+		}
+	}
+
+	lag := p.timeSource.Now().Sub(oldestHeartbeat)
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorOldestExecutorHeartbeatLag, float64(lag.Milliseconds()))
 }
 
 func (p *namespaceProcessor) findDeletedShards(namespaceState *store.NamespaceState) map[string]store.ShardState {
@@ -479,10 +535,90 @@ func (*namespaceProcessor) updateAssignments(shardsToReassign []string, activeEx
 		currentAssignments[executorID] = append(currentAssignments[executorID], shardID)
 		i++
 	}
+
 	return true
 }
 
-func (p *namespaceProcessor) addAssignmentsToNamespaceState(namespaceState *store.NamespaceState, currentAssignments map[string][]string) {
+// calcShardLoad returns a map of shardID to its load based on the latest reported shard loads from executors
+func calcShardLoad(namespaceState *store.NamespaceState) map[string]float64 {
+	shardLoad := make(map[string]float64)
+	for _, state := range namespaceState.Executors {
+		for shardID, report := range state.ReportedShards {
+			shardLoad[shardID] = report.ShardLoad
+		}
+	}
+	return shardLoad
+}
+
+// rebalanceByShardLoad does a rebalance if a difference between hottest and coldest executors' loads is more than maxDeviation
+// in this case the hottest shard will be moved to the coldest executor
+func (p *namespaceProcessor) rebalanceByShardLoad(shardLoad map[string]float64, currentAssignments map[string][]string) (distributedChanged bool) {
+	// no rebalance if there are no more than 1 executor
+	if len(currentAssignments) < 2 {
+		return false
+	}
+
+	var (
+		hottestExecutorLoad = float64(0)
+		hottestExecutorID   = ""
+
+		hottestShardID   = ""
+		hottestShardLoad = float64(0)
+
+		coldestExecutorLoad = math.MaxFloat64
+		coldestExecutorID   = ""
+	)
+
+	// finding loads of hottest, coldest executors and hottest shard
+	executorLoad := make(map[string]float64)
+	for executorID, shardIDs := range currentAssignments {
+		for _, shardID := range shardIDs {
+			executorLoad[executorID] += shardLoad[shardID]
+		}
+
+		if executorLoad[executorID] <= coldestExecutorLoad {
+			coldestExecutorLoad = executorLoad[executorID]
+			coldestExecutorID = executorID
+		}
+
+		if executorLoad[executorID] >= hottestExecutorLoad {
+			hottestExecutorLoad = executorLoad[executorID]
+			hottestExecutorID = executorID
+
+			var maxShardLoad = float64(0)
+			for _, shardID := range shardIDs {
+				if shardLoad[shardID] >= maxShardLoad {
+					hottestShardID = shardID
+					maxShardLoad = shardLoad[shardID]
+				}
+			}
+			hottestShardLoad = maxShardLoad
+		}
+	}
+
+	// no rebalance if a deviation between coldest and hottest executors less than maxDeviation
+	if hottestExecutorLoad/coldestExecutorLoad < p.sdConfig.LoadBalancingNaive.MaxDeviation(p.namespaceCfg.Name) {
+		return false
+	}
+
+	// no rebalance if coldest executor becomes a hottest
+	if coldestExecutorLoad+hottestShardLoad >= hottestExecutorLoad {
+		return false
+	}
+
+	// remove the hottest Shard from the hottest executor
+	// put it to the coldest executor
+	for i, shardID := range currentAssignments[hottestExecutorID] {
+		if shardID == hottestShardID {
+			currentAssignments[hottestExecutorID] = append(currentAssignments[hottestExecutorID][:i], currentAssignments[hottestExecutorID][i+1:]...)
+		}
+	}
+	currentAssignments[coldestExecutorID] = append(currentAssignments[coldestExecutorID], hottestShardID)
+
+	return true
+}
+
+func (p *namespaceProcessor) getNewAssignmentsState(namespaceState *store.NamespaceState, currentAssignments map[string][]string) map[string]store.AssignedState {
 	newState := make(map[string]store.AssignedState, len(currentAssignments))
 
 	for executorID, shards := range currentAssignments {
@@ -505,7 +641,7 @@ func (p *namespaceProcessor) addAssignmentsToNamespaceState(namespaceState *stor
 		}
 	}
 
-	namespaceState.ShardAssignments = newState
+	return newState
 }
 
 func (p *namespaceProcessor) addHandoverStatsToExecutorAssignedState(

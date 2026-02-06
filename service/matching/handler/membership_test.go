@@ -23,6 +23,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -51,6 +52,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/tasklist"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestGetTaskListManager_OwnerShip(t *testing.T) {
@@ -109,6 +111,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 			resolverMock := membership.NewMockResolver(ctrl)
 			resolverMock.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).AnyTimes()
+			mockShardDistributorExecutorClient := executorclient.NewMockClient(ctrl)
 
 			// this is only if the call goes through
 			mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry(matchingTestDomainName), nil).AnyTimes()
@@ -129,10 +132,13 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				config,
 				logger,
 				metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
+				tally.NoopScope,
 				mockDomainCache,
 				resolverMock,
 				isolationgroup.NewMockState(ctrl),
 				mockTimeSource,
+				mockShardDistributorExecutorClient,
+				defaultSDExecutorConfig(),
 			).(*matchingEngineImpl)
 
 			resolverMock.EXPECT().Lookup(gomock.Any(), gomock.Any()).Return(
@@ -142,7 +148,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				membership.NewDetailedHostInfo("", tc.whoAmIResult, make(membership.PortMap)), tc.whoAmIErr,
 			).AnyTimes()
 
-			_, err := matchingEngine.getTaskListManager(
+			_, err := matchingEngine.getOrCreateTaskListManager(context.Background(),
 				tasklist.NewTestTaskListID(t, "domain", "tasklist", persistence.TaskListTypeActivity),
 				types.TaskListKindNormal,
 			)
@@ -180,6 +186,8 @@ func TestMembershipSubscriptionRecoversAfterPanic(t *testing.T) {
 func TestSubscriptionAndShutdown(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockResolver := membership.NewMockResolver(ctrl)
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+	mockExecutor.EXPECT().Stop()
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(1)
@@ -195,6 +203,7 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 		shutdown:    make(chan struct{}),
 		logger:      log.NewNoop(),
 		domainCache: mockDomainCache,
+		executor:    mockExecutor,
 	}
 
 	mockResolver.EXPECT().WhoAmI().Return(membership.NewDetailedHostInfo("host2", "host2", nil), nil).AnyTimes()
@@ -210,6 +219,8 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 func TestSubscriptionAndErrorReturned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockResolver := membership.NewMockResolver(ctrl)
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+	mockExecutor.EXPECT().Stop()
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -228,6 +239,7 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 		shutdown:    make(chan struct{}),
 		logger:      log.NewNoop(),
 		domainCache: mockDomainCache,
+		executor:    mockExecutor,
 	}
 
 	// this should trigger the error case on a membership event
@@ -314,6 +326,11 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	mockResolver.EXPECT().WhoAmI().Return(self, nil).AnyTimes()
 	mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).Times(1)
 
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+	mockExecutor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	mockExecutor.EXPECT().IsOnboardedToSD().Return(false).AnyTimes()
+	mockExecutor.EXPECT().Stop()
+
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(0)
 
@@ -326,13 +343,14 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 		shutdown:    make(chan struct{}),
 		logger:      log.NewNoop(),
 		domainCache: mockDomainCache,
+		executor:    mockExecutor,
 	}
 
 	// set this engine to be shutting down to trigger the tasklistGetTasklistByID guard
 	engine.Stop()
 
 	tl, _ := tasklist.NewIdentifier("domainid", "tl", 0)
-	res, err := engine.getTaskListManager(tl, types.TaskListKindNormal)
+	res, err := engine.getOrCreateTaskListManager(context.Background(), tl, types.TaskListKindNormal)
 	assertErr := &cadence_errors.TaskListNotOwnedByHostError{}
 	assert.ErrorAs(t, err, &assertErr)
 	assert.Nil(t, res)

@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/clock"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -1312,7 +1313,7 @@ func isolationConfig(t *testing.T, dynamicClient dynamicconfig.Client, groupsPer
 	taskListID, err := NewIdentifier("test-domain-id", "test-task-list", 0)
 	require.NoError(t, err)
 	logger := testlogger.New(t)
-	cfg := newTaskListConfig(taskListID, config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "test-host", func() []string { return nil }), "test-domain")
+	cfg := newTaskListConfig(taskListID, config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "test-host", commonConfig.RPC{}, func() []string { return nil }), "test-domain")
 	require.NoError(t, dynamicClient.UpdateValue(dynamicproperties.MatchingPartitionUpscaleRPS, 200))
 	require.NoError(t, dynamicClient.UpdateValue(dynamicproperties.MatchingPartitionDownscaleFactor, 0.75))
 	require.NoError(t, dynamicClient.UpdateValue(dynamicproperties.MatchingIsolationGroupsPerPartition, groupsPerPartition))

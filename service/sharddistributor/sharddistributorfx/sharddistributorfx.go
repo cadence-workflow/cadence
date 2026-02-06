@@ -26,7 +26,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/rpc"
@@ -45,6 +44,7 @@ var Module = fx.Module("sharddistributor",
 	namespace.Module,
 	election.Module,
 	process.Module,
+	fx.Provide(config.NewConfig),
 	fx.Decorate(func(s store.Store, metricsClient metrics.Client, logger log.Logger, timeSource clock.TimeSource) store.Store {
 		return meteredStore.NewStore(s, metricsClient, logger, timeSource)
 	}),
@@ -55,10 +55,10 @@ type registerHandlersParams struct {
 
 	ShardDistributionCfg config.ShardDistribution
 
-	Logger            log.Logger
-	MetricsClient     metrics.Client
-	RPCFactory        rpc.Factory
-	DynamicCollection *dynamicconfig.Collection
+	Logger        log.Logger
+	MetricsClient metrics.Client
+	RPCFactory    rpc.Factory
+	Config        *config.Config
 
 	TimeSource clock.TimeSource
 	Store      store.Store
@@ -72,8 +72,7 @@ func registerHandlers(params registerHandlersParams) error {
 	rawHandler := handler.NewHandler(params.Logger, params.ShardDistributionCfg, params.Store)
 	wrappedHandler := metered.NewMetricsHandler(rawHandler, params.Logger, params.MetricsClient)
 
-	migrationConfig := config.NewMigrationConfig(params.DynamicCollection)
-	executorHandler := handler.NewExecutorHandler(params.Logger, params.Store, params.TimeSource, params.ShardDistributionCfg, migrationConfig, params.MetricsClient)
+	executorHandler := handler.NewExecutorHandler(params.Logger, params.Store, params.TimeSource, params.ShardDistributionCfg, params.Config, params.MetricsClient)
 	wrappedExecutor := metered.NewExecutorMetricsExecutor(executorHandler, params.Logger, params.MetricsClient)
 
 	grpcHandler := grpc.NewGRPCHandler(wrappedHandler)

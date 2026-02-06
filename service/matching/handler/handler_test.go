@@ -34,6 +34,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	dynamicquotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/metrics"
@@ -112,7 +113,7 @@ func (s *handlerSuite) getHandler(config *config.Config) Handler {
 }
 
 func (s *handlerSuite) TestNewHandler() {
-	cfg := config.NewConfig(dynamicconfig.NewCollection(dynamicconfig.NewInMemoryClient(), s.mockResource.Logger), "matching-test", getIsolationGroupsHelper)
+	cfg := config.NewConfig(dynamicconfig.NewCollection(dynamicconfig.NewInMemoryClient(), s.mockResource.Logger), "matching-test", commonConfig.RPC{}, getIsolationGroupsHelper)
 	handler := s.getHandler(cfg)
 	s.NotNil(handler)
 }
@@ -120,7 +121,7 @@ func (s *handlerSuite) TestNewHandler() {
 func (s *handlerSuite) TestStart() {
 	defer goleak.VerifyNone(s.T())
 
-	cfg := config.NewConfig(dynamicconfig.NewCollection(dynamicconfig.NewInMemoryClient(), s.mockResource.Logger), "matching-test", getIsolationGroupsHelper)
+	cfg := config.NewConfig(dynamicconfig.NewCollection(dynamicconfig.NewInMemoryClient(), s.mockResource.Logger), "matching-test", commonConfig.RPC{}, getIsolationGroupsHelper)
 	handler := s.getHandler(cfg)
 
 	s.mockEngine.EXPECT().Start().Times(1)
@@ -131,7 +132,7 @@ func (s *handlerSuite) TestStart() {
 func (s *handlerSuite) TestStop() {
 	defer goleak.VerifyNone(s.T())
 
-	cfg := config.NewConfig(dynamicconfig.NewCollection(dynamicconfig.NewInMemoryClient(), s.mockResource.Logger), "matching-test", getIsolationGroupsHelper)
+	cfg := config.NewConfig(dynamicconfig.NewCollection(dynamicconfig.NewInMemoryClient(), s.mockResource.Logger), "matching-test", commonConfig.RPC{}, getIsolationGroupsHelper)
 	handler := s.getHandler(cfg)
 
 	s.mockEngine.EXPECT().Start().Times(1)

@@ -24,7 +24,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
@@ -100,7 +99,7 @@ func (m *sqlHistoryStore) AppendHistoryNodes(
 		treeInfo := &serialization.HistoryTreeInfo{
 			Ancestors:        ancestors,
 			Info:             request.Info,
-			CreatedTimestamp: time.Now(),
+			CreatedTimestamp: request.CurrentTimeStamp,
 		}
 
 		blob, err := m.parser.HistoryTreeInfoToBlob(treeInfo)
@@ -349,7 +348,7 @@ func (m *sqlHistoryStore) ForkHistoryBranch(
 	treeInfo := &serialization.HistoryTreeInfo{
 		Ancestors:        newAncestors,
 		Info:             request.Info,
-		CreatedTimestamp: time.Now(),
+		CreatedTimestamp: request.CurrentTimeStamp,
 	}
 
 	blob, err := m.parser.HistoryTreeInfoToBlob(treeInfo)

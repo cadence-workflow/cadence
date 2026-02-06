@@ -229,6 +229,17 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 
 // OfferOrTimeout offers a task to a poller and blocks until a poller picks up the task or context timeouts
 func (tm *taskMatcherImpl) OfferOrTimeout(ctx context.Context, startT time.Time, task *InternalTask) (bool, error) {
+	if !task.IsForwarded() {
+		err := tm.ratelimit(ctx)
+		if err != nil {
+			// If context was canceled/timed out, return without error (consistent with original behavior)
+			if err == ctx.Err() {
+				return false, nil
+			}
+			tm.scope.IncCounter(metrics.SyncThrottlePerTaskListCounter)
+			return false, err
+		}
+	}
 	select {
 	case tm.getTaskC(task) <- task: // poller picked up the task
 		if task.ResponseC != nil {

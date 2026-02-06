@@ -279,6 +279,7 @@ func (s *workflowResetterSuite) TestReplayResetWorkflow() {
 }
 
 func (s *workflowResetterSuite) TestFailInflightActivity() {
+	now := time.Now().UTC()
 	terminateReason := "some random termination reason"
 
 	mutableState := execution.NewMockMutableState(s.controller)
@@ -286,14 +287,17 @@ func (s *workflowResetterSuite) TestFailInflightActivity() {
 	activity1 := &persistence.ActivityInfo{
 		Version:         12,
 		ScheduleID:      123,
+		ScheduledTime:   now.Add(-10 * time.Second),
 		StartedID:       124,
 		Details:         []byte("some random activity 1 details"),
 		StartedIdentity: "some random activity 1 started identity",
 	}
 	activity2 := &persistence.ActivityInfo{
-		Version:    12,
-		ScheduleID: 456,
-		StartedID:  commonconstants.EmptyEventID,
+		Version:         12,
+		ScheduleID:      456,
+		ScheduledTime:   now.Add(-10 * time.Second),
+		StartedID:       commonconstants.EmptyEventID,
+		TimerTaskStatus: execution.TimerTaskStatusCreatedScheduleToStart,
 	}
 	mutableState.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{
 		activity1.ScheduleID: activity1,
@@ -310,7 +314,15 @@ func (s *workflowResetterSuite) TestFailInflightActivity() {
 		},
 	).Return(&types.HistoryEvent{}, nil).Times(1)
 
-	err := s.workflowResetter.failInflightActivity(mutableState, terminateReason)
+	mutableState.EXPECT().UpdateActivity(&persistence.ActivityInfo{
+		Version:         activity2.Version,
+		ScheduleID:      activity2.ScheduleID,
+		ScheduledTime:   now,
+		StartedID:       activity2.StartedID,
+		TimerTaskStatus: execution.TimerTaskStatusNone,
+	}).Return(nil).Times(1)
+
+	err := s.workflowResetter.failInflightActivity(now, mutableState, terminateReason)
 	s.NoError(err)
 }
 

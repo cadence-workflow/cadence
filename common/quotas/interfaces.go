@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 //go:generate mockgen -package=$GOPACKAGE -destination=limiter_mock.go github.com/uber/cadence/common/quotas Limiter
+//go:generate mockgen -package=$GOPACKAGE -destination=policy_mock.go github.com/uber/cadence/common/quotas Policy
 
 package quotas
 
@@ -73,4 +74,8 @@ type Policy interface {
 	// immediately with a true or false indicating if the request can make
 	// progress
 	Allow(info Info) bool
+
+	// Wait waits up till the context deadline for a rate limit token to allow
+	// the request to go through. Returns nil if request is allowed.
+	Wait(ctx context.Context, info Info) error
 }

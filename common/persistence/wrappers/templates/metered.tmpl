@@ -18,10 +18,10 @@ type {{$decorator}} struct {
 
 // New{{.Interface.Name}} creates a new instance of {{.Interface.Name}} with ratelimiter.
 func New{{.Interface.Name}}(
-	wrapped      persistence.{{.Interface.Name}},
-	metricClient metrics.Client,
-	logger       log.Logger,
-	cfg          *config.Persistence,
+	wrapped       persistence.{{.Interface.Name}},
+	metricClient  metrics.Client,
+	logger        log.Logger,
+	cfg           *config.Persistence,
 ) persistence.{{.Interface.Name}} {
     return &{{$decorator}}{
         wrapped: wrapped,

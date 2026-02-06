@@ -9,7 +9,6 @@ import (
 	"go.uber.org/fx/fxtest"
 	"gopkg.in/yaml.v2"
 
-	commonconfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/service/sharddistributor/config"
 )
 
@@ -51,7 +50,7 @@ func TestNewETCDConfig_WithValidConfig(t *testing.T) {
 	encoded, err := yaml.Marshal(etcdCfg)
 	require.NoError(t, err)
 
-	decoded := &commonconfig.YamlNode{}
+	decoded := &config.YamlNode{}
 	err = yaml.Unmarshal(encoded, decoded)
 	require.NoError(t, err)
 
@@ -70,7 +69,7 @@ func TestNewETCDConfig_WithInvalidConfig(t *testing.T) {
 	encoded, err := yaml.Marshal("")
 	require.NoError(t, err)
 
-	decoded := &commonconfig.YamlNode{}
+	decoded := &config.YamlNode{}
 	err = yaml.Unmarshal(encoded, decoded)
 	require.NoError(t, err)
 

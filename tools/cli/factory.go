@@ -52,6 +52,7 @@ import (
 	"github.com/uber/cadence/common"
 	cc "github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/tools/common/commoncli"
 )
 
@@ -305,7 +306,8 @@ func (vm *versionMiddleware) Call(ctx context.Context, request *transport.Reques
 	request.Headers = request.Headers.
 		With(common.ClientImplHeaderName, cc.CLI).
 		With(common.FeatureVersionHeaderName, cc.SupportedCLIVersion).
-		With(common.ClientFeatureFlagsHeaderName, cc.FeatureFlagsHeader(cc.DefaultCLIFeatureFlags))
+		With(common.ClientFeatureFlagsHeaderName, cc.FeatureFlagsHeader(cc.DefaultCLIFeatureFlags)).
+		With(common.CallerTypeHeaderName, types.CallerTypeCLI.String())
 	if jwtKey, ok := ctx.Value(CtxKeyJWT).(string); ok {
 		request.Headers = request.Headers.With(common.AuthorizationTokenHeaderName, jwtKey)
 	}

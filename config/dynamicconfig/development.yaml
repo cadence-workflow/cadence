@@ -1,6 +1,3 @@
-matching.shardDistributionMode:
-  - value: "hash_ring-shadow-shard_distributor"
-    constraints: {}
 frontend.enableClientVersionCheck:
 - value: true
   constraints: {}
@@ -66,6 +63,9 @@ frontend.validSearchAttributes:
     service: 1
     user: 1
     IsDeleted: 4
+    ExecutionStatus: 2
+    CronSchedule: 1
+    ScheduledExecutionTime: 2
   constraints: {}
 system.writeVisibilityStoreName:
   - value: "db"
@@ -76,6 +76,8 @@ system.domainAuditLogTTL:
 matching.enableClientAutoConfig:
 - value: true
 frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
+- value: true
+history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation:
 - value: true
 shardDistributor.migrationMode:
   - value: "onboarded"

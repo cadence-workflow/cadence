@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist Manager
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist ManagerRegistry
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist TaskMatcher
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist Forwarder
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist TaskCompleter
@@ -37,6 +38,14 @@ import (
 )
 
 type (
+	// ManagerRegistry is implemented by components that track/own task list managers.
+	// Managers notify their registry when they stop so they can be cleaned up.
+	ManagerRegistry interface {
+		// UnregisterManager is called by a Manager when it stops, allowing the registry
+		// to clean up resources and remove the manager from its tracking structures.
+		UnregisterManager(mgr Manager)
+	}
+
 	Manager interface {
 		Start(ctx context.Context) error
 		Stop()
@@ -93,7 +102,8 @@ type (
 	}
 
 	ShardProcessor interface {
-		Manager
+		Start(ctx context.Context) error
+		Stop()
 		GetShardReport() executorclient.ShardReport
 		SetShardStatus(types.ShardStatus)
 	}

@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 )
 
 const defaultIdleChannelTTLInSeconds = 3600
@@ -59,6 +60,7 @@ type (
 		bufferSize              int
 		idleChannelTTLInSeconds int64
 		logger                  log.Logger
+		metricsScope            metrics.Scope
 		timeSource              clock.TimeSource
 		channelMap              map[K]*weightedChannel[V]
 		// precalculated / flattened task chan schedule according to weight
@@ -77,6 +79,7 @@ type (
 
 func NewWeightedRoundRobinChannelPool[K comparable, V any](
 	logger log.Logger,
+	metricsScope metrics.Scope,
 	timeSource clock.TimeSource,
 	options WeightedRoundRobinChannelPoolOptions,
 ) *WeightedRoundRobinChannelPool[K, V] {
@@ -84,6 +87,7 @@ func NewWeightedRoundRobinChannelPool[K comparable, V any](
 		bufferSize:              options.BufferSize,
 		idleChannelTTLInSeconds: options.IdleChannelTTLInSeconds,
 		logger:                  logger,
+		metricsScope:            metricsScope,
 		timeSource:              timeSource,
 		channelMap:              make(map[K]*weightedChannel[V]),
 		shutdownCh:              make(chan struct{}),
@@ -223,6 +227,8 @@ func (p *WeightedRoundRobinChannelPool[K, V]) updateScheduleLocked() {
 		}
 	}
 	p.iwrrSchedule.Store(iwrrSchedule)
+
+	p.metricsScope.UpdateGauge(metrics.WeightedChannelPoolSizeGauge, float64((len(p.channelMap)+len(iwrrSchedule))*28)) // 28 bytes per weighted channel struct
 }
 
 func (w weightedChannels[V]) Len() int {

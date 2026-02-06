@@ -82,6 +82,17 @@ var (
 		DeleteBadBinary:                        common.StringPtr(DeleteBadBinary),
 		FailoverTimeoutInSeconds:               &Duration1,
 	}
+	FailoverDomainRequest = types.FailoverDomainRequest{
+		DomainName:              DomainName,
+		DomainActiveClusterName: common.StringPtr(ClusterName1),
+		ActiveClusters:          &ActiveClusters,
+	}
+	FailoverDomainRequest_OnlyActiveClusters = types.FailoverDomainRequest{
+		DomainName: DomainName,
+		// Explicitly set to nil to test ActiveActive failovers
+		DomainActiveClusterName: nil,
+		ActiveClusters:          &ActiveClusters,
+	}
 	ActiveClusters = types.ActiveClusters{
 		AttributeScopes: map[string]types.ClusterAttributeScope{
 			"region": {

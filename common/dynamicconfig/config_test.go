@@ -121,7 +121,7 @@ func (s *configSuite) TestGetStringPropertyFnByTaskListInfo() {
 }
 
 func (s *configSuite) TestGetStringPropertyFnWithNamespaceFilter() {
-	key := dynamicproperties.MigrationMode
+	key := dynamicproperties.ShardDistributorMigrationMode
 	namespace := "testService"
 	value := s.cln.GetStringPropertyFilteredByNamespace(key)
 	s.Equal(key.DefaultString(), value(namespace))

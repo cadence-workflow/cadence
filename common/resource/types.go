@@ -23,6 +23,7 @@
 package resource
 
 import (
+	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/yarpc"
 
@@ -51,6 +52,7 @@ import (
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	qrpc "github.com/uber/cadence/common/quotas/global/rpc"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type ResourceFactory interface {
@@ -100,6 +102,7 @@ type Resource interface {
 	GetRemoteAdminClient(cluster string) (admin.Client, error)
 	GetRemoteFrontendClient(cluster string) (frontend.Client, error)
 	GetClientBean() client.Bean
+	GetShardDistributorExecutorClient() executorclient.Client
 
 	// persistence clients
 	GetDomainManager() persistence.DomainManager
@@ -126,4 +129,7 @@ type Resource interface {
 	GetIsolationGroupStore() configstore.Client
 
 	GetAsyncWorkflowQueueProvider() queue.Provider
+
+	// GetMetricsScope returns the tally scope for metrics reporting
+	GetMetricsScope() tally.Scope
 }

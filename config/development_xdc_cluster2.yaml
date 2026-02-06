@@ -145,3 +145,38 @@ dynamicconfig:
   filebased:
     filepath: "config/dynamicconfig/development.yaml"
     pollInterval: "10s"
+
+shardDistribution:
+  election:
+    leaderPeriod: 60s
+    maxRandomDelay: 1s
+    failedElectionCooldown: 1s
+  namespaces:
+    - name: shard-distributor-canary
+      type: fixed
+      mode: onboarded
+      shardNum: 32
+    - name: test-external-assignment
+      mode: distributed_pass
+      type: ephemeral
+  leaderStore:
+    storageParams:
+      endpoints: [localhost:2379]
+      dialTimeout: 1s
+      prefix: "leader"
+  store:
+    storageParams:
+      endpoints: [localhost:2379]
+      dialTimeout: 1s
+      prefix: "store"
+  process:
+    period: 1s
+    heartbeatTTL: 2s
+
+shard-distributor-matching:
+  namespaces:
+    - namespace: cadence-matching-dev
+      heartbeat_interval: 1s
+      migration_mode: local_pass
+      ttl_shard: 5m
+      ttl_report: 1m

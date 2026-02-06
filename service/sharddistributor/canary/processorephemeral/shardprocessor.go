@@ -59,10 +59,10 @@ func (p *ShardProcessor) GetShardReport() executorclient.ShardReport {
 }
 
 // Start implements executorclient.ShardProcessor.
-func (p *ShardProcessor) Start(ctx context.Context) error {
+func (p *ShardProcessor) Start(_ context.Context) error {
 	p.logger.Info("Starting shard processor", zap.String("shardID", p.shardID))
 	p.goRoutineWg.Add(1)
-	go p.process(ctx)
+	go p.process()
 	return nil
 }
 
@@ -72,7 +72,7 @@ func (p *ShardProcessor) Stop() {
 	p.goRoutineWg.Wait()
 }
 
-func (p *ShardProcessor) process(ctx context.Context) {
+func (p *ShardProcessor) process() {
 	defer p.goRoutineWg.Done()
 
 	ticker := p.timeSource.NewTicker(processInterval)
@@ -83,8 +83,6 @@ func (p *ShardProcessor) process(ctx context.Context) {
 
 	for {
 		select {
-		case <-ctx.Done():
-			return
 		case <-p.stopChan:
 			p.logger.Info("Stopping shard processor", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", p.status.String()))
 			return

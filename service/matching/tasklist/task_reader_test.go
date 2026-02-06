@@ -34,6 +34,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -381,7 +382,7 @@ func TestTaskPump(t *testing.T) {
 }
 
 func defaultConfig() *config.Config {
-	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", func() []string {
+	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, func() []string {
 		return defaultIsolationGroups
 	})
 	config.EnableTasklistIsolation = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)

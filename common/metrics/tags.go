@@ -356,6 +356,10 @@ func HandoverTypeTag(handoverType string) Tag {
 	return metricWithUnknown("handover_type", handoverType)
 }
 
+func ExecutorStatusTag(status string) Tag {
+	return metricWithUnknown("executor_status", status)
+}
+
 func TaskCategoryTag(category string) Tag {
 	return metricWithUnknown("task_category", category)
 }

@@ -102,8 +102,6 @@ type Config struct {
 	TaskSchedulerGlobalDomainRPS             dynamicproperties.IntPropertyFnWithDomainFilter
 	TaskSchedulerEnableRateLimiter           dynamicproperties.BoolPropertyFn
 	TaskSchedulerEnableRateLimiterShadowMode dynamicproperties.BoolPropertyFnWithDomainFilter
-	TaskSchedulerEnableMigration             dynamicproperties.BoolPropertyFn
-	TaskSchedulerMigrationRatio              dynamicproperties.IntPropertyFn
 	TaskCriticalRetryCount                   dynamicproperties.IntPropertyFn
 	ActiveTaskRedispatchInterval             dynamicproperties.DurationPropertyFn
 	StandbyTaskRedispatchInterval            dynamicproperties.DurationPropertyFn
@@ -259,31 +257,33 @@ type Config struct {
 	MaxDecisionStartToCloseSeconds           dynamicproperties.IntPropertyFnWithDomainFilter
 	DecisionRetryCriticalAttempts            dynamicproperties.IntPropertyFn
 	DecisionRetryMaxAttempts                 dynamicproperties.IntPropertyFnWithDomainFilter
+	EnforceDecisionTaskAttempts              dynamicproperties.BoolPropertyFnWithDomainFilter
 	NormalDecisionScheduleToStartMaxAttempts dynamicproperties.IntPropertyFnWithDomainFilter
 	NormalDecisionScheduleToStartTimeout     dynamicproperties.DurationPropertyFnWithDomainFilter
 
 	// The following is used by the new RPC replication stack
-	ReplicationTaskFetcherParallelism                  dynamicproperties.IntPropertyFn
-	ReplicationTaskFetcherAggregationInterval          dynamicproperties.DurationPropertyFn
-	ReplicationTaskFetcherTimerJitterCoefficient       dynamicproperties.FloatPropertyFn
-	ReplicationTaskFetcherErrorRetryWait               dynamicproperties.DurationPropertyFn
-	ReplicationTaskFetcherServiceBusyWait              dynamicproperties.DurationPropertyFn
-	ReplicationTaskProcessorErrorRetryWait             dynamicproperties.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorErrorRetryMaxAttempts      dynamicproperties.IntPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorErrorSecondRetryWait       dynamicproperties.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorErrorSecondRetryMaxWait    dynamicproperties.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorErrorSecondRetryExpiration dynamicproperties.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorNoTaskRetryWait            dynamicproperties.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorCleanupInterval            dynamicproperties.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorCleanupJitterCoefficient   dynamicproperties.FloatPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorStartWait                  dynamicproperties.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorStartWaitJitterCoefficient dynamicproperties.FloatPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorHostQPS                    dynamicproperties.FloatPropertyFn
-	ReplicationTaskProcessorShardQPS                   dynamicproperties.FloatPropertyFn
-	ReplicationTaskGenerationQPS                       dynamicproperties.FloatPropertyFn
-	EnableReplicationTaskGeneration                    dynamicproperties.BoolPropertyFnWithDomainIDAndWorkflowIDFilter
-	EnableRecordWorkflowExecutionUninitialized         dynamicproperties.BoolPropertyFnWithDomainFilter
-	ReplicationTaskProcessorLatencyLogThreshold        dynamicproperties.DurationPropertyFn
+	ReplicationTaskFetcherParallelism                    dynamicproperties.IntPropertyFn
+	ReplicationTaskFetcherAggregationInterval            dynamicproperties.DurationPropertyFn
+	ReplicationTaskFetcherTimerJitterCoefficient         dynamicproperties.FloatPropertyFn
+	ReplicationTaskFetcherErrorRetryWait                 dynamicproperties.DurationPropertyFn
+	ReplicationTaskFetcherServiceBusyWait                dynamicproperties.DurationPropertyFn
+	ReplicationTaskProcessorErrorRetryWait               dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorErrorRetryMaxAttempts        dynamicproperties.IntPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorErrorSecondRetryWait         dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorErrorSecondRetryMaxWait      dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorErrorSecondRetryExpiration   dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorNoTaskRetryWait              dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorCleanupInterval              dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorCleanupJitterCoefficient     dynamicproperties.FloatPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorStartWait                    dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorStartWaitJitterCoefficient   dynamicproperties.FloatPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorHostQPS                      dynamicproperties.FloatPropertyFn
+	ReplicationTaskProcessorShardQPS                     dynamicproperties.FloatPropertyFn
+	ReplicationTaskGenerationQPS                         dynamicproperties.FloatPropertyFn
+	EnableReplicationTaskGeneration                      dynamicproperties.BoolPropertyFnWithDomainIDAndWorkflowIDFilter
+	EnableRecordWorkflowExecutionUninitialized           dynamicproperties.BoolPropertyFnWithDomainFilter
+	EnableCleanupOrphanedHistoryBranchOnWorkflowCreation dynamicproperties.BoolPropertyFnWithDomainFilter
+	ReplicationTaskProcessorLatencyLogThreshold          dynamicproperties.DurationPropertyFn
 
 	// The following are used by the history workflowID cache
 	WorkflowIDExternalRPS dynamicproperties.IntPropertyFnWithDomainFilter
@@ -407,8 +407,6 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TaskSchedulerGlobalDomainRPS:             dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskSchedulerGlobalDomainRPS),
 		TaskSchedulerEnableRateLimiter:           dc.GetBoolProperty(dynamicproperties.TaskSchedulerEnableRateLimiter),
 		TaskSchedulerEnableRateLimiterShadowMode: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.TaskSchedulerEnableRateLimiterShadowMode),
-		TaskSchedulerEnableMigration:             dc.GetBoolProperty(dynamicproperties.TaskSchedulerEnableMigration),
-		TaskSchedulerMigrationRatio:              dc.GetIntProperty(dynamicproperties.TaskSchedulerMigrationRatio),
 		TaskCriticalRetryCount:                   dc.GetIntProperty(dynamicproperties.TaskCriticalRetryCount),
 		ActiveTaskRedispatchInterval:             dc.GetDurationProperty(dynamicproperties.ActiveTaskRedispatchInterval),
 		StandbyTaskRedispatchInterval:            dc.GetDurationProperty(dynamicproperties.StandbyTaskRedispatchInterval),
@@ -537,30 +535,32 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		DecisionHeartbeatTimeout:                 dc.GetDurationPropertyFilteredByDomain(dynamicproperties.DecisionHeartbeatTimeout),
 		DecisionRetryCriticalAttempts:            dc.GetIntProperty(dynamicproperties.DecisionRetryCriticalAttempts),
 		DecisionRetryMaxAttempts:                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.DecisionRetryMaxAttempts),
+		EnforceDecisionTaskAttempts:              dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnforceDecisionTaskAttempts),
 		NormalDecisionScheduleToStartMaxAttempts: dc.GetIntPropertyFilteredByDomain(dynamicproperties.NormalDecisionScheduleToStartMaxAttempts),
 		NormalDecisionScheduleToStartTimeout:     dc.GetDurationPropertyFilteredByDomain(dynamicproperties.NormalDecisionScheduleToStartTimeout),
 
-		ReplicationTaskFetcherParallelism:                  dc.GetIntProperty(dynamicproperties.ReplicationTaskFetcherParallelism),
-		ReplicationTaskFetcherAggregationInterval:          dc.GetDurationProperty(dynamicproperties.ReplicationTaskFetcherAggregationInterval),
-		ReplicationTaskFetcherTimerJitterCoefficient:       dc.GetFloat64Property(dynamicproperties.ReplicationTaskFetcherTimerJitterCoefficient),
-		ReplicationTaskFetcherErrorRetryWait:               dc.GetDurationProperty(dynamicproperties.ReplicationTaskFetcherErrorRetryWait),
-		ReplicationTaskFetcherServiceBusyWait:              dc.GetDurationProperty(dynamicproperties.ReplicationTaskFetcherServiceBusyWait),
-		ReplicationTaskProcessorErrorRetryWait:             dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorRetryWait),
-		ReplicationTaskProcessorErrorRetryMaxAttempts:      dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorRetryMaxAttempts),
-		ReplicationTaskProcessorErrorSecondRetryWait:       dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorSecondRetryWait),
-		ReplicationTaskProcessorErrorSecondRetryMaxWait:    dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorSecondRetryMaxWait),
-		ReplicationTaskProcessorErrorSecondRetryExpiration: dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorSecondRetryExpiration),
-		ReplicationTaskProcessorNoTaskRetryWait:            dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorNoTaskInitialWait),
-		ReplicationTaskProcessorCleanupInterval:            dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorCleanupInterval),
-		ReplicationTaskProcessorCleanupJitterCoefficient:   dc.GetFloat64PropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorCleanupJitterCoefficient),
-		ReplicationTaskProcessorStartWait:                  dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorStartWait),
-		ReplicationTaskProcessorStartWaitJitterCoefficient: dc.GetFloat64PropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorStartWaitJitterCoefficient),
-		ReplicationTaskProcessorHostQPS:                    dc.GetFloat64Property(dynamicproperties.ReplicationTaskProcessorHostQPS),
-		ReplicationTaskProcessorShardQPS:                   dc.GetFloat64Property(dynamicproperties.ReplicationTaskProcessorShardQPS),
-		ReplicationTaskGenerationQPS:                       dc.GetFloat64Property(dynamicproperties.ReplicationTaskGenerationQPS),
-		EnableReplicationTaskGeneration:                    dc.GetBoolPropertyFilteredByDomainIDAndWorkflowID(dynamicproperties.EnableReplicationTaskGeneration),
-		EnableRecordWorkflowExecutionUninitialized:         dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableRecordWorkflowExecutionUninitialized),
-		ReplicationTaskProcessorLatencyLogThreshold:        dc.GetDurationProperty(dynamicproperties.ReplicationTaskProcessorLatencyLogThreshold),
+		ReplicationTaskFetcherParallelism:                    dc.GetIntProperty(dynamicproperties.ReplicationTaskFetcherParallelism),
+		ReplicationTaskFetcherAggregationInterval:            dc.GetDurationProperty(dynamicproperties.ReplicationTaskFetcherAggregationInterval),
+		ReplicationTaskFetcherTimerJitterCoefficient:         dc.GetFloat64Property(dynamicproperties.ReplicationTaskFetcherTimerJitterCoefficient),
+		ReplicationTaskFetcherErrorRetryWait:                 dc.GetDurationProperty(dynamicproperties.ReplicationTaskFetcherErrorRetryWait),
+		ReplicationTaskFetcherServiceBusyWait:                dc.GetDurationProperty(dynamicproperties.ReplicationTaskFetcherServiceBusyWait),
+		ReplicationTaskProcessorErrorRetryWait:               dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorRetryWait),
+		ReplicationTaskProcessorErrorRetryMaxAttempts:        dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorRetryMaxAttempts),
+		ReplicationTaskProcessorErrorSecondRetryWait:         dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorSecondRetryWait),
+		ReplicationTaskProcessorErrorSecondRetryMaxWait:      dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorSecondRetryMaxWait),
+		ReplicationTaskProcessorErrorSecondRetryExpiration:   dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorSecondRetryExpiration),
+		ReplicationTaskProcessorNoTaskRetryWait:              dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorNoTaskInitialWait),
+		ReplicationTaskProcessorCleanupInterval:              dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorCleanupInterval),
+		ReplicationTaskProcessorCleanupJitterCoefficient:     dc.GetFloat64PropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorCleanupJitterCoefficient),
+		ReplicationTaskProcessorStartWait:                    dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorStartWait),
+		ReplicationTaskProcessorStartWaitJitterCoefficient:   dc.GetFloat64PropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorStartWaitJitterCoefficient),
+		ReplicationTaskProcessorHostQPS:                      dc.GetFloat64Property(dynamicproperties.ReplicationTaskProcessorHostQPS),
+		ReplicationTaskProcessorShardQPS:                     dc.GetFloat64Property(dynamicproperties.ReplicationTaskProcessorShardQPS),
+		ReplicationTaskGenerationQPS:                         dc.GetFloat64Property(dynamicproperties.ReplicationTaskGenerationQPS),
+		EnableReplicationTaskGeneration:                      dc.GetBoolPropertyFilteredByDomainIDAndWorkflowID(dynamicproperties.EnableReplicationTaskGeneration),
+		EnableRecordWorkflowExecutionUninitialized:           dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableRecordWorkflowExecutionUninitialized),
+		EnableCleanupOrphanedHistoryBranchOnWorkflowCreation: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCleanupOrphanedHistoryBranchOnWorkflowCreation),
+		ReplicationTaskProcessorLatencyLogThreshold:          dc.GetDurationProperty(dynamicproperties.ReplicationTaskProcessorLatencyLogThreshold),
 
 		WorkflowIDExternalRPS: dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowIDExternalRPS),
 		WorkflowIDInternalRPS: dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowIDInternalRPS),

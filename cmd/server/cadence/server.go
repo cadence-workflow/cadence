@@ -21,6 +21,7 @@
 package cadence
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/uber/cadence/client/wrappers/errorinjectors"
 	"github.com/uber/cadence/client/wrappers/grpc"
 	"github.com/uber/cadence/client/wrappers/metered"
+	"github.com/uber/cadence/client/wrappers/retryable"
 	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
@@ -62,6 +64,7 @@ import (
 	"github.com/uber/cadence/service/frontend"
 	"github.com/uber/cadence/service/history"
 	"github.com/uber/cadence/service/matching"
+	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 	"github.com/uber/cadence/service/worker"
 	diagnosticsInvariant "github.com/uber/cadence/service/worker/diagnostics/invariant"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
@@ -131,6 +134,7 @@ func (s *server) startService() common.Daemon {
 		Logger:            s.logger.WithTags(tag.Service(service.FullName(s.name))),
 		PersistenceConfig: s.cfg.Persistence,
 		DynamicConfig:     s.dynamicCfgClient,
+		RPCConfig:         svcCfg.RPC,
 	}
 
 	clusterGroupMetadata := s.cfg.ClusterGroupMetadata
@@ -169,16 +173,48 @@ func (s *server) startService() common.Daemon {
 		s.logger.Fatal("ringpop provider failed", tag.Error(err))
 	}
 
+	shardDistributorClient := s.createShardDistributorClient(params, dc)
+	var spectator spectatorclient.Spectator
+	if shardDistributorClient != nil && len(s.cfg.ShardDistributorMatchingConfig.Namespaces) > 0 {
+		if len(s.cfg.ShardDistributorMatchingConfig.Namespaces) > 1 {
+			s.logger.Fatal("spectator does not support multiple namespaces", tag.Value(s.cfg.ShardDistributorMatchingConfig.Namespaces))
+		}
+		spectatorParams := spectatorclient.Params{
+			Client:       shardDistributorClient,
+			MetricsScope: params.MetricScope,
+			Logger:       params.Logger,
+			Config:       s.cfg.ShardDistributorMatchingConfig,
+			TimeSource:   clock.NewRealTimeSource(),
+		}
+		namespace := s.cfg.ShardDistributorMatchingConfig.Namespaces[0].Namespace
+		spectator, err = spectatorclient.NewSpectatorWithNamespace(
+			spectatorParams,
+			namespace,
+		)
+		if err != nil {
+			s.logger.Fatal("error creating spectator", tag.Error(err))
+		}
+
+		// Start the spectator to begin watching namespace state
+		if err := spectator.Start(context.Background()); err != nil {
+			s.logger.Fatal("error starting spectator", tag.Error(err))
+		}
+	} else {
+		s.logger.Warn("Shard distributor client not configured, spectator will not be started")
+	}
+
 	params.HashRings = make(map[string]membership.SingleProvider)
 	for _, s := range service.ListWithRing {
 		params.HashRings[s] = membership.NewHashring(s, peerProvider, clock.NewRealTimeSource(), params.Logger, params.MetricsClient.Scope(metrics.HashringScope))
 	}
 
+	wrappedRings := s.wrapHashRingsWithShardDistributor(params.HashRings, spectator, dc, params.Logger)
+
 	params.MembershipResolver, err = membership.NewResolver(
 		peerProvider,
 		params.MetricsClient,
 		params.Logger,
-		params.HashRings,
+		wrappedRings,
 	)
 
 	if err != nil {
@@ -249,6 +285,7 @@ func (s *server) startService() common.Daemon {
 
 	params.KafkaConfig = s.cfg.Kafka
 	params.DiagnosticsInvariants = []diagnosticsInvariant.Invariant{timeout.NewInvariant(timeout.Params{Client: params.PublicClient}), failure.NewInvariant(), retry.NewInvariant()}
+	params.ShardDistributorMatchingConfig = s.cfg.ShardDistributorMatchingConfig
 
 	params.Logger.Info("Starting service " + s.name)
 
@@ -275,12 +312,37 @@ func (s *server) startService() common.Daemon {
 	return daemon
 }
 
-func (*server) createShardDistributorClient(params resource.Params, dc *dynamicconfig.Collection) sharddistributorClient.Client {
+func (*server) wrapHashRingsWithShardDistributor(
+	hashRings map[string]membership.SingleProvider,
+	spectator spectatorclient.Spectator,
+	dc *dynamicconfig.Collection,
+	logger log.Logger,
+) map[string]membership.SingleProvider {
+	if _, ok := hashRings[service.Matching]; ok {
+		hashRings[service.Matching] = membership.NewShardDistributorResolver(
+			spectator,
+			dc.GetStringProperty(dynamicproperties.MatchingShardDistributionMode),
+			hashRings[service.Matching],
+			logger,
+		)
+	}
+	return hashRings
+}
+
+func (*server) createShardDistributorClient(
+	params resource.Params,
+	dc *dynamicconfig.Collection,
+) sharddistributorClient.Client {
 	shardDistributorClientConfig, ok := params.RPCFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
 	var shardDistributorClient sharddistributorClient.Client
 	if ok {
 		if !rpc.IsGRPCOutbound(shardDistributorClientConfig) {
 			params.Logger.Error("shard distributor client does not support non-GRPC outbound will fail back to hashring")
+			return nil
+		}
+		if shardDistributorClientConfig.Outbounds.Stream == nil {
+			params.Logger.Error("shard distributor client does not support stream outbound will fail back to hashring")
+			return nil
 		}
 
 		shardDistributorClient = grpc.NewShardDistributorClient(
@@ -288,6 +350,11 @@ func (*server) createShardDistributorClient(params resource.Params, dc *dynamicc
 		)
 
 		shardDistributorClient = timeoutwrapper.NewShardDistributorClient(shardDistributorClient, timeoutwrapper.ShardDistributorDefaultTimeout)
+		shardDistributorClient = retryable.NewShardDistributorClient(
+			shardDistributorClient,
+			common.CreateShardDistributorServiceRetryPolicy(),
+			common.IsServiceTransientError,
+		)
 		if errorRate := dc.GetFloat64Property(dynamicproperties.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
 			shardDistributorClient = errorinjectors.NewShardDistributorClient(shardDistributorClient, errorRate, params.Logger)
 		}

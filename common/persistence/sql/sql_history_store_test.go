@@ -25,6 +25,7 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -382,6 +383,7 @@ func TestDeleteHistoryBranch(t *testing.T) {
 }
 
 func TestForkHistoryBranch(t *testing.T) {
+	now := time.Now()
 	testCases := []struct {
 		name      string
 		req       *persistence.InternalForkHistoryBranchRequest
@@ -408,13 +410,17 @@ func TestForkHistoryBranch(t *testing.T) {
 						},
 					},
 				},
-				ForkNodeID:  4,
-				NewBranchID: "630ec3d3-f74b-423f-a138-3b35494fe699",
-				Info:        "test",
-				ShardID:     1,
+				ForkNodeID:       4,
+				NewBranchID:      "630ec3d3-f74b-423f-a138-3b35494fe699",
+				Info:             "test",
+				ShardID:          1,
+				CurrentTimeStamp: now,
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().HistoryTreeInfoToBlob(gomock.Any()).Return(persistence.DataBlob{}, nil)
+				mockParser.EXPECT().HistoryTreeInfoToBlob(gomock.Any()).DoAndReturn(func(info *serialization.HistoryTreeInfo) (persistence.DataBlob, error) {
+					assert.WithinDuration(t, now, info.CreatedTimestamp, time.Second)
+					return persistence.DataBlob{}, nil
+				})
 				mockDB.EXPECT().InsertIntoHistoryTree(gomock.Any(), &sqlplugin.HistoryTreeRow{
 					ShardID:  1,
 					TreeID:   serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
@@ -563,6 +569,7 @@ func TestForkHistoryBranch(t *testing.T) {
 }
 
 func TestAppendHistoryNodes(t *testing.T) {
+	now := time.Now()
 	testCases := []struct {
 		name      string
 		req       *persistence.InternalAppendHistoryNodesRequest
@@ -586,13 +593,17 @@ func TestAppendHistoryNodes(t *testing.T) {
 						},
 					},
 				},
-				NodeID:        11,
-				Events:        &persistence.DataBlob{},
-				TransactionID: 100,
-				ShardID:       1,
+				NodeID:           11,
+				Events:           &persistence.DataBlob{},
+				TransactionID:    100,
+				ShardID:          1,
+				CurrentTimeStamp: now,
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().HistoryTreeInfoToBlob(gomock.Any()).Return(persistence.DataBlob{}, nil)
+				mockParser.EXPECT().HistoryTreeInfoToBlob(gomock.Any()).DoAndReturn(func(info *serialization.HistoryTreeInfo) (persistence.DataBlob, error) {
+					assert.WithinDuration(t, now, info.CreatedTimestamp, time.Second)
+					return persistence.DataBlob{}, nil
+				})
 				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
 				mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
 				mockTx.EXPECT().InsertIntoHistoryNode(gomock.Any(), &sqlplugin.HistoryNodeRow{

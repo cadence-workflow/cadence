@@ -7,12 +7,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/fx"
 
-	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/client/sharddistributor"
-	"github.com/uber/cadence/client/wrappers/grpc"
-	"github.com/uber/cadence/client/wrappers/retryable"
-	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
@@ -71,7 +66,7 @@ type Spectator interface {
 type Params struct {
 	fx.In
 
-	YarpcClient  sharddistributorv1.ShardDistributorAPIYARPCClient
+	Client       sharddistributor.Client
 	MetricsScope tally.Scope
 	Logger       log.Logger
 	Config       clientcommon.Config
@@ -103,46 +98,17 @@ func newSpectatorImpl(params Params, namespace string) (Spectator, error) {
 }
 
 func newSpectatorWithConfig(params Params, namespaceConfig *clientcommon.NamespaceConfig) (Spectator, error) {
-	// Create the wrapped shard distributor client
-	shardDistributorClient, err := createShardDistributorClient(params.YarpcClient, params.MetricsScope)
-	if err != nil {
-		return nil, fmt.Errorf("create shard distributor client: %w", err)
-	}
-
 	impl := &spectatorImpl{
-		namespace:  namespaceConfig.Namespace,
-		config:     *namespaceConfig,
-		client:     shardDistributorClient,
-		logger:     params.Logger,
-		scope:      params.MetricsScope,
-		timeSource: params.TimeSource,
+		namespace:    namespaceConfig.Namespace,
+		config:       *namespaceConfig,
+		client:       params.Client,
+		logger:       params.Logger,
+		scope:        params.MetricsScope,
+		timeSource:   params.TimeSource,
+		firstStateCh: make(chan struct{}),
 	}
-	// Set WaitGroup to 1 to block until first state is received
-	impl.firstStateWG.Add(1)
 
 	return impl, nil
-}
-
-func createShardDistributorClient(yarpcClient sharddistributorv1.ShardDistributorAPIYARPCClient, metricsScope tally.Scope) (sharddistributor.Client, error) {
-	// Wrap the YARPC client with GRPC wrapper
-	client := grpc.NewShardDistributorClient(yarpcClient)
-
-	// Add timeout wrapper
-	client = timeoutwrapper.NewShardDistributorClient(client, timeoutwrapper.ShardDistributorDefaultTimeout)
-
-	// Add metered wrapper
-	if metricsScope != nil {
-		client = NewMeteredShardDistributorClient(client, metricsScope)
-	}
-
-	// Add retry wrapper
-	client = retryable.NewShardDistributorClient(
-		client,
-		common.CreateShardDistributorServiceRetryPolicy(),
-		common.IsServiceTransientError,
-	)
-
-	return client, nil
 }
 
 // Module creates a spectator module using auto-selection (single namespace only)

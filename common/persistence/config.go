@@ -38,6 +38,7 @@ type (
 		SerializationEncoding                    dynamicproperties.StringPropertyFn
 		DomainAuditLogTTL                        dynamicproperties.DurationPropertyFnWithDomainIDFilter
 		HistoryNodeDeleteBatchSize               dynamicproperties.IntPropertyFn
+		RateLimiterBypassCallerTypes             dynamicproperties.ListPropertyFn
 	}
 )
 
@@ -54,5 +55,6 @@ func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration
 		SerializationEncoding:                    dc.GetStringProperty(dynamicproperties.SerializationEncoding),
 		DomainAuditLogTTL:                        dc.GetDurationPropertyFilteredByDomainID(dynamicproperties.DomainAuditLogTTL),
 		HistoryNodeDeleteBatchSize:               dc.GetIntProperty(dynamicproperties.HistoryNodeDeleteBatchSize),
+		RateLimiterBypassCallerTypes:             dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes),
 	}
 }

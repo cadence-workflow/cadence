@@ -101,8 +101,6 @@ func TestNewConfig(t *testing.T) {
 		"TaskSchedulerDispatcherCount":                         {dynamicproperties.TaskSchedulerDispatcherCount, 35},
 		"TaskSchedulerRoundRobinWeights":                       {dynamicproperties.TaskSchedulerRoundRobinWeights, map[string]interface{}{"key": 1}},
 		"TaskSchedulerDomainRoundRobinWeights":                 {dynamicproperties.TaskSchedulerDomainRoundRobinWeights, map[string]interface{}{"key": 2}},
-		"TaskSchedulerEnableMigration":                         {dynamicproperties.TaskSchedulerEnableMigration, true},
-		"TaskSchedulerMigrationRatio":                          {dynamicproperties.TaskSchedulerMigrationRatio, 36},
 		"TaskCriticalRetryCount":                               {dynamicproperties.TaskCriticalRetryCount, 37},
 		"ActiveTaskRedispatchInterval":                         {dynamicproperties.ActiveTaskRedispatchInterval, time.Second},
 		"StandbyTaskRedispatchInterval":                        {dynamicproperties.StandbyTaskRedispatchInterval, time.Second},
@@ -170,8 +168,6 @@ func TestNewConfig(t *testing.T) {
 		"ReplicationBudgetManagerMaxSizeBytes":                 {dynamicproperties.ReplicationBudgetManagerMaxSizeBytes, 0},
 		"ReplicationBudgetManagerMaxSizeCount":                 {dynamicproperties.ReplicationBudgetManagerMaxSizeCount, 0},
 		"ReplicationBudgetManagerSoftCapThreshold":             {dynamicproperties.ReplicationBudgetManagerSoftCapThreshold, 1.0},
-		"ExecutionMgrNumConns":                                 {dynamicproperties.ExecutionMgrNumConns, 57},
-		"HistoryMgrNumConns":                                   {dynamicproperties.HistoryMgrNumConns, 58},
 		"MaximumBufferedEventsBatch":                           {dynamicproperties.MaximumBufferedEventsBatch, 59},
 		"MaximumSignalsPerExecution":                           {dynamicproperties.MaximumSignalsPerExecution, 60},
 		"ShardUpdateMinInterval":                               {dynamicproperties.ShardUpdateMinInterval, time.Second},
@@ -210,6 +206,7 @@ func TestNewConfig(t *testing.T) {
 		"MaxDecisionStartToCloseSeconds":                       {dynamicproperties.MaxDecisionStartToCloseSeconds, 81},
 		"DecisionRetryCriticalAttempts":                        {dynamicproperties.DecisionRetryCriticalAttempts, 82},
 		"DecisionRetryMaxAttempts":                             {dynamicproperties.DecisionRetryMaxAttempts, 83},
+		"EnforceDecisionTaskAttempts":                          {dynamicproperties.EnforceDecisionTaskAttempts, true},
 		"NormalDecisionScheduleToStartMaxAttempts":             {dynamicproperties.NormalDecisionScheduleToStartMaxAttempts, 84},
 		"NormalDecisionScheduleToStartTimeout":                 {dynamicproperties.NormalDecisionScheduleToStartTimeout, time.Second},
 		"ReplicationTaskFetcherParallelism":                    {dynamicproperties.ReplicationTaskFetcherParallelism, 85},
@@ -281,6 +278,7 @@ func TestNewConfig(t *testing.T) {
 		"QueueMaxVirtualQueueCount":                            {dynamicproperties.QueueMaxVirtualQueueCount, 101},
 		"VirtualSliceForceAppendInterval":                      {dynamicproperties.VirtualSliceForceAppendInterval, time.Second},
 		"ReplicationTaskProcessorLatencyLogThreshold":          {dynamicproperties.ReplicationTaskProcessorLatencyLogThreshold, time.Duration(0)},
+		"EnableCleanupOrphanedHistoryBranchOnWorkflowCreation": {dynamicproperties.EnableCleanupOrphanedHistoryBranchOnWorkflowCreation, true},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {

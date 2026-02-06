@@ -13,18 +13,21 @@ import (
 
 // ratelimitedConfigStoreManager implements persistence.ConfigStoreManager interface instrumented with rate limiter.
 type ratelimitedConfigStoreManager struct {
-	wrapped     persistence.ConfigStoreManager
-	rateLimiter quotas.Limiter
+	wrapped      persistence.ConfigStoreManager
+	rateLimiter  quotas.Limiter
+	callerBypass quotas.CallerBypass
 }
 
 // NewConfigStoreManager creates a new instance of ConfigStoreManager with ratelimiter.
 func NewConfigStoreManager(
 	wrapped persistence.ConfigStoreManager,
 	rateLimiter quotas.Limiter,
+	callerBypass quotas.CallerBypass,
 ) persistence.ConfigStoreManager {
 	return &ratelimitedConfigStoreManager{
-		wrapped:     wrapped,
-		rateLimiter: rateLimiter,
+		wrapped:      wrapped,
+		rateLimiter:  rateLimiter,
+		callerBypass: callerBypass,
 	}
 }
 
@@ -34,7 +37,7 @@ func (c *ratelimitedConfigStoreManager) Close() {
 }
 
 func (c *ratelimitedConfigStoreManager) FetchDynamicConfig(ctx context.Context, cfgType persistence.ConfigType) (fp1 *persistence.FetchDynamicConfigResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -42,7 +45,7 @@ func (c *ratelimitedConfigStoreManager) FetchDynamicConfig(ctx context.Context, 
 }
 
 func (c *ratelimitedConfigStoreManager) UpdateDynamicConfig(ctx context.Context, request *persistence.UpdateDynamicConfigRequest, cfgType persistence.ConfigType) (err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}

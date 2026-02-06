@@ -1,15 +1,15 @@
 import (
     "context"
-
+    "github.com/uber/cadence/common"
     "github.com/uber/cadence/common/cache"
+    "github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
     "github.com/uber/cadence/common/quotas"
-    "github.com/uber/cadence/common/types"
     "github.com/uber/cadence/service/frontend/api"
     "github.com/uber/cadence/service/frontend/validate"
 )
 
-{{$ratelimitTypeMap := dict "PollForActivityTask" "ratelimitTypeWorker"}}
-{{$ratelimitTypeMap = set $ratelimitTypeMap "PollForDecisionTask" "ratelimitTypeWorker"}}
+{{$ratelimitTypeMap := dict "PollForActivityTask" "ratelimitTypeWorkerPoll"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "PollForDecisionTask" "ratelimitTypeWorkerPoll"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "RecordActivityTaskHeartbeat" "ratelimitTypeWorker"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "RecordActivityTaskHeartbeatByID" "ratelimitTypeWorker"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "ResetStickyTaskList" "ratelimitTypeWorker"}}
@@ -79,6 +79,8 @@ type {{$decorator}} struct {
     workerRateLimiter quotas.Policy
     visibilityRateLimiter quotas.Policy
     asyncRateLimiter quotas.Policy
+    maxWorkerPollDelay dynamicproperties.DurationPropertyFnWithDomainFilter
+    callerBypass quotas.CallerBypass
 }
 
 // New{{$Decorator}} creates a new instance of {{$interfaceName}} with ratelimiter.
@@ -89,6 +91,8 @@ func New{{$Decorator}}(
     workerRateLimiter quotas.Policy,
     visibilityRateLimiter quotas.Policy,
     asyncRateLimiter quotas.Policy,
+    maxWorkerPollDelay dynamicproperties.DurationPropertyFnWithDomainFilter,
+    callerBypass quotas.CallerBypass,
 ) {{.Interface.Type}} {
     return &{{$decorator}}{
         wrapped: wrapped,
@@ -98,6 +102,8 @@ func New{{$Decorator}}(
         workerRateLimiter: workerRateLimiter,
         visibilityRateLimiter: visibilityRateLimiter,
         asyncRateLimiter: asyncRateLimiter,
+        maxWorkerPollDelay: maxWorkerPollDelay,
+        callerBypass: callerBypass,
     }
 }
 
@@ -141,10 +147,10 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
         {{- if has $method.Name $nonBlockingAPIs}}
             // Count the request in the host RPS,
             // but we still accept it even if RPS is exceeded
-            h.allowDomain({{$ratelimitType}}, {{$domain}})
+            h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, {{$domain}})
         {{- else}}
-            if ok := h.allowDomain({{$ratelimitType}}, {{$domain}}); !ok {
-                err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+            if limitErr := h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, {{$domain}}); limitErr != nil {
+                err = limitErr
                 return
             }
         {{- end}}

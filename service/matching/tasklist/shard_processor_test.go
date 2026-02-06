@@ -1,65 +1,50 @@
 package tasklist
 
 import (
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/client/history"
-	"github.com/uber/cadence/client/matching"
-	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/isolationgroup"
-	"github.com/uber/cadence/common/log/testlogger"
-	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/matching/config"
 )
 
-func paramsForTaskListManager(t *testing.T, taskListID *Identifier, taskListKind types.TaskListKind) ManagerParams {
-	ctrl := gomock.NewController(t)
-	dynamicClient := dynamicconfig.NewInMemoryClient()
-	logger := testlogger.New(t)
-	metricsClient := metrics.NewNoopMetricsClient()
-	clusterMetadata := cluster.GetTestClusterMetadata(true)
-	deps := &mockDeps{
-		mockDomainCache:    cache.NewMockDomainCache(ctrl),
-		mockTaskManager:    persistence.NewMockTaskManager(ctrl),
-		mockIsolationState: isolationgroup.NewMockState(ctrl),
-		mockMatchingClient: matching.NewMockClient(ctrl),
-		mockTimeSource:     clock.NewMockedTimeSource(),
-		dynamicClient:      dynamicClient,
+func paramsForTaskListManager(taskListID *Identifier) ShardProcessorParams {
+	var mutex sync.RWMutex
+	taskList := make(map[Identifier]Manager)
+	params := ShardProcessorParams{
+		ShardID:       taskListID.GetName(),
+		TaskListsLock: &mutex,
+		TaskLists:     taskList,
+		ReportTTL:     1 * time.Millisecond,
+		TimeSource:    clock.NewRealTimeSource(),
 	}
-	deps.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).Times(1)
-	cfg := config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "hostname", getIsolationgroupsHelper)
-	mockHistoryService := history.NewMockClient(ctrl)
-	params := ManagerParams{
-		deps.mockDomainCache,
-		logger,
-		metricsClient,
-		deps.mockTaskManager,
-		clusterMetadata,
-		deps.mockIsolationState,
-		deps.mockMatchingClient,
-		func(ShardProcessor) {},
-		taskListID,
-		taskListKind,
-		cfg,
-		deps.mockTimeSource,
-		deps.mockTimeSource.Now(),
-		mockHistoryService,
-	}
+	return params
+}
+
+func paramsForTaskListManagerWithStopCallback(t *testing.T, taskListID *Identifier) ShardProcessorParams {
+	params := paramsForTaskListManager(taskListID)
+	mockCtrl := gomock.NewController(t)
+	mockManager := NewMockManager(mockCtrl)
+	params.TaskLists[*taskListID] = mockManager
+	mockManager.EXPECT().TaskListID().Return(
+		taskListID).Times(1)
+	mockManager.EXPECT().Stop().Do(
+		func() {
+			delete(params.TaskLists, *taskListID)
+		},
+	)
 	return params
 }
 
 func TestNewShardProcessor(t *testing.T) {
 	t.Run("NewShardProcessor fails with empty params", func(t *testing.T) {
-		params := ManagerParams{}
+		params := ShardProcessorParams{}
 		sp, err := NewShardProcessor(params)
 		require.Nil(t, sp)
 		require.Error(t, err)
@@ -68,24 +53,43 @@ func TestNewShardProcessor(t *testing.T) {
 	t.Run("NewShardProcessor success", func(t *testing.T) {
 		tlID, err := NewIdentifier("domain-id", "tl", persistence.TaskListTypeDecision)
 		require.NoError(t, err)
-		params := paramsForTaskListManager(t, tlID, types.TaskListKindNormal)
+		params := paramsForTaskListManager(tlID)
 		sp, err := NewShardProcessor(params)
 		require.NoError(t, err)
 		require.NotNil(t, sp)
 	})
 }
 
+func TestStop(t *testing.T) {
+	t.Run("Stop ShardProcessor", func(t *testing.T) {
+		tlID, err := NewIdentifier("domain-id", "tl", persistence.TaskListTypeDecision)
+		require.NoError(t, err)
+		params := paramsForTaskListManagerWithStopCallback(t, tlID)
+
+		sp, err := NewShardProcessor(params)
+		require.NoError(t, err)
+		params.TaskListsLock.RLock()
+		require.Equal(t, 1, len(params.TaskLists))
+		params.TaskListsLock.RUnlock()
+
+		sp.Stop()
+		params.TaskListsLock.RLock()
+		require.Equal(t, 0, len(params.TaskLists))
+		params.TaskListsLock.RUnlock()
+	})
+}
+
 func TestGetShardReport(t *testing.T) {
 	t.Run("GetShardReport success", func(t *testing.T) {
-		mockManger := NewMockManager(gomock.NewController(t))
-		mockManger.EXPECT().LoadBalancerHints().Return(&types.LoadBalancerHints{BacklogCount: 0, RatePerSecond: 10}).Times(1)
-		sp := &shardProcessorImpl{
-			Manager: mockManger,
-		}
+		tlID, err := NewIdentifier("domain-id", "tl", persistence.TaskListTypeDecision)
+		require.NoError(t, err)
+		params := paramsForTaskListManager(tlID)
+		sp, err := NewShardProcessor(params)
+		require.NoError(t, err)
 		shardReport := sp.GetShardReport()
 		require.NotNil(t, shardReport)
-		require.Equal(t, float64(10), shardReport.ShardLoad)
-		require.Equal(t, types.ShardStatusINVALID, shardReport.Status)
+		require.Equal(t, float64(0), shardReport.ShardLoad)
+		require.Equal(t, types.ShardStatusREADY, shardReport.Status)
 	})
 }
 
@@ -93,15 +97,15 @@ func TestSetShardStatus(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	t.Run("SetShardStatus success", func(t *testing.T) {
-		mockManger := NewMockManager(gomock.NewController(t))
-		mockManger.EXPECT().LoadBalancerHints().Return(&types.LoadBalancerHints{BacklogCount: 0, RatePerSecond: 10}).Times(1)
-		sp := &shardProcessorImpl{
-			Manager: mockManger,
-		}
+		tlID, err := NewIdentifier("domain-id", "tl", persistence.TaskListTypeDecision)
+		require.NoError(t, err)
+		params := paramsForTaskListManager(tlID)
+		sp, err := NewShardProcessor(params)
+		require.NoError(t, err)
 		sp.SetShardStatus(types.ShardStatusREADY)
 		shardReport := sp.GetShardReport()
 		require.NotNil(t, shardReport)
-		require.Equal(t, float64(10), shardReport.ShardLoad)
+		require.Equal(t, float64(0), shardReport.ShardLoad)
 		require.Equal(t, types.ShardStatusREADY, shardReport.Status)
 	})
 }

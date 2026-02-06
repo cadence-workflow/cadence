@@ -9,6 +9,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/api"
@@ -24,6 +25,8 @@ type apiHandler struct {
 	workerRateLimiter     quotas.Policy
 	visibilityRateLimiter quotas.Policy
 	asyncRateLimiter      quotas.Policy
+	maxWorkerPollDelay    dynamicproperties.DurationPropertyFnWithDomainFilter
+	callerBypass          quotas.CallerBypass
 }
 
 // NewAPIHandler creates a new instance of Handler with ratelimiter.
@@ -34,6 +37,8 @@ func NewAPIHandler(
 	workerRateLimiter quotas.Policy,
 	visibilityRateLimiter quotas.Policy,
 	asyncRateLimiter quotas.Policy,
+	maxWorkerPollDelay dynamicproperties.DurationPropertyFnWithDomainFilter,
+	callerBypass quotas.CallerBypass,
 ) api.Handler {
 	return &apiHandler{
 		wrapped:               wrapped,
@@ -43,6 +48,8 @@ func NewAPIHandler(
 		workerRateLimiter:     workerRateLimiter,
 		visibilityRateLimiter: visibilityRateLimiter,
 		asyncRateLimiter:      asyncRateLimiter,
+		maxWorkerPollDelay:    maxWorkerPollDelay,
+		callerBypass:          callerBypass,
 	}
 }
 
@@ -55,8 +62,8 @@ func (h *apiHandler) CountWorkflowExecutions(ctx context.Context, cp1 *types.Cou
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeVisibility, cp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeVisibility, cp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.CountWorkflowExecutions(ctx, cp1)
@@ -83,8 +90,8 @@ func (h *apiHandler) DescribeTaskList(ctx context.Context, dp1 *types.DescribeTa
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, dp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, dp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.DescribeTaskList(ctx, dp1)
@@ -99,8 +106,8 @@ func (h *apiHandler) DescribeWorkflowExecution(ctx context.Context, dp1 *types.D
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, dp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, dp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.DescribeWorkflowExecution(ctx, dp1)
@@ -115,8 +122,8 @@ func (h *apiHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.D
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, dp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, dp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.DiagnoseWorkflowExecution(ctx, dp1)
@@ -131,8 +138,8 @@ func (h *apiHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDoma
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, fp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, fp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.FailoverDomain(ctx, fp1)
@@ -155,8 +162,8 @@ func (h *apiHandler) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTas
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, gp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, gp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.GetTaskListsByDomain(ctx, gp1)
@@ -171,8 +178,8 @@ func (h *apiHandler) GetWorkflowExecutionHistory(ctx context.Context, gp1 *types
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, gp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, gp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.GetWorkflowExecutionHistory(ctx, gp1)
@@ -191,8 +198,8 @@ func (h *apiHandler) ListArchivedWorkflowExecutions(ctx context.Context, lp1 *ty
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeVisibility, lp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeVisibility, lp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.ListArchivedWorkflowExecutions(ctx, lp1)
@@ -207,8 +214,8 @@ func (h *apiHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *type
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeVisibility, lp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeVisibility, lp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.ListClosedWorkflowExecutions(ctx, lp1)
@@ -231,8 +238,8 @@ func (h *apiHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeVisibility, lp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeVisibility, lp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.ListOpenWorkflowExecutions(ctx, lp1)
@@ -247,8 +254,8 @@ func (h *apiHandler) ListTaskListPartitions(ctx context.Context, lp1 *types.List
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, lp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, lp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.ListTaskListPartitions(ctx, lp1)
@@ -263,8 +270,8 @@ func (h *apiHandler) ListWorkflowExecutions(ctx context.Context, lp1 *types.List
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeVisibility, lp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeVisibility, lp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.ListWorkflowExecutions(ctx, lp1)
@@ -279,8 +286,8 @@ func (h *apiHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollFor
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeWorker, pp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeWorkerPoll, pp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.PollForActivityTask(ctx, pp1)
@@ -295,8 +302,8 @@ func (h *apiHandler) PollForDecisionTask(ctx context.Context, pp1 *types.PollFor
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeWorker, pp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeWorkerPoll, pp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.PollForDecisionTask(ctx, pp1)
@@ -311,8 +318,8 @@ func (h *apiHandler) QueryWorkflow(ctx context.Context, qp1 *types.QueryWorkflow
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, qp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, qp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.QueryWorkflow(ctx, qp1)
@@ -341,7 +348,7 @@ func (h *apiHandler) RecordActivityTaskHeartbeat(ctx context.Context, rp1 *types
 	}
 	// Count the request in the host RPS,
 	// but we still accept it even if RPS is exceeded
-	h.allowDomain(ratelimitTypeWorker, domainName)
+	h.allowDomain(ctx, ratelimitTypeWorker, domainName)
 	return h.wrapped.RecordActivityTaskHeartbeat(ctx, rp1)
 }
 
@@ -356,7 +363,7 @@ func (h *apiHandler) RecordActivityTaskHeartbeatByID(ctx context.Context, rp1 *t
 	}
 	// Count the request in the host RPS,
 	// but we still accept it even if RPS is exceeded
-	h.allowDomain(ratelimitTypeWorker, rp1.GetDomain())
+	h.allowDomain(ctx, ratelimitTypeWorker, rp1.GetDomain())
 	return h.wrapped.RecordActivityTaskHeartbeatByID(ctx, rp1)
 }
 
@@ -369,8 +376,8 @@ func (h *apiHandler) RefreshWorkflowTasks(ctx context.Context, rp1 *types.Refres
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, rp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, rp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.RefreshWorkflowTasks(ctx, rp1)
@@ -389,8 +396,8 @@ func (h *apiHandler) RequestCancelWorkflowExecution(ctx context.Context, rp1 *ty
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, rp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, rp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.RequestCancelWorkflowExecution(ctx, rp1)
@@ -407,7 +414,7 @@ func (h *apiHandler) ResetStickyTaskList(ctx context.Context, rp1 *types.ResetSt
 	}
 	// Count the request in the host RPS,
 	// but we still accept it even if RPS is exceeded
-	h.allowDomain(ratelimitTypeWorker, rp1.GetDomain())
+	h.allowDomain(ctx, ratelimitTypeWorker, rp1.GetDomain())
 	return h.wrapped.ResetStickyTaskList(ctx, rp1)
 }
 
@@ -420,8 +427,8 @@ func (h *apiHandler) ResetWorkflowExecution(ctx context.Context, rp1 *types.Rese
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, rp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, rp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.ResetWorkflowExecution(ctx, rp1)
@@ -450,7 +457,7 @@ func (h *apiHandler) RespondActivityTaskCanceled(ctx context.Context, rp1 *types
 	}
 	// Count the request in the host RPS,
 	// but we still accept it even if RPS is exceeded
-	h.allowDomain(ratelimitTypeWorker, domainName)
+	h.allowDomain(ctx, ratelimitTypeWorker, domainName)
 	return h.wrapped.RespondActivityTaskCanceled(ctx, rp1)
 }
 
@@ -465,7 +472,7 @@ func (h *apiHandler) RespondActivityTaskCanceledByID(ctx context.Context, rp1 *t
 	}
 	// Count the request in the host RPS,
 	// but we still accept it even if RPS is exceeded
-	h.allowDomain(ratelimitTypeWorker, rp1.GetDomain())
+	h.allowDomain(ctx, ratelimitTypeWorker, rp1.GetDomain())
 	return h.wrapped.RespondActivityTaskCanceledByID(ctx, rp1)
 }
 
@@ -492,7 +499,7 @@ func (h *apiHandler) RespondActivityTaskCompleted(ctx context.Context, rp1 *type
 	}
 	// Count the request in the host RPS,
 	// but we still accept it even if RPS is exceeded
-	h.allowDomain(ratelimitTypeWorker, domainName)
+	h.allowDomain(ctx, ratelimitTypeWorker, domainName)
 	return h.wrapped.RespondActivityTaskCompleted(ctx, rp1)
 }
 
@@ -507,7 +514,7 @@ func (h *apiHandler) RespondActivityTaskCompletedByID(ctx context.Context, rp1 *
 	}
 	// Count the request in the host RPS,
 	// but we still accept it even if RPS is exceeded
-	h.allowDomain(ratelimitTypeWorker, rp1.GetDomain())
+	h.allowDomain(ctx, ratelimitTypeWorker, rp1.GetDomain())
 	return h.wrapped.RespondActivityTaskCompletedByID(ctx, rp1)
 }
 
@@ -534,7 +541,7 @@ func (h *apiHandler) RespondActivityTaskFailed(ctx context.Context, rp1 *types.R
 	}
 	// Count the request in the host RPS,
 	// but we still accept it even if RPS is exceeded
-	h.allowDomain(ratelimitTypeWorker, domainName)
+	h.allowDomain(ctx, ratelimitTypeWorker, domainName)
 	return h.wrapped.RespondActivityTaskFailed(ctx, rp1)
 }
 
@@ -549,7 +556,7 @@ func (h *apiHandler) RespondActivityTaskFailedByID(ctx context.Context, rp1 *typ
 	}
 	// Count the request in the host RPS,
 	// but we still accept it even if RPS is exceeded
-	h.allowDomain(ratelimitTypeWorker, rp1.GetDomain())
+	h.allowDomain(ctx, ratelimitTypeWorker, rp1.GetDomain())
 	return h.wrapped.RespondActivityTaskFailedByID(ctx, rp1)
 }
 
@@ -576,7 +583,7 @@ func (h *apiHandler) RespondDecisionTaskCompleted(ctx context.Context, rp1 *type
 	}
 	// Count the request in the host RPS,
 	// but we still accept it even if RPS is exceeded
-	h.allowDomain(ratelimitTypeWorker, domainName)
+	h.allowDomain(ctx, ratelimitTypeWorker, domainName)
 	return h.wrapped.RespondDecisionTaskCompleted(ctx, rp1)
 }
 
@@ -603,7 +610,7 @@ func (h *apiHandler) RespondDecisionTaskFailed(ctx context.Context, rp1 *types.R
 	}
 	// Count the request in the host RPS,
 	// but we still accept it even if RPS is exceeded
-	h.allowDomain(ratelimitTypeWorker, domainName)
+	h.allowDomain(ctx, ratelimitTypeWorker, domainName)
 	return h.wrapped.RespondDecisionTaskFailed(ctx, rp1)
 }
 
@@ -630,7 +637,7 @@ func (h *apiHandler) RespondQueryTaskCompleted(ctx context.Context, rp1 *types.R
 	}
 	// Count the request in the host RPS,
 	// but we still accept it even if RPS is exceeded
-	h.allowDomain(ratelimitTypeWorker, domainName)
+	h.allowDomain(ctx, ratelimitTypeWorker, domainName)
 	return h.wrapped.RespondQueryTaskCompleted(ctx, rp1)
 }
 
@@ -643,8 +650,8 @@ func (h *apiHandler) RestartWorkflowExecution(ctx context.Context, rp1 *types.Re
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, rp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, rp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.RestartWorkflowExecution(ctx, rp1)
@@ -659,8 +666,8 @@ func (h *apiHandler) ScanWorkflowExecutions(ctx context.Context, lp1 *types.List
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeVisibility, lp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeVisibility, lp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.ScanWorkflowExecutions(ctx, lp1)
@@ -675,8 +682,8 @@ func (h *apiHandler) SignalWithStartWorkflowExecution(ctx context.Context, sp1 *
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, sp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, sp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.SignalWithStartWorkflowExecution(ctx, sp1)
@@ -691,8 +698,8 @@ func (h *apiHandler) SignalWithStartWorkflowExecutionAsync(ctx context.Context, 
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeAsync, sp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeAsync, sp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.SignalWithStartWorkflowExecutionAsync(ctx, sp1)
@@ -707,8 +714,8 @@ func (h *apiHandler) SignalWorkflowExecution(ctx context.Context, sp1 *types.Sig
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, sp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, sp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.SignalWorkflowExecution(ctx, sp1)
@@ -723,8 +730,8 @@ func (h *apiHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.Star
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, sp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, sp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.StartWorkflowExecution(ctx, sp1)
@@ -739,8 +746,8 @@ func (h *apiHandler) StartWorkflowExecutionAsync(ctx context.Context, sp1 *types
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeAsync, sp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeAsync, sp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.StartWorkflowExecutionAsync(ctx, sp1)
@@ -755,8 +762,8 @@ func (h *apiHandler) TerminateWorkflowExecution(ctx context.Context, tp1 *types.
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if ok := h.allowDomain(ratelimitTypeUser, tp1.GetDomain()); !ok {
-		err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, tp1.GetDomain()); limitErr != nil {
+		err = limitErr
 		return
 	}
 	return h.wrapped.TerminateWorkflowExecution(ctx, tp1)

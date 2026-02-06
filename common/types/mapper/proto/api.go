@@ -4538,9 +4538,13 @@ func ToFailoverDomainRequest(t *apiv1.FailoverDomainRequest) *types.FailoverDoma
 	if t == nil {
 		return nil
 	}
+	var domainActiveClusterName *string
+	if t.DomainActiveClusterName != "" {
+		domainActiveClusterName = common.StringPtr(t.DomainActiveClusterName)
+	}
 	return &types.FailoverDomainRequest{
 		DomainName:              t.DomainName,
-		DomainActiveClusterName: common.StringPtr(t.DomainActiveClusterName),
+		DomainActiveClusterName: domainActiveClusterName,
 		ActiveClusters:          ToActiveClusters(t.ActiveClusters),
 	}
 }
@@ -5051,6 +5055,55 @@ func ToWorkflowExecutionCloseStatus(t apiv1.WorkflowExecutionCloseStatus) *types
 	return nil
 }
 
+func FromWorkflowExecutionStatus(t *types.WorkflowExecutionStatus) apiv1.WorkflowExecutionStatus {
+	if t == nil {
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_INVALID
+	}
+	switch *t {
+	case types.WorkflowExecutionStatusPending:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_PENDING
+	case types.WorkflowExecutionStatusStarted:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_STARTED
+	case types.WorkflowExecutionStatusCompleted:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_COMPLETED
+	case types.WorkflowExecutionStatusFailed:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_FAILED
+	case types.WorkflowExecutionStatusCanceled:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_CANCELED
+	case types.WorkflowExecutionStatusTerminated:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_TERMINATED
+	case types.WorkflowExecutionStatusContinuedAsNew:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW
+	case types.WorkflowExecutionStatusTimedOut:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_TIMED_OUT
+	}
+	return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_INVALID
+}
+
+func ToWorkflowExecutionStatus(t apiv1.WorkflowExecutionStatus) *types.WorkflowExecutionStatus {
+	switch t {
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_INVALID:
+		return nil
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_PENDING:
+		return types.WorkflowExecutionStatusPending.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_STARTED:
+		return types.WorkflowExecutionStatusStarted.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_COMPLETED:
+		return types.WorkflowExecutionStatusCompleted.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_FAILED:
+		return types.WorkflowExecutionStatusFailed.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_CANCELED:
+		return types.WorkflowExecutionStatusCanceled.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_TERMINATED:
+		return types.WorkflowExecutionStatusTerminated.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW:
+		return types.WorkflowExecutionStatusContinuedAsNew.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
+		return types.WorkflowExecutionStatusTimedOut.Ptr()
+	}
+	return nil
+}
+
 func FromWorkflowExecutionCompletedEventAttributes(t *types.WorkflowExecutionCompletedEventAttributes) *apiv1.WorkflowExecutionCompletedEventAttributes {
 	if t == nil {
 		return nil
@@ -5261,6 +5314,10 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *apiv1.WorkflowEx
 	if t.TaskList != nil {
 		tlName = t.TaskList.Name
 	}
+	cronSchedule := ""
+	if t.CronSchedule != nil {
+		cronSchedule = *t.CronSchedule
+	}
 	return &apiv1.WorkflowExecutionInfo{
 		WorkflowExecution:            FromWorkflowExecution(t.Execution),
 		Type:                         FromWorkflowType(t.Type),
@@ -5279,12 +5336,19 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *apiv1.WorkflowEx
 		IsCron:                       t.IsCron,
 		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
 		ActiveClusterSelectionPolicy: FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronSchedule:                 cronSchedule,
+		ExecutionStatus:              FromWorkflowExecutionStatus(t.ExecutionStatus),
+		ScheduledExecutionTime:       unixNanoToTime(t.ScheduledExecutionTime),
 	}
 }
 
 func ToWorkflowExecutionInfo(t *apiv1.WorkflowExecutionInfo) *types.WorkflowExecutionInfo {
 	if t == nil {
 		return nil
+	}
+	var cronSchedule *string
+	if t.CronSchedule != "" {
+		cronSchedule = &t.CronSchedule
 	}
 	return &types.WorkflowExecutionInfo{
 		Execution:                    ToWorkflowExecution(t.WorkflowExecution),
@@ -5306,6 +5370,9 @@ func ToWorkflowExecutionInfo(t *apiv1.WorkflowExecutionInfo) *types.WorkflowExec
 		IsCron:                       t.IsCron,
 		CronOverlapPolicy:            ToCronOverlapPolicy(t.CronOverlapPolicy),
 		ActiveClusterSelectionPolicy: ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronSchedule:                 cronSchedule,
+		ExecutionStatus:              ToWorkflowExecutionStatus(t.ExecutionStatus),
+		ScheduledExecutionTime:       timeToUnixNano(t.ScheduledExecutionTime),
 	}
 }
 

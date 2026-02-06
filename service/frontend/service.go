@@ -70,12 +70,13 @@ func NewService(
 ) (resource.Resource, error) {
 
 	isAdvancedVisExistInConfig := len(params.PersistenceConfig.AdvancedVisibilityStore) != 0
+	dc := dynamicconfig.NewCollection(
+		params.DynamicConfig,
+		params.Logger,
+		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
+	)
 	serviceConfig := config.NewConfig(
-		dynamicconfig.NewCollection(
-			params.DynamicConfig,
-			params.Logger,
-			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
-		),
+		dc,
 		params.PersistenceConfig.NumHistoryShards,
 		isAdvancedVisExistInConfig,
 		params.HostName,
@@ -157,7 +158,8 @@ func (s *Service) Start() {
 	// Additional decorations
 	var handler api.Handler = s.handler
 	handler = versioncheck.NewAPIHandler(handler, s.config, client.NewVersionChecker())
-	handler = ratelimited.NewAPIHandler(handler, s.GetDomainCache(), userRateLimiter, workerRateLimiter, visibilityRateLimiter, asyncRateLimiter)
+	callerBypass := quotas.NewCallerBypass(s.config.RateLimiterBypassCallerTypes)
+	handler = ratelimited.NewAPIHandler(handler, s.GetDomainCache(), userRateLimiter, workerRateLimiter, visibilityRateLimiter, asyncRateLimiter, s.config.MaxWorkerPollDelay, callerBypass)
 	handler = metered.NewAPIHandler(handler, s.GetLogger(), s.GetMetricsClient(), s.GetDomainCache(), s.config)
 	if s.params.ClusterRedirectionPolicy != nil {
 		handler = clusterredirection.NewAPIHandler(handler, s, s.config, *s.params.ClusterRedirectionPolicy)

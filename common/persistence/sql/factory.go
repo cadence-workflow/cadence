@@ -131,7 +131,7 @@ func (f *Factory) NewVisibilityStore(sortByCloseTime bool) (p.VisibilityStore, e
 }
 
 // NewQueue returns a new queue backed by sql
-func (f *Factory) NewQueue(queueType p.QueueType) (p.Queue, error) {
+func (f *Factory) NewQueue(queueType p.QueueType) (p.QueueStore, error) {
 	conn, err := f.dbConn.get()
 	if err != nil {
 		return nil, err

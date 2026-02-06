@@ -8336,6 +8336,79 @@ func (e WorkflowExecutionCloseStatus) String() string {
 	return fmt.Sprintf("WorkflowExecutionCloseStatus(%d)", w)
 }
 
+type WorkflowExecutionStatus int32
+
+// Ptr is a helper function for getting pointer value
+func (e WorkflowExecutionStatus) Ptr() *WorkflowExecutionStatus {
+	return &e
+}
+
+// String returns a readable string representation of WorkflowExecutionStatus.
+func (e WorkflowExecutionStatus) String() string {
+	w := int32(e)
+	switch w {
+	case 0:
+		return "PENDING"
+	case 1:
+		return "STARTED"
+	case 2:
+		return "COMPLETED"
+	case 3:
+		return "FAILED"
+	case 4:
+		return "CANCELED"
+	case 5:
+		return "TERMINATED"
+	case 6:
+		return "CONTINUED_AS_NEW"
+	case 7:
+		return "TIMED_OUT"
+	}
+	return fmt.Sprintf("WorkflowExecutionStatus(%d)", w)
+}
+
+// UnmarshalText parses enum value from string representation
+func (e *WorkflowExecutionStatus) UnmarshalText(value []byte) error {
+	switch s := strings.ToUpper(string(value)); s {
+	case "PENDING":
+		*e = WorkflowExecutionStatusPending
+		return nil
+	case "STARTED":
+		*e = WorkflowExecutionStatusStarted
+		return nil
+	case "COMPLETED":
+		*e = WorkflowExecutionStatusCompleted
+		return nil
+	case "FAILED":
+		*e = WorkflowExecutionStatusFailed
+		return nil
+	case "CANCELED":
+		*e = WorkflowExecutionStatusCanceled
+		return nil
+	case "TERMINATED":
+		*e = WorkflowExecutionStatusTerminated
+		return nil
+	case "CONTINUED_AS_NEW":
+		*e = WorkflowExecutionStatusContinuedAsNew
+		return nil
+	case "TIMED_OUT":
+		*e = WorkflowExecutionStatusTimedOut
+		return nil
+	default:
+		val, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("unknown enum value %q for %q: %v", s, "WorkflowExecutionStatus", err)
+		}
+		*e = WorkflowExecutionStatus(val)
+		return nil
+	}
+}
+
+// MarshalText encodes WorkflowExecutionStatus to text.
+func (e WorkflowExecutionStatus) MarshalText() ([]byte, error) {
+	return []byte(e.String()), nil
+}
+
 // UnmarshalText parses enum value from string representation
 func (e *WorkflowExecutionCloseStatus) UnmarshalText(value []byte) error {
 	switch s := strings.ToUpper(string(value)); s {
@@ -8385,6 +8458,25 @@ const (
 	WorkflowExecutionCloseStatusContinuedAsNew
 	// WorkflowExecutionCloseStatusTimedOut is an option for WorkflowExecutionCloseStatus
 	WorkflowExecutionCloseStatusTimedOut
+)
+
+const (
+	// WorkflowExecutionStatusPending is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusPending WorkflowExecutionStatus = iota
+	// WorkflowExecutionStatusStarted is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusStarted
+	// WorkflowExecutionStatusCompleted is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusCompleted
+	// WorkflowExecutionStatusFailed is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusFailed
+	// WorkflowExecutionStatusCanceled is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusCanceled
+	// WorkflowExecutionStatusTerminated is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusTerminated
+	// WorkflowExecutionStatusContinuedAsNew is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusContinuedAsNew
+	// WorkflowExecutionStatusTimedOut is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusTimedOut
 )
 
 // WorkflowExecutionCompletedEventAttributes is an internal type (TBD...)
@@ -8520,6 +8612,9 @@ type WorkflowExecutionInfo struct {
 	PartitionConfig              map[string]string             `json:"partitionConfig,omitempty"`
 	CronOverlapPolicy            *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
 	ActiveClusterSelectionPolicy *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
+	CronSchedule                 *string                       `json:"cronSchedule,omitempty"`
+	ExecutionStatus              *WorkflowExecutionStatus      `json:"executionStatus,omitempty"`
+	ScheduledExecutionTime       *int64                        `json:"scheduledExecutionTime,omitempty"`
 }
 
 // GetExecution is an internal getter (TBD...)
@@ -8590,6 +8685,30 @@ func (v *WorkflowExecutionInfo) GetSearchAttributes() (o *SearchAttributes) {
 func (v *WorkflowExecutionInfo) GetPartitionConfig() (o map[string]string) {
 	if v != nil && v.PartitionConfig != nil {
 		return v.PartitionConfig
+	}
+	return
+}
+
+// GetCronSchedule is an internal getter (TBD...)
+func (v *WorkflowExecutionInfo) GetCronSchedule() (o string) {
+	if v != nil && v.CronSchedule != nil {
+		return *v.CronSchedule
+	}
+	return
+}
+
+// GetExecutionStatus is an internal getter (TBD...)
+func (v *WorkflowExecutionInfo) GetExecutionStatus() (o WorkflowExecutionStatus) {
+	if v != nil && v.ExecutionStatus != nil {
+		return *v.ExecutionStatus
+	}
+	return
+}
+
+// GetScheduledExecutionTime is an internal getter (TBD...)
+func (v *WorkflowExecutionInfo) GetScheduledExecutionTime() (o int64) {
+	if v != nil && v.ScheduledExecutionTime != nil {
+		return *v.ScheduledExecutionTime
 	}
 	return
 }
@@ -9515,6 +9634,11 @@ type RespondCrossClusterTasksCompletedResponse struct {
 
 // StickyWorkerUnavailableError is an internal type (TBD...)
 type StickyWorkerUnavailableError struct {
+	Message string `json:"message,required"`
+}
+
+// ReadOnlyPartitionError is an internal type (TBD...)
+type ReadOnlyPartitionError struct {
 	Message string `json:"message,required"`
 }
 

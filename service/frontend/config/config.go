@@ -57,6 +57,8 @@ type Config struct {
 	GlobalDomainWorkerRPS             dynamicproperties.IntPropertyFnWithDomainFilter
 	GlobalDomainVisibilityRPS         dynamicproperties.IntPropertyFnWithDomainFilter
 	GlobalDomainAsyncRPS              dynamicproperties.IntPropertyFnWithDomainFilter
+	MaxWorkerPollDelay                dynamicproperties.DurationPropertyFnWithDomainFilter
+	RateLimiterBypassCallerTypes      dynamicproperties.ListPropertyFn
 	EnableClientVersionCheck          dynamicproperties.BoolPropertyFn
 	EnableQueryAttributeValidation    dynamicproperties.BoolPropertyFn
 	DisallowQuery                     dynamicproperties.BoolPropertyFnWithDomainFilter
@@ -152,6 +154,8 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		GlobalDomainWorkerRPS:                             dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainWorkerRPS),
 		GlobalDomainVisibilityRPS:                         dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainVisibilityRPS),
 		GlobalDomainAsyncRPS:                              dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainAsyncRPS),
+		MaxWorkerPollDelay:                                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.FrontendMaxWorkerPollDelay),
+		RateLimiterBypassCallerTypes:                      dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes),
 		GlobalRatelimiterKeyMode:                          dc.GetStringPropertyFilteredByRatelimitKey(dynamicproperties.FrontendGlobalRatelimiterMode),
 		GlobalRatelimiterUpdateInterval:                   dc.GetDurationProperty(dynamicproperties.GlobalRatelimiterUpdateInterval),
 		MaxIDLengthWarnLimit:                              dc.GetIntProperty(dynamicproperties.MaxIDLengthWarnLimit),

@@ -844,6 +844,151 @@ func (s *timerActiveTaskExecutorSuite) TestDecisionStartToCloseTimeout_Fire() {
 	s.Equal(int64(1), decisionInfo.Attempt)
 }
 
+func (s *timerActiveTaskExecutorSuite) TestDecisionStartToCloseTimeout_ExceedsMaxAttempts() {
+	s.mockShard.GetConfig().DecisionRetryMaxAttempts = dynamicproperties.GetIntPropertyFilteredByDomain(1)
+	s.mockShard.GetConfig().EnforceDecisionTaskAttempts = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
+
+	workflowExecution, mutableState, err := test.StartWorkflow(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+
+	di := test.AddDecisionTaskScheduledEvent(mutableState)
+	startedEvent := test.AddDecisionTaskStartedEvent(mutableState, di.ScheduleID, mutableState.GetExecutionInfo().TaskList, uuid.New())
+
+	decisionAttempt := int64(1)
+	mutableState.GetExecutionInfo().DecisionAttempt = decisionAttempt
+	di.Attempt = decisionAttempt
+
+	timerTask := s.newTimerTaskFromInfo(&persistence.DecisionTimeoutTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version:             s.version,
+			TaskID:              int64(100),
+			VisibilityTimestamp: s.timeSource.Now(),
+		},
+		TimeoutType:     int(types.TimeoutTypeStartToClose),
+		EventID:         di.ScheduleID,
+		ScheduleAttempt: decisionAttempt,
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, startedEvent.ID, startedEvent.Version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil).Once()
+	s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.Anything).Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+	s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.MatchedBy(func(req *persistence.UpdateWorkflowExecutionRequest) bool {
+		return req.UpdateWorkflowMutation.ExecutionInfo.State == persistence.WorkflowStateCompleted &&
+			req.UpdateWorkflowMutation.ExecutionInfo.CloseStatus == persistence.WorkflowCloseStatusTerminated
+	})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
+
+	_, err = s.timerActiveTaskExecutor.Execute(timerTask)
+	s.NoError(err)
+
+	ms := s.getMutableStateFromCache(s.domainID, workflowExecution.GetWorkflowID(), workflowExecution.GetRunID())
+	s.False(ms.IsWorkflowExecutionRunning())
+	_, closeStatus := ms.GetWorkflowStateCloseStatus()
+	s.Equal(closeStatus, persistence.WorkflowCloseStatusTerminated)
+	completionEvent, err := ms.GetCompletionEvent(context.Background())
+	s.NoError(err)
+	s.Equal(completionEvent.WorkflowExecutionTerminatedEventAttributes.Reason, common.FailureReasonDecisionAttemptsExceedsLimit)
+}
+
+func (s *timerActiveTaskExecutorSuite) TestDecisionStartToCloseTimeout_BelowMaxAttempts() {
+	s.mockShard.GetConfig().DecisionRetryMaxAttempts = dynamicproperties.GetIntPropertyFilteredByDomain(5)
+	s.mockShard.GetConfig().EnforceDecisionTaskAttempts = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
+
+	workflowExecution, mutableState, err := test.StartWorkflow(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+
+	di := test.AddDecisionTaskScheduledEvent(mutableState)
+	startedEvent := test.AddDecisionTaskStartedEvent(mutableState, di.ScheduleID, mutableState.GetExecutionInfo().TaskList, uuid.New())
+
+	decisionAttempt := int64(1)
+	mutableState.GetExecutionInfo().DecisionAttempt = decisionAttempt
+	di.Attempt = decisionAttempt
+
+	timerTask := s.newTimerTaskFromInfo(&persistence.DecisionTimeoutTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version:             s.version,
+			TaskID:              int64(100),
+			VisibilityTimestamp: s.timeSource.Now(),
+		},
+		TimeoutType:     int(types.TimeoutTypeStartToClose),
+		EventID:         di.ScheduleID,
+		ScheduleAttempt: decisionAttempt,
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, startedEvent.ID, startedEvent.Version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil).Once()
+	s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.MatchedBy(func(req *persistence.UpdateWorkflowExecutionRequest) bool {
+		return req.UpdateWorkflowMutation.ExecutionInfo.State == persistence.WorkflowStateRunning &&
+			req.UpdateWorkflowMutation.ExecutionInfo.DecisionAttempt == 2
+	})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
+
+	_, err = s.timerActiveTaskExecutor.Execute(timerTask)
+	s.NoError(err)
+
+	decisionInfo, ok := s.getMutableStateFromCache(s.domainID, workflowExecution.GetWorkflowID(), workflowExecution.GetRunID()).GetPendingDecision()
+	s.True(ok)
+	s.Equal(int64(2), decisionInfo.Attempt)
+	s.True(s.getMutableStateFromCache(s.domainID, workflowExecution.GetWorkflowID(), workflowExecution.GetRunID()).IsWorkflowExecutionRunning())
+}
+
+func (s *timerActiveTaskExecutorSuite) TestDecisionStartToCloseTimeout_AttemptsNotEnforced() {
+	s.mockShard.GetConfig().DecisionRetryMaxAttempts = dynamicproperties.GetIntPropertyFilteredByDomain(1)
+	s.mockShard.GetConfig().EnforceDecisionTaskAttempts = dynamicproperties.GetBoolPropertyFnFilteredByDomain(false)
+
+	workflowExecution, mutableState, err := test.StartWorkflow(s.T(), s.mockShard, s.domainID)
+	s.NoError(err)
+
+	di := test.AddDecisionTaskScheduledEvent(mutableState)
+	startedEvent := test.AddDecisionTaskStartedEvent(mutableState, di.ScheduleID, mutableState.GetExecutionInfo().TaskList, uuid.New())
+
+	decisionAttempt := int64(1)
+	mutableState.GetExecutionInfo().DecisionAttempt = decisionAttempt
+	di.Attempt = decisionAttempt
+
+	timerTask := s.newTimerTaskFromInfo(&persistence.DecisionTimeoutTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   s.domainID,
+			WorkflowID: workflowExecution.GetWorkflowID(),
+			RunID:      workflowExecution.GetRunID(),
+		},
+		TaskData: persistence.TaskData{
+			Version:             s.version,
+			TaskID:              int64(100),
+			VisibilityTimestamp: s.timeSource.Now(),
+		},
+		TimeoutType:     int(types.TimeoutTypeStartToClose),
+		EventID:         di.ScheduleID,
+		ScheduleAttempt: decisionAttempt,
+	})
+
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, startedEvent.ID, startedEvent.Version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil).Once()
+	s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.MatchedBy(func(req *persistence.UpdateWorkflowExecutionRequest) bool {
+		return req.UpdateWorkflowMutation.ExecutionInfo.State == persistence.WorkflowStateRunning &&
+			req.UpdateWorkflowMutation.ExecutionInfo.DecisionAttempt == 2
+	})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
+
+	_, err = s.timerActiveTaskExecutor.Execute(timerTask)
+	s.NoError(err)
+
+	decisionInfo, ok := s.getMutableStateFromCache(s.domainID, workflowExecution.GetWorkflowID(), workflowExecution.GetRunID()).GetPendingDecision()
+	s.True(ok)
+	s.Equal(int64(2), decisionInfo.Attempt)
+	s.True(s.getMutableStateFromCache(s.domainID, workflowExecution.GetWorkflowID(), workflowExecution.GetRunID()).IsWorkflowExecutionRunning())
+}
+
 func (s *timerActiveTaskExecutorSuite) TestDecisionStartToCloseTimeout_Noop() {
 
 	workflowExecution, mutableState, err := test.StartWorkflow(s.T(), s.mockShard, s.domainID)
