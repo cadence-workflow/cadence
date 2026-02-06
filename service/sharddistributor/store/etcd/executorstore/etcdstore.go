@@ -181,7 +181,7 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 		statsUpdate.stats[shardID] = UpdateShardStatistic(shardID, report.ShardLoad, now, oldStats)
 	}
 
-	return []shardStatisticsUpdate{statsUpdate}, err
+	return []shardStatisticsUpdate{statsUpdate}, nil
 }
 
 func UpdateShardStatistic(shardID string, shardLoad float64, now time.Time, oldStats map[string]etcdtypes.ShardStatistics) etcdtypes.ShardStatistics {

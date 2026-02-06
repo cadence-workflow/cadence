@@ -176,7 +176,7 @@ func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, ex
 	}
 
 	if err := n.refreshExecutorStatisticsCache(ctx, executorID); err != nil {
-		return nil, fmt.Errorf("error from refresh: %w", err)
+		return nil, err
 	}
 
 	// Refreshing cache after cache miss should allow the statistics to be found
