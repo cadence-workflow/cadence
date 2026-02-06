@@ -1690,7 +1690,7 @@ func (m *lockableQueryTaskMap) delete(key string) {
 
 func isMatchingRetryableError(err error) bool {
 	switch err.(type) {
-	case *types.EntityNotExistsError, *types.WorkflowExecutionAlreadyCompletedError, *types.EventAlreadyStartedError:
+	case *types.EntityNotExistsError, *types.WorkflowExecutionAlreadyCompletedError, *types.EventAlreadyStartedError, *types.DomainNotActiveError:
 		return false
 	}
 	return true

@@ -10,6 +10,9 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/api"
@@ -18,9 +21,20 @@ import (
 const testDomain = "test-domain"
 
 func setupHandler(t *testing.T) *apiHandler {
+	return setupHandlerWithDC(t, nil)
+}
+
+func setupHandlerWithDC(t *testing.T, dc *dynamicconfig.Collection) *apiHandler {
 	ctrl := gomock.NewController(t)
 	mockHandler := api.NewMockHandler(ctrl)
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+	var callerBypass quotas.CallerBypass
+	if dc != nil {
+		callerBypass = quotas.NewCallerBypass(dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes))
+	} else {
+		callerBypass = quotas.NewCallerBypass(nil)
+	}
 
 	return NewAPIHandler(
 		mockHandler,
@@ -30,6 +44,7 @@ func setupHandler(t *testing.T) *apiHandler {
 		&mockPolicy{}, // visibilityRateLimiter
 		&mockPolicy{}, // asyncRateLimiter
 		func(domain string) time.Duration { return 0 }, // maxWorkerPollDelay
+		callerBypass,
 	).(*apiHandler)
 }
 
@@ -195,4 +210,130 @@ func (m *mockPolicy) Allow(info quotas.Info) bool {
 func (m *mockPolicy) Wait(ctx context.Context, info quotas.Info) error {
 	args := m.Called(ctx, info)
 	return args.Error(0)
+}
+
+func TestCallerTypeBypass(t *testing.T) {
+	tests := []struct {
+		name              string
+		bypassCallerTypes []interface{}
+		callerType        types.CallerType
+		rateLimitBlocks   bool
+		expectBypass      bool
+	}{
+		{
+			name:              "Bypass CLI caller when configured",
+			bypassCallerTypes: []interface{}{"cli"},
+			callerType:        types.CallerTypeCLI,
+			rateLimitBlocks:   true,
+			expectBypass:      true,
+		},
+		{
+			name:              "Bypass UI caller when configured",
+			bypassCallerTypes: []interface{}{"ui"},
+			callerType:        types.CallerTypeUI,
+			rateLimitBlocks:   true,
+			expectBypass:      true,
+		},
+		{
+			name:              "Don't bypass when caller type not in list",
+			bypassCallerTypes: []interface{}{"cli"},
+			callerType:        types.CallerTypeUI,
+			rateLimitBlocks:   true,
+			expectBypass:      false,
+		},
+		{
+			name:              "Don't bypass with empty list",
+			bypassCallerTypes: []interface{}{},
+			callerType:        types.CallerTypeCLI,
+			rateLimitBlocks:   true,
+			expectBypass:      false,
+		},
+		{
+			name:              "Multiple caller types in bypass list",
+			bypassCallerTypes: []interface{}{"cli", "ui"},
+			callerType:        types.CallerTypeUI,
+			rateLimitBlocks:   true,
+			expectBypass:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := dynamicconfig.NewInMemoryClient()
+			client.UpdateValue(dynamicproperties.RateLimiterBypassCallerTypes, tt.bypassCallerTypes)
+			dc := dynamicconfig.NewCollection(client, testlogger.New(t))
+
+			handler := setupHandlerWithDC(t, dc)
+			ctx := types.ContextWithCallerInfo(context.Background(), types.NewCallerInfo(tt.callerType))
+
+			if tt.rateLimitBlocks {
+				handler.userRateLimiter.(*mockPolicy).On("Allow", quotas.Info{Domain: testDomain}).Return(false).Once()
+			} else {
+				handler.userRateLimiter.(*mockPolicy).On("Allow", quotas.Info{Domain: testDomain}).Return(true).Once()
+			}
+
+			err := handler.allowDomain(ctx, ratelimitTypeUser, testDomain)
+
+			if tt.expectBypass {
+				assert.NoError(t, err, "Expected bypass to allow request")
+			} else {
+				if tt.rateLimitBlocks {
+					assert.Error(t, err, "Expected rate limit error")
+					assert.Equal(t, newErrRateLimited(), err)
+				} else {
+					assert.NoError(t, err)
+				}
+			}
+
+			handler.userRateLimiter.(*mockPolicy).AssertExpectations(t)
+		})
+	}
+}
+
+func TestCallerTypeBypassWithWait(t *testing.T) {
+	tests := []struct {
+		name              string
+		bypassCallerTypes []interface{}
+		callerType        types.CallerType
+		expectBypass      bool
+	}{
+		{
+			name:              "Bypass in Wait nil error path when configured",
+			bypassCallerTypes: []interface{}{"cli"},
+			callerType:        types.CallerTypeCLI,
+			expectBypass:      true,
+		},
+		{
+			name:              "Don't bypass in Wait nil error path when not configured",
+			bypassCallerTypes: []interface{}{},
+			callerType:        types.CallerTypeCLI,
+			expectBypass:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := dynamicconfig.NewInMemoryClient()
+			client.UpdateValue(dynamicproperties.RateLimiterBypassCallerTypes, tt.bypassCallerTypes)
+			dc := dynamicconfig.NewCollection(client, testlogger.New(t))
+
+			handler := setupHandlerWithDC(t, dc)
+			handler.maxWorkerPollDelay = func(domain string) time.Duration { return 1 * time.Millisecond }
+			ctx := types.ContextWithCallerInfo(context.Background(), types.NewCallerInfo(tt.callerType))
+
+			// Wait returns an error, but waitCtx.Err() is nil (case nil path)
+			handler.workerRateLimiter.(*mockPolicy).On("Wait", mock.Anything, quotas.Info{Domain: testDomain}).Return(assert.AnError).Once()
+
+			err := handler.allowDomain(ctx, ratelimitTypeWorkerPoll, testDomain)
+
+			if tt.expectBypass {
+				assert.NoError(t, err, "Expected bypass to allow request")
+			} else {
+				assert.Error(t, err, "Expected rate limit error")
+				assert.Equal(t, newErrRateLimited(), err)
+			}
+
+			handler.workerRateLimiter.(*mockPolicy).AssertExpectations(t)
+		})
+	}
 }

@@ -70,7 +70,7 @@ func (h *apiHandler) allowDomain(ctx context.Context, requestType ratelimitType,
 			return h.waitForPolicy(ctx, waitTime, policy, domain)
 		}
 	}
-	if !policy.Allow(quotas.Info{Domain: domain}) {
+	if !h.callerBypass.AllowPolicy(ctx, policy, quotas.Info{Domain: domain}) {
 		return newErrRateLimited()
 	}
 	return nil
@@ -87,10 +87,13 @@ func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, 
 		waitCtxErr := waitCtx.Err()
 		switch waitCtxErr {
 		case nil:
-			return newErrRateLimited() // rate limited
+			if h.callerBypass.ShouldBypass(ctx) {
+				return nil
+			}
+			return newErrRateLimited()
 		case context.DeadlineExceeded:
 			// Race condition: context deadline hit right around wait completion
-			if !policy.Allow(quotas.Info{Domain: domain}) {
+			if !h.callerBypass.AllowPolicy(ctx, policy, quotas.Info{Domain: domain}) {
 				return newErrRateLimited()
 			}
 			return nil

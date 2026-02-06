@@ -7,37 +7,27 @@ package ratelimited
 import (
 	"context"
 
-	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
-	"github.com/uber/cadence/common/types"
 )
 
 // ratelimitedTaskManager implements persistence.TaskManager interface instrumented with rate limiter.
 type ratelimitedTaskManager struct {
-	wrapped       persistence.TaskManager
-	rateLimiter   quotas.Limiter
-	metricsClient metrics.Client
-	datastoreName string
-	dc            *dynamicconfig.Collection
+	wrapped      persistence.TaskManager
+	rateLimiter  quotas.Limiter
+	callerBypass quotas.CallerBypass
 }
 
 // NewTaskManager creates a new instance of TaskManager with ratelimiter.
 func NewTaskManager(
 	wrapped persistence.TaskManager,
 	rateLimiter quotas.Limiter,
-	metricsClient metrics.Client,
-	datastoreName string,
-	dc *dynamicconfig.Collection,
+	callerBypass quotas.CallerBypass,
 ) persistence.TaskManager {
 	return &ratelimitedTaskManager{
-		wrapped:       wrapped,
-		rateLimiter:   rateLimiter,
-		metricsClient: metricsClient,
-		datastoreName: datastoreName,
-		dc:            dc,
+		wrapped:      wrapped,
+		rateLimiter:  rateLimiter,
+		callerBypass: callerBypass,
 	}
 }
 
@@ -47,16 +37,7 @@ func (c *ratelimitedTaskManager) Close() {
 }
 
 func (c *ratelimitedTaskManager) CompleteTask(ctx context.Context, request *persistence.CompleteTaskRequest) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.CompleteTask(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -64,16 +45,7 @@ func (c *ratelimitedTaskManager) CompleteTask(ctx context.Context, request *pers
 }
 
 func (c *ratelimitedTaskManager) CompleteTasksLessThan(ctx context.Context, request *persistence.CompleteTasksLessThanRequest) (cp1 *persistence.CompleteTasksLessThanResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.CompleteTasksLessThan(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -81,16 +53,7 @@ func (c *ratelimitedTaskManager) CompleteTasksLessThan(ctx context.Context, requ
 }
 
 func (c *ratelimitedTaskManager) CreateTasks(ctx context.Context, request *persistence.CreateTasksRequest) (cp1 *persistence.CreateTasksResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.CreateTasks(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -98,16 +61,7 @@ func (c *ratelimitedTaskManager) CreateTasks(ctx context.Context, request *persi
 }
 
 func (c *ratelimitedTaskManager) DeleteTaskList(ctx context.Context, request *persistence.DeleteTaskListRequest) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.DeleteTaskList(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -119,16 +73,7 @@ func (c *ratelimitedTaskManager) GetName() (s1 string) {
 }
 
 func (c *ratelimitedTaskManager) GetOrphanTasks(ctx context.Context, request *persistence.GetOrphanTasksRequest) (gp1 *persistence.GetOrphanTasksResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.GetOrphanTasks(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -136,16 +81,7 @@ func (c *ratelimitedTaskManager) GetOrphanTasks(ctx context.Context, request *pe
 }
 
 func (c *ratelimitedTaskManager) GetTaskList(ctx context.Context, request *persistence.GetTaskListRequest) (gp1 *persistence.GetTaskListResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.GetTaskList(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -153,16 +89,7 @@ func (c *ratelimitedTaskManager) GetTaskList(ctx context.Context, request *persi
 }
 
 func (c *ratelimitedTaskManager) GetTaskListSize(ctx context.Context, request *persistence.GetTaskListSizeRequest) (gp1 *persistence.GetTaskListSizeResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.GetTaskListSize(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -170,16 +97,7 @@ func (c *ratelimitedTaskManager) GetTaskListSize(ctx context.Context, request *p
 }
 
 func (c *ratelimitedTaskManager) GetTasks(ctx context.Context, request *persistence.GetTasksRequest) (gp1 *persistence.GetTasksResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.GetTasks(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -187,16 +105,7 @@ func (c *ratelimitedTaskManager) GetTasks(ctx context.Context, request *persiste
 }
 
 func (c *ratelimitedTaskManager) LeaseTaskList(ctx context.Context, request *persistence.LeaseTaskListRequest) (lp1 *persistence.LeaseTaskListResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.LeaseTaskList(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -204,16 +113,7 @@ func (c *ratelimitedTaskManager) LeaseTaskList(ctx context.Context, request *per
 }
 
 func (c *ratelimitedTaskManager) ListTaskList(ctx context.Context, request *persistence.ListTaskListRequest) (lp1 *persistence.ListTaskListResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.ListTaskList(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -221,34 +121,9 @@ func (c *ratelimitedTaskManager) ListTaskList(ctx context.Context, request *pers
 }
 
 func (c *ratelimitedTaskManager) UpdateTaskList(ctx context.Context, request *persistence.UpdateTaskListRequest) (up1 *persistence.UpdateTaskListResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.UpdateTaskList(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.UpdateTaskList(ctx, request)
-}
-
-func (c *ratelimitedTaskManager) shouldBypassRateLimit(callerType types.CallerType) bool {
-	if c.dc == nil {
-		return false
-	}
-
-	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
-	for _, bypassType := range bypassCallerTypes {
-		if bypassTypeStr, ok := bypassType.(string); ok {
-			if types.ParseCallerType(bypassTypeStr) == callerType {
-				return true
-			}
-		}
-	}
-	return false
 }

@@ -7,37 +7,27 @@ package ratelimited
 import (
 	"context"
 
-	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
-	"github.com/uber/cadence/common/types"
 )
 
 // ratelimitedConfigStoreManager implements persistence.ConfigStoreManager interface instrumented with rate limiter.
 type ratelimitedConfigStoreManager struct {
-	wrapped       persistence.ConfigStoreManager
-	rateLimiter   quotas.Limiter
-	metricsClient metrics.Client
-	datastoreName string
-	dc            *dynamicconfig.Collection
+	wrapped      persistence.ConfigStoreManager
+	rateLimiter  quotas.Limiter
+	callerBypass quotas.CallerBypass
 }
 
 // NewConfigStoreManager creates a new instance of ConfigStoreManager with ratelimiter.
 func NewConfigStoreManager(
 	wrapped persistence.ConfigStoreManager,
 	rateLimiter quotas.Limiter,
-	metricsClient metrics.Client,
-	datastoreName string,
-	dc *dynamicconfig.Collection,
+	callerBypass quotas.CallerBypass,
 ) persistence.ConfigStoreManager {
 	return &ratelimitedConfigStoreManager{
-		wrapped:       wrapped,
-		rateLimiter:   rateLimiter,
-		metricsClient: metricsClient,
-		datastoreName: datastoreName,
-		dc:            dc,
+		wrapped:      wrapped,
+		rateLimiter:  rateLimiter,
+		callerBypass: callerBypass,
 	}
 }
 
@@ -47,16 +37,7 @@ func (c *ratelimitedConfigStoreManager) Close() {
 }
 
 func (c *ratelimitedConfigStoreManager) FetchDynamicConfig(ctx context.Context, cfgType persistence.ConfigType) (fp1 *persistence.FetchDynamicConfigResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.FetchDynamicConfig(ctx, cfgType)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -64,34 +45,9 @@ func (c *ratelimitedConfigStoreManager) FetchDynamicConfig(ctx context.Context, 
 }
 
 func (c *ratelimitedConfigStoreManager) UpdateDynamicConfig(ctx context.Context, request *persistence.UpdateDynamicConfigRequest, cfgType persistence.ConfigType) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.UpdateDynamicConfig(ctx, request, cfgType)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.UpdateDynamicConfig(ctx, request, cfgType)
-}
-
-func (c *ratelimitedConfigStoreManager) shouldBypassRateLimit(callerType types.CallerType) bool {
-	if c.dc == nil {
-		return false
-	}
-
-	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
-	for _, bypassType := range bypassCallerTypes {
-		if bypassTypeStr, ok := bypassType.(string); ok {
-			if types.ParseCallerType(bypassTypeStr) == callerType {
-				return true
-			}
-		}
-	}
-	return false
 }

@@ -58,7 +58,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockConfigStoreManager(ctrl)
 
-				newObj := NewConfigStoreManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewConfigStoreManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -68,7 +68,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockDomainManager(ctrl)
 
-				newObj := NewDomainManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewDomainManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -78,7 +78,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockHistoryManager(ctrl)
 
-				newObj := NewHistoryManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewHistoryManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -88,7 +88,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockQueueManager(ctrl)
 
-				newObj := NewQueueManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewQueueManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -98,7 +98,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockShardManager(ctrl)
 
-				newObj := NewShardManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewShardManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -108,7 +108,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockTaskManager(ctrl)
 
-				newObj := NewTaskManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewTaskManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -118,7 +118,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockVisibilityManager(ctrl)
 
-				newObj := NewVisibilityManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewVisibilityManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -131,7 +131,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 				wrapped.EXPECT().GetShardID().Return(0).AnyTimes()
 
 				newObj := NewExecutionManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
-					dynamicproperties.GetIntPropertyFn(1), dynamicproperties.GetBoolPropertyFn(true), "test-host", "test")
+					dynamicproperties.GetIntPropertyFn(1), dynamicproperties.GetBoolPropertyFn(true))
 
 				return newObj, wrapped
 			},

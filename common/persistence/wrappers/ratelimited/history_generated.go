@@ -7,51 +7,32 @@ package ratelimited
 import (
 	"context"
 
-	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
-	"github.com/uber/cadence/common/types"
 )
 
 // ratelimitedHistoryManager implements persistence.HistoryManager interface instrumented with rate limiter.
 type ratelimitedHistoryManager struct {
-	wrapped       persistence.HistoryManager
-	rateLimiter   quotas.Limiter
-	metricsClient metrics.Client
-	datastoreName string
-	dc            *dynamicconfig.Collection
+	wrapped      persistence.HistoryManager
+	rateLimiter  quotas.Limiter
+	callerBypass quotas.CallerBypass
 }
 
 // NewHistoryManager creates a new instance of HistoryManager with ratelimiter.
 func NewHistoryManager(
 	wrapped persistence.HistoryManager,
 	rateLimiter quotas.Limiter,
-	metricsClient metrics.Client,
-	datastoreName string,
-	dc *dynamicconfig.Collection,
+	callerBypass quotas.CallerBypass,
 ) persistence.HistoryManager {
 	return &ratelimitedHistoryManager{
-		wrapped:       wrapped,
-		rateLimiter:   rateLimiter,
-		metricsClient: metricsClient,
-		datastoreName: datastoreName,
-		dc:            dc,
+		wrapped:      wrapped,
+		rateLimiter:  rateLimiter,
+		callerBypass: callerBypass,
 	}
 }
 
 func (c *ratelimitedHistoryManager) AppendHistoryNodes(ctx context.Context, request *persistence.AppendHistoryNodesRequest) (ap1 *persistence.AppendHistoryNodesResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.AppendHistoryNodes(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -64,16 +45,7 @@ func (c *ratelimitedHistoryManager) Close() {
 }
 
 func (c *ratelimitedHistoryManager) DeleteHistoryBranch(ctx context.Context, request *persistence.DeleteHistoryBranchRequest) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.DeleteHistoryBranch(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -81,16 +53,7 @@ func (c *ratelimitedHistoryManager) DeleteHistoryBranch(ctx context.Context, req
 }
 
 func (c *ratelimitedHistoryManager) ForkHistoryBranch(ctx context.Context, request *persistence.ForkHistoryBranchRequest) (fp1 *persistence.ForkHistoryBranchResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.ForkHistoryBranch(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -98,16 +61,7 @@ func (c *ratelimitedHistoryManager) ForkHistoryBranch(ctx context.Context, reque
 }
 
 func (c *ratelimitedHistoryManager) GetAllHistoryTreeBranches(ctx context.Context, request *persistence.GetAllHistoryTreeBranchesRequest) (gp1 *persistence.GetAllHistoryTreeBranchesResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.GetAllHistoryTreeBranches(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -115,16 +69,7 @@ func (c *ratelimitedHistoryManager) GetAllHistoryTreeBranches(ctx context.Contex
 }
 
 func (c *ratelimitedHistoryManager) GetHistoryTree(ctx context.Context, request *persistence.GetHistoryTreeRequest) (gp1 *persistence.GetHistoryTreeResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.GetHistoryTree(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -136,16 +81,7 @@ func (c *ratelimitedHistoryManager) GetName() (s1 string) {
 }
 
 func (c *ratelimitedHistoryManager) ReadHistoryBranch(ctx context.Context, request *persistence.ReadHistoryBranchRequest) (rp1 *persistence.ReadHistoryBranchResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.ReadHistoryBranch(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -153,16 +89,7 @@ func (c *ratelimitedHistoryManager) ReadHistoryBranch(ctx context.Context, reque
 }
 
 func (c *ratelimitedHistoryManager) ReadHistoryBranchByBatch(ctx context.Context, request *persistence.ReadHistoryBranchRequest) (rp1 *persistence.ReadHistoryBranchByBatchResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.ReadHistoryBranchByBatch(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -170,34 +97,9 @@ func (c *ratelimitedHistoryManager) ReadHistoryBranchByBatch(ctx context.Context
 }
 
 func (c *ratelimitedHistoryManager) ReadRawHistoryBranch(ctx context.Context, request *persistence.ReadHistoryBranchRequest) (rp1 *persistence.ReadRawHistoryBranchResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-
-	if ok := c.rateLimiter.Allow(); !ok {
-		callerInfo := types.GetCallerInfoFromContext(ctx)
-		if c.shouldBypassRateLimit(callerInfo.GetCallerType()) {
-			return c.wrapped.ReadRawHistoryBranch(ctx, request)
-		}
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.ReadRawHistoryBranch(ctx, request)
-}
-
-func (c *ratelimitedHistoryManager) shouldBypassRateLimit(callerType types.CallerType) bool {
-	if c.dc == nil {
-		return false
-	}
-
-	bypassCallerTypes := c.dc.GetListProperty(dynamicproperties.PersistenceRateLimiterBypassCallerTypes)()
-	for _, bypassType := range bypassCallerTypes {
-		if bypassTypeStr, ok := bypassType.(string); ok {
-			if types.ParseCallerType(bypassTypeStr) == callerType {
-				return true
-			}
-		}
-	}
-	return false
 }
