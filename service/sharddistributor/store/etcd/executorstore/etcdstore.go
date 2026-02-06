@@ -161,7 +161,11 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 
 	oldStats, err := s.shardCache.GetExecutorStatistics(ctx, namespace, executorID)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, store.ErrExecutorNotFound) {
+			oldStats = make(map[string]etcdtypes.ShardStatistics)
+		} else {
+			return nil, err
+		}
 	}
 
 	now := s.timeSource.Now().UTC()
