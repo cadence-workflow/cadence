@@ -184,7 +184,7 @@ func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, ex
 		return stats, nil
 	}
 
-	return nil, fmt.Errorf("could not get executor statistics, even after refresh")
+	return nil, fmt.Errorf("executor statistics not found after refresh: %w", store.ErrExecutorNotFound)
 }
 
 func (n *namespaceShardToExecutor) getStats(executorID string) (map[string]etcdtypes.ShardStatistics, bool) {

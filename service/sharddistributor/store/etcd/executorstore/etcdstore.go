@@ -865,7 +865,11 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 				if !ok { // Not yet touched in this loop, get from main cache.
 					oldOwnerStats, err = s.shardCache.GetExecutorStatistics(ctx, namespace, oldOwner.ExecutorID)
 					if err != nil {
-						return nil, err
+						if errors.Is(err, store.ErrExecutorNotFound) {
+							oldOwnerStats = make(map[string]etcdtypes.ShardStatistics)
+						} else {
+							return nil, err
+						}
 					}
 				}
 
@@ -891,7 +895,11 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 			if !ok {
 				newOwnerStats, err = s.shardCache.GetExecutorStatistics(ctx, namespace, executorID)
 				if err != nil {
-					return nil, err
+					if errors.Is(err, store.ErrExecutorNotFound) {
+						newOwnerStats = make(map[string]etcdtypes.ShardStatistics)
+					} else {
+						return nil, err
+					}
 				}
 			}
 
