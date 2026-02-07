@@ -180,8 +180,6 @@ func (p *namespaceProcessor) runProcess(ctx context.Context) {
 
 // runRebalancingLoop handles shard assignment and redistribution.
 func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
-	ticker := p.timeSource.NewTicker(p.cfg.Period)
-	defer ticker.Stop()
 
 	// Perform an initial rebalance on startup.
 	err := p.rebalanceShards(ctx)
@@ -189,9 +187,9 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 		p.logger.Error("initial rebalance failed", tag.Error(err))
 	}
 
-	updateChan, err := p.shardStore.Subscribe(ctx, p.namespaceCfg.Name)
+	updateChan, err := p.runRebalanceTriggeringLoop(ctx)
 	if err != nil {
-		p.logger.Error("Failed to subscribe to state changes, stopping rebalancing loop.", tag.Error(err))
+		p.logger.Error("failed to start rebalance triggering loop", tag.Error(err))
 		return
 	}
 
@@ -200,22 +198,65 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 		case <-ctx.Done():
 			p.logger.Info("Rebalancing loop cancelled.")
 			return
+
+		case update := <-updateChan:
+			p.logger.Info("Rebalancing triggered", tag.Dynamic("reason", update))
+			if err := p.rebalanceShards(ctx); err != nil {
+				p.logger.Error("rebalance failed", tag.Error(err))
+			}
+		}
+	}
+}
+
+// runRebalanceTriggeringLoop monitors for state changes and periodic triggers to initiate rebalancing.
+// it doesn't block Subscribe calls to avoid a growing backlog of updates.
+func (p *namespaceProcessor) runRebalanceTriggeringLoop(ctx context.Context) (<-chan string, error) {
+	// Buffered channel to allow one pending rebalance trigger.
+	triggerChan := make(chan string, 1)
+
+	updateChan, err := p.shardStore.Subscribe(ctx, p.namespaceCfg.Name)
+	if err != nil {
+		p.logger.Error("Failed to subscribe to state changes, stopping rebalancing loop.", tag.Error(err))
+		return nil, err
+	}
+
+	go p.rebalanceTriggeringLoop(ctx, updateChan, triggerChan)
+	return triggerChan, nil
+}
+
+func (p *namespaceProcessor) rebalanceTriggeringLoop(ctx context.Context, updateChan <-chan int64, triggerChan chan<- string) {
+	defer close(triggerChan)
+
+	ticker := p.timeSource.NewTicker(p.cfg.Period)
+	defer ticker.Stop()
+
+	tryTriggerRebalancing := func(reason string) {
+		select {
+		case triggerChan <- reason:
+		default:
+			p.logger.Info("Rebalance already pending, skipping trigger attempt", tag.Dynamic("reason", reason))
+		}
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			p.logger.Info("Rebalance triggering loop cancelled")
+			return
+
+		case <-ticker.Chan():
+			tryTriggerRebalancing("Periodic reconciliation triggered")
+
 		case latestRevision, ok := <-updateChan:
 			if !ok {
-				p.logger.Info("Update channel closed, stopping rebalancing loop.")
+				p.logger.Info("Update channel closed, stopping rebalance triggering loop")
 				return
 			}
 			if latestRevision <= p.lastAppliedRevision {
 				continue
 			}
-			p.logger.Info("State change detected, triggering rebalance.")
-			err = p.rebalanceShards(ctx)
-		case <-ticker.Chan():
-			p.logger.Info("Periodic reconciliation triggered, rebalancing.")
-			err = p.rebalanceShards(ctx)
-		}
-		if err != nil {
-			p.logger.Error("rebalance failed", tag.Error(err))
+
+			tryTriggerRebalancing("State change detected")
 		}
 	}
 }
