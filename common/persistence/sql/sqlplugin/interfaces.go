@@ -582,6 +582,33 @@ type (
 		DataEncoding string
 	}
 
+	// DomainAuditLogRow represents a row in domain_audit_log table
+	DomainAuditLogRow struct {
+		DomainID            serialization.UUID
+		EventID             serialization.UUID
+		StateBefore         []byte
+		StateBeforeEncoding string
+		StateAfter          []byte
+		StateAfterEncoding  string
+		OperationType       persistence.DomainAuditOperationType
+		CreatedTime         time.Time
+		LastUpdatedTime     time.Time
+		Identity            string
+		IdentityType        string
+		Comment             string
+	}
+
+	// DomainAuditLogFilter contains the filter criteria for querying domain audit logs
+	DomainAuditLogFilter struct {
+		DomainID                serialization.UUID
+		OperationType           persistence.DomainAuditOperationType
+		MinCreatedTime          *time.Time
+		MaxCreatedTime          *time.Time
+		PageSize                int
+		PageTokenMinCreatedTime *time.Time
+		PageTokenMinEventID     *serialization.UUID
+	}
+
 	// tableCRUD defines the API for interacting with the database tables
 	tableCRUD interface {
 		InsertIntoDomain(ctx context.Context, rows *DomainRow) (sql.Result, error)
@@ -818,6 +845,11 @@ type (
 		InsertConfig(ctx context.Context, row *persistence.InternalConfigStoreEntry) error
 		// SelectLatestConfig returns the config entry of the row_type with the largest(latest) version value
 		SelectLatestConfig(ctx context.Context, rowType int) (*persistence.InternalConfigStoreEntry, error)
+
+		// InsertDomainAuditLog inserts a new audit log entry for a domain operation. Returns error if there is any failure
+		InsertIntoDomainAuditLog(ctx context.Context, row *DomainAuditLogRow) (sql.Result, error)
+		// SelectFromDomainAuditLogs returns audit log entries for a domain. Returns paginated results ordered by created_time DESC, event_id ASC
+		SelectFromDomainAuditLogs(ctx context.Context, filter *DomainAuditLogFilter) ([]*DomainAuditLogRow, error)
 
 		// The follow provide information about the underlying sql crud implementation
 		SupportsTTL() bool
