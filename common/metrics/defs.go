@@ -2480,7 +2480,6 @@ const (
 const (
 	TaskRequests = iota + NumCommonMetrics
 	TaskLatency
-	ExponentialTaskLatency
 	TaskFailures
 	TaskDiscarded
 	TaskAttemptTimer
@@ -2648,9 +2647,11 @@ const (
 	HistoryConflictsCounter
 	CompleteTaskFailedCounter
 	CacheSize
+	CacheSizeHistogram
 	CacheRequests
 	CacheFailures
 	CacheLatency
+	ExponentialCacheLatency
 	CacheHitCounter
 	CacheMissCounter
 	CacheFullCounter
@@ -3308,7 +3309,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 	History: {
 		TaskRequests:                     {metricName: "task_requests", metricType: Counter},
 		TaskLatency:                      {metricName: "task_latency", metricType: Timer},
-		ExponentialTaskLatency:           {metricName: "task_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		TaskAttemptTimer:                 {metricName: "task_attempt", metricType: Timer},
 		TaskFailures:                     {metricName: "task_errors", metricType: Counter},
 		TaskDiscarded:                    {metricName: "task_errors_discarded", metricType: Counter},
@@ -3475,6 +3475,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CacheRequests:                                                {metricName: "cache_requests", metricType: Counter},
 		CacheFailures:                                                {metricName: "cache_errors", metricType: Counter},
 		CacheLatency:                                                 {metricName: "cache_latency", metricType: Timer},
+		ExponentialCacheLatency:                                      {metricName: "cache_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		CacheHitCounter:                                              {metricName: "cache_hit", metricType: Counter},
 		CacheMissCounter:                                             {metricName: "cache_miss", metricType: Counter},
 		CacheFullCounter:                                             {metricName: "cache_full", metricType: Counter},
