@@ -305,10 +305,10 @@ func AdminDeleteWorkflow(c *cli.Context) error {
 		return commoncli.Problem("strconv.Atoi(shardID) err", err)
 	}
 	histV2, err := getDeps(c).initializeHistoryManager(c)
-	defer histV2.Close()
 	if err != nil {
 		return commoncli.Problem("Error in Admin delete WF: ", err)
 	}
+	defer histV2.Close()
 	exeStore, err := getDeps(c).initializeExecutionManager(c, shardIDInt)
 	if err != nil {
 		return commoncli.Problem("Error in Admin delete WF: ", err)
