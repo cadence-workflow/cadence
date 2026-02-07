@@ -202,6 +202,7 @@ func (b crossDCOutbounds) Build(grpcTransport *grpc.Transport, tchannelTransport
 			ServiceName: clusterInfo.RPCName,
 			Unary: middleware.ApplyUnaryOutbound(outbound, yarpc.UnaryOutboundMiddleware(
 				authMiddleware,
+				&CallerInfoOutboundMiddleware{},
 				&overrideCallerMiddleware{crossDCCaller},
 			)),
 		}
@@ -251,7 +252,7 @@ func (o directOutbound) Build(grpc *grpc.Transport, tchannel *tchannel.Transport
 		Outbounds: yarpc.Outbounds{
 			o.serviceName: {
 				ServiceName: o.serviceName,
-				Unary:       middleware.ApplyUnaryOutbound(outbound, &ResponseInfoMiddleware{}),
+				Unary:       middleware.ApplyUnaryOutbound(outbound, yarpc.UnaryOutboundMiddleware(&CallerInfoOutboundMiddleware{}, &ResponseInfoMiddleware{})),
 				Stream:      streamOutbound,
 			},
 		},
