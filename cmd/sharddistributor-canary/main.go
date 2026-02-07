@@ -18,6 +18,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/canary"
+	canaryConfig "github.com/uber/cadence/service/sharddistributor/canary/config"
 	"github.com/uber/cadence/service/sharddistributor/canary/executors"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
@@ -32,6 +33,10 @@ const (
 	defaultFixedNamespace           = "shard-distributor-canary"
 	defaultEphemeralNamespace       = "shard-distributor-canary-ephemeral"
 	defaultCanaryGRPCPort           = 7953 // Port for canary to receive ping requests
+	defaultNumExecutors             = 1
+	defaultNumShardCreators         = 1
+	defaultNumSpectators            = 1
+	defaultShardCreationInterval    = 1 * time.Second
 
 	shardDistributorServiceName = "cadence-shard-distributor"
 )
@@ -42,10 +47,47 @@ func runApp(c *cli.Context) {
 	ephemeralNamespace := c.String("ephemeral-namespace")
 	canaryGRPCPort := c.Int("canary-grpc-port")
 
-	fx.New(opts(fixedNamespace, ephemeralNamespace, endpoint, canaryGRPCPort)).Run()
+	numFixedExecutors := c.Int("num-fixed-executors")
+	numEphemeralExecutors := c.Int("num-ephemeral-executors")
+
+	if c.IsSet("num-executors") {
+		numExecutors := c.Int("num-executors")
+		numFixedExecutors = numExecutors
+		numEphemeralExecutors = numExecutors
+	}
+
+	numShardCreators := c.Int("num-shard-creators")
+	shardCreationInterval := c.Duration("shard-creation-interval")
+
+	numFixedSpectators := c.Int("num-fixed-spectators")
+	numEphemeralSpectators := c.Int("num-ephemeral-spectators")
+	if c.IsSet("num-spectators") {
+		numSpectators := c.Int("num-spectators")
+		numFixedSpectators = numSpectators
+		numEphemeralSpectators = numSpectators
+	}
+
+	fx.New(opts(
+		fixedNamespace,
+		ephemeralNamespace,
+		endpoint,
+		canaryGRPCPort,
+		numFixedExecutors,
+		numEphemeralExecutors,
+		numShardCreators,
+		shardCreationInterval,
+		numFixedSpectators,
+		numEphemeralSpectators,
+	)).Run()
 }
 
-func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort int) fx.Option {
+func opts(
+	fixedNamespace, ephemeralNamespace, endpoint string,
+	canaryGRPCPort int,
+	numFixedExecutors, numEphemeral, numShardCreators int,
+	shardCreationInterval time.Duration,
+	numFixedSpectators, numEphemeralSpectators int,
+) fx.Option {
 	configuration := clientcommon.Config{
 		Namespaces: []clientcommon.NamespaceConfig{
 			{Namespace: fixedNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
@@ -130,7 +172,22 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort in
 		}),
 
 		// Include the canary module - it will set up spectator peer choosers and canary client
-		canary.Module(canary.NamespacesNames{FixedNamespace: fixedNamespace, EphemeralNamespace: ephemeralNamespace, ExternalAssignmentNamespace: executors.ExternalAssignmentNamespace, SharddistributorServiceName: shardDistributorServiceName}),
+		canary.Module(canary.NamespacesNames{
+			FixedNamespace:              fixedNamespace,
+			EphemeralNamespace:          ephemeralNamespace,
+			ExternalAssignmentNamespace: executors.ExternalAssignmentNamespace,
+			SharddistributorServiceName: shardDistributorServiceName,
+			Config: canaryConfig.Config{
+				Canary: canaryConfig.CanaryConfig{
+					NumFixedExecutors:      numFixedExecutors,
+					NumFixedSpectators:     numFixedSpectators,
+					NumEphemeralExecutors:  numEphemeral,
+					NumEphemeralSpectators: numEphemeralSpectators,
+					NumShardCreators:       numShardCreators,
+					ShardCreationInterval:  shardCreationInterval,
+				},
+			},
+		}),
 	)
 }
 
@@ -165,6 +222,46 @@ func buildCLI() *cli.App {
 					Name:  "canary-grpc-port",
 					Value: defaultCanaryGRPCPort,
 					Usage: "port for canary to receive ping requests",
+				},
+				&cli.IntFlag{
+					Name:  "num-executors",
+					Value: defaultNumExecutors,
+					Usage: "number of executors for fixed and ephemeral to start. Overrides num-fixed-executors and num-ephemeral-executors flags",
+				},
+				&cli.IntFlag{
+					Name:  "num-fixed-executors",
+					Value: defaultNumExecutors,
+					Usage: "number of executors of fixed namespace to start. Don't use with num-executors",
+				},
+				&cli.IntFlag{
+					Name:  "num-ephemeral-executors",
+					Value: defaultNumExecutors,
+					Usage: "number of executors of ephemeral namespace to start. Don't use with num-executors",
+				},
+				&cli.IntFlag{
+					Name:  "num-shard-creators",
+					Usage: "number of shard creators to start. Each shard creator will create new ephemeral shards at regular intervals",
+					Value: defaultNumShardCreators,
+				},
+				&cli.DurationFlag{
+					Name:  "shard-creation-interval",
+					Usage: "interval between creating new ephemeral shards by each shard creator",
+					Value: defaultShardCreationInterval,
+				},
+				&cli.IntFlag{
+					Name:  "num-spectators",
+					Usage: "number of spectators for fixed and ephemeral to start. Overrides num-fixed-spectators and num-ephemeral-spectators flags",
+					Value: defaultNumSpectators,
+				},
+				&cli.IntFlag{
+					Name:  "num-fixed-spectators",
+					Usage: "number of spectators of fixed namespace to start. Don't use with num-spectators",
+					Value: defaultNumSpectators,
+				},
+				&cli.IntFlag{
+					Name:  "num-ephemeral-spectators",
+					Usage: "number of spectators of ephemeral namespace to start. Don't use with num-spectators",
+					Value: defaultNumSpectators,
 				},
 			},
 			Action: func(c *cli.Context) error {

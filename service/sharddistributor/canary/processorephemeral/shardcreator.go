@@ -11,6 +11,7 @@ import (
 
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/service/sharddistributor/canary/config"
 	"github.com/uber/cadence/service/sharddistributor/canary/pinger"
 )
 
@@ -22,10 +23,11 @@ const (
 
 // ShardCreator creates shards at regular intervals for ephemeral canary testing
 type ShardCreator struct {
-	logger       *zap.Logger
-	timeSource   clock.TimeSource
-	canaryClient sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCClient
-	namespaces   []string
+	logger           *zap.Logger
+	timeSource       clock.TimeSource
+	canaryClient     sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCClient
+	namespaces       []string
+	creationInterval time.Duration
 
 	stopChan    chan struct{}
 	goRoutineWg sync.WaitGroup
@@ -35,6 +37,7 @@ type ShardCreator struct {
 type ShardCreatorParams struct {
 	fx.In
 
+	Config       config.Config
 	Logger       *zap.Logger
 	TimeSource   clock.TimeSource
 	CanaryClient sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCClient
@@ -42,13 +45,18 @@ type ShardCreatorParams struct {
 
 // NewShardCreator creates a new ShardCreator instance with the given parameters and namespace
 func NewShardCreator(params ShardCreatorParams, namespaces []string) *ShardCreator {
+	if params.Config.Canary.ShardCreationInterval <= 0 {
+		params.Config.Canary.ShardCreationInterval = shardCreationInterval
+	}
+
 	return &ShardCreator{
-		logger:       params.Logger,
-		timeSource:   params.TimeSource,
-		canaryClient: params.CanaryClient,
-		stopChan:     make(chan struct{}),
-		goRoutineWg:  sync.WaitGroup{},
-		namespaces:   namespaces,
+		logger:           params.Logger,
+		timeSource:       params.TimeSource,
+		canaryClient:     params.CanaryClient,
+		stopChan:         make(chan struct{}),
+		goRoutineWg:      sync.WaitGroup{},
+		namespaces:       namespaces,
+		creationInterval: params.Config.Canary.ShardCreationInterval,
 	}
 }
 
@@ -69,11 +77,23 @@ func (s *ShardCreator) Stop() {
 // ShardCreatorModule creates an fx module for the shard creator with the given namespace
 func ShardCreatorModule(namespace []string) fx.Option {
 	return fx.Module("shard-creator",
-		fx.Provide(func(params ShardCreatorParams) *ShardCreator {
-			return NewShardCreator(params, namespace)
+		fx.Provide(func(p ShardCreatorParams) []*ShardCreator {
+			if p.Config.Canary.NumShardCreators <= 0 {
+				p.Config.Canary.NumShardCreators = 1
+			}
+
+			var creators []*ShardCreator
+			for i := 0; i < p.Config.Canary.NumShardCreators; i++ {
+				creators = append(creators, NewShardCreator(p, namespace))
+			}
+
+			return creators
 		}),
-		fx.Invoke(func(lifecycle fx.Lifecycle, shardCreator *ShardCreator) {
-			lifecycle.Append(fx.StartStopHook(shardCreator.Start, shardCreator.Stop))
+
+		fx.Invoke(func(lifecycle fx.Lifecycle, shardCreators []*ShardCreator) {
+			for i := range shardCreators {
+				lifecycle.Append(fx.StartStopHook(shardCreators[i].Start, shardCreators[i].Stop))
+			}
 		}),
 	)
 }
@@ -81,7 +101,7 @@ func ShardCreatorModule(namespace []string) fx.Option {
 func (s *ShardCreator) process(ctx context.Context) {
 	defer s.goRoutineWg.Done()
 
-	ticker := s.timeSource.NewTicker(shardCreationInterval)
+	ticker := s.timeSource.NewTicker(s.creationInterval)
 	defer ticker.Stop()
 
 	for {
