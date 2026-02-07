@@ -456,6 +456,7 @@ func (e *executorImpl[SP]) stopManagerProcessor(shardID string) {
 func (e *executorImpl[SP]) shardCleanUpLoop(ctx context.Context) {
 	// We don't run the loop for invalid durations
 	if e.ttlShard <= 0 {
+
 		return
 	}
 	shardCleanUpTimer := e.timeSource.NewTimer(backoff.JitDuration(e.ttlShard, heartbeatJitterCoeff))
@@ -470,7 +471,14 @@ func (e *executorImpl[SP]) shardCleanUpLoop(ctx context.Context) {
 		case <-shardCleanUpTimer.Chan():
 			e.processorsToLastUse.Range(func(shardID string, time time.Time) bool {
 				if time.Add(e.ttlShard).Before(e.timeSource.Now()) {
-					e.deleteShards([]string{shardID})
+					if e.getMigrationMode() == types.MigrationModeONBOARDED {
+						mp, ok := e.managedProcessors.Load(shardID)
+						if ok {
+							mp.processor.SetShardStatus(types.ShardStatusDONE)
+						}
+					} else {
+						e.deleteShards([]string{shardID})
+					}
 					e.processorsToLastUse.Delete(shardID)
 				}
 				return true

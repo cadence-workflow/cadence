@@ -35,6 +35,7 @@ type ShardProcessor interface {
 	Start(ctx context.Context) error
 	Stop()
 	GetShardReport() ShardReport
+	SetShardStatus(types.ShardStatus)
 }
 
 type ShardProcessorFactory[SP ShardProcessor] interface {
