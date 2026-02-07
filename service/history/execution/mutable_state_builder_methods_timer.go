@@ -282,3 +282,11 @@ func checkAndClearTimerFiredEvent(
 	timerEvent := events[timerFiredIdx]
 	return append(events[:timerFiredIdx], events[timerFiredIdx+1:]...), timerEvent
 }
+
+func (e *mutableStateBuilder) GetPendingWorkflowTimerTaskInfos() map[int]*persistence.WorkflowTimerTaskInfo {
+	result := make(map[int]*persistence.WorkflowTimerTaskInfo)
+	for _, info := range e.workflowTimerTaskInfos {
+		result[info.TimeoutType] = info
+	}
+	return result
+}
