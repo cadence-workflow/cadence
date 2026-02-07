@@ -454,6 +454,46 @@ func TestDescribeTaskList(t *testing.T) {
 	}
 }
 
+func TestQueriesPerSecond(t *testing.T) {
+	testCases := []struct {
+		name        string
+		mockSetup   func(ctrl *gomock.Controller, tlm *taskListManagerImpl)
+		expectedQPS float64
+	}{
+		{
+			name: "returns QPS from tracker",
+			mockSetup: func(ctrl *gomock.Controller, tlm *taskListManagerImpl) {
+				mockQPS := stats.NewMockQPSTrackerGroup(ctrl)
+				mockQPS.EXPECT().QPS().Return(float64(42.5))
+				tlm.qpsTracker = mockQPS
+			},
+			expectedQPS: 42.5,
+		},
+		{
+			name: "returns zero QPS",
+			mockSetup: func(ctrl *gomock.Controller, tlm *taskListManagerImpl) {
+				mockQPS := stats.NewMockQPSTrackerGroup(ctrl)
+				mockQPS.EXPECT().QPS().Return(float64(0))
+				tlm.qpsTracker = mockQPS
+			},
+			expectedQPS: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			logger := testlogger.New(t)
+			tlm := createTestTaskListManager(t, logger, ctrl)
+
+			tc.mockSetup(ctrl, tlm)
+
+			actualQPS := tlm.QueriesPerSecond()
+			assert.Equal(t, tc.expectedQPS, actualQPS)
+		})
+	}
+}
+
 func TestCheckIdleTaskList(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
