@@ -42,6 +42,7 @@ import (
 
 const (
 	tableRenderSize = 10
+	remoteHint      = " (Hint: use --remote flag to run this operation via the server API instead of direct DB access)"
 )
 
 // AdminShowWorkflow shows history
@@ -289,7 +290,7 @@ func AdminDeleteWorkflow(c *cli.Context) error {
 
 	resp, err := describeMutableState(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Failed to get workflow mutable state"+remoteHint, err)
 	}
 	msStr := resp.GetMutableStateInDatabase()
 	ms := persistence.WorkflowMutableState{}
@@ -307,11 +308,11 @@ func AdminDeleteWorkflow(c *cli.Context) error {
 	histV2, err := getDeps(c).initializeHistoryManager(c)
 	defer histV2.Close()
 	if err != nil {
-		return commoncli.Problem("Error in Admin delete WF: ", err)
+		return commoncli.Problem("Unable to initialize history manager"+remoteHint, err)
 	}
 	exeStore, err := getDeps(c).initializeExecutionManager(c, shardIDInt)
 	if err != nil {
-		return commoncli.Problem("Error in Admin delete WF: ", err)
+		return commoncli.Problem("Unable to initialize execution manager"+remoteHint, err)
 	}
 	branchInfo := shared.HistoryBranch{}
 	thriftrwEncoder := codec.NewThriftRWEncoder()
@@ -340,7 +341,7 @@ func AdminDeleteWorkflow(c *cli.Context) error {
 			if skipError {
 				fmt.Println("failed to delete history, ", err)
 			} else {
-				return commoncli.Problem("DeleteHistoryBranch err", err)
+				return commoncli.Problem("DeleteHistoryBranch err"+remoteHint, err)
 			}
 		}
 	}
@@ -357,7 +358,7 @@ func AdminDeleteWorkflow(c *cli.Context) error {
 		if skipError {
 			fmt.Println("delete mutableState row failed, ", err)
 		} else {
-			return commoncli.Problem("delete mutableState row failed", err)
+			return commoncli.Problem("delete mutableState row failed"+remoteHint, err)
 		}
 	}
 	fmt.Println("delete mutableState row successfully")
@@ -373,7 +374,7 @@ func AdminDeleteWorkflow(c *cli.Context) error {
 		if skipError {
 			fmt.Println("delete current row failed, ", err)
 		} else {
-			return commoncli.Problem("delete current row failed", err)
+			return commoncli.Problem("delete current row failed"+remoteHint, err)
 		}
 	}
 	fmt.Println("delete current row successfully")
