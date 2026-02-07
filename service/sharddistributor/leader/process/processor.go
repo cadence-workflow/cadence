@@ -49,6 +49,15 @@ const (
 	_defaultPeriod       = time.Second
 	_defaultHeartbeatTTL = 10 * time.Second
 	_defaultTimeout      = 1 * time.Second
+	// Default cooldown between moving the same shard / applying consecutive moves.
+	_defaultPerShardCooldown = time.Minute
+	// Default fraction of total shards that may be moved per load-balance pass.
+	_defaultMoveBudgetProportion = 0.02
+	// Default hysteresis bands around mean load.
+	_defaultHysteresisUpperBand = 1.1
+	_defaultHysteresisLowerBand = 0.9
+	// Default threshold for triggering severe-imbalance escape hatch.
+	_defaultSevereImbalanceRatio = 1.5
 )
 
 type processorFactory struct {
@@ -82,14 +91,29 @@ func NewProcessorFactory(
 	cfg config.ShardDistribution,
 	sdConfig *config.Config,
 ) Factory {
-	if cfg.Process.Period == 0 {
+	if cfg.Process.Period <= 0 {
 		cfg.Process.Period = _defaultPeriod
 	}
-	if cfg.Process.HeartbeatTTL == 0 {
+	if cfg.Process.HeartbeatTTL <= 0 {
 		cfg.Process.HeartbeatTTL = _defaultHeartbeatTTL
 	}
-	if cfg.Process.Timeout == 0 {
+	if cfg.Process.Timeout <= 0 {
 		cfg.Process.Timeout = _defaultTimeout
+	}
+	if cfg.Process.LoadBalance.PerShardCooldown <= 0 {
+		cfg.Process.LoadBalance.PerShardCooldown = _defaultPerShardCooldown
+	}
+	if cfg.Process.LoadBalance.MoveBudgetProportion <= 0 {
+		cfg.Process.LoadBalance.MoveBudgetProportion = _defaultMoveBudgetProportion
+	}
+	if cfg.Process.LoadBalance.HysteresisUpperBand <= 0 {
+		cfg.Process.LoadBalance.HysteresisUpperBand = _defaultHysteresisUpperBand
+	}
+	if cfg.Process.LoadBalance.HysteresisLowerBand <= 0 {
+		cfg.Process.LoadBalance.HysteresisLowerBand = _defaultHysteresisLowerBand
+	}
+	if cfg.Process.LoadBalance.SevereImbalanceRatio <= 0 {
+		cfg.Process.LoadBalance.SevereImbalanceRatio = _defaultSevereImbalanceRatio
 	}
 
 	return &processorFactory{
@@ -350,19 +374,15 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, p.cfg.Timeout)
 	defer cancel()
 
-	return p.rebalanceShardsImpl(ctx, metricsLoopScope)
+	return p.executeRebalanceCycle(ctx, metricsLoopScope)
 }
 
-func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoopScope metrics.Scope) (err error) {
+func (p *namespaceProcessor) executeRebalanceCycle(ctx context.Context, metricsLoopScope metrics.Scope) (err error) {
 	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
 	if err != nil {
 		return fmt.Errorf("get state: %w", err)
 	}
 
-	if namespaceState.GlobalRevision <= p.lastAppliedRevision {
-		p.logger.Info("No changes detected. Skipping rebalance.")
-		return nil
-	}
 	p.lastAppliedRevision = namespaceState.GlobalRevision
 
 	// Identify stale executors that need to be removed
@@ -384,19 +404,27 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 		}
 		return nil
 	}
-	p.logger.Info("Active executors", tag.ShardExecutors(activeExecutors))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorActiveExecutors, float64(len(activeExecutors)))
 
 	deletedShards := p.findDeletedShards(namespaceState)
-	shardsToReassign, currentAssignments := p.findShardsToReassign(activeExecutors, namespaceState, deletedShards, staleExecutors)
+	shardsNeedingReassignment, currentAssignments := p.findShardsNeedingReassignment(activeExecutors, namespaceState, deletedShards, staleExecutors)
 
-	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumRebalancedShards, float64(len(shardsToReassign)))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumRebalancedShards, float64(len(shardsNeedingReassignment)))
 
-	// If there are deleted shards or stale executors, the distribution has changed.
-	assignedToEmptyExecutors := assignShardsToEmptyExecutors(currentAssignments)
-	updatedAssignments := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
-	isRebalancedByShardLoad := p.rebalanceByShardLoad(calcShardLoad(namespaceState), currentAssignments)
+	// Reassign shards from deleted/stale executors and backfill empty ones
+	didAssignToEmpty := assignShardsToEmptyExecutors(currentAssignments)
+	didAssignShardsNeedingReassignment := p.assignShardsNeedingReassignment(shardsNeedingReassignment, activeExecutors, currentAssignments)
+	//isRebalancedByShardLoad := p.rebalanceByShardLoad(calcShardLoad(namespaceState), currentAssignments)
 
-	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments || isRebalancedByShardLoad
+	// Load-based changes
+	didLoadBalance, err := p.loadBalance(currentAssignments, namespaceState, deletedShards, metricsLoopScope)
+	if err != nil {
+		return fmt.Errorf("load balance: %w", err)
+	}
+
+	p.emitAssignmentImbalanceMetrics(metricsLoopScope, currentAssignments, namespaceState)
+
+	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || didAssignToEmpty || didAssignShardsNeedingReassignment || didLoadBalance // || isRebalancedByShardLoad
 	if !distributionChanged {
 		p.logger.Info("No changes to distribution detected. Skipping rebalance.")
 		return nil
@@ -482,7 +510,7 @@ func (p *namespaceProcessor) findDeletedShards(namespaceState *store.NamespaceSt
 	return deletedShards
 }
 
-func (p *namespaceProcessor) findShardsToReassign(
+func (p *namespaceProcessor) findShardsNeedingReassignment(
 	activeExecutors []string,
 	namespaceState *store.NamespaceState,
 	deletedShards map[string]store.ShardState,
@@ -493,7 +521,7 @@ func (p *namespaceProcessor) findShardsToReassign(
 		allShards[shardID] = struct{}{}
 	}
 
-	shardsToReassign := make([]string, 0)
+	shardsNeedingReassignment := make([]string, 0)
 	currentAssignments := make(map[string][]string)
 
 	for _, executorID := range activeExecutors {
@@ -512,25 +540,25 @@ func (p *namespaceProcessor) findShardsToReassign(
 					currentAssignments[executorID] = append(currentAssignments[executorID], shardID)
 				} else {
 					// Otherwise, reassign the shard (executor is either inactive or stale)
-					shardsToReassign = append(shardsToReassign, shardID)
+					shardsNeedingReassignment = append(shardsNeedingReassignment, shardID)
 				}
 			}
 		}
 	}
 
 	for shardID := range allShards {
-		shardsToReassign = append(shardsToReassign, shardID)
+		shardsNeedingReassignment = append(shardsNeedingReassignment, shardID)
 	}
-	return shardsToReassign, currentAssignments
+	return shardsNeedingReassignment, currentAssignments
 }
 
-func (*namespaceProcessor) updateAssignments(shardsToReassign []string, activeExecutors []string, currentAssignments map[string][]string) (distributionChanged bool) {
-	if len(shardsToReassign) == 0 {
+func (*namespaceProcessor) assignShardsNeedingReassignment(shardsNeedingReassignment []string, activeExecutors []string, currentAssignments map[string][]string) bool {
+	if len(shardsNeedingReassignment) == 0 {
 		return false
 	}
 
 	i := rand.Intn(len(activeExecutors))
-	for _, shardID := range shardsToReassign {
+	for _, shardID := range shardsNeedingReassignment {
 		executorID := activeExecutors[i%len(activeExecutors)]
 		currentAssignments[executorID] = append(currentAssignments[executorID], shardID)
 		i++
@@ -809,4 +837,122 @@ func makeShards(num int64) []string {
 		shards[i] = strconv.FormatInt(i, 10)
 	}
 	return shards
+}
+
+func (p *namespaceProcessor) emitAssignmentImbalanceMetrics(
+	metricsLoopScope metrics.Scope,
+	assignments map[string][]string,
+	namespaceState *store.NamespaceState,
+) {
+	if metricsLoopScope == nil || namespaceState == nil {
+		return
+	}
+
+	now := p.timeSource.Now().UTC()
+	staleAfter := p.cfg.HeartbeatTTL
+
+	reportedLoads := make([]float64, 0, len(assignments))
+	smoothedLoads := make([]float64, 0, len(assignments))
+
+	totalAssigned := 0
+	reportedMissing := 0
+	smoothedMissing := 0
+	smoothedStale := 0
+
+	for executorID, shards := range assignments {
+		reportedLoad := 0.0
+		smoothedLoad := 0.0
+
+		heartbeat, heartbeatOK := namespaceState.Executors[executorID]
+		for _, shardID := range shards {
+			totalAssigned++
+
+			// Reported load (from current executor heartbeat), primarily used as an operator-facing signal.
+			if !heartbeatOK || heartbeat.ReportedShards == nil {
+				reportedMissing++
+			} else if shardReport, ok := heartbeat.ReportedShards[shardID]; ok && shardReport != nil {
+				reportedLoad += shardReport.ShardLoad
+			} else {
+				reportedMissing++
+			}
+
+			// Smoothed load (EWMA), used by the control loop for load balancing decisions.
+			if namespaceState.ShardStats == nil {
+				smoothedMissing++
+				continue
+			}
+			stats, ok := namespaceState.ShardStats[shardID]
+			if !ok || stats.LastUpdateTime.IsZero() {
+				smoothedMissing++
+				continue
+			}
+			if staleAfter > 0 && now.Sub(stats.LastUpdateTime) > staleAfter {
+				smoothedStale++
+			}
+			smoothedLoad += stats.SmoothedLoad
+		}
+
+		reportedLoads = append(reportedLoads, reportedLoad)
+		smoothedLoads = append(smoothedLoads, smoothedLoad)
+	}
+
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentLoadMaxOverMean, maxOverMean(reportedLoads))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentLoadCV, coefficientOfVariation(reportedLoads))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadMaxOverMean, maxOverMean(smoothedLoads))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadCV, coefficientOfVariation(smoothedLoads))
+
+	if totalAssigned == 0 {
+		metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentReportedLoadMissingRatio, 0)
+		metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadMissingRatio, 0)
+		metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadStaleRatio, 0)
+		return
+	}
+
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentReportedLoadMissingRatio, float64(reportedMissing)/float64(totalAssigned))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadMissingRatio, float64(smoothedMissing)/float64(totalAssigned))
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadStaleRatio, float64(smoothedStale)/float64(totalAssigned))
+}
+
+func maxOverMean(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+
+	total := 0.0
+	max := 0.0
+	for _, value := range values {
+		total += value
+		if value > max {
+			max = value
+		}
+	}
+	mean := total / float64(len(values))
+	if mean == 0 {
+		return 0
+	}
+	return max / mean
+}
+
+func coefficientOfVariation(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+
+	total := 0.0
+	for _, value := range values {
+		total += value
+	}
+	mean := total / float64(len(values))
+	if mean == 0 {
+		return 0
+	}
+
+	variance := 0.0
+	for _, value := range values {
+		delta := value - mean
+		variance += delta * delta
+	}
+	variance /= float64(len(values))
+
+	return math.Sqrt(variance) / mean
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
@@ -156,12 +157,18 @@ func TestGetShardOwner(t *testing.T) {
 							},
 						},
 					},
+					ShardStats: map[string]store.ShardStatistics{
+						"shard1": {SmoothedLoad: 5.0},
+						"shard2": {SmoothedLoad: 5.0},
+						"shard3": {SmoothedLoad: 5.0},
+						"shard4": {SmoothedLoad: 1.0},
+					},
 				}, nil)
 				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner2").Return(&store.ShardOwner{
 					ExecutorID: "owner2",
 					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
 				}, nil)
-				// owner2 has the fewest shards assigned, so we assign the shard to it
+				// owner2 has the lowest total load, so we assign the shard to it
 				mockStore.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD", "owner2").Return(nil)
 			},
 			expectedOwner: "owner2",
@@ -249,6 +256,7 @@ func TestGetShardOwner(t *testing.T) {
 				logger:               logger,
 				shardDistributionCfg: cfg,
 				storage:              mockStorage,
+				timeSource:           clock.NewRealTimeSource(),
 			}
 			if tt.setupMocks != nil {
 				tt.setupMocks(mockStorage)
@@ -269,6 +277,68 @@ func TestGetShardOwner(t *testing.T) {
 	}
 }
 
+// TestAssignEphemeralShard_PrefersLowerLoad verifies that ephemeral shard placement
+// prefers the executor with lower total load.
+func TestAssignEphemeralShard_PrefersLowerLoad(t *testing.T) {
+	cfg := config.ShardDistribution{
+		Namespaces: []config.Namespace{
+			{
+				Name: _testNamespaceEphemeral,
+				Type: config.NamespaceTypeEphemeral,
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	logger := testlogger.New(t)
+	mockStorage := store.NewMockStore(ctrl)
+
+	handler := &handlerImpl{
+		logger:               logger,
+		shardDistributionCfg: cfg,
+		storage:              mockStorage,
+		timeSource:           clock.NewRealTimeSource(),
+	}
+
+	request := &types.GetShardOwnerRequest{
+		Namespace: _testNamespaceEphemeral,
+		ShardKey:  "NON-EXISTING-SHARD",
+	}
+
+	mockStorage.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, request.ShardKey).Return(nil, store.ErrShardNotFound)
+	mockStorage.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+		ShardAssignments: map[string]store.AssignedState{
+			"owner1": {
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard1": {Status: types.AssignmentStatusREADY},
+					"shard2": {Status: types.AssignmentStatusREADY},
+				},
+			},
+			"owner2": {
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard3": {Status: types.AssignmentStatusREADY},
+					"shard4": {Status: types.AssignmentStatusREADY},
+				},
+			},
+		},
+		ShardStats: map[string]store.ShardStatistics{
+			"shard1": {SmoothedLoad: 5.0},
+			"shard2": {SmoothedLoad: 5.0},
+			"shard3": {SmoothedLoad: 1.0},
+			"shard4": {SmoothedLoad: 1.0},
+		},
+	}, nil)
+	mockStorage.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, request.ShardKey, "owner2").Return(nil)
+	mockStorage.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner2").Return(&store.ShardOwner{
+		ExecutorID: "owner2",
+		Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
+	}, nil)
+
+	resp, err := handler.GetShardOwner(context.Background(), request)
+	require.NoError(t, err)
+	require.Equal(t, "owner2", resp.Owner)
+}
+
 func TestWatchNamespaceState(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	logger := testlogger.New(t)
@@ -286,6 +356,7 @@ func TestWatchNamespaceState(t *testing.T) {
 		shardDistributionCfg: cfg,
 		storage:              mockStorage,
 		startWG:              sync.WaitGroup{},
+		timeSource:           clock.NewRealTimeSource(),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

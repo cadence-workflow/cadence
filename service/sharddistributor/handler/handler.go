@@ -29,7 +29,9 @@ import (
 	"math"
 	"slices"
 	"sync"
+	"time"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
@@ -40,11 +42,13 @@ func NewHandler(
 	logger log.Logger,
 	shardDistributionCfg config.ShardDistribution,
 	storage store.Store,
+	timeSource clock.TimeSource,
 ) Handler {
 	handler := &handlerImpl{
 		logger:               logger,
 		shardDistributionCfg: shardDistributionCfg,
 		storage:              storage,
+		timeSource:           timeSource,
 	}
 
 	// prevent us from trying to serve requests before shard distributor is started and ready
@@ -59,6 +63,7 @@ type handlerImpl struct {
 
 	storage              store.Store
 	shardDistributionCfg config.ShardDistribution
+	timeSource           clock.TimeSource
 }
 
 func (h *handlerImpl) Start() {
@@ -113,28 +118,55 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 
 func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string, shardID string) (*types.GetShardOwnerResponse, error) {
 
-	// Get the current state of the namespace and find the executor with the least assigned shards
+	// Get the current state of the namespace and find the best executor for a new ephemeral shard.
+	// Prefer ACTIVE, non-stale executors with the lowest current load.
 	state, err := h.storage.GetState(ctx, namespace)
 	if err != nil {
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
 	}
 
-	var executorID string
-	minAssignedShards := math.MaxInt
+	now := h.timeSource.Now().UTC()
+	ttl := h.shardDistributionCfg.Process.HeartbeatTTL
 
-	for assignedExecutor, assignment := range state.ShardAssignments {
-		executorState, ok := state.Executors[assignedExecutor]
-		if !ok || executorState.Status != types.ExecutorStatusACTIVE {
-			continue
-		}
-
-		if len(assignment.AssignedShards) < minAssignedShards {
-			minAssignedShards = len(assignment.AssignedShards)
-			executorID = assignedExecutor
+	candidates := make([]string, 0)
+	if len(state.Executors) > 0 {
+		for executorID, hb := range state.Executors {
+			if hb.Status != types.ExecutorStatusACTIVE {
+				continue
+			}
+			if ttl > 0 && !hb.LastHeartbeat.IsZero() && now.Sub(hb.LastHeartbeat) > ttl {
+				continue
+			}
+			candidates = append(candidates, executorID)
 		}
 	}
 
-	// Assign the shard to the executor with the least assigned shards
+	// Fallback to existing assignments if heartbeats are missing.
+	if len(candidates) == 0 {
+		for executorID := range state.ShardAssignments {
+			candidates = append(candidates, executorID)
+		}
+	}
+	if len(candidates) == 0 {
+		return nil, &types.InternalServiceError{Message: "no eligible executors for ephemeral shard"}
+	}
+
+	slices.Sort(candidates)
+	candidateLoads := calculateExecutorLoadsForCandidates(state, candidates, now, ttl)
+
+	executorID := ""
+	minTotalLoad := math.MaxFloat64
+
+	for _, candidate := range candidates {
+		totalLoad := candidateLoads[candidate]
+
+		if totalLoad < minTotalLoad {
+			minTotalLoad = totalLoad
+			executorID = candidate
+		}
+	}
+
+	// Assign the shard to the selected executor.
 	err = h.storage.AssignShard(ctx, namespace, shardID, executorID)
 	if err != nil {
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("assign ephemeral shard: %v", err)}
@@ -150,6 +182,35 @@ func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string
 		Namespace: namespace,
 		Metadata:  executor.Metadata,
 	}, nil
+}
+
+func calculateExecutorLoadsForCandidates(
+	state *store.NamespaceState,
+	candidates []string,
+	now time.Time,
+	ttl time.Duration,
+) map[string]float64 {
+	loads := make(map[string]float64, len(candidates))
+	for _, executorID := range candidates {
+		assignment, ok := state.ShardAssignments[executorID]
+		if !ok {
+			continue
+		}
+
+		totalLoad := 0.0
+		for shardID := range assignment.AssignedShards {
+			stats, ok := state.ShardStats[shardID]
+			if !ok {
+				continue
+			}
+			if ttl > 0 && !stats.LastUpdateTime.IsZero() && now.Sub(stats.LastUpdateTime) > ttl {
+				continue
+			}
+			totalLoad += stats.SmoothedLoad
+		}
+		loads[executorID] = totalLoad
+	}
+	return loads
 }
 
 func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequest, server WatchNamespaceStateServer) error {
