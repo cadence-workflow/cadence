@@ -381,6 +381,99 @@ func TestCallerInfoMiddleware(t *testing.T) {
 	})
 }
 
+func TestQueryConsistencyLevelInboundMiddleware(t *testing.T) {
+	tests := []struct {
+		name          string
+		headerValue   string
+		hasHeader     bool
+		expectedLevel types.QueryConsistencyLevel
+		expectError   bool
+	}{
+		{
+			name:          "parses EVENTUAL consistency level",
+			headerValue:   "EVENTUAL",
+			hasHeader:     true,
+			expectedLevel: types.QueryConsistencyLevelEventual,
+			expectError:   false,
+		},
+		{
+			name:          "parses STRONG consistency level",
+			headerValue:   "STRONG",
+			hasHeader:     true,
+			expectedLevel: types.QueryConsistencyLevelStrong,
+			expectError:   false,
+		},
+		{
+			name:          "parses lowercase eventual",
+			headerValue:   "eventual",
+			hasHeader:     true,
+			expectedLevel: types.QueryConsistencyLevelEventual,
+			expectError:   false,
+		},
+		{
+			name:          "parses lowercase strong",
+			headerValue:   "strong",
+			hasHeader:     true,
+			expectedLevel: types.QueryConsistencyLevelStrong,
+			expectError:   false,
+		},
+		{
+			name:          "parses numeric value 0",
+			headerValue:   "0",
+			hasHeader:     true,
+			expectedLevel: types.QueryConsistencyLevelEventual,
+			expectError:   false,
+		},
+		{
+			name:          "parses numeric value 1",
+			headerValue:   "1",
+			hasHeader:     true,
+			expectedLevel: types.QueryConsistencyLevelStrong,
+			expectError:   false,
+		},
+		{
+			name:        "returns error for invalid value",
+			headerValue: "INVALID",
+			hasHeader:   true,
+			expectError: true,
+		},
+		{
+			name:        "no header - noop",
+			hasHeader:   false,
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &QueryConsistencyLevelInboundMiddleware{}
+			h := &fakeHandler{}
+			headers := transport.NewHeaders()
+			if tt.hasHeader {
+				headers = headers.With(common.QueryConsistencyLevelHeaderName, tt.headerValue)
+			}
+
+			err := m.Handle(context.Background(), &transport.Request{Headers: headers}, nil, h)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to parse query consistency level")
+				return
+			}
+
+			assert.NoError(t, err)
+			if tt.hasHeader {
+				level, ok := h.ctx.Value(common.QueryConsistencyLevelHeaderName).(types.QueryConsistencyLevel)
+				assert.True(t, ok, "expected query consistency level to be set in context")
+				assert.Equal(t, tt.expectedLevel, level)
+			} else {
+				// When no header is present, context value should not be set
+				assert.Nil(t, h.ctx.Value(common.QueryConsistencyLevelHeaderName))
+			}
+		})
+	}
+}
+
 type fakeHandler struct {
 	ctx context.Context
 }
