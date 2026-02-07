@@ -16,6 +16,7 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/statistics"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
@@ -147,6 +148,98 @@ func TestRecordHeartbeat_NoCompression(t *testing.T) {
 	reportedJSON, err := json.Marshal(req.ReportedShards)
 	require.NoError(t, err)
 	assert.Equal(t, string(reportedJSON), string(reportedResp.Kvs[0].Value))
+}
+
+func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {
+	tc := testhelper.SetupStoreTestCluster(t)
+	executorStore := createStore(t, tc)
+	setLoadBalancingMode(executorStore, config.LoadBalancingModeGREEDY)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	executorID := "executor-shard-stats"
+	shardID := "shard-with-load"
+
+	baseTime := time.Now().UTC()
+	initialStats := store.ShardStatistics{
+		SmoothedLoad:   1.23,
+		LastUpdateTime: baseTime.Add(-5 * time.Second),
+		LastMoveTime:   baseTime.Add(-30 * time.Second),
+	}
+
+	executorStats := map[string]etcdtypes.ShardStatistics{
+		shardID: *etcdtypes.FromShardStatistics(&initialStats),
+	}
+	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
+	payload, err := json.Marshal(executorStats)
+	require.NoError(t, err)
+	writer, err := common.NewRecordWriter(tc.Compression)
+	require.NoError(t, err)
+	compressedPayload, err := writer.Write(payload)
+	require.NoError(t, err)
+	_, err = tc.Client.Put(ctx, statsKey, string(compressedPayload))
+	require.NoError(t, err)
+
+	req := store.HeartbeatState{
+		LastHeartbeat: time.Now().UTC(),
+		Status:        types.ExecutorStatusACTIVE,
+		ReportedShards: map[string]*types.ShardStatusReport{
+			shardID: {
+				Status:    types.ShardStatusREADY,
+				ShardLoad: 45.6,
+			},
+		},
+	}
+
+	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, req))
+
+	nsState, err := executorStore.GetState(ctx, tc.Namespace)
+	require.NoError(t, err)
+
+	updated, ok := nsState.ShardStats[shardID]
+	require.True(t, ok)
+	assert.True(t, updated.LastUpdateTime.After(initialStats.LastUpdateTime))
+	expectedLoad := statistics.CalculateSmoothedLoad(initialStats.SmoothedLoad, req.ReportedShards[shardID].ShardLoad, initialStats.LastUpdateTime, updated.LastUpdateTime)
+	assert.InDelta(t, expectedLoad, updated.SmoothedLoad, 1e-9)
+	assert.Equal(t, initialStats.LastMoveTime, updated.LastMoveTime)
+}
+
+func TestRecordHeartbeatSkipsShardStatisticsWithNilReport(t *testing.T) {
+	tc := testhelper.SetupStoreTestCluster(t)
+	executorStore := createStore(t, tc)
+	setLoadBalancingMode(executorStore, config.LoadBalancingModeGREEDY)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	executorID := "executor-missing-load"
+	validShardID := "shard-with-valid-load"
+	skippedShardID := "shard-missing-load"
+
+	req := store.HeartbeatState{
+		LastHeartbeat: time.Now().UTC(),
+		Status:        types.ExecutorStatusACTIVE,
+		ReportedShards: map[string]*types.ShardStatusReport{
+			validShardID: {
+				Status:    types.ShardStatusREADY,
+				ShardLoad: 3.21,
+			},
+			skippedShardID: nil,
+		},
+	}
+
+	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, req))
+
+	nsState, err := executorStore.GetState(ctx, tc.Namespace)
+	require.NoError(t, err)
+
+	validStats, ok := nsState.ShardStats[validShardID]
+	require.True(t, ok)
+	assert.InDelta(t, 3.21, validStats.SmoothedLoad, 1e-9)
+	assert.False(t, validStats.LastUpdateTime.IsZero())
+
+	assert.NotContains(t, nsState.ShardStats, skippedShardID)
 }
 
 func TestGetHeartbeat(t *testing.T) {
@@ -618,8 +711,12 @@ func TestShardStatisticsPersistence(t *testing.T) {
 	payload, err := json.Marshal(executorStats)
 	require.NoError(t, err)
 	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
+	writer, err := common.NewRecordWriter(tc.Compression)
+	require.NoError(t, err)
+	compressedPayload, err := writer.Write(payload)
+	require.NoError(t, err)
 	// Write those stats to etcd under the executor (exec-stats) stats key
-	_, err = tc.Client.Put(ctx, statsKey, string(payload))
+	_, err = tc.Client.Put(ctx, statsKey, string(compressedPayload))
 	require.NoError(t, err)
 
 	// 3. Assign the shard via AssignShard (should not clobber existing metrics)
@@ -656,6 +753,7 @@ func TestGetShardStatisticsForMissingShard(t *testing.T) {
 func TestDeleteShardStatsDeletesAllStats(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
+	setLoadBalancingMode(executorStore, config.LoadBalancingModeGREEDY)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -686,7 +784,11 @@ func TestDeleteShardStatsDeletesAllStats(t *testing.T) {
 	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
 	payload, err := json.Marshal(executorStats)
 	require.NoError(t, err)
-	_, err = tc.Client.Put(ctx, statsKey, string(payload))
+	writer, err := common.NewRecordWriter(tc.Compression)
+	require.NoError(t, err)
+	compressedPayload, err := writer.Write(payload)
+	require.NoError(t, err)
+	_, err = tc.Client.Put(ctx, statsKey, string(compressedPayload))
 	require.NoError(t, err)
 
 	require.NoError(t, executorStore.DeleteShardStats(ctx, tc.Namespace, shardIDs, store.NopGuard()))
@@ -712,6 +814,12 @@ func recordHeartbeats(ctx context.Context, t *testing.T, executorStore store.Sto
 
 	for _, executorID := range executorIDs {
 		require.NoError(t, executorStore.RecordHeartbeat(ctx, namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
+	}
+}
+
+func setLoadBalancingMode(executorStore store.Store, mode string) {
+	executorStore.(*executorStoreImpl).cfg = &config.Config{
+		LoadBalancingMode: func(string) string { return mode },
 	}
 }
 
