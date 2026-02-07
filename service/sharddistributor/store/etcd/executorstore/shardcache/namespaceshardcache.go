@@ -13,6 +13,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
@@ -40,9 +41,10 @@ type namespaceShardToExecutor struct {
 	client           etcdclient.Client
 	timeSource       clock.TimeSource
 	pubSub           *executorStatePubSub
+	metricsClient    metrics.Client
 }
 
-func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient.Client, stopCh chan struct{}, logger log.Logger, timeSource clock.TimeSource) (*namespaceShardToExecutor, error) {
+func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient.Client, stopCh chan struct{}, logger log.Logger, timeSource clock.TimeSource, metricsClient metrics.Client) (*namespaceShardToExecutor, error) {
 	return &namespaceShardToExecutor{
 		shardToExecutor:  make(map[string]*store.ShardOwner),
 		executorState:    make(map[*store.ShardOwner][]string),
@@ -55,6 +57,7 @@ func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient
 		client:           client,
 		timeSource:       timeSource,
 		pubSub:           newExecutorStatePubSub(logger, namespace),
+		metricsClient:    metricsClient,
 	}, nil
 }
 
@@ -141,6 +144,9 @@ func (n *namespaceShardToExecutor) watch() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Get metrics scope for watch operations
+	metricsScope := n.metricsClient.Scope(metrics.ShardDistributorWatchScope, metrics.NamespaceTag(n.namespace))
+
 	watchChan := n.client.Watch(
 		// WithRequireLeader ensures that the etcd cluster has a leader
 		clientv3.WithRequireLeader(ctx),
@@ -161,6 +167,22 @@ func (n *namespaceShardToExecutor) watch() error {
 				return fmt.Errorf("watch channel closed")
 			}
 
+			// Metric 1: Track events received
+			metricsScope.AddCounter(metrics.ShardDistributorWatchEventsReceived, int64(len(watchResp.Events)))
+
+			// Metric 2: Track consumer lag
+			// Header.Revision is the current revision of etcd
+			// lastEvent.Kv.ModRevision is the revision of the event we just received
+			// The difference tells us how far behind we are from etcd's current state
+			if len(watchResp.Events) > 0 {
+				lastEvent := watchResp.Events[len(watchResp.Events)-1]
+				lag := watchResp.Header.Revision - lastEvent.Kv.ModRevision
+				metricsScope.UpdateGauge(metrics.ShardDistributorWatchConsumerLag, float64(lag))
+			}
+
+			// Metric 3: Track processing latency
+			processingStart := n.timeSource.Now()
+
 			shouldRefresh := false
 			for _, event := range watchResp.Events {
 				_, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(event.Kv.Key))
@@ -175,6 +197,9 @@ func (n *namespaceShardToExecutor) watch() error {
 					n.logger.Error("failed to refresh namespace shard to executor", tag.Error(err))
 				}
 			}
+
+			// Record processing latency
+			metricsScope.RecordTimer(metrics.ShardDistributorWatchProcessingLatency, n.timeSource.Since(processingStart))
 		}
 	}
 }
