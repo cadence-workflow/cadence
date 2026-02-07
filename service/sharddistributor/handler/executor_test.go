@@ -185,12 +185,11 @@ func TestHeartbeat(t *testing.T) {
 			Status:        types.ExecutorStatusACTIVE,
 		}
 
-		expectedErr := errors.New("migration mode is local passthrough")
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
 
-		_, err := handler.Heartbeat(ctx, req)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), expectedErr.Error())
+		resp, err := handler.Heartbeat(ctx, req)
+		require.NoError(t, err)
+		require.Equal(t, types.MigrationModeLOCALPASSTHROUGH, resp.MigrationMode)
 	})
 
 	// Test Case 7: Heartbeat with executor associated with local passthrough shadow
@@ -372,34 +371,6 @@ func TestHeartbeat(t *testing.T) {
 		_, err := handler.Heartbeat(ctx, req)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid metadata: metadata has 33 keys, which exceeds the maximum of 32")
-	})
-
-	// Test Case 11: Heartbeat with executor associated with MigrationModeLOCALPASSTHROUGH (should error)
-	t.Run("MigrationModeLOCALPASSTHROUGH", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockStore := store.NewMockStore(ctrl)
-		mockTimeSource := clock.NewMockedTimeSource()
-		shardDistributionCfg := config.ShardDistribution{
-			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGH}},
-		}
-		cfg := newConfig(t, []configEntry{{dynamicproperties.ShardDistributorMigrationMode, config.MigrationModeLOCALPASSTHROUGH}})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, cfg, metrics.NoopClient)
-
-		req := &types.ExecutorHeartbeatRequest{
-			Namespace:  namespace,
-			ExecutorID: executorID,
-			Status:     types.ExecutorStatusACTIVE,
-		}
-		previousHeartbeat := store.HeartbeatState{
-			LastHeartbeat: now,
-			Status:        types.ExecutorStatusACTIVE,
-		}
-
-		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
-
-		_, err := handler.Heartbeat(ctx, req)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "migration mode is local passthrough, no calls to heartbeat allowed")
 	})
 }
 
