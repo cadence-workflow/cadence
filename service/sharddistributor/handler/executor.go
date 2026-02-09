@@ -67,7 +67,7 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 		return nil, &types.BadRequestError{Message: "migration mode is local passthrough, no calls to heartbeat allowed"}
 	// From SD perspective the behaviour is the same
 	case types.MigrationModeLOCALPASSTHROUGHSHADOW, types.MigrationModeDISTRIBUTEDPASSTHROUGH:
-		assignedShards, err = h.assignShardsInCurrentHeartbeat(ctx, request)
+		assignedShards, err = h.assignShardsInCurrentHeartbeat(ctx, request, assignedShards)
 		if err != nil {
 			return nil, err
 		}
@@ -134,33 +134,34 @@ func (h *executor) emitShardAssignmentMetrics(namespace string, heartbeatTime ti
 }
 
 // assignShardsInCurrentHeartbeat is used during the migration phase to assign the shards to the executors according to what is reported during the heartbeat
-func (h *executor) assignShardsInCurrentHeartbeat(ctx context.Context, request *types.ExecutorHeartbeatRequest) (*store.AssignedState, error) {
-	assignedShards := store.AssignedState{
+func (h *executor) assignShardsInCurrentHeartbeat(ctx context.Context, request *types.ExecutorHeartbeatRequest, assignedShards *store.AssignedState) (*store.AssignedState, error) {
+	modRevision := int64(0)
+	if assignedShards != nil {
+		modRevision = assignedShards.ModRevision
+	}
+	newState := store.AssignedState{
 		AssignedShards: make(map[string]*types.ShardAssignment),
 		LastUpdated:    h.timeSource.Now().UTC(),
-		ModRevision:    int64(0),
+		ModRevision:    modRevision,
 	}
-	err := h.storage.DeleteExecutors(ctx, request.GetNamespace(), []string{request.GetExecutorID()}, store.NopGuard())
-	if err != nil {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to delete assigned shards: %v", err)}
-	}
+
 	for shard := range request.GetShardStatusReports() {
-		assignedShards.AssignedShards[shard] = &types.ShardAssignment{
+		newState.AssignedShards[shard] = &types.ShardAssignment{
 			Status: types.AssignmentStatusREADY,
 		}
 	}
 	assignShardsRequest := store.AssignShardsRequest{
 		NewState: &store.NamespaceState{
 			ShardAssignments: map[string]store.AssignedState{
-				request.GetExecutorID(): assignedShards,
+				request.GetExecutorID(): newState,
 			},
 		},
 	}
-	err = h.storage.AssignShards(ctx, request.GetNamespace(), assignShardsRequest, store.NopGuard())
+	err := h.storage.AssignShards(ctx, request.GetNamespace(), assignShardsRequest, store.NopGuard())
 	if err != nil {
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to assign shards in the current heartbeat: %v", err)}
 	}
-	return &assignedShards, nil
+	return &newState, nil
 }
 
 func _convertResponse(shards *store.AssignedState, mode types.MigrationMode) *types.ExecutorHeartbeatResponse {

@@ -228,7 +228,6 @@ func TestHeartbeat(t *testing.T) {
 		}
 
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, &assignedState, nil)
-		mockStore.EXPECT().DeleteExecutors(gomock.Any(), namespace, []string{executorID}, gomock.Any()).Return(nil)
 		mockStore.EXPECT().AssignShards(gomock.Any(), namespace, gomock.Any(), gomock.Any()).DoAndReturn(
 			func(ctx context.Context, namespace string, request store.AssignShardsRequest, guard store.GuardFunc) error {
 				// Expect to Assign the shard in the request
@@ -259,49 +258,6 @@ func TestHeartbeat(t *testing.T) {
 	)
 
 	// Test Case 8: Heartbeat with executor associated with distributed passthrough
-	t.Run("MigrationModeDISTRIBUTEDPASSTHROUGHDeletionFailure", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockStore := store.NewMockStore(ctrl)
-		mockTimeSource := clock.NewMockedTimeSource()
-		shardDistributionCfg := config.ShardDistribution{
-			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGHSHADOW}},
-		}
-		cfg := newConfig(t, []configEntry{{dynamicproperties.ShardDistributorMigrationMode, config.MigrationModeLOCALPASSTHROUGHSHADOW}})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, cfg, metrics.NoopClient)
-
-		req := &types.ExecutorHeartbeatRequest{
-			Namespace:  namespace,
-			ExecutorID: executorID,
-			Status:     types.ExecutorStatusACTIVE,
-			ShardStatusReports: map[string]*types.ShardStatusReport{
-				"shard0": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
-			},
-		}
-
-		previousHeartbeat := store.HeartbeatState{
-			LastHeartbeat: now,
-			Status:        types.ExecutorStatusACTIVE,
-			ReportedShards: map[string]*types.ShardStatusReport{
-				"shard1": {Status: types.ShardStatusREADY, ShardLoad: 1.0},
-			},
-		}
-
-		assignedState := store.AssignedState{
-			AssignedShards: map[string]*types.ShardAssignment{
-				"shard1": {Status: types.AssignmentStatusREADY},
-			},
-		}
-
-		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, &assignedState, nil)
-		expectedErr := errors.New("deletion failed")
-		mockStore.EXPECT().DeleteExecutors(gomock.Any(), namespace, []string{executorID}, gomock.Any()).Return(expectedErr)
-
-		_, err := handler.Heartbeat(ctx, req)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), expectedErr.Error())
-	})
-
-	// Test Case 9: Heartbeat with executor associated with distributed passthrough
 	t.Run("MigrationModeDISTRIBUTEDPASSTHROUGHAssignmentFailure", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
@@ -336,7 +292,6 @@ func TestHeartbeat(t *testing.T) {
 		}
 
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, &assignedState, nil)
-		mockStore.EXPECT().DeleteExecutors(gomock.Any(), namespace, []string{executorID}, gomock.Any()).Return(nil)
 		expectedErr := errors.New("assignemnt failed")
 		mockStore.EXPECT().AssignShards(gomock.Any(), namespace, gomock.Any(), gomock.Any()).Return(expectedErr)
 
@@ -345,7 +300,7 @@ func TestHeartbeat(t *testing.T) {
 		require.Contains(t, err.Error(), expectedErr.Error())
 	})
 
-	// Test Case 10: Heartbeat with metadata validation failure - too many keys
+	// Test Case 9: Heartbeat with metadata validation failure - too many keys
 	t.Run("MetadataValidationTooManyKeys", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
@@ -374,7 +329,7 @@ func TestHeartbeat(t *testing.T) {
 		require.Contains(t, err.Error(), "invalid metadata: metadata has 33 keys, which exceeds the maximum of 32")
 	})
 
-	// Test Case 11: Heartbeat with executor associated with MigrationModeLOCALPASSTHROUGH (should error)
+	// Test Case 10: Heartbeat with executor associated with MigrationModeLOCALPASSTHROUGH (should error)
 	t.Run("MigrationModeLOCALPASSTHROUGH", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockStore := store.NewMockStore(ctrl)
