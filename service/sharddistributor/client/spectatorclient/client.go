@@ -6,6 +6,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.uber.org/fx"
+	csync "github.com/uber/cadence/service/sharddistributor/client/spectatorclient/sync"
 
 	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/common/clock"
@@ -114,7 +115,7 @@ func newSpectatorWithConfig(params Params, namespaceConfig *clientcommon.Namespa
 		logger:       params.Logger,
 		scope:        params.MetricsScope,
 		timeSource:   params.TimeSource,
-		firstStateCh: make(chan struct{}),
+		firstStateSignal: csync.NewResettableSignal(),
 		enabled:      enabled,
 	}
 
