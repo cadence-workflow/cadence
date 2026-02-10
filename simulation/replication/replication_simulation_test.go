@@ -36,6 +36,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"sort"
@@ -654,11 +655,27 @@ func waitUntilWorkersReady(t *testing.T) {
 		"http://cadence-worker1:6060/health",
 	}
 
+	client := &http.Client{Timeout: 1 * time.Second}
+
 	for {
 		allHealthy := true
+		lastStatus := make(map[string]int, len(workerEndpoints))
+		lastBody := make(map[string]string, len(workerEndpoints))
+		lastErr := make(map[string]error, len(workerEndpoints))
 		for _, endpoint := range workerEndpoints {
-			resp, err := http.Get(endpoint)
-			if err != nil || resp.StatusCode != http.StatusOK {
+			resp, err := client.Get(endpoint)
+			if err != nil {
+				lastErr[endpoint] = err
+				allHealthy = false
+				break
+			}
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			_ = resp.Body.Close()
+			lastStatus[endpoint] = resp.StatusCode
+			if len(body) > 0 {
+				lastBody[endpoint] = strings.TrimSpace(string(body))
+			}
+			if resp.StatusCode != http.StatusOK {
 				allHealthy = false
 				break
 			}
@@ -668,7 +685,18 @@ func waitUntilWorkersReady(t *testing.T) {
 			break
 		}
 
-		simTypes.Logf(t, "Workers are not reporting healthy yet. Sleep for 2s and try again")
+		// Include details so CI logs are actionable (DNS vs connection vs 503 readiness).
+		for _, endpoint := range workerEndpoints {
+			if err := lastErr[endpoint]; err != nil {
+				simTypes.Logf(t, "Workers are not reporting healthy yet (%s error: %v). Sleep for 2s and try again", endpoint, err)
+			} else if status, ok := lastStatus[endpoint]; ok {
+				if body, ok := lastBody[endpoint]; ok && body != "" {
+					simTypes.Logf(t, "Workers are not reporting healthy yet (%s status: %d body: %s). Sleep for 2s and try again", endpoint, status, body)
+				} else {
+					simTypes.Logf(t, "Workers are not reporting healthy yet (%s status: %d). Sleep for 2s and try again", endpoint, status)
+				}
+			}
+		}
 		time.Sleep(2 * time.Second)
 	}
 

@@ -22,6 +22,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -54,6 +55,9 @@ var (
 	clusterName = flag.String("cluster", "", "cluster name")
 
 	ready int32
+
+	domainErrMu   sync.Mutex
+	domainLastErr = map[string]string{}
 )
 
 func main() {
@@ -101,12 +105,41 @@ func main() {
 		apiv1.NewVisibilityAPIYARPCClient(clientConfig),
 	)
 
+	type healthStatus struct {
+		Cluster      string            `json:"cluster"`
+		GRPCEndpoint string            `json:"grpcEndpoint"`
+		ReadyDomains int32             `json:"readyDomains"`
+		TotalDomains int               `json:"totalDomains"`
+		LastErrors   map[string]string `json:"lastErrors,omitempty"`
+	}
+
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		if atomic.LoadInt32(&ready) == int32(len(simCfg.Domains)) {
+		readyDomains := atomic.LoadInt32(&ready)
+		isReady := readyDomains == int32(len(simCfg.Domains))
+
+		domainErrMu.Lock()
+		lastErrors := make(map[string]string, len(domainLastErr))
+		for k, v := range domainLastErr {
+			lastErrors[k] = v
+		}
+		domainErrMu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		status := healthStatus{
+			Cluster:      *clusterName,
+			GRPCEndpoint: cluster.GRPCEndpoint,
+			ReadyDomains: readyDomains,
+			TotalDomains: len(simCfg.Domains),
+			LastErrors:   lastErrors,
+		}
+		b, _ := json.Marshal(status) // best-effort diagnostics
+
+		if isReady {
 			w.WriteHeader(http.StatusOK)
 		} else {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
+		_, _ = w.Write(b)
 	})
 	go http.ListenAndServe(":6060", nil)
 
@@ -185,6 +218,10 @@ func waitUntilDomainReady(logger *zap.Logger, client workflowserviceclient.Inter
 			atomic.AddInt32(&ready, 1)
 			return
 		}
+
+		domainErrMu.Lock()
+		domainLastErr[domainName] = err.Error()
+		domainErrMu.Unlock()
 
 		logger.Info("Domains not ready", zap.String("domain", domainName), zap.Error(err))
 		time.Sleep(2 * time.Second)
