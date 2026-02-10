@@ -43,9 +43,10 @@ func (h *HistogramMigration) UnmarshalYAML(read func(any) error) error {
 var HistogramMigrationMetrics = map[string]struct{}{
 	// Replication task-store histograms (PR #7683).
 	// cache_latency/cache_latency_ns are dual-emitted as timer + histogram.
-	// cache_size_counts is histogram-only.
+	// cache_size/cache_size_counts are dual-emitted as timer + histogram.
 	"cache_latency":     {},
 	"cache_latency_ns":  {},
+	"cache_size":        {},
 	"cache_size_counts": {},
 
 	"task_latency_processing":    {},
