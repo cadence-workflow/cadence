@@ -63,6 +63,13 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"replication_tasks_applied_latency":    {},
 	"replication_tasks_applied_latency_ns": {},
 
+	// Replication task-store histograms (PR #7683).
+	// cache_latency/cache_latency_ns are dual-emitted as timer + histogram.
+	// cache_size_counts is histogram-only.
+	"cache_latency":     {},
+	"cache_latency_ns":  {},
+	"cache_size_counts": {},
+
 	"replication_task_latency":    {},
 	"replication_task_latency_ns": {},
 }
