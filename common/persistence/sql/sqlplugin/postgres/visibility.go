@@ -107,6 +107,7 @@ var errCloseParams = errors.New("missing one of {closeStatus, closeTime, history
 func (pdb *db) InsertIntoVisibility(ctx context.Context, row *sqlplugin.VisibilityRow) (sql.Result, error) {
 	dbShardID := sqlplugin.GetDBShardIDFromDomainID(row.DomainID, pdb.GetTotalNumDBShards())
 	row.StartTime = pdb.converter.ToPostgresDateTime(row.StartTime)
+	scheduledExecutionTime := pdb.converter.ToPostgresDateTime(row.ScheduledExecutionTime)
 	return pdb.driver.ExecContext(ctx, dbShardID, templateCreateWorkflowExecutionStarted,
 		row.DomainID,
 		row.WorkflowID,
@@ -119,7 +120,10 @@ func (pdb *db) InsertIntoVisibility(ctx context.Context, row *sqlplugin.Visibili
 		row.IsCron,
 		row.NumClusters,
 		row.UpdateTime,
-		row.ShardID)
+		row.ShardID,
+		row.ExecutionStatus,
+		row.CronSchedule,
+		scheduledExecutionTime)
 }
 
 // ReplaceIntoVisibility replaces an existing row if it exist or creates a new row in visibility table
@@ -129,6 +133,7 @@ func (pdb *db) ReplaceIntoVisibility(ctx context.Context, row *sqlplugin.Visibil
 	case row.CloseStatus != nil && row.CloseTime != nil && row.HistoryLength != nil:
 		row.StartTime = pdb.converter.ToPostgresDateTime(row.StartTime)
 		closeTime := pdb.converter.ToPostgresDateTime(*row.CloseTime)
+		scheduledExecutionTime := pdb.converter.ToPostgresDateTime(row.ScheduledExecutionTime)
 		return pdb.driver.ExecContext(ctx, dbShardID, templateCreateWorkflowExecutionClosed,
 			row.DomainID,
 			row.WorkflowID,
@@ -144,7 +149,10 @@ func (pdb *db) ReplaceIntoVisibility(ctx context.Context, row *sqlplugin.Visibil
 			row.IsCron,
 			row.NumClusters,
 			row.UpdateTime,
-			row.ShardID)
+			row.ShardID,
+			row.ExecutionStatus,
+			row.CronSchedule,
+			scheduledExecutionTime)
 	default:
 		return nil, errCloseParams
 	}
