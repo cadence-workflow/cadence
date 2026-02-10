@@ -51,6 +51,15 @@ var HistogramMigrationMetrics = map[string]struct{}{
 
 	"replication_task_latency":    {},
 	"replication_task_latency_ns": {},
+
+	// Replication tasks lag/returned/diff (replication task-ack path).
+	// Dual-emitted as timer + histogram.
+	"replication_tasks_lag":                {},
+	"replication_tasks_lag_ns":             {},
+	"replication_tasks_returned":           {},
+	"replication_tasks_returned_counts":    {},
+	"replication_tasks_returned_diff":      {},
+	"replication_tasks_returned_diff_counts": {},
 }
 
 func (h HistogramMigration) EmitTimer(name string) bool {

@@ -199,9 +199,18 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		return nil, err
 	}
 
-	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID()-msgs.LastRetrievedMessageID))
-	t.scope.RecordTimer(metrics.ReplicationTasksReturned, time.Duration(len(msgs.ReplicationTasks)))
-	t.scope.RecordTimer(metrics.ReplicationTasksReturnedDiff, time.Duration(len(taskInfos)-len(msgs.ReplicationTasks)))
+	// Keep timers (backwards compatible), dual-emit exponential histograms for migration.
+	replicationLag := time.Duration(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID() - msgs.LastRetrievedMessageID)
+	t.scope.RecordTimer(metrics.ReplicationTasksLag, replicationLag)
+	t.scope.ExponentialHistogram(metrics.ExponentialReplicationTasksLag, replicationLag)
+
+	tasksReturned := len(msgs.ReplicationTasks)
+	t.scope.RecordTimer(metrics.ReplicationTasksReturned, time.Duration(tasksReturned))
+	t.scope.IntExponentialHistogram(metrics.ExponentialReplicationTasksReturned, tasksReturned)
+
+	tasksReturnedDiff := len(taskInfos) - len(msgs.ReplicationTasks)
+	t.scope.RecordTimer(metrics.ReplicationTasksReturnedDiff, time.Duration(tasksReturnedDiff))
+	t.scope.IntExponentialHistogram(metrics.ExponentialReplicationTasksReturnedDiff, tasksReturnedDiff)
 
 	t.ackLevel(pollingCluster, lastReadTaskID)
 
