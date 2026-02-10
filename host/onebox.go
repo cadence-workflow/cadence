@@ -1159,7 +1159,7 @@ func (c *cadenceImpl) newRPCFactory(serviceName string, host membership.HostInfo
 		TChannelAddress: tchannelAddress,
 		GRPCAddress:     grpcAddress,
 		InboundMiddleware: yarpc.InboundMiddleware{
-			Unary: yarpc.UnaryInboundMiddleware(&versionMiddleware{}, &rpc.ClientPartitionConfigMiddleware{}, &rpc.ForwardPartitionConfigMiddleware{}),
+			Unary: yarpc.UnaryInboundMiddleware(&versionMiddleware{}, &rpc.ClientPartitionConfigMiddleware{}, &rpc.ForwardPartitionConfigMiddleware{}, &rpc.QueryConsistencyLevelInboundMiddleware{}),
 		},
 		OutboundMiddleware: yarpc.OutboundMiddleware{
 			Unary: &rpc.ForwardPartitionConfigMiddleware{},

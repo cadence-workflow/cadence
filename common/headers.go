@@ -59,4 +59,7 @@ const (
 
 	// CallerTypeHeaderName refers to the name of the header that contains the caller type (CLI, UI, SDK, internal, etc.)
 	CallerTypeHeaderName = types.CallerTypeHeaderName
+
+	// QueryConsistencyLevelHeaderName refers to the name of the header that contains the query consistency level (EVENTUAL, STRONG)
+	QueryConsistencyLevelHeaderName = "cadence-query-consistency-level"
 )
