@@ -41,6 +41,13 @@ func (h *HistogramMigration) UnmarshalYAML(read func(any) error) error {
 // This is likely best done in an `init` func, to ensure it happens early enough
 // and does not race with config reading.
 var HistogramMigrationMetrics = map[string]struct{}{
+	// Replication task-store histograms (PR #7683).
+	// cache_latency/cache_latency_ns are dual-emitted as timer + histogram.
+	// cache_size_counts is histogram-only.
+	"cache_latency":     {},
+	"cache_latency_ns":  {},
+	"cache_size_counts": {},
+
 	"task_latency_processing":    {},
 	"task_latency_processing_ns": {},
 
