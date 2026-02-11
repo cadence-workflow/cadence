@@ -148,12 +148,12 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 	createdTime1 := time.Date(2024, 7, 1, 12, 0, 0, 0, time.UTC)
 	createdTime2 := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
 	createdTime3 := time.Date(2024, 5, 1, 12, 0, 0, 0, time.UTC)
-	createdTime4 := time.Date(2024, 4, 1, 12, 0, 0, 0, time.UTC)
 
 	eventID1 := serialization.MustParseUUID("e1111111-1111-1111-1111-111111111111")
 	eventID2 := serialization.MustParseUUID("e2222222-2222-2222-2222-222222222222")
 	eventID3 := serialization.MustParseUUID("e3333333-3333-3333-3333-333333333333")
-	eventID4 := serialization.MustParseUUID("e4444444-4444-4444-4444-444444444444")
+	maxUUID := serialization.UUID{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+	pageSize := 2
 
 	tests := []struct {
 		name      string
@@ -163,13 +163,15 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name: "pageSize limits number of results; no pageToken",
+			name: "first page with limit",
 			filter: &sqlplugin.DomainAuditLogFilter{
-				DomainID:       domainID,
-				OperationType:  operationType,
-				MinCreatedTime: &minTime,
-				MaxCreatedTime: &maxTime,
-				PageSize:       2,
+				DomainID:           domainID,
+				OperationType:      operationType,
+				MinCreatedTime:     &minTime,
+				MaxCreatedTime:     &maxTime,
+				PageMaxCreatedTime: &maxTime,
+				PageMinEventID:     &maxUUID,
+				PageSize:           pageSize,
 			},
 			mockSetup: func(mockDriver *sqldriver.MockDriver) {
 				mockDriver.EXPECT().SelectContext(
@@ -179,10 +181,11 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 					gomock.Any(),
 					gomock.Any(),
 				).DoAndReturn(func(ctx context.Context, shardID int, dest interface{}, query string, args ...interface{}) error {
-					assert.Contains(t, query, "LIMIT $5")
+					assert.Contains(t, query, "LIMIT $7")
 					assert.Contains(t, query, "ORDER BY created_time DESC, event_id ASC")
-					assert.Equal(t, 2, args[4], "LIMIT should be 2")
-					assert.NotContains(t, query, "AND (created_time < $5 OR (created_time = $5 AND event_id > $6))")
+					assert.Contains(t, query, "AND (created_time < $5 OR (created_time = $5 AND event_id > $6))")
+					assert.Equal(t, 7, len(args))
+					assert.Equal(t, 2, args[6], "LIMIT should be 2")
 
 					rows := dest.(*[]*sqlplugin.DomainAuditLogRow)
 					*rows = []*sqlplugin.DomainAuditLogRow{
@@ -219,18 +222,18 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "pageToken filters results by createdTime and eventID; pageSize is 0",
+			name: "second page uses page token; GetContext returns one row",
 			filter: &sqlplugin.DomainAuditLogFilter{
-				DomainID:                domainID,
-				OperationType:           operationType,
-				MinCreatedTime:          &minTime,
-				MaxCreatedTime:          &maxTime,
-				PageSize:                0,
-				PageTokenMinCreatedTime: &createdTime2,
-				PageTokenMinEventID:     &eventID2,
+				DomainID:           domainID,
+				OperationType:      operationType,
+				MinCreatedTime:     &minTime,
+				MaxCreatedTime:     &maxTime,
+				PageMaxCreatedTime: &createdTime2,
+				PageMinEventID:     &eventID2,
+				PageSize:           0,
 			},
 			mockSetup: func(mockDriver *sqldriver.MockDriver) {
-				mockDriver.EXPECT().SelectContext(
+				mockDriver.EXPECT().GetContext(
 					gomock.Any(),
 					sqlplugin.DbDefaultShard,
 					gomock.Any(),
@@ -241,23 +244,12 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 					assert.Contains(t, query, "ORDER BY created_time DESC, event_id ASC")
 					assert.NotContains(t, query, "LIMIT")
 
-					assert.Equal(t, createdTime2, args[4], "pageToken createdTime")
-					assert.Equal(t, eventID2, args[5], "pageToken eventID")
-
-					rows := dest.(*[]*sqlplugin.DomainAuditLogRow)
-					*rows = []*sqlplugin.DomainAuditLogRow{
-						{
-							EventID:       eventID3,
-							DomainID:      domainID,
-							CreatedTime:   createdTime3,
-							OperationType: operationType,
-						},
-						{
-							EventID:       eventID4,
-							DomainID:      domainID,
-							CreatedTime:   createdTime4,
-							OperationType: operationType,
-						},
+					row := dest.(**sqlplugin.DomainAuditLogRow)
+					*row = &sqlplugin.DomainAuditLogRow{
+						EventID:       eventID3,
+						DomainID:      domainID,
+						CreatedTime:   createdTime3,
+						OperationType: operationType,
 					}
 					return nil
 				})
@@ -269,20 +261,68 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 					CreatedTime:   createdTime3,
 					OperationType: operationType,
 				},
-				{
-					EventID:       eventID4,
-					DomainID:      domainID,
-					CreatedTime:   createdTime4,
-					OperationType: operationType,
-				},
 			},
 			wantErr: false,
 		},
 		{
-			name: "success with no results",
+			name: "get success with no results",
 			filter: &sqlplugin.DomainAuditLogFilter{
-				DomainID:      domainID,
-				OperationType: operationType,
+				DomainID:           domainID,
+				OperationType:      operationType,
+				MinCreatedTime:     &minTime,
+				MaxCreatedTime:     &maxTime,
+				PageMaxCreatedTime: &maxTime,
+				PageMinEventID:     &maxUUID,
+			},
+			mockSetup: func(mockDriver *sqldriver.MockDriver) {
+				mockDriver.EXPECT().GetContext(
+					gomock.Any(),
+					sqlplugin.DbDefaultShard,
+					gomock.Any(),
+					gomock.Any(),
+					gomock.Any(),
+				).DoAndReturn(func(ctx context.Context, shardID int, dest interface{}, query string, args ...interface{}) error {
+					assert.NotContains(t, query, "LIMIT")
+					assert.Contains(t, query, "ORDER BY created_time DESC, event_id ASC")
+					assert.Equal(t, 6, len(args), "should have 6 args")
+					return nil
+				})
+			},
+			wantRows: []*sqlplugin.DomainAuditLogRow{},
+			wantErr:  false,
+		},
+		{
+			name: "error when get fails",
+			filter: &sqlplugin.DomainAuditLogFilter{
+				DomainID:           domainID,
+				OperationType:      operationType,
+				MinCreatedTime:     &minTime,
+				MaxCreatedTime:     &maxTime,
+				PageMaxCreatedTime: &maxTime,
+				PageMinEventID:     &maxUUID,
+			},
+			mockSetup: func(mockDriver *sqldriver.MockDriver) {
+				mockDriver.EXPECT().GetContext(
+					gomock.Any(),
+					sqlplugin.DbDefaultShard,
+					gomock.Any(),
+					gomock.Any(),
+					gomock.Any(),
+				).Return(errors.New("get failed"))
+			},
+			wantRows: nil,
+			wantErr:  true,
+		},
+		{
+			name: "select success with no results",
+			filter: &sqlplugin.DomainAuditLogFilter{
+				DomainID:           domainID,
+				OperationType:      operationType,
+				MinCreatedTime:     &minTime,
+				MaxCreatedTime:     &maxTime,
+				PageMaxCreatedTime: &maxTime,
+				PageMinEventID:     &maxUUID,
+				PageSize:           pageSize,
 			},
 			mockSetup: func(mockDriver *sqldriver.MockDriver) {
 				mockDriver.EXPECT().SelectContext(
@@ -292,9 +332,9 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 					gomock.Any(),
 					gomock.Any(),
 				).DoAndReturn(func(ctx context.Context, shardID int, dest interface{}, query string, args ...interface{}) error {
-					assert.NotContains(t, query, "LIMIT")
+					assert.Contains(t, query, "LIMIT")
 					assert.Contains(t, query, "ORDER BY created_time DESC, event_id ASC")
-					assert.Equal(t, 4, len(args), "should have 4 args: domainID, operationType, minTime, maxTime")
+					assert.Equal(t, 7, len(args), "should have 7 args")
 					return nil
 				})
 			},
@@ -304,8 +344,13 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 		{
 			name: "error when select fails",
 			filter: &sqlplugin.DomainAuditLogFilter{
-				DomainID:      domainID,
-				OperationType: operationType,
+				DomainID:           domainID,
+				OperationType:      operationType,
+				MinCreatedTime:     &minTime,
+				MaxCreatedTime:     &maxTime,
+				PageMaxCreatedTime: &maxTime,
+				PageMinEventID:     &maxUUID,
+				PageSize:           pageSize,
 			},
 			mockSetup: func(mockDriver *sqldriver.MockDriver) {
 				mockDriver.EXPECT().SelectContext(

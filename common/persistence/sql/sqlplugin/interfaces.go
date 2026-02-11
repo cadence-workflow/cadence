@@ -600,13 +600,14 @@ type (
 
 	// DomainAuditLogFilter contains the filter criteria for querying domain audit logs
 	DomainAuditLogFilter struct {
-		DomainID                serialization.UUID
-		OperationType           persistence.DomainAuditOperationType
-		MinCreatedTime          *time.Time
-		MaxCreatedTime          *time.Time
-		PageSize                int
-		PageTokenMinCreatedTime *time.Time
-		PageTokenMinEventID     *serialization.UUID
+		DomainID       serialization.UUID
+		OperationType  persistence.DomainAuditOperationType
+		MinCreatedTime *time.Time
+		MaxCreatedTime *time.Time
+		PageSize       int
+		// PageMaxCreatedTime and PageMinEventID are used to paginate Select queries
+		PageMaxCreatedTime *time.Time
+		PageMinEventID     *serialization.UUID
 	}
 
 	// tableCRUD defines the API for interacting with the database tables

@@ -179,6 +179,9 @@ func TestGetDomainAuditLogs(t *testing.T) {
 	now := time.Unix(1234567890, 0)
 	minTime := now.Add(-24 * time.Hour)
 	maxTime := now
+	maxUUID := serialization.UUID{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+	pageSize := 2
+	pageSize2 := 3
 
 	tests := map[string]struct {
 		setupMock      func(*sqlplugin.MockDB)
@@ -221,13 +224,13 @@ func TestGetDomainAuditLogs(t *testing.T) {
 				}
 
 				expectedFilter := &sqlplugin.DomainAuditLogFilter{
-					DomainID:                serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111"),
-					OperationType:           persistence.DomainAuditOperationTypeUpdate,
-					MinCreatedTime:          &minTime,
-					MaxCreatedTime:          &maxTime,
-					PageSize:                2,
-					PageTokenMinCreatedTime: nil,
-					PageTokenMinEventID:     nil,
+					DomainID:           serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111"),
+					OperationType:      persistence.DomainAuditOperationTypeUpdate,
+					MinCreatedTime:     &minTime,
+					MaxCreatedTime:     &maxTime,
+					PageSize:           pageSize,
+					PageMaxCreatedTime: &maxTime,
+					PageMinEventID:     &maxUUID,
 				}
 
 				dbMock.EXPECT().SelectFromDomainAuditLogs(ctx, expectedFilter).Return(rows, nil).Times(1)
@@ -297,13 +300,13 @@ func TestGetDomainAuditLogs(t *testing.T) {
 				}
 
 				expectedFilter := &sqlplugin.DomainAuditLogFilter{
-					DomainID:                serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111"),
-					OperationType:           persistence.DomainAuditOperationTypeUpdate,
-					MinCreatedTime:          &minTime,
-					MaxCreatedTime:          &maxTime,
-					PageSize:                3,
-					PageTokenMinCreatedTime: &expectedCreatedTime,
-					PageTokenMinEventID:     &expectedEventID,
+					DomainID:           serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111"),
+					OperationType:      persistence.DomainAuditOperationTypeUpdate,
+					MinCreatedTime:     &minTime,
+					MaxCreatedTime:     &maxTime,
+					PageSize:           pageSize2,
+					PageMaxCreatedTime: &expectedCreatedTime,
+					PageMinEventID:     &expectedEventID,
 				}
 
 				dbMock.EXPECT().SelectFromDomainAuditLogs(ctx, expectedFilter).Return(rows, nil).Times(1)

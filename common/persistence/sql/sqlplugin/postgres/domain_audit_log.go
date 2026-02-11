@@ -23,8 +23,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"fmt"
-	"time"
 
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
@@ -35,13 +33,23 @@ const (
 		operation_type, created_time, last_updated_time, identity, identity_type, comment
 	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
 
-	_selectDomainAuditLogsQuery = `SELECT
+	_listDomainAuditLogsQuery = `SELECT
 		event_id, domain_id, state_before, state_before_encoding, state_after, state_after_encoding,
 		operation_type, created_time, last_updated_time, identity, identity_type, comment
 	FROM domain_audit_log
-	WHERE domain_id = $1 AND operation_type = $2 AND created_time >= $3 AND created_time < $4`
+	WHERE domain_id = $1 AND operation_type = $2 AND created_time >= $3 AND created_time < $4
+	AND (created_time < $5 OR (created_time = $5 AND event_id > $6))
+	ORDER BY created_time DESC, event_id ASC
+	LIMIT $7`
 
-	_selectDomainAuditLogsOrderByQuery = ` ORDER BY created_time DESC, event_id ASC`
+	_getDomainAuditLogsQuery = `SELECT
+		event_id, domain_id, state_before, state_before_encoding, state_after, state_after_encoding,
+		operation_type, created_time, last_updated_time, identity, identity_type, comment
+	FROM domain_audit_log
+	WHERE domain_id = $1 AND operation_type = $2 AND created_time >= $3 AND created_time < $4
+	AND (created_time < $5 OR (created_time = $5 AND event_id > $6))
+	ORDER BY created_time DESC, event_id ASC
+	LIMIT 1`
 )
 
 // InsertIntoDomainAuditLog inserts a single row into domain_audit_log table
@@ -65,46 +73,37 @@ func (pdb *db) InsertIntoDomainAuditLog(ctx context.Context, row *sqlplugin.Doma
 	)
 }
 
-// SelectFromDomainAuditLogs returns audit log entries for a domain, operation type, and time range (optional)
+// SelectFromDomainAuditLogs returns audit log entries for a domain, operation type, and time range
 func (pdb *db) SelectFromDomainAuditLogs(
 	ctx context.Context,
 	filter *sqlplugin.DomainAuditLogFilter,
 ) ([]*sqlplugin.DomainAuditLogRow, error) {
-
-	start := time.Unix(0, 0)
-	end := time.Unix(0, time.Now().UnixNano())
-
-	if filter.MinCreatedTime != nil {
-		start = *filter.MinCreatedTime
-	}
-	if filter.MaxCreatedTime != nil {
-		end = *filter.MaxCreatedTime
-	}
-
-	// Build base query with all required filters
-	query := _selectDomainAuditLogsQuery
-	args := []interface{}{filter.DomainID, filter.OperationType, start, end}
-	argIndex := 5
-
-	// Handle pagination token
-	if filter.PageTokenMinCreatedTime != nil && filter.PageTokenMinEventID != nil {
-		query += fmt.Sprintf(` AND (created_time < $%d OR (created_time = $%d AND event_id > $%d))`,
-			argIndex, argIndex, argIndex+1)
-		args = append(args, *filter.PageTokenMinCreatedTime, *filter.PageTokenMinEventID)
-		argIndex += 2
-	}
-
-	query += _selectDomainAuditLogsOrderByQuery
-
-	if filter.PageSize > 0 {
-		query += fmt.Sprintf(` LIMIT $%d`, argIndex)
-		args = append(args, filter.PageSize)
+	args := []interface{}{
+		filter.DomainID,
+		filter.OperationType,
+		*filter.MinCreatedTime,
+		*filter.MaxCreatedTime,
+		*filter.PageMaxCreatedTime,
+		*filter.PageMinEventID,
 	}
 
 	var rows []*sqlplugin.DomainAuditLogRow
-	err := pdb.driver.SelectContext(ctx, sqlplugin.DbDefaultShard, &rows, query, args...)
-	if err != nil {
-		return nil, err
+	if filter.PageSize > 0 {
+		args = append(args, filter.PageSize)
+		err := pdb.driver.SelectContext(ctx, sqlplugin.DbDefaultShard, &rows, _listDomainAuditLogsQuery, args...)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var row *sqlplugin.DomainAuditLogRow
+		err := pdb.driver.GetContext(ctx, sqlplugin.DbDefaultShard, &row, _getDomainAuditLogsQuery, args...)
+		if err != nil {
+			return nil, err
+		}
+		if row != nil {
+			rows = append(rows, row)
+		}
+
 	}
 
 	return rows, nil
