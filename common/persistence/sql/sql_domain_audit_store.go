@@ -93,26 +93,36 @@ func (m *sqlDomainAuditStore) GetDomainAuditLogs(
 	ctx context.Context,
 	request *persistence.GetDomainAuditLogsRequest,
 ) (*persistence.InternalGetDomainAuditLogsResponse, error) {
-	var pageTokenMinCreatedTime *time.Time
-	var pageTokenMinEventID *serialization.UUID
+	minCreatedTime := time.Unix(0, 0)
+	maxCreatedTime := time.Now().UTC()
+	if request.MinCreatedTime != nil {
+		minCreatedTime = *request.MinCreatedTime
+	}
+	if request.MaxCreatedTime != nil {
+		maxCreatedTime = *request.MaxCreatedTime
+	}
 
+	pageMaxCreatedTime := maxCreatedTime
+	// if next page token is not present, set pageMinEventID to largest possible uuid
+	// to prevent the query from returning rows where created_time is equal to pageMaxCreatedTime
+	pageMinEventID := serialization.UUID{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 	if request.NextPageToken != nil {
 		page := domainAuditLogPageToken{}
 		if err := gobDeserialize(request.NextPageToken, &page); err != nil {
 			return nil, fmt.Errorf("unable to decode next page token")
 		}
-		pageTokenMinCreatedTime = &page.CreatedTime
-		pageTokenMinEventID = &page.EventID
+		pageMaxCreatedTime = page.CreatedTime
+		pageMinEventID = page.EventID
 	}
 
 	filter := &sqlplugin.DomainAuditLogFilter{
-		DomainID:                serialization.MustParseUUID(request.DomainID),
-		OperationType:           request.OperationType,
-		MinCreatedTime:          request.MinCreatedTime,
-		MaxCreatedTime:          request.MaxCreatedTime,
-		PageSize:                request.PageSize,
-		PageTokenMinCreatedTime: pageTokenMinCreatedTime,
-		PageTokenMinEventID:     pageTokenMinEventID,
+		DomainID:           serialization.MustParseUUID(request.DomainID),
+		OperationType:      request.OperationType,
+		MinCreatedTime:     &minCreatedTime,
+		MaxCreatedTime:     &maxCreatedTime,
+		PageSize:           request.PageSize,
+		PageMaxCreatedTime: &pageMaxCreatedTime,
+		PageMinEventID:     &pageMinEventID,
 	}
 
 	rows, err := m.db.SelectFromDomainAuditLogs(ctx, filter)
