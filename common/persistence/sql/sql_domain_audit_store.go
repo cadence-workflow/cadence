@@ -182,7 +182,7 @@ func (m *sqlDomainAuditStore) GetDomainAuditLogs(
 
 func getDataBlobBytes(blob *persistence.DataBlob) []byte {
 	if blob == nil {
-		return nil
+		return []byte{}
 	}
 	return blob.Data
 }

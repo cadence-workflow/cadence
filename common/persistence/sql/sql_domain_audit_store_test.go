@@ -105,9 +105,9 @@ func TestCreateDomainAuditLog(t *testing.T) {
 				expectedRow := &sqlplugin.DomainAuditLogRow{
 					DomainID:            serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111"),
 					EventID:             serialization.MustParseUUID("e1111111-1111-1111-1111-111111111111"),
-					StateBefore:         nil,
+					StateBefore:         []byte{},
 					StateBeforeEncoding: "",
-					StateAfter:          nil,
+					StateAfter:          []byte{},
 					StateAfterEncoding:  "",
 					OperationType:       persistence.DomainAuditOperationTypeCreate,
 					CreatedTime:         now,
@@ -441,7 +441,7 @@ func TestGetDataBlobBytes(t *testing.T) {
 	}{
 		"nil blob": {
 			input:    nil,
-			expected: nil,
+			expected: []byte{},
 		},
 		"blob with data": {
 			input: &persistence.DataBlob{
