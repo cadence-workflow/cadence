@@ -482,6 +482,10 @@ func TestHeartbeatLoop_DistributedPassthrough_AppliesAssignment(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockShardDistributorClient := sharddistributorexecutor.NewMockClient(ctrl)
 
+	mockShardProcessor := NewMockShardProcessor(ctrl)
+	mockShardProcessor.EXPECT().GetShardReport().Return(ShardReport{Status: types.ShardStatusREADY}).AnyTimes()
+	mockShardProcessor.EXPECT().Stop()
+
 	mockShardDistributorClient.EXPECT().Heartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&types.ExecutorHeartbeatResponse{
 			ShardAssignments: map[string]*types.ShardAssignment{
@@ -491,17 +495,14 @@ func TestHeartbeatLoop_DistributedPassthrough_AppliesAssignment(t *testing.T) {
 		}, nil)
 	expectDrainingHeartbeat(t, mockShardDistributorClient)
 
-	mockShardProcessor := NewMockShardProcessor(ctrl)
-	mockShardProcessor.EXPECT().Start(gomock.Any())
-	mockShardProcessor.EXPECT().Stop()
-
 	mockShardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
-	mockShardProcessorFactory.EXPECT().NewShardProcessor(gomock.Any()).Return(mockShardProcessor, nil)
 
 	mockTimeSource := clock.NewMockedTimeSource()
 
 	executor := newTestExecutor(mockShardDistributorClient, mockShardProcessorFactory, mockTimeSource)
 	executor.setMigrationMode(types.MigrationModeONBOARDED)
+	// Pre-populate the executor with the shard to ensure convergence
+	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(mockShardProcessor, processorStateStarted))
 
 	executor.Start(context.Background())
 	defer executor.Stop()
@@ -576,7 +577,10 @@ func TestCompareAssignments_Converged(t *testing.T) {
 		"test-shard-id2": {Status: types.AssignmentStatusREADY},
 	}
 
-	executor.compareAssignments(heartbeatAssignments)
+	err := executor.compareAssignments(heartbeatAssignments)
+
+	// Verify no error is returned when assignments converge
+	assert.NoError(t, err)
 
 	// Verify convergence metric was emitted
 	snapshot := testScope.Snapshot()
@@ -601,7 +605,10 @@ func TestCompareAssignments_Diverged_MissingShard(t *testing.T) {
 		"test-shard-id1": {Status: types.AssignmentStatusREADY},
 	}
 
-	executor.compareAssignments(heartbeatAssignments)
+	err := executor.compareAssignments(heartbeatAssignments)
+
+	// Verify error is returned when local shard is missing from heartbeat
+	assert.ErrorIs(t, err, ErrAssignmentDivergenceLocalShard)
 
 	// Verify divergence metric was emitted
 	snapshot := testScope.Snapshot()
@@ -625,7 +632,10 @@ func TestCompareAssignments_Diverged_ExtraShard(t *testing.T) {
 		"test-shard-id2": {Status: types.AssignmentStatusREADY},
 	}
 
-	executor.compareAssignments(heartbeatAssignments)
+	err := executor.compareAssignments(heartbeatAssignments)
+
+	// Verify error is returned when heartbeat has extra shard not in local
+	assert.ErrorIs(t, err, ErrAssignmentDivergenceHeartbeatShard)
 
 	// Verify divergence metric was emitted
 	snapshot := testScope.Snapshot()
@@ -648,7 +658,10 @@ func TestCompareAssignments_Diverged_WrongStatus(t *testing.T) {
 		"test-shard-id1": {Status: types.AssignmentStatusINVALID},
 	}
 
-	executor.compareAssignments(heartbeatAssignments)
+	err := executor.compareAssignments(heartbeatAssignments)
+
+	// Verify error is returned when local shard has wrong status in heartbeat
+	assert.ErrorIs(t, err, ErrAssignmentDivergenceLocalShard)
 
 	// Verify divergence metric was emitted
 	snapshot := testScope.Snapshot()
