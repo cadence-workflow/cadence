@@ -513,6 +513,8 @@ func (e *executorImpl[SP]) compareAssignments(heartbeatAssignments map[string]*t
 	for shardID, assignment := range heartbeatAssignments {
 		if assignment.Status == types.AssignmentStatusREADY {
 			if !localAssignments[shardID] {
+				e.logger.Warn("assignment divergence: heartbeat shard not in local",
+					tag.Dynamic("shard-id", shardID))
 				e.emitMetricsConvergence(false)
 				return ErrAssignmentDivergenceHeartbeatShard
 			}
