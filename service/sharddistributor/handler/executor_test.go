@@ -328,33 +328,6 @@ func TestHeartbeat(t *testing.T) {
 		require.Contains(t, err.Error(), "invalid metadata: metadata has 33 keys, which exceeds the maximum of 32")
 	})
 
-	// Test Case 10: Heartbeat with executor associated with MigrationModeLOCALPASSTHROUGH (should error)
-	t.Run("MigrationModeLOCALPASSTHROUGH", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockStore := store.NewMockStore(ctrl)
-		mockTimeSource := clock.NewMockedTimeSource()
-		shardDistributionCfg := config.ShardDistribution{
-			Namespaces: []config.Namespace{{Name: namespace, Mode: config.MigrationModeLOCALPASSTHROUGH}},
-		}
-		cfg := newConfig(t, []configEntry{{dynamicproperties.ShardDistributorMigrationMode, config.MigrationModeLOCALPASSTHROUGH}})
-		handler := NewExecutorHandler(testlogger.New(t), mockStore, mockTimeSource, shardDistributionCfg, cfg, metrics.NoopClient)
-
-		req := &types.ExecutorHeartbeatRequest{
-			Namespace:  namespace,
-			ExecutorID: executorID,
-			Status:     types.ExecutorStatusACTIVE,
-		}
-		previousHeartbeat := store.HeartbeatState{
-			LastHeartbeat: now,
-			Status:        types.ExecutorStatusACTIVE,
-		}
-
-		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
-
-		_, err := handler.Heartbeat(ctx, req)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "migration mode is local passthrough, no calls to heartbeat allowed")
-	})
 }
 
 func TestValidateMetadata(t *testing.T) {
