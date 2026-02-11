@@ -33,7 +33,7 @@ const (
 		operation_type, created_time, last_updated_time, identity, identity_type, comment
 	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
 
-	_listDomainAuditLogsQuery = `SELECT
+	_selectDomainAuditLogsQuery = `SELECT
 		event_id, domain_id, state_before, state_before_encoding, state_after, state_after_encoding,
 		operation_type, created_time, last_updated_time, identity, identity_type, comment
 	FROM domain_audit_log
@@ -41,15 +41,13 @@ const (
 	AND (created_time < $5 OR (created_time = $5 AND event_id > $6))
 	ORDER BY created_time DESC, event_id ASC
 	LIMIT $7`
-
-	_getDomainAuditLogsQuery = `SELECT
+	_selectAllDomainAuditLogsQuery = `SELECT
 		event_id, domain_id, state_before, state_before_encoding, state_after, state_after_encoding,
 		operation_type, created_time, last_updated_time, identity, identity_type, comment
 	FROM domain_audit_log
 	WHERE domain_id = $1 AND operation_type = $2 AND created_time >= $3 AND created_time < $4
 	AND (created_time < $5 OR (created_time = $5 AND event_id > $6))
-	ORDER BY created_time DESC, event_id ASC
-	LIMIT 1`
+	ORDER BY created_time DESC, event_id ASC`
 )
 
 // InsertIntoDomainAuditLog inserts a single row into domain_audit_log table
@@ -90,21 +88,15 @@ func (pdb *db) SelectFromDomainAuditLogs(
 	var rows []*sqlplugin.DomainAuditLogRow
 	if filter.PageSize > 0 {
 		args = append(args, filter.PageSize)
-		err := pdb.driver.SelectContext(ctx, sqlplugin.DbDefaultShard, &rows, _listDomainAuditLogsQuery, args...)
+		err := pdb.driver.SelectContext(ctx, sqlplugin.DbDefaultShard, &rows, _selectDomainAuditLogsQuery, args...)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		var row *sqlplugin.DomainAuditLogRow
-		err := pdb.driver.GetContext(ctx, sqlplugin.DbDefaultShard, &row, _getDomainAuditLogsQuery, args...)
+		err := pdb.driver.SelectContext(ctx, sqlplugin.DbDefaultShard, &rows, _selectAllDomainAuditLogsQuery, args...)
 		if err != nil {
 			return nil, err
 		}
-		if row != nil {
-			rows = append(rows, row)
-		}
-
 	}
-
 	return rows, nil
 }
