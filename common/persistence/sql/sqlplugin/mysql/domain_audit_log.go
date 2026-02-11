@@ -21,22 +21,22 @@
 package mysql
 
 import (
-  "context"
-  "database/sql"
-  "errors"
+	"context"
+	"database/sql"
+	"errors"
 
-  "github.com/uber/cadence/common/persistence/sql/sqlplugin"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
 
 // InsertIntoDomainAuditLog inserts a single row into domain_audit_log table
 func (mdb *DB) InsertIntoDomainAuditLog(ctx context.Context, row *sqlplugin.DomainAuditLogRow) (sql.Result, error) {
-  return nil, errors.New("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 // SelectFromDomainAuditLogs returns audit log entries for a domain, operation type, and time range (optional)
 func (mdb *DB) SelectFromDomainAuditLogs(
-  ctx context.Context,
-  filter *sqlplugin.DomainAuditLogFilter,
+	ctx context.Context,
+	filter *sqlplugin.DomainAuditLogFilter,
 ) ([]*sqlplugin.DomainAuditLogRow, error) {
-  return nil, errors.New("not implemented")
+	return nil, errors.New("not implemented")
 }
