@@ -49,6 +49,7 @@ const (
 	_defaultPeriod       = time.Second
 	_defaultHeartbeatTTL = 10 * time.Second
 	_defaultTimeout      = 1 * time.Second
+	_defaultCooldown     = 250 * time.Millisecond
 )
 
 type processorFactory struct {
@@ -89,6 +90,9 @@ func NewProcessorFactory(
 	}
 	if cfg.Process.Timeout == 0 {
 		cfg.Process.Timeout = _defaultTimeout
+	}
+	if cfg.Process.Cooldown == 0 {
+		cfg.Process.Cooldown = _defaultCooldown
 	}
 
 	return &processorFactory{
@@ -192,6 +196,8 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 		return
 	}
 
+	nextRebalanceAllowedAt := p.timeSource.Now()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -199,6 +205,12 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 			return
 
 		case update := <-updateChan:
+			// If an update comes in before the cooldown has expired,
+			// we wait until the cooldown has passed since the last rebalance before processing it.
+			// This ensures that we don't rebalance too frequently in response to a flurry of updates
+			p.timeSource.Sleep(nextRebalanceAllowedAt.Sub(p.timeSource.Now()))
+			nextRebalanceAllowedAt = p.timeSource.Now().Add(p.cfg.Cooldown)
+
 			p.logger.Info("Rebalancing triggered", tag.Dynamic("reason", update))
 			if err := p.rebalanceShards(ctx); err != nil {
 				p.logger.Error("rebalance failed", tag.Error(err))
@@ -213,7 +225,7 @@ func (p *namespaceProcessor) runRebalanceTriggeringLoop(ctx context.Context) (<-
 	// Buffered channel to allow one pending rebalance trigger.
 	triggerChan := make(chan string, 1)
 
-	updateChan, err := p.shardStore.Subscribe(ctx, p.namespaceCfg.Name)
+	updateChan, err := p.shardStore.SubscribeToExecutorStatusChanges(ctx, p.namespaceCfg.Name)
 	if err != nil {
 		p.logger.Error("Failed to subscribe to state changes, stopping rebalancing loop.", tag.Error(err))
 		return nil, err

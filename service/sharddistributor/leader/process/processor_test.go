@@ -89,7 +89,7 @@ func TestRunAndTerminate(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{}, nil).AnyTimes()
-	mocks.store.EXPECT().Subscribe(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil).AnyTimes()
+	mocks.store.EXPECT().SubscribeToExecutorStatusChanges(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil).AnyTimes()
 
 	err := processor.Run(ctx)
 	require.NoError(t, err)
@@ -409,7 +409,7 @@ func TestRunLoop_SubscriptionError(t *testing.T) {
 
 	expectedErr := errors.New("subscription failed")
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{}, nil)
-	mocks.store.EXPECT().Subscribe(gomock.Any(), mocks.cfg.Name).Return(nil, expectedErr)
+	mocks.store.EXPECT().SubscribeToExecutorStatusChanges(gomock.Any(), mocks.cfg.Name).Return(nil, expectedErr)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -428,7 +428,7 @@ func TestRunLoop_ContextCancellation(t *testing.T) {
 
 	// Setup for the initial call to rebalanceShards and the subscription
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{}, nil)
-	mocks.store.EXPECT().Subscribe(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil)
+	mocks.store.EXPECT().SubscribeToExecutorStatusChanges(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil)
 
 	processor.wg.Add(1)
 	// Run the process in a separate goroutine to avoid blocking the test
