@@ -93,37 +93,42 @@ func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
 	case modeKeyShardDistributor:
 		return s.lookUpInShardDistributor(key)
 	case modeKeyHashRingShadowShardDistributor:
-		hashRingResult, err := s.ring.Lookup(key)
-		if err != nil {
-			return HostInfo{}, err
-		}
-		// Asynchronously lookup in shard distributor to avoid blocking the main thread
-		go func() {
-			shardDistributorResult, err := s.lookUpInShardDistributor(key)
-			if err != nil {
-				s.logger.Warn("Failed to lookup in shard distributor shadow", tag.Error(err))
-			} else {
-				logDifferencesInHostInfo(s.logger, hashRingResult, shardDistributorResult)
-			}
-		}()
+		hashRingResult, errRing := s.ring.Lookup(key)
+		shardDistributorResult, errSD := s.lookUpInShardDistributor(key)
 
-		return hashRingResult, nil
+		// Compare if no errors happen
+		if errRing == nil && errSD == nil {
+			logDifferencesInHostInfo(s.logger, hashRingResult, shardDistributorResult)
+		}
+		// Log failures form SD
+		if errSD != nil {
+			s.logger.Warn("Failed to lookup in shard distributor shadow", tag.Error(errSD))
+		}
+		// Fallback to ShardDistributor if HashRing fails
+		if errRing != nil {
+
+			return shardDistributorResult, errSD
+		}
+
+		return hashRingResult, errRing
 	case modeKeyShardDistributorShadowHashRing:
-		shardDistributorResult, err := s.lookUpInShardDistributor(key)
-		if err != nil {
-			return HostInfo{}, err
-		}
-		// Asynchronously lookup in hash ring to avoid blocking the main thread
-		go func() {
-			hashRingResult, err := s.ring.Lookup(key)
-			if err != nil {
-				s.logger.Warn("Failed to lookup in hash ring shadow", tag.Error(err))
-			} else {
-				logDifferencesInHostInfo(s.logger, hashRingResult, shardDistributorResult)
-			}
-		}()
+		shardDistributorResult, errSD := s.lookUpInShardDistributor(key)
+		hashRingResult, errRing := s.ring.Lookup(key)
 
-		return shardDistributorResult, nil
+		// Compare if no errors happen
+		if errRing == nil && errSD == nil {
+			logDifferencesInHostInfo(s.logger, hashRingResult, shardDistributorResult)
+		}
+		// Log failures form HashRing
+		if errRing != nil {
+			s.logger.Warn("Failed to lookup in hash ring shadow", tag.Error(errRing))
+		}
+		// Fallback to HashRing if ShardDistributor fails
+		if errSD != nil {
+			return hashRingResult, errRing
+		}
+
+		return shardDistributorResult, errSD
 	}
 
 	// Default to hash ring

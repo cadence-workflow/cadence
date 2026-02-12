@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
@@ -61,6 +62,7 @@ func TestGetShardOwner(t *testing.T) {
 	tests := []struct {
 		name           string
 		request        *types.GetShardOwnerRequest
+		configEntries  []configEntry
 		setupMocks     func(mockStore *store.MockStore)
 		expectedOwner  string
 		expectedError  bool
@@ -130,10 +132,13 @@ func TestGetShardOwner(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "ShardNotFound_Ephemeral",
+			name: "ShardNotFound_Ephemeral_Onboarded",
 			request: &types.GetShardOwnerRequest{
 				Namespace: _testNamespaceEphemeral,
 				ShardKey:  "NON-EXISTING-SHARD",
+			},
+			configEntries: []configEntry{
+				{dynamicproperties.ShardDistributorMigrationMode, config.MigrationModeONBOARDED},
 			},
 			setupMocks: func(mockStore *store.MockStore) {
 				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
@@ -168,10 +173,13 @@ func TestGetShardOwner(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "ShardNotFound_Ephemeral_SkipDrainingExecutor",
+			name: "ShardNotFound_Ephemeral_Onboarded_SkipDrainingExecutor",
 			request: &types.GetShardOwnerRequest{
 				Namespace: _testNamespaceEphemeral,
 				ShardKey:  "NON-EXISTING-SHARD",
+			},
+			configEntries: []configEntry{
+				{dynamicproperties.ShardDistributorMigrationMode, config.MigrationModeONBOARDED},
 			},
 			setupMocks: func(mockStore *store.MockStore) {
 				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
@@ -213,6 +221,9 @@ func TestGetShardOwner(t *testing.T) {
 				Namespace: _testNamespaceEphemeral,
 				ShardKey:  "NON-EXISTING-SHARD",
 			},
+			configEntries: []configEntry{
+				{dynamicproperties.ShardDistributorMigrationMode, config.MigrationModeONBOARDED},
+			},
 			setupMocks: func(mockStore *store.MockStore) {
 				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(nil, errors.New("get state failure"))
@@ -226,6 +237,9 @@ func TestGetShardOwner(t *testing.T) {
 				Namespace: _testNamespaceEphemeral,
 				ShardKey:  "NON-EXISTING-SHARD",
 			},
+			configEntries: []configEntry{
+				{dynamicproperties.ShardDistributorMigrationMode, config.MigrationModeONBOARDED},
+			},
 			setupMocks: func(mockStore *store.MockStore) {
 				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
@@ -236,6 +250,21 @@ func TestGetShardOwner(t *testing.T) {
 			expectedError:  true,
 			expectedErrMsg: "assign shard failure",
 		},
+		{
+			name: "ShardNotFound_Ephemeral_NotOnboarded",
+			request: &types.GetShardOwnerRequest{
+				Namespace: _testNamespaceEphemeral,
+				ShardKey:  "NON-EXISTING-SHARD",
+			},
+			configEntries: []configEntry{
+				{dynamicproperties.ShardDistributorMigrationMode, config.MigrationModeLOCALPASSTHROUGHSHADOW},
+			},
+			setupMocks: func(mockStore *store.MockStore) {
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
+			},
+			expectedError:  true,
+			expectedErrMsg: "shard not found",
+		},
 	}
 
 	for _, tt := range tests {
@@ -244,10 +273,12 @@ func TestGetShardOwner(t *testing.T) {
 
 			logger := testlogger.New(t)
 			mockStorage := store.NewMockStore(ctrl)
+			testCfg := newConfig(t, tt.configEntries)
 
 			handler := &handlerImpl{
 				logger:               logger,
 				shardDistributionCfg: cfg,
+				cfg:                  testCfg,
 				storage:              mockStorage,
 			}
 			if tt.setupMocks != nil {
@@ -281,9 +312,12 @@ func TestWatchNamespaceState(t *testing.T) {
 		},
 	}
 
+	testCfg := newConfig(t, []configEntry{})
+
 	handler := &handlerImpl{
 		logger:               logger,
 		shardDistributionCfg: cfg,
+		cfg:                  testCfg,
 		storage:              mockStorage,
 		startWG:              sync.WaitGroup{},
 	}

@@ -2591,8 +2591,8 @@ const (
 	//
 	// - "hash_ring" means that the shards are distributed using a consistent hash ring, in particular using the ringpop library
 	// - "shard_distributor" means that the shards are distributed using the _highly experimental_ shard distributor service
-	// - "hash_ring-shadow-shard_distributor" means that the shards are distrubuted using the hash ring, but shadowed by the shard distributor
-	// - "shard_distributor-shadow-hash_ring" means that the shards are distrubuted using the shard distributor, but shadowed by the hash ring
+	// - "hash_ring-shadow-shard_distributor" means that shards are distributed using the hash ring, with the shard distributor shadowing the operation and serving as fallback in case of errors
+	// - "shard_distributor-shadow-hash_ring" means that the shards are distributed using the shard distributor, with the hash ring shadowing the operation and serving as fallback in case of errors
 	//
 	// KeyName: matching.shardDistributionMode
 	// Value type: string enum: "hash_ring" or "shard_distributor"
