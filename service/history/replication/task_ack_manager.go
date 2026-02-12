@@ -146,7 +146,9 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 	if err != nil {
 		return nil, err
 	}
-	t.scope.RecordTimer(metrics.ReplicationTasksFetched, time.Duration(len(taskInfos)))
+	tasksFetched := len(taskInfos)
+	t.scope.RecordTimer(metrics.ReplicationTasksFetched, time.Duration(tasksFetched))
+	t.scope.IntExponentialHistogram(metrics.ExponentialReplicationTasksFetched, tasksFetched)
 
 	// Happy path assumption - we will push all tasks to replication tasks.
 	msgs := &types.ReplicationMessages{
@@ -167,7 +169,9 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		oldestUnprocessedTaskTimestamp = t.timeSource.Now().UnixNano()
 	}
 
-	t.scope.RecordTimer(metrics.ReplicationTasksLagRaw, time.Duration(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID()-oldestUnprocessedTaskID))
+	lagRaw := int(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID() - oldestUnprocessedTaskID)
+	t.scope.RecordTimer(metrics.ReplicationTasksLagRaw, time.Duration(lagRaw))
+	t.scope.IntExponentialHistogram(metrics.ExponentialReplicationTasksLagRaw, lagRaw)
 	t.scope.RecordHistogramDuration(metrics.ReplicationTasksDelay, time.Duration(oldestUnprocessedTaskTimestamp-t.timeSource.Now().UnixNano()))
 
 	// hydrate the tasks

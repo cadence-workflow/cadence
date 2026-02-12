@@ -52,6 +52,7 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"replication_task_latency":    {},
 	"replication_task_latency_ns": {},
 
+<<<<<<< Updated upstream
 	// Replication tasks lag/returned/diff (replication task-ack path).
 	// Dual-emitted as timer + histogram.
 	"replication_tasks_lag":                  {},
@@ -60,6 +61,14 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"replication_tasks_returned_counts":      {},
 	"replication_tasks_returned_diff":        {},
 	"replication_tasks_returned_diff_counts": {},
+=======
+	// Replication tasks fetched and lag-raw (replication task-ack path).
+	// Dual-emitted as timer + integer histogram.
+	"replication_tasks_fetched":        {},
+	"replication_tasks_fetched_counts": {},
+	"replication_tasks_lag_raw":        {},
+	"replication_tasks_lag_raw_counts": {},
+>>>>>>> Stashed changes
 }
 
 func (h HistogramMigration) EmitTimer(name string) bool {
