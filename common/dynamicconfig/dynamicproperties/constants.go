@@ -3058,7 +3058,7 @@ const (
 	// ReplicationTaskProcessorStartWait is the wait time before each task processing batch
 	// KeyName: history.ReplicationTaskProcessorStartWait
 	// Value type: Duration
-	// Default value: 5s (5* time.Second)
+	// Default value: 0
 	// Allowed filters: ShardID
 	ReplicationTaskProcessorStartWait
 	// ReplicationTaskProcessorLatencyLogThreshold is the threshold of whether history will log history replication latency
@@ -5611,7 +5611,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.ReplicationTaskProcessorStartWait",
 		Filters:      []Filter{ShardID},
 		Description:  "ReplicationTaskProcessorStartWait is the wait time before each task processing batch",
-		DefaultValue: time.Second * 5,
+		DefaultValue: 0,
 	},
 	ReplicationTaskProcessorLatencyLogThreshold: {
 		KeyName:      "history.ReplicationTaskProcessorLatencyLogThreshold",
