@@ -176,6 +176,7 @@ func (n *namespaceShardToExecutor) watch(triggerCh chan<- struct{}) error {
 		clientv3.WithRequireLeader(ctx),
 		etcdkeys.BuildExecutorsPrefix(n.etcdPrefix, n.namespace),
 		clientv3.WithPrefix(),
+		clientv3.WithPrevKV(),
 	)
 
 	for {
@@ -192,16 +193,8 @@ func (n *namespaceShardToExecutor) watch(triggerCh chan<- struct{}) error {
 				return fmt.Errorf("watch channel closed")
 			}
 
-			shouldRefresh := false
-			for _, event := range watchResp.Events {
-				_, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(event.Kv.Key))
-				if keyErr == nil && (keyType == etcdkeys.ExecutorAssignedStateKey || keyType == etcdkeys.ExecutorMetadataKey) {
-					shouldRefresh = true
-					break
-				}
-			}
-
-			if !shouldRefresh {
+			// Only trigger refresh if the change is related to executor assigned state or metadata
+			if !n.hasExecutorStateChanged(watchResp) {
 				continue
 			}
 
@@ -212,6 +205,32 @@ func (n *namespaceShardToExecutor) watch(triggerCh chan<- struct{}) error {
 			}
 		}
 	}
+}
+
+// hasExecutorStateChanged checks if any of the events in the watch response indicate a change to executor assigned state or metadata,
+// and if the value actually changed (not just same value written again)
+func (n *namespaceShardToExecutor) hasExecutorStateChanged(watchResp clientv3.WatchResponse) bool {
+	for _, event := range watchResp.Events {
+		_, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(event.Kv.Key))
+		if keyErr != nil {
+			n.logger.Warn("Received watch event with unrecognized key format", tag.Value(keyErr))
+			continue
+		}
+
+		// Only refresh on changes to assigned state or metadata, ignore other changes under the executor prefix such as executor heartbeat keys
+		if keyType != etcdkeys.ExecutorAssignedStateKey && keyType != etcdkeys.ExecutorMetadataKey {
+			continue
+		}
+
+		// Check if value actually changed (skip if same value written again)
+		if event.PrevKv != nil && string(event.Kv.Value) == string(event.PrevKv.Value) {
+			continue
+		}
+
+		return true
+	}
+
+	return false
 }
 
 func (n *namespaceShardToExecutor) refresh(ctx context.Context) error {
