@@ -91,8 +91,8 @@ func NewProcessorFactory(
 	if cfg.Process.Timeout == 0 {
 		cfg.Process.Timeout = _defaultTimeout
 	}
-	if cfg.Process.Cooldown == 0 {
-		cfg.Process.Cooldown = _defaultCooldown
+	if cfg.Process.RebalanceCooldown == 0 {
+		cfg.Process.RebalanceCooldown = _defaultCooldown
 	}
 
 	return &processorFactory{
@@ -209,7 +209,7 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 			// we wait until the cooldown has passed since the last rebalance before processing it.
 			// This ensures that we don't rebalance too frequently in response to a flurry of updates
 			p.timeSource.Sleep(nextRebalanceAllowedAt.Sub(p.timeSource.Now()))
-			nextRebalanceAllowedAt = p.timeSource.Now().Add(p.cfg.Cooldown)
+			nextRebalanceAllowedAt = p.timeSource.Now().Add(p.cfg.RebalanceCooldown)
 
 			p.logger.Info("Rebalancing triggered", tag.Dynamic("reason", update))
 			if err := p.rebalanceShards(ctx); err != nil {
