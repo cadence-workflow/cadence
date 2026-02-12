@@ -15,6 +15,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	csync "github.com/uber/cadence/service/sharddistributor/client/spectatorclient/sync"
 )
 
 const (
@@ -30,6 +31,7 @@ type ShardOwner struct {
 
 type spectatorImpl struct {
 	namespace  string
+	enabled    EnabledFunc
 	config     clientcommon.NamespaceConfig
 	client     sharddistributor.Client
 	scope      tally.Scope
@@ -73,12 +75,24 @@ func (s *spectatorImpl) Stop() {
 }
 
 func (s *spectatorImpl) watchLoop() {
+	defer s.logger.Info("Shutting down, stopping watch loop", tag.ShardNamespace(s.namespace))
+
 	s.logger.Info("Starting watch loop for namespace", tag.ShardNamespace(s.namespace))
 
 	for {
 		if s.ctx.Err() != nil {
-			s.logger.Info("Shutting down, stopping watch loop", tag.ShardNamespace(s.namespace))
 			return
+		}
+
+		if !s.enabled() {
+			// If spectator is disabled, sleep for a second and continue
+			s.firstStateSignal.Reset()
+
+			err := s.timeSource.SleepWithContext(s.ctx, backoff.JitDuration(streamRetryInterval, streamRetryJitterCoeff))
+			if err != nil {
+				return
+			}
+			continue
 		}
 
 		// Create new stream
@@ -87,13 +101,11 @@ func (s *spectatorImpl) watchLoop() {
 		})
 		if err != nil {
 			if s.ctx.Err() != nil {
-				s.logger.Info("Shutting down during stream creation, exiting watch loop", tag.ShardNamespace(s.namespace))
 				return
 			}
 
 			s.logger.Error("Failed to create stream, retrying", tag.Error(err), tag.ShardNamespace(s.namespace))
 			if err := s.timeSource.SleepWithContext(s.ctx, backoff.JitDuration(streamRetryInterval, streamRetryJitterCoeff)); err != nil {
-				s.logger.Info("Shutting down waiting to retry stream creation, exiting watch loop", tag.ShardNamespace(s.namespace))
 				return // Context cancelled during sleep
 			}
 			continue
@@ -102,7 +114,6 @@ func (s *spectatorImpl) watchLoop() {
 		s.receiveLoop(stream)
 
 		if s.ctx.Err() != nil {
-			s.logger.Info("Shutting down, exiting watch loop", tag.ShardNamespace(s.namespace))
 			return
 		}
 
@@ -122,6 +133,12 @@ func (s *spectatorImpl) receiveLoop(stream sharddistributor.WatchNamespaceStateC
 	}()
 
 	for {
+		if !s.enabled() {
+			// the loop was disabled, exit
+			s.firstStateSignal.Reset()
+			return
+		}
+
 		response, err := stream.Recv()
 		if err != nil {
 			if s.ctx.Err() != nil {
@@ -176,7 +193,9 @@ func (s *spectatorImpl) handleResponse(response *types.WatchNamespaceStateRespon
 // If not found in cache, it falls back to querying the shard distributor directly.
 func (s *spectatorImpl) GetShardOwner(ctx context.Context, shardKey string) (*ShardOwner, error) {
 	// Wait for first state to be received to avoid flooding shard distributor on startup
-	s.firstStateSignal.Wait(ctx)
+	if err := s.firstStateSignal.Wait(ctx); err != nil {
+		return nil, fmt.Errorf("wait for first state: %w", err)
+	}
 
 	// Check cache first
 	s.stateMu.RLock()
