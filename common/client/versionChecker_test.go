@@ -28,10 +28,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
+	"go.uber.org/yarpc"
 	"go.uber.org/yarpc/api/encoding"
 	"go.uber.org/yarpc/api/transport"
 
-	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 )
@@ -410,8 +411,8 @@ func (s *VersionCheckerSuite) TestSupportsWorkflowAlreadyCompletedError() {
 		},
 	}
 
-	featureFlags := shared.FeatureFlags{
-		WorkflowExecutionAlreadyCompletedErrorEnabled: common.BoolPtr(true),
+	featureFlags := apiv1.FeatureFlags{
+		WorkflowExecutionAlreadyCompletedErrorEnabled: true,
 	}
 
 	for _, tc := range testCases {
@@ -440,4 +441,75 @@ func (s *VersionCheckerSuite) constructCallContext(clientImpl string, featureVer
 	})
 	s.NoError(err)
 	return ctx
+}
+
+func TestGetFeatureFlagsFromHeader(t *testing.T) {
+	tests := []struct {
+		name              string
+		featureFlagsValue string // use "" to omit header
+		want              apiv1.FeatureFlags
+	}{
+		{
+			name:              "no header",
+			featureFlagsValue: "",
+			want:              apiv1.FeatureFlags{},
+		},
+		{
+			name:              "valid JSON with WorkflowExecutionAlreadyCompletedErrorEnabled true",
+			featureFlagsValue: `{"WorkflowExecutionAlreadyCompletedErrorEnabled":true}`,
+			want: apiv1.FeatureFlags{
+				WorkflowExecutionAlreadyCompletedErrorEnabled: true,
+			},
+		},
+		{
+			name:              "valid JSON with WorkflowExecutionAlreadyCompletedErrorEnabled false",
+			featureFlagsValue: `{"WorkflowExecutionAlreadyCompletedErrorEnabled":false}`,
+			want: apiv1.FeatureFlags{
+				WorkflowExecutionAlreadyCompletedErrorEnabled: false,
+			},
+		},
+		{
+			name:              "invalid JSON returns empty",
+			featureFlagsValue: `{invalid}`,
+			want:              apiv1.FeatureFlags{},
+		},
+		{
+			name:              "empty JSON object",
+			featureFlagsValue: `{}`,
+			want:              apiv1.FeatureFlags{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			ctx, inboundCall := encoding.NewInboundCall(ctx)
+			headers := transport.NewHeaders()
+			if tt.featureFlagsValue != "" {
+				headers = headers.With(common.ClientFeatureFlagsHeaderName, tt.featureFlagsValue)
+			}
+			err := inboundCall.ReadFromRequest(&transport.Request{Headers: headers})
+			require.NoError(t, err)
+			call := yarpc.CallFromContext(ctx)
+			got := GetFeatureFlagsFromHeader(call)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGetFeatureFlagsFromHeader_RoundTrip(t *testing.T) {
+	flags := apiv1.FeatureFlags{
+		WorkflowExecutionAlreadyCompletedErrorEnabled: true,
+	}
+	serialized := FeatureFlagsHeader(flags)
+	require.NotEmpty(t, serialized)
+
+	ctx := context.Background()
+	ctx, inboundCall := encoding.NewInboundCall(ctx)
+	err := inboundCall.ReadFromRequest(&transport.Request{
+		Headers: transport.NewHeaders().With(common.ClientFeatureFlagsHeaderName, serialized),
+	})
+	require.NoError(t, err)
+	call := yarpc.CallFromContext(ctx)
+	got := GetFeatureFlagsFromHeader(call)
+	require.Equal(t, flags, got)
 }
