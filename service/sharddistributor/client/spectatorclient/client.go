@@ -11,9 +11,14 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	csync "github.com/uber/cadence/service/sharddistributor/client/spectatorclient/sync"
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go . Spectator
+
+// EnabledFunc is a function that returns true if the spectator is enabled
+// This is used to disable the spectator in the case of a migration
+type EnabledFunc func() bool
 
 type Spectators struct {
 	spectators map[string]Spectator
@@ -71,6 +76,8 @@ type Params struct {
 	Logger       log.Logger
 	Config       clientcommon.Config
 	TimeSource   clock.TimeSource
+
+	Enabled EnabledFunc `optional:"true"`
 }
 
 // NewSpectatorWithNamespace creates a spectator for a specific namespace
@@ -98,14 +105,20 @@ func newSpectatorImpl(params Params, namespace string) (Spectator, error) {
 }
 
 func newSpectatorWithConfig(params Params, namespaceConfig *clientcommon.NamespaceConfig) (Spectator, error) {
+	enabled := params.Enabled
+	if enabled == nil {
+		enabled = func() bool { return true }
+	}
+
 	impl := &spectatorImpl{
-		namespace:    namespaceConfig.Namespace,
-		config:       *namespaceConfig,
-		client:       params.Client,
-		logger:       params.Logger,
-		scope:        params.MetricsScope,
-		timeSource:   params.TimeSource,
-		firstStateCh: make(chan struct{}),
+		namespace:        namespaceConfig.Namespace,
+		config:           *namespaceConfig,
+		client:           params.Client,
+		logger:           params.Logger,
+		scope:            params.MetricsScope,
+		timeSource:       params.TimeSource,
+		firstStateSignal: csync.NewResettableSignal(),
+		enabled:          enabled,
 	}
 
 	return impl, nil

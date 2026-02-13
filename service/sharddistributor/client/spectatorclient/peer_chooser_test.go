@@ -105,6 +105,8 @@ func TestSpectatorPeerChooser_Choose_Success(t *testing.T) {
 
 	mockSpectator := NewMockSpectator(ctrl)
 	peerTransport := grpc.NewTransport()
+	require.NoError(t, peerTransport.Start())
+	defer peerTransport.Stop()
 
 	chooser := &SpectatorPeerChooser{
 		transport: peerTransport,
@@ -150,6 +152,8 @@ func TestSpectatorPeerChooser_Choose_ReusesPeer(t *testing.T) {
 
 	mockSpectator := NewMockSpectator(ctrl)
 	peerTransport := grpc.NewTransport()
+	require.NoError(t, peerTransport.Start())
+	defer peerTransport.Stop()
 
 	chooser := &SpectatorPeerChooser{
 		transport: peerTransport,
