@@ -2737,8 +2737,10 @@ const (
 	ReplicationTasksLag
 	ExponentialReplicationTasksLag
 	ReplicationTasksLagRaw
+	ExponentialReplicationTasksLagRaw
 	ReplicationTasksDelay
 	ReplicationTasksFetched
+	ExponentialReplicationTasksFetched
 	ReplicationTasksReturned
 	ExponentialReplicationTasksReturned
 	ReplicationTasksReturnedDiff
@@ -3566,8 +3568,10 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ReplicationTasksLag:                                          {metricName: "replication_tasks_lag", metricType: Timer},
 		ExponentialReplicationTasksLag:                               {metricName: "replication_tasks_lag_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		ReplicationTasksLagRaw:                                       {metricName: "replication_tasks_lag_raw", metricType: Timer},
+		ExponentialReplicationTasksLagRaw:                            {metricName: "replication_tasks_lag_raw_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		ReplicationTasksDelay:                                        {metricName: "replication_tasks_delay", metricType: Histogram, buckets: ReplicationTaskDelayBucket},
 		ReplicationTasksFetched:                                      {metricName: "replication_tasks_fetched", metricType: Timer},
+		ExponentialReplicationTasksFetched:                           {metricName: "replication_tasks_fetched_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		ReplicationTasksReturned:                                     {metricName: "replication_tasks_returned", metricType: Timer},
 		ExponentialReplicationTasksReturned:                          {metricName: "replication_tasks_returned_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		ReplicationTasksReturnedDiff:                                 {metricName: "replication_tasks_returned_diff", metricType: Timer},
