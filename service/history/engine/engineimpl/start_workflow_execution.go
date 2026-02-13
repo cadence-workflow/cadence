@@ -571,11 +571,7 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 			// Create a transfer task to schedule a decision task
 			// Do not schedule if the workflow hasn't processed its first decision yet
 			// (e.g. waiting for DelayStart or Cron timer)
-			shouldScheduleDecision := !mutableState.HasPendingDecision()
-			if shouldScheduleDecision && !mutableState.HasProcessedOrPendingDecision() {
-				shouldScheduleDecision = false
-			}
-			if shouldScheduleDecision {
+			if !mutableState.HasPendingDecision() && mutableState.HasProcessedOrPendingDecision() {
 				_, err := mutableState.AddDecisionTaskScheduledEvent(false)
 				if err != nil {
 					return nil, &types.InternalServiceError{Message: "Failed to add decision scheduled event."}

@@ -5710,6 +5710,75 @@ func (s *engineSuite) TestSignalWorkflowExecution_WorkflowCompleted() {
 }
 
 func (s *engineSuite) TestSignalWorkflowExecution_DelayStart_NoDecisionScheduled() {
+	// 1. Setup Cluster Info
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
+	// 2. Setup Request Data
+	we := types.WorkflowExecution{
+		WorkflowID: constants.TestWorkflowID,
+		RunID:      constants.TestRunID,
+	}
+	tasklist := "testTaskList"
+	identity := "testIdentity"
+	signalName := "my signal name"
+	input := []byte("test input")
+
+	signalRequest := &types.HistorySignalWorkflowExecutionRequest{
+		DomainUUID: constants.TestDomainID,
+		SignalRequest: &types.SignalWorkflowExecutionRequest{
+			Domain:            constants.TestDomainID,
+			WorkflowExecution: &we,
+			Identity:          identity,
+			SignalName:        signalName,
+			Input:             input,
+		},
+	}
+
+	// 3. Build Mutable State - simulates DelayStart by NOT adding a decision task
+	msBuilder := execution.NewMutableStateBuilderWithEventV2(
+		s.mockHistoryEngine.shard,
+		testlogger.New(s.Suite.T()),
+		we.GetRunID(),
+		constants.TestLocalDomainEntry,
+	)
+	// Only add start event, no decision task scheduled — simulates DelayStart waiting
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
+
+	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
+	ms.ExecutionInfo.DomainID = constants.TestDomainID
+	gwmsResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
+	var updateReq *persistence.UpdateWorkflowExecutionRequest
+
+	// 4. Setup Mocks - capture the update request to verify DecisionScheduleID
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(gwmsResponse, nil).Once()
+	s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.Anything).Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+	s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			req, _ := args.Get(1).(*persistence.UpdateWorkflowExecutionRequest)
+			updateReq = req
+		}).
+		Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).
+		Once()
+
+	// 5. Run the Signal Call
+	err := s.mockHistoryEngine.SignalWorkflowExecution(context.Background(), signalRequest)
+
+	// 6. Assertions
+	s.Nil(err)
+	s.NotNil(updateReq)
+	s.NotNil(updateReq.UpdateWorkflowMutation)
+	s.NotNil(updateReq.UpdateWorkflowMutation.ExecutionInfo)
+
+	// Verify that NO decision was scheduled (ID is empty) because workflow hasn't processed first decision
+	s.Equal(commonconstants.EmptyEventID, updateReq.UpdateWorkflowMutation.ExecutionInfo.DecisionScheduleID)
+}
+
+func (s *engineSuite) TestSignalWorkflowExecution_AfterFirstDecision_DecisionScheduled() {
+	// Test that signals DO schedule a decision when workflow has already processed its first decision
 	testActiveClusterInfo := &types.ActiveClusterInfo{
 		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
 		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
@@ -5724,6 +5793,7 @@ func (s *engineSuite) TestSignalWorkflowExecution_DelayStart_NoDecisionScheduled
 	identity := "testIdentity"
 	signalName := "my signal name"
 	input := []byte("test input")
+
 	signalRequest := &types.HistorySignalWorkflowExecutionRequest{
 		DomainUUID: constants.TestDomainID,
 		SignalRequest: &types.SignalWorkflowExecutionRequest{
@@ -5735,14 +5805,16 @@ func (s *engineSuite) TestSignalWorkflowExecution_DelayStart_NoDecisionScheduled
 		},
 	}
 
+	// Build mutable state with a pending decision (proves HasProcessedOrPendingDecision returns true)
 	msBuilder := execution.NewMutableStateBuilderWithEventV2(
 		s.mockHistoryEngine.shard,
 		testlogger.New(s.Suite.T()),
 		we.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
-	// Only add start event, no decision task scheduled — simulates DelayStart waiting
 	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
+	test.AddDecisionTaskScheduledEvent(msBuilder)
+
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	ms.ExecutionInfo.DomainID = constants.TestDomainID
 	gwmsResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
@@ -5759,10 +5831,80 @@ func (s *engineSuite) TestSignalWorkflowExecution_DelayStart_NoDecisionScheduled
 		Once()
 
 	err := s.mockHistoryEngine.SignalWorkflowExecution(context.Background(), signalRequest)
+
 	s.Nil(err)
 	s.NotNil(updateReq)
 	s.NotNil(updateReq.UpdateWorkflowMutation)
 	s.NotNil(updateReq.UpdateWorkflowMutation.ExecutionInfo)
+
+	// Verify that a decision WAS scheduled because workflow has processed first decision
+	s.NotEqual(commonconstants.EmptyEventID, updateReq.UpdateWorkflowMutation.ExecutionInfo.DecisionScheduleID)
+}
+
+func (s *engineSuite) TestSignalWithStartWorkflowExecution_DelayStart_NoDecisionScheduled() {
+	// Test SignalWithStart on existing workflow waiting for DelayStart - should NOT schedule decision
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
+	domainID := constants.TestDomainID
+	workflowID := "wId"
+	runID := constants.TestRunID
+	identity := "testIdentity"
+	signalName := "my signal name"
+	input := []byte("test input")
+
+	sRequest := &types.HistorySignalWithStartWorkflowExecutionRequest{
+		DomainUUID: domainID,
+		SignalWithStartRequest: &types.SignalWithStartWorkflowExecutionRequest{
+			Domain:     domainID,
+			WorkflowID: workflowID,
+			Identity:   identity,
+			SignalName: signalName,
+			Input:      input,
+		},
+	}
+
+	// Build mutable state simulating DelayStart - no decision task
+	msBuilder := execution.NewMutableStateBuilderWithEventV2(
+		s.mockHistoryEngine.shard,
+		testlogger.New(s.Suite.T()),
+		runID,
+		constants.TestLocalDomainEntry,
+	)
+	we := types.WorkflowExecution{
+		WorkflowID: workflowID,
+		RunID:      runID,
+	}
+	// Add workflow started event but no decision task
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", "testTaskList", []byte("input"), 100, 200, identity, nil)
+	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
+	gwmsResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
+	gceResponse := &persistence.GetCurrentExecutionResponse{RunID: runID}
+	var updateReq *persistence.UpdateWorkflowExecutionRequest
+
+	s.mockExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).Return(gceResponse, nil).Once()
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(gwmsResponse, nil).Once()
+	s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.Anything).Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+	s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			req, _ := args.Get(1).(*persistence.UpdateWorkflowExecutionRequest)
+			updateReq = req
+		}).
+		Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).
+		Once()
+
+	resp, err := s.mockHistoryEngine.SignalWithStartWorkflowExecution(context.Background(), sRequest)
+
+	s.Nil(err)
+	s.Equal(runID, resp.GetRunID())
+	s.NotNil(updateReq)
+	s.NotNil(updateReq.UpdateWorkflowMutation)
+	s.NotNil(updateReq.UpdateWorkflowMutation.ExecutionInfo)
+
+	// Verify that NO decision was scheduled because workflow hasn't processed first decision
 	s.Equal(commonconstants.EmptyEventID, updateReq.UpdateWorkflowMutation.ExecutionInfo.DecisionScheduleID)
 }
 
