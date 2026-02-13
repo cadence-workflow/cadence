@@ -5709,6 +5709,63 @@ func (s *engineSuite) TestSignalWorkflowExecution_WorkflowCompleted() {
 	s.EqualError(err, "workflow execution already completed")
 }
 
+func (s *engineSuite) TestSignalWorkflowExecution_DelayStart_NoDecisionScheduled() {
+	testActiveClusterInfo := &types.ActiveClusterInfo{
+		ActiveClusterName: constants.TestLocalDomainEntry.GetReplicationConfig().ActiveClusterName,
+		FailoverVersion:   constants.TestLocalDomainEntry.GetFailoverVersion(),
+	}
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(testActiveClusterInfo, nil).AnyTimes()
+
+	we := types.WorkflowExecution{
+		WorkflowID: constants.TestWorkflowID,
+		RunID:      constants.TestRunID,
+	}
+	tasklist := "testTaskList"
+	identity := "testIdentity"
+	signalName := "my signal name"
+	input := []byte("test input")
+	signalRequest := &types.HistorySignalWorkflowExecutionRequest{
+		DomainUUID: constants.TestDomainID,
+		SignalRequest: &types.SignalWorkflowExecutionRequest{
+			Domain:            constants.TestDomainID,
+			WorkflowExecution: &we,
+			Identity:          identity,
+			SignalName:        signalName,
+			Input:             input,
+		},
+	}
+
+	msBuilder := execution.NewMutableStateBuilderWithEventV2(
+		s.mockHistoryEngine.shard,
+		testlogger.New(s.Suite.T()),
+		we.GetRunID(),
+		constants.TestLocalDomainEntry,
+	)
+	// Only add start event, no decision task scheduled — simulates DelayStart waiting
+	test.AddWorkflowExecutionStartedEvent(msBuilder, we, "wType", tasklist, []byte("input"), 100, 200, identity, nil)
+	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
+	ms.ExecutionInfo.DomainID = constants.TestDomainID
+	gwmsResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
+	var updateReq *persistence.UpdateWorkflowExecutionRequest
+
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(gwmsResponse, nil).Once()
+	s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.Anything).Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+	s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			req, _ := args.Get(1).(*persistence.UpdateWorkflowExecutionRequest)
+			updateReq = req
+		}).
+		Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).
+		Once()
+
+	err := s.mockHistoryEngine.SignalWorkflowExecution(context.Background(), signalRequest)
+	s.Nil(err)
+	s.NotNil(updateReq)
+	s.NotNil(updateReq.UpdateWorkflowMutation)
+	s.NotNil(updateReq.UpdateWorkflowMutation.ExecutionInfo)
+	s.Equal(commonconstants.EmptyEventID, updateReq.UpdateWorkflowMutation.ExecutionInfo.DecisionScheduleID)
+}
+
 func (s *engineSuite) TestRemoveSignalMutableState() {
 	testActiveClusterInfo := &types.ActiveClusterInfo{
 		ActiveClusterName: s.mockHistoryEngine.clusterMetadata.GetCurrentClusterName(),

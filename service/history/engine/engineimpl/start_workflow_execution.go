@@ -84,7 +84,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	startRequest *types.HistoryStartWorkflowExecutionRequest,
 	domainEntry *cache.DomainCacheEntry,
 	metricsScope metrics.ScopeIdx,
-	signalWithStartArg *signalWithStartArg,
+	sigWithStartArg *signalWithStartArg,
 ) (_ *types.StartWorkflowExecutionResponse, _ *types.WorkflowExecution, _ *events.PersistedBlob, retError error) {
 	if domainEntry.GetInfo().Status != persistence.DomainStatusRegistered {
 		return nil, nil, nil, errDomainDeprecated
@@ -131,10 +131,10 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	// preprocess for signalWithStart
 	var prevMutableState execution.MutableState
 	var signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest
-	isSignalWithStart := signalWithStartArg != nil
+	isSignalWithStart := sigWithStartArg != nil
 	if isSignalWithStart {
-		prevMutableState = signalWithStartArg.prevMutableState
-		signalWithStartRequest = signalWithStartArg.signalWithStartRequest
+		prevMutableState = sigWithStartArg.prevMutableState
+		signalWithStartRequest = sigWithStartArg.signalWithStartRequest
 	}
 	if prevMutableState != nil {
 		prevLastWriteVersion, err := prevMutableState.GetLastWriteVersion()
@@ -569,7 +569,13 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 			}
 
 			// Create a transfer task to schedule a decision task
-			if !mutableState.HasPendingDecision() {
+			// Do not schedule if the workflow hasn't processed its first decision yet
+			// (e.g. waiting for DelayStart or Cron timer)
+			shouldScheduleDecision := !mutableState.HasPendingDecision()
+			if shouldScheduleDecision && !mutableState.HasProcessedOrPendingDecision() {
+				shouldScheduleDecision = false
+			}
+			if shouldScheduleDecision {
 				_, err := mutableState.AddDecisionTaskScheduledEvent(false)
 				if err != nil {
 					return nil, &types.InternalServiceError{Message: "Failed to add decision scheduled event."}

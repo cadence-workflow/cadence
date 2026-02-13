@@ -86,8 +86,9 @@ func (e *historyEngineImpl) SignalWorkflowExecution(
 
 			executionInfo := mutableState.GetExecutionInfo()
 			createDecisionTask := true
-			// Do not create decision task when the workflow is cron and the cron has not been started yet
-			if mutableState.GetExecutionInfo().CronSchedule != "" && !mutableState.HasProcessedOrPendingDecision() {
+			if !mutableState.HasProcessedOrPendingDecision() {
+				// Do not create decision task when the workflow has not yet processed its first decision task.
+				// This covers workflows waiting for DelayStart timer or Cron schedule.
 				createDecisionTask = false
 			}
 
