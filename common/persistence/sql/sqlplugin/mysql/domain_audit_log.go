@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2026 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,14 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package postgres
+package mysql
 
-// NOTE: whenever there is a new data base schema update, plz update the following versions
+import (
+	"context"
+	"database/sql"
+	"errors"
 
-// Version is the Postgres database release version
-// Cadence supports both MySQL and Postgres officially, so upgrade should be perform for both MySQL and Postgres
-const Version = "0.7"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
+)
 
-// VisibilityVersion is the Postgres visibility database release version
-// Cadence supports both MySQL and Postgres officially, so upgrade should be perform for both MySQL and Postgres
-const VisibilityVersion = "0.8"
+// InsertIntoDomainAuditLog inserts a single row into domain_audit_log table
+func (mdb *DB) InsertIntoDomainAuditLog(ctx context.Context, row *sqlplugin.DomainAuditLogRow) (sql.Result, error) {
+	return nil, errors.New("not implemented")
+}
+
+// SelectFromDomainAuditLogs returns audit log entries for a domain, operation type, and time range (optional)
+func (mdb *DB) SelectFromDomainAuditLogs(
+	ctx context.Context,
+	filter *sqlplugin.DomainAuditLogFilter,
+) ([]*sqlplugin.DomainAuditLogRow, error) {
+	return nil, errors.New("not implemented")
+}
