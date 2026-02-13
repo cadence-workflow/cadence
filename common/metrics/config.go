@@ -53,6 +53,11 @@ var HistogramMigrationMetrics = map[string]struct{}{
 
 	"replication_task_latency":    {},
 	"replication_task_latency_ns": {},
+
+	"replication_tasks_fetched":        {},
+	"replication_tasks_fetched_counts": {},
+	"replication_tasks_lag_raw":        {},
+	"replication_tasks_lag_raw_counts": {},
 }
 
 func (h HistogramMigration) EmitTimer(name string) bool {
