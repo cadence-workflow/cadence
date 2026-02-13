@@ -131,8 +131,12 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		lastReadTaskID = previousReadTaskID
 	}
 
+	taskGeneratedStart := t.timeSource.Now()
 	taskGeneratedTimer := t.scope.StartTimer(metrics.TaskLatency)
 	defer taskGeneratedTimer.Stop()
+	defer func() {
+		t.scope.ExponentialHistogram(metrics.ExponentialTaskLatency, t.timeSource.Since(taskGeneratedStart))
+	}()
 
 	batchSize := t.dynamicTaskBatchSizer.value()
 	t.scope.UpdateGauge(metrics.ReplicationTasksBatchSize, float64(batchSize))
