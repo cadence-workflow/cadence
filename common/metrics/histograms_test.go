@@ -130,20 +130,8 @@ func TestHistogramValues(t *testing.T) {
 `)
 	})
 	t.Run("mid_to_16k_ints", func(t *testing.T) {
-		// note: this histogram has some duplicates.
-		//
-		// this wastes a bit of memory, but Tally will choose the same index each
-		// time for a specific value, so it does not cause extra non-zero series
-		// to be stored or emitted.
-		//
-		// if this turns out to be expensive in Prometheus / etc, it's easy
-		// enough to start the histogram at 8, and dual-emit a non-exponential
-		// histogram for lower values.
 		checkHistogram(t, Mid1To16k, `
 [0]
-[1 1 1 1]
-[2 2 2 3]
-[4 4 5 6]
 [8 9 11 13]
 [16 19 22 26]
 [32 38 45 53]
@@ -157,7 +145,10 @@ func TestHistogramValues(t *testing.T) {
 [8192 9741 11585 13777]
 [16384 19483 23170 27554]
 [32768 38967 46340 55108]
-[65536]
+[65536 77935 92681 110217]
+[131072 155871 185363 220435]
+[262144 311743 370727 440871]
+[524288]
 `)
 	})
 }

@@ -2647,9 +2647,11 @@ const (
 	HistoryConflictsCounter
 	CompleteTaskFailedCounter
 	CacheSize
+	CacheSizeHistogram
 	CacheRequests
 	CacheFailures
 	CacheLatency
+	ExponentialCacheLatency
 	CacheHitCounter
 	CacheMissCounter
 	CacheFullCounter
@@ -3471,9 +3473,11 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		HistoryConflictsCounter:                                      {metricName: "history_conflicts", metricType: Counter},
 		CompleteTaskFailedCounter:                                    {metricName: "complete_task_fail_count", metricType: Counter},
 		CacheSize:                                                    {metricName: "cache_size", metricType: Timer},
+		CacheSizeHistogram:                                           {metricName: "cache_size_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		CacheRequests:                                                {metricName: "cache_requests", metricType: Counter},
 		CacheFailures:                                                {metricName: "cache_errors", metricType: Counter},
 		CacheLatency:                                                 {metricName: "cache_latency", metricType: Timer},
+		ExponentialCacheLatency:                                      {metricName: "cache_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		CacheHitCounter:                                              {metricName: "cache_hit", metricType: Counter},
 		CacheMissCounter:                                             {metricName: "cache_miss", metricType: Counter},
 		CacheFullCounter:                                             {metricName: "cache_full", metricType: Counter},
