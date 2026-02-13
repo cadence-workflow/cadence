@@ -2484,6 +2484,7 @@ const (
 const (
 	TaskRequests = iota + NumCommonMetrics
 	TaskLatency
+	ExponentialTaskLatency
 	TaskFailures
 	TaskDiscarded
 	TaskAttemptTimer
@@ -3320,6 +3321,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 	History: {
 		TaskRequests:                     {metricName: "task_requests", metricType: Counter},
 		TaskLatency:                      {metricName: "task_latency", metricType: Timer},
+		ExponentialTaskLatency:           {metricName: "task_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		TaskAttemptTimer:                 {metricName: "task_attempt", metricType: Timer},
 		TaskFailures:                     {metricName: "task_errors", metricType: Counter},
 		TaskDiscarded:                    {metricName: "task_errors_discarded", metricType: Counter},
