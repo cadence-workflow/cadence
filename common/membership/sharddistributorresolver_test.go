@@ -24,7 +24,6 @@ package membership
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -101,8 +100,15 @@ func TestShardDistributorResolver_Lookup_modeHashRingShadowShardDistributor(t *t
 			expectedLog:           "Failed to lookup in shard distributor shadow",
 		},
 		{
-			name:          "hash ring error",
-			hashRingError: assert.AnError,
+			name:                   "hash ring error, fallback to shard distributor",
+			hashRingError:          assert.AnError,
+			shardDistributorHostIP: "127.0.0.2",
+		},
+		{
+			name:                  "both hash ring and shard distributor error",
+			hashRingError:         assert.AnError,
+			shardDistributorError: assert.AnError,
+			expectedLog:           "Failed to lookup in shard distributor shadow",
 		},
 	}
 
@@ -116,28 +122,33 @@ func TestShardDistributorResolver_Lookup_modeHashRingShadowShardDistributor(t *t
 				"test-owner",
 				PortMap{PortTchannel: 7933, PortGRPC: 7833},
 			), tc.hashRingError)
-			// If the hash ring lookup fails, we should just bail out and not call the shard distributor
-			if tc.hashRingError == nil {
-				shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), "test-key").
-					Return(&spectatorclient.ShardOwner{
-						ExecutorID: "test-owner",
-						Metadata: map[string]string{
-							"hostIP":   tc.shardDistributorHostIP,
-							"tchannel": "7933",
-							"grpc":     "7833",
-						},
-					}, tc.shardDistributorError)
-			}
+
+			// Shard distributor is always called in shadow mode for comparison/fallback
+			shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), "test-key").
+				Return(&spectatorclient.ShardOwner{
+					ExecutorID: "test-owner",
+					Metadata: map[string]string{
+						"hostIP":   tc.shardDistributorHostIP,
+						"tchannel": "7933",
+						"grpc":     "7833",
+					},
+				}, tc.shardDistributorError)
 
 			host, err := resolver.Lookup("test-key")
-			assert.Equal(t, err, tc.hashRingError)
 
+			// Determine expected behavior based on new fallback logic
 			if tc.hashRingError == nil {
-				assert.Equal(t, "127.0.0.1:7933", host.addr)
+				// Hash ring succeeded, return hash ring result
+				assert.NoError(t, err)
+				assert.Equal(t, tc.hashRingAddr, host.addr)
+			} else if tc.shardDistributorError == nil {
+				// Hash ring failed, fallback to shard distributor
+				assert.NoError(t, err)
+				assert.Equal(t, tc.shardDistributorHostIP+":7933", host.addr)
+			} else {
+				// Both failed
+				assert.Equal(t, tc.shardDistributorError, err)
 			}
-
-			// Wait a bit for async shadow lookup to complete
-			time.Sleep(50 * time.Millisecond)
 
 			if tc.expectedLog != "" {
 				if tc.expectedLog == "Shadow lookup mismatch" {
@@ -187,8 +198,15 @@ func TestShardDistributorResolver_Lookup_modeShardDistributorShadowHashRing(t *t
 			expectedLog:            "Failed to lookup in hash ring shadow",
 		},
 		{
-			name:                  "shard distributor error",
+			name:                  "shard distributor error, fallback to hash ring",
 			shardDistributorError: assert.AnError,
+			hashRingAddr:          "127.0.0.2:7933",
+		},
+		{
+			name:                  "both shard distributor and hash ring error",
+			shardDistributorError: assert.AnError,
+			hashRingError:         assert.AnError,
+			expectedLog:           "Failed to lookup in hash ring shadow",
 		},
 	}
 
@@ -207,24 +225,28 @@ func TestShardDistributorResolver_Lookup_modeShardDistributorShadowHashRing(t *t
 					},
 				}, tc.shardDistributorError)
 
-			// If the hash ring lookup fails, we should just bail out and not call the shard distributor
-			if tc.shardDistributorError == nil {
-				ring.EXPECT().Lookup("test-key").Return(NewDetailedHostInfo(
-					tc.hashRingAddr,
-					"test-owner",
-					PortMap{PortTchannel: 7933, PortGRPC: 7833},
-				), tc.hashRingError)
-			}
+			// Hash ring is always called in shadow mode for comparison/fallback
+			ring.EXPECT().Lookup("test-key").Return(NewDetailedHostInfo(
+				tc.hashRingAddr,
+				"test-owner",
+				PortMap{PortTchannel: 7933, PortGRPC: 7833},
+			), tc.hashRingError)
 
 			host, err := resolver.Lookup("test-key")
-			assert.Equal(t, err, tc.shardDistributorError)
 
+			// Determine expected behavior based on new fallback logic
 			if tc.shardDistributorError == nil {
-				assert.Equal(t, "127.0.0.1:7933", host.addr)
+				// Shard distributor succeeded, return shard distributor result
+				assert.NoError(t, err)
+				assert.Equal(t, tc.shardDistributorHostIP+":7933", host.addr)
+			} else if tc.hashRingError == nil {
+				// Shard distributor failed, fallback to hash ring
+				assert.NoError(t, err)
+				assert.Equal(t, tc.hashRingAddr, host.addr)
+			} else {
+				// Both failed
+				assert.Equal(t, tc.hashRingError, err)
 			}
-
-			// Wait a bit for async shadow lookup to complete
-			time.Sleep(50 * time.Millisecond)
 
 			if tc.expectedLog != "" {
 				if tc.expectedLog == "Shadow lookup mismatch" {

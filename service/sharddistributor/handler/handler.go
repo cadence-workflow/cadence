@@ -39,11 +39,13 @@ import (
 func NewHandler(
 	logger log.Logger,
 	shardDistributionCfg config.ShardDistribution,
+	cfg *config.Config,
 	storage store.Store,
 ) Handler {
 	handler := &handlerImpl{
 		logger:               logger,
 		shardDistributionCfg: shardDistributionCfg,
+		cfg:                  cfg,
 		storage:              storage,
 	}
 
@@ -59,6 +61,7 @@ type handlerImpl struct {
 
 	storage              store.Store
 	shardDistributionCfg config.ShardDistribution
+	cfg                  *config.Config
 }
 
 func (h *handlerImpl) Start() {
@@ -89,7 +92,9 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 
 	shardOwner, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
 	if errors.Is(err, store.ErrShardNotFound) {
-		if h.shardDistributionCfg.Namespaces[namespaceIdx].Type == config.NamespaceTypeEphemeral {
+		namespaceOnboardedToSD := h.cfg.GetMigrationMode(request.Namespace) == types.MigrationModeONBOARDED
+		namespaceEphemeral := h.shardDistributionCfg.Namespaces[namespaceIdx].Type == config.NamespaceTypeEphemeral
+		if namespaceOnboardedToSD && namespaceEphemeral {
 			return h.assignEphemeralShard(ctx, request.Namespace, request.ShardKey)
 		}
 
