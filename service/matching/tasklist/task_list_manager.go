@@ -529,6 +529,10 @@ func (c *taskListManagerImpl) notifyPartitionConfig(ctx context.Context, oldConf
 // be written to database and later asynchronously matched with a poller.
 // It returns whether the sync match succeeded, along with any error that occurred.
 func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams) (bool, error) {
+	// Make context to respect the timeout event
+	tCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	c.startWG.Wait()
 
 	if c.shouldReload() {
@@ -578,7 +582,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 
 		// Persist the standby task, but the sync match still fails.
 		// Return the false syncMatch flag along with any error
-		_, err = c.taskWriter.appendTask(params.TaskInfo)
+		_, err = c.taskWriter.appendTask(tCtx, params.TaskInfo)
 		if err == nil {
 			// Signal the task reader only if appendTask succeeded
 			c.taskReader.Signal()
@@ -608,7 +612,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 
 	e.EventName = "Task Sent to Writer"
 	event.Log(e)
-	if _, err := c.taskWriter.appendTask(params.TaskInfo); err != nil {
+	if _, err := c.taskWriter.appendTask(tCtx, params.TaskInfo); err != nil {
 		return syncMatch, err
 	}
 	c.taskReader.Signal()

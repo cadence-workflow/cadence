@@ -389,7 +389,10 @@ func (tr *taskReader) completeTask(task *persistence.TaskInfo, err error) {
 		// Note that RecordTaskStarted only fails after retrying for a long time, so a single task will not be
 		// re-written to persistence frequently.
 		op := func(ctx context.Context) error {
-			_, err := tr.taskWriter.appendTask(task)
+			// Modify context to respect timeout event
+			tCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+			_, err := tr.taskWriter.appendTask(tCtx, task)
 			return err
 		}
 		err = tr.throttleRetry.Do(context.Background(), op)
