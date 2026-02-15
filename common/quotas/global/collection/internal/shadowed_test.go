@@ -74,7 +74,6 @@ func TestShadowed(t *testing.T) {
 			},
 		}
 		for name, test := range tests {
-			test := test
 			t.Run("allow-"+name, func(t *testing.T) {
 				ts := clock.NewMockedTimeSource()
 				primaryBurst, shadowBurst := 0, 0
