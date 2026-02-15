@@ -24,9 +24,8 @@ package execution
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/persistence"

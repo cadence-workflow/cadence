@@ -24,13 +24,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"strings"
 
 	"github.com/urfave/cli/v2"
 	"go.uber.org/multierr"
-	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common/constants"
@@ -161,7 +161,7 @@ func AdminListTaskList(c *cli.Context) error {
 		row.ActivityPollerCount = len(taskList.GetPollers())
 		tlByName[name] = row
 	}
-	table := maps.Values(tlByName)
+	table := slices.Collect(maps.Values(tlByName))
 	slices.SortFunc(table, func(a, b TaskListRow) int {
 		return strings.Compare(a.Name, b.Name)
 	})
