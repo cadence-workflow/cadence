@@ -112,6 +112,20 @@ func (mr *MockVirtualSliceMockRecorder) HasMoreTasks() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasMoreTasks", reflect.TypeOf((*MockVirtualSlice)(nil).HasMoreTasks))
 }
 
+// InsertTask mocks base method.
+func (m *MockVirtualSlice) InsertTask(arg0 task.Task) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTask", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// InsertTask indicates an expected call of InsertTask.
+func (mr *MockVirtualSliceMockRecorder) InsertTask(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTask", reflect.TypeOf((*MockVirtualSlice)(nil).InsertTask), arg0)
+}
+
 // IsEmpty mocks base method.
 func (m *MockVirtualSlice) IsEmpty() bool {
 	m.ctrl.T.Helper()
@@ -138,6 +152,18 @@ func (m *MockVirtualSlice) PendingTaskStats() PendingTaskStats {
 func (mr *MockVirtualSliceMockRecorder) PendingTaskStats() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PendingTaskStats", reflect.TypeOf((*MockVirtualSlice)(nil).PendingTaskStats))
+}
+
+// ResetProgress mocks base method.
+func (m *MockVirtualSlice) ResetProgress(key persistence.HistoryTaskKey) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ResetProgress", key)
+}
+
+// ResetProgress indicates an expected call of ResetProgress.
+func (mr *MockVirtualSliceMockRecorder) ResetProgress(key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetProgress", reflect.TypeOf((*MockVirtualSlice)(nil).ResetProgress), key)
 }
 
 // TryMergeWithVirtualSlice mocks base method.

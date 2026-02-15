@@ -13,6 +13,9 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+
+	persistence "github.com/uber/cadence/common/persistence"
+	task "github.com/uber/cadence/service/history/task"
 )
 
 // MockVirtualQueueManager is a mock of VirtualQueueManager interface.
@@ -63,6 +66,32 @@ func (m *MockVirtualQueueManager) GetOrCreateVirtualQueue(arg0 int64) VirtualQue
 func (mr *MockVirtualQueueManagerMockRecorder) GetOrCreateVirtualQueue(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrCreateVirtualQueue", reflect.TypeOf((*MockVirtualQueueManager)(nil).GetOrCreateVirtualQueue), arg0)
+}
+
+// InsertSingleTask mocks base method.
+func (m *MockVirtualQueueManager) InsertSingleTask(arg0 task.Task) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSingleTask", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// InsertSingleTask indicates an expected call of InsertSingleTask.
+func (mr *MockVirtualQueueManagerMockRecorder) InsertSingleTask(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSingleTask", reflect.TypeOf((*MockVirtualQueueManager)(nil).InsertSingleTask), arg0)
+}
+
+// ResetProgress mocks base method.
+func (m *MockVirtualQueueManager) ResetProgress(arg0 persistence.HistoryTaskKey) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ResetProgress", arg0)
+}
+
+// ResetProgress indicates an expected call of ResetProgress.
+func (mr *MockVirtualQueueManagerMockRecorder) ResetProgress(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetProgress", reflect.TypeOf((*MockVirtualQueueManager)(nil).ResetProgress), arg0)
 }
 
 // Start mocks base method.
