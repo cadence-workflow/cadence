@@ -53,6 +53,16 @@ var HistogramMigrationMetrics = map[string]struct{}{
 
 	"replication_task_latency":    {},
 	"replication_task_latency_ns": {},
+
+	"persistence_latency":           {},
+	"persistence_latency_ns":        {},
+	"persistence_latency_histogram": {}, // deprecating: this is a set of manual buckets being replaced by persistence_latency_ns
+
+	"persistence_latency_per_domain":    {},
+	"persistence_latency_per_domain_ns": {},
+
+	"persistence_latency_per_shard":    {},
+	"persistence_latency_per_shard_ns": {},
 }
 
 func (h HistogramMigration) EmitTimer(name string) bool {
