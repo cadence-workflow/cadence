@@ -529,11 +529,11 @@ func (c *taskListManagerImpl) notifyPartitionConfig(ctx context.Context, oldConf
 // be written to database and later asynchronously matched with a poller.
 // It returns whether the sync match succeeded, along with any error that occurred.
 func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams) (bool, error) {
-	// Make context to respect the timeout event
-	tCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	c.startWG.Wait()
+
+	// Make context to respect the append task timeout.
+	tCtx, cancel := context.WithTimeout(ctx, c.config.AppendTaskTimeout())
+	defer cancel()
 
 	if c.shouldReload() {
 		c.Stop()
@@ -1075,6 +1075,9 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		},
 		EnableGetNumberOfPartitionsFromCache: func() bool {
 			return cfg.EnableGetNumberOfPartitionsFromCache(domainName, id.GetRoot(), taskType)
+		},
+		AppendTaskTimeout: func() time.Duration {
+			return cfg.AppendTaskTimeout(domainName, taskListName, taskType)
 		},
 		AsyncTaskDispatchTimeout: func() time.Duration {
 			return cfg.AsyncTaskDispatchTimeout(domainName, taskListName, taskType)

@@ -105,6 +105,7 @@ func TestNewConfig(t *testing.T) {
 		"IsolationGroupNoPollersSustainedDuration":  {dynamicproperties.MatchingIsolationGroupNoPollersSustainedDuration, time.Duration(40)},
 		"IsolationGroupsPerPartition":               {dynamicproperties.MatchingIsolationGroupsPerPartition, 41},
 		"EnableReturnAllTaskListKinds":              {dynamicproperties.MatchingEnableReturnAllTaskListKinds, true},
+		"AppendTaskTimeout":                         {dynamicproperties.AppendTaskTimeout, time.Duration(42)},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {
