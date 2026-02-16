@@ -54,6 +54,7 @@ type (
 		ForwarderMaxOutstandingTasks              dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 		ForwarderMaxRatePerSecond                 dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 		ForwarderMaxChildrenPerNode               dynamicproperties.IntPropertyFnWithTaskListInfoFilters
+		AppendTaskTimeout                         dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		AsyncTaskDispatchTimeout                  dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		LocalPollWaitTime                         dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		LocalTaskWaitTime                         dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
@@ -132,6 +133,7 @@ type (
 		MaxTasklistIdleTime                       func() time.Duration
 		MinTaskThrottlingBurstSize                func() int
 		MaxTaskDeleteBatchSize                    func() int
+		AppendTaskTimeout                         func() time.Duration
 		AsyncTaskDispatchTimeout                  func() time.Duration
 		LocalPollWaitTime                         func() time.Duration
 		LocalTaskWaitTime                         func() time.Duration
@@ -209,6 +211,7 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string, rpcConfig config.R
 		EnableTaskInfoLogByDomainID:               dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.MatchingEnableTaskInfoLogByDomainID),
 		ActivityTaskSyncMatchWaitTime:             dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MatchingActivityTaskSyncMatchWaitTime),
 		EnableTasklistIsolation:                   dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
+		AppendTaskTimeout:                         dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.AppendTaskTimeout),
 		AsyncTaskDispatchTimeout:                  dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.AsyncTaskDispatchTimeout),
 		EnableTasklistOwnershipGuard:              dc.GetBoolProperty(dynamicproperties.MatchingEnableTasklistGuardAgainstOwnershipShardLoss),
 		LocalPollWaitTime:                         dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.LocalPollWaitTime),
