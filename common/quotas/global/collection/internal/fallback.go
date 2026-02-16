@@ -117,7 +117,7 @@ const (
 // NewFallbackLimiter returns a quotas.Limiter that uses a simpler fallback when necessary,
 // and attempts to keep both the fallback and the "real" limiter "warm" by mirroring calls
 // between the two regardless of which is being used.
-func NewFallbackLimiter(fallback quotas.Limiter) *FallbackLimiter {
+	func NewFallbackLimiter(fallback quotas.Limiter) *FallbackLimiter {
 	l := &FallbackLimiter{
 		// start from 0 as a default, the limiter is unused until it is updated.
 		//

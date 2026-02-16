@@ -245,8 +245,14 @@ func (s *Service) createGlobalQuotaCollections() (globalRatelimiterCollections, 
 
 	// to safely shadow global ratelimits, we must make duplicate *quota.Collection collections
 	// so they do not share data when the global limiter decides to use its local fallback.
-	// these are then combined into the global/algorithm.Collection to handle all limiting calls
-	local, global := s.createBaseLimiters(), s.createBaseLimiters()
+	// these are then combined into the global/algorithm.Collection to handle all limiting calls.
+	//
+	// local limiters have a burst multiplier of 1, which means RPS == burst, as this is the historical behavior.
+	//
+	// global limiters use a larger burst in their fallback limiter only (i.e. when in "local, no data yet" mode)
+	// to improve behavior for users who are low volume but send small bursts of requests that might exceed the
+	// normal local limit.  this gives some time for the collection to gather data and adjust to the real load.
+	local, global := s.createBaseLimiters(1), s.createBaseLimiters(5)
 
 	user, err := create("user", local.user, global.user, s.config.GlobalDomainUserRPS)
 	combinedErr = multierr.Combine(combinedErr, err)
@@ -267,13 +273,14 @@ func (s *Service) createGlobalQuotaCollections() (globalRatelimiterCollections, 
 		async:      async,
 	}, combinedErr
 }
-func (s *Service) createBaseLimiters() ratelimiterCollections {
+func (s *Service) createBaseLimiters(burstMultiplier float64) ratelimiterCollections {
 	create := func(shared, perInstance dynamicproperties.IntPropertyFnWithDomainFilter) *quotas.Collection {
-		return quotas.NewCollection(permember.NewPerMemberDynamicRateLimiterFactory(
+		return quotas.NewCollection(permember.NewPerMemberBurstyDynamicRateLimiterFactory(
 			service.Frontend,
 			shared,
 			perInstance,
 			s.GetMembershipResolver(),
+			burstMultiplier,
 		))
 	}
 	return ratelimiterCollections{
