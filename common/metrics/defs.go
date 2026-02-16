@@ -1487,7 +1487,7 @@ const (
 	ShardDistributorStoreGetExecutorScope
 	ShardDistributorStoreGetStateScope
 	ShardDistributorStoreRecordHeartbeatScope
-	ShardDistributorStoreSubscribeScope
+	ShardDistributorStoreSubscribeToExecutorStatusChangesScope
 	ShardDistributorStoreSubscribeToAssignmentChangesScope
 	ShardDistributorStoreDeleteAssignedStatesScope
 
@@ -2164,24 +2164,24 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		DiagnosticsWorkflowScope:               {operation: "DiagnosticsWorkflow"},
 	},
 	ShardDistributor: {
-		ShardDistributorGetShardOwnerScope:                     {operation: "GetShardOwner"},
-		ShardDistributorWatchNamespaceStateScope:               {operation: "WatchNamespaceState"},
-		ShardDistributorHeartbeatScope:                         {operation: "ExecutorHeartbeat"},
-		ShardDistributorAssignLoopScope:                        {operation: "ShardAssignLoop"},
-		ShardDistributorExecutorScope:                          {operation: "Executor"},
-		ShardDistributorStoreGetShardOwnerScope:                {operation: "StoreGetShardOwner"},
-		ShardDistributorStoreAssignShardScope:                  {operation: "StoreAssignShard"},
-		ShardDistributorStoreAssignShardsScope:                 {operation: "StoreAssignShards"},
-		ShardDistributorStoreDeleteExecutorsScope:              {operation: "StoreDeleteExecutors"},
-		ShardDistributorStoreGetShardStatsScope:                {operation: "StoreGetShardStats"},
-		ShardDistributorStoreDeleteShardStatsScope:             {operation: "StoreDeleteShardStats"},
-		ShardDistributorStoreGetHeartbeatScope:                 {operation: "StoreGetHeartbeat"},
-		ShardDistributorStoreGetExecutorScope:                  {operation: "StoreGetExecutor"},
-		ShardDistributorStoreGetStateScope:                     {operation: "StoreGetState"},
-		ShardDistributorStoreRecordHeartbeatScope:              {operation: "StoreRecordHeartbeat"},
-		ShardDistributorStoreSubscribeScope:                    {operation: "StoreSubscribe"},
-		ShardDistributorStoreSubscribeToAssignmentChangesScope: {operation: "StoreSubscribeToAssignmentChanges"},
-		ShardDistributorStoreDeleteAssignedStatesScope:         {operation: "StoreDeleteAssignedStates"},
+		ShardDistributorGetShardOwnerScope:                         {operation: "GetShardOwner"},
+		ShardDistributorWatchNamespaceStateScope:                   {operation: "WatchNamespaceState"},
+		ShardDistributorHeartbeatScope:                             {operation: "ExecutorHeartbeat"},
+		ShardDistributorAssignLoopScope:                            {operation: "ShardAssignLoop"},
+		ShardDistributorExecutorScope:                              {operation: "Executor"},
+		ShardDistributorStoreGetShardOwnerScope:                    {operation: "StoreGetShardOwner"},
+		ShardDistributorStoreAssignShardScope:                      {operation: "StoreAssignShard"},
+		ShardDistributorStoreAssignShardsScope:                     {operation: "StoreAssignShards"},
+		ShardDistributorStoreDeleteExecutorsScope:                  {operation: "StoreDeleteExecutors"},
+		ShardDistributorStoreGetShardStatsScope:                    {operation: "StoreGetShardStats"},
+		ShardDistributorStoreDeleteShardStatsScope:                 {operation: "StoreDeleteShardStats"},
+		ShardDistributorStoreGetHeartbeatScope:                     {operation: "StoreGetHeartbeat"},
+		ShardDistributorStoreGetExecutorScope:                      {operation: "StoreGetExecutor"},
+		ShardDistributorStoreGetStateScope:                         {operation: "StoreGetState"},
+		ShardDistributorStoreRecordHeartbeatScope:                  {operation: "StoreRecordHeartbeat"},
+		ShardDistributorStoreSubscribeToExecutorStatusChangesScope: {operation: "StoreSubscribeToExecutorStatusChanges"},
+		ShardDistributorStoreSubscribeToAssignmentChangesScope:     {operation: "StoreSubscribeToAssignmentChanges"},
+		ShardDistributorStoreDeleteAssignedStatesScope:             {operation: "StoreDeleteAssignedStates"},
 	},
 }
 
@@ -2725,12 +2725,14 @@ const (
 	ReplicationTasksApplied
 	ReplicationTasksFailed
 	ReplicationTasksLag
+	ExponentialReplicationTasksLag
 	ReplicationTasksLagRaw
 	ReplicationTasksDelay
 	ReplicationTasksFetched
 	ReplicationTasksReturned
 	ReplicationTasksReturnedDiff
 	ReplicationTasksAppliedLatency
+	ExponentialReplicationTasksAppliedLatency
 	ReplicationTasksBatchSize
 	ReplicationDynamicTaskBatchSizerDecision
 	ReplicationDLQFailed
@@ -3539,12 +3541,14 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ReplicationTasksApplied:                                      {metricName: "replication_tasks_applied", metricType: Counter},
 		ReplicationTasksFailed:                                       {metricName: "replication_tasks_failed", metricType: Counter},
 		ReplicationTasksLag:                                          {metricName: "replication_tasks_lag", metricType: Timer},
+		ExponentialReplicationTasksLag:                               {metricName: "replication_tasks_lag_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		ReplicationTasksLagRaw:                                       {metricName: "replication_tasks_lag_raw", metricType: Timer},
 		ReplicationTasksDelay:                                        {metricName: "replication_tasks_delay", metricType: Histogram, buckets: ReplicationTaskDelayBucket},
 		ReplicationTasksFetched:                                      {metricName: "replication_tasks_fetched", metricType: Timer},
 		ReplicationTasksReturned:                                     {metricName: "replication_tasks_returned", metricType: Timer},
 		ReplicationTasksReturnedDiff:                                 {metricName: "replication_tasks_returned_diff", metricType: Timer},
 		ReplicationTasksAppliedLatency:                               {metricName: "replication_tasks_applied_latency", metricType: Timer},
+		ExponentialReplicationTasksAppliedLatency:                    {metricName: "replication_tasks_applied_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		ReplicationTasksBatchSize:                                    {metricName: "replication_tasks_batch_size", metricType: Gauge},
 		ReplicationDynamicTaskBatchSizerDecision:                     {metricName: "replication_dynamic_task_batch_sizer_decision", metricType: Counter},
 		ReplicationDLQFailed:                                         {metricName: "replication_dlq_enqueue_failed", metricType: Counter},

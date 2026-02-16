@@ -232,3 +232,111 @@ func createMockParams[SP executorclient.ShardProcessor](
 		TimeSource: clock.NewMockedTimeSource(),
 	}
 }
+
+func TestNewExecutorsWithFixedNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	tests := []struct {
+		name         string
+		namespace    string
+		numExecutors int
+		expected     int
+	}{
+		{
+			name:         "zero executors defaults to one",
+			namespace:    "test-namespace",
+			numExecutors: 0,
+			expected:     1,
+		},
+		{
+			name:         "negative executors defaults to one",
+			namespace:    "test-namespace",
+			numExecutors: -1,
+			expected:     1,
+		},
+		{
+			name:         "one executor",
+			namespace:    "test-namespace",
+			numExecutors: 1,
+			expected:     1,
+		},
+		{
+			name:         "two executors",
+			namespace:    "test-namespace",
+			numExecutors: 2,
+			expected:     2,
+		},
+		{
+			name:         "five executors",
+			namespace:    "test-namespace",
+			numExecutors: 5,
+			expected:     5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := createMockParams[*processor.ShardProcessor](ctrl, tt.namespace)
+			result, err := NewExecutorsWithFixedNamespace(params, tt.namespace, tt.numExecutors)
+
+			require.NoError(t, err)
+			assert.Len(t, result.Executors, tt.expected)
+			for _, executor := range result.Executors {
+				assert.NotNil(t, executor)
+			}
+		})
+	}
+}
+
+func TestNewExecutorsWithEphemeralNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	tests := []struct {
+		name         string
+		namespace    string
+		numExecutors int
+		expected     int
+	}{
+		{
+			name:         "zero executors defaults to one",
+			namespace:    "test-namespace",
+			numExecutors: 0,
+			expected:     1,
+		},
+		{
+			name:         "negative executors defaults to one",
+			namespace:    "test-namespace",
+			numExecutors: -1,
+			expected:     1,
+		},
+		{
+			name:         "one executor",
+			namespace:    "test-namespace",
+			numExecutors: 1,
+			expected:     1,
+		},
+		{
+			name:         "two executors",
+			namespace:    "test-namespace",
+			numExecutors: 2,
+			expected:     2,
+		},
+		{
+			name:         "five executors",
+			namespace:    "test-namespace",
+			numExecutors: 5,
+			expected:     5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := createMockParams[*processorephemeral.ShardProcessor](ctrl, tt.namespace)
+			result, err := NewExecutorsWithEphemeralNamespace(params, tt.namespace, tt.numExecutors)
+
+			require.NoError(t, err)
+			assert.Len(t, result.Executors, tt.expected)
+			for _, executor := range result.Executors {
+				assert.NotNil(t, executor)
+			}
+		})
+	}
+}

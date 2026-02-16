@@ -323,7 +323,6 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 		Executors:        heartbeatStates,
 		ShardStats:       shardStats,
 		ShardAssignments: assignedStates,
-		GlobalRevision:   resp.Header.Revision,
 	}, nil
 }
 
@@ -331,44 +330,63 @@ func (s *executorStoreImpl) SubscribeToAssignmentChanges(ctx context.Context, na
 	return s.shardCache.Subscribe(ctx, namespace)
 }
 
-func (s *executorStoreImpl) Subscribe(ctx context.Context, namespace string) (<-chan int64, error) {
+func (s *executorStoreImpl) SubscribeToExecutorStatusChanges(ctx context.Context, namespace string) (<-chan int64, error) {
 	revisionChan := make(chan int64, 1)
-	watchPrefix := etcdkeys.BuildExecutorsPrefix(s.prefix, namespace)
+
 	go func() {
 		defer close(revisionChan)
-		watchChan := s.client.Watch(ctx, watchPrefix, clientv3.WithPrefix())
+		watchChan := s.client.Watch(ctx,
+			etcdkeys.BuildExecutorsPrefix(s.prefix, namespace),
+			clientv3.WithPrefix(),
+			clientv3.WithPrevKV(),
+		)
+
 		for watchResp := range watchChan {
 			if err := watchResp.Err(); err != nil {
 				return
 			}
-			isSignificantChange := false
-			for _, event := range watchResp.Events {
-				if !event.IsCreate() && !event.IsModify() {
-					isSignificantChange = true
-					break
-				}
-				_, keyType, err := etcdkeys.ParseExecutorKey(s.prefix, namespace, string(event.Kv.Key))
-				if err != nil {
-					continue
-				}
-				// Treat heartbeat, assigned_state and statistics updates as non-significant for rebalancing.
-				if keyType != etcdkeys.ExecutorHeartbeatKey &&
-					keyType != etcdkeys.ExecutorAssignedStateKey &&
-					keyType != etcdkeys.ExecutorShardStatisticsKey {
-					isSignificantChange = true
-					break
-				}
+
+			if !s.hasExecutorStatusChanged(watchResp, namespace) {
+				continue
 			}
-			if isSignificantChange {
-				select {
-				case <-revisionChan:
-				default:
-				}
-				revisionChan <- watchResp.Header.Revision
+
+			// If the channel is full, it means the previous revision hasn't been processed yet.
+			// Pop the old revision to make room for the new one, ensuring we always have the latest revision.
+			select {
+			case <-revisionChan:
+			default:
 			}
+
+			revisionChan <- watchResp.Header.Revision
 		}
 	}()
+
 	return revisionChan, nil
+}
+
+// hasExecutorStatusChanged checks if any of the events in the watch response correspond to changes in executor status.
+func (s *executorStoreImpl) hasExecutorStatusChanged(watchResp clientv3.WatchResponse, namespace string) bool {
+	for _, event := range watchResp.Events {
+		_, keyType, err := etcdkeys.ParseExecutorKey(s.prefix, namespace, string(event.Kv.Key))
+		if err != nil {
+			s.logger.Warn("Received watch event with unrecognized key format", tag.Key(string(event.Kv.Key)))
+			continue
+		}
+
+		// Only consider changes to the ExecutorStatusKey as significant for triggering a revision update.
+		if keyType != etcdkeys.ExecutorStatusKey {
+			continue
+		}
+
+		// If the previous value is the same as the new value, it means the status didn't actually change
+		if event.PrevKv != nil && string(event.PrevKv.Value) == string(event.Kv.Value) {
+			continue
+		}
+
+		return true
+	}
+
+	return false
 }
 
 func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, request store.AssignShardsRequest, guard store.GuardFunc) (err error) {

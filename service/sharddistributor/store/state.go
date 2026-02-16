@@ -54,7 +54,6 @@ type NamespaceState struct {
 	// ShardAssignments holds the assignment states of all shards in the namespace.
 	// Key: ExecutorID
 	ShardAssignments map[string]AssignedState
-	GlobalRevision   int64
 }
 
 type ShardState struct {

@@ -482,6 +482,10 @@ func TestHeartbeatLoop_DistributedPassthrough_AppliesAssignment(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockShardDistributorClient := sharddistributorexecutor.NewMockClient(ctrl)
 
+	mockShardProcessor := NewMockShardProcessor(ctrl)
+	mockShardProcessor.EXPECT().GetShardReport().Return(ShardReport{Status: types.ShardStatusREADY}).AnyTimes()
+	mockShardProcessor.EXPECT().Stop()
+
 	mockShardDistributorClient.EXPECT().Heartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&types.ExecutorHeartbeatResponse{
 			ShardAssignments: map[string]*types.ShardAssignment{
@@ -491,17 +495,14 @@ func TestHeartbeatLoop_DistributedPassthrough_AppliesAssignment(t *testing.T) {
 		}, nil)
 	expectDrainingHeartbeat(t, mockShardDistributorClient)
 
-	mockShardProcessor := NewMockShardProcessor(ctrl)
-	mockShardProcessor.EXPECT().Start(gomock.Any())
-	mockShardProcessor.EXPECT().Stop()
-
 	mockShardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
-	mockShardProcessorFactory.EXPECT().NewShardProcessor(gomock.Any()).Return(mockShardProcessor, nil)
 
 	mockTimeSource := clock.NewMockedTimeSource()
 
 	executor := newTestExecutor(mockShardDistributorClient, mockShardProcessorFactory, mockTimeSource)
 	executor.setMigrationMode(types.MigrationModeONBOARDED)
+	// Pre-populate the executor with the shard to ensure convergence
+	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(mockShardProcessor, processorStateStarted))
 
 	executor.Start(context.Background())
 	defer executor.Stop()
@@ -576,7 +577,10 @@ func TestCompareAssignments_Converged(t *testing.T) {
 		"test-shard-id2": {Status: types.AssignmentStatusREADY},
 	}
 
-	executor.compareAssignments(heartbeatAssignments)
+	err := executor.compareAssignments(heartbeatAssignments)
+
+	// Verify no error is returned when assignments converge
+	assert.NoError(t, err)
 
 	// Verify convergence metric was emitted
 	snapshot := testScope.Snapshot()
@@ -601,7 +605,10 @@ func TestCompareAssignments_Diverged_MissingShard(t *testing.T) {
 		"test-shard-id1": {Status: types.AssignmentStatusREADY},
 	}
 
-	executor.compareAssignments(heartbeatAssignments)
+	err := executor.compareAssignments(heartbeatAssignments)
+
+	// Verify error is returned when local shard is missing from heartbeat
+	assert.ErrorIs(t, err, ErrAssignmentDivergenceLocalShard)
 
 	// Verify divergence metric was emitted
 	snapshot := testScope.Snapshot()
@@ -625,7 +632,10 @@ func TestCompareAssignments_Diverged_ExtraShard(t *testing.T) {
 		"test-shard-id2": {Status: types.AssignmentStatusREADY},
 	}
 
-	executor.compareAssignments(heartbeatAssignments)
+	err := executor.compareAssignments(heartbeatAssignments)
+
+	// Verify error is returned when heartbeat has extra shard not in local
+	assert.ErrorIs(t, err, ErrAssignmentDivergenceHeartbeatShard)
 
 	// Verify divergence metric was emitted
 	snapshot := testScope.Snapshot()
@@ -648,7 +658,10 @@ func TestCompareAssignments_Diverged_WrongStatus(t *testing.T) {
 		"test-shard-id1": {Status: types.AssignmentStatusINVALID},
 	}
 
-	executor.compareAssignments(heartbeatAssignments)
+	err := executor.compareAssignments(heartbeatAssignments)
+
+	// Verify error is returned when local shard has wrong status in heartbeat
+	assert.ErrorIs(t, err, ErrAssignmentDivergenceLocalShard)
 
 	// Verify divergence metric was emitted
 	snapshot := testScope.Snapshot()
@@ -846,4 +859,263 @@ func TestExecutorMetadata_EmptyMap(t *testing.T) {
 	result = metadata.Get()
 	assert.NotNil(t, result)
 	assert.Empty(t, result)
+}
+
+func TestShardCleanupLoop(t *testing.T) {
+	tests := []struct {
+		name                  string
+		ttlShard              time.Duration
+		migrationMode         types.MigrationMode
+		setupProcessors       func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor
+		advanceTime           time.Duration
+		expectedShardsDeleted []string
+		expectedShardsKept    []string
+	}{
+		{
+			name:     "cleanup loop does not run when ttlShard is zero",
+			ttlShard: 0,
+			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
+				processor := NewMockShardProcessor(ctrl)
+				executor.managedProcessors.Store("shard-1", newManagedProcessor(processor, processorStateStarted))
+				executor.processorsToLastUse.Store("shard-1", executor.timeSource.Now())
+				return []*MockShardProcessor{processor}
+			},
+			advanceTime:           10 * time.Second,
+			expectedShardsDeleted: []string{},
+			expectedShardsKept:    []string{"shard-1"},
+		},
+		{
+			name:     "cleanup loop does not run when ttlShard is negative",
+			ttlShard: -1 * time.Second,
+			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
+				processor := NewMockShardProcessor(ctrl)
+				executor.managedProcessors.Store("shard-1", newManagedProcessor(processor, processorStateStarted))
+				executor.processorsToLastUse.Store("shard-1", executor.timeSource.Now())
+				return []*MockShardProcessor{processor}
+			},
+			advanceTime:           10 * time.Second,
+			expectedShardsDeleted: []string{},
+			expectedShardsKept:    []string{"shard-1"},
+		},
+		{
+			name:          "cleanup removes expired shard in non-onboarded mode",
+			ttlShard:      5 * time.Second,
+			migrationMode: types.MigrationModeLOCALPASSTHROUGH,
+			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
+				processor := NewMockShardProcessor(ctrl)
+				processor.EXPECT().Stop()
+				executor.managedProcessors.Store("shard-1", newManagedProcessor(processor, processorStateStarted))
+				executor.processorsToLastUse.Store("shard-1", executor.timeSource.Now())
+				return []*MockShardProcessor{processor}
+			},
+			advanceTime:           6 * time.Second,
+			expectedShardsDeleted: []string{"shard-1"},
+			expectedShardsKept:    []string{},
+		},
+		{
+			name:          "cleanup does not remove non-expired shard",
+			ttlShard:      10 * time.Second,
+			migrationMode: types.MigrationModeLOCALPASSTHROUGH,
+			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
+				processor := NewMockShardProcessor(ctrl)
+				executor.managedProcessors.Store("shard-1", newManagedProcessor(processor, processorStateStarted))
+				executor.processorsToLastUse.Store("shard-1", executor.timeSource.Now())
+				return []*MockShardProcessor{processor}
+			},
+			advanceTime:           5 * time.Second,
+			expectedShardsDeleted: []string{},
+			expectedShardsKept:    []string{"shard-1"},
+		},
+		{
+			name:          "cleanup sets shard status to DONE and removes from processorsToLastUse in onboarded mode",
+			ttlShard:      5 * time.Second,
+			migrationMode: types.MigrationModeONBOARDED,
+			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
+				processor := NewMockShardProcessor(ctrl)
+				processor.EXPECT().SetShardStatus(types.ShardStatusDONE)
+				executor.managedProcessors.Store("shard-1", newManagedProcessor(processor, processorStateStarted))
+				executor.processorsToLastUse.Store("shard-1", executor.timeSource.Now())
+				return []*MockShardProcessor{processor}
+			},
+			advanceTime:           6 * time.Second,
+			expectedShardsDeleted: []string{}, // Shard is removed from processorsToLastUse but kept in managedProcessors
+			expectedShardsKept:    []string{"shard-1"},
+		},
+		{
+			name:          "cleanup removes multiple expired shards in non-onboarded mode",
+			ttlShard:      5 * time.Second,
+			migrationMode: types.MigrationModeLOCALPASSTHROUGH,
+			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
+				processor1 := NewMockShardProcessor(ctrl)
+				processor1.EXPECT().Stop()
+				processor2 := NewMockShardProcessor(ctrl)
+				processor2.EXPECT().Stop()
+				processor3 := NewMockShardProcessor(ctrl)
+
+				executor.managedProcessors.Store("shard-1", newManagedProcessor(processor1, processorStateStarted))
+				executor.processorsToLastUse.Store("shard-1", executor.timeSource.Now())
+
+				executor.managedProcessors.Store("shard-2", newManagedProcessor(processor2, processorStateStarted))
+				executor.processorsToLastUse.Store("shard-2", executor.timeSource.Now())
+
+				executor.managedProcessors.Store("shard-3", newManagedProcessor(processor3, processorStateStarted))
+				executor.processorsToLastUse.Store("shard-3", executor.timeSource.Now().Add(3*time.Second))
+
+				return []*MockShardProcessor{processor1, processor2, processor3}
+			},
+			advanceTime:           6 * time.Second,
+			expectedShardsDeleted: []string{"shard-1", "shard-2"},
+			expectedShardsKept:    []string{"shard-3"},
+		},
+		{
+			name:          "cleanup in distributed passthrough mode removes expired shards",
+			ttlShard:      5 * time.Second,
+			migrationMode: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
+			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
+				processor := NewMockShardProcessor(ctrl)
+				processor.EXPECT().Stop()
+				executor.managedProcessors.Store("shard-1", newManagedProcessor(processor, processorStateStarted))
+				executor.processorsToLastUse.Store("shard-1", executor.timeSource.Now())
+				return []*MockShardProcessor{processor}
+			},
+			advanceTime:           6 * time.Second,
+			expectedShardsDeleted: []string{"shard-1"},
+			expectedShardsKept:    []string{},
+		},
+		{
+			name:          "cleanup removes shard from processorsToLastUse map even if not in managedProcessors",
+			ttlShard:      5 * time.Second,
+			migrationMode: types.MigrationModeLOCALPASSTHROUGH,
+			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
+				// Add to processorsToLastUse but not to managedProcessors
+				executor.processorsToLastUse.Store("shard-orphan", executor.timeSource.Now())
+				return []*MockShardProcessor{}
+			},
+			advanceTime:           6 * time.Second,
+			expectedShardsDeleted: []string{},
+			expectedShardsKept:    []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer goleak.VerifyNone(t)
+
+			ctrl := gomock.NewController(t)
+
+			mockTimeSource := clock.NewMockedTimeSource()
+			executor := newTestExecutor(nil, nil, mockTimeSource)
+			executor.ttlShard = tt.ttlShard
+			if tt.migrationMode != types.MigrationModeINVALID {
+				executor.setMigrationMode(tt.migrationMode)
+			}
+
+			// Setup processors
+			tt.setupProcessors(executor, ctrl)
+
+			// Start the executor
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				executor.shardCleanUpLoop(ctx)
+			}()
+
+			// For invalid ttlShard, the loop returns immediately
+			if tt.ttlShard <= 0 {
+				cancel()
+				wg.Wait()
+			} else {
+				// Wait for timer to be set
+				mockTimeSource.BlockUntil(1)
+
+				// Advance time to trigger cleanup
+				mockTimeSource.Advance(tt.advanceTime)
+
+				// Stop the loop before waiting for next timer
+				cancel()
+				wg.Wait()
+			}
+
+			// Verify expected shards are deleted
+			for _, shardID := range tt.expectedShardsDeleted {
+				_, ok := executor.managedProcessors.Load(shardID)
+				assert.False(t, ok, "shard %s should be deleted", shardID)
+
+				_, ok = executor.processorsToLastUse.Load(shardID)
+				assert.False(t, ok, "shard %s should be removed from processorsToLastUse", shardID)
+			}
+
+			// Verify expected shards are kept
+			for _, shardID := range tt.expectedShardsKept {
+				_, ok := executor.managedProcessors.Load(shardID)
+				assert.True(t, ok, "shard %s should be kept", shardID)
+			}
+		})
+	}
+}
+
+func TestShardCleanupLoop_StopsOnContextCancel(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctrl := gomock.NewController(t)
+
+	mockTimeSource := clock.NewMockedTimeSource()
+	executor := newTestExecutor(nil, nil, mockTimeSource)
+	executor.ttlShard = 10 * time.Second
+
+	processor := NewMockShardProcessor(ctrl)
+	executor.managedProcessors.Store("shard-1", newManagedProcessor(processor, processorStateStarted))
+	executor.processorsToLastUse.Store("shard-1", executor.timeSource.Now())
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		executor.shardCleanUpLoop(ctx)
+		close(done)
+	}()
+
+	// Wait for timer
+	mockTimeSource.BlockUntil(1)
+
+	// Cancel context
+	cancel()
+
+	// Wait for loop to exit
+	<-done
+}
+
+func TestShardCleanupLoop_StopsOnStopChannel(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctrl := gomock.NewController(t)
+
+	mockTimeSource := clock.NewMockedTimeSource()
+	executor := newTestExecutor(nil, nil, mockTimeSource)
+	executor.ttlShard = 10 * time.Second
+
+	processor := NewMockShardProcessor(ctrl)
+	executor.managedProcessors.Store("shard-1", newManagedProcessor(processor, processorStateStarted))
+	executor.processorsToLastUse.Store("shard-1", executor.timeSource.Now())
+
+	ctx := context.Background()
+
+	done := make(chan struct{})
+	go func() {
+		executor.shardCleanUpLoop(ctx)
+		close(done)
+	}()
+
+	// Wait for timer
+	mockTimeSource.BlockUntil(1)
+
+	// Close stop channel
+	close(executor.stopC)
+
+	// Wait for loop to exit
+	<-done
 }

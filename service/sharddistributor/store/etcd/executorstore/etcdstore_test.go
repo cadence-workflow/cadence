@@ -497,7 +497,7 @@ func TestGuardedOperations(t *testing.T) {
 }
 
 // TestSubscribe verifies that the subscription channel receives notifications for significant changes.
-func TestSubscribe(t *testing.T) {
+func TestSubscribeToExecutorStatusChanges(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -506,37 +506,85 @@ func TestSubscribe(t *testing.T) {
 	executorID := "exec-sub"
 
 	// Start subscription
-	sub, err := executorStore.Subscribe(ctx, tc.Namespace)
+	sub, err := executorStore.SubscribeToExecutorStatusChanges(ctx, tc.Namespace)
 	require.NoError(t, err)
 
-	// Manually put a heartbeat update, which is an insignificant change
-	heartbeatKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "heartbeat")
-	_, err = tc.Client.Put(ctx, heartbeatKey, "timestamp")
-	require.NoError(t, err)
+	// Test case #1: Update heartbeat without changing status or reported shards - should NOT trigger notification
+	{
+		// Manually put a heartbeat update, which is an insignificant change
+		heartbeatKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "heartbeat")
+		_, err = tc.Client.Put(ctx, heartbeatKey, "timestamp")
+		require.NoError(t, err)
 
-	select {
-	case <-sub:
-		t.Fatal("Should not receive notification for a heartbeat-only update")
-	case <-time.After(100 * time.Millisecond):
-		// Expected behavior
+		select {
+		case <-sub:
+			t.Fatal("Should not receive notification for a heartbeat-only update")
+		case <-time.After(100 * time.Millisecond):
+			// Expected behavior
+		}
 	}
 
-	// Now update the reported shards, which IS a significant change
-	reportedShardsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "reported_shards")
-	require.NoError(t, err)
-	writer, err := common.NewRecordWriter(tc.Compression)
-	require.NoError(t, err)
-	compressedShards, err := writer.Write([]byte(`{"shard-1":{"status":"running"}}`))
-	require.NoError(t, err)
-	_, err = tc.Client.Put(ctx, reportedShardsKey, string(compressedShards))
-	require.NoError(t, err)
+	// Test case #2: Update reported shards without changing status - should NOT trigger notification
+	{
+		// Manually put a reported shards update, which is an insignificant change
+		reportedShardsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "reported_shards")
+		writer, err := common.NewRecordWriter(tc.Compression)
+		require.NoError(t, err)
+		compressedShards, err := writer.Write([]byte(`{"shard-1":{"status":"running"}}`))
+		require.NoError(t, err)
+		_, err = tc.Client.Put(ctx, reportedShardsKey, string(compressedShards))
+		require.NoError(t, err)
 
-	select {
-	case rev, ok := <-sub:
-		require.True(t, ok, "Channel should be open")
-		assert.Greater(t, rev, int64(0), "Should receive a valid revision for reported shards change")
-	case <-time.After(1 * time.Second):
-		t.Fatal("Should have received a notification for a reported shards change")
+		select {
+		case <-sub:
+			t.Fatal("Should not receive notification for a reported-shards-only update")
+		case <-time.After(100 * time.Millisecond):
+			// Expected behavior
+		}
+	}
+
+	// Test case #3: Update status without prevKV - should trigger notification
+	{
+		statusKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "status")
+		_, err = tc.Client.Put(ctx, statusKey, stringStatus(types.ExecutorStatusDRAINING))
+		require.NoError(t, err)
+
+		select {
+		case rev, ok := <-sub:
+			require.True(t, ok, "Channel should be open")
+			assert.Greater(t, rev, int64(0), "Should receive a valid revision for status change")
+		case <-time.After(1 * time.Second):
+			t.Fatal("Should have received a notification for a status change")
+		}
+	}
+
+	// Test case #4: Update status with prevKV but the same value - should NOT trigger notification
+	{
+		statusKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "status")
+		_, err = tc.Client.Put(ctx, statusKey, stringStatus(types.ExecutorStatusDRAINING))
+		require.NoError(t, err)
+
+		select {
+		case <-sub:
+			t.Fatal("Should not receive notification")
+		case <-time.After(100 * time.Millisecond):
+			// Expected behavior
+		}
+	}
+
+	// Test case #5: Update status with prevKV - should trigger notification
+	{
+		statusKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, "status")
+		_, err = tc.Client.Put(ctx, statusKey, stringStatus(types.ExecutorStatusACTIVE))
+		require.NoError(t, err)
+
+		select {
+		case rev, ok := <-sub:
+			require.True(t, ok, "Channel should be open")
+			assert.Greater(t, rev, int64(0), "Should receive a valid revision for status change")
+		case <-time.After(1 * time.Second):
+			t.Fatal("Should have received a notification for a status change")
+		}
 	}
 }
 

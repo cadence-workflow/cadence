@@ -398,6 +398,10 @@ func (c *taskListManagerImpl) LoadBalancerHints() *types.LoadBalancerHints {
 	}
 }
 
+func (c *taskListManagerImpl) QueriesPerSecond() float64 {
+	return c.qpsTracker.QPS()
+}
+
 func isTaskListPartitionConfigEqual(a types.TaskListPartitionConfig, b types.TaskListPartitionConfig) bool {
 	a.Version = b.Version
 	return reflect.DeepEqual(a, b)

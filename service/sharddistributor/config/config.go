@@ -83,6 +83,10 @@ type (
 		// Default: 1 second
 		Period time.Duration `yaml:"period"`
 
+		// RebalanceCooldown is the minimum duration between shard rebalance operations
+		// Default: 250ms
+		RebalanceCooldown time.Duration `yaml:"rebalanceCooldown"`
+
 		// Timeout is the maximum duration of a single shard rebalance operation
 		// Default: 1 second
 		Timeout time.Duration `yaml:"timeout"`

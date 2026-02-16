@@ -247,22 +247,52 @@ func (n *namespaceShardToExecutor) Subscribe(ctx context.Context) (<-chan map[*s
 }
 
 func (n *namespaceShardToExecutor) namespaceRefreshLoop() {
-	for {
-		if err := n.watch(); err != nil {
-			n.logger.Error("error watching in namespaceRefreshLoop, retrying...", tag.Error(err))
-			n.timeSource.Sleep(backoff.JitDuration(
-				namespaceRefreshLoopWatchRetryInterval,
-				namespaceRefreshLoopWatchJitterCoeff,
-			))
-			continue
-		}
+	triggerCh := n.runWatchLoop()
 
-		n.logger.Info("namespaceRefreshLoop is exiting")
-		return
+	for {
+		select {
+		case <-n.stopCh:
+			n.logger.Info("stop channel closed, exiting namespaceRefreshLoop")
+			return
+
+		case _, ok := <-triggerCh:
+			if !ok {
+				n.logger.Info("trigger channel closed, exiting namespaceRefreshLoop")
+				return
+			}
+
+			if err := n.refresh(context.Background()); err != nil {
+				n.logger.Error("failed to refresh namespace shard to executor", tag.Error(err))
+			}
+		}
 	}
 }
 
-func (n *namespaceShardToExecutor) watch() error {
+func (n *namespaceShardToExecutor) runWatchLoop() <-chan struct{} {
+	triggerCh := make(chan struct{}, 1)
+
+	go func() {
+		defer close(triggerCh)
+
+		for {
+			if err := n.watch(triggerCh); err != nil {
+				n.logger.Error("error watching in namespaceRefreshLoop, retrying...", tag.Error(err))
+				n.timeSource.Sleep(backoff.JitDuration(
+					namespaceRefreshLoopWatchRetryInterval,
+					namespaceRefreshLoopWatchJitterCoeff,
+				))
+				continue
+			}
+
+			n.logger.Info("namespaceRefreshLoop is exiting")
+			return
+		}
+	}()
+
+	return triggerCh
+}
+
+func (n *namespaceShardToExecutor) watch(triggerCh chan<- struct{}) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -271,11 +301,13 @@ func (n *namespaceShardToExecutor) watch() error {
 		clientv3.WithRequireLeader(ctx),
 		etcdkeys.BuildExecutorsPrefix(n.etcdPrefix, n.namespace),
 		clientv3.WithPrefix(),
+		clientv3.WithPrevKV(),
 	)
 
 	for {
 		select {
 		case <-n.stopCh:
+			n.logger.Info("stop channel closed, exiting watch loop")
 			return nil
 		case watchResp, ok := <-watchChan:
 			if err := watchResp.Err(); err != nil {
