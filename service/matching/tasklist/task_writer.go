@@ -121,27 +121,36 @@ func (w *taskWriter) isStopped() bool {
 	return atomic.LoadInt64(&w.stopped) == 1
 }
 
-func (w *taskWriter) appendTask(taskInfo *persistence.TaskInfo) (*persistence.CreateTasksResponse, error) {
+func (w *taskWriter) appendTask(ctx context.Context, taskInfo *persistence.TaskInfo) (*persistence.CreateTasksResponse, error) {
+	// If the writer has already stopped, it returns an error
 	if w.isStopped() {
 		return nil, errShutdown
 	}
 
-	ch := make(chan *writeTaskResponse)
+	// Create a result channel for this request.
+	// Use buffer size 1 so writer can send one response even if this call already timed out.
+	// Without a buffer, writer can block forever when no receiver is waiting.
+	ch := make(chan *writeTaskResponse, 1)
+
 	req := &writeTaskRequest{
 		taskInfo:   taskInfo,
 		responseCh: ch,
 	}
 
-	select {
-	case w.appendCh <- req:
-		select {
-		case r := <-ch:
+	select { // Try to append a task into the queue
+	case w.appendCh <- req: // If enqueue succeed
+		select { // Wait for the task result after the enqueue
+		case r := <-ch: // If the writer sends the task result after the DB I/O task
 			return r.persistenceResponse, r.err
+		case <-ctx.Done(): // If the writer didn't send the task result within a timeout threshold
+			return nil, ctx.Err()
 		case <-w.stopCh:
 			// if we are shutting down, this request will never make
 			// it to cassandra, just bail out and fail this request
 			return nil, errShutdown
 		}
+	case <-ctx.Done(): // If enqueue failed due to context timeout
+		return nil, ctx.Err()
 	default: // channel is full, throttle
 		return nil, createServiceBusyError("Too many outstanding appends to the TaskList")
 	}

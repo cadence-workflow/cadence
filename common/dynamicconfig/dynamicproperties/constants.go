@@ -3118,6 +3118,13 @@ const (
 	// Allowed filters: domainName, taskListName, taskListType
 	AsyncTaskDispatchTimeout
 
+	// AppendTaskTimeout is the timeout of appending tasks to persistence.
+	// KeyName: matching.appendTaskTimeout
+	// Value type: Duration
+	// Default value: 5 seconds
+	// Allowed filters: domainName, taskListName, taskListType
+	AppendTaskTimeout
+
 	// HistoryGlobalRatelimiterDecayAfter defines how long to wait for an update before considering a host's data "possibly gone", causing its weight to gradually decline.
 	// KeyName: history.globalRatelimiterDecayAfter
 	// Value type: Duration
@@ -5663,6 +5670,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "AsyncTaskDispatchTimeout is the timeout of dispatching tasks for async match",
 		DefaultValue: time.Second * 3,
+	},
+	AppendTaskTimeout: {
+		KeyName:      "matching.appendTaskTimeout",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "AppendTaskTimeout is the timeout of appending tasks to persistence.",
+		DefaultValue: time.Second * 5,
 	},
 	HistoryGlobalRatelimiterDecayAfter: {
 		KeyName:      "history.globalRatelimiterDecayAfter",
