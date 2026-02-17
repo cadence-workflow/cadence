@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/pborman/uuid"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
@@ -37,8 +38,6 @@ import (
 
 func TestInsertIntoDomainAuditLog(t *testing.T) {
 	now := time.Now().UTC()
-	domainID := "d1111111-1111-1111-1111-111111111111"
-	eventID := "e1111111-1111-1111-1111-111111111111"
 
 	tests := []struct {
 		name      string
@@ -49,8 +48,8 @@ func TestInsertIntoDomainAuditLog(t *testing.T) {
 		{
 			name: "successfully inserted",
 			row: &sqlplugin.DomainAuditLogRow{
-				DomainID:            domainID,
-				EventID:             eventID,
+				DomainID:            uuid.New(),
+				EventID:             uuid.New(),
 				StateBefore:         []byte("state-before"),
 				StateBeforeEncoding: constants.EncodingTypeJSON,
 				StateAfter:          []byte("state-after"),
@@ -67,8 +66,8 @@ func TestInsertIntoDomainAuditLog(t *testing.T) {
 					gomock.Any(),
 					sqlplugin.DbDefaultShard,
 					_insertDomainAuditLogQuery,
-					domainID,
-					eventID,
+					gomock.Any(),
+					gomock.Any(),
 					[]byte("state-before"),
 					constants.EncodingTypeJSON,
 					[]byte("state-after"),
@@ -86,8 +85,8 @@ func TestInsertIntoDomainAuditLog(t *testing.T) {
 		{
 			name: "exec failed",
 			row: &sqlplugin.DomainAuditLogRow{
-				DomainID:      domainID,
-				EventID:       eventID,
+				DomainID:      uuid.New(),
+				EventID:       uuid.New(),
 				OperationType: persistence.DomainAuditOperationTypeFailover,
 				CreatedTime:   now,
 			},
