@@ -28,6 +28,7 @@ import (
 type (
 	// DynamicConfiguration represents dynamic configuration for persistence layer
 	DynamicConfiguration struct {
+		EnableExecutionInfoTracking              dynamicproperties.BoolPropertyFn
 		EnableSQLAsyncTransaction                dynamicproperties.BoolPropertyFn
 		EnableCassandraAllConsistencyLevelDelete dynamicproperties.BoolPropertyFn
 		PersistenceSampleLoggingRate             dynamicproperties.IntPropertyFn
@@ -45,6 +46,7 @@ type (
 // NewDynamicConfiguration returns new config with default values
 func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration {
 	return &DynamicConfiguration{
+		EnableExecutionInfoTracking:              dc.GetBoolProperty(dynamicproperties.EnableExecutionInfoTracking),
 		EnableSQLAsyncTransaction:                dc.GetBoolProperty(dynamicproperties.EnableSQLAsyncTransaction),
 		EnableCassandraAllConsistencyLevelDelete: dc.GetBoolProperty(dynamicproperties.EnableCassandraAllConsistencyLevelDelete),
 		PersistenceSampleLoggingRate:             dc.GetIntProperty(dynamicproperties.SampleLoggingRate),

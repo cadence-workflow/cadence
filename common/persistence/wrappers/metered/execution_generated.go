@@ -218,6 +218,30 @@ func (c *meteredExecutionManager) DeleteReplicationTaskFromDLQ(ctx context.Conte
 	return
 }
 
+func (c *meteredExecutionManager) DeleteTimerTask(ctx context.Context, request *persistence.DeleteTimerTaskRequest) (err error) {
+	op := func() error {
+		err = c.wrapped.DeleteTimerTask(ctx, request)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		c.logger.SampleInfo("Persistence DeleteTimerTask called", c.sampleLoggingRate(), logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistenceDeleteTimerTaskScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+		} else {
+			err = c.call(metrics.PersistenceDeleteTimerTaskScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+		}
+		return
+	}
+
+	err = c.callWithoutDomainTag(metrics.PersistenceDeleteTimerTaskScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+
+	return
+}
+
 func (c *meteredExecutionManager) DeleteWorkflowExecution(ctx context.Context, request *persistence.DeleteWorkflowExecutionRequest) (err error) {
 	op := func() error {
 		err = c.wrapped.DeleteWorkflowExecution(ctx, request)

@@ -156,3 +156,7 @@ func (db *mdb) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID i
 func (db *mdb) DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) error {
 	panic("TODO")
 }
+
+func (db *mdb) DeleteWorkflowTimerTask(ctx context.Context, shardID int, visibilityTimestamp time.Time, taskID int64) error {
+	panic("TODO")
+}

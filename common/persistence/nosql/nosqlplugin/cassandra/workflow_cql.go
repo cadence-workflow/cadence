@@ -280,8 +280,8 @@ const (
 		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, {run_id: ?, create_request_id: ?, state: ?, close_status: ?}, ?, ?, ?) IF NOT EXISTS USING TTL 0 `
 
 	templateCreateWorkflowExecutionWithVersionHistoriesQuery = `INSERT INTO executions (` +
-		`shard_id, domain_id, workflow_id, run_id, type, execution, next_event_id, visibility_ts, task_id, version_histories, version_histories_encoding, checksum, workflow_last_write_version, workflow_state, created_time) ` +
-		`VALUES(?, ?, ?, ?, ?, ` + templateWorkflowExecutionType + `, ?, ?, ?, ?, ?, ` + templateChecksumType + `, ?, ?, ?) IF NOT EXISTS `
+		`shard_id, domain_id, workflow_id, run_id, type, execution, next_event_id, visibility_ts, task_id, workflow_timer_tasks, workflow_timer_tasks_encoding, version_histories, version_histories_encoding, checksum, workflow_last_write_version, workflow_state, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ` + templateWorkflowExecutionType + `, ?, ?, ?, ?, ?, ?, ?, ` + templateChecksumType + `, ?, ?, ?) IF NOT EXISTS `
 
 	templateCreateTransferTaskQuery = `INSERT INTO executions (` +
 		`shard_id, type, domain_id, workflow_id, run_id, transfer, data, data_encoding, visibility_ts, task_id, created_time) ` +
@@ -309,7 +309,7 @@ const (
 
 	// TODO: remove replication_state after all 2DC workflows complete
 	templateGetWorkflowExecutionQuery = `SELECT execution, replication_state, activity_map, timer_map, ` +
-		`child_executions_map, request_cancel_map, signal_map, signal_requested, buffered_events_list, ` +
+		`workflow_timer_tasks, workflow_timer_tasks_encoding, child_executions_map, request_cancel_map, signal_map, signal_requested, buffered_events_list, ` +
 		`buffered_replication_tasks_map, version_histories, version_histories_encoding, checksum ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +
@@ -403,6 +403,18 @@ const (
 
 	templateResetTimerInfoQuery = `UPDATE executions ` +
 		`SET timer_map = ? ` +
+		`, last_updated_time = ? ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
+	templateUpdateWorkflowTimerTasksQuery = `UPDATE executions ` +
+		`SET workflow_timer_tasks = ? ` +
+		`, workflow_timer_tasks_encoding = ? ` +
 		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +

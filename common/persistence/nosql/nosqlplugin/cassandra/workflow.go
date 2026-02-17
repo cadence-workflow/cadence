@@ -228,6 +228,12 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	}
 	state.TimerInfos = timerInfos
 
+	if workflowTimerTasksData, ok := result["workflow_timer_tasks"].([]byte); ok && len(workflowTimerTasksData) > 0 {
+		if encoding, ok := result["workflow_timer_tasks_encoding"].(string); ok {
+			state.WorkflowTimerTasks = persistence.NewDataBlob(workflowTimerTasksData, constants.EncodingType(encoding))
+		}
+	}
+
 	childExecutionInfos := make(map[int64]*persistence.InternalChildExecutionInfo)
 	cMap := result["child_executions_map"].(map[int64]map[string]interface{})
 	for key, value := range cMap {
@@ -511,6 +517,26 @@ func (db *CDB) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardI
 }
 
 func (db *CDB) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
+	ts := persistence.UnixNanoToDBTimestamp(visibilityTimestamp.UnixNano())
+	query := db.session.Query(templateCompleteTimerTaskQuery,
+		shardID,
+		rowTypeTimerTask,
+		rowTypeTimerDomainID,
+		rowTypeTimerWorkflowID,
+		rowTypeTimerRunID,
+		ts,
+		taskID,
+	).WithContext(ctx)
+
+	return db.executeWithConsistencyAll(query)
+}
+
+func (db *CDB) DeleteWorkflowTimerTask(
+	ctx context.Context,
+	shardID int,
+	visibilityTimestamp time.Time,
+	taskID int64,
+) error {
 	ts := persistence.UnixNanoToDBTimestamp(visibilityTimestamp.UnixNano())
 	query := db.session.Query(templateCompleteTimerTaskQuery,
 		shardID,

@@ -49,6 +49,7 @@ type (
 		// For WorkflowExecutionMapsWriteMode of create, update and reset
 		ActivityInfos      map[int64]*persistence.InternalActivityInfo
 		TimerInfos         map[string]*persistence.TimerInfo
+		WorkflowTimerTasks *persistence.DataBlob
 		ChildWorkflowInfos map[int64]*persistence.InternalChildExecutionInfo
 		RequestCancelInfos map[int64]*persistence.RequestCancelInfo
 		SignalInfos        map[int64]*persistence.SignalInfo

@@ -253,6 +253,21 @@ func (mr *MockPayloadSerializerMockRecorder) DeserializeVisibilityMemo(data any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeserializeVisibilityMemo", reflect.TypeOf((*MockPayloadSerializer)(nil).DeserializeVisibilityMemo), data)
 }
 
+// DeserializeWorkflowTimerTasks mocks base method.
+func (m *MockPayloadSerializer) DeserializeWorkflowTimerTasks(data *DataBlob) ([]*WorkflowTimerTaskInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeserializeWorkflowTimerTasks", data)
+	ret0, _ := ret[0].([]*WorkflowTimerTaskInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeserializeWorkflowTimerTasks indicates an expected call of DeserializeWorkflowTimerTasks.
+func (mr *MockPayloadSerializerMockRecorder) DeserializeWorkflowTimerTasks(data any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeserializeWorkflowTimerTasks", reflect.TypeOf((*MockPayloadSerializer)(nil).DeserializeWorkflowTimerTasks), data)
+}
+
 // SerializeActiveClusterSelectionPolicy mocks base method.
 func (m *MockPayloadSerializer) SerializeActiveClusterSelectionPolicy(policy *types.ActiveClusterSelectionPolicy, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
@@ -461,4 +476,19 @@ func (m *MockPayloadSerializer) SerializeVisibilityMemo(memo *types.Memo, encodi
 func (mr *MockPayloadSerializerMockRecorder) SerializeVisibilityMemo(memo, encodingType any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SerializeVisibilityMemo", reflect.TypeOf((*MockPayloadSerializer)(nil).SerializeVisibilityMemo), memo, encodingType)
+}
+
+// SerializeWorkflowTimerTasks mocks base method.
+func (m *MockPayloadSerializer) SerializeWorkflowTimerTasks(tasks []*WorkflowTimerTaskInfo, encodingType constants.EncodingType) (*DataBlob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SerializeWorkflowTimerTasks", tasks, encodingType)
+	ret0, _ := ret[0].(*DataBlob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SerializeWorkflowTimerTasks indicates an expected call of SerializeWorkflowTimerTasks.
+func (mr *MockPayloadSerializerMockRecorder) SerializeWorkflowTimerTasks(tasks, encodingType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SerializeWorkflowTimerTasks", reflect.TypeOf((*MockPayloadSerializer)(nil).SerializeWorkflowTimerTasks), tasks, encodingType)
 }
