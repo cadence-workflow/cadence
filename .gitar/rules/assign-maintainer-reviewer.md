@@ -15,6 +15,7 @@ When a pull request is opened by someone not listed in `.github/CODEOWNERS`, ass
 - @neil-xie
 - @zawadzkidiana
 - @shijiesheng
+- @abhishekj720 
 
 You must modify the assignees field on the Pull Request - being a reviewer is not sufficient.
 
