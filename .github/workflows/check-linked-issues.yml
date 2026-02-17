@@ -53,7 +53,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           comment: true
-          loose-matching: false
+          loose-matching: true
+          exclude-labels: skip-issue-check
           custom-body-comment: |
             ## ⚠️ No Linked Issue Found
 
@@ -66,26 +67,16 @@ jobs:
             - Generate accurate release notes
 
             ### How to link an issue
-            Add one of these keywords followed by an issue number to your PR description:
-            - `Closes #123` - for features and enhancements
-            - `Fixes #123` - for bug fixes
-            - `Resolves #123` - general purpose
+            Add the issue number to your PR description:
+            - `#123`
 
-            You can also use: `close`, `closed`, `fix`, `fixed`, `resolve`, `resolved`
+            You can also use `Closes #123` [to automatically close the issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword). 
 
-            **Example:**
-            ```
-            This PR adds support for new authentication methods.
+            ### Skipping this check
+            
+            This check is automatically skipped for minor changes that may not warrant an issue with the conventional commit prefixes of docs, chore, ci, or style. It is still encouraged to add an issue link if it is relevant. 
 
-            Closes #456
-            ```
-
-            ### For minor changes
-            If this is a truly minor change (typo fix, formatting, etc.) that doesn't warrant an issue, you can skip this check by using a conventional commit prefix in your PR title:
-            - `docs: fix typo in README`
-            - `chore: update dependencies`
-            - `ci: update workflow`
-            - `style: format code`
+            If you need to skip the check apply the label `skip-issue-check` to the PR. 
 
             ---
 
