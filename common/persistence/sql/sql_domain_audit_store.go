@@ -146,32 +146,7 @@ func (m *sqlDomainAuditStore) GetDomainAuditLogs(
 
 	var auditLogs []*persistence.InternalDomainAuditLog
 	for _, row := range rows {
-		auditLog := &persistence.InternalDomainAuditLog{
-			EventID:         row.EventID,
-			DomainID:        row.DomainID,
-			OperationType:   row.OperationType,
-			CreatedTime:     row.CreatedTime,
-			LastUpdatedTime: row.LastUpdatedTime,
-			Identity:        row.Identity,
-			IdentityType:    row.IdentityType,
-			Comment:         row.Comment,
-		}
-
-		if len(row.StateBefore) > 0 {
-			auditLog.StateBefore = &persistence.DataBlob{
-				Encoding: row.StateBeforeEncoding,
-				Data:     row.StateBefore,
-			}
-		}
-
-		if len(row.StateAfter) > 0 {
-			auditLog.StateAfter = &persistence.DataBlob{
-				Encoding: row.StateAfterEncoding,
-				Data:     row.StateAfter,
-			}
-		}
-
-		auditLogs = append(auditLogs, auditLog)
+		auditLogs = append(auditLogs, deseralizeDomainAuditLogRow(row))
 	}
 
 	return &persistence.InternalGetDomainAuditLogsResponse{
@@ -192,4 +167,34 @@ func getDataBlobEncoding(blob *persistence.DataBlob) constants.EncodingType {
 		return constants.EncodingTypeEmpty
 	}
 	return blob.Encoding
+}
+
+
+func deseralizeDomainAuditLogRow(row *sqlplugin.DomainAuditLogRow) *persistence.InternalDomainAuditLog {
+	auditLog := &persistence.InternalDomainAuditLog{
+		EventID:         row.EventID,
+		DomainID:        row.DomainID,
+		OperationType:   row.OperationType,
+		CreatedTime:     row.CreatedTime,
+		LastUpdatedTime: row.LastUpdatedTime,
+		Identity:        row.Identity,
+		IdentityType:    row.IdentityType,
+		Comment:         row.Comment,
+	}
+
+	if len(row.StateBefore) > 0 {
+		auditLog.StateBefore = &persistence.DataBlob{
+			Encoding: row.StateBeforeEncoding,
+			Data:     row.StateBefore,
+		}
+	}
+
+	if len(row.StateAfter) > 0 {
+		auditLog.StateAfter = &persistence.DataBlob{
+			Encoding: row.StateAfterEncoding,
+			Data:     row.StateAfter,
+		}
+	}
+
+	return auditLog
 }
