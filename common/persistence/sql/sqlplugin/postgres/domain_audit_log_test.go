@@ -26,10 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"github.com/pborman/uuid"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"

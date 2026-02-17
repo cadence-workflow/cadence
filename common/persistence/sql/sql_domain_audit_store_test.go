@@ -95,7 +95,7 @@ func TestCreateDomainAuditLog(t *testing.T) {
 				Identity:        "test-user",
 				IdentityType:    "user",
 				Comment:         "test comment",
-			}, 
+			},
 			expectError: false,
 			expectedID:  "e1111111-1111-1111-1111-111111111111",
 		},

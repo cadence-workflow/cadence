@@ -169,7 +169,6 @@ func getDataBlobEncoding(blob *persistence.DataBlob) constants.EncodingType {
 	return blob.Encoding
 }
 
-
 func deseralizeDomainAuditLogRow(row *sqlplugin.DomainAuditLogRow) *persistence.InternalDomainAuditLog {
 	auditLog := &persistence.InternalDomainAuditLog{
 		EventID:         row.EventID,
