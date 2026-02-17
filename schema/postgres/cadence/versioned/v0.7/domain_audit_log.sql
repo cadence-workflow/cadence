@@ -1,6 +1,6 @@
 CREATE TABLE domain_audit_log (
-  domain_id               BYTEA NOT NULL,
-  event_id                BYTEA NOT NULL,
+  domain_id               TEXT NOT NULL,
+  event_id                TEXT NOT NULL,
   --
   state_before            BYTEA NOT NULL,
   state_before_encoding   TEXT NOT NULL,

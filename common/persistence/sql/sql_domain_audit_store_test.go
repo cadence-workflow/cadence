@@ -32,7 +32,6 @@ import (
 
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
 
@@ -70,8 +69,8 @@ func TestCreateDomainAuditLog(t *testing.T) {
 		"success with full data": {
 			setupMock: func(dbMock *sqlplugin.MockDB) {
 				expectedRow := &sqlplugin.DomainAuditLogRow{
-					DomainID:            serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111"),
-					EventID:             serialization.MustParseUUID("e1111111-1111-1111-1111-111111111111"),
+					DomainID:            "d1111111-1111-1111-1111-111111111111",
+					EventID:             "e1111111-1111-1111-1111-111111111111",
 					StateBefore:         stateBeforeBlob.Data,
 					StateBeforeEncoding: string(stateBeforeBlob.Encoding),
 					StateAfter:          stateAfterBlob.Data,
@@ -103,8 +102,8 @@ func TestCreateDomainAuditLog(t *testing.T) {
 		"success with nil state blobs": {
 			setupMock: func(dbMock *sqlplugin.MockDB) {
 				expectedRow := &sqlplugin.DomainAuditLogRow{
-					DomainID:            serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111"),
-					EventID:             serialization.MustParseUUID("e1111111-1111-1111-1111-111111111111"),
+					DomainID:            "d1111111-1111-1111-1111-111111111111",
+					EventID:             "e1111111-1111-1111-1111-111111111111",
 					StateBefore:         []byte{},
 					StateBeforeEncoding: "",
 					StateAfter:          []byte{},
@@ -179,7 +178,7 @@ func TestGetDomainAuditLogs(t *testing.T) {
 	now := time.Unix(1234567890, 0)
 	minTime := now.Add(-24 * time.Hour)
 	maxTime := now
-	maxUUID := serialization.UUID{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+	maxUUID := "ffffffff-ffff-ffff-ffff-ffffffffffff"
 	pageSize := 2
 	pageSize2 := 3
 
@@ -194,8 +193,8 @@ func TestGetDomainAuditLogs(t *testing.T) {
 			setupMock: func(dbMock *sqlplugin.MockDB) {
 				rows := []*sqlplugin.DomainAuditLogRow{
 					{
-						EventID:             serialization.MustParseUUID("e1111111-1111-1111-1111-111111111111"),
-						DomainID:            serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111"),
+						EventID:             "e1111111-1111-1111-1111-111111111111",
+						DomainID:            "d1111111-1111-1111-1111-111111111111",
 						OperationType:       persistence.DomainAuditOperationTypeUpdate,
 						CreatedTime:         now,
 						LastUpdatedTime:     now,
@@ -208,8 +207,8 @@ func TestGetDomainAuditLogs(t *testing.T) {
 						StateAfterEncoding:  string(constants.EncodingTypeThriftRW),
 					},
 					{
-						EventID:             serialization.MustParseUUID("e2222222-2222-2222-2222-222222222222"),
-						DomainID:            serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111"),
+						EventID:             "e2222222-2222-2222-2222-222222222222",
+						DomainID:            "d1111111-1111-1111-1111-111111111111",
 						OperationType:       persistence.DomainAuditOperationTypeUpdate,
 						CreatedTime:         now,
 						LastUpdatedTime:     now,
@@ -224,7 +223,7 @@ func TestGetDomainAuditLogs(t *testing.T) {
 				}
 
 				expectedFilter := &sqlplugin.DomainAuditLogFilter{
-					DomainID:           serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111"),
+					DomainID:           "d1111111-1111-1111-1111-111111111111",
 					OperationType:      persistence.DomainAuditOperationTypeUpdate,
 					MinCreatedTime:     &minTime,
 					MaxCreatedTime:     &maxTime,
@@ -266,12 +265,12 @@ func TestGetDomainAuditLogs(t *testing.T) {
 		"success - subsequent page with nextPageToken": {
 			setupMock: func(dbMock *sqlplugin.MockDB) {
 				expectedCreatedTime := now
-				expectedEventID := serialization.MustParseUUID("e1111111-1111-1111-1111-111111111111")
+				expectedEventID := "e1111111-1111-1111-1111-111111111111"
 
 				rows := []*sqlplugin.DomainAuditLogRow{
 					{
-						EventID:             serialization.MustParseUUID("e3333333-3333-3333-3333-333333333333"),
-						DomainID:            serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111"),
+						EventID:             "e3333333-3333-3333-3333-333333333333",
+						DomainID:            "d1111111-1111-1111-1111-111111111111",
 						OperationType:       persistence.DomainAuditOperationTypeUpdate,
 						CreatedTime:         now.Add(-2 * time.Hour),
 						LastUpdatedTime:     now.Add(-2 * time.Hour),
@@ -284,8 +283,8 @@ func TestGetDomainAuditLogs(t *testing.T) {
 						StateAfterEncoding:  string(constants.EncodingTypeThriftRW),
 					},
 					{
-						EventID:             serialization.MustParseUUID("e2222222-2222-2222-2222-222222222222"),
-						DomainID:            serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111"),
+						EventID:             "e2222222-2222-2222-2222-222222222222",
+						DomainID:            "d1111111-1111-1111-1111-111111111111",
 						OperationType:       persistence.DomainAuditOperationTypeUpdate,
 						CreatedTime:         expectedCreatedTime,
 						LastUpdatedTime:     expectedCreatedTime,
@@ -300,7 +299,7 @@ func TestGetDomainAuditLogs(t *testing.T) {
 				}
 
 				expectedFilter := &sqlplugin.DomainAuditLogFilter{
-					DomainID:           serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111"),
+					DomainID:           "d1111111-1111-1111-1111-111111111111",
 					OperationType:      persistence.DomainAuditOperationTypeUpdate,
 					MinCreatedTime:     &minTime,
 					MaxCreatedTime:     &maxTime,
@@ -314,7 +313,7 @@ func TestGetDomainAuditLogs(t *testing.T) {
 			request: func() *persistence.GetDomainAuditLogsRequest {
 				pageToken := domainAuditLogPageToken{
 					CreatedTime: now,
-					EventID:     serialization.MustParseUUID("e1111111-1111-1111-1111-111111111111"),
+					EventID:     "e1111111-1111-1111-1111-111111111111",
 				}
 				encodedToken, _ := gobSerialize(pageToken)
 				return &persistence.GetDomainAuditLogsRequest{
@@ -339,8 +338,8 @@ func TestGetDomainAuditLogs(t *testing.T) {
 			setupMock: func(dbMock *sqlplugin.MockDB) {
 				rows := []*sqlplugin.DomainAuditLogRow{
 					{
-						EventID:             serialization.MustParseUUID("e3333333-3333-3333-3333-333333333333"),
-						DomainID:            serialization.MustParseUUID("d2222222-2222-2222-2222-222222222222"),
+						EventID:             "e3333333-3333-3333-3333-333333333333",
+						DomainID:            "d2222222-2222-2222-2222-222222222222",
 						OperationType:       persistence.DomainAuditOperationTypeCreate,
 						CreatedTime:         now,
 						LastUpdatedTime:     now,

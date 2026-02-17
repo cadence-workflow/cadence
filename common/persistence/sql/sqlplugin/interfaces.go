@@ -584,8 +584,8 @@ type (
 
 	// DomainAuditLogRow represents a row in domain_audit_log table
 	DomainAuditLogRow struct {
-		DomainID            serialization.UUID
-		EventID             serialization.UUID
+		DomainID            string
+		EventID             string
 		StateBefore         []byte
 		StateBeforeEncoding string
 		StateAfter          []byte
@@ -600,14 +600,14 @@ type (
 
 	// DomainAuditLogFilter contains the filter criteria for querying domain audit logs
 	DomainAuditLogFilter struct {
-		DomainID       serialization.UUID
+		DomainID       string
 		OperationType  persistence.DomainAuditOperationType
 		MinCreatedTime *time.Time
 		MaxCreatedTime *time.Time
 		PageSize       int
 		// PageMaxCreatedTime and PageMinEventID are used to paginate Select queries
 		PageMaxCreatedTime *time.Time
-		PageMinEventID     *serialization.UUID
+		PageMinEventID     *string
 	}
 
 	// tableCRUD defines the API for interacting with the database tables

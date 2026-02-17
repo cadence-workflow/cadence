@@ -39,8 +39,8 @@ type sqlDomainAuditStore struct {
 
 // domainAuditLogPageToken is used for pagination
 type domainAuditLogPageToken struct {
-	CreatedTime time.Time          `json:"created_time"`
-	EventID     serialization.UUID `json:"event_id"`
+	CreatedTime time.Time `json:"created_time"`
+	EventID     string    `json:"event_id"`
 }
 
 // newSQLDomainAuditStore creates an instance of sqlDomainAuditStore
@@ -64,8 +64,8 @@ func (m *sqlDomainAuditStore) CreateDomainAuditLog(
 	request *persistence.InternalCreateDomainAuditLogRequest,
 ) (*persistence.CreateDomainAuditLogResponse, error) {
 	row := &sqlplugin.DomainAuditLogRow{
-		DomainID:            serialization.MustParseUUID(request.DomainID),
-		EventID:             serialization.MustParseUUID(request.EventID),
+		DomainID:            request.DomainID,
+		EventID:             request.EventID,
 		StateBefore:         getDataBlobBytes(request.StateBefore),
 		StateBeforeEncoding: getDataBlobEncoding(request.StateBefore),
 		StateAfter:          getDataBlobBytes(request.StateAfter),
@@ -105,7 +105,7 @@ func (m *sqlDomainAuditStore) GetDomainAuditLogs(
 	pageMaxCreatedTime := maxCreatedTime
 	// if next page token is not present, set pageMinEventID to largest possible uuid
 	// to prevent the query from returning rows where created_time is equal to pageMaxCreatedTime
-	pageMinEventID := serialization.UUID{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+	pageMinEventID := "ffffffff-ffff-ffff-ffff-ffffffffffff"
 	if request.NextPageToken != nil {
 		page := domainAuditLogPageToken{}
 		if err := gobDeserialize(request.NextPageToken, &page); err != nil {
@@ -116,7 +116,7 @@ func (m *sqlDomainAuditStore) GetDomainAuditLogs(
 	}
 
 	filter := &sqlplugin.DomainAuditLogFilter{
-		DomainID:           serialization.MustParseUUID(request.DomainID),
+		DomainID:           request.DomainID,
 		OperationType:      request.OperationType,
 		MinCreatedTime:     &minCreatedTime,
 		MaxCreatedTime:     &maxCreatedTime,
@@ -147,8 +147,8 @@ func (m *sqlDomainAuditStore) GetDomainAuditLogs(
 	var auditLogs []*persistence.InternalDomainAuditLog
 	for _, row := range rows {
 		auditLog := &persistence.InternalDomainAuditLog{
-			EventID:         row.EventID.String(),
-			DomainID:        row.DomainID.String(),
+			EventID:         row.EventID,
+			DomainID:        row.DomainID,
 			OperationType:   row.OperationType,
 			CreatedTime:     row.CreatedTime,
 			LastUpdatedTime: row.LastUpdatedTime,

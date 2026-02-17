@@ -30,15 +30,14 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
 
 func TestInsertIntoDomainAuditLog(t *testing.T) {
 	now := time.Now().UTC()
-	domainID := serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111")
-	eventID := serialization.MustParseUUID("e1111111-1111-1111-1111-111111111111")
+	domainID := "d1111111-1111-1111-1111-111111111111"
+	eventID := "e1111111-1111-1111-1111-111111111111"
 
 	tests := []struct {
 		name      string
@@ -139,7 +138,7 @@ func TestInsertIntoDomainAuditLog(t *testing.T) {
 }
 
 func TestSelectFromDomainAuditLogs(t *testing.T) {
-	domainID := serialization.MustParseUUID("d1111111-1111-1111-1111-111111111111")
+	domainID := "d1111111-1111-1111-1111-111111111111"
 	operationType := persistence.DomainAuditOperationTypeFailover
 	minTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	maxTime := time.Date(2024, 12, 31, 23, 59, 59, 0, time.UTC)
@@ -150,14 +149,14 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 	createdTime3 := time.Date(2024, 5, 1, 12, 0, 0, 0, time.UTC)
 	createdTime4 := time.Date(2024, 4, 1, 12, 0, 0, 0, time.UTC)
 
-	eventID1 := serialization.MustParseUUID("e1111111-1111-1111-1111-111111111111")
-	eventID2 := serialization.MustParseUUID("e2222222-2222-2222-2222-222222222222")
-	eventID3 := serialization.MustParseUUID("e3333333-3333-3333-3333-333333333333")
-	eventID4 := serialization.MustParseUUID("e4444444-4444-4444-4444-444444444444")
+	eventID1 := "e1111111-1111-1111-1111-111111111111"
+	eventID2 := "e2222222-2222-2222-2222-222222222222"
+	eventID3 := "e3333333-3333-3333-3333-333333333333"
+	eventID4 := "e4444444-4444-4444-4444-444444444444"
 
 	// Default page cursor: maxCreatedTime with max UUID (no page token)
 	defaultPageMaxCreatedTime := maxTime
-	defaultPageMinEventID := serialization.UUID{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+	defaultPageMinEventID := "ffffffff-ffff-ffff-ffff-ffffffffffff"
 
 	tests := []struct {
 		name      string
