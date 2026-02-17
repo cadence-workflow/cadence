@@ -1,3 +1,5 @@
+<!-- If you are new to contributing or want a refresher, please read ./pull_request_guidance.md -->
+
 **What changed?**
 
 
