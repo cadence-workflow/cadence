@@ -278,12 +278,12 @@ func (p *taskProcessorImpl) cleanupAckedReplicationTasks() error {
 		persistence.HistoryTaskCategoryReplication,
 		p.currentCluster,
 	).GetTaskID()
-	lag := time.Duration(maxReadLevel - minAckLevel)
+	lagCount := int(maxReadLevel - minAckLevel)
 	scope := p.metricsClient.Scope(metrics.ReplicationTaskFetcherScope,
 		metrics.TargetClusterTag(p.currentCluster),
 	)
-	scope.RecordTimer(metrics.ReplicationTasksLag, lag)
-	scope.ExponentialHistogram(metrics.ExponentialReplicationTasksLag, lag)
+	scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(lagCount))
+	scope.IntExponentialHistogram(metrics.ExponentialReplicationTasksLag, lagCount)
 	for {
 		pageSize := p.config.ReplicatorTaskDeleteBatchSize()
 		resp, err := p.shard.GetExecutionManager().RangeCompleteHistoryTask(
