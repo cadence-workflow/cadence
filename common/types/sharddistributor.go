@@ -192,7 +192,7 @@ func (v *ExecutorHeartbeatResponse) GetShardAssignments() (o map[string]*ShardAs
 	return
 }
 
-func (v *ExecutorHeartbeatResponse) GetMigrationPhase() (o MigrationMode) {
+func (v *ExecutorHeartbeatResponse) GetMigrationMode() (o MigrationMode) {
 	if v != nil {
 		return v.MigrationMode
 	}

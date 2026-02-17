@@ -88,8 +88,8 @@ func TestRunAndTerminate(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election)
 	ctx, cancel := context.WithCancel(context.Background())
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{GlobalRevision: 0}, nil).AnyTimes()
-	mocks.store.EXPECT().Subscribe(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil).AnyTimes()
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{}, nil).AnyTimes()
+	mocks.store.EXPECT().SubscribeToExecutorStatusChanges(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil).AnyTimes()
 
 	err := processor.Run(ctx)
 	require.NoError(t, err)
@@ -118,7 +118,7 @@ func TestRebalanceShards_InitialDistribution(t *testing.T) {
 		"exec-1": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
 		"exec-2": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
 	}
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: state, GlobalRevision: 1}, nil)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: state}, nil)
 	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "0").Return(nil, nil)
 	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "1").Return(nil, nil)
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
@@ -135,7 +135,6 @@ func TestRebalanceShards_InitialDistribution(t *testing.T) {
 
 	err := processor.rebalanceShards(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), processor.lastAppliedRevision)
 }
 
 func TestRebalanceShards_ExecutorRemoved(t *testing.T) {
@@ -159,7 +158,6 @@ func TestRebalanceShards_ExecutorRemoved(t *testing.T) {
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
 		Executors:        heartbeats,
 		ShardAssignments: assignments,
-		GlobalRevision:   1,
 	}, nil)
 	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "0").Return(&store.ShardOwner{ExecutorID: "exec-2"}, nil)
 	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "1").Return(&store.ShardOwner{ExecutorID: "exec-1"}, nil)
@@ -205,7 +203,6 @@ func TestRebalanceShards_ExecutorStale(t *testing.T) {
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
 		Executors:        heartbeats,
 		ShardAssignments: assignments,
-		GlobalRevision:   1,
 	}, nil)
 	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "0").Return(&store.ShardOwner{ExecutorID: "exec-1"}, nil)
 	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "1").Return(&store.ShardOwner{ExecutorID: "exec-2"}, nil)
@@ -233,70 +230,68 @@ func TestRebalanceShards_NoActiveExecutors(t *testing.T) {
 	state := map[string]store.HeartbeatState{
 		"exec-1": {Status: types.ExecutorStatusDRAINING, LastHeartbeat: now},
 	}
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: state, GlobalRevision: int64(1)}, nil)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: state}, nil)
 
 	err := processor.rebalanceShards(context.Background())
 	require.NoError(t, err)
 }
 
-func TestRebalanceShards_NoActiveExecutors_OneStaleExecutors(t *testing.T) {
-	mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
-	defer mocks.ctrl.Finish()
-	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+func TestRebalanceShards_NoActiveExecutors_WithStaleExecutors(t *testing.T) {
+	t.Run("one stale executor", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
-	now := mocks.timeSource.Now()
-	state := map[string]store.HeartbeatState{
-		"exec-1": {Status: types.ExecutorStatusDRAINING, LastHeartbeat: now},
-		"exec-2": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now.Add(-2 * time.Second)},
-	}
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: state, GlobalRevision: int64(1)}, nil)
+		now := mocks.timeSource.Now()
+		executorStates := map[string]store.HeartbeatState{
+			"exec-1": {Status: types.ExecutorStatusDRAINING, LastHeartbeat: now},
+			"exec-2": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now.Add(-10 * time.Minute)},
+		}
+		expectedStaleExecutorIDs := []string{"exec-2"}
 
-	mocks.election.EXPECT().Guard().Return(store.NopGuard())
-	mocks.store.EXPECT().DeleteAssignedStates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, namespace string, executorIDs []string, _ store.GuardFunc) error {
-			assert.ElementsMatch(t, []string{"exec-2"}, executorIDs)
-			assert.Equal(t, mocks.cfg.Name, namespace)
-			return nil
-		})
+		mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+			Executors: executorStates,
+		}, nil)
 
-	err := processor.rebalanceShards(context.Background())
-	require.NoError(t, err)
-}
+		mocks.election.EXPECT().Guard().Return(store.NopGuard())
+		mocks.store.EXPECT().DeleteExecutors(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, namespace string, executorIDs []string, _ store.GuardFunc) error {
+				assert.ElementsMatch(t, expectedStaleExecutorIDs, executorIDs)
+				assert.Equal(t, mocks.cfg.Name, namespace)
+				return nil
+			})
 
-func TestRebalanceShards_NoActiveExecutors_AllStaleExecutors(t *testing.T) {
-	mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
-	defer mocks.ctrl.Finish()
-	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+		err := processor.rebalanceShards(context.Background())
+		require.NoError(t, err)
+	})
 
-	now := mocks.timeSource.Now()
-	state := map[string]store.HeartbeatState{
-		"exec-1": {Status: types.ExecutorStatusDRAINING, LastHeartbeat: now.Add(-2 * time.Second)},
-		"exec-2": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now.Add(-2 * time.Second)},
-	}
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: state, GlobalRevision: int64(1)}, nil)
+	t.Run("all stale executor", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
-	mocks.election.EXPECT().Guard().Return(store.NopGuard())
-	mocks.store.EXPECT().DeleteAssignedStates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, namespace string, executorIDs []string, _ store.GuardFunc) error {
-			assert.ElementsMatch(t, []string{"exec-1", "exec-2"}, executorIDs)
-			assert.Equal(t, mocks.cfg.Name, namespace)
-			return nil
-		})
+		now := mocks.timeSource.Now()
+		executorStates := map[string]store.HeartbeatState{
+			"exec-1": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now.Add(-10 * time.Minute)},
+			"exec-2": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now.Add(-10 * time.Minute)},
+		}
+		expectedStaleExecutorIDs := []string{"exec-1", "exec-2"}
 
-	err := processor.rebalanceShards(context.Background())
-	require.NoError(t, err)
-}
+		mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+			Executors: executorStates,
+		}, nil)
 
-func TestRebalanceShards_NoRebalanceNeeded(t *testing.T) {
-	mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
-	defer mocks.ctrl.Finish()
-	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
-	processor.lastAppliedRevision = 1
+		mocks.election.EXPECT().Guard().Return(store.NopGuard())
+		mocks.store.EXPECT().DeleteExecutors(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, namespace string, executorIDs []string, _ store.GuardFunc) error {
+				assert.ElementsMatch(t, expectedStaleExecutorIDs, executorIDs)
+				assert.Equal(t, mocks.cfg.Name, namespace)
+				return nil
+			})
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{GlobalRevision: int64(1)}, nil)
-
-	err := processor.rebalanceShards(context.Background())
-	require.NoError(t, err)
+		err := processor.rebalanceShards(context.Background())
+		require.NoError(t, err)
+	})
 }
 
 func TestCleanupStaleExecutors(t *testing.T) {
@@ -396,8 +391,7 @@ func TestRebalance_StoreErrors(t *testing.T) {
 
 	now := mocks.timeSource.Now()
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
-		Executors:      map[string]store.HeartbeatState{"e": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now}},
-		GlobalRevision: 1,
+		Executors: map[string]store.HeartbeatState{"e": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now}},
 	}, nil)
 	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "0").Return(nil, nil)
 	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "1").Return(nil, nil)
@@ -414,8 +408,8 @@ func TestRunLoop_SubscriptionError(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
 	expectedErr := errors.New("subscription failed")
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{GlobalRevision: 0}, nil)
-	mocks.store.EXPECT().Subscribe(gomock.Any(), mocks.cfg.Name).Return(nil, expectedErr)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{}, nil)
+	mocks.store.EXPECT().SubscribeToExecutorStatusChanges(gomock.Any(), mocks.cfg.Name).Return(nil, expectedErr)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -433,8 +427,8 @@ func TestRunLoop_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Setup for the initial call to rebalanceShards and the subscription
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{GlobalRevision: 0}, nil)
-	mocks.store.EXPECT().Subscribe(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{}, nil)
+	mocks.store.EXPECT().SubscribeToExecutorStatusChanges(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil)
 
 	processor.wg.Add(1)
 	// Run the process in a separate goroutine to avoid blocking the test
@@ -475,7 +469,6 @@ func TestRebalanceShards_WithUnassignedShardsButMigrationModeNotOnboarded(t *tes
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
 		Executors:        heartbeats,
 		ShardAssignments: assignments,
-		GlobalRevision:   3,
 	}, nil)
 	// These are the expected calls in case of onboarding, with the assignment of new shards
 	mocks.election.EXPECT().Guard().Return(store.NopGuard()).Times(0)
@@ -521,7 +514,6 @@ func TestRebalanceShards_ShadowModeWithStaleExecutors(t *testing.T) {
 		mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
 			Executors:        heartbeats,
 			ShardAssignments: assignments,
-			GlobalRevision:   1,
 		}, nil)
 		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "0").Return(&store.ShardOwner{ExecutorID: "exec-1"}, nil)
 		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "1").Return(&store.ShardOwner{ExecutorID: "exec-2"}, nil)
@@ -562,7 +554,6 @@ func TestRebalanceShards_ShadowModeWithStaleExecutors(t *testing.T) {
 		mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
 			Executors:        heartbeats,
 			ShardAssignments: assignments,
-			GlobalRevision:   1,
 		}, nil)
 		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "0").Return(&store.ShardOwner{ExecutorID: "exec-1"}, nil)
 		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "1").Return(&store.ShardOwner{ExecutorID: "exec-2"}, nil)
@@ -595,7 +586,6 @@ func TestRebalanceShards_ShadowModeWithStaleExecutors(t *testing.T) {
 		mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
 			Executors:        heartbeats,
 			ShardAssignments: assignments,
-			GlobalRevision:   1,
 		}, nil)
 		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "0").Return(nil, nil)
 		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "1").Return(nil, nil)
@@ -627,12 +617,10 @@ func TestRebalanceShards_NoShardsToReassign(t *testing.T) {
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
 		Executors:        heartbeats,
 		ShardAssignments: assignments,
-		GlobalRevision:   2,
 	}, nil)
 
 	err := processor.rebalanceShards(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, int64(2), processor.lastAppliedRevision, "Revision should be updated even if no shards were moved")
 }
 
 func TestRebalanceShards_WithUnassignedShards(t *testing.T) {
@@ -657,7 +645,6 @@ func TestRebalanceShards_WithUnassignedShards(t *testing.T) {
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
 		Executors:        heartbeats,
 		ShardAssignments: assignments,
-		GlobalRevision:   3,
 	}, nil)
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
@@ -1401,4 +1388,143 @@ func TestEmitOldestExecutorHeartbeatLag(t *testing.T) {
 			metricsScope.AssertExpectations(t)
 		})
 	}
+}
+
+func TestRunRebalanceTriggeringLoop(t *testing.T) {
+	t.Run("no events from subscribe, trigger from ticker", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		updateChan := make(chan int64)
+		triggerChan := make(chan string, 1)
+
+		go processor.rebalanceTriggeringLoop(ctx, updateChan, triggerChan)
+
+		// Wait for ticker to be created
+		mocks.timeSource.BlockUntil(1)
+
+		// Advance time to trigger the ticker
+		mocks.timeSource.Advance(processor.cfg.Period)
+
+		// Expect trigger from periodic reconciliation
+		select {
+		case reason := <-triggerChan:
+			assert.Equal(t, "Periodic reconciliation triggered", reason)
+		case <-time.After(time.Second):
+			t.Fatal("expected trigger from ticker, but timed out")
+		}
+
+		cancel()
+	})
+
+	t.Run("events from subscribe before period, trigger from state change", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		updateChan := make(chan int64, 1)
+		triggerChan := make(chan string, 1)
+
+		go processor.rebalanceTriggeringLoop(ctx, updateChan, triggerChan)
+
+		// Wait for ticker to be created
+		mocks.timeSource.BlockUntil(1)
+
+		// Send a state change event before the ticker fires
+		updateChan <- 1
+
+		// Expect trigger from state change
+		select {
+		case reason := <-triggerChan:
+			assert.Equal(t, "State change detected", reason)
+		case <-time.After(time.Second):
+			t.Fatal("expected trigger from state change, but timed out")
+		}
+
+		cancel()
+	})
+
+	t.Run("triggerChan full, multiple subscribe events, loop not stuck", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Use unbuffered channel for updates to ensure they are processed one at a time
+		updateChan := make(chan int64)
+		triggerChan := make(chan string, 1)
+
+		go processor.rebalanceTriggeringLoop(ctx, updateChan, triggerChan)
+
+		// Wait for ticker to be created
+		mocks.timeSource.BlockUntil(1)
+
+		// Don't read from triggerChan yet to keep it full
+		// Send multiple state change events
+		for i := int64(0); i <= 10; i++ {
+			select {
+			case updateChan <- i:
+			case <-time.After(time.Second):
+				// Expect that the loop is not stuck
+				t.Fatalf("failed to send update %d, channel blocked", i)
+			}
+		}
+
+		// Expect trigger from state change
+		select {
+		case reason := <-triggerChan:
+			assert.Equal(t, "State change detected", reason)
+		case <-time.After(time.Second):
+			t.Fatal("expected trigger from state change, but timed out")
+		}
+
+		cancel()
+	})
+
+	t.Run("update channel closed stops loop", func(t *testing.T) {
+		mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
+		defer mocks.ctrl.Finish()
+		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+		ctx := context.Background()
+
+		updateChan := make(chan int64)
+		triggerChan := make(chan string, 1)
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			processor.rebalanceTriggeringLoop(ctx, updateChan, triggerChan)
+		}()
+
+		// Wait for ticker to be created
+		mocks.timeSource.BlockUntil(1)
+
+		// Close update channel
+		close(updateChan)
+
+		// Wait for loop to exit
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			// Loop exited as expected
+		case <-time.After(time.Second):
+			t.Fatal("loop did not exit after updateChan closed")
+		}
+	})
 }

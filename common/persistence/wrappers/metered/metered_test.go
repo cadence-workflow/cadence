@@ -58,7 +58,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockConfigStoreManager(ctrl)
 
-				newObj := NewConfigStoreManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewConfigStoreManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -68,7 +68,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockDomainManager(ctrl)
 
-				newObj := NewDomainManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewDomainManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -78,7 +78,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockHistoryManager(ctrl)
 
-				newObj := NewHistoryManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewHistoryManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -88,7 +88,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockQueueManager(ctrl)
 
-				newObj := NewQueueManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewQueueManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -98,7 +98,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockShardManager(ctrl)
 
-				newObj := NewShardManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewShardManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -108,7 +108,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockTaskManager(ctrl)
 
-				newObj := NewTaskManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewTaskManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -118,7 +118,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockVisibilityManager(ctrl)
 
-				newObj := NewVisibilityManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true}, "test-host", "test")
+				newObj := NewVisibilityManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true})
 
 				return newObj, wrapped
 			},
@@ -131,7 +131,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 				wrapped.EXPECT().GetShardID().Return(0).AnyTimes()
 
 				newObj := NewExecutionManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
-					dynamicproperties.GetIntPropertyFn(1), dynamicproperties.GetBoolPropertyFn(true), "test-host", "test")
+					dynamicproperties.GetIntPropertyFn(1), dynamicproperties.GetBoolPropertyFn(true))
 
 				return newObj, wrapped
 			},
@@ -210,17 +210,17 @@ func prepareMockForTest(t *testing.T, input interface{}, expectedErr error) {
 		mocked.EXPECT().GetAllHistoryTreeBranches(gomock.Any(), gomock.Any()).Return(&persistence.GetAllHistoryTreeBranchesResponse{}, expectedErr).Times(1)
 	case *persistence.MockQueueManager:
 		mocked.EXPECT().EnqueueMessage(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
-		mocked.EXPECT().ReadMessages(gomock.Any(), gomock.Any(), gomock.Any()).Return([]*persistence.QueueMessage{}, expectedErr).Times(1)
-		mocked.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
-		mocked.EXPECT().GetAckLevels(gomock.Any()).Return(map[string]int64{}, expectedErr).Times(1)
+		mocked.EXPECT().ReadMessages(gomock.Any(), gomock.Any()).Return(&persistence.ReadMessagesResponse{Messages: []*persistence.QueueMessage{}}, expectedErr).Times(1)
+		mocked.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
+		mocked.EXPECT().GetAckLevels(gomock.Any(), gomock.Any()).Return(&persistence.GetAckLevelsResponse{AckLevels: map[string]int64{}}, expectedErr).Times(1)
 		mocked.EXPECT().DeleteMessagesBefore(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 		mocked.EXPECT().DeleteMessageFromDLQ(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 		mocked.EXPECT().EnqueueMessageToDLQ(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
-		mocked.EXPECT().GetDLQAckLevels(gomock.Any()).Return(map[string]int64{}, expectedErr).Times(1)
-		mocked.EXPECT().GetDLQSize(gomock.Any()).Return(int64(0), expectedErr).Times(1)
-		mocked.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
-		mocked.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return([]*persistence.QueueMessage{}, nil, expectedErr).Times(1)
-		mocked.EXPECT().UpdateDLQAckLevel(gomock.Any(), gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
+		mocked.EXPECT().GetDLQAckLevels(gomock.Any(), gomock.Any()).Return(&persistence.GetDLQAckLevelsResponse{AckLevels: map[string]int64{}}, expectedErr).Times(1)
+		mocked.EXPECT().GetDLQSize(gomock.Any(), gomock.Any()).Return(&persistence.GetDLQSizeResponse{Size: 0}, expectedErr).Times(1)
+		mocked.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
+		mocked.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.ReadMessagesFromDLQResponse{Messages: []*persistence.QueueMessage{}}, expectedErr).Times(1)
+		mocked.EXPECT().UpdateDLQAckLevel(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 	case *persistence.MockShardManager:
 		mocked.EXPECT().GetShard(gomock.Any(), gomock.Any()).Return(&persistence.GetShardResponse{}, expectedErr).Times(1)
 		mocked.EXPECT().UpdateShard(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)

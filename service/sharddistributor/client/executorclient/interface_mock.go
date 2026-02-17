@@ -101,6 +101,18 @@ func (mr *MockShardProcessorMockRecorder) GetShardReport() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardReport", reflect.TypeOf((*MockShardProcessor)(nil).GetShardReport))
 }
 
+// SetShardStatus mocks base method.
+func (m *MockShardProcessor) SetShardStatus(arg0 types.ShardStatus) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetShardStatus", arg0)
+}
+
+// SetShardStatus indicates an expected call of SetShardStatus.
+func (mr *MockShardProcessorMockRecorder) SetShardStatus(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShardStatus", reflect.TypeOf((*MockShardProcessor)(nil).SetShardStatus), arg0)
+}
+
 // Start mocks base method.
 func (m *MockShardProcessor) Start(ctx context.Context) error {
 	m.ctrl.T.Helper()

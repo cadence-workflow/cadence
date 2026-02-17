@@ -24,7 +24,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -44,7 +43,7 @@ func newQueueStore(
 	db sqlplugin.DB,
 	logger log.Logger,
 	queueType persistence.QueueType,
-) (persistence.Queue, error) {
+) (persistence.QueueStore, error) {
 	return &sqlQueueStore{
 		sqlStore: sqlStore{
 			db:     db,
@@ -55,7 +54,7 @@ func newQueueStore(
 	}, nil
 }
 
-func (q *sqlQueueStore) EnqueueMessage(ctx context.Context, messagePayload []byte, currentTimeStamp time.Time) error {
+func (q *sqlQueueStore) EnqueueMessage(ctx context.Context, request *persistence.InternalEnqueueMessageRequest) error {
 	return q.txExecute(ctx, sqlplugin.DbDefaultShard, "EnqueueMessage", func(tx sqlplugin.Tx) error {
 		lastMessageID, err := tx.GetLastEnqueuedMessageIDForUpdate(ctx, q.queueType)
 		if err != nil {
@@ -71,18 +70,17 @@ func (q *sqlQueueStore) EnqueueMessage(ctx context.Context, messagePayload []byt
 			return err
 		}
 
-		_, err = tx.InsertIntoQueue(ctx, newQueueRow(q.queueType, getNextID(ackLevels, lastMessageID), messagePayload))
+		_, err = tx.InsertIntoQueue(ctx, newQueueRow(q.queueType, getNextID(ackLevels, lastMessageID), request.MessagePayload))
 		return err
 	})
 }
 
 func (q *sqlQueueStore) ReadMessages(
 	ctx context.Context,
-	lastMessageID int64,
-	maxCount int,
-) ([]*persistence.InternalQueueMessage, error) {
+	request *persistence.InternalReadMessagesRequest,
+) (*persistence.InternalReadMessagesResponse, error) {
 
-	rows, err := q.db.GetMessagesFromQueue(ctx, q.queueType, lastMessageID, maxCount)
+	rows, err := q.db.GetMessagesFromQueue(ctx, q.queueType, request.LastMessageID, request.MaxCount)
 	if err != nil {
 		return nil, convertCommonErrors(q.db, "ReadMessages", "", err)
 	}
@@ -91,7 +89,7 @@ func (q *sqlQueueStore) ReadMessages(
 	for _, row := range rows {
 		messages = append(messages, &persistence.InternalQueueMessage{ID: row.MessageID, Payload: row.MessagePayload})
 	}
-	return messages, nil
+	return &persistence.InternalReadMessagesResponse{Messages: messages}, nil
 }
 
 func newQueueRow(
@@ -105,17 +103,17 @@ func newQueueRow(
 
 func (q *sqlQueueStore) DeleteMessagesBefore(
 	ctx context.Context,
-	messageID int64,
+	request *persistence.InternalDeleteMessagesBeforeRequest,
 ) error {
 
-	_, err := q.db.DeleteMessagesBefore(ctx, q.queueType, messageID)
+	_, err := q.db.DeleteMessagesBefore(ctx, q.queueType, request.MessageID)
 	if err != nil {
 		return convertCommonErrors(q.db, "DeleteMessagesBefore", "", err)
 	}
 	return nil
 }
 
-func (q *sqlQueueStore) UpdateAckLevel(ctx context.Context, messageID int64, clusterName string, now time.Time) error {
+func (q *sqlQueueStore) UpdateAckLevel(ctx context.Context, request *persistence.InternalUpdateAckLevelRequest) error {
 	return q.txExecute(ctx, sqlplugin.DbDefaultShard, "UpdateAckLevel", func(tx sqlplugin.Tx) error {
 		clusterAckLevels, err := tx.GetAckLevels(ctx, q.queueType, true)
 		if err != nil {
@@ -123,30 +121,31 @@ func (q *sqlQueueStore) UpdateAckLevel(ctx context.Context, messageID int64, clu
 		}
 
 		if clusterAckLevels == nil {
-			return tx.InsertAckLevel(ctx, q.queueType, messageID, clusterName)
+			return tx.InsertAckLevel(ctx, q.queueType, request.MessageID, request.ClusterName)
 		}
 
 		// Ignore possibly delayed message
-		if ackLevel, ok := clusterAckLevels[clusterName]; ok && ackLevel >= messageID {
+		if ackLevel, ok := clusterAckLevels[request.ClusterName]; ok && ackLevel >= request.MessageID {
 			return nil
 		}
 
-		clusterAckLevels[clusterName] = messageID
+		clusterAckLevels[request.ClusterName] = request.MessageID
 		return tx.UpdateAckLevels(ctx, q.queueType, clusterAckLevels)
 	})
 }
 
 func (q *sqlQueueStore) GetAckLevels(
 	ctx context.Context,
-) (map[string]int64, error) {
+	_ *persistence.InternalGetAckLevelsRequest,
+) (*persistence.InternalGetAckLevelsResponse, error) {
 	result, err := q.db.GetAckLevels(ctx, q.queueType, false)
 	if err != nil {
 		return nil, convertCommonErrors(q.db, "GetAckLevels", "", err)
 	}
-	return result, nil
+	return &persistence.InternalGetAckLevelsResponse{AckLevels: result}, nil
 }
 
-func (q *sqlQueueStore) EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte, currentTimeStamp time.Time) error {
+func (q *sqlQueueStore) EnqueueMessageToDLQ(ctx context.Context, request *persistence.InternalEnqueueMessageToDLQRequest) error {
 	return q.txExecute(ctx, sqlplugin.DbDefaultShard, "EnqueueMessageToDLQ", func(tx sqlplugin.Tx) error {
 		var err error
 		lastMessageID, err := tx.GetLastEnqueuedMessageIDForUpdate(ctx, q.getDLQTypeFromQueueType())
@@ -157,31 +156,29 @@ func (q *sqlQueueStore) EnqueueMessageToDLQ(ctx context.Context, messagePayload 
 				return err
 			}
 		}
-		_, err = tx.InsertIntoQueue(ctx, newQueueRow(q.getDLQTypeFromQueueType(), lastMessageID+1, messagePayload))
+		_, err = tx.InsertIntoQueue(ctx, newQueueRow(q.getDLQTypeFromQueueType(), lastMessageID+1, request.MessagePayload))
 		return err
 	})
 }
 
 func (q *sqlQueueStore) ReadMessagesFromDLQ(
 	ctx context.Context,
-	firstMessageID int64,
-	lastMessageID int64,
-	pageSize int,
-	pageToken []byte,
-) ([]*persistence.InternalQueueMessage, []byte, error) {
+	request *persistence.InternalReadMessagesFromDLQRequest,
+) (*persistence.InternalReadMessagesFromDLQResponse, error) {
 
-	if len(pageToken) != 0 {
-		lastReadMessageID, err := deserializePageToken(pageToken)
+	firstMessageID := request.FirstMessageID
+	if len(request.PageToken) != 0 {
+		lastReadMessageID, err := deserializePageToken(request.PageToken)
 		if err != nil {
-			return nil, nil, &types.InternalServiceError{
-				Message: fmt.Sprintf("invalid next page token %v", pageToken)}
+			return nil, &types.InternalServiceError{
+				Message: fmt.Sprintf("invalid next page token %v", request.PageToken)}
 		}
 		firstMessageID = lastReadMessageID
 	}
 
-	rows, err := q.db.GetMessagesBetween(ctx, q.getDLQTypeFromQueueType(), firstMessageID, lastMessageID, pageSize)
+	rows, err := q.db.GetMessagesBetween(ctx, q.getDLQTypeFromQueueType(), firstMessageID, request.LastMessageID, request.PageSize)
 	if err != nil {
-		return nil, nil, convertCommonErrors(q.db, "ReadMessagesFromDLQ", "", err)
+		return nil, convertCommonErrors(q.db, "ReadMessagesFromDLQ", "", err)
 	}
 
 	var messages []*persistence.InternalQueueMessage
@@ -190,18 +187,21 @@ func (q *sqlQueueStore) ReadMessagesFromDLQ(
 	}
 
 	var newPagingToken []byte
-	if messages != nil && len(messages) >= pageSize {
+	if messages != nil && len(messages) >= request.PageSize {
 		lastReadMessageID := messages[len(messages)-1].ID
 		newPagingToken = serializePageToken(int64(lastReadMessageID))
 	}
-	return messages, newPagingToken, nil
+	return &persistence.InternalReadMessagesFromDLQResponse{
+		Messages:      messages,
+		NextPageToken: newPagingToken,
+	}, nil
 }
 
 func (q *sqlQueueStore) DeleteMessageFromDLQ(
 	ctx context.Context,
-	messageID int64,
+	request *persistence.InternalDeleteMessageFromDLQRequest,
 ) error {
-	_, err := q.db.DeleteMessage(ctx, q.getDLQTypeFromQueueType(), messageID)
+	_, err := q.db.DeleteMessage(ctx, q.getDLQTypeFromQueueType(), request.MessageID)
 	if err != nil {
 		return convertCommonErrors(q.db, "DeleteMessageFromDLQ", "", err)
 	}
@@ -210,17 +210,16 @@ func (q *sqlQueueStore) DeleteMessageFromDLQ(
 
 func (q *sqlQueueStore) RangeDeleteMessagesFromDLQ(
 	ctx context.Context,
-	firstMessageID int64,
-	lastMessageID int64,
+	request *persistence.InternalRangeDeleteMessagesFromDLQRequest,
 ) error {
-	_, err := q.db.RangeDeleteMessages(ctx, q.getDLQTypeFromQueueType(), firstMessageID, lastMessageID)
+	_, err := q.db.RangeDeleteMessages(ctx, q.getDLQTypeFromQueueType(), request.FirstMessageID, request.LastMessageID)
 	if err != nil {
 		return convertCommonErrors(q.db, "RangeDeleteMessagesFromDLQ", "", err)
 	}
 	return nil
 }
 
-func (q *sqlQueueStore) UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string, now time.Time) error {
+func (q *sqlQueueStore) UpdateDLQAckLevel(ctx context.Context, request *persistence.InternalUpdateDLQAckLevelRequest) error {
 	return q.txExecute(ctx, sqlplugin.DbDefaultShard, "UpdateDLQAckLevel", func(tx sqlplugin.Tx) error {
 		clusterAckLevels, err := tx.GetAckLevels(ctx, q.getDLQTypeFromQueueType(), true)
 		if err != nil {
@@ -228,37 +227,39 @@ func (q *sqlQueueStore) UpdateDLQAckLevel(ctx context.Context, messageID int64, 
 		}
 
 		if clusterAckLevels == nil {
-			return tx.InsertAckLevel(ctx, q.getDLQTypeFromQueueType(), messageID, clusterName)
+			return tx.InsertAckLevel(ctx, q.getDLQTypeFromQueueType(), request.MessageID, request.ClusterName)
 		}
 
 		// Ignore possibly delayed message
-		if ackLevel, ok := clusterAckLevels[clusterName]; ok && ackLevel >= messageID {
+		if ackLevel, ok := clusterAckLevels[request.ClusterName]; ok && ackLevel >= request.MessageID {
 			return nil
 		}
 
-		clusterAckLevels[clusterName] = messageID
+		clusterAckLevels[request.ClusterName] = request.MessageID
 		return tx.UpdateAckLevels(ctx, q.getDLQTypeFromQueueType(), clusterAckLevels)
 	})
 }
 
 func (q *sqlQueueStore) GetDLQAckLevels(
 	ctx context.Context,
-) (map[string]int64, error) {
+	_ *persistence.InternalGetDLQAckLevelsRequest,
+) (*persistence.InternalGetDLQAckLevelsResponse, error) {
 	result, err := q.db.GetAckLevels(ctx, q.getDLQTypeFromQueueType(), false)
 	if err != nil {
 		return nil, convertCommonErrors(q.db, "GetDLQAckLevels", "", err)
 	}
-	return result, nil
+	return &persistence.InternalGetDLQAckLevelsResponse{AckLevels: result}, nil
 }
 
 func (q *sqlQueueStore) GetDLQSize(
 	ctx context.Context,
-) (int64, error) {
+	_ *persistence.InternalGetDLQSizeRequest,
+) (*persistence.InternalGetDLQSizeResponse, error) {
 	result, err := q.db.GetQueueSize(ctx, q.getDLQTypeFromQueueType())
 	if err != nil {
-		return 0, convertCommonErrors(q.db, "GetDLQSize", "", err)
+		return nil, convertCommonErrors(q.db, "GetDLQSize", "", err)
 	}
-	return result, nil
+	return &persistence.InternalGetDLQSizeResponse{Size: result}, nil
 }
 
 func (q *sqlQueueStore) getDLQTypeFromQueueType() persistence.QueueType {

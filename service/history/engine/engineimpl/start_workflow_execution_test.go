@@ -236,6 +236,7 @@ func TestStartWorkflowExecution(t *testing.T) {
 				historyV2Mgr := eft.ShardCtx.Resource.HistoryMgr
 				historyV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.AnythingOfType("*persistence.AppendHistoryNodesRequest")).
 					Return(&persistence.AppendHistoryNodesResponse{}, nil).Once()
+				historyV2Mgr.On("DeleteHistoryBranch", mock.Anything, mock.Anything).Return(nil).Once()
 			},
 			wantErr: true,
 		},

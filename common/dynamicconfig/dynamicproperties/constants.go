@@ -3058,7 +3058,7 @@ const (
 	// ReplicationTaskProcessorStartWait is the wait time before each task processing batch
 	// KeyName: history.ReplicationTaskProcessorStartWait
 	// Value type: Duration
-	// Default value: 5s (5* time.Second)
+	// Default value: 0
 	// Allowed filters: ShardID
 	ReplicationTaskProcessorStartWait
 	// ReplicationTaskProcessorLatencyLogThreshold is the threshold of whether history will log history replication latency
@@ -3247,6 +3247,13 @@ const (
 	// Default value: N/A
 	// Allowed filters: N/A
 	AllIsolationGroups
+
+	// RateLimiterBypassCallerTypes defines which caller types bypass rate limiters (both frontend and persistence)
+	// KeyName: system.rateLimiterBypassCallerTypes
+	// Value type: []string
+	// Default value: empty list
+	// Allowed filters: N/A
+	RateLimiterBypassCallerTypes
 
 	// HeaderForwardingRules defines which headers are forwarded from inbound calls to outbound.
 	// This value is only loaded at startup.
@@ -4360,7 +4367,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableCleanupOrphanedHistoryBranchOnWorkflowCreation: {
 		KeyName:      "history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation",
 		Description:  "EnableCleanupOrphanedHistoryBranchOnWorkflowCreation enables cleanup of orphaned history branches when CreateWorkflowExecution fails",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	DisableListVisibilityByFilter: {
 		KeyName:      "frontend.disableListVisibilityByFilter",
@@ -5604,7 +5611,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.ReplicationTaskProcessorStartWait",
 		Filters:      []Filter{ShardID},
 		Description:  "ReplicationTaskProcessorStartWait is the wait time before each task processing batch",
-		DefaultValue: time.Second * 5,
+		DefaultValue: 0,
 	},
 	ReplicationTaskProcessorLatencyLogThreshold: {
 		KeyName:      "history.ReplicationTaskProcessorLatencyLogThreshold",
@@ -5752,6 +5759,11 @@ var ListKeys = map[ListKey]DynamicList{
 	AllIsolationGroups: {
 		KeyName:     "system.allIsolationGroups",
 		Description: "A list of all the isolation groups in a system",
+	},
+	RateLimiterBypassCallerTypes: {
+		KeyName:      "system.rateLimiterBypassCallerTypes",
+		Description:  "List of caller types that bypass rate limiters (both frontend and persistence)",
+		DefaultValue: []interface{}{},
 	},
 	DefaultIsolationGroupConfigStoreManagerGlobalMapping: {
 		KeyName: "system.defaultIsolationGroupConfigStoreManagerGlobalMapping",

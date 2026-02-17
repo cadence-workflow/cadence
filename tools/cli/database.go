@@ -264,7 +264,6 @@ func (f *defaultManagerFactory) initPersistenceFactory(c *cli.Context) (client.F
 		&persistence.DynamicConfiguration{
 			EnableSQLAsyncTransaction: dynamicproperties.GetBoolPropertyFn(false),
 		},
-		"cadence-cli",
 	), nil
 }
 

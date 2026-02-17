@@ -274,12 +274,16 @@ func (p *taskProcessorImpl) cleanupAckedReplicationTasks() error {
 	}
 	p.logger.Debug("Cleaning up replication task queue.", tag.ReadLevel(minAckLevel))
 	p.metricsClient.Scope(metrics.ReplicationTaskCleanupScope).IncCounter(metrics.ReplicationTaskCleanupCount)
-	p.metricsClient.Scope(metrics.ReplicationTaskFetcherScope,
+	maxReadLevel := p.shard.UpdateIfNeededAndGetQueueMaxReadLevel(
+		persistence.HistoryTaskCategoryReplication,
+		p.currentCluster,
+	).GetTaskID()
+	lag := time.Duration(maxReadLevel - minAckLevel)
+	scope := p.metricsClient.Scope(metrics.ReplicationTaskFetcherScope,
 		metrics.TargetClusterTag(p.currentCluster),
-	).RecordTimer(
-		metrics.ReplicationTasksLag,
-		time.Duration(p.shard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, p.currentCluster).GetTaskID()-minAckLevel),
 	)
+	scope.RecordTimer(metrics.ReplicationTasksLag, lag)
+	scope.ExponentialHistogram(metrics.ExponentialReplicationTasksLag, lag)
 	for {
 		pageSize := p.config.ReplicatorTaskDeleteBatchSize()
 		resp, err := p.shard.GetExecutionManager().RangeCompleteHistoryTask(
@@ -338,7 +342,9 @@ func (p *taskProcessorImpl) processResponse(response *types.ReplicationMessages)
 		backoffDuration := p.noTaskRetrier.NextBackOff()
 		time.Sleep(backoffDuration)
 	} else {
-		scope.RecordTimer(metrics.ReplicationTasksAppliedLatency, time.Since(batchRequestStartTime))
+		appliedLatency := time.Since(batchRequestStartTime)
+		scope.RecordTimer(metrics.ReplicationTasksAppliedLatency, appliedLatency)
+		scope.ExponentialHistogram(metrics.ExponentialReplicationTasksAppliedLatency, appliedLatency)
 	}
 
 	if p.isShuttingDown() {

@@ -30,8 +30,6 @@ func NewExecutionManager(
 	cfg *config.Persistence,
 	sampleLoggingRate dynamicproperties.IntPropertyFn,
 	enableShardIDMetrics dynamicproperties.BoolPropertyFn,
-	hostname string,
-	datastoreName string,
 ) persistence.ExecutionManager {
 	return &meteredExecutionManager{
 		wrapped: wrapped,
@@ -41,8 +39,6 @@ func NewExecutionManager(
 			enableLatencyHistogramMetrics: cfg.EnablePersistenceLatencyHistogramMetrics,
 			sampleLoggingRate:             sampleLoggingRate,
 			enableShardIDMetrics:          enableShardIDMetrics,
-			hostname:                      hostname,
-			datastoreName:                 datastoreName,
 		},
 	}
 }

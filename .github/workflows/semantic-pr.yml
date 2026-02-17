@@ -31,6 +31,7 @@ jobs:
             chore
             ci
             build
+            revert
           # TODO: Remove this once we've decided on scopes
           requireScope: false
           # Skip validation for certain labels if needed
@@ -60,7 +61,7 @@ jobs:
               <type>: <description>
               \`\`\`
 
-              **Allowed types:** fix, feat, docs, style, refactor, perf, test, chore, ci, build
+              **Allowed types:** fix, feat, docs, style, refactor, perf, test, chore, ci, build, revert
 
               **Examples:**
               - \`feat: add user authentication system\`

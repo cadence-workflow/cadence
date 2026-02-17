@@ -26,6 +26,7 @@ type apiHandler struct {
 	visibilityRateLimiter quotas.Policy
 	asyncRateLimiter      quotas.Policy
 	maxWorkerPollDelay    dynamicproperties.DurationPropertyFnWithDomainFilter
+	callerBypass          quotas.CallerBypass
 }
 
 // NewAPIHandler creates a new instance of Handler with ratelimiter.
@@ -37,6 +38,7 @@ func NewAPIHandler(
 	visibilityRateLimiter quotas.Policy,
 	asyncRateLimiter quotas.Policy,
 	maxWorkerPollDelay dynamicproperties.DurationPropertyFnWithDomainFilter,
+	callerBypass quotas.CallerBypass,
 ) api.Handler {
 	return &apiHandler{
 		wrapped:               wrapped,
@@ -47,6 +49,7 @@ func NewAPIHandler(
 		visibilityRateLimiter: visibilityRateLimiter,
 		asyncRateLimiter:      asyncRateLimiter,
 		maxWorkerPollDelay:    maxWorkerPollDelay,
+		callerBypass:          callerBypass,
 	}
 }
 

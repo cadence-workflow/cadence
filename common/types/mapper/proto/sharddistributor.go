@@ -187,7 +187,7 @@ func FromShardDistributorExecutorHeartbeatResponse(t *types.ExecutorHeartbeatRes
 
 	// Convert the ShardAssignments
 	var shardAssignments map[string]*sharddistributorv1.ShardAssignment
-	var migrationMode sharddistributorv1.MigrationMode
+	migrationMode := toMigrationMode(t.GetMigrationMode())
 	if t.GetShardAssignments() != nil {
 		shardAssignments = make(map[string]*sharddistributorv1.ShardAssignment)
 
@@ -203,7 +203,6 @@ func FromShardDistributorExecutorHeartbeatResponse(t *types.ExecutorHeartbeatRes
 				Status: status,
 			}
 		}
-		migrationMode = toMigrationMode(t.MigrationMode)
 	}
 
 	return &sharddistributorv1.HeartbeatResponse{

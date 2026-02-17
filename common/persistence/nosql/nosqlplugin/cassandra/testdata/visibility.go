@@ -62,12 +62,15 @@ func NewVisibilityRow() persistence.InternalVisibilityWorkflowExecutionInfo {
 			Encoding: constants.EncodingTypeJSON,
 			Data:     []byte{},
 		},
-		TaskList:         TaskList,
-		IsCron:           false,
-		NumClusters:      NumClusters,
-		UpdateTime:       ts,
-		SearchAttributes: map[string]interface{}{},
-		ShardID:          ShardID,
+		TaskList:               TaskList,
+		IsCron:                 false,
+		NumClusters:            NumClusters,
+		UpdateTime:             ts,
+		SearchAttributes:       map[string]interface{}{},
+		ShardID:                ShardID,
+		ExecutionStatus:        types.WorkflowExecutionStatusPending,
+		CronSchedule:           "",
+		ScheduledExecutionTime: time.Time{},
 	}
 }
 

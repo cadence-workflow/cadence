@@ -14,9 +14,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python-setuptools \
       time \
       unzip \
+      ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install cqlsh
+RUN pip3 install cqlsh && cqlsh --version
 
 # verbose test output from `make`, can be disabled with V=0
 ENV V=0

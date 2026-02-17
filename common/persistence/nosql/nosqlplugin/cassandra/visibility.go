@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/thrift"
 )
 
@@ -57,6 +58,9 @@ func (db *CDB) InsertVisibility(ctx context.Context, ttlSeconds int64, row *nosq
 			row.NumClusters,
 			row.UpdateTime,
 			row.ShardID,
+			row.ExecutionStatus,
+			row.CronSchedule,
+			persistence.UnixNanoToDBTimestamp(row.ScheduledExecutionTime.UnixNano()),
 		).WithContext(ctx)
 	} else {
 		query = db.session.Query(templateCreateWorkflowExecutionStartedWithTTL,
@@ -74,6 +78,9 @@ func (db *CDB) InsertVisibility(ctx context.Context, ttlSeconds int64, row *nosq
 			row.NumClusters,
 			row.UpdateTime,
 			row.ShardID,
+			row.ExecutionStatus,
+			row.CronSchedule,
+			persistence.UnixNanoToDBTimestamp(row.ScheduledExecutionTime.UnixNano()),
 			ttlSeconds,
 		).WithContext(ctx)
 	}
@@ -119,6 +126,9 @@ func (db *CDB) UpdateVisibility(ctx context.Context, ttlSeconds int64, row *nosq
 			row.NumClusters,
 			row.UpdateTime,
 			row.ShardID,
+			row.ExecutionStatus,
+			row.CronSchedule,
+			persistence.UnixNanoToDBTimestamp(row.ScheduledExecutionTime.UnixNano()),
 		)
 		// duplicate write to v2 to order by close time
 		batch.Query(templateCreateWorkflowExecutionClosedV2,
@@ -139,6 +149,9 @@ func (db *CDB) UpdateVisibility(ctx context.Context, ttlSeconds int64, row *nosq
 			row.NumClusters,
 			row.UpdateTime,
 			row.ShardID,
+			row.ExecutionStatus,
+			row.CronSchedule,
+			persistence.UnixNanoToDBTimestamp(row.ScheduledExecutionTime.UnixNano()),
 		)
 	} else {
 		batch.Query(templateCreateWorkflowExecutionClosedWithTTL,
@@ -159,6 +172,9 @@ func (db *CDB) UpdateVisibility(ctx context.Context, ttlSeconds int64, row *nosq
 			row.NumClusters,
 			row.UpdateTime,
 			row.ShardID,
+			row.ExecutionStatus,
+			row.CronSchedule,
+			persistence.UnixNanoToDBTimestamp(row.ScheduledExecutionTime.UnixNano()),
 			ttlSeconds,
 		)
 		// duplicate write to v2 to order by close time
@@ -180,6 +196,9 @@ func (db *CDB) UpdateVisibility(ctx context.Context, ttlSeconds int64, row *nosq
 			row.NumClusters,
 			row.UpdateTime,
 			row.ShardID,
+			row.ExecutionStatus,
+			row.CronSchedule,
+			persistence.UnixNanoToDBTimestamp(row.ScheduledExecutionTime.UnixNano()),
 			ttlSeconds,
 		)
 	}
@@ -548,19 +567,25 @@ func readOpenWorkflowExecutionRecord(
 	var numClusters int16
 	var updateTime time.Time
 	var shardID int16
-	if iter.Scan(&workflowID, &runID, &startTime, &executionTime, &typeName, &memo, &encoding, &taskList, &isCron, &numClusters, &updateTime, &shardID) {
+	var executionStatus int32
+	var cronSchedule string
+	var scheduledExecutionTime time.Time
+	if iter.Scan(&workflowID, &runID, &startTime, &executionTime, &typeName, &memo, &encoding, &taskList, &isCron, &numClusters, &updateTime, &shardID, &executionStatus, &cronSchedule, &scheduledExecutionTime) {
 		record := &persistence.InternalVisibilityWorkflowExecutionInfo{
-			WorkflowID:    workflowID,
-			RunID:         runID,
-			TypeName:      typeName,
-			StartTime:     startTime,
-			ExecutionTime: executionTime,
-			Memo:          persistence.NewDataBlob(memo, constants.EncodingType(encoding)),
-			TaskList:      taskList,
-			IsCron:        isCron,
-			NumClusters:   numClusters,
-			UpdateTime:    updateTime,
-			ShardID:       shardID,
+			WorkflowID:             workflowID,
+			RunID:                  runID,
+			TypeName:               typeName,
+			StartTime:              startTime,
+			ExecutionTime:          executionTime,
+			Memo:                   persistence.NewDataBlob(memo, constants.EncodingType(encoding)),
+			TaskList:               taskList,
+			IsCron:                 isCron,
+			NumClusters:            numClusters,
+			UpdateTime:             updateTime,
+			ShardID:                shardID,
+			ExecutionStatus:        types.WorkflowExecutionStatus(executionStatus),
+			CronSchedule:           cronSchedule,
+			ScheduledExecutionTime: scheduledExecutionTime,
 		}
 		return record, true
 	}
@@ -585,22 +610,28 @@ func readClosedWorkflowExecutionRecord(
 	var numClusters int16
 	var updateTime time.Time
 	var shardID int16
-	if iter.Scan(&workflowID, &runID, &startTime, &executionTime, &closeTime, &typeName, &status, &historyLength, &memo, &encoding, &taskList, &isCron, &numClusters, &updateTime, &shardID) {
+	var executionStatus int32
+	var cronSchedule string
+	var scheduledExecutionTime time.Time
+	if iter.Scan(&workflowID, &runID, &startTime, &executionTime, &closeTime, &typeName, &status, &historyLength, &memo, &encoding, &taskList, &isCron, &numClusters, &updateTime, &shardID, &executionStatus, &cronSchedule, &scheduledExecutionTime) {
 		record := &persistence.InternalVisibilityWorkflowExecutionInfo{
-			WorkflowID:    workflowID,
-			RunID:         runID,
-			TypeName:      typeName,
-			StartTime:     startTime,
-			ExecutionTime: executionTime,
-			CloseTime:     closeTime,
-			Status:        thrift.ToWorkflowExecutionCloseStatus(&status),
-			HistoryLength: historyLength,
-			Memo:          persistence.NewDataBlob(memo, constants.EncodingType(encoding)),
-			TaskList:      taskList,
-			IsCron:        isCron,
-			NumClusters:   numClusters,
-			UpdateTime:    updateTime,
-			ShardID:       shardID,
+			WorkflowID:             workflowID,
+			RunID:                  runID,
+			TypeName:               typeName,
+			StartTime:              startTime,
+			ExecutionTime:          executionTime,
+			CloseTime:              closeTime,
+			Status:                 thrift.ToWorkflowExecutionCloseStatus(&status),
+			HistoryLength:          historyLength,
+			Memo:                   persistence.NewDataBlob(memo, constants.EncodingType(encoding)),
+			TaskList:               taskList,
+			IsCron:                 isCron,
+			NumClusters:            numClusters,
+			UpdateTime:             updateTime,
+			ShardID:                shardID,
+			ExecutionStatus:        types.WorkflowExecutionStatus(executionStatus),
+			CronSchedule:           cronSchedule,
+			ScheduledExecutionTime: scheduledExecutionTime,
 		}
 		return record, true
 	}
