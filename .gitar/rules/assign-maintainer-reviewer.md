@@ -8,11 +8,13 @@ actions:
 
 # Auto-assign Maintainer Reviewer
 
-When a pull request is opened by someone not listed in `.github/CODEOWNERS`, assign one reviewer from the following list in round-robin rotation:
+When a pull request is opened by someone not listed in `.github/CODEOWNERS`, assign @natemort plus one reviewer from the following list in round-robin rotation:
 
-- @demirkayaender
-- @natemort
 - @c-warren
+- @fimanishi 
+- @neil-xie
+- @zawadzkidiana
+- @shijiesheng
 
 You must modify the assignees field on the Pull Request - being a reviewer is not sufficient.
 
