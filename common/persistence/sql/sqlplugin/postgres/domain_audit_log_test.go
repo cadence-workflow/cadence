@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -51,9 +52,9 @@ func TestInsertIntoDomainAuditLog(t *testing.T) {
 				DomainID:            domainID,
 				EventID:             eventID,
 				StateBefore:         []byte("state-before"),
-				StateBeforeEncoding: "json",
+				StateBeforeEncoding: constants.EncodingTypeJSON,
 				StateAfter:          []byte("state-after"),
-				StateAfterEncoding:  "json",
+				StateAfterEncoding:  constants.EncodingTypeJSON,
 				OperationType:       persistence.DomainAuditOperationTypeFailover,
 				CreatedTime:         now,
 				LastUpdatedTime:     now,
@@ -69,9 +70,9 @@ func TestInsertIntoDomainAuditLog(t *testing.T) {
 					domainID,
 					eventID,
 					[]byte("state-before"),
-					"json",
+					constants.EncodingTypeJSON,
 					[]byte("state-after"),
-					"json",
+					constants.EncodingTypeJSON,
 					persistence.DomainAuditOperationTypeFailover,
 					now,
 					now,

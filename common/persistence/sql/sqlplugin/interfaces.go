@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 )
@@ -587,9 +588,9 @@ type (
 		DomainID            string
 		EventID             string
 		StateBefore         []byte
-		StateBeforeEncoding string
+		StateBeforeEncoding constants.EncodingType
 		StateAfter          []byte
-		StateAfterEncoding  string
+		StateAfterEncoding  constants.EncodingType
 		OperationType       persistence.DomainAuditOperationType
 		CreatedTime         time.Time
 		LastUpdatedTime     time.Time

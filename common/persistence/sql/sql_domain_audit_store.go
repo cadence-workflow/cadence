@@ -159,14 +159,14 @@ func (m *sqlDomainAuditStore) GetDomainAuditLogs(
 
 		if len(row.StateBefore) > 0 {
 			auditLog.StateBefore = &persistence.DataBlob{
-				Encoding: constants.EncodingType(row.StateBeforeEncoding),
+				Encoding: row.StateBeforeEncoding,
 				Data:     row.StateBefore,
 			}
 		}
 
 		if len(row.StateAfter) > 0 {
 			auditLog.StateAfter = &persistence.DataBlob{
-				Encoding: constants.EncodingType(row.StateAfterEncoding),
+				Encoding: row.StateAfterEncoding,
 				Data:     row.StateAfter,
 			}
 		}
@@ -187,9 +187,9 @@ func getDataBlobBytes(blob *persistence.DataBlob) []byte {
 	return blob.Data
 }
 
-func getDataBlobEncoding(blob *persistence.DataBlob) string {
+func getDataBlobEncoding(blob *persistence.DataBlob) constants.EncodingType {
 	if blob == nil {
-		return ""
+		return constants.EncodingTypeEmpty
 	}
-	return string(blob.Encoding)
+	return blob.Encoding
 }

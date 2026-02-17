@@ -72,9 +72,9 @@ func TestCreateDomainAuditLog(t *testing.T) {
 					DomainID:            "d1111111-1111-1111-1111-111111111111",
 					EventID:             "e1111111-1111-1111-1111-111111111111",
 					StateBefore:         stateBeforeBlob.Data,
-					StateBeforeEncoding: string(stateBeforeBlob.Encoding),
+					StateBeforeEncoding: stateBeforeBlob.Encoding,
 					StateAfter:          stateAfterBlob.Data,
-					StateAfterEncoding:  string(stateAfterBlob.Encoding),
+					StateAfterEncoding:  stateAfterBlob.Encoding,
 					OperationType:       persistence.DomainAuditOperationTypeUpdate,
 					CreatedTime:         now,
 					LastUpdatedTime:     now,
@@ -95,7 +95,7 @@ func TestCreateDomainAuditLog(t *testing.T) {
 				Identity:        "test-user",
 				IdentityType:    "user",
 				Comment:         "test comment",
-			},
+			}, 
 			expectError: false,
 			expectedID:  "e1111111-1111-1111-1111-111111111111",
 		},
@@ -105,9 +105,9 @@ func TestCreateDomainAuditLog(t *testing.T) {
 					DomainID:            "d1111111-1111-1111-1111-111111111111",
 					EventID:             "e1111111-1111-1111-1111-111111111111",
 					StateBefore:         []byte{},
-					StateBeforeEncoding: "",
+					StateBeforeEncoding: constants.EncodingTypeEmpty,
 					StateAfter:          []byte{},
-					StateAfterEncoding:  "",
+					StateAfterEncoding:  constants.EncodingTypeEmpty,
 					OperationType:       persistence.DomainAuditOperationTypeCreate,
 					CreatedTime:         now,
 					LastUpdatedTime:     now,
@@ -202,9 +202,9 @@ func TestGetDomainAuditLogs(t *testing.T) {
 						IdentityType:        "user",
 						Comment:             "comment 1",
 						StateBefore:         []byte("state-before-1"),
-						StateBeforeEncoding: string(constants.EncodingTypeThriftRWSnappy),
+						StateBeforeEncoding: constants.EncodingTypeThriftRWSnappy,
 						StateAfter:          []byte("state-after-1"),
-						StateAfterEncoding:  string(constants.EncodingTypeThriftRW),
+						StateAfterEncoding:  constants.EncodingTypeThriftRW,
 					},
 					{
 						EventID:             "e2222222-2222-2222-2222-222222222222",
@@ -216,9 +216,9 @@ func TestGetDomainAuditLogs(t *testing.T) {
 						IdentityType:        "user",
 						Comment:             "comment 2",
 						StateBefore:         []byte("state-before-2"),
-						StateBeforeEncoding: string(constants.EncodingTypeThriftRWSnappy),
+						StateBeforeEncoding: constants.EncodingTypeThriftRWSnappy,
 						StateAfter:          []byte("state-after-2"),
-						StateAfterEncoding:  string(constants.EncodingTypeThriftRWSnappy),
+						StateAfterEncoding:  constants.EncodingTypeThriftRWSnappy,
 					},
 				}
 
@@ -278,9 +278,9 @@ func TestGetDomainAuditLogs(t *testing.T) {
 						IdentityType:        "user",
 						Comment:             "comment 3",
 						StateBefore:         []byte("state-before-3"),
-						StateBeforeEncoding: string(constants.EncodingTypeThriftRWSnappy),
+						StateBeforeEncoding: constants.EncodingTypeThriftRWSnappy,
 						StateAfter:          []byte("state-after-3"),
-						StateAfterEncoding:  string(constants.EncodingTypeThriftRW),
+						StateAfterEncoding:  constants.EncodingTypeThriftRW,
 					},
 					{
 						EventID:             "e2222222-2222-2222-2222-222222222222",
@@ -292,9 +292,9 @@ func TestGetDomainAuditLogs(t *testing.T) {
 						IdentityType:        "user",
 						Comment:             "comment 2",
 						StateBefore:         []byte("state-before-2"),
-						StateBeforeEncoding: string(constants.EncodingTypeThriftRWSnappy),
+						StateBeforeEncoding: constants.EncodingTypeThriftRWSnappy,
 						StateAfter:          []byte("state-after-2"),
-						StateAfterEncoding:  string(constants.EncodingTypeThriftRW),
+						StateAfterEncoding:  constants.EncodingTypeThriftRW,
 					},
 				}
 
@@ -347,9 +347,9 @@ func TestGetDomainAuditLogs(t *testing.T) {
 						IdentityType:        "system",
 						Comment:             "created",
 						StateBefore:         []byte{}, // Empty slice
-						StateBeforeEncoding: "",
+						StateBeforeEncoding: constants.EncodingTypeEmpty,
 						StateAfter:          nil, // Nil
-						StateAfterEncoding:  "",
+						StateAfterEncoding:  constants.EncodingTypeEmpty,
 					},
 				}
 
@@ -469,32 +469,32 @@ func TestGetDataBlobBytes(t *testing.T) {
 func TestGetDataBlobEncoding(t *testing.T) {
 	tests := map[string]struct {
 		input    *persistence.DataBlob
-		expected string
+		expected constants.EncodingType
 	}{
 		"nil blob": {
 			input:    nil,
-			expected: "",
+			expected: constants.EncodingTypeEmpty,
 		},
 		"blob with ThriftRWSnappy encoding": {
 			input: &persistence.DataBlob{
 				Encoding: constants.EncodingTypeThriftRWSnappy,
 				Data:     []byte("test-data"),
 			},
-			expected: string(constants.EncodingTypeThriftRWSnappy),
+			expected: constants.EncodingTypeThriftRWSnappy,
 		},
 		"blob with ThriftRW encoding": {
 			input: &persistence.DataBlob{
 				Encoding: constants.EncodingTypeThriftRW,
 				Data:     []byte("test-data"),
 			},
-			expected: string(constants.EncodingTypeThriftRW),
+			expected: constants.EncodingTypeThriftRW,
 		},
 		"blob with empty encoding": {
 			input: &persistence.DataBlob{
 				Encoding: "",
 				Data:     []byte("test-data"),
 			},
-			expected: "",
+			expected: constants.EncodingTypeEmpty,
 		},
 	}
 
