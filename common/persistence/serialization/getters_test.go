@@ -165,6 +165,7 @@ func TestGettersForInfos(t *testing.T) {
 			ScheduleID:              2,
 			Version:                 3,
 			VisibilityTimestamp:     taskInfoCreateTime,
+			OriginalTaskList:        "originalTaskList",
 		},
 		&TimerTaskInfo{
 			DomainID:        taskDomainID,
@@ -175,6 +176,7 @@ func TestGettersForInfos(t *testing.T) {
 			Version:         3,
 			ScheduleAttempt: 4,
 			EventID:         5,
+			TaskList:        "taskList",
 		},
 		&ReplicationTaskInfo{
 			DomainID:                replicationTaskDomainID,

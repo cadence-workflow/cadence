@@ -684,6 +684,7 @@ func transferTaskInfoToThrift(info *TransferTaskInfo) *sqlblobs.TransferTaskInfo
 		ScheduleID:               &info.ScheduleID,
 		Version:                  &info.Version,
 		VisibilityTimestampNanos: timeToUnixNanoPtr(info.VisibilityTimestamp),
+		OriginalTaskList:         &info.OriginalTaskList,
 	}
 	if len(info.TargetDomainIDs) > 0 {
 		thriftTaskInfo.TargetDomainIDs = [][]byte{}
@@ -712,6 +713,7 @@ func transferTaskInfoFromThrift(info *sqlblobs.TransferTaskInfo) *TransferTaskIn
 		ScheduleID:              info.GetScheduleID(),
 		Version:                 info.GetVersion(),
 		VisibilityTimestamp:     timeFromUnixNano(info.GetVisibilityTimestampNanos()),
+		OriginalTaskList:        info.GetOriginalTaskList(),
 	}
 	if len(info.GetTargetDomainIDs()) > 0 {
 		transferTaskInfo.TargetDomainIDs = []UUID{}
@@ -743,6 +745,7 @@ func timerTaskInfoToThrift(info *TimerTaskInfo) *sqlblobs.TimerTaskInfo {
 		Version:         &info.Version,
 		ScheduleAttempt: &info.ScheduleAttempt,
 		EventID:         &info.EventID,
+		TaskList:        &info.TaskList,
 	}
 }
 
@@ -759,6 +762,7 @@ func timerTaskInfoFromThrift(info *sqlblobs.TimerTaskInfo) *TimerTaskInfo {
 		Version:         info.GetVersion(),
 		ScheduleAttempt: info.GetScheduleAttempt(),
 		EventID:         info.GetEventID(),
+		TaskList:        info.GetTaskList(),
 	}
 }
 
