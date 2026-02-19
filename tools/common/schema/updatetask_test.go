@@ -116,7 +116,7 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	s.NoError(err)
 	ans, err := readSchemaDir(fsys, "0.30", "")
 	s.NoError(err)
-	s.Equal([]string{"v0.31", "v0.32", "v0.33", "v0.34", "v0.35", "v0.36", "v0.37", "v0.38", "v0.39", "v0.40", "v0.41", "v0.42", "v0.43", "v0.44"}, ans)
+	s.Equal([]string{"v0.31", "v0.32", "v0.33", "v0.34", "v0.35", "v0.36", "v0.37", "v0.38", "v0.39", "v0.40", "v0.41", "v0.42", "v0.43", "v0.44", "v0.45"}, ans)
 
 	fsys, err = fs.Sub(cassandra.SchemaFS, "visibility/versioned")
 	s.NoError(err)
