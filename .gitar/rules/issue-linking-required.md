@@ -33,6 +33,7 @@ PRs with titles starting with these conventional commit prefixes are exempt:
 - `chore:` - Maintenance tasks, dependency updates
 - `ci:` - CI/CD configuration changes
 - `style:` - Code formatting or style changes
+- `revert:` - Pull Request Reverts
 
 Examples:
 - ✅ Skip: `docs: Update installation instructions`
