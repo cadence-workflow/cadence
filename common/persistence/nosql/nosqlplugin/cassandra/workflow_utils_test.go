@@ -1042,6 +1042,7 @@ func TestCreateTimerTasks(t *testing.T) {
 						ScheduleAttempt:     0,
 						Version:             0,
 						VisibilityTimestamp: ts,
+						TaskList:            "tasklist_1",
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("timer1"),
@@ -1058,6 +1059,7 @@ func TestCreateTimerTasks(t *testing.T) {
 						ScheduleAttempt:     0,
 						Version:             0,
 						VisibilityTimestamp: ts.Add(time.Minute),
+						TaskList:            "tasklist_2",
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("timer2"),
@@ -1068,11 +1070,11 @@ func TestCreateTimerTasks(t *testing.T) {
 			wantQueries: []string{
 				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, timer, data, data_encoding, visibility_ts, task_id, created_time) ` +
 					`VALUES(1000, 3, 10000000-4000-f000-f000-000000000000, 20000000-4000-f000-f000-000000000000, 30000000-4000-f000-f000-000000000000, ` +
-					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 1702418921000, task_id: 1, type: 1, timeout_type: 1, event_id: 10, schedule_attempt: 0, version: 0}, ` +
+					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 1702418921000, task_id: 1, type: 1, timeout_type: 1, event_id: 10, schedule_attempt: 0, version: 0, task_list: tasklist_1}, ` +
 					`[116 105 109 101 114 49], thriftrw, 1702418921000, 1, 2025-01-06T15:00:00Z)`,
 				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, timer, data, data_encoding, visibility_ts, task_id, created_time) ` +
 					`VALUES(1000, 3, 10000000-4000-f000-f000-000000000000, 20000000-4000-f000-f000-000000000000, 30000000-4000-f000-f000-000000000000, ` +
-					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 1702418981000, task_id: 2, type: 1, timeout_type: 1, event_id: 11, schedule_attempt: 0, version: 0}, ` +
+					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 1702418981000, task_id: 2, type: 1, timeout_type: 1, event_id: 11, schedule_attempt: 0, version: 0, task_list: tasklist_2}, ` +
 					`[116 105 109 101 114 50], thriftrw, 1702418981000, 2, 2025-01-06T15:00:00Z)`,
 			},
 		},
@@ -1209,6 +1211,7 @@ func TestTransferTasks(t *testing.T) {
 						TargetChildWorkflowOnly: true,
 						TaskList:                "tasklist_1",
 						ScheduleID:              14,
+						OriginalTaskList:        "original_tasklist_1",
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("tr1"),
@@ -1228,6 +1231,7 @@ func TestTransferTasks(t *testing.T) {
 						TargetChildWorkflowOnly: true,
 						TaskList:                "tasklist_2",
 						ScheduleID:              3,
+						OriginalTaskList:        "original_tasklist_2",
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("tr2"),
@@ -1241,14 +1245,14 @@ func TestTransferTasks(t *testing.T) {
 					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 2023-12-12T22:08:41Z, ` +
 					`task_id: 355, target_domain_id: e2bf2c8f-0ddf-4451-8840-27cfe8addd62, target_domain_ids: map[],` +
 					`target_workflow_id: 20000000-0000-f000-f000-000000000001, target_run_id: 30000000-0000-f000-f000-000000000002, ` +
-					`target_child_workflow_only: true, task_list: tasklist_1, type: 0, schedule_id: 14, record_visibility: false, version: 1}, ` +
+					`target_child_workflow_only: true, task_list: tasklist_1, type: 0, schedule_id: 14, record_visibility: false, version: 1, original_task_list: original_tasklist_1}, ` +
 					`[116 114 49], thriftrw, 946684800000, 355, 2025-01-06T15:00:00Z)`,
 				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, transfer, data, data_encoding, visibility_ts, task_id, created_time) ` +
 					`VALUES(1000, 2, 10000000-3000-f000-f000-000000000000, 20000000-3000-f000-f000-000000000000, 30000000-3000-f000-f000-000000000000, ` +
 					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_2, visibility_ts: 2023-12-12T22:09:41Z, ` +
 					`task_id: 220, target_domain_id: e2bf2c8f-0ddf-4451-8840-27cfe8addd62, target_domain_ids: map[],` +
 					`target_workflow_id: 20000000-0000-f000-f000-000000000001, target_run_id: 30000000-0000-f000-f000-000000000002, ` +
-					`target_child_workflow_only: true, task_list: tasklist_2, type: 0, schedule_id: 3, record_visibility: false, version: 1}, ` +
+					`target_child_workflow_only: true, task_list: tasklist_2, type: 0, schedule_id: 3, record_visibility: false, version: 1, original_task_list: original_tasklist_2}, ` +
 					`[116 114 50], thriftrw, 946684800000, 220, 2025-01-06T15:00:00Z)`,
 			},
 		},

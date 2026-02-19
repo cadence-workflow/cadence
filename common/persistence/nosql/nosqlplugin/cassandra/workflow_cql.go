@@ -104,7 +104,8 @@ const (
 		`type: ?, ` +
 		`schedule_id: ?, ` +
 		`record_visibility: ?, ` +
-		`version: ?` +
+		`version: ?, ` +
+		`original_task_list: ?` +
 		`}`
 
 	templateCrossClusterTaskType = templateTransferTaskType
@@ -136,7 +137,8 @@ const (
 		`timeout_type: ?, ` +
 		`event_id: ?, ` +
 		`schedule_attempt: ?, ` +
-		`version: ?` +
+		`version: ?, ` +
+		`task_list: ?` +
 		`}`
 
 	templateActivityInfoType = `{` +

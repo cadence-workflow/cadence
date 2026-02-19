@@ -473,6 +473,7 @@ func createTimerTasks(
 			task.EventID,
 			task.ScheduleAttempt,
 			task.Version,
+			task.TaskList,
 			taskBlob,
 			taskEncoding,
 			ts,
@@ -556,6 +557,7 @@ func createTransferTasks(
 			task.ScheduleID,
 			task.RecordVisibility,
 			task.Version,
+			task.OriginalTaskList,
 			taskBlob,
 			taskEncoding,
 			// NOTE: use a constant here instead of task.VisibilityTimestamp so that we can query tasks with the same visibilityTimestamp
