@@ -171,7 +171,6 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 				DomainID:           domainID,
 				OperationType:      operationType,
 				MinCreatedTime:     &minTime,
-				MaxCreatedTime:     &maxTime,
 				PageSize:           2,
 				PageMaxCreatedTime: &defaultPageMaxCreatedTime,
 				PageMinEventID:     &defaultPageMinEventID,
@@ -182,7 +181,7 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 					sqlplugin.DbDefaultShard,
 					gomock.Any(),
 					_selectDomainAuditLogsQuery,
-					domainID, operationType, minTime, maxTime, defaultPageMaxCreatedTime, defaultPageMinEventID, 2,
+					domainID, operationType, minTime, defaultPageMaxCreatedTime, defaultPageMinEventID, 2,
 				).DoAndReturn(func(ctx context.Context, shardID int, dest interface{}, query string, args ...interface{}) error {
 					rows := dest.(*[]*sqlplugin.DomainAuditLogRow)
 					*rows = []*sqlplugin.DomainAuditLogRow{
@@ -224,7 +223,6 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 				DomainID:           domainID,
 				OperationType:      operationType,
 				MinCreatedTime:     &minTime,
-				MaxCreatedTime:     &maxTime,
 				PageSize:           0,
 				PageMaxCreatedTime: &createdTime2,
 				PageMinEventID:     &eventID2,
@@ -235,7 +233,7 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 					sqlplugin.DbDefaultShard,
 					gomock.Any(),
 					_selectAllDomainAuditLogsQuery,
-					domainID, operationType, minTime, maxTime, createdTime2, eventID2,
+					domainID, operationType, minTime, createdTime2, eventID2,
 				).DoAndReturn(func(ctx context.Context, shardID int, dest interface{}, query string, args ...interface{}) error {
 					rows := dest.(*[]*sqlplugin.DomainAuditLogRow)
 					*rows = []*sqlplugin.DomainAuditLogRow{
@@ -277,7 +275,6 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 				DomainID:           domainID,
 				OperationType:      operationType,
 				MinCreatedTime:     &minTime,
-				MaxCreatedTime:     &maxTime,
 				PageMaxCreatedTime: &defaultPageMaxCreatedTime,
 				PageMinEventID:     &defaultPageMinEventID,
 			},
@@ -287,7 +284,7 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 					sqlplugin.DbDefaultShard,
 					gomock.Any(),
 					_selectAllDomainAuditLogsQuery,
-					domainID, operationType, minTime, maxTime, defaultPageMaxCreatedTime, defaultPageMinEventID,
+					domainID, operationType, minTime, defaultPageMaxCreatedTime, defaultPageMinEventID,
 				).DoAndReturn(func(ctx context.Context, shardID int, dest interface{}, query string, args ...interface{}) error {
 					return nil
 				})
@@ -301,7 +298,6 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 				DomainID:           domainID,
 				OperationType:      operationType,
 				MinCreatedTime:     &minTime,
-				MaxCreatedTime:     &maxTime,
 				PageMaxCreatedTime: &defaultPageMaxCreatedTime,
 				PageMinEventID:     &defaultPageMinEventID,
 			},
@@ -311,7 +307,7 @@ func TestSelectFromDomainAuditLogs(t *testing.T) {
 					sqlplugin.DbDefaultShard,
 					gomock.Any(),
 					_selectAllDomainAuditLogsQuery,
-					domainID, operationType, minTime, maxTime, defaultPageMaxCreatedTime, defaultPageMinEventID,
+					domainID, operationType, minTime, defaultPageMaxCreatedTime, defaultPageMinEventID,
 				).Return(errors.New("select failed"))
 			},
 			wantRows: nil,

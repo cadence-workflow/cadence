@@ -119,7 +119,6 @@ func (m *sqlDomainAuditStore) GetDomainAuditLogs(
 		DomainID:           request.DomainID,
 		OperationType:      request.OperationType,
 		MinCreatedTime:     &minCreatedTime,
-		MaxCreatedTime:     &maxCreatedTime,
 		PageSize:           request.PageSize,
 		PageMaxCreatedTime: &pageMaxCreatedTime,
 		PageMinEventID:     &pageMinEventID,

@@ -37,16 +37,16 @@ const (
 		event_id, domain_id, state_before, state_before_encoding, state_after, state_after_encoding,
 		operation_type, created_time, last_updated_time, identity, identity_type, comment
 	FROM domain_audit_log
-	WHERE domain_id = $1 AND operation_type = $2 AND created_time >= $3 AND created_time < $4
-	AND (created_time < $5 OR (created_time = $5 AND event_id > $6))
+	WHERE domain_id = $1 AND operation_type = $2 AND created_time >= $3
+	AND (created_time < $4 OR (created_time = $4 AND event_id > $5))
 	ORDER BY created_time DESC, event_id ASC
-	LIMIT $7`
+	LIMIT $6`
 	_selectAllDomainAuditLogsQuery = `SELECT
 		event_id, domain_id, state_before, state_before_encoding, state_after, state_after_encoding,
 		operation_type, created_time, last_updated_time, identity, identity_type, comment
 	FROM domain_audit_log
-	WHERE domain_id = $1 AND operation_type = $2 AND created_time >= $3 AND created_time < $4
-	AND (created_time < $5 OR (created_time = $5 AND event_id > $6))
+	WHERE domain_id = $1 AND operation_type = $2 AND created_time >= $3
+	AND (created_time < $4 OR (created_time = $4 AND event_id > $5))
 	ORDER BY created_time DESC, event_id ASC`
 )
 
@@ -80,7 +80,6 @@ func (pdb *db) SelectFromDomainAuditLogs(
 		filter.DomainID,
 		filter.OperationType,
 		*filter.MinCreatedTime,
-		*filter.MaxCreatedTime,
 		*filter.PageMaxCreatedTime,
 		*filter.PageMinEventID,
 	}

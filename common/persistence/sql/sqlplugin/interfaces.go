@@ -604,7 +604,6 @@ type (
 		DomainID       string
 		OperationType  persistence.DomainAuditOperationType
 		MinCreatedTime *time.Time
-		MaxCreatedTime *time.Time
 		PageSize       int
 		// PageMaxCreatedTime and PageMinEventID are used to paginate Select queries
 		PageMaxCreatedTime *time.Time
