@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/urfave/cli/v2"
@@ -110,7 +111,31 @@ func AdminUpdateDynamicConfig(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found", err)
 	}
-	dcValues := c.StringSlice(FlagDynamicConfigValue)
+	dcValuesRaw := c.StringSlice(FlagDynamicConfigValue)
+
+	// WORKAROUND: urfave/cli v2 StringSliceFlag splits on commas by default
+	// This breaks JSON values. Reassemble the split pieces.
+	var dcValues []string
+	if len(dcValuesRaw) > 0 {
+		// Check if first value looks like it was split (starts with { but doesn't end with })
+		if len(dcValuesRaw) > 1 && strings.HasPrefix(dcValuesRaw[0], "{") && !strings.HasSuffix(dcValuesRaw[len(dcValuesRaw)-1], "}") {
+			// Likely split on commas, reassemble
+			dcValues = []string{strings.Join(dcValuesRaw, ",")}
+		} else if len(dcValuesRaw) > 1 && strings.HasPrefix(dcValuesRaw[0], "{") {
+			// Check if it was split in the middle
+			assembled := strings.Join(dcValuesRaw, ",")
+			// Verify it's valid JSON now
+			var test interface{}
+			if json.Unmarshal([]byte(assembled), &test) == nil {
+				dcValues = []string{assembled}
+			} else {
+				// Not split, use as-is
+				dcValues = dcValuesRaw
+			}
+		} else {
+			dcValues = dcValuesRaw
+		}
+	}
 
 	ctx, cancel, err := newContext(c)
 	defer cancel()

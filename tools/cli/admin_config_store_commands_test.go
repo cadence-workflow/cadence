@@ -24,6 +24,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -165,6 +166,91 @@ func TestAdminUpdateDynamicConfig(t *testing.T) {
 				td.mockAdminClient.EXPECT().UpdateDynamicConfig(gomock.Any(), gomock.Any()).Return(assert.AnError)
 			},
 			errContains: "Failed to update dynamic config value",
+		},
+		{
+			name:    "update with simple boolean value",
+			cmdline: `cadence admin config update --name test.config --value ` + `'{"Value":true,"Filters":[]}'`,
+			setupMocks: func(td *cliTestData) {
+				td.mockAdminClient.EXPECT().UpdateDynamicConfig(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, request *types.UpdateDynamicConfigRequest, _ ...yarpc.CallOption) error {
+						assert.Equal(t, "test.config", request.ConfigName)
+						assert.Len(t, request.ConfigValues, 1)
+
+						// Verify the value is correctly parsed
+						var actualValue interface{}
+						err := json.Unmarshal(request.ConfigValues[0].Value.Data, &actualValue)
+						assert.NoError(t, err)
+						assert.Equal(t, true, actualValue)
+
+						// Verify no filters
+						assert.Empty(t, request.ConfigValues[0].Filters)
+
+						return nil
+					})
+			},
+			errContains: "",
+		},
+		{
+			name:    "update with map value and no filters",
+			cmdline: `cadence admin config update --name frontend.validSearchAttributes --value ` + `'{"Value":{"DomainID":1,"WorkflowID":1},"Filters":[]}'`,
+			setupMocks: func(td *cliTestData) {
+				td.mockAdminClient.EXPECT().UpdateDynamicConfig(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, request *types.UpdateDynamicConfigRequest, _ ...yarpc.CallOption) error {
+						assert.Equal(t, "frontend.validSearchAttributes", request.ConfigName)
+						assert.Len(t, request.ConfigValues, 1)
+
+						// Verify the value is correctly parsed
+						var actualValue interface{}
+						err := json.Unmarshal(request.ConfigValues[0].Value.Data, &actualValue)
+						assert.NoError(t, err)
+
+						expectedValue := map[string]interface{}{
+							"DomainID":   float64(1), // JSON numbers unmarshal to float64
+							"WorkflowID": float64(1),
+						}
+						assert.Equal(t, expectedValue, actualValue)
+
+						// Verify no filters
+						assert.Empty(t, request.ConfigValues[0].Filters)
+
+						return nil
+					})
+			},
+			errContains: "",
+		},
+		{
+			name:    "update with map value and filters",
+			cmdline: `cadence admin config update --name frontend.validSearchAttributes --value ` + `'{"Value":{"DomainID":1,"WorkflowID":1},"Filters":[{"Name":"domainName","Value":"test-domain"}]}'`,
+			setupMocks: func(td *cliTestData) {
+				td.mockAdminClient.EXPECT().UpdateDynamicConfig(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, request *types.UpdateDynamicConfigRequest, _ ...yarpc.CallOption) error {
+						assert.Equal(t, "frontend.validSearchAttributes", request.ConfigName)
+						assert.Len(t, request.ConfigValues, 1)
+
+						// Verify the value is correctly parsed
+						var actualValue interface{}
+						err := json.Unmarshal(request.ConfigValues[0].Value.Data, &actualValue)
+						assert.NoError(t, err)
+
+						expectedValue := map[string]interface{}{
+							"DomainID":   float64(1),
+							"WorkflowID": float64(1),
+						}
+						assert.Equal(t, expectedValue, actualValue)
+
+						// Verify filters
+						assert.Len(t, request.ConfigValues[0].Filters, 1)
+						assert.Equal(t, "domainName", request.ConfigValues[0].Filters[0].Name)
+
+						var filterValue interface{}
+						err = json.Unmarshal(request.ConfigValues[0].Filters[0].Value.Data, &filterValue)
+						assert.NoError(t, err)
+						assert.Equal(t, "test-domain", filterValue)
+
+						return nil
+					})
+			},
+			errContains: "",
 		},
 	}
 
