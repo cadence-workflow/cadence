@@ -82,13 +82,13 @@ func NewProcessorFactory(
 	cfg config.ShardDistribution,
 	sdConfig *config.Config,
 ) Factory {
-	if cfg.Process.Period == 0 {
+	if cfg.Process.Period <= 0 {
 		cfg.Process.Period = _defaultPeriod
 	}
-	if cfg.Process.HeartbeatTTL == 0 {
+	if cfg.Process.HeartbeatTTL <= 0 {
 		cfg.Process.HeartbeatTTL = _defaultHeartbeatTTL
 	}
-	if cfg.Process.Timeout == 0 {
+	if cfg.Process.Timeout <= 0 {
 		cfg.Process.Timeout = _defaultTimeout
 	}
 	if cfg.Process.RebalanceCooldown == 0 {
