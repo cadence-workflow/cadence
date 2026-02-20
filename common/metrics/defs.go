@@ -3556,7 +3556,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ReplicationTasksApplied:                                      {metricName: "replication_tasks_applied", metricType: Counter},
 		ReplicationTasksFailed:                                       {metricName: "replication_tasks_failed", metricType: Counter},
 		ReplicationTasksLag:                                          {metricName: "replication_tasks_lag", metricType: Timer},
-		ExponentialReplicationTasksLag:                               {metricName: "replication_tasks_lag_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
+		ExponentialReplicationTasksLag:                               {metricName: "replication_tasks_lag_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		ReplicationTasksLagRaw:                                       {metricName: "replication_tasks_lag_raw", metricType: Timer},
 		ExponentialReplicationTasksLagRaw:                            {metricName: "replication_tasks_lag_raw_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		ReplicationTasksDelay:                                        {metricName: "replication_tasks_delay", metricType: Histogram, buckets: ReplicationTaskDelayBucket},

@@ -202,9 +202,9 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		return nil, err
 	}
 
-	replicationLag := time.Duration(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID() - msgs.LastRetrievedMessageID)
-	t.scope.RecordTimer(metrics.ReplicationTasksLag, replicationLag)
-	t.scope.ExponentialHistogram(metrics.ExponentialReplicationTasksLag, replicationLag)
+	replicationLag := int(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID() - msgs.LastRetrievedMessageID)
+	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(replicationLag))
+	t.scope.IntExponentialHistogram(metrics.ExponentialReplicationTasksLag, replicationLag)
 	tasksReturned := len(msgs.ReplicationTasks)
 	t.scope.RecordTimer(metrics.ReplicationTasksReturned, time.Duration(tasksReturned))
 	t.scope.IntExponentialHistogram(metrics.ExponentialReplicationTasksReturned, tasksReturned)

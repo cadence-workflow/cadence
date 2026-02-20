@@ -59,14 +59,14 @@ var HistogramMigrationMetrics = map[string]struct{}{
 
 	"replication_tasks_fetched":        {},
 	"replication_tasks_fetched_counts": {},
-	"replication_tasks_lag":            {},
-	"replication_tasks_lag_ns":         {},
+	"replication_tasks_lag":        {},
+	"replication_tasks_lag_counts": {},
 
 	"replication_tasks_lag_raw":        {},
 	"replication_tasks_lag_raw_counts": {},
 
-	"replication_tasks_returned":             {},
-	"replication_tasks_returned_counts":      {},
+	"replication_tasks_returned":        {},
+	"replication_tasks_returned_counts": {},
 	"replication_tasks_returned_diff":        {},
 	"replication_tasks_returned_diff_counts": {},
 }
