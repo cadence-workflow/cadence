@@ -47,19 +47,18 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"task_latency_processing":    {},
 	"task_latency_processing_ns": {},
 
-	// Replication task processor histograms (PR #7685).
-	// Dual-emitted as timer + histogram.
-	"replication_tasks_lag":                {},
-	"replication_tasks_lag_ns":             {},
-	"replication_tasks_applied_latency":    {},
-	"replication_tasks_applied_latency_ns": {},
-
 	"replication_task_latency":    {},
 	"replication_task_latency_ns": {},
 
+	// Replication task processor histograms (PR #7685).
+	// Dual-emitted as timer + histogram.
+	"replication_tasks_lag":                {},
+	"replication_tasks_lag_counts":         {},
+	"replication_tasks_applied_latency":    {},
+	"replication_tasks_applied_latency_ns": {},
+
 	"replication_tasks_fetched":        {},
 	"replication_tasks_fetched_counts": {},
-	"replication_tasks_lag_counts":     {},
 
 	"replication_tasks_lag_raw":        {},
 	"replication_tasks_lag_raw_counts": {},
