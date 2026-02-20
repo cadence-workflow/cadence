@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
@@ -41,7 +40,6 @@ const (
 type nosqlQueueStore struct {
 	queueType persistence.QueueType
 	nosqlStore
-	timeSrc clock.TimeSource
 }
 
 func newNoSQLQueueStore(
@@ -58,58 +56,70 @@ func newNoSQLQueueStore(
 	queue := &nosqlQueueStore{
 		nosqlStore: shardedStore.GetDefaultShard(),
 		queueType:  queueType,
-		// TODO: move the time generation to the persistence manager layer
-		timeSrc: clock.NewRealTimeSource(),
-	}
-
-	if err := queue.createQueueMetadataEntryIfNotExist(queue.timeSrc.Now()); err != nil {
-		return nil, fmt.Errorf("failed to check and create queue metadata entry: %v", err)
 	}
 
 	return queue, nil
 }
 
-func (q *nosqlQueueStore) createQueueMetadataEntryIfNotExist(currentTimestamp time.Time) error {
-	queueMetadata, err := q.getQueueMetadata(context.Background(), q.queueType)
+func (q *nosqlQueueStore) ensureQueueMetadata(
+	ctx context.Context,
+	queueType persistence.QueueType,
+	currentTimestamp time.Time,
+) (*nosqlplugin.QueueMetadataRow, error) {
+	queueMetadata, err := q.getQueueMetadata(ctx, queueType)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	if queueMetadata == nil {
-		if err := q.insertInitialQueueMetadataRecord(context.Background(), q.queueType, currentTimestamp); err != nil {
-			return err
+		insertErr := q.insertInitialQueueMetadataRecord(ctx, queueType, currentTimestamp)
+		if insertErr != nil {
+			// If insert fails (likely because another thread just created it),
+			// it attempts to read the metadata one more time.
+			queueMetadata, err = q.getQueueMetadata(ctx, queueType)
+			if err != nil {
+				return nil, err
+			}
+			if queueMetadata == nil {
+				return nil, insertErr
+			}
+		} else {
+			queueMetadata, err = q.getQueueMetadata(ctx, queueType)
+			if err != nil {
+				return nil, err
+			}
+			if queueMetadata == nil {
+				return nil, &types.InternalServiceError{
+					Message: fmt.Sprintf("queue metadata not found for queue type %v", queueType),
+				}
+			}
 		}
 	}
-
-	dlqMetadata, err := q.getQueueMetadata(context.Background(), q.getDLQTypeFromQueueType())
-	if err != nil {
-		return err
+	if queueMetadata.ClusterAckLevels == nil {
+		queueMetadata.ClusterAckLevels = map[string]int64{}
 	}
-
-	if dlqMetadata == nil {
-		return q.insertInitialQueueMetadataRecord(context.Background(), q.getDLQTypeFromQueueType(), currentTimestamp)
-	}
-
-	return nil
+	return queueMetadata, nil
 }
 
 // Warning: This is not a safe concurrent operation in its current state.
 // It's only used for domain replication at the moment, but needs a conditional write guard
 // for concurrent use
 func (q *nosqlQueueStore) EnqueueMessage(ctx context.Context, request *persistence.InternalEnqueueMessageRequest) error {
+	queueMetadata, err := q.ensureQueueMetadata(ctx, q.queueType, request.CurrentTimeStamp)
+	if err != nil {
+		return err
+	}
 	lastMessageID, err := q.getLastMessageID(ctx, q.queueType)
 	if err != nil {
 		return err
 	}
-	ackLevelsResp, err := q.GetAckLevels(ctx, &persistence.InternalGetAckLevelsRequest{})
-	if err != nil {
-		return err
-	}
-	_, err = q.tryEnqueue(ctx, q.queueType, getNextID(ackLevelsResp.AckLevels, lastMessageID), request.MessagePayload, request.CurrentTimeStamp)
+	_, err = q.tryEnqueue(ctx, q.queueType, getNextID(queueMetadata.ClusterAckLevels, lastMessageID), request.MessagePayload, request.CurrentTimeStamp)
 	return err
 }
 
 func (q *nosqlQueueStore) EnqueueMessageToDLQ(ctx context.Context, request *persistence.InternalEnqueueMessageToDLQRequest) error {
+	if _, err := q.ensureQueueMetadata(ctx, q.getDLQTypeFromQueueType(), request.CurrentTimeStamp); err != nil {
+		return err
+	}
 	// Use negative queue type as the dlq type
 	lastMessageID, err := q.getLastMessageID(ctx, q.getDLQTypeFromQueueType())
 	if err != nil {
@@ -352,15 +362,9 @@ func (q *nosqlQueueStore) updateAckLevel(
 	queueType persistence.QueueType,
 	currentTimestamp time.Time,
 ) error {
-
-	queueMetadata, err := q.getQueueMetadata(ctx, queueType)
+	queueMetadata, err := q.ensureQueueMetadata(ctx, queueType, currentTimestamp)
 	if err != nil {
 		return err
-	}
-	if queueMetadata == nil {
-		return &types.InternalServiceError{
-			Message: fmt.Sprintf("UpdateQueueMetadata operation: queue metadata not found for queue type %v", queueType),
-		}
 	}
 
 	// Ignore possibly delayed message
