@@ -720,6 +720,7 @@ type (
 
 	// CreateWorkflowExecutionRequest is used to write a new workflow execution
 	CreateWorkflowExecutionRequest struct {
+		ShardID *int
 		RangeID int64
 
 		Mode CreateWorkflowMode
@@ -740,6 +741,7 @@ type (
 
 	// GetWorkflowExecutionRequest is used to retrieve the info of a workflow execution
 	GetWorkflowExecutionRequest struct {
+		ShardID    *int
 		DomainID   string
 		Execution  types.WorkflowExecution
 		DomainName string
@@ -754,6 +756,7 @@ type (
 
 	// GetCurrentExecutionRequest is used to retrieve the current RunId for an execution
 	GetCurrentExecutionRequest struct {
+		ShardID    *int
 		DomainID   string
 		WorkflowID string
 		DomainName string
@@ -761,6 +764,7 @@ type (
 
 	// ListCurrentExecutionsRequest is request to ListCurrentExecutions
 	ListCurrentExecutionsRequest struct {
+		ShardID   *int
 		PageSize  int
 		PageToken []byte
 	}
@@ -773,6 +777,7 @@ type (
 
 	// IsWorkflowExecutionExistsRequest is used to check if the concrete execution exists
 	IsWorkflowExecutionExistsRequest struct {
+		ShardID    *int
 		DomainID   string
 		DomainName string
 		WorkflowID string
@@ -781,6 +786,7 @@ type (
 
 	// ListConcreteExecutionsRequest is request to ListConcreteExecutions
 	ListConcreteExecutionsRequest struct {
+		ShardID   *int
 		PageSize  int
 		PageToken []byte
 	}
@@ -813,6 +819,7 @@ type (
 
 	// UpdateWorkflowExecutionRequest is used to update a workflow execution
 	UpdateWorkflowExecutionRequest struct {
+		ShardID *int
 		RangeID int64
 
 		Mode UpdateWorkflowMode
@@ -830,6 +837,7 @@ type (
 
 	// ConflictResolveWorkflowExecutionRequest is used to reset workflow execution state for a single run
 	ConflictResolveWorkflowExecutionRequest struct {
+		ShardID *int
 		RangeID int64
 
 		Mode ConflictResolveWorkflowMode
@@ -918,6 +926,7 @@ type (
 
 	// DeleteWorkflowExecutionRequest is used to delete a workflow execution
 	DeleteWorkflowExecutionRequest struct {
+		ShardID    *int
 		DomainID   string
 		WorkflowID string
 		RunID      string
@@ -926,6 +935,7 @@ type (
 
 	// DeleteCurrentWorkflowExecutionRequest is used to delete the current workflow execution
 	DeleteCurrentWorkflowExecutionRequest struct {
+		ShardID    *int
 		DomainID   string
 		WorkflowID string
 		RunID      string
@@ -934,6 +944,7 @@ type (
 
 	// PutReplicationTaskToDLQRequest is used to put a replication task to dlq
 	PutReplicationTaskToDLQRequest struct {
+		ShardID           *int
 		SourceClusterName string
 		TaskInfo          *ReplicationTaskInfo
 		DomainName        string
@@ -941,6 +952,7 @@ type (
 
 	// GetReplicationTasksFromDLQRequest is used to get replication tasks from dlq
 	GetReplicationTasksFromDLQRequest struct {
+		ShardID           *int
 		SourceClusterName string
 		ReadLevel         int64
 		MaxReadLevel      int64
@@ -950,17 +962,20 @@ type (
 
 	// GetReplicationDLQSizeRequest is used to get one replication task from dlq
 	GetReplicationDLQSizeRequest struct {
+		ShardID           *int
 		SourceClusterName string
 	}
 
 	// DeleteReplicationTaskFromDLQRequest is used to delete replication task from DLQ
 	DeleteReplicationTaskFromDLQRequest struct {
+		ShardID           *int
 		SourceClusterName string
 		TaskID            int64
 	}
 
 	// RangeDeleteReplicationTaskFromDLQRequest is used to delete replication tasks from DLQ
 	RangeDeleteReplicationTaskFromDLQRequest struct {
+		ShardID              *int
 		SourceClusterName    string
 		InclusiveBeginTaskID int64
 		ExclusiveEndTaskID   int64
@@ -979,6 +994,7 @@ type (
 
 	// GetHistoryTasksRequest is used to get history tasks
 	GetHistoryTasksRequest struct {
+		ShardID             *int
 		TaskCategory        HistoryTaskCategory
 		InclusiveMinTaskKey HistoryTaskKey
 		ExclusiveMaxTaskKey HistoryTaskKey
@@ -994,12 +1010,14 @@ type (
 
 	// CompleteHistoryTaskRequest is used to complete a history task
 	CompleteHistoryTaskRequest struct {
+		ShardID      *int
 		TaskCategory HistoryTaskCategory
 		TaskKey      HistoryTaskKey
 	}
 
 	// RangeCompleteHistoryTaskRequest is used to complete a range of history tasks
 	RangeCompleteHistoryTaskRequest struct {
+		ShardID             *int
 		TaskCategory        HistoryTaskCategory
 		InclusiveMinTaskKey HistoryTaskKey
 		ExclusiveMaxTaskKey HistoryTaskKey
@@ -1553,6 +1571,7 @@ type (
 
 	// CreateFailoverMarkersRequest is request to create failover markers
 	CreateFailoverMarkersRequest struct {
+		ShardID          *int
 		RangeID          int64
 		Markers          []*FailoverMarkerTask
 		CurrentTimeStamp time.Time
