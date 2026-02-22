@@ -487,6 +487,7 @@ func Test_parseTimerTaskInfo(t *testing.T) {
 		"timeout_type":     3,
 		"event_id":         int64(4),
 		"schedule_attempt": int64(5),
+		"task_list":        "task_list",
 	}
 	expected := &persistence.TimerTaskInfo{
 		Version:             int64(1),
@@ -497,6 +498,7 @@ func Test_parseTimerTaskInfo(t *testing.T) {
 		TimeoutType:         3,
 		EventID:             int64(4),
 		ScheduleAttempt:     int64(5),
+		TaskList:            "task_list",
 	}
 	assert.Equal(t, expected, parseTimerTaskInfo(testInput))
 }
@@ -551,6 +553,7 @@ func Test_parseTransferTaskInfo(t *testing.T) {
 		"schedule_id":                int64(3),
 		"record_visibility":          true,
 		"version":                    int64(4),
+		"original_task_list":         "original_task_list",
 	}
 	expected := &persistence.TransferTaskInfo{
 		DomainID:                "domain_id",
@@ -568,6 +571,7 @@ func Test_parseTransferTaskInfo(t *testing.T) {
 		ScheduleID:              int64(3),
 		RecordVisibility:        true,
 		Version:                 int64(4),
+		OriginalTaskList:        "original_task_list",
 	}
 	assert.Equal(t, expected, parseTransferTaskInfo(testInput))
 

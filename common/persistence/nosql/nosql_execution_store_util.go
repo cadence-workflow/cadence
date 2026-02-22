@@ -270,6 +270,7 @@ func (d *nosqlExecutionStore) prepareTimerTasksForWorkflowTxn(domainID, workflow
 			EventID:         eventID,
 			ScheduleAttempt: attempt,
 			Version:         task.GetVersion(),
+			TaskList:        task.GetTaskList(),
 		}
 		var blob *persistence.DataBlob
 		if d.dc.EnableHistoryTaskDualWriteMode() {
@@ -387,8 +388,8 @@ func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workf
 	var tasks []*nosqlplugin.HistoryMigrationTask
 
 	for _, task := range transferTasks {
-		var taskList string
 		var scheduleID int64
+		var originalTaskList string
 		targetDomainID := domainID
 		targetDomainIDs := map[string]struct{}{}
 		targetWorkflowID := persistence.TransferTaskTransferTargetWorkflowID
@@ -398,13 +399,12 @@ func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workf
 		switch task.GetTaskType() {
 		case persistence.TransferTaskTypeActivityTask:
 			targetDomainID = task.(*persistence.ActivityTask).TargetDomainID
-			taskList = task.(*persistence.ActivityTask).TaskList
 			scheduleID = task.(*persistence.ActivityTask).ScheduleID
 
 		case persistence.TransferTaskTypeDecisionTask:
 			targetDomainID = task.(*persistence.DecisionTask).TargetDomainID
-			taskList = task.(*persistence.DecisionTask).TaskList
 			scheduleID = task.(*persistence.DecisionTask).ScheduleID
+			originalTaskList = task.(*persistence.DecisionTask).OriginalTaskList
 
 		case persistence.TransferTaskTypeCancelExecution:
 			targetDomainID = task.(*persistence.CancelExecutionTask).TargetDomainID
@@ -463,9 +463,10 @@ func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workf
 			TargetWorkflowID:        targetWorkflowID,
 			TargetRunID:             targetRunID,
 			TargetChildWorkflowOnly: targetChildWorkflowOnly,
-			TaskList:                taskList,
+			TaskList:                task.GetTaskList(),
 			ScheduleID:              scheduleID,
 			Version:                 task.GetVersion(),
+			OriginalTaskList:        originalTaskList,
 		}
 		var blob *persistence.DataBlob
 		if d.dc.EnableHistoryTaskDualWriteMode() {

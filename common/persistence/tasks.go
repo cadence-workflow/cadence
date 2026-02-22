@@ -40,6 +40,8 @@ type Task interface {
 	GetDomainID() string
 	GetWorkflowID() string
 	GetRunID() string
+	GetTaskList() string
+	GetOriginalTaskList() string
 	GetVersion() int64
 	SetVersion(version int64)
 	GetTaskID() int64
@@ -90,33 +92,38 @@ type (
 	DecisionTask struct {
 		WorkflowIdentifier
 		TaskData
-		TargetDomainID string
-		TaskList       string
-		ScheduleID     int64
+		TargetDomainID   string
+		TaskList         string
+		ScheduleID       int64
+		OriginalTaskList string
 	}
 
 	// RecordWorkflowStartedTask identifites a transfer task for writing visibility open execution record
 	RecordWorkflowStartedTask struct {
 		WorkflowIdentifier
 		TaskData
+		TaskList string
 	}
 
 	// ResetWorkflowTask identifites a transfer task to reset workflow
 	ResetWorkflowTask struct {
 		WorkflowIdentifier
 		TaskData
+		TaskList string
 	}
 
 	// CloseExecutionTask identifies a transfer task for deletion of execution
 	CloseExecutionTask struct {
 		WorkflowIdentifier
 		TaskData
+		TaskList string
 	}
 
 	// DeleteHistoryEventTask identifies a timer task for deletion of history events of completed execution.
 	DeleteHistoryEventTask struct {
 		WorkflowIdentifier
 		TaskData
+		TaskList string
 	}
 
 	// DecisionTimeoutTask identifies a timeout task.
@@ -126,12 +133,14 @@ type (
 		EventID         int64
 		ScheduleAttempt int64
 		TimeoutType     int
+		TaskList        string
 	}
 
 	// WorkflowTimeoutTask identifies a timeout task.
 	WorkflowTimeoutTask struct {
 		WorkflowIdentifier
 		TaskData
+		TaskList string
 	}
 
 	// CancelExecutionTask identifies a transfer task for cancel of execution
@@ -143,6 +152,7 @@ type (
 		TargetRunID             string
 		TargetChildWorkflowOnly bool
 		InitiatedID             int64
+		TaskList                string
 	}
 
 	// SignalExecutionTask identifies a transfer task for signal execution
@@ -154,12 +164,14 @@ type (
 		TargetRunID             string
 		TargetChildWorkflowOnly bool
 		InitiatedID             int64
+		TaskList                string
 	}
 
 	// UpsertWorkflowSearchAttributesTask identifies a transfer task for upsert search attributes
 	UpsertWorkflowSearchAttributesTask struct {
 		WorkflowIdentifier
 		TaskData
+		TaskList string
 	}
 
 	// StartChildExecutionTask identifies a transfer task for starting child execution
@@ -169,12 +181,14 @@ type (
 		TargetDomainID   string
 		TargetWorkflowID string
 		InitiatedID      int64
+		TaskList         string
 	}
 
 	// RecordWorkflowClosedTask identifies a transfer task for writing visibility close execution record
 	RecordWorkflowClosedTask struct {
 		WorkflowIdentifier
 		TaskData
+		TaskList string
 	}
 
 	// RecordChildExecutionCompletedTask identifies a task for recording the competion of a child workflow
@@ -184,6 +198,7 @@ type (
 		TargetDomainID   string
 		TargetWorkflowID string
 		TargetRunID      string
+		TaskList         string
 	}
 
 	// ActivityTimeoutTask identifies a timeout task.
@@ -193,21 +208,24 @@ type (
 		TimeoutType int
 		EventID     int64
 		Attempt     int64
+		TaskList    string
 	}
 
 	// UserTimerTask identifies a timeout task.
 	UserTimerTask struct {
 		WorkflowIdentifier
 		TaskData
-		EventID int64
+		EventID  int64
+		TaskList string
 	}
 
 	// ActivityRetryTimerTask to schedule a retry task for activity
 	ActivityRetryTimerTask struct {
 		WorkflowIdentifier
 		TaskData
-		EventID int64
-		Attempt int64
+		EventID  int64
+		Attempt  int64
+		TaskList string
 	}
 
 	// WorkflowBackoffTimerTask to schedule first decision task for retried workflow
@@ -215,6 +233,7 @@ type (
 		WorkflowIdentifier
 		TaskData
 		TimeoutType int // 0 for retry, 1 for cron.
+		TaskList    string
 	}
 
 	// HistoryReplicationTask is the replication task created for shipping history replication events to other clusters
@@ -410,6 +429,14 @@ func (a *ActivityTask) GetTaskKey() HistoryTaskKey {
 	return NewImmediateTaskKey(a.TaskID)
 }
 
+func (a *ActivityTask) GetTaskList() string {
+	return a.TaskList
+}
+
+func (a *ActivityTask) GetOriginalTaskList() string {
+	return a.TaskList
+}
+
 func (a *ActivityTask) ByteSize() uint64 {
 	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize() + uint64(len(a.TargetDomainID)) + uint64(len(a.TaskList)) + 8
 }
@@ -450,8 +477,16 @@ func (d *DecisionTask) GetTaskKey() HistoryTaskKey {
 	return NewImmediateTaskKey(d.TaskID)
 }
 
+func (d *DecisionTask) GetTaskList() string {
+	return d.TaskList
+}
+
+func (d *DecisionTask) GetOriginalTaskList() string {
+	return d.OriginalTaskList
+}
+
 func (d *DecisionTask) ByteSize() uint64 {
-	return d.WorkflowIdentifier.ByteSize() + d.TaskData.ByteSize() + uint64(len(d.TargetDomainID)) + uint64(len(d.TaskList)) + 8
+	return d.WorkflowIdentifier.ByteSize() + d.TaskData.ByteSize() + uint64(len(d.TargetDomainID)) + uint64(len(d.TaskList)) + uint64(len(d.OriginalTaskList)) + 8
 }
 
 func (d *DecisionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -466,6 +501,7 @@ func (d *DecisionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		TargetDomainID:      d.TargetDomainID,
 		TaskList:            d.TaskList,
 		ScheduleID:          d.ScheduleID,
+		OriginalTaskList:    d.OriginalTaskList,
 	}, nil
 }
 
@@ -490,8 +526,16 @@ func (a *RecordWorkflowStartedTask) GetTaskKey() HistoryTaskKey {
 	return NewImmediateTaskKey(a.TaskID)
 }
 
+func (a *RecordWorkflowStartedTask) GetTaskList() string {
+	return a.TaskList
+}
+
+func (a *RecordWorkflowStartedTask) GetOriginalTaskList() string {
+	return a.TaskList
+}
+
 func (a *RecordWorkflowStartedTask) ByteSize() uint64 {
-	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize()
+	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize() + uint64(len(a.TaskList))
 }
 
 func (a *RecordWorkflowStartedTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -503,6 +547,7 @@ func (a *RecordWorkflowStartedTask) ToTransferTaskInfo() (*TransferTaskInfo, err
 		TaskID:              a.TaskID,
 		VisibilityTimestamp: a.VisibilityTimestamp,
 		Version:             a.Version,
+		TaskList:            a.TaskList,
 	}, nil
 }
 
@@ -527,8 +572,16 @@ func (a *ResetWorkflowTask) GetTaskKey() HistoryTaskKey {
 	return NewImmediateTaskKey(a.TaskID)
 }
 
+func (a *ResetWorkflowTask) GetTaskList() string {
+	return a.TaskList
+}
+
+func (a *ResetWorkflowTask) GetOriginalTaskList() string {
+	return a.TaskList
+}
+
 func (a *ResetWorkflowTask) ByteSize() uint64 {
-	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize()
+	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize() + uint64(len(a.TaskList))
 }
 
 func (a *ResetWorkflowTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -540,6 +593,7 @@ func (a *ResetWorkflowTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		TaskID:              a.TaskID,
 		VisibilityTimestamp: a.VisibilityTimestamp,
 		Version:             a.Version,
+		TaskList:            a.TaskList,
 	}, nil
 }
 
@@ -564,8 +618,16 @@ func (a *CloseExecutionTask) GetTaskKey() HistoryTaskKey {
 	return NewImmediateTaskKey(a.TaskID)
 }
 
+func (a *CloseExecutionTask) GetTaskList() string {
+	return a.TaskList
+}
+
+func (a *CloseExecutionTask) GetOriginalTaskList() string {
+	return a.TaskList
+}
+
 func (a *CloseExecutionTask) ByteSize() uint64 {
-	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize()
+	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize() + uint64(len(a.TaskList))
 }
 
 func (a *CloseExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -577,6 +639,7 @@ func (a *CloseExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		TaskID:              a.TaskID,
 		VisibilityTimestamp: a.VisibilityTimestamp,
 		Version:             a.Version,
+		TaskList:            a.TaskList,
 	}, nil
 }
 
@@ -601,8 +664,16 @@ func (a *DeleteHistoryEventTask) GetTaskKey() HistoryTaskKey {
 	return NewHistoryTaskKey(a.VisibilityTimestamp, a.TaskID)
 }
 
+func (a *DeleteHistoryEventTask) GetTaskList() string {
+	return a.TaskList
+}
+
+func (a *DeleteHistoryEventTask) GetOriginalTaskList() string {
+	return a.TaskList
+}
+
 func (a *DeleteHistoryEventTask) ByteSize() uint64 {
-	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize()
+	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize() + uint64(len(a.TaskList))
 }
 
 func (a *DeleteHistoryEventTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -618,6 +689,7 @@ func (a *DeleteHistoryEventTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		TaskID:              a.TaskID,
 		VisibilityTimestamp: a.VisibilityTimestamp,
 		Version:             a.Version,
+		TaskList:            a.TaskList,
 	}, nil
 }
 
@@ -638,8 +710,16 @@ func (d *DecisionTimeoutTask) GetTaskKey() HistoryTaskKey {
 	return NewHistoryTaskKey(d.VisibilityTimestamp, d.TaskID)
 }
 
+func (d *DecisionTimeoutTask) GetTaskList() string {
+	return d.TaskList
+}
+
+func (d *DecisionTimeoutTask) GetOriginalTaskList() string {
+	return d.TaskList
+}
+
 func (d *DecisionTimeoutTask) ByteSize() uint64 {
-	return d.WorkflowIdentifier.ByteSize() + d.TaskData.ByteSize() + 8 + 8 + 8
+	return d.WorkflowIdentifier.ByteSize() + d.TaskData.ByteSize() + 8 + 8 + 8 + uint64(len(d.TaskList))
 }
 
 func (d *DecisionTimeoutTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -658,6 +738,7 @@ func (d *DecisionTimeoutTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		EventID:             d.EventID,
 		ScheduleAttempt:     d.ScheduleAttempt,
 		TimeoutType:         d.TimeoutType,
+		TaskList:            d.TaskList,
 	}, nil
 }
 
@@ -678,8 +759,16 @@ func (a *ActivityTimeoutTask) GetTaskKey() HistoryTaskKey {
 	return NewHistoryTaskKey(a.VisibilityTimestamp, a.TaskID)
 }
 
+func (a *ActivityTimeoutTask) GetTaskList() string {
+	return a.TaskList
+}
+
+func (a *ActivityTimeoutTask) GetOriginalTaskList() string {
+	return a.TaskList
+}
+
 func (a *ActivityTimeoutTask) ByteSize() uint64 {
-	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize() + 8 + 8 + 8
+	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize() + 8 + 8 + 8 + uint64(len(a.TaskList))
 }
 
 func (a *ActivityTimeoutTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -698,6 +787,7 @@ func (a *ActivityTimeoutTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		EventID:             a.EventID,
 		ScheduleAttempt:     a.Attempt,
 		TimeoutType:         a.TimeoutType,
+		TaskList:            a.TaskList,
 	}, nil
 }
 
@@ -718,8 +808,16 @@ func (u *UserTimerTask) GetTaskKey() HistoryTaskKey {
 	return NewHistoryTaskKey(u.VisibilityTimestamp, u.TaskID)
 }
 
+func (u *UserTimerTask) GetTaskList() string {
+	return u.TaskList
+}
+
+func (u *UserTimerTask) GetOriginalTaskList() string {
+	return u.TaskList
+}
+
 func (u *UserTimerTask) ByteSize() uint64 {
-	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + 8
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + 8 + uint64(len(u.TaskList))
 }
 
 func (u *UserTimerTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -736,6 +834,7 @@ func (u *UserTimerTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		VisibilityTimestamp: u.VisibilityTimestamp,
 		Version:             u.Version,
 		EventID:             u.EventID,
+		TaskList:            u.TaskList,
 	}, nil
 }
 
@@ -756,8 +855,16 @@ func (r *ActivityRetryTimerTask) GetTaskKey() HistoryTaskKey {
 	return NewHistoryTaskKey(r.VisibilityTimestamp, r.TaskID)
 }
 
+func (r *ActivityRetryTimerTask) GetTaskList() string {
+	return r.TaskList
+}
+
+func (r *ActivityRetryTimerTask) GetOriginalTaskList() string {
+	return r.TaskList
+}
+
 func (r *ActivityRetryTimerTask) ByteSize() uint64 {
-	return r.WorkflowIdentifier.ByteSize() + r.TaskData.ByteSize() + 8 + 8
+	return r.WorkflowIdentifier.ByteSize() + r.TaskData.ByteSize() + 8 + 8 + uint64(len(r.TaskList))
 }
 
 func (r *ActivityRetryTimerTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -775,6 +882,7 @@ func (r *ActivityRetryTimerTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		Version:             r.Version,
 		EventID:             r.EventID,
 		ScheduleAttempt:     r.Attempt,
+		TaskList:            r.TaskList,
 	}, nil
 }
 
@@ -795,8 +903,16 @@ func (r *WorkflowBackoffTimerTask) GetTaskKey() HistoryTaskKey {
 	return NewHistoryTaskKey(r.VisibilityTimestamp, r.TaskID)
 }
 
+func (r *WorkflowBackoffTimerTask) GetTaskList() string {
+	return r.TaskList
+}
+
+func (r *WorkflowBackoffTimerTask) GetOriginalTaskList() string {
+	return r.TaskList
+}
+
 func (r *WorkflowBackoffTimerTask) ByteSize() uint64 {
-	return r.WorkflowIdentifier.ByteSize() + r.TaskData.ByteSize() + 8
+	return r.WorkflowIdentifier.ByteSize() + r.TaskData.ByteSize() + 8 + uint64(len(r.TaskList))
 }
 
 func (r *WorkflowBackoffTimerTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -813,6 +929,7 @@ func (r *WorkflowBackoffTimerTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		VisibilityTimestamp: r.VisibilityTimestamp,
 		Version:             r.Version,
 		TimeoutType:         r.TimeoutType,
+		TaskList:            r.TaskList,
 	}, nil
 }
 
@@ -833,8 +950,16 @@ func (u *WorkflowTimeoutTask) GetTaskKey() HistoryTaskKey {
 	return NewHistoryTaskKey(u.VisibilityTimestamp, u.TaskID)
 }
 
+func (u *WorkflowTimeoutTask) GetTaskList() string {
+	return u.TaskList
+}
+
+func (u *WorkflowTimeoutTask) GetOriginalTaskList() string {
+	return u.TaskList
+}
+
 func (u *WorkflowTimeoutTask) ByteSize() uint64 {
-	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize()
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TaskList))
 }
 
 func (u *WorkflowTimeoutTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -850,6 +975,7 @@ func (u *WorkflowTimeoutTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		TaskID:              u.TaskID,
 		VisibilityTimestamp: u.VisibilityTimestamp,
 		Version:             u.Version,
+		TaskList:            u.TaskList,
 	}, nil
 }
 
@@ -870,8 +996,16 @@ func (u *CancelExecutionTask) GetTaskKey() HistoryTaskKey {
 	return NewImmediateTaskKey(u.TaskID)
 }
 
+func (u *CancelExecutionTask) GetTaskList() string {
+	return u.TaskList
+}
+
+func (u *CancelExecutionTask) GetOriginalTaskList() string {
+	return u.TaskList
+}
+
 func (u *CancelExecutionTask) ByteSize() uint64 {
-	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TargetDomainID)) + uint64(len(u.TargetWorkflowID)) + uint64(len(u.TargetRunID)) + 8 + 1
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TargetDomainID)) + uint64(len(u.TargetWorkflowID)) + uint64(len(u.TargetRunID)) + 8 + 1 + uint64(len(u.TaskList))
 }
 
 func (u *CancelExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -888,6 +1022,7 @@ func (u *CancelExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		TargetRunID:             u.TargetRunID,
 		TargetChildWorkflowOnly: u.TargetChildWorkflowOnly,
 		ScheduleID:              u.InitiatedID,
+		TaskList:                u.TaskList,
 	}, nil
 }
 
@@ -912,8 +1047,16 @@ func (u *SignalExecutionTask) GetTaskKey() HistoryTaskKey {
 	return NewImmediateTaskKey(u.TaskID)
 }
 
+func (u *SignalExecutionTask) GetTaskList() string {
+	return u.TaskList
+}
+
+func (u *SignalExecutionTask) GetOriginalTaskList() string {
+	return u.TaskList
+}
+
 func (u *SignalExecutionTask) ByteSize() uint64 {
-	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TargetDomainID)) + uint64(len(u.TargetWorkflowID)) + uint64(len(u.TargetRunID)) + 8 + 1
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TargetDomainID)) + uint64(len(u.TargetWorkflowID)) + uint64(len(u.TargetRunID)) + 8 + 1 + uint64(len(u.TaskList))
 }
 
 func (u *SignalExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -930,6 +1073,7 @@ func (u *SignalExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		TargetRunID:             u.TargetRunID,
 		TargetChildWorkflowOnly: u.TargetChildWorkflowOnly,
 		ScheduleID:              u.InitiatedID,
+		TaskList:                u.TaskList,
 	}, nil
 }
 
@@ -954,8 +1098,16 @@ func (u *RecordChildExecutionCompletedTask) GetTaskKey() HistoryTaskKey {
 	return NewImmediateTaskKey(u.TaskID)
 }
 
+func (u *RecordChildExecutionCompletedTask) GetTaskList() string {
+	return u.TaskList
+}
+
+func (u *RecordChildExecutionCompletedTask) GetOriginalTaskList() string {
+	return u.TaskList
+}
+
 func (u *RecordChildExecutionCompletedTask) ByteSize() uint64 {
-	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TargetDomainID)) + uint64(len(u.TargetWorkflowID)) + uint64(len(u.TargetRunID))
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TargetDomainID)) + uint64(len(u.TargetWorkflowID)) + uint64(len(u.TargetRunID)) + uint64(len(u.TaskList))
 }
 
 func (u *RecordChildExecutionCompletedTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -970,6 +1122,7 @@ func (u *RecordChildExecutionCompletedTask) ToTransferTaskInfo() (*TransferTaskI
 		TargetDomainID:      u.TargetDomainID,
 		TargetWorkflowID:    u.TargetWorkflowID,
 		TargetRunID:         u.TargetRunID,
+		TaskList:            u.TaskList,
 	}, nil
 }
 
@@ -994,8 +1147,16 @@ func (u *UpsertWorkflowSearchAttributesTask) GetTaskCategory() HistoryTaskCatego
 	return HistoryTaskCategoryTransfer
 }
 
+func (u *UpsertWorkflowSearchAttributesTask) GetTaskList() string {
+	return u.TaskList
+}
+
+func (u *UpsertWorkflowSearchAttributesTask) GetOriginalTaskList() string {
+	return u.TaskList
+}
+
 func (u *UpsertWorkflowSearchAttributesTask) ByteSize() uint64 {
-	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize()
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TaskList))
 }
 
 func (u *UpsertWorkflowSearchAttributesTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -1007,6 +1168,7 @@ func (u *UpsertWorkflowSearchAttributesTask) ToTransferTaskInfo() (*TransferTask
 		TaskID:              u.TaskID,
 		VisibilityTimestamp: u.VisibilityTimestamp,
 		Version:             u.Version,
+		TaskList:            u.TaskList,
 	}, nil
 }
 
@@ -1031,8 +1193,16 @@ func (u *StartChildExecutionTask) GetTaskKey() HistoryTaskKey {
 	return NewImmediateTaskKey(u.TaskID)
 }
 
+func (u *StartChildExecutionTask) GetTaskList() string {
+	return u.TaskList
+}
+
+func (u *StartChildExecutionTask) GetOriginalTaskList() string {
+	return u.TaskList
+}
+
 func (u *StartChildExecutionTask) ByteSize() uint64 {
-	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TargetDomainID)) + uint64(len(u.TargetWorkflowID)) + 8
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TargetDomainID)) + uint64(len(u.TargetWorkflowID)) + 8 + uint64(len(u.TaskList))
 }
 
 func (u *StartChildExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -1047,6 +1217,7 @@ func (u *StartChildExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error
 		TargetDomainID:      u.TargetDomainID,
 		TargetWorkflowID:    u.TargetWorkflowID,
 		ScheduleID:          u.InitiatedID,
+		TaskList:            u.TaskList,
 	}, nil
 }
 
@@ -1071,8 +1242,16 @@ func (u *RecordWorkflowClosedTask) GetTaskKey() HistoryTaskKey {
 	return NewImmediateTaskKey(u.TaskID)
 }
 
+func (u *RecordWorkflowClosedTask) GetTaskList() string {
+	return u.TaskList
+}
+
+func (u *RecordWorkflowClosedTask) GetOriginalTaskList() string {
+	return u.TaskList
+}
+
 func (u *RecordWorkflowClosedTask) ByteSize() uint64 {
-	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize()
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TaskList))
 }
 
 func (u *RecordWorkflowClosedTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -1084,6 +1263,7 @@ func (u *RecordWorkflowClosedTask) ToTransferTaskInfo() (*TransferTaskInfo, erro
 		TaskID:              u.TaskID,
 		VisibilityTimestamp: u.VisibilityTimestamp,
 		Version:             u.Version,
+		TaskList:            u.TaskList,
 	}, nil
 }
 
@@ -1106,6 +1286,14 @@ func (a *HistoryReplicationTask) GetTaskCategory() HistoryTaskCategory {
 
 func (a *HistoryReplicationTask) GetTaskKey() HistoryTaskKey {
 	return NewImmediateTaskKey(a.TaskID)
+}
+
+func (a *HistoryReplicationTask) GetTaskList() string {
+	return ""
+}
+
+func (a *HistoryReplicationTask) GetOriginalTaskList() string {
+	return ""
 }
 
 func (a *HistoryReplicationTask) ByteSize() uint64 {
@@ -1147,6 +1335,14 @@ func (a *SyncActivityTask) GetTaskKey() HistoryTaskKey {
 	return NewImmediateTaskKey(a.TaskID)
 }
 
+func (a *SyncActivityTask) GetTaskList() string {
+	return ""
+}
+
+func (a *SyncActivityTask) GetOriginalTaskList() string {
+	return ""
+}
+
 func (a *SyncActivityTask) ByteSize() uint64 {
 	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize() + 8
 }
@@ -1184,6 +1380,14 @@ func (a *FailoverMarkerTask) GetTaskCategory() HistoryTaskCategory {
 
 func (a *FailoverMarkerTask) GetTaskKey() HistoryTaskKey {
 	return NewImmediateTaskKey(a.TaskID)
+}
+
+func (a *FailoverMarkerTask) GetTaskList() string {
+	return ""
+}
+
+func (a *FailoverMarkerTask) GetOriginalTaskList() string {
+	return ""
 }
 
 func (a *FailoverMarkerTask) ByteSize() uint64 {

@@ -496,6 +496,8 @@ func parseTimerTaskInfo(
 			info.ScheduleAttempt = v.(int64)
 		case "version":
 			info.Version = v.(int64)
+		case "task_list":
+			info.TaskList = v.(string)
 		}
 	}
 
@@ -547,6 +549,8 @@ func parseTransferTaskInfo(
 			info.RecordVisibility = v.(bool)
 		case "version":
 			info.Version = v.(int64)
+		case "original_task_list":
+			info.OriginalTaskList = v.(string)
 		}
 	}
 
