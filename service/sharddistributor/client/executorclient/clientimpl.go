@@ -16,6 +16,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient/metricsconstants"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient/syncgeneric"
 )
@@ -108,6 +109,7 @@ type executorImpl[SP ShardProcessor] struct {
 	metrics                tally.Scope
 	migrationMode          atomic.Int32
 	metadata               syncExecutorMetadata
+	drainObserver          clientcommon.DrainSignalObserver
 }
 
 func (e *executorImpl[SP]) setMigrationMode(mode types.MigrationMode) {
@@ -197,6 +199,14 @@ func (e *executorImpl[SP]) removeShards(shardIDs []string) error {
 	return nil
 }
 
+// drainChannel returns the drain signal channel, or nil if no observer is configured.
+func (e *executorImpl[SP]) drainChannel() <-chan struct{} {
+	if e.drainObserver != nil {
+		return e.drainObserver.Drain()
+	}
+	return nil
+}
+
 func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
 	// Check if initial migration mode is LOCAL_PASSTHROUGH - if so, skip heartbeating entirely
 	if e.getMigrationMode() == types.MigrationModeLOCALPASSTHROUGH {
@@ -206,6 +216,8 @@ func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
 
 	heartBeatTimer := e.timeSource.NewTimer(backoff.JitDuration(e.heartBeatInterval, heartbeatJitterCoeff))
 	defer heartBeatTimer.Stop()
+
+	drainCh := e.drainChannel()
 
 	for {
 		select {
@@ -219,6 +231,18 @@ func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
 			e.stopShardProcessors()
 			e.sendDrainingHeartbeat()
 			return
+		case <-drainCh:
+			e.logger.Info("drain signal received, stopping shard processors")
+			e.stopShardProcessors()
+			e.sendDrainingHeartbeat()
+
+			if !e.waitForUndrain(ctx) {
+				return
+			}
+
+			e.logger.Info("undrain signal received, resuming heartbeat")
+			drainCh = e.drainObserver.Drain()
+			heartBeatTimer.Reset(backoff.JitDuration(e.heartBeatInterval, heartbeatJitterCoeff))
 		case <-heartBeatTimer.Chan():
 			heartBeatTimer.Reset(backoff.JitDuration(e.heartBeatInterval, heartbeatJitterCoeff))
 			err := e.heartbeatAndUpdateAssignment(ctx)
@@ -231,6 +255,25 @@ func (e *executorImpl[SP]) heartbeatloop(ctx context.Context) {
 				continue
 			}
 		}
+	}
+}
+
+// waitForUndrain blocks until the undrain signal fires or the executor is stopped.
+// Returns true if undrained (caller should resume), false if stopped.
+func (e *executorImpl[SP]) waitForUndrain(ctx context.Context) bool {
+	if e.drainObserver == nil {
+		return false
+	}
+
+	undrainCh := e.drainObserver.Undrain()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-e.stopC:
+		return false
+	case <-undrainCh:
+		return true
 	}
 }
 
