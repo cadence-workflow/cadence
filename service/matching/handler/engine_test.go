@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
@@ -750,6 +751,136 @@ func TestIsShuttingDown(t *testing.T) {
 	assert.False(t, e.isShuttingDown())
 	e.Stop()
 	assert.True(t, e.isShuttingDown())
+}
+
+func TestErrIfShardOwnershipLost(t *testing.T) {
+	taskListID, err := tasklist.NewIdentifier("test-domain-id", "test-tasklist", persistence.TaskListTypeActivity)
+	require.NoError(t, err)
+	selfIdentity := "this-host"
+
+	testCases := []struct {
+		name                 string
+		enableOwnershipGuard bool
+		onboardedToSD        bool
+		setupMocks           func(ctrl *gomock.Controller, resolver *membership.MockResolver, executor *executorclient.MockExecutor[tasklist.ShardProcessor], engine *matchingEngineImpl)
+		expectedErr          error
+	}{
+		{
+			name:                 "ownership guard not enabled",
+			enableOwnershipGuard: false,
+			expectedErr:          nil,
+		},
+		{
+			name: "engine is shutting down",
+			setupMocks: func(ctrl *gomock.Controller, resolver *membership.MockResolver, executor *executorclient.MockExecutor[tasklist.ShardProcessor], engine *matchingEngineImpl) {
+				close(engine.shutdown)
+			},
+			enableOwnershipGuard: true,
+			expectedErr: &cadence_errors.TaskListNotOwnedByHostError{
+				OwnedByIdentity: "not known",
+				MyIdentity:      selfIdentity,
+				TasklistName:    taskListID.GetName(),
+			},
+		},
+		{
+			name:          "ownership lookup in SD fails",
+			onboardedToSD: true,
+			setupMocks: func(ctrl *gomock.Controller, resolver *membership.MockResolver, executor *executorclient.MockExecutor[tasklist.ShardProcessor], engine *matchingEngineImpl) {
+				executor.EXPECT().GetShardProcess(gomock.Any(), taskListID.GetName()).Return(nil, errors.New("sd down"))
+			},
+			enableOwnershipGuard: true,
+			expectedErr:          errors.New("failed to lookup ownership in SD"),
+		},
+		{
+			name:          "shard process not found in SD",
+			onboardedToSD: true,
+			setupMocks: func(ctrl *gomock.Controller, resolver *membership.MockResolver, executor *executorclient.MockExecutor[tasklist.ShardProcessor], engine *matchingEngineImpl) {
+				executor.EXPECT().GetShardProcess(gomock.Any(), taskListID.GetName()).Return(nil, nil)
+			},
+			enableOwnershipGuard: true,
+			expectedErr: &cadence_errors.TaskListNotOwnedByHostError{
+				OwnedByIdentity: "not known", // SD does not provide owner identity.
+				MyIdentity:      selfIdentity,
+				TasklistName:    taskListID.GetName(),
+			},
+		},
+		{
+			name:          "owned when shard process exists in SD",
+			onboardedToSD: true,
+			setupMocks: func(ctrl *gomock.Controller, resolver *membership.MockResolver, executor *executorclient.MockExecutor[tasklist.ShardProcessor], engine *matchingEngineImpl) {
+				executor.EXPECT().GetShardProcess(gomock.Any(), taskListID.GetName()).Return(tasklist.NewMockShardProcessor(ctrl), nil)
+			},
+			enableOwnershipGuard: true,
+			expectedErr:          nil,
+		},
+		{
+			name:                 "legacy ownership lookup fails",
+			enableOwnershipGuard: true,
+			onboardedToSD:        false,
+			setupMocks: func(ctrl *gomock.Controller, resolver *membership.MockResolver, executor *executorclient.MockExecutor[tasklist.ShardProcessor], engine *matchingEngineImpl) {
+				resolver.EXPECT().Lookup(service.Matching, taskListID.GetName()).
+					Return(membership.NewDetailedHostInfo("", "", nil), errors.New("resolver down"))
+			},
+			expectedErr: errors.New("failed to lookup task list owner"),
+		},
+		{
+			name:                 "legacy owner mismatch returns not-owned error",
+			enableOwnershipGuard: true,
+			onboardedToSD:        false,
+			setupMocks: func(ctrl *gomock.Controller, resolver *membership.MockResolver, executor *executorclient.MockExecutor[tasklist.ShardProcessor], engine *matchingEngineImpl) {
+				resolver.EXPECT().Lookup(service.Matching, taskListID.GetName()).
+					Return(membership.NewDetailedHostInfo("", "another-host", nil), nil)
+			},
+			expectedErr: &cadence_errors.TaskListNotOwnedByHostError{
+				OwnedByIdentity: "another-host",
+				MyIdentity:      selfIdentity,
+				TasklistName:    taskListID.GetName(),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			resolver := membership.NewMockResolver(ctrl)
+			executor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+			executor.EXPECT().IsOnboardedToSD().Return(tc.onboardedToSD).AnyTimes()
+
+			engine := &matchingEngineImpl{
+				shutdown:           make(chan struct{}),
+				executor:           executor,
+				membershipResolver: resolver,
+				selfAddress:        membership.NewDetailedHostInfo("", selfIdentity, nil),
+				config: &config.Config{
+					EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool {
+						return tc.enableOwnershipGuard
+					},
+				},
+				logger: log.NewNoop(),
+			}
+
+			if tc.setupMocks != nil {
+				tc.setupMocks(ctrl, resolver, executor, engine)
+			}
+
+			err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+
+			if tc.expectedErr == nil {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+
+				var expectedNotOwnedErr *cadence_errors.TaskListNotOwnedByHostError
+				if errors.As(tc.expectedErr, &expectedNotOwnedErr) {
+					var actualNotOwnedErr *cadence_errors.TaskListNotOwnedByHostError
+					require.ErrorAs(t, err, &actualNotOwnedErr)
+					assert.Equal(t, expectedNotOwnedErr, actualNotOwnedErr)
+				} else {
+					require.ErrorContains(t, err, tc.expectedErr.Error())
+				}
+			}
+		})
+	}
 }
 
 func TestGetTasklistsNotOwned(t *testing.T) {

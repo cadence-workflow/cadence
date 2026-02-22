@@ -111,6 +111,7 @@ type (
 		timeSource                     clock.TimeSource
 		failoverNotificationVersion    int64
 		ShardDistributorMatchingConfig clientcommon.Config
+		selfAddress                    membership.HostInfo
 	}
 )
 
@@ -141,6 +142,11 @@ func NewEngine(
 	shardDistributorClient executorclient.Client,
 	ShardDistributorMatchingConfig clientcommon.Config,
 ) Engine {
+	selfAddress, err := resolver.WhoAmI()
+	if err != nil {
+		logger.Fatal("failed to lookup self in membership", tag.Error(err))
+	}
+
 	e := &matchingEngineImpl{
 		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient),
 		shutdown:                       make(chan struct{}),
@@ -161,6 +167,7 @@ func NewEngine(
 		isolationState:                 isolationState,
 		timeSource:                     timeSource,
 		ShardDistributorMatchingConfig: ShardDistributorMatchingConfig,
+		selfAddress:                    selfAddress,
 	}
 
 	e.setupExecutor(shardDistributorClient)
@@ -1469,66 +1476,70 @@ func (e *matchingEngineImpl) emitInfoOrDebugLog(
 	}
 }
 
+func (e *matchingEngineImpl) stillOwnShard(ctx context.Context, taskList *tasklist.Identifier, reason, whoOwns *string) (bool, error) {
+	if e.isShuttingDown() {
+		*reason = "engine is shutting down"
+		return false, nil
+	}
+
+	if e.executor.IsOnboardedToSD() {
+		// We have a shard-processor shared by all the task lists with the same name.
+		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
+		sp, err := e.executor.GetShardProcess(ctx, taskList.GetName())
+		if err != nil {
+			return false, fmt.Errorf("failed to lookup ownership in SD: %w", err)
+		}
+
+		if sp == nil {
+			*reason = "shard process not found"
+			return false, nil
+		}
+		return true, nil
+	}
+
+	taskListOwner, err := e.membershipResolver.Lookup(service.Matching, taskList.GetName())
+	if err != nil {
+		return false, fmt.Errorf("failed to lookup task list owner: %w", err)
+	}
+	if taskListOwner.Identity() != e.selfAddress.Identity() {
+		*reason = "engine does not own this shard"
+		*whoOwns = taskListOwner.Identity()
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// Defensive check to make sure we actually own the task list
+//
+//	If we try to create a task list manager for a task list that is not owned by us, return an error
+//	The new task list manager will steal the task list from the current owner, which should only happen if
+//	the task list is owned by the current host.
 func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskList *tasklist.Identifier) error {
 	if !e.config.EnableTasklistOwnershipGuard() {
 		return nil
 	}
 
-	// We have a shard-processor shared by all the task lists with the same name.
-	// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
-	sp, err := e.executor.GetShardProcess(ctx, taskList.GetName())
-	if e.executor.IsOnboardedToSD() {
-		if err != nil {
-			return fmt.Errorf("failed to lookup ownership in SD: %w", err)
-		}
-		if sp == nil {
-			return fmt.Errorf("failed to lookup ownership in SD: shard process is nil")
-		}
+	reason := "unknown reason"
+	whoOwns := "not known"
+	ok, err := e.stillOwnShard(ctx, taskList, &reason, &whoOwns)
+	if err != nil {
+		return err
+	}
+	if ok {
 		return nil
 	}
 
-	self, err := e.membershipResolver.WhoAmI()
-	if err != nil {
-		return fmt.Errorf("failed to lookup self im membership: %w", err)
-	}
-
-	if e.isShuttingDown() {
-		e.logger.Warn("request to get tasklist is being rejected because engine is shutting down",
-			tag.WorkflowDomainID(taskList.GetDomainID()),
-			tag.WorkflowTaskListType(taskList.GetType()),
-			tag.WorkflowTaskListName(taskList.GetName()),
-		)
-
-		return cadence_errors.NewTaskListNotOwnedByHostError(
-			"not known",
-			self.Identity(),
-			taskList.GetName(),
-		)
-	}
-
-	// Defensive check to make sure we actually own the task list
-	//   If we try to create a task list manager for a task list that is not owned by us, return an error
-	//   The new task list manager will steal the task list from the current owner, which should only happen if
-	//   the task list is owned by the current host.
-	taskListOwner, err := e.membershipResolver.Lookup(service.Matching, taskList.GetName())
-	if err != nil {
-		return fmt.Errorf("failed to lookup task list owner: %w", err)
-	}
-
-	if taskListOwner.Identity() != self.Identity() {
-		e.logger.Warn("Request to get tasklist is being rejected because engine does not own this shard",
-			tag.WorkflowDomainID(taskList.GetDomainID()),
-			tag.WorkflowTaskListType(taskList.GetType()),
-			tag.WorkflowTaskListName(taskList.GetName()),
-		)
-		return cadence_errors.NewTaskListNotOwnedByHostError(
-			taskListOwner.Identity(),
-			self.Identity(),
-			taskList.GetName(),
-		)
-	}
-
-	return nil
+	e.logger.Warn(fmt.Sprintf("request to get tasklist is being rejected because %s", reason),
+		tag.WorkflowDomainID(taskList.GetDomainID()),
+		tag.WorkflowTaskListType(taskList.GetType()),
+		tag.WorkflowTaskListName(taskList.GetName()),
+	)
+	return cadence_errors.NewTaskListNotOwnedByHostError(
+		whoOwns,
+		e.selfAddress.Identity(),
+		taskList.GetName(),
+	)
 }
 
 func (e *matchingEngineImpl) isShuttingDown() bool {
