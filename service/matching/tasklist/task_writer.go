@@ -153,8 +153,8 @@ func (w *taskWriter) appendTask(ctx context.Context, taskInfo *persistence.TaskI
 			// it to cassandra, just bail out and fail this request
 			return nil, errShutdown
 		}
-	case <-tCtx.Done(): // If enqueue failed due to context timeout, return an error
-		return nil, fmt.Errorf("cannot append task into queue due to the timeout error: %w", tCtx.Err())
+	case <-tCtx.Done(): // If a channel is full and timed out waiting to enqueue
+		return nil, createServiceBusyError("task queue is full and timed out waiting to enqueue")
 	}
 }
 
