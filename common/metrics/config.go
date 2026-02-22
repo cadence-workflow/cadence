@@ -47,7 +47,7 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	// Replication task processor histograms (PR #7685).
 	// Dual-emitted as timer + histogram.
 	"replication_tasks_lag":                {},
-	"replication_tasks_lag_ns":             {},
+	"replication_tasks_lag_counts":         {},
 	"replication_tasks_applied_latency":    {},
 	"replication_tasks_applied_latency_ns": {},
 
