@@ -152,6 +152,7 @@ type Config struct {
 	TimerProcessorSplitQueueIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
 	TimerProcessorMaxRedispatchQueueSize              dynamicproperties.IntPropertyFn
 	TimerProcessorMaxTimeShift                        dynamicproperties.DurationPropertyFn
+	TimerProcessorInMemoryQueueMaxTimeShift           dynamicproperties.DurationPropertyFnWithShardIDFilter
 	TimerProcessorHistoryArchivalSizeLimit            dynamicproperties.IntPropertyFn
 	TimerProcessorArchivalTimeLimit                   dynamicproperties.DurationPropertyFn
 	DisableTimerFailoverQueue                         dynamicproperties.BoolPropertyFn
@@ -454,6 +455,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TimerProcessorSplitQueueIntervalJitterCoefficient:    dc.GetFloat64Property(dynamicproperties.TimerProcessorSplitQueueIntervalJitterCoefficient),
 		TimerProcessorMaxRedispatchQueueSize:                 dc.GetIntProperty(dynamicproperties.TimerProcessorMaxRedispatchQueueSize),
 		TimerProcessorMaxTimeShift:                           dc.GetDurationProperty(dynamicproperties.TimerProcessorMaxTimeShift),
+		TimerProcessorInMemoryQueueMaxTimeShift:              dc.GetDurationPropertyFilteredByShardID(dynamicproperties.TimerProcessorInMemoryQueueMaxTimeShift),
 		TimerProcessorHistoryArchivalSizeLimit:               dc.GetIntProperty(dynamicproperties.TimerProcessorHistoryArchivalSizeLimit),
 		TimerProcessorArchivalTimeLimit:                      dc.GetDurationProperty(dynamicproperties.TimerProcessorArchivalTimeLimit),
 		DisableTimerFailoverQueue:                            dc.GetBoolProperty(dynamicproperties.DisableTimerFailoverQueue),

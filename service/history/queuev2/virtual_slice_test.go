@@ -3472,3 +3472,367 @@ func TestMergeVirtualSlicesWithDifferentPredicate(t *testing.T) {
 		})
 	}
 }
+
+func TestVirtualSliceImpl_InsertTask(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupSlice     func(ctrl *gomock.Controller) *virtualSliceImpl
+		setupTask      func(ctrl *gomock.Controller) task.Task
+		expectedResult bool
+		expectAddTask  bool
+	}{
+		{
+			name: "Task within range and predicate matches - should insert successfully",
+			setupSlice: func(ctrl *gomock.Controller) *virtualSliceImpl {
+				mockPendingTaskTracker := NewMockPendingTaskTracker(ctrl)
+				mockPredicate := NewMockPredicate(ctrl)
+				mockPredicate.EXPECT().Check(gomock.Any()).Return(true)
+
+				return &virtualSliceImpl{
+					state: VirtualSliceState{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+						Predicate: mockPredicate,
+					},
+					pendingTaskTracker: mockPendingTaskTracker,
+				}
+			},
+			setupTask: func(ctrl *gomock.Controller) task.Task {
+				mockTask := task.NewMockTask(ctrl)
+				mockTask.EXPECT().GetTaskKey().Return(persistence.NewImmediateTaskKey(5)).AnyTimes()
+				return mockTask
+			},
+			expectedResult: true,
+			expectAddTask:  true,
+		},
+		{
+			name: "Task outside range - should not insert",
+			setupSlice: func(ctrl *gomock.Controller) *virtualSliceImpl {
+				mockPendingTaskTracker := NewMockPendingTaskTracker(ctrl)
+				mockPredicate := NewMockPredicate(ctrl)
+
+				return &virtualSliceImpl{
+					state: VirtualSliceState{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+						Predicate: mockPredicate,
+					},
+					pendingTaskTracker: mockPendingTaskTracker,
+				}
+			},
+			setupTask: func(ctrl *gomock.Controller) task.Task {
+				mockTask := task.NewMockTask(ctrl)
+				mockTask.EXPECT().GetTaskKey().Return(persistence.NewImmediateTaskKey(15)).AnyTimes()
+				return mockTask
+			},
+			expectedResult: false,
+			expectAddTask:  false,
+		},
+		{
+			name: "Task within range but predicate doesn't match - should not insert",
+			setupSlice: func(ctrl *gomock.Controller) *virtualSliceImpl {
+				mockPendingTaskTracker := NewMockPendingTaskTracker(ctrl)
+				mockPredicate := NewMockPredicate(ctrl)
+				mockPredicate.EXPECT().Check(gomock.Any()).Return(false)
+
+				return &virtualSliceImpl{
+					state: VirtualSliceState{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+						Predicate: mockPredicate,
+					},
+					pendingTaskTracker: mockPendingTaskTracker,
+				}
+			},
+			setupTask: func(ctrl *gomock.Controller) task.Task {
+				mockTask := task.NewMockTask(ctrl)
+				mockTask.EXPECT().GetTaskKey().Return(persistence.NewImmediateTaskKey(5)).AnyTimes()
+				return mockTask
+			},
+			expectedResult: false,
+			expectAddTask:  false,
+		},
+		{
+			name: "Task at inclusive min boundary - should insert successfully",
+			setupSlice: func(ctrl *gomock.Controller) *virtualSliceImpl {
+				mockPendingTaskTracker := NewMockPendingTaskTracker(ctrl)
+				mockPredicate := NewMockPredicate(ctrl)
+				mockPredicate.EXPECT().Check(gomock.Any()).Return(true)
+
+				return &virtualSliceImpl{
+					state: VirtualSliceState{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+						Predicate: mockPredicate,
+					},
+					pendingTaskTracker: mockPendingTaskTracker,
+				}
+			},
+			setupTask: func(ctrl *gomock.Controller) task.Task {
+				mockTask := task.NewMockTask(ctrl)
+				mockTask.EXPECT().GetTaskKey().Return(persistence.NewImmediateTaskKey(1)).AnyTimes()
+				return mockTask
+			},
+			expectedResult: true,
+			expectAddTask:  true,
+		},
+		{
+			name: "Task at exclusive max boundary - should not insert",
+			setupSlice: func(ctrl *gomock.Controller) *virtualSliceImpl {
+				mockPendingTaskTracker := NewMockPendingTaskTracker(ctrl)
+				mockPredicate := NewMockPredicate(ctrl)
+
+				return &virtualSliceImpl{
+					state: VirtualSliceState{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+						Predicate: mockPredicate,
+					},
+					pendingTaskTracker: mockPendingTaskTracker,
+				}
+			},
+			setupTask: func(ctrl *gomock.Controller) task.Task {
+				mockTask := task.NewMockTask(ctrl)
+				mockTask.EXPECT().GetTaskKey().Return(persistence.NewImmediateTaskKey(10)).AnyTimes()
+				return mockTask
+			},
+			expectedResult: false,
+			expectAddTask:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			slice := tt.setupSlice(ctrl)
+			task := tt.setupTask(ctrl)
+
+			if tt.expectAddTask {
+				slice.pendingTaskTracker.(*MockPendingTaskTracker).EXPECT().AddTask(task).Times(1)
+			}
+
+			result := slice.InsertTask(task)
+
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
+
+func TestVirtualSliceImpl_ResetProgress(t *testing.T) {
+	tests := []struct {
+		name                string
+		setupSlice          func(ctrl *gomock.Controller) *virtualSliceImpl
+		resetKey            persistence.HistoryTaskKey
+		expectedProgressLen int
+		expectedCancelCalls int
+		validateProgress    func(t *testing.T, progress []*GetTaskProgress)
+	}{
+		{
+			name: "Reset key after slice range - should not reset",
+			setupSlice: func(ctrl *gomock.Controller) *virtualSliceImpl {
+				mockPendingTaskTracker := NewMockPendingTaskTracker(ctrl)
+				mockPendingTaskTracker.EXPECT().GetTasks().Return(map[persistence.HistoryTaskKey]task.Task{}).AnyTimes()
+
+				return &virtualSliceImpl{
+					state: VirtualSliceState{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+					},
+					pendingTaskTracker: mockPendingTaskTracker,
+					progress: []*GetTaskProgress{
+						{
+							Range: Range{
+								InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+								ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+							},
+							NextTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+					},
+				}
+			},
+			resetKey:            persistence.NewImmediateTaskKey(15),
+			expectedProgressLen: 1,
+			expectedCancelCalls: 0,
+			validateProgress: func(t *testing.T, progress []*GetTaskProgress) {
+				assert.Equal(t, persistence.NewImmediateTaskKey(5), progress[0].NextTaskKey)
+			},
+		},
+		{
+			name: "Reset key within range with no progress - should create new progress",
+			setupSlice: func(ctrl *gomock.Controller) *virtualSliceImpl {
+				mockPendingTaskTracker := NewMockPendingTaskTracker(ctrl)
+				mockPendingTaskTracker.EXPECT().GetTasks().Return(map[persistence.HistoryTaskKey]task.Task{}).AnyTimes()
+
+				return &virtualSliceImpl{
+					state: VirtualSliceState{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+					},
+					pendingTaskTracker: mockPendingTaskTracker,
+					progress:           []*GetTaskProgress{},
+				}
+			},
+			resetKey:            persistence.NewImmediateTaskKey(5),
+			expectedProgressLen: 1,
+			expectedCancelCalls: 0,
+			validateProgress: func(t *testing.T, progress []*GetTaskProgress) {
+				assert.Equal(t, persistence.NewImmediateTaskKey(5), progress[0].NextTaskKey)
+				assert.Equal(t, persistence.NewImmediateTaskKey(5), progress[0].InclusiveMinTaskKey)
+				assert.Equal(t, persistence.NewImmediateTaskKey(10), progress[0].ExclusiveMaxTaskKey)
+			},
+		},
+		{
+			name: "Reset key within range with existing progress - should reset and cancel tasks",
+			setupSlice: func(ctrl *gomock.Controller) *virtualSliceImpl {
+				mockPendingTaskTracker := NewMockPendingTaskTracker(ctrl)
+				mockTask1 := task.NewMockTask(ctrl)
+				mockTask2 := task.NewMockTask(ctrl)
+				mockTask3 := task.NewMockTask(ctrl)
+
+				mockTask1.EXPECT().GetTaskKey().Return(persistence.NewImmediateTaskKey(3)).AnyTimes()
+
+				mockTask2.EXPECT().GetTaskKey().Return(persistence.NewImmediateTaskKey(5)).AnyTimes()
+				mockTask2.EXPECT().Cancel().Times(1)
+
+				mockTask3.EXPECT().GetTaskKey().Return(persistence.NewImmediateTaskKey(7)).AnyTimes()
+				mockTask3.EXPECT().Cancel().Times(1)
+
+				mockPendingTaskTracker.EXPECT().GetTasks().Return(map[persistence.HistoryTaskKey]task.Task{
+					persistence.NewImmediateTaskKey(3): mockTask1,
+					persistence.NewImmediateTaskKey(5): mockTask2,
+					persistence.NewImmediateTaskKey(7): mockTask3,
+				})
+
+				return &virtualSliceImpl{
+					state: VirtualSliceState{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+					},
+					pendingTaskTracker: mockPendingTaskTracker,
+					progress: []*GetTaskProgress{
+						{
+							Range: Range{
+								InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+								ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+							},
+							NextTaskKey: persistence.NewImmediateTaskKey(8),
+						},
+					},
+				}
+			},
+			resetKey:            persistence.NewImmediateTaskKey(5),
+			expectedProgressLen: 1,
+			expectedCancelCalls: 2,
+			validateProgress: func(t *testing.T, progress []*GetTaskProgress) {
+				assert.Equal(t, persistence.NewImmediateTaskKey(5), progress[0].NextTaskKey)
+				assert.Equal(t, persistence.NewImmediateTaskKey(1), progress[0].InclusiveMinTaskKey)
+				assert.Equal(t, persistence.NewImmediateTaskKey(10), progress[0].ExclusiveMaxTaskKey)
+			},
+		},
+		{
+			name: "Reset key with multiple progress ranges - should merge remaining ranges",
+			setupSlice: func(ctrl *gomock.Controller) *virtualSliceImpl {
+				mockPendingTaskTracker := NewMockPendingTaskTracker(ctrl)
+				mockPendingTaskTracker.EXPECT().GetTasks().Return(map[persistence.HistoryTaskKey]task.Task{}).AnyTimes()
+
+				return &virtualSliceImpl{
+					state: VirtualSliceState{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(20),
+						},
+					},
+					pendingTaskTracker: mockPendingTaskTracker,
+					progress: []*GetTaskProgress{
+						{
+							Range: Range{
+								InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+								ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+							},
+							NextTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						{
+							Range: Range{
+								InclusiveMinTaskKey: persistence.NewImmediateTaskKey(10),
+								ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(20),
+							},
+							NextTaskKey: persistence.NewImmediateTaskKey(15),
+						},
+					},
+				}
+			},
+			resetKey:            persistence.NewImmediateTaskKey(7),
+			expectedProgressLen: 1,
+			expectedCancelCalls: 0,
+			validateProgress: func(t *testing.T, progress []*GetTaskProgress) {
+				assert.Equal(t, persistence.NewImmediateTaskKey(5), progress[0].NextTaskKey)
+				assert.Equal(t, persistence.NewImmediateTaskKey(1), progress[0].InclusiveMinTaskKey)
+				assert.Equal(t, persistence.NewImmediateTaskKey(20), progress[0].ExclusiveMaxTaskKey)
+			},
+		},
+		{
+			name: "Reset key before current progress next task key - should use reset key as next task key",
+			setupSlice: func(ctrl *gomock.Controller) *virtualSliceImpl {
+				mockPendingTaskTracker := NewMockPendingTaskTracker(ctrl)
+				mockPendingTaskTracker.EXPECT().GetTasks().Return(map[persistence.HistoryTaskKey]task.Task{}).AnyTimes()
+
+				return &virtualSliceImpl{
+					state: VirtualSliceState{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+					},
+					pendingTaskTracker: mockPendingTaskTracker,
+					progress: []*GetTaskProgress{
+						{
+							Range: Range{
+								InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+								ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+							},
+							NextTaskKey: persistence.NewImmediateTaskKey(8),
+						},
+					},
+				}
+			},
+			resetKey:            persistence.NewImmediateTaskKey(3),
+			expectedProgressLen: 1,
+			expectedCancelCalls: 0,
+			validateProgress: func(t *testing.T, progress []*GetTaskProgress) {
+				assert.Equal(t, persistence.NewImmediateTaskKey(3), progress[0].NextTaskKey)
+				assert.Equal(t, persistence.NewImmediateTaskKey(1), progress[0].InclusiveMinTaskKey)
+				assert.Equal(t, persistence.NewImmediateTaskKey(10), progress[0].ExclusiveMaxTaskKey)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			slice := tt.setupSlice(ctrl)
+
+			slice.ResetProgress(tt.resetKey)
+
+			assert.Equal(t, tt.expectedProgressLen, len(slice.progress))
+			if tt.validateProgress != nil {
+				tt.validateProgress(t, slice.progress)
+			}
+		})
+	}
+}

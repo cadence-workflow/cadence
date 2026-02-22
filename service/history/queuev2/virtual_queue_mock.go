@@ -14,6 +14,9 @@ import (
 	time "time"
 
 	gomock "go.uber.org/mock/gomock"
+
+	persistence "github.com/uber/cadence/common/persistence"
+	task "github.com/uber/cadence/service/history/task"
 )
 
 // MockVirtualQueue is a mock of VirtualQueue interface.
@@ -82,6 +85,20 @@ func (mr *MockVirtualQueueMockRecorder) GetState() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockVirtualQueue)(nil).GetState))
 }
 
+// InsertSingleTask mocks base method.
+func (m *MockVirtualQueue) InsertSingleTask(task task.Task) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertSingleTask", task)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// InsertSingleTask indicates an expected call of InsertSingleTask.
+func (mr *MockVirtualQueueMockRecorder) InsertSingleTask(task any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertSingleTask", reflect.TypeOf((*MockVirtualQueue)(nil).InsertSingleTask), task)
+}
+
 // IterateSlices mocks base method.
 func (m *MockVirtualQueue) IterateSlices(arg0 func(VirtualSlice)) {
 	m.ctrl.T.Helper()
@@ -132,6 +149,18 @@ func (m *MockVirtualQueue) Pause(arg0 time.Duration) {
 func (mr *MockVirtualQueueMockRecorder) Pause(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Pause", reflect.TypeOf((*MockVirtualQueue)(nil).Pause), arg0)
+}
+
+// ResetProgress mocks base method.
+func (m *MockVirtualQueue) ResetProgress(arg0 persistence.HistoryTaskKey) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ResetProgress", arg0)
+}
+
+// ResetProgress indicates an expected call of ResetProgress.
+func (mr *MockVirtualQueueMockRecorder) ResetProgress(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetProgress", reflect.TypeOf((*MockVirtualQueue)(nil).ResetProgress), arg0)
 }
 
 // SplitSlices mocks base method.

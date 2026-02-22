@@ -992,6 +992,7 @@ func notifyTasks(
 		ExecutionInfo:    executionInfo,
 		Tasks:            tasksByCategory[persistence.HistoryTaskCategoryTimer],
 		PersistenceError: persistenceError,
+		ScheduleInMemory: true,
 	}
 	replicationTaskInfo := &hcommon.NotifyTaskInfo{
 		ExecutionInfo:    executionInfo,

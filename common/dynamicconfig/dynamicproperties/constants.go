@@ -2908,6 +2908,12 @@ const (
 	// Default value: 1s (1*time.Second)
 	// Allowed filters: N/A
 	TimerProcessorMaxTimeShift
+	// TimerProcessorInMemoryQueueMaxTimeShift is the max shift timer processor in memory queue can have. If set to 0, in memory queue is disabled.
+	// KeyName: history.timerProcessorInMemoryQueueMaxTimeShift
+	// Value type: Duration
+	// Default value: 0
+	// Allowed filters: ShardID
+	TimerProcessorInMemoryQueueMaxTimeShift
 	// TransferProcessorFailoverMaxStartJitterInterval is the max jitter interval for starting transfer
 	// failover queue processing. The actual jitter interval used will be a random duration between
 	// 0 and the max interval so that timer failover queue across different shards won't start at
@@ -5476,6 +5482,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.timerProcessorMaxTimeShift",
 		Description:  "TimerProcessorMaxTimeShift is the max shift timer processor can have",
 		DefaultValue: time.Second,
+	},
+	TimerProcessorInMemoryQueueMaxTimeShift: {
+		KeyName:      "history.timerProcessorInMemoryQueueMaxTimeShift",
+		Filters:      []Filter{ShardID},
+		Description:  "TimerProcessorInMemoryQueueMaxTimeShift is the max shift timer processor in memory queue can have. If set to 0, in memory queue is disabled.",
+		DefaultValue: 0,
 	},
 	TransferProcessorFailoverMaxStartJitterInterval: {
 		KeyName:      "history.transferProcessorFailoverMaxStartJitterInterval",
