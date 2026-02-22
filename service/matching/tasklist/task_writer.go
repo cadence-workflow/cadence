@@ -122,14 +122,18 @@ func (w *taskWriter) isStopped() bool {
 }
 
 func (w *taskWriter) appendTask(ctx context.Context, taskInfo *persistence.TaskInfo) (*persistence.CreateTasksResponse, error) {
+	// Make context to respect the append task timeout.
+	tCtx, cancel := context.WithTimeout(ctx, w.config.AppendTaskTimeout())
+	defer cancel()
+
 	// If the writer has already stopped, it returns an error
 	if w.isStopped() {
 		return nil, errShutdown
 	}
 
 	// Create a result channel for this request.
-	// Use buffer size 1 so writer can send one response even if this call already timed out.
-	// Without a buffer, writer can block forever when no receiver is waiting.
+	// Use buffer size 1 so the writer can send one response even if this call is already timed out.
+	// Without a buffer, the writer can block forever when no receiver is waiting.
 	ch := make(chan *writeTaskResponse, 1)
 
 	req := &writeTaskRequest{
@@ -137,22 +141,20 @@ func (w *taskWriter) appendTask(ctx context.Context, taskInfo *persistence.TaskI
 		responseCh: ch,
 	}
 
-	select { // Try to append a task into the queue
+	select {
 	case w.appendCh <- req: // If enqueue succeed
 		select { // Wait for the task result after the enqueue
 		case r := <-ch: // If the writer sends the task result after the DB I/O task
 			return r.persistenceResponse, r.err
-		case <-ctx.Done(): // If the writer didn't send the task result within a timeout threshold
-			return nil, ctx.Err()
+		case <-tCtx.Done(): // If the writer didn't send the task result within a timeout threshold
+			return nil, fmt.Errorf("failed to receive a success response from the channel within a timeout threshold: %v", tCtx.Err())
 		case <-w.stopCh:
 			// if we are shutting down, this request will never make
 			// it to cassandra, just bail out and fail this request
 			return nil, errShutdown
 		}
-	case <-ctx.Done(): // If enqueue failed due to context timeout
-		return nil, ctx.Err()
-	default: // channel is full, throttle
-		return nil, createServiceBusyError("Too many outstanding appends to the TaskList")
+	case <-tCtx.Done(): // If enqueue failed due to context timeout, return an error
+		return nil, fmt.Errorf("cannot append task into queue due to the timeout error: %v", tCtx.Err())
 	}
 }
 

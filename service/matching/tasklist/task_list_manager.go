@@ -531,10 +531,6 @@ func (c *taskListManagerImpl) notifyPartitionConfig(ctx context.Context, oldConf
 func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams) (bool, error) {
 	c.startWG.Wait()
 
-	// Make context to respect the append task timeout.
-	tCtx, cancel := context.WithTimeout(ctx, c.config.AppendTaskTimeout())
-	defer cancel()
-
 	if c.shouldReload() {
 		c.Stop()
 		return false, errShutdown
@@ -582,7 +578,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 
 		// Persist the standby task, but the sync match still fails.
 		// Return the false syncMatch flag along with any error
-		_, err = c.taskWriter.appendTask(tCtx, params.TaskInfo)
+		_, err = c.taskWriter.appendTask(ctx, params.TaskInfo)
 		if err == nil {
 			// Signal the task reader only if appendTask succeeded
 			c.taskReader.Signal()
@@ -612,7 +608,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 
 	e.EventName = "Task Sent to Writer"
 	event.Log(e)
-	if _, err := c.taskWriter.appendTask(tCtx, params.TaskInfo); err != nil {
+	if _, err := c.taskWriter.appendTask(ctx, params.TaskInfo); err != nil {
 		return syncMatch, err
 	}
 	c.taskReader.Signal()
