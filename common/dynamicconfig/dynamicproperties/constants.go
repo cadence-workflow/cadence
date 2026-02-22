@@ -29,6 +29,36 @@ import (
 	"github.com/uber/cadence/common/definition"
 )
 
+// Lifecycle indicates if a config is temporary or permanent
+type Lifecycle int
+
+const (
+	// LifecycleUnknown is the default for untagged configs
+	LifecycleUnknown Lifecycle = iota
+	// LifecyclePermanent indicates a config expected to exist indefinitely
+	LifecyclePermanent
+	// LifecycleTemporary indicates a config that should be removed eventually
+	LifecycleTemporary
+)
+
+// Category indicates the purpose/nature of a config
+type Category int
+
+const (
+	// CategoryUnknown is the default for untagged configs
+	CategoryUnknown Category = iota
+	// CategoryOperational indicates tuning params: batch sizes, timeouts, limits, kill switches
+	CategoryOperational
+	// CategoryFeatureFlag indicates enable/disable features during rollout
+	CategoryFeatureFlag
+	// CategoryMigration indicates data migration or gradual rollout flags
+	CategoryMigration
+	// CategoryDebug indicates debugging/troubleshooting tools
+	CategoryDebug
+	// CategoryDeprecated indicates configs marked for removal (implies Temporary)
+	CategoryDeprecated
+)
+
 type (
 	// DynamicInt defines the properties for a dynamic config with int value type
 	DynamicInt struct {
@@ -36,6 +66,8 @@ type (
 		Description  string
 		DefaultValue int
 		Filters      []Filter
+		Lifecycle    Lifecycle
+		Category     Category
 	}
 
 	DynamicBool struct {
@@ -43,6 +75,8 @@ type (
 		Description  string
 		DefaultValue bool
 		Filters      []Filter
+		Lifecycle    Lifecycle
+		Category     Category
 	}
 
 	DynamicFloat struct {
@@ -50,6 +84,8 @@ type (
 		Description  string
 		DefaultValue float64
 		Filters      []Filter
+		Lifecycle    Lifecycle
+		Category     Category
 	}
 
 	DynamicString struct {
@@ -57,6 +93,8 @@ type (
 		Description  string
 		DefaultValue string
 		Filters      []Filter
+		Lifecycle    Lifecycle
+		Category     Category
 	}
 
 	DynamicDuration struct {
@@ -64,6 +102,8 @@ type (
 		Description  string
 		DefaultValue time.Duration
 		Filters      []Filter
+		Lifecycle    Lifecycle
+		Category     Category
 	}
 
 	DynamicMap struct {
@@ -71,6 +111,8 @@ type (
 		Description  string
 		DefaultValue map[string]interface{}
 		Filters      []Filter
+		Lifecycle    Lifecycle
+		Category     Category
 	}
 
 	DynamicList struct {
@@ -78,6 +120,8 @@ type (
 		Description  string
 		DefaultValue []interface{}
 		Filters      []Filter
+		Lifecycle    Lifecycle
+		Category     Category
 	}
 
 	IntKey      int
