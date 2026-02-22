@@ -147,14 +147,14 @@ func (w *taskWriter) appendTask(ctx context.Context, taskInfo *persistence.TaskI
 		case r := <-ch: // If the writer sends the task result after the DB I/O task
 			return r.persistenceResponse, r.err
 		case <-tCtx.Done(): // If the writer didn't send the task result within a timeout threshold
-			return nil, fmt.Errorf("failed to receive a success response from the channel within a timeout threshold: %v", tCtx.Err())
+			return nil, fmt.Errorf("failed to receive a success response from the channel within a timeout threshold: %w", tCtx.Err())
 		case <-w.stopCh:
 			// if we are shutting down, this request will never make
 			// it to cassandra, just bail out and fail this request
 			return nil, errShutdown
 		}
 	case <-tCtx.Done(): // If enqueue failed due to context timeout, return an error
-		return nil, fmt.Errorf("cannot append task into queue due to the timeout error: %v", tCtx.Err())
+		return nil, fmt.Errorf("cannot append task into queue due to the timeout error: %w", tCtx.Err())
 	}
 }
 
