@@ -578,7 +578,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 
 		// Persist the standby task, but the sync match still fails.
 		// Return the false syncMatch flag along with any error
-		_, err = c.taskWriter.appendTask(params.TaskInfo)
+		_, err = c.taskWriter.appendTask(ctx, params.TaskInfo)
 		if err == nil {
 			// Signal the task reader only if appendTask succeeded
 			c.taskReader.Signal()
@@ -608,7 +608,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 
 	e.EventName = "Task Sent to Writer"
 	event.Log(e)
-	if _, err := c.taskWriter.appendTask(params.TaskInfo); err != nil {
+	if _, err := c.taskWriter.appendTask(ctx, params.TaskInfo); err != nil {
 		return syncMatch, err
 	}
 	c.taskReader.Signal()
@@ -1071,6 +1071,9 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		},
 		EnableGetNumberOfPartitionsFromCache: func() bool {
 			return cfg.EnableGetNumberOfPartitionsFromCache(domainName, id.GetRoot(), taskType)
+		},
+		AppendTaskTimeout: func() time.Duration {
+			return cfg.AppendTaskTimeout(domainName, taskListName, taskType)
 		},
 		AsyncTaskDispatchTimeout: func() time.Duration {
 			return cfg.AsyncTaskDispatchTimeout(domainName, taskListName, taskType)
