@@ -41,18 +41,32 @@ func (h *HistogramMigration) UnmarshalYAML(read func(any) error) error {
 // This is likely best done in an `init` func, to ensure it happens early enough
 // and does not race with config reading.
 var HistogramMigrationMetrics = map[string]struct{}{
+	"task_latency":    {},
+	"task_latency_ns": {},
+
 	"task_latency_processing":    {},
 	"task_latency_processing_ns": {},
+
+	"replication_task_latency":    {},
+	"replication_task_latency_ns": {},
 
 	// Replication task processor histograms (PR #7685).
 	// Dual-emitted as timer + histogram.
 	"replication_tasks_lag":                {},
-	"replication_tasks_lag_ns":             {},
+	"replication_tasks_lag_counts":         {},
 	"replication_tasks_applied_latency":    {},
 	"replication_tasks_applied_latency_ns": {},
 
-	"replication_task_latency":    {},
-	"replication_task_latency_ns": {},
+	"replication_tasks_fetched":        {},
+	"replication_tasks_fetched_counts": {},
+
+	"replication_tasks_lag_raw":        {},
+	"replication_tasks_lag_raw_counts": {},
+
+	"replication_tasks_returned":             {},
+	"replication_tasks_returned_counts":      {},
+	"replication_tasks_returned_diff":        {},
+	"replication_tasks_returned_diff_counts": {},
 }
 
 func (h HistogramMigration) EmitTimer(name string) bool {
