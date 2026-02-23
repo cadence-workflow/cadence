@@ -453,6 +453,8 @@ func (a *ActivityTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		TargetDomainID:      a.TargetDomainID,
 		TaskList:            a.TaskList,
 		ScheduleID:          a.ScheduleID,
+		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,
+		TargetRunID:         TransferTaskTransferTargetRunID,
 	}, nil
 }
 
@@ -502,6 +504,8 @@ func (d *DecisionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		TaskList:            d.TaskList,
 		ScheduleID:          d.ScheduleID,
 		OriginalTaskList:    d.OriginalTaskList,
+		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,
+		TargetRunID:         TransferTaskTransferTargetRunID,
 	}, nil
 }
 
@@ -548,6 +552,9 @@ func (a *RecordWorkflowStartedTask) ToTransferTaskInfo() (*TransferTaskInfo, err
 		VisibilityTimestamp: a.VisibilityTimestamp,
 		Version:             a.Version,
 		TaskList:            a.TaskList,
+		TargetDomainID:      a.DomainID,
+		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,
+		TargetRunID:         TransferTaskTransferTargetRunID,
 	}, nil
 }
 
@@ -594,6 +601,9 @@ func (a *ResetWorkflowTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		VisibilityTimestamp: a.VisibilityTimestamp,
 		Version:             a.Version,
 		TaskList:            a.TaskList,
+		TargetDomainID:      a.DomainID,
+		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,
+		TargetRunID:         TransferTaskTransferTargetRunID,
 	}, nil
 }
 
@@ -640,6 +650,9 @@ func (a *CloseExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		VisibilityTimestamp: a.VisibilityTimestamp,
 		Version:             a.Version,
 		TaskList:            a.TaskList,
+		TargetDomainID:      a.DomainID,
+		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,
+		TargetRunID:         TransferTaskTransferTargetRunID,
 	}, nil
 }
 
@@ -1009,6 +1022,10 @@ func (u *CancelExecutionTask) ByteSize() uint64 {
 }
 
 func (u *CancelExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
+	targetRunID := u.TargetRunID
+	if u.TargetRunID == "" {
+		targetRunID = TransferTaskTransferTargetRunID
+	}
 	return &TransferTaskInfo{
 		TaskType:                TransferTaskTypeCancelExecution,
 		DomainID:                u.DomainID,
@@ -1019,7 +1036,7 @@ func (u *CancelExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		Version:                 u.Version,
 		TargetDomainID:          u.TargetDomainID,
 		TargetWorkflowID:        u.TargetWorkflowID,
-		TargetRunID:             u.TargetRunID,
+		TargetRunID:             targetRunID,
 		TargetChildWorkflowOnly: u.TargetChildWorkflowOnly,
 		ScheduleID:              u.InitiatedID,
 		TaskList:                u.TaskList,
@@ -1060,6 +1077,10 @@ func (u *SignalExecutionTask) ByteSize() uint64 {
 }
 
 func (u *SignalExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
+	targetRunID := u.TargetRunID
+	if u.TargetRunID == "" {
+		targetRunID = TransferTaskTransferTargetRunID
+	}
 	return &TransferTaskInfo{
 		TaskType:                TransferTaskTypeSignalExecution,
 		DomainID:                u.DomainID,
@@ -1070,7 +1091,7 @@ func (u *SignalExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		Version:                 u.Version,
 		TargetDomainID:          u.TargetDomainID,
 		TargetWorkflowID:        u.TargetWorkflowID,
-		TargetRunID:             u.TargetRunID,
+		TargetRunID:             targetRunID,
 		TargetChildWorkflowOnly: u.TargetChildWorkflowOnly,
 		ScheduleID:              u.InitiatedID,
 		TaskList:                u.TaskList,
@@ -1111,6 +1132,10 @@ func (u *RecordChildExecutionCompletedTask) ByteSize() uint64 {
 }
 
 func (u *RecordChildExecutionCompletedTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
+	targetRunID := u.TargetRunID
+	if u.TargetRunID == "" {
+		targetRunID = TransferTaskTransferTargetRunID
+	}
 	return &TransferTaskInfo{
 		TaskType:            TransferTaskTypeRecordChildExecutionCompleted,
 		DomainID:            u.DomainID,
@@ -1121,7 +1146,7 @@ func (u *RecordChildExecutionCompletedTask) ToTransferTaskInfo() (*TransferTaskI
 		Version:             u.Version,
 		TargetDomainID:      u.TargetDomainID,
 		TargetWorkflowID:    u.TargetWorkflowID,
-		TargetRunID:         u.TargetRunID,
+		TargetRunID:         targetRunID,
 		TaskList:            u.TaskList,
 	}, nil
 }
@@ -1169,6 +1194,9 @@ func (u *UpsertWorkflowSearchAttributesTask) ToTransferTaskInfo() (*TransferTask
 		VisibilityTimestamp: u.VisibilityTimestamp,
 		Version:             u.Version,
 		TaskList:            u.TaskList,
+		TargetDomainID:      u.DomainID,
+		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,
+		TargetRunID:         TransferTaskTransferTargetRunID,
 	}, nil
 }
 
@@ -1218,6 +1246,7 @@ func (u *StartChildExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error
 		TargetWorkflowID:    u.TargetWorkflowID,
 		ScheduleID:          u.InitiatedID,
 		TaskList:            u.TaskList,
+		TargetRunID:         TransferTaskTransferTargetRunID,
 	}, nil
 }
 
@@ -1264,6 +1293,9 @@ func (u *RecordWorkflowClosedTask) ToTransferTaskInfo() (*TransferTaskInfo, erro
 		VisibilityTimestamp: u.VisibilityTimestamp,
 		Version:             u.Version,
 		TaskList:            u.TaskList,
+		TargetDomainID:      u.DomainID,
+		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,
+		TargetRunID:         TransferTaskTransferTargetRunID,
 	}, nil
 }
 

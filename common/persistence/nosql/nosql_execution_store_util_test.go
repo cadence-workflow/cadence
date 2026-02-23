@@ -24,6 +24,7 @@ package nosql
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -1343,3 +1344,15 @@ func (d *dummyTaskType) GetVersion() int64 {
 }
 
 func (d *dummyTaskType) SetVersion(version int64) {}
+
+func (d *dummyTaskType) ToTransferTaskInfo() (*persistence.TransferTaskInfo, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (d *dummyTaskType) ToTimerTaskInfo() (*persistence.TimerTaskInfo, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (d *dummyTaskType) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
+	return nil, errors.New("not implemented")
+}

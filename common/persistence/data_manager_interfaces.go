@@ -1922,12 +1922,16 @@ func (t *TransferTaskInfo) ToTask() (Task, error) {
 			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeRecordChildExecutionCompleted:
+		targetRunID := t.TargetRunID
+		if t.TargetRunID == TransferTaskTransferTargetRunID {
+			targetRunID = ""
+		}
 		return &RecordChildExecutionCompletedTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			TargetDomainID:     t.TargetDomainID,
 			TargetWorkflowID:   t.TargetWorkflowID,
-			TargetRunID:        t.TargetRunID,
+			TargetRunID:        targetRunID,
 			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeUpsertWorkflowSearchAttributes:
@@ -1946,23 +1950,31 @@ func (t *TransferTaskInfo) ToTask() (Task, error) {
 			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeCancelExecution:
+		targetRunID := t.TargetRunID
+		if t.TargetRunID == TransferTaskTransferTargetRunID {
+			targetRunID = ""
+		}
 		return &CancelExecutionTask{
 			WorkflowIdentifier:      workflowIdentifier,
 			TaskData:                taskData,
 			TargetDomainID:          t.TargetDomainID,
 			TargetWorkflowID:        t.TargetWorkflowID,
-			TargetRunID:             t.TargetRunID,
+			TargetRunID:             targetRunID,
 			InitiatedID:             t.ScheduleID,
 			TargetChildWorkflowOnly: t.TargetChildWorkflowOnly,
 			TaskList:                t.TaskList,
 		}, nil
 	case TransferTaskTypeSignalExecution:
+		targetRunID := t.TargetRunID
+		if t.TargetRunID == TransferTaskTransferTargetRunID {
+			targetRunID = ""
+		}
 		return &SignalExecutionTask{
 			WorkflowIdentifier:      workflowIdentifier,
 			TaskData:                taskData,
 			TargetDomainID:          t.TargetDomainID,
 			TargetWorkflowID:        t.TargetWorkflowID,
-			TargetRunID:             t.TargetRunID,
+			TargetRunID:             targetRunID,
 			InitiatedID:             t.ScheduleID,
 			TargetChildWorkflowOnly: t.TargetChildWorkflowOnly,
 			TaskList:                t.TaskList,
