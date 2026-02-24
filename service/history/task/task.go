@@ -237,6 +237,7 @@ func (t *taskImpl) HandleErr(err error) (retErr error) {
 			t.attempt++
 			if t.attempt > t.criticalRetryCount() {
 				t.scope.RecordTimer(metrics.TaskAttemptTimerPerDomain, time.Duration(t.attempt))
+				t.scope.IntExponentialHistogram(metrics.ExponentialTaskAttemptCountsPerDomain, t.attempt)
 				logger.Error("Critical error processing task, retrying.",
 					tag.Error(err),
 					tag.OperationCritical,
