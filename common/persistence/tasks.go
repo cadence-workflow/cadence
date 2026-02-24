@@ -40,7 +40,13 @@ type Task interface {
 	GetDomainID() string
 	GetWorkflowID() string
 	GetRunID() string
+	// GetTaskList returns the name of the task list the task is currently
+	// associated with. This may differ from the original task list if the
+	// task is a sticky decision task.
 	GetTaskList() string
+	// GetOriginalTaskList returns the task list on which the task was initially
+	// scheduled. It is used to enforce rate limits and ensure fair scheduling
+	// across task lists.
 	GetOriginalTaskList() string
 	GetVersion() int64
 	SetVersion(version int64)

@@ -103,6 +103,7 @@ func (s *timerSequenceSuite) TestCreateNextUserTimer_NotCreated() {
 		DomainID:   "domain-id",
 		WorkflowID: "wf-id",
 		RunID:      "run-id",
+		TaskList:   "task-list",
 	}).Times(1)
 	s.mockMutableState.EXPECT().GetPendingTimerInfos().Return(timerInfos).Times(1)
 	s.mockMutableState.EXPECT().GetUserTimerInfoByEventID(timerInfo.StartedID).Return(timerInfo, true).Times(1)
@@ -122,7 +123,8 @@ func (s *timerSequenceSuite) TestCreateNextUserTimer_NotCreated() {
 			VisibilityTimestamp: timerInfo.ExpiryTime,
 			Version:             currentVersion,
 		},
-		EventID: timerInfo.StartedID,
+		EventID:  timerInfo.StartedID,
+		TaskList: "task-list",
 	}).Times(1)
 
 	modified, err := s.timerSequence.CreateNextUserTimer()
@@ -146,6 +148,7 @@ func (s *timerSequenceSuite) TestCreateNextActivityTimer_AlreadyCreated() {
 		LastHeartBeatUpdatedTime: time.Time{},
 		TimerTaskStatus:          TimerTaskStatusCreatedScheduleToClose | TimerTaskStatusCreatedScheduleToStart,
 		Attempt:                  12,
+		TaskList:                 "task-list",
 	}
 	activityInfos := map[int64]*persistence.ActivityInfo{activityInfo.ScheduleID: activityInfo}
 	s.mockMutableState.EXPECT().GetPendingActivityInfos().Return(activityInfos).Times(1)
@@ -172,12 +175,14 @@ func (s *timerSequenceSuite) TestCreateNextActivityTimer_NotCreated() {
 		LastHeartBeatUpdatedTime: time.Time{},
 		TimerTaskStatus:          TimerTaskStatusNone,
 		Attempt:                  12,
+		TaskList:                 "task-list",
 	}
 	activityInfos := map[int64]*persistence.ActivityInfo{activityInfo.ScheduleID: activityInfo}
 	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
 		DomainID:   "domain-id",
 		WorkflowID: "wf-id",
 		RunID:      "run-id",
+		TaskList:   "task-list2",
 	}).Times(1)
 	s.mockMutableState.EXPECT().GetPendingActivityInfos().Return(activityInfos).Times(1)
 	s.mockMutableState.EXPECT().GetActivityInfo(activityInfo.ScheduleID).Return(activityInfo, true).Times(1)
@@ -202,6 +207,7 @@ func (s *timerSequenceSuite) TestCreateNextActivityTimer_NotCreated() {
 		TimeoutType: int(types.TimeoutTypeScheduleToStart),
 		EventID:     activityInfo.ScheduleID,
 		Attempt:     int64(activityInfo.Attempt),
+		TaskList:    "task-list",
 	}).Times(1)
 
 	modified, err := s.timerSequence.CreateNextActivityTimer()
@@ -226,12 +232,14 @@ func (s *timerSequenceSuite) TestCreateNextActivityTimer_HeartbeatTimer() {
 		LastHeartBeatUpdatedTime: time.Time{},
 		TimerTaskStatus:          TimerTaskStatusNone,
 		Attempt:                  12,
+		TaskList:                 "task-list",
 	}
 	activityInfos := map[int64]*persistence.ActivityInfo{activityInfo.ScheduleID: activityInfo}
 	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
 		DomainID:   "domain-id",
 		WorkflowID: "wf-id",
 		RunID:      "run-id",
+		TaskList:   "task-list2",
 	}).Times(1)
 	s.mockMutableState.EXPECT().GetPendingActivityInfos().Return(activityInfos).Times(1)
 	s.mockMutableState.EXPECT().GetActivityInfo(activityInfo.ScheduleID).Return(activityInfo, true).Times(1)
@@ -259,6 +267,7 @@ func (s *timerSequenceSuite) TestCreateNextActivityTimer_HeartbeatTimer() {
 		TimeoutType: int(types.TimeoutTypeHeartbeat),
 		EventID:     activityInfo.ScheduleID,
 		Attempt:     int64(activityInfo.Attempt),
+		TaskList:    "task-list",
 	}).Times(1)
 
 	modified, err := s.timerSequence.CreateNextActivityTimer()

@@ -145,6 +145,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateWorkflowStartTasks(
 			VisibilityTimestamp: workflowTimeoutTimestamp,
 			Version:             startVersion,
 		},
+		TaskList: executionInfo.TaskList,
 	})
 
 	return nil
@@ -156,6 +157,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateWorkflowCloseTasks(
 ) error {
 
 	executionInfo := r.mutableState.GetExecutionInfo()
+	taskList := executionInfo.TaskList
 	r.mutableState.AddTransferTasks(&persistence.CloseExecutionTask{
 		WorkflowIdentifier: persistence.WorkflowIdentifier{
 			DomainID:   executionInfo.DomainID,
@@ -166,6 +168,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateWorkflowCloseTasks(
 			// TaskID and VisibilityTimestamp are set by shard context
 			Version: closeEvent.Version,
 		},
+		TaskList: taskList,
 	})
 
 	retentionInDays := defaultWorkflowRetentionInDays
@@ -202,6 +205,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateWorkflowCloseTasks(
 			VisibilityTimestamp: closeTimestamp.Add(retentionDuration),
 			Version:             closeEvent.Version,
 		},
+		TaskList: taskList,
 	})
 
 	return nil
@@ -250,6 +254,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateDelayedDecisionTasks(
 			Version:             startVersion,
 		},
 		TimeoutType: firstDecisionDelayType,
+		TaskList:    executionInfo.TaskList,
 	})
 
 	return nil
@@ -272,6 +277,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateRecordWorkflowStartedTasks(
 			// TaskID and VisibilityTimestamp are set by shard context
 			Version: startVersion,
 		},
+		TaskList: executionInfo.TaskList,
 	})
 
 	return nil
@@ -291,6 +297,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateDecisionScheduleTasks(
 		}
 	}
 
+	originalTaskList := executionInfo.TaskList
 	r.mutableState.AddTransferTasks(&persistence.DecisionTask{
 		WorkflowIdentifier: persistence.WorkflowIdentifier{
 			DomainID:   executionInfo.DomainID,
@@ -301,9 +308,10 @@ func (r *mutableStateTaskGeneratorImpl) GenerateDecisionScheduleTasks(
 			// TaskID and VisibilityTimestamp are set by shard context
 			Version: decision.Version,
 		},
-		TargetDomainID: executionInfo.DomainID,
-		TaskList:       decision.TaskList,
-		ScheduleID:     decision.ScheduleID,
+		TargetDomainID:   executionInfo.DomainID,
+		TaskList:         decision.TaskList,
+		ScheduleID:       decision.ScheduleID,
+		OriginalTaskList: originalTaskList,
 	})
 
 	if scheduleToStartTimeout := r.mutableState.GetDecisionScheduleToStartTimeout(); scheduleToStartTimeout != 0 {
@@ -322,6 +330,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateDecisionScheduleTasks(
 			TimeoutType:     int(TimerTypeScheduleToStart),
 			EventID:         decision.ScheduleID,
 			ScheduleAttempt: decision.Attempt,
+			TaskList:        originalTaskList,
 		})
 	}
 
@@ -369,6 +378,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateDecisionStartTasks(
 		TimeoutType:     int(TimerTypeStartToClose),
 		EventID:         decision.ScheduleID,
 		ScheduleAttempt: decision.Attempt,
+		TaskList:        executionInfo.TaskList,
 	})
 
 	return nil
@@ -445,8 +455,9 @@ func (r *mutableStateTaskGeneratorImpl) GenerateActivityRetryTasks(
 			Version:             ai.Version,
 			VisibilityTimestamp: ai.ScheduledTime,
 		},
-		EventID: ai.ScheduleID,
-		Attempt: int64(ai.Attempt),
+		EventID:  ai.ScheduleID,
+		Attempt:  int64(ai.Attempt),
+		TaskList: ai.TaskList,
 	})
 	return nil
 }
@@ -490,6 +501,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateChildWorkflowTasks(
 		TargetDomainID:   targetDomainID,
 		TargetWorkflowID: childWorkflowInfo.StartedWorkflowID,
 		InitiatedID:      childWorkflowInfo.InitiatedID,
+		TaskList:         executionInfo.TaskList,
 	}
 
 	r.mutableState.AddTransferTasks(startChildExecutionTask)
@@ -536,6 +548,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateRequestCancelExternalTasks(
 		TargetRunID:             targetRunID,
 		TargetChildWorkflowOnly: targetChildOnly,
 		InitiatedID:             scheduleID,
+		TaskList:                executionInfo.TaskList,
 	}
 
 	r.mutableState.AddTransferTasks(cancelExecutionTask)
@@ -583,6 +596,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateSignalExternalTasks(
 		TargetRunID:             targetRunID,
 		TargetChildWorkflowOnly: targetChildOnly,
 		InitiatedID:             scheduleID,
+		TaskList:                executionInfo.TaskList,
 	}
 
 	r.mutableState.AddTransferTasks(signalExecutionTask)
@@ -605,6 +619,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateWorkflowSearchAttrTasks() error 
 			// TaskID and VisibilityTimestamp are set by shard context
 			Version: currentVersion, // task processing does not check this version
 		},
+		TaskList: executionInfo.TaskList,
 	})
 
 	return nil
@@ -625,6 +640,7 @@ func (r *mutableStateTaskGeneratorImpl) GenerateWorkflowResetTasks() error {
 			// TaskID and VisibilityTimestamp are set by shard context
 			Version: currentVersion,
 		},
+		TaskList: executionInfo.TaskList,
 	})
 
 	return nil
