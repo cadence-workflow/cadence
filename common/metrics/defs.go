@@ -2487,6 +2487,7 @@ const (
 	TaskFailures
 	TaskDiscarded
 	TaskAttemptTimer
+	ExponentialTaskAttemptCounts
 	TaskStandbyRetryCounter
 	TaskNotActiveCounter
 	TaskLimitExceededCounter
@@ -2495,6 +2496,7 @@ const (
 	TaskProcessingLatency
 	ExponentialTaskProcessingLatency
 	TaskQueueLatency
+	ExponentialTaskQueueLatency
 	ScheduleToStartHistoryQueueLatencyPerTaskList
 	TaskRequestsOldScheduler
 	TaskRequestsNewScheduler
@@ -2504,11 +2506,13 @@ const (
 
 	TaskRequestsPerDomain
 	TaskLatencyPerDomain
+	ExponentialTaskLatencyPerDomain
 	TaskFailuresPerDomain
 	TaskWorkflowBusyPerDomain
 	TaskDiscardedPerDomain
 	TaskUnsupportedPerDomain
 	TaskAttemptTimerPerDomain
+	ExponentialTaskAttemptCountsPerDomain
 	TaskStandbyRetryCounterPerDomain
 	TaskListNotOwnedByHostCounterPerDomain
 	TaskPendingActiveCounterPerDomain
@@ -2516,7 +2520,9 @@ const (
 	TaskTargetNotActiveCounterPerDomain
 	TaskLimitExceededCounterPerDomain
 	TaskProcessingLatencyPerDomain
+	ExponentialTaskProcessingLatencyPerDomain
 	TaskQueueLatencyPerDomain
+	ExponentialTaskQueueLatencyPerDomain
 	TaskScheduleLatencyPerDomain
 	TaskEnqueueToFetchLatency
 	TransferTaskMissingEventCounterPerDomain
@@ -3316,17 +3322,19 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		WeightedChannelPoolSizeGauge: {metricName: "weighted_channel_pool_size", metricType: Gauge},
 	},
 	History: {
-		TaskRequests:                     {metricName: "task_requests", metricType: Counter},
-		TaskLatency:                      {metricName: "task_latency", metricType: Timer},
-		TaskAttemptTimer:                 {metricName: "task_attempt", metricType: Timer},
-		TaskFailures:                     {metricName: "task_errors", metricType: Counter},
-		TaskDiscarded:                    {metricName: "task_errors_discarded", metricType: Counter},
-		TaskStandbyRetryCounter:          {metricName: "task_errors_standby_retry_counter", metricType: Counter},
-		TaskNotActiveCounter:             {metricName: "task_errors_not_active_counter", metricType: Counter},
-		TaskLimitExceededCounter:         {metricName: "task_errors_limit_exceeded_counter", metricType: Counter},
-		TaskProcessingLatency:            {metricName: "task_latency_processing", metricType: Timer},
-		ExponentialTaskProcessingLatency: {metricName: "task_latency_processing_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
-		TaskQueueLatency:                 {metricName: "task_latency_queue", metricType: Timer},
+		TaskRequests:                                  {metricName: "task_requests", metricType: Counter},
+		TaskLatency:                                   {metricName: "task_latency", metricType: Timer},
+		TaskAttemptTimer:                              {metricName: "task_attempt", metricType: Timer},
+		ExponentialTaskAttemptCounts:                  {metricName: "task_attempt_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
+		TaskFailures:                                  {metricName: "task_errors", metricType: Counter},
+		TaskDiscarded:                                 {metricName: "task_errors_discarded", metricType: Counter},
+		TaskStandbyRetryCounter:                       {metricName: "task_errors_standby_retry_counter", metricType: Counter},
+		TaskNotActiveCounter:                          {metricName: "task_errors_not_active_counter", metricType: Counter},
+		TaskLimitExceededCounter:                      {metricName: "task_errors_limit_exceeded_counter", metricType: Counter},
+		TaskProcessingLatency:                         {metricName: "task_latency_processing", metricType: Timer},
+		ExponentialTaskProcessingLatency:              {metricName: "task_latency_processing_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		TaskQueueLatency:                              {metricName: "task_latency_queue", metricType: Timer},
+		ExponentialTaskQueueLatency:                   {metricName: "task_latency_queue_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		ScheduleToStartHistoryQueueLatencyPerTaskList: {metricName: "schedule_to_start_history_queue_latency_per_tl", metricType: Timer},
 		TaskRequestsOldScheduler:                      {metricName: "task_requests_old_scheduler", metricType: Counter},
 		TaskRequestsNewScheduler:                      {metricName: "task_requests_new_scheduler", metricType: Counter},
@@ -3336,28 +3344,32 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		// per domain task metrics
 
-		TaskRequestsPerDomain:                    {metricName: "task_requests_per_domain", metricRollupName: "task_requests", metricType: Counter},
-		TaskLatencyPerDomain:                     {metricName: "task_latency_per_domain", metricRollupName: "task_latency", metricType: Timer},
-		TaskAttemptTimerPerDomain:                {metricName: "task_attempt_per_domain", metricRollupName: "task_attempt", metricType: Timer},
-		TaskFailuresPerDomain:                    {metricName: "task_errors_per_domain", metricRollupName: "task_errors", metricType: Counter},
-		TaskWorkflowBusyPerDomain:                {metricName: "task_errors_workflow_busy_per_domain", metricRollupName: "task_errors_workflow_busy", metricType: Counter},
-		TaskDiscardedPerDomain:                   {metricName: "task_errors_discarded_per_domain", metricRollupName: "task_errors_discarded", metricType: Counter},
-		TaskUnsupportedPerDomain:                 {metricName: "task_errors_unsupported_per_domain", metricRollupName: "task_errors_discarded", metricType: Counter},
-		TaskStandbyRetryCounterPerDomain:         {metricName: "task_errors_standby_retry_counter_per_domain", metricRollupName: "task_errors_standby_retry_counter", metricType: Counter},
-		TaskListNotOwnedByHostCounterPerDomain:   {metricName: "task_errors_task_list_not_owned_by_host_counter_per_domain", metricRollupName: "task_errors_task_list_not_owned_by_host_counter", metricType: Counter},
-		TaskPendingActiveCounterPerDomain:        {metricName: "task_errors_pending_active_counter_per_domain", metricRollupName: "task_errors_pending_active_counter", metricType: Counter},
-		TaskNotActiveCounterPerDomain:            {metricName: "task_errors_not_active_counter_per_domain", metricRollupName: "task_errors_not_active_counter", metricType: Counter},
-		TaskTargetNotActiveCounterPerDomain:      {metricName: "task_errors_target_not_active_counter_per_domain", metricRollupName: "task_errors_target_not_active_counter", metricType: Counter},
-		TaskLimitExceededCounterPerDomain:        {metricName: "task_errors_limit_exceeded_counter_per_domain", metricRollupName: "task_errors_limit_exceeded_counter", metricType: Counter},
-		TaskProcessingLatencyPerDomain:           {metricName: "task_latency_processing_per_domain", metricRollupName: "task_latency_processing", metricType: Timer},
-		TaskQueueLatencyPerDomain:                {metricName: "task_latency_queue_per_domain", metricRollupName: "task_latency_queue", metricType: Timer},
-		TaskScheduleLatencyPerDomain:             {metricName: "task_latency_schedule_per_domain", metricRollupName: "task_latency_schedule", metricType: Histogram, buckets: HistoryTaskLatencyBuckets},
-		TaskEnqueueToFetchLatency:                {metricName: "task_latency_enqueue_to_fetch", metricType: Histogram, buckets: HistoryTaskLatencyBuckets},
-		TransferTaskMissingEventCounterPerDomain: {metricName: "transfer_task_missing_event_counter_per_domain", metricRollupName: "transfer_task_missing_event_counter", metricType: Counter},
-		ReplicationTasksAppliedPerDomain:         {metricName: "replication_tasks_applied_per_domain", metricType: Counter},
-		WorkflowTerminateCounterPerDomain:        {metricName: "workflow_terminate_counter_per_domain", metricRollupName: "workflow_terminate_counter", metricType: Counter},
-		TaskSchedulerAllowedCounterPerDomain:     {metricName: "task_scheduler_allowed_counter_per_domain", metricRollupName: "task_scheduler_allowed_counter", metricType: Counter},
-		TaskSchedulerThrottledCounterPerDomain:   {metricName: "task_scheduler_throttled_counter_per_domain", metricRollupName: "task_scheduler_throttled_counter", metricType: Counter},
+		TaskRequestsPerDomain:                     {metricName: "task_requests_per_domain", metricRollupName: "task_requests", metricType: Counter},
+		TaskLatencyPerDomain:                      {metricName: "task_latency_per_domain", metricRollupName: "task_latency", metricType: Timer},
+		ExponentialTaskLatencyPerDomain:           {metricName: "task_latency_per_domain_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		TaskAttemptTimerPerDomain:                 {metricName: "task_attempt_per_domain", metricRollupName: "task_attempt", metricType: Timer},
+		ExponentialTaskAttemptCountsPerDomain:     {metricName: "task_attempt_per_domain_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
+		TaskFailuresPerDomain:                     {metricName: "task_errors_per_domain", metricRollupName: "task_errors", metricType: Counter},
+		TaskWorkflowBusyPerDomain:                 {metricName: "task_errors_workflow_busy_per_domain", metricRollupName: "task_errors_workflow_busy", metricType: Counter},
+		TaskDiscardedPerDomain:                    {metricName: "task_errors_discarded_per_domain", metricRollupName: "task_errors_discarded", metricType: Counter},
+		TaskUnsupportedPerDomain:                  {metricName: "task_errors_unsupported_per_domain", metricRollupName: "task_errors_discarded", metricType: Counter},
+		TaskStandbyRetryCounterPerDomain:          {metricName: "task_errors_standby_retry_counter_per_domain", metricRollupName: "task_errors_standby_retry_counter", metricType: Counter},
+		TaskListNotOwnedByHostCounterPerDomain:    {metricName: "task_errors_task_list_not_owned_by_host_counter_per_domain", metricRollupName: "task_errors_task_list_not_owned_by_host_counter", metricType: Counter},
+		TaskPendingActiveCounterPerDomain:         {metricName: "task_errors_pending_active_counter_per_domain", metricRollupName: "task_errors_pending_active_counter", metricType: Counter},
+		TaskNotActiveCounterPerDomain:             {metricName: "task_errors_not_active_counter_per_domain", metricRollupName: "task_errors_not_active_counter", metricType: Counter},
+		TaskTargetNotActiveCounterPerDomain:       {metricName: "task_errors_target_not_active_counter_per_domain", metricRollupName: "task_errors_target_not_active_counter", metricType: Counter},
+		TaskLimitExceededCounterPerDomain:         {metricName: "task_errors_limit_exceeded_counter_per_domain", metricRollupName: "task_errors_limit_exceeded_counter", metricType: Counter},
+		TaskProcessingLatencyPerDomain:            {metricName: "task_latency_processing_per_domain", metricRollupName: "task_latency_processing", metricType: Timer},
+		ExponentialTaskProcessingLatencyPerDomain: {metricName: "task_latency_processing_per_domain_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		TaskQueueLatencyPerDomain:                 {metricName: "task_latency_queue_per_domain", metricRollupName: "task_latency_queue", metricType: Timer},
+		ExponentialTaskQueueLatencyPerDomain:      {metricName: "task_latency_queue_per_domain_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		TaskScheduleLatencyPerDomain:              {metricName: "task_latency_schedule_per_domain", metricRollupName: "task_latency_schedule", metricType: Histogram, buckets: HistoryTaskLatencyBuckets},
+		TaskEnqueueToFetchLatency:                 {metricName: "task_latency_enqueue_to_fetch", metricType: Histogram, buckets: HistoryTaskLatencyBuckets},
+		TransferTaskMissingEventCounterPerDomain:  {metricName: "transfer_task_missing_event_counter_per_domain", metricRollupName: "transfer_task_missing_event_counter", metricType: Counter},
+		ReplicationTasksAppliedPerDomain:          {metricName: "replication_tasks_applied_per_domain", metricType: Counter},
+		WorkflowTerminateCounterPerDomain:         {metricName: "workflow_terminate_counter_per_domain", metricRollupName: "workflow_terminate_counter", metricType: Counter},
+		TaskSchedulerAllowedCounterPerDomain:      {metricName: "task_scheduler_allowed_counter_per_domain", metricRollupName: "task_scheduler_allowed_counter", metricType: Counter},
+		TaskSchedulerThrottledCounterPerDomain:    {metricName: "task_scheduler_throttled_counter_per_domain", metricRollupName: "task_scheduler_throttled_counter", metricType: Counter},
 
 		TaskBatchCompleteCounter:                                     {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                     {metricName: "task_batch_complete_error", metricType: Counter},
