@@ -219,7 +219,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_SubmitWithNoError(
 	}()
 
 	taskWG.Wait()
-	close(s.scheduler.shutdownCh)
+	s.scheduler.cancel()
 
 	<-doneCh
 }
@@ -248,7 +248,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_FailToSubmit() {
 	}()
 
 	taskWG.Wait()
-	close(s.scheduler.shutdownCh)
+	s.scheduler.cancel()
 
 	<-doneCh
 }
@@ -372,9 +372,9 @@ func testSchedulerContract(
 	s.True(common.AwaitWaitGroup(&taskWG, 10*time.Second))
 	switch schedulerImpl := scheduler.(type) {
 	case *fifoTaskSchedulerImpl:
-		<-schedulerImpl.shutdownCh
+		<-schedulerImpl.ctx.Done()
 	case *weightedRoundRobinTaskSchedulerImpl[int]:
-		<-schedulerImpl.shutdownCh
+		<-schedulerImpl.ctx.Done()
 	default:
 		s.Fail("unknown task scheduler type")
 	}

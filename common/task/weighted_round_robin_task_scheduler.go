@@ -21,6 +21,7 @@
 package task
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -38,7 +39,8 @@ type weightedRoundRobinTaskSchedulerImpl[K comparable] struct {
 
 	status       int32
 	pool         *WeightedRoundRobinChannelPool[K, PriorityTask]
-	shutdownCh   chan struct{}
+	ctx          context.Context
+	cancel       context.CancelFunc
 	notifyCh     chan struct{}
 	dispatcherWG sync.WaitGroup
 	logger       log.Logger
@@ -67,6 +69,7 @@ func NewWeightedRoundRobinTaskScheduler[K comparable](
 	options *WeightedRoundRobinTaskSchedulerOptions[K],
 ) (Scheduler, error) {
 	metricsScope := metricsClient.Scope(metrics.TaskSchedulerScope)
+	ctx, cancel := context.WithCancel(context.Background())
 	scheduler := &weightedRoundRobinTaskSchedulerImpl[K]{
 		status: common.DaemonStatusInitialized,
 		pool: NewWeightedRoundRobinChannelPool[K, PriorityTask](
@@ -77,7 +80,8 @@ func NewWeightedRoundRobinTaskScheduler[K comparable](
 				BufferSize:              options.QueueSize,
 				IdleChannelTTLInSeconds: defaultIdleChannelTTLInSeconds,
 			}),
-		shutdownCh:   make(chan struct{}),
+		ctx:          ctx,
+		cancel:       cancel,
 		notifyCh:     make(chan struct{}, 1),
 		logger:       logger,
 		metricsScope: metricsScope,
@@ -105,7 +109,7 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) Stop() {
 		return
 	}
 
-	close(w.shutdownCh)
+	w.cancel()
 
 	taskChs := w.pool.GetAllChannels()
 	for _, taskCh := range taskChs {
@@ -139,7 +143,7 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) Submit(task PriorityTask) error
 			drainAndNackPriorityTask(taskCh)
 		}
 		return nil
-	case <-w.shutdownCh:
+	case <-w.ctx.Done():
 		return ErrTaskSchedulerClosed
 	}
 }
@@ -165,7 +169,7 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) TrySubmit(
 			w.notifyDispatcher()
 		}
 		return true, nil
-	case <-w.shutdownCh:
+	case <-w.ctx.Done():
 		return false, ErrTaskSchedulerClosed
 	default:
 		return false, nil
@@ -179,7 +183,7 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) dispatcher() {
 		select {
 		case <-w.notifyCh:
 			w.dispatchTasks()
-		case <-w.shutdownCh:
+		case <-w.ctx.Done():
 			return
 		}
 	}
@@ -198,7 +202,7 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) dispatchTasks() {
 					w.logger.Error("fail to submit task to processor", tag.Error(err))
 					task.Nack(err)
 				}
-			case <-w.shutdownCh:
+			case <-w.ctx.Done():
 				return
 			default:
 			}
