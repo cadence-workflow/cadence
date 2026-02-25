@@ -25,9 +25,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/yarpc/yarpctest"
 
-	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/types"
@@ -35,27 +35,27 @@ import (
 
 func TestGetRequestedConsistencyLevelFromContext(t *testing.T) {
 	tests := []struct {
-		name     string
+		name         string
 		featureFlags apiv1.FeatureFlags
-		expected types.QueryConsistencyLevel
+		expected     types.QueryConsistencyLevel
 	}{
 		{
-			name:     "empty feature flags",
+			name:         "empty feature flags",
 			featureFlags: apiv1.FeatureFlags{},
-			expected: types.QueryConsistencyLevelEventual,
+			expected:     types.QueryConsistencyLevelEventual,
 		},
 		{
-			name:     "auto forwarding disabled",
+			name:         "auto forwarding disabled",
 			featureFlags: apiv1.FeatureFlags{AutoforwardingEnabled: false},
-			expected: types.QueryConsistencyLevelEventual,
+			expected:     types.QueryConsistencyLevelEventual,
 		},
 		{
-			name:     "autoforwarding enabled",
+			name:         "autoforwarding enabled",
 			featureFlags: apiv1.FeatureFlags{AutoforwardingEnabled: true},
-			expected: types.QueryConsistencyLevelStrong,
+			expected:     types.QueryConsistencyLevelStrong,
 		},
 		{
-			name:     "no autoforwarding field",
+			name: "no autoforwarding field",
 			featureFlags: apiv1.FeatureFlags{
 				WorkflowExecutionAlreadyCompletedErrorEnabled: true,
 			},

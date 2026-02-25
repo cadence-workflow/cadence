@@ -3,9 +3,10 @@ package clusterredirection
 import (
 	"context"
 
+	"go.uber.org/yarpc"
+
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/types"
-	"go.uber.org/yarpc"
 )
 
 func getRequestedConsistencyLevelFromContext(ctx context.Context) types.QueryConsistencyLevel {
