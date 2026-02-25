@@ -3346,7 +3346,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		TaskRequestsPerDomain:                     {metricName: "task_requests_per_domain", metricRollupName: "task_requests", metricType: Counter},
 		TaskLatencyPerDomain:                      {metricName: "task_latency_per_domain", metricRollupName: "task_latency", metricType: Timer},
-		ExponentialTaskLatencyPerDomain:           {metricName: "task_latency_per_domain_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		ExponentialTaskLatencyPerDomain:           {metricName: "task_latency_per_domain_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		TaskAttemptTimerPerDomain:                 {metricName: "task_attempt_per_domain", metricRollupName: "task_attempt", metricType: Timer},
 		ExponentialTaskAttemptCountsPerDomain:     {metricName: "task_attempt_per_domain_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		TaskFailuresPerDomain:                     {metricName: "task_errors_per_domain", metricRollupName: "task_errors", metricType: Counter},
