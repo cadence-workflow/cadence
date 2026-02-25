@@ -181,13 +181,13 @@ func (v *ScheduleSpec) GetJitter() (o time.Duration) {
 type StartWorkflowAction struct {
 	WorkflowType                        *WorkflowType     `json:"workflowType,omitempty"`
 	TaskList                            *TaskList         `json:"taskList,omitempty"`
-	Input                               []byte            `json:"-"`
+	Input                               []byte            `json:"-"` // Potential PII
 	WorkflowIDPrefix                    string            `json:"workflowIdPrefix,omitempty"`
 	ExecutionStartToCloseTimeoutSeconds *int32            `json:"executionStartToCloseTimeoutSeconds,omitempty"`
 	TaskStartToCloseTimeoutSeconds      *int32            `json:"taskStartToCloseTimeoutSeconds,omitempty"`
 	RetryPolicy                         *RetryPolicy      `json:"retryPolicy,omitempty"`
-	Memo                                *Memo             `json:"-"`
-	SearchAttributes                    *SearchAttributes `json:"-"`
+	Memo                                *Memo             `json:"-"` // Filtering PII
+	SearchAttributes                    *SearchAttributes `json:"-"` // Filtering PII
 }
 
 func (v *StartWorkflowAction) GetWorkflowType() *WorkflowType {
@@ -384,12 +384,12 @@ func (v *BackfillInfo) GetRunsTotal() (o int32) {
 
 // ScheduleInfo provides runtime information about the schedule.
 type ScheduleInfo struct {
-	LastRunTime      time.Time      `json:"lastRunTime,omitempty"`
-	NextRunTime      time.Time      `json:"nextRunTime,omitempty"`
-	TotalRuns        int64          `json:"totalRuns,omitempty"`
-	CreateTime       time.Time      `json:"createTime,omitempty"`
-	LastUpdateTime   time.Time      `json:"lastUpdateTime,omitempty"`
-	OngoingBackfills []BackfillInfo `json:"ongoingBackfills,omitempty"`
+	LastRunTime      time.Time       `json:"lastRunTime,omitempty"`
+	NextRunTime      time.Time       `json:"nextRunTime,omitempty"`
+	TotalRuns        int64           `json:"totalRuns,omitempty"`
+	CreateTime       time.Time       `json:"createTime,omitempty"`
+	LastUpdateTime   time.Time       `json:"lastUpdateTime,omitempty"`
+	OngoingBackfills []*BackfillInfo `json:"ongoingBackfills,omitempty"`
 }
 
 func (v *ScheduleInfo) GetLastRunTime() (o time.Time) {
@@ -427,7 +427,7 @@ func (v *ScheduleInfo) GetLastUpdateTime() (o time.Time) {
 	return
 }
 
-func (v *ScheduleInfo) GetOngoingBackfills() (o []BackfillInfo) {
+func (v *ScheduleInfo) GetOngoingBackfills() (o []*BackfillInfo) {
 	if v != nil {
 		return v.OngoingBackfills
 	}
