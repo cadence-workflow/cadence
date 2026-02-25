@@ -225,10 +225,10 @@ $(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
 
 # https://docs.buf.build/
 # changing BUF_VERSION will automatically download and use the specified version.
-BUF_VERSION = 0.36.0
+BUF_VERSION = 1.47.2
 OS = $(shell uname -s)
 ARCH = $(shell $(EMULATE_X86) uname -m)
-BUF_URL = https://github.com/bufbuild/buf/releases/download/v$(BUF_VERSION)/buf-$(OS)-$(ARCH)
+BUF_URL = https://github.com/bufbuild/buf/releases/download/v$(BUF_VERSION)/buf-$(OS)-$(shell uname -m)
 # use BUF_VERSION_BIN as a bin prerequisite, not "buf", so the correct version will be used.
 # otherwise this must be a .PHONY rule, or the buf bin / symlink could become out of date.
 BUF_VERSION_BIN = buf-$(BUF_VERSION)
