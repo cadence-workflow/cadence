@@ -357,7 +357,7 @@ func (v *ListSchedulesRequest) GetNextPageToken() (o []byte) {
 
 // ListSchedulesResponse is the response for listing schedules.
 type ListSchedulesResponse struct {
-	Schedules     []ScheduleListEntry `json:"schedules,omitempty"`
+	Schedules     []*ScheduleListEntry `json:"schedules,omitempty"`
 	NextPageToken []byte              `json:"nextPageToken,omitempty"`
 }
 
