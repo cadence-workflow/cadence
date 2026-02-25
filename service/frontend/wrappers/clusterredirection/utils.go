@@ -3,14 +3,16 @@ package clusterredirection
 import (
 	"context"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/types"
+	"go.uber.org/yarpc"
 )
 
 func getRequestedConsistencyLevelFromContext(ctx context.Context) types.QueryConsistencyLevel {
-	requestedConsistencyLevelFromCtx, ok := ctx.Value(common.QueryConsistencyLevelHeaderName).(types.QueryConsistencyLevel)
-	if ok {
-		return requestedConsistencyLevelFromCtx
+	call := yarpc.CallFromContext(ctx)
+	featureFlags := client.GetFeatureFlagsFromHeader(call)
+	if featureFlags.AutoforwardingEnabled {
+		return types.QueryConsistencyLevelStrong
 	}
 	return types.QueryConsistencyLevelEventual
 }

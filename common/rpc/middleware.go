@@ -38,8 +38,6 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-var _ middleware.UnaryInbound = &QueryConsistencyLevelInboundMiddleware{}
-
 type authOutboundMiddleware struct {
 	authProvider worker.AuthorizationProvider
 }
@@ -263,21 +261,6 @@ func (m *ClientPartitionConfigMiddleware) Handle(ctx context.Context, req *trans
 			isolationgroup.GroupKey: zone,
 		})
 		ctx = isolationgroup.ContextWithIsolationGroup(ctx, zone)
-	}
-	return h.Handle(ctx, req, resw)
-}
-
-type QueryConsistencyLevelInboundMiddleware struct{}
-
-func (m *QueryConsistencyLevelInboundMiddleware) Handle(ctx context.Context, req *transport.Request, resw transport.ResponseWriter, h transport.UnaryHandler) error {
-	queryConsistencyLevel, ok := req.Headers.Get(common.QueryConsistencyLevelHeaderName)
-	if ok {
-		var level types.QueryConsistencyLevel
-		err := level.UnmarshalText([]byte(queryConsistencyLevel))
-		if err != nil {
-			return fmt.Errorf("failed to parse query consistency level: %w", err)
-		}
-		ctx = context.WithValue(ctx, common.QueryConsistencyLevelHeaderName, level)
 	}
 	return h.Handle(ctx, req, resw)
 }
