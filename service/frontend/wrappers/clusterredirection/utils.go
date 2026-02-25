@@ -10,6 +10,9 @@ import (
 
 func getRequestedConsistencyLevelFromContext(ctx context.Context) types.QueryConsistencyLevel {
 	call := yarpc.CallFromContext(ctx)
+	if call == nil {
+		return types.QueryConsistencyLevelEventual
+	}
 	featureFlags := client.GetFeatureFlagsFromHeader(call)
 	if featureFlags.AutoforwardingEnabled {
 		return types.QueryConsistencyLevelStrong
