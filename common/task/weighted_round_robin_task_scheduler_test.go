@@ -117,12 +117,14 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestSubmit_Success() {
 	err := s.scheduler.Submit(mockTask)
 	s.NoError(err)
 
+	// Cast taskPool to concrete type to access internal pool for testing
+	pool := s.scheduler.taskPool.(*weightedRoundRobinTaskPool[int]).pool
 	weight := s.scheduler.options.ChannelKeyToWeightFn(taskPriority)
-	taskCh, releaseFn := s.scheduler.pool.GetOrCreateChannel(taskPriority, weight)
+	taskCh, releaseFn := pool.GetOrCreateChannel(taskPriority, weight)
 	defer releaseFn()
 	task := <-taskCh
 	s.Equal(mockTask, task)
-	taskChs := s.scheduler.pool.GetAllChannels()
+	taskChs := pool.GetAllChannels()
 	for _, taskCh := range taskChs {
 		s.Empty(taskCh)
 	}
@@ -188,7 +190,9 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_SubmitWithNoError(
 				if expectedRemainingTasksNum < 0 {
 					expectedRemainingTasksNum = 0
 				}
-				taskCh, releaseFn := s.scheduler.pool.GetOrCreateChannel(priority, weight)
+				// Cast taskPool to concrete type to access internal pool for testing
+				pool := s.scheduler.taskPool.(*weightedRoundRobinTaskPool[int]).pool
+				taskCh, releaseFn := pool.GetOrCreateChannel(priority, weight)
 				s.Equal(expectedRemainingTasksNum, len(taskCh))
 				releaseFn()
 			}
@@ -217,6 +221,9 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_SubmitWithNoError(
 		s.scheduler.dispatcher()
 		close(doneCh)
 	}()
+
+	// Manually trigger notification since tasks were submitted before dispatcher started
+	s.scheduler.notifyDispatcher()
 
 	taskWG.Wait()
 	s.scheduler.cancel()

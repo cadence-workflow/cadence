@@ -40,6 +40,25 @@ type (
 		TrySubmit(task PriorityTask) (bool, error)
 	}
 
+	// TaskPool manages task storage and determines scheduling order.
+	// Different implementations provide different scheduling algorithms.
+	TaskPool interface {
+		common.Daemon
+
+		// Submit adds a task to the pool, blocks if pool is full
+		Submit(task PriorityTask) error
+
+		// TrySubmit attempts to add a task, returns immediately if pool is full
+		TrySubmit(task PriorityTask) (bool, error)
+
+		// GetNextTask retrieves the next task according to the pool's scheduling algorithm
+		// Returns (task, true) if a task is available, (nil, false) if no task is ready
+		GetNextTask() (PriorityTask, bool)
+
+		// Len returns the number of tasks currently in the pool
+		Len() int
+	}
+
 	// SchedulerType respresents the type of the task scheduler implementation
 	SchedulerType int
 

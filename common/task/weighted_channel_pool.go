@@ -83,7 +83,7 @@ func NewWeightedRoundRobinChannelPool[K comparable, V any](
 	timeSource clock.TimeSource,
 	options WeightedRoundRobinChannelPoolOptions,
 ) *WeightedRoundRobinChannelPool[K, V] {
-	return &WeightedRoundRobinChannelPool[K, V]{
+	wrr := &WeightedRoundRobinChannelPool[K, V]{
 		bufferSize:              options.BufferSize,
 		idleChannelTTLInSeconds: options.IdleChannelTTLInSeconds,
 		logger:                  logger,
@@ -92,6 +92,8 @@ func NewWeightedRoundRobinChannelPool[K comparable, V any](
 		channelMap:              make(map[K]*weightedChannel[V]),
 		shutdownCh:              make(chan struct{}),
 	}
+	wrr.iwrrSchedule.Store(make([]chan V, 0))
+	return wrr
 }
 
 func (p *WeightedRoundRobinChannelPool[K, V]) Start() {
