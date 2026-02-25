@@ -22,15 +22,42 @@ package types
 
 import "time"
 
-// --- Request/Response Types for ScheduleService ---
+// --- Request/Response Types for Schedule APIs ---
 
 // ScheduleListEntry represents a single schedule in a list response.
-// Contains only data available from the visibility store.
 type ScheduleListEntry struct {
 	ScheduleID     string         `json:"scheduleId,omitempty"`
 	WorkflowType   *WorkflowType  `json:"workflowType,omitempty"`
 	State          *ScheduleState `json:"state,omitempty"`
 	CronExpression string         `json:"cronExpression,omitempty"`
+}
+
+func (v *ScheduleListEntry) GetScheduleID() (o string) {
+	if v != nil {
+		return v.ScheduleID
+	}
+	return
+}
+
+func (v *ScheduleListEntry) GetWorkflowType() *WorkflowType {
+	if v != nil {
+		return v.WorkflowType
+	}
+	return nil
+}
+
+func (v *ScheduleListEntry) GetState() *ScheduleState {
+	if v != nil {
+		return v.State
+	}
+	return nil
+}
+
+func (v *ScheduleListEntry) GetCronExpression() (o string) {
+	if v != nil {
+		return v.CronExpression
+	}
+	return
 }
 
 // CreateScheduleRequest is the request to create a new schedule.
@@ -56,6 +83,41 @@ func (v *CreateScheduleRequest) GetScheduleID() (o string) {
 		return v.ScheduleID
 	}
 	return
+}
+
+func (v *CreateScheduleRequest) GetSpec() *ScheduleSpec {
+	if v != nil {
+		return v.Spec
+	}
+	return nil
+}
+
+func (v *CreateScheduleRequest) GetAction() *ScheduleAction {
+	if v != nil {
+		return v.Action
+	}
+	return nil
+}
+
+func (v *CreateScheduleRequest) GetPolicies() *SchedulePolicies {
+	if v != nil {
+		return v.Policies
+	}
+	return nil
+}
+
+func (v *CreateScheduleRequest) GetMemo() *Memo {
+	if v != nil {
+		return v.Memo
+	}
+	return nil
+}
+
+func (v *CreateScheduleRequest) GetSearchAttributes() *SearchAttributes {
+	if v != nil {
+		return v.SearchAttributes
+	}
+	return nil
 }
 
 // CreateScheduleResponse is the response for creating a schedule.
@@ -90,32 +152,87 @@ type DescribeScheduleResponse struct {
 	Info     *ScheduleInfo     `json:"info,omitempty"`
 }
 
-// ListSchedulesRequest is the request to list schedules in a domain.
-type ListSchedulesRequest struct {
-	Domain        string `json:"domain,omitempty"`
-	PageSize      int32  `json:"pageSize,omitempty"`
-	NextPageToken []byte `json:"nextPageToken,omitempty"`
+func (v *DescribeScheduleResponse) GetSpec() *ScheduleSpec {
+	if v != nil {
+		return v.Spec
+	}
+	return nil
 }
 
-func (v *ListSchedulesRequest) GetDomain() (o string) {
+func (v *DescribeScheduleResponse) GetAction() *ScheduleAction {
+	if v != nil {
+		return v.Action
+	}
+	return nil
+}
+
+func (v *DescribeScheduleResponse) GetPolicies() *SchedulePolicies {
+	if v != nil {
+		return v.Policies
+	}
+	return nil
+}
+
+func (v *DescribeScheduleResponse) GetState() *ScheduleState {
+	if v != nil {
+		return v.State
+	}
+	return nil
+}
+
+func (v *DescribeScheduleResponse) GetInfo() *ScheduleInfo {
+	if v != nil {
+		return v.Info
+	}
+	return nil
+}
+
+// UpdateScheduleRequest is the request to update a schedule.
+type UpdateScheduleRequest struct {
+	Domain     string            `json:"domain,omitempty"`
+	ScheduleID string            `json:"scheduleId,omitempty"`
+	Spec       *ScheduleSpec     `json:"spec,omitempty"`
+	Action     *ScheduleAction   `json:"action,omitempty"`
+	Policies   *SchedulePolicies `json:"policies,omitempty"`
+}
+
+func (v *UpdateScheduleRequest) GetDomain() (o string) {
 	if v != nil {
 		return v.Domain
 	}
 	return
 }
 
-func (v *ListSchedulesRequest) GetPageSize() (o int32) {
+func (v *UpdateScheduleRequest) GetScheduleID() (o string) {
 	if v != nil {
-		return v.PageSize
+		return v.ScheduleID
 	}
 	return
 }
 
-// ListSchedulesResponse is the response for listing schedules.
-type ListSchedulesResponse struct {
-	Schedules     []ScheduleListEntry `json:"schedules,omitempty"`
-	NextPageToken []byte              `json:"nextPageToken,omitempty"`
+func (v *UpdateScheduleRequest) GetSpec() *ScheduleSpec {
+	if v != nil {
+		return v.Spec
+	}
+	return nil
 }
+
+func (v *UpdateScheduleRequest) GetAction() *ScheduleAction {
+	if v != nil {
+		return v.Action
+	}
+	return nil
+}
+
+func (v *UpdateScheduleRequest) GetPolicies() *SchedulePolicies {
+	if v != nil {
+		return v.Policies
+	}
+	return nil
+}
+
+// UpdateScheduleResponse is the response for updating a schedule.
+type UpdateScheduleResponse struct{}
 
 // DeleteScheduleRequest is the request to delete a schedule.
 type DeleteScheduleRequest struct {
@@ -173,10 +290,10 @@ type PauseScheduleResponse struct{}
 
 // UnpauseScheduleRequest is the request to resume a paused schedule.
 type UnpauseScheduleRequest struct {
-	Domain        string                 `json:"domain,omitempty"`
-	ScheduleID    string                 `json:"scheduleId,omitempty"`
-	Reason        string                 `json:"reason,omitempty"`
-	CatchUpPolicy *ScheduleCatchUpPolicy `json:"catchUpPolicy,omitempty"`
+	Domain        string                `json:"domain,omitempty"`
+	ScheduleID    string                `json:"scheduleId,omitempty"`
+	Reason        string                `json:"reason,omitempty"`
+	CatchUpPolicy ScheduleCatchUpPolicy `json:"catchUpPolicy,omitempty"`
 }
 
 func (v *UnpauseScheduleRequest) GetDomain() (o string) {
@@ -201,8 +318,8 @@ func (v *UnpauseScheduleRequest) GetReason() (o string) {
 }
 
 func (v *UnpauseScheduleRequest) GetCatchUpPolicy() (o ScheduleCatchUpPolicy) {
-	if v != nil && v.CatchUpPolicy != nil {
-		return *v.CatchUpPolicy
+	if v != nil {
+		return v.CatchUpPolicy
 	}
 	return
 }
@@ -210,7 +327,55 @@ func (v *UnpauseScheduleRequest) GetCatchUpPolicy() (o ScheduleCatchUpPolicy) {
 // UnpauseScheduleResponse is the response for resuming a schedule.
 type UnpauseScheduleResponse struct{}
 
-// BackfillScheduleRequest is the request to trigger a backfill.
+// ListSchedulesRequest is the request to list schedules in a domain.
+type ListSchedulesRequest struct {
+	Domain        string `json:"domain,omitempty"`
+	PageSize      int32  `json:"pageSize,omitempty"`
+	NextPageToken []byte `json:"nextPageToken,omitempty"`
+}
+
+func (v *ListSchedulesRequest) GetDomain() (o string) {
+	if v != nil {
+		return v.Domain
+	}
+	return
+}
+
+func (v *ListSchedulesRequest) GetPageSize() (o int32) {
+	if v != nil {
+		return v.PageSize
+	}
+	return
+}
+
+func (v *ListSchedulesRequest) GetNextPageToken() (o []byte) {
+	if v != nil {
+		return v.NextPageToken
+	}
+	return
+}
+
+// ListSchedulesResponse is the response for listing schedules.
+type ListSchedulesResponse struct {
+	Schedules     []ScheduleListEntry `json:"schedules,omitempty"`
+	NextPageToken []byte              `json:"nextPageToken,omitempty"`
+}
+
+func (v *ListSchedulesResponse) GetSchedules() (o []ScheduleListEntry) {
+	if v != nil {
+		return v.Schedules
+	}
+	return
+}
+
+func (v *ListSchedulesResponse) GetNextPageToken() (o []byte) {
+	if v != nil {
+		return v.NextPageToken
+	}
+	return
+}
+
+// BackfillScheduleRequest is the request to trigger a backfill for a time range.
 type BackfillScheduleRequest struct {
 	Domain        string                `json:"domain,omitempty"`
 	ScheduleID    string                `json:"scheduleId,omitempty"`
@@ -234,6 +399,27 @@ func (v *BackfillScheduleRequest) GetScheduleID() (o string) {
 	return
 }
 
+func (v *BackfillScheduleRequest) GetStartTime() (o time.Time) {
+	if v != nil {
+		return v.StartTime
+	}
+	return
+}
+
+func (v *BackfillScheduleRequest) GetEndTime() (o time.Time) {
+	if v != nil {
+		return v.EndTime
+	}
+	return
+}
+
+func (v *BackfillScheduleRequest) GetOverlapPolicy() (o ScheduleOverlapPolicy) {
+	if v != nil {
+		return v.OverlapPolicy
+	}
+	return
+}
+
 func (v *BackfillScheduleRequest) GetBackfillID() (o string) {
 	if v != nil {
 		return v.BackfillID
@@ -243,29 +429,3 @@ func (v *BackfillScheduleRequest) GetBackfillID() (o string) {
 
 // BackfillScheduleResponse is the response for triggering a backfill.
 type BackfillScheduleResponse struct{}
-
-// UpdateScheduleRequest is the request to update a schedule.
-type UpdateScheduleRequest struct {
-	Domain     string            `json:"domain,omitempty"`
-	ScheduleID string            `json:"scheduleId,omitempty"`
-	Spec       *ScheduleSpec     `json:"spec,omitempty"`
-	Action     *ScheduleAction   `json:"action,omitempty"`
-	Policies   *SchedulePolicies `json:"policies,omitempty"`
-}
-
-func (v *UpdateScheduleRequest) GetDomain() (o string) {
-	if v != nil {
-		return v.Domain
-	}
-	return
-}
-
-func (v *UpdateScheduleRequest) GetScheduleID() (o string) {
-	if v != nil {
-		return v.ScheduleID
-	}
-	return
-}
-
-// UpdateScheduleResponse is the response for updating a schedule.
-type UpdateScheduleResponse struct{}
