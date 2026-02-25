@@ -23,12 +23,10 @@ package rpc
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 
 	"go.uber.org/cadence/worker"
 	"go.uber.org/yarpc"
-	"go.uber.org/yarpc/api/middleware"
 	"go.uber.org/yarpc/api/transport"
 
 	"github.com/uber/cadence/common"
