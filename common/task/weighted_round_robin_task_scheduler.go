@@ -190,9 +190,17 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) dispatchTasks() {
 	for hasTask {
 		hasTask = false
 		schedule := w.pool.GetSchedule()
-		for _, taskCh := range schedule {
+
+		// Iterate through the schedule using Next()
+		for {
+			wc, ok := schedule.Next()
+			if !ok {
+				// Schedule exhausted
+				break
+			}
+
 			select {
-			case task := <-taskCh:
+			case task := <-wc.c:
 				hasTask = true
 				if err := w.processor.Submit(task); err != nil {
 					w.logger.Error("fail to submit task to processor", tag.Error(err))

@@ -91,6 +91,18 @@ type (
 		// Len return the size of the queue
 		Len() int
 	}
+
+	// Schedule represents a virtual weighted round-robin schedule that computes
+	// the next value on-demand without materializing the entire schedule in memory
+	Schedule[V any] interface {
+		// Next returns the next value in the schedule
+		// Wraps around to the beginning when reaching the end
+		// Returns zero value and false if the schedule is empty
+		Next() (V, bool)
+
+		// Len returns the total virtual length of the schedule (sum of all weights)
+		Len() int
+	}
 )
 
 const (
