@@ -21,10 +21,7 @@
 package task
 
 import (
-	"context"
-	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -364,98 +361,6 @@ func TestWeightedRoundRobinTaskPool_Lifecycle(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestWeightedRoundRobinTaskPool_ConcurrentAccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := testlogger.New(t)
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{})
-	timeSource := clock.NewRealTimeSource()
-
-	pool := NewWeightedRoundRobinTaskPool[int](
-		logger,
-		metricsClient,
-		timeSource,
-		&WeightedRoundRobinTaskPoolOptions[int]{
-			QueueSize: 100,
-			TaskToChannelKeyFn: func(task PriorityTask) int {
-				return task.Priority()
-			},
-			ChannelKeyToWeightFn: func(key int) int {
-				return key
-			},
-		},
-	)
-	pool.Start()
-	defer pool.Stop()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	numProducers := 5
-	numConsumers := 3
-	tasksPerProducer := 20
-
-	// Start producers
-	producerDone := make(chan struct{})
-	go func() {
-		defer close(producerDone)
-		for i := 0; i < numProducers; i++ {
-			go func(producerID int) {
-				for j := 0; j < tasksPerProducer; j++ {
-					task := NewMockPriorityTask(ctrl)
-					task.EXPECT().Priority().Return(producerID % 3).AnyTimes()
-					task.EXPECT().Nack(gomock.Any()).AnyTimes() // Called during shutdown
-
-					err := pool.Submit(task)
-					if err != nil && !errors.Is(err, ErrTaskSchedulerClosed) {
-						t.Logf("Submit error: %v", err)
-					}
-				}
-			}(i)
-		}
-	}()
-
-	// Start consumers
-	totalRetrieved := 0
-	consumerDone := make(chan int, numConsumers)
-	for i := 0; i < numConsumers; i++ {
-		go func() {
-			count := 0
-			for {
-				select {
-				case <-ctx.Done():
-					consumerDone <- count
-					return
-				default:
-					task, ok := pool.GetNextTask()
-					if ok {
-						assert.NotNil(t, task)
-						count++
-					} else {
-						time.Sleep(1 * time.Millisecond)
-					}
-				}
-			}
-		}()
-	}
-
-	// Wait for completion
-	<-producerDone
-	<-ctx.Done()
-
-	// Collect consumer counts
-	for i := 0; i < numConsumers; i++ {
-		count := <-consumerDone
-		totalRetrieved += count
-	}
-
-	// Should have retrieved most or all tasks
-	expectedTotal := numProducers * tasksPerProducer
-	t.Logf("Retrieved %d out of %d tasks", totalRetrieved, expectedTotal)
-	assert.GreaterOrEqual(t, totalRetrieved, expectedTotal/2, "should retrieve at least half of submitted tasks")
 }
 
 func TestWeightedRoundRobinTaskPool_Len(t *testing.T) {

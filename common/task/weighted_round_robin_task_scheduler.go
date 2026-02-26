@@ -58,6 +58,8 @@ const (
 var (
 	// ErrTaskSchedulerClosed is the error returned when submitting task to a stopped scheduler
 	ErrTaskSchedulerClosed = errors.New("task scheduler has already shutdown")
+	// ErrTaskWeightZero is the error returned when submitting task with weight 0
+	ErrTaskWeightZero = errors.New("task weight must be greater than zero")
 )
 
 // NewWeightedRoundRobinTaskScheduler creates a new WRR task scheduler

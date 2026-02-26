@@ -107,6 +107,12 @@ func (p *weightedRoundRobinTaskPool[K]) Submit(task PriorityTask) error {
 
 	key := p.options.TaskToChannelKeyFn(task)
 	weight := p.options.ChannelKeyToWeightFn(key)
+
+	// Reject tasks with weight 0 - they won't be in the schedule
+	if weight <= 0 {
+		return ErrTaskWeightZero
+	}
+
 	taskCh, releaseFn := p.pool.GetOrCreateChannel(key, weight)
 	defer releaseFn()
 
@@ -129,6 +135,12 @@ func (p *weightedRoundRobinTaskPool[K]) TrySubmit(task PriorityTask) (bool, erro
 
 	key := p.options.TaskToChannelKeyFn(task)
 	weight := p.options.ChannelKeyToWeightFn(key)
+
+	// Reject tasks with weight 0 - they won't be in the schedule
+	if weight <= 0 {
+		return false, ErrTaskWeightZero
+	}
+
 	taskCh, releaseFn := p.pool.GetOrCreateChannel(key, weight)
 	defer releaseFn()
 
@@ -147,7 +159,7 @@ func (p *weightedRoundRobinTaskPool[K]) TrySubmit(task PriorityTask) (bool, erro
 }
 
 func (p *weightedRoundRobinTaskPool[K]) GetNextTask() (PriorityTask, bool) {
-	if p.isStopped() {
+	if p.isStopped() || p.Len() == 0 {
 		return nil, false
 	}
 
@@ -158,15 +170,12 @@ func (p *weightedRoundRobinTaskPool[K]) GetNextTask() (PriorityTask, bool) {
 	if p.schedule == nil || p.scheduleIndex >= len(p.schedule) {
 		p.schedule = p.pool.GetSchedule()
 		p.scheduleIndex = 0
-
 		if len(p.schedule) == 0 {
 			return nil, false
 		}
 	}
 
-	// Try to get a task starting from the current index
-	startIndex := p.scheduleIndex
-	for {
+	for p.Len() > 0 {
 		select {
 		case task := <-p.schedule[p.scheduleIndex]:
 			// Found a task, advance index and return
@@ -183,18 +192,13 @@ func (p *weightedRoundRobinTaskPool[K]) GetNextTask() (PriorityTask, bool) {
 			if p.scheduleIndex >= len(p.schedule) {
 				p.schedule = p.pool.GetSchedule()
 				p.scheduleIndex = 0
-
 				if len(p.schedule) == 0 {
 					return nil, false
 				}
 			}
-
-			// If we've made a full loop without finding a task, return false
-			if p.scheduleIndex == startIndex {
-				return nil, false
-			}
 		}
 	}
+	return nil, false
 }
 
 func (p *weightedRoundRobinTaskPool[K]) Len() int {
