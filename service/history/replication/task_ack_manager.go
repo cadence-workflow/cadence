@@ -131,7 +131,6 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		lastReadTaskID = previousReadTaskID
 	}
 
-	// Keep timer (backwards compatible), dual-emit exponential histogram for migration.
 	taskGeneratedStart := t.timeSource.Now()
 	taskGeneratedTimer := t.scope.StartTimer(metrics.TaskLatency)
 	defer taskGeneratedTimer.Stop()
@@ -203,7 +202,6 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		return nil, err
 	}
 
-	// Keep timers (backwards compatible), dual-emit exponential histograms for migration.
 	replicationLag := int(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID() - msgs.LastRetrievedMessageID)
 	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(replicationLag))
 	t.scope.IntExponentialHistogram(metrics.ExponentialReplicationTasksLag, replicationLag)
