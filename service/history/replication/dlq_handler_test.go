@@ -23,6 +23,7 @@ package replication
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -237,7 +238,13 @@ func (s *dlqHandlerSuite) TestEmitDLQSizeMetricsLoop_FetchesAndEmitsMetricsPerio
 	emissionNumber := 2
 
 	s.messageHandler.status = common.DaemonStatusStarted
-	s.executionManager.On("GetReplicationDLQSize", mock.Anything, mock.Anything).Return(&persistence.GetReplicationDLQSizeResponse{Size: 1}, nil).Times(emissionNumber)
+	var emissions atomic.Int32
+	s.executionManager.On("GetReplicationDLQSize", mock.Anything, mock.Anything).
+		Return(&persistence.GetReplicationDLQSizeResponse{Size: 1}, nil).
+		Run(func(mock.Arguments) {
+			emissions.Add(1)
+		}).
+		Maybe()
 	mockTimeSource := clock.NewMockedTimeSource()
 	s.messageHandler.timeSource = mockTimeSource
 
@@ -248,11 +255,17 @@ func (s *dlqHandlerSuite) TestEmitDLQSizeMetricsLoop_FetchesAndEmitsMetricsPerio
 
 		// Advance time to trigger the next emission
 		mockTimeSource.Advance(dlqMetricsEmitTimerInterval + time.Duration(int64(float64(dlqMetricsEmitTimerInterval)*(1+dlqMetricsEmitTimerCoefficient))))
+		s.Eventually(
+			func() bool { return emissions.Load() >= int32(i+1) },
+			time.Second,
+			10*time.Millisecond,
+		)
 	}
 
 	s.messageHandler.Stop()
 
 	s.Equal(common.DaemonStatusStopped, s.messageHandler.status)
+	s.GreaterOrEqual(emissions.Load(), int32(emissionNumber))
 }
 
 func (s *dlqHandlerSuite) TestReadMessages_OK() {
