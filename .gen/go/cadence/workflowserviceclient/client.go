@@ -5,15 +5,13 @@ package workflowserviceclient
 
 import (
 	context "context"
-	reflect "reflect"
-
+	cadence "github.com/uber/cadence/.gen/go/cadence"
+	shared "github.com/uber/cadence/.gen/go/shared"
 	wire "go.uber.org/thriftrw/wire"
 	yarpc "go.uber.org/yarpc"
 	transport "go.uber.org/yarpc/api/transport"
 	thrift "go.uber.org/yarpc/encoding/thrift"
-
-	cadence "github.com/uber/cadence/.gen/go/cadence"
-	shared "github.com/uber/cadence/.gen/go/shared"
+	reflect "reflect"
 )
 
 // Interface is a client for the WorkflowService service.

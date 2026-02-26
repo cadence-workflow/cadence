@@ -5,15 +5,13 @@ package checksum
 
 import (
 	fmt "fmt"
-	strings "strings"
-
+	shared "github.com/uber/cadence/.gen/go/shared"
 	multierr "go.uber.org/multierr"
 	stream "go.uber.org/thriftrw/protocol/stream"
 	thriftreflect "go.uber.org/thriftrw/thriftreflect"
 	wire "go.uber.org/thriftrw/wire"
 	zapcore "go.uber.org/zap/zapcore"
-
-	shared "github.com/uber/cadence/.gen/go/shared"
+	strings "strings"
 )
 
 type MutableStateChecksumPayload struct {
@@ -72,14 +70,14 @@ func (_List_I64_ValueList) Close() {}
 // An error is returned if the struct or any of its fields failed to
 // validate.
 //
-//	x, err := v.ToWire()
-//	if err != nil {
-//	  return err
-//	}
+//   x, err := v.ToWire()
+//   if err != nil {
+//     return err
+//   }
 //
-//	if err := binaryProtocol.Encode(x, writer); err != nil {
-//	  return err
-//	}
+//   if err := binaryProtocol.Encode(x, writer); err != nil {
+//     return err
+//   }
 func (v *MutableStateChecksumPayload) ToWire() (wire.Value, error) {
 	var (
 		fields [20]wire.Field
@@ -283,16 +281,16 @@ func _VersionHistories_Read(w wire.Value) (*shared.VersionHistories, error) {
 // An error is returned if we were unable to build a MutableStateChecksumPayload struct
 // from the provided intermediate representation.
 //
-//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
-//	if err != nil {
-//	  return nil, err
-//	}
+//   x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//   if err != nil {
+//     return nil, err
+//   }
 //
-//	var v MutableStateChecksumPayload
-//	if err := v.FromWire(x); err != nil {
-//	  return nil, err
-//	}
-//	return &v, nil
+//   var v MutableStateChecksumPayload
+//   if err := v.FromWire(x); err != nil {
+//     return nil, err
+//   }
+//   return &v, nil
 func (v *MutableStateChecksumPayload) FromWire(w wire.Value) error {
 	var err error
 
