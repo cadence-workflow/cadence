@@ -210,7 +210,6 @@ type UpdateScheduleRequest struct {
 	Spec             *ScheduleSpec     `json:"spec,omitempty"`
 	Action           *ScheduleAction   `json:"action,omitempty"`
 	Policies         *SchedulePolicies `json:"policies,omitempty"`
-	Memo             *Memo             `json:"-"` // Filtering PII
 	SearchAttributes *SearchAttributes `json:"-"` // Filtering PII
 }
 
@@ -245,13 +244,6 @@ func (v *UpdateScheduleRequest) GetAction() *ScheduleAction {
 func (v *UpdateScheduleRequest) GetPolicies() *SchedulePolicies {
 	if v != nil {
 		return v.Policies
-	}
-	return nil
-}
-
-func (v *UpdateScheduleRequest) GetMemo() *Memo {
-	if v != nil {
-		return v.Memo
 	}
 	return nil
 }

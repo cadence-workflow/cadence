@@ -85,7 +85,6 @@ func TestUpdateScheduleRequest_NilGetters(t *testing.T) {
 	assert.Nil(t, v.GetSpec())
 	assert.Nil(t, v.GetAction())
 	assert.Nil(t, v.GetPolicies())
-	assert.Nil(t, v.GetMemo())
 	assert.Nil(t, v.GetSearchAttributes())
 }
 
