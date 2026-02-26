@@ -45,6 +45,8 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"task_attempt_counts":                   {},
 	"task_attempt_per_domain":               {},
 	"task_attempt_per_domain_counts":        {},
+	"task_latency":                          {},
+	"task_latency_ns":                       {},
 	"task_latency_per_domain":               {},
 	"task_latency_per_domain_ns":            {},
 	"task_latency_processing":               {},

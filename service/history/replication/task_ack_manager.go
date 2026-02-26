@@ -135,7 +135,11 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 	taskGeneratedTimer := t.scope.StartTimer(metrics.TaskProcessingLatency)
 	defer taskGeneratedTimer.Stop()
 	defer func() {
-		t.scope.ExponentialHistogram(metrics.ExponentialTaskProcessingLatency, t.timeSource.Since(taskGeneratedStart))
+		taskLatency := t.timeSource.Since(taskGeneratedStart)
+		// Preserve current task-ack processing latency metrics and also migrate legacy task latency.
+		t.scope.ExponentialHistogram(metrics.ExponentialTaskProcessingLatency, taskLatency)
+		t.scope.RecordTimer(metrics.TaskLatency, taskLatency)
+		t.scope.ExponentialHistogram(metrics.ExponentialTaskLatency, taskLatency)
 	}()
 
 	batchSize := t.dynamicTaskBatchSizer.value()
