@@ -92,16 +92,20 @@ type (
 		Len() int
 	}
 
-	// Schedule represents a virtual weighted round-robin schedule that computes
-	// the next value on-demand without materializing the entire schedule in memory
+	// Schedule represents a stateless schedule definition
 	Schedule[V any] interface {
-		// Next returns the next value in the schedule
-		// Wraps around to the beginning when reaching the end
-		// Returns zero value and false if the schedule is empty
-		Next() (V, bool)
+		// NewIterator creates a new stateful iterator for this schedule
+		NewIterator() Iterator[V]
 
-		// Len returns the total virtual length of the schedule (sum of all weights)
+		// Len returns the length of the schedule
 		Len() int
+	}
+
+	// Iterator represents a stateful iteration through a schedule
+	Iterator[V any] interface {
+		// Next returns the next value in the iteration
+		// Returns (value, true) if available, (zero value, false) if exhausted
+		TryNext() (V, bool)
 	}
 )
 

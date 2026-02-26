@@ -64,7 +64,7 @@ type (
 		channelMap              map[K]*weightedChannel[V]
 
 		// a snapshot of the channels to be used for the IWRR schedule
-		iwrrSchedule atomic.Value // weightedChannels[V]
+		iwrrSchedule atomic.Value // Schedule[chan V]
 	}
 )
 
@@ -84,7 +84,7 @@ func NewWeightedRoundRobinChannelPool[K comparable, V any](
 		shutdownCh:              make(chan struct{}),
 	}
 	// Initialize with empty channels
-	wrr.iwrrSchedule.Store(weightedChannels[V]{})
+	wrr.iwrrSchedule.Store(newIWRRSchedule[V](nil))
 	return wrr
 }
 
@@ -195,8 +195,8 @@ func (p *WeightedRoundRobinChannelPool[K, V]) GetAllChannels() []chan V {
 	return allChannels
 }
 
-func (p *WeightedRoundRobinChannelPool[K, V]) GetSchedule() Schedule[*weightedChannel[V]] {
-	return newIWRRSchedule[V](p.iwrrSchedule.Load().(weightedChannels[V]))
+func (p *WeightedRoundRobinChannelPool[K, V]) GetSchedule() Schedule[chan V] {
+	return p.iwrrSchedule.Load().(Schedule[chan V])
 }
 
 func (p *WeightedRoundRobinChannelPool[K, V]) updateScheduleLocked() {
@@ -207,10 +207,10 @@ func (p *WeightedRoundRobinChannelPool[K, V]) updateScheduleLocked() {
 	}
 
 	// Create efficient schedule from snapshot
-	p.iwrrSchedule.Store(orderedChannels)
+	p.iwrrSchedule.Store(newIWRRSchedule[V](orderedChannels))
 
 	// Update memory gauge - now only stores channel references once, not weight times
-	memoryBytes := len(p.channelMap) * 28 // channel map entries
+	memoryBytes := len(p.channelMap) * 16 // channel map entries
 	p.metricsScope.UpdateGauge(metrics.WeightedChannelPoolSizeGauge, float64(memoryBytes))
 }
 
