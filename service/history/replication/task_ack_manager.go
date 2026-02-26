@@ -132,7 +132,7 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 	}
 
 	taskGeneratedStart := t.timeSource.Now()
-	taskGeneratedTimer := t.scope.StartTimer(metrics.TaskLatency)
+	taskGeneratedTimer := t.scope.StartTimer(metrics.TaskProcessingLatency)
 	defer taskGeneratedTimer.Stop()
 	defer func() {
 		t.scope.ExponentialHistogram(metrics.ExponentialTaskProcessingLatency, t.timeSource.Since(taskGeneratedStart))
