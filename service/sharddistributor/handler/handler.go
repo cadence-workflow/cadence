@@ -125,13 +125,16 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 
 // assignEphemeralBatch is the ephemeralBatchFn wired into the shardBatcher.
 // It processes a whole batch of unassigned shard keys for a single ephemeral
-// namespace using exactly two storage operations:
-//  1. GetState  — read current namespace state once for the whole batch.
+// namespace using two storage operations:
+//  1. GetState     — read current namespace state once for the whole batch.
 //  2. AssignShards — write all new assignments atomically in one operation.
+//
+// After the write, GetExecutor is called once per unique chosen executor (not
+// per shard) to fetch metadata for the response, since metadata is stored
+// separately in the shard cache and is not returned by GetState.
 //
 // Within the batch the least-loaded ACTIVE executor is chosen per shard, with
 // the in-batch running count updated after each pick so load is spread evenly.
-// Executor metadata for the response is read from the state returned by GetState.
 func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string, shardKeys []string) (map[string]*types.GetShardOwnerResponse, error) {
 	state, err := h.storage.GetState(ctx, namespace)
 	if err != nil {
@@ -191,14 +194,29 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("assign ephemeral shards: %v", err)}
 	}
 
-	// Build responses using executor metadata already available in the state.
+	// Fetch metadata from the shard cache once per unique chosen executor.
+	// Metadata is stored separately from HeartbeatState and is not returned
+	// by GetState, so GetExecutor is required here.
+	executorOwners := make(map[string]*store.ShardOwner, len(assignedCounts))
+	for _, executorID := range chosenExecutors {
+		if _, already := executorOwners[executorID]; already {
+			continue
+		}
+		owner, execErr := h.storage.GetExecutor(ctx, namespace, executorID)
+		if execErr != nil {
+			return nil, &types.InternalServiceError{Message: fmt.Sprintf("get executor %q: %v", executorID, execErr)}
+		}
+		executorOwners[executorID] = owner
+	}
+
 	results := make(map[string]*types.GetShardOwnerResponse, len(shardKeys))
 	for _, shardKey := range shardKeys {
 		executorID := chosenExecutors[shardKey]
+		owner := executorOwners[executorID]
 		results[shardKey] = &types.GetShardOwnerResponse{
-			Owner:     executorID,
+			Owner:     owner.ExecutorID,
 			Namespace: namespace,
-			Metadata:  state.Executors[executorID].Metadata,
+			Metadata:  owner.Metadata,
 		}
 	}
 

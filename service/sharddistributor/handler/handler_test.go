@@ -175,6 +175,10 @@ func TestGetShardOwner(t *testing.T) {
 				}, nil)
 				// owner2 has the fewest shards; expect a single batch AssignShards call.
 				mockStore.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
+				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner2").Return(&store.ShardOwner{
+					ExecutorID: "owner2",
+					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
+				}, nil)
 			},
 			expectedOwner: "owner2",
 			expectedError: false,
@@ -211,6 +215,10 @@ func TestGetShardOwner(t *testing.T) {
 				}, nil)
 				// owner1 should be selected; single batch write
 				mockStore.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
+				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner1").Return(&store.ShardOwner{
+					ExecutorID: "owner1",
+					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
+				}, nil)
 			},
 			expectedOwner: "owner1",
 			expectedError: false,
