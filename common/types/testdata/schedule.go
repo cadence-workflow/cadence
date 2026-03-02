@@ -28,9 +28,11 @@ import (
 )
 
 var (
-	// Test data for schedule spec
-	scheduleTime1 = time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)     // March 1, 2026
-	scheduleTime4 = time.Date(2026, 12, 31, 23, 59, 59, 0, time.UTC) // December 31, 2026
+	scheduleTime1 = time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
+	scheduleTime2 = time.Date(2026, 6, 15, 12, 30, 0, 0, time.UTC)
+	scheduleTime3 = time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC)
+	scheduleTime4 = time.Date(2026, 12, 31, 23, 59, 59, 0, time.UTC)
+	scheduleTime5 = time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC)
 
 	ScheduleSpec = types.ScheduleSpec{
 		CronExpression: "*/5 * * * *",
@@ -62,5 +64,48 @@ var (
 		PauseOnFailure:   true,
 		BufferLimit:      5,
 		ConcurrencyLimit: 2,
+	}
+
+	SchedulePauseInfo = types.SchedulePauseInfo{
+		Reason:   "maintenance window",
+		PausedAt: scheduleTime2,
+		PausedBy: "sample_admin@uber.com",
+	}
+
+	ScheduleState = types.ScheduleState{
+		Paused:    true,
+		PauseInfo: &SchedulePauseInfo,
+	}
+
+	ScheduleBackfillInfo = types.BackfillInfo{
+		BackfillID:    "backfill-001",
+		StartTime:     scheduleTime1,
+		EndTime:       scheduleTime3,
+		RunsCompleted: 15,
+		RunsTotal:     30,
+	}
+
+	ScheduleBackfillInfo2 = types.BackfillInfo{
+		BackfillID:    "backfill-002",
+		StartTime:     scheduleTime3,
+		EndTime:       scheduleTime4,
+		RunsCompleted: 0,
+		RunsTotal:     10,
+	}
+
+	ScheduleInfo = types.ScheduleInfo{
+		LastRunTime:      scheduleTime2,
+		NextRunTime:      scheduleTime3,
+		TotalRuns:        42,
+		CreateTime:       scheduleTime5,
+		LastUpdateTime:   scheduleTime2,
+		OngoingBackfills: []*types.BackfillInfo{&ScheduleBackfillInfo, &ScheduleBackfillInfo2},
+	}
+
+	ScheduleListEntry = types.ScheduleListEntry{
+		ScheduleID:     "my-schedule-id",
+		WorkflowType:   &WorkflowType,
+		State:          &ScheduleState,
+		CronExpression: "*/5 * * * *",
 	}
 )

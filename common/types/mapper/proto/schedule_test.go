@@ -56,6 +56,36 @@ func TestSchedulePolicies(t *testing.T) {
 	}
 }
 
+func TestSchedulePauseInfo(t *testing.T) {
+	for _, item := range []*types.SchedulePauseInfo{nil, {}, &testdata.SchedulePauseInfo} {
+		assert.Equal(t, item, ToSchedulePauseInfo(FromSchedulePauseInfo(item)))
+	}
+}
+
+func TestScheduleState(t *testing.T) {
+	for _, item := range []*types.ScheduleState{nil, {}, &testdata.ScheduleState} {
+		assert.Equal(t, item, ToScheduleState(FromScheduleState(item)))
+	}
+}
+
+func TestBackfillInfo(t *testing.T) {
+	for _, item := range []*types.BackfillInfo{nil, {}, &testdata.ScheduleBackfillInfo} {
+		assert.Equal(t, item, ToBackfillInfo(FromBackfillInfo(item)))
+	}
+}
+
+func TestScheduleInfo(t *testing.T) {
+	for _, item := range []*types.ScheduleInfo{nil, {}, &testdata.ScheduleInfo} {
+		assert.Equal(t, item, ToScheduleInfo(FromScheduleInfo(item)))
+	}
+}
+
+func TestScheduleListEntry(t *testing.T) {
+	for _, item := range []*types.ScheduleListEntry{nil, {}, &testdata.ScheduleListEntry} {
+		assert.Equal(t, item, ToScheduleListEntry(FromScheduleListEntry(item)))
+	}
+}
+
 func scheduleFuzzer(f *fuzz.Fuzzer) *fuzz.Fuzzer {
 	return f.Funcs(
 		func(t *time.Time, c fuzz.Continue) {
@@ -150,6 +180,96 @@ func TestSchedulePoliciesFuzz(t *testing.T) {
 			return "nil"
 		}
 		if orig.OverlapPolicy == 0 && orig.CatchUpPolicy == 0 && orig.CatchUpWindow == 0 && !orig.PauseOnFailure {
+			return "empty"
+		}
+		return "filled"
+	})
+}
+
+func TestSchedulePauseInfoFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.SchedulePauseInfo
+		fuzzer.Fuzz(&orig)
+		out := ToSchedulePauseInfo(FromSchedulePauseInfo(orig))
+		assert.Equal(t, orig, out, "SchedulePauseInfo did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if orig.Reason == "" && orig.PausedAt.IsZero() && orig.PausedBy == "" {
+			return "empty"
+		}
+		return "filled"
+	})
+}
+
+func TestScheduleStateFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.ScheduleState
+		fuzzer.Fuzz(&orig)
+		out := ToScheduleState(FromScheduleState(orig))
+		assert.Equal(t, orig, out, "ScheduleState did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if !orig.Paused && orig.PauseInfo == nil {
+			return "empty"
+		}
+		return "filled"
+	})
+}
+
+func TestBackfillInfoFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.BackfillInfo
+		fuzzer.Fuzz(&orig)
+		out := ToBackfillInfo(FromBackfillInfo(orig))
+		assert.Equal(t, orig, out, "BackfillInfo did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if orig.BackfillID == "" && orig.StartTime.IsZero() && orig.EndTime.IsZero() {
+			return "empty"
+		}
+		return "filled"
+	})
+}
+
+func TestScheduleInfoFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.ScheduleInfo
+		fuzzer.Fuzz(&orig)
+		out := ToScheduleInfo(FromScheduleInfo(orig))
+		assert.Equal(t, orig, out, "ScheduleInfo did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if orig.OngoingBackfills == nil {
+			return "empty"
+		}
+		return "filled"
+	})
+}
+
+func TestScheduleListEntryFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.ScheduleListEntry
+		fuzzer.Fuzz(&orig)
+		out := ToScheduleListEntry(FromScheduleListEntry(orig))
+		assert.Equal(t, orig, out, "ScheduleListEntry did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if orig.ScheduleID == "" && orig.WorkflowType == nil && orig.State == nil && orig.CronExpression == "" {
 			return "empty"
 		}
 		return "filled"

@@ -189,3 +189,169 @@ func ToSchedulePolicies(t *apiv1.SchedulePolicies) *types.SchedulePolicies {
 		ConcurrencyLimit: t.ConcurrencyLimit,
 	}
 }
+
+// --- State/info type mappers ---
+
+func FromSchedulePauseInfo(t *types.SchedulePauseInfo) *apiv1.SchedulePauseInfo {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.SchedulePauseInfo{
+		Reason:   t.Reason,
+		PausedAt: timeToTimestamp(&t.PausedAt),
+		PausedBy: t.PausedBy,
+	}
+}
+
+func ToSchedulePauseInfo(t *apiv1.SchedulePauseInfo) *types.SchedulePauseInfo {
+	if t == nil {
+		return nil
+	}
+	return &types.SchedulePauseInfo{
+		Reason:   t.Reason,
+		PausedAt: timestampToTimeVal(t.PausedAt),
+		PausedBy: t.PausedBy,
+	}
+}
+
+func FromScheduleState(t *types.ScheduleState) *apiv1.ScheduleState {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ScheduleState{
+		Paused:    t.Paused,
+		PauseInfo: FromSchedulePauseInfo(t.PauseInfo),
+	}
+}
+
+func ToScheduleState(t *apiv1.ScheduleState) *types.ScheduleState {
+	if t == nil {
+		return nil
+	}
+	return &types.ScheduleState{
+		Paused:    t.Paused,
+		PauseInfo: ToSchedulePauseInfo(t.PauseInfo),
+	}
+}
+
+func FromBackfillInfo(t *types.BackfillInfo) *apiv1.BackfillInfo {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.BackfillInfo{
+		BackfillId:    t.BackfillID,
+		StartTime:     timeToTimestamp(&t.StartTime),
+		EndTime:       timeToTimestamp(&t.EndTime),
+		RunsCompleted: t.RunsCompleted,
+		RunsTotal:     t.RunsTotal,
+	}
+}
+
+func ToBackfillInfo(t *apiv1.BackfillInfo) *types.BackfillInfo {
+	if t == nil {
+		return nil
+	}
+	return &types.BackfillInfo{
+		BackfillID:    t.BackfillId,
+		StartTime:     timestampToTimeVal(t.StartTime),
+		EndTime:       timestampToTimeVal(t.EndTime),
+		RunsCompleted: t.RunsCompleted,
+		RunsTotal:     t.RunsTotal,
+	}
+}
+
+func FromBackfillInfoArray(t []*types.BackfillInfo) []*apiv1.BackfillInfo {
+	if t == nil {
+		return nil
+	}
+	v := make([]*apiv1.BackfillInfo, len(t))
+	for i := range t {
+		v[i] = FromBackfillInfo(t[i])
+	}
+	return v
+}
+
+func ToBackfillInfoArray(t []*apiv1.BackfillInfo) []*types.BackfillInfo {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.BackfillInfo, len(t))
+	for i := range t {
+		v[i] = ToBackfillInfo(t[i])
+	}
+	return v
+}
+
+func FromScheduleInfo(t *types.ScheduleInfo) *apiv1.ScheduleInfo {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ScheduleInfo{
+		LastRunTime:      timeToTimestamp(&t.LastRunTime),
+		NextRunTime:      timeToTimestamp(&t.NextRunTime),
+		TotalRuns:        t.TotalRuns,
+		CreateTime:       timeToTimestamp(&t.CreateTime),
+		LastUpdateTime:   timeToTimestamp(&t.LastUpdateTime),
+		OngoingBackfills: FromBackfillInfoArray(t.OngoingBackfills),
+	}
+}
+
+func ToScheduleInfo(t *apiv1.ScheduleInfo) *types.ScheduleInfo {
+	if t == nil {
+		return nil
+	}
+	return &types.ScheduleInfo{
+		LastRunTime:      timestampToTimeVal(t.LastRunTime),
+		NextRunTime:      timestampToTimeVal(t.NextRunTime),
+		TotalRuns:        t.TotalRuns,
+		CreateTime:       timestampToTimeVal(t.CreateTime),
+		LastUpdateTime:   timestampToTimeVal(t.LastUpdateTime),
+		OngoingBackfills: ToBackfillInfoArray(t.OngoingBackfills),
+	}
+}
+
+func FromScheduleListEntry(t *types.ScheduleListEntry) *apiv1.ScheduleListEntry {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ScheduleListEntry{
+		ScheduleId:     t.ScheduleID,
+		WorkflowType:   FromWorkflowType(t.WorkflowType),
+		State:          FromScheduleState(t.State),
+		CronExpression: t.CronExpression,
+	}
+}
+
+func ToScheduleListEntry(t *apiv1.ScheduleListEntry) *types.ScheduleListEntry {
+	if t == nil {
+		return nil
+	}
+	return &types.ScheduleListEntry{
+		ScheduleID:     t.ScheduleId,
+		WorkflowType:   ToWorkflowType(t.WorkflowType),
+		State:          ToScheduleState(t.State),
+		CronExpression: t.CronExpression,
+	}
+}
+
+func FromScheduleListEntryArray(t []*types.ScheduleListEntry) []*apiv1.ScheduleListEntry {
+	if t == nil {
+		return nil
+	}
+	v := make([]*apiv1.ScheduleListEntry, len(t))
+	for i := range t {
+		v[i] = FromScheduleListEntry(t[i])
+	}
+	return v
+}
+
+func ToScheduleListEntryArray(t []*apiv1.ScheduleListEntry) []*types.ScheduleListEntry {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.ScheduleListEntry, len(t))
+	for i := range t {
+		v[i] = ToScheduleListEntry(t[i])
+	}
+	return v
+}
