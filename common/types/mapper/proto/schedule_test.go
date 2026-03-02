@@ -275,3 +275,145 @@ func TestScheduleListEntryFuzz(t *testing.T) {
 		return "filled"
 	})
 }
+
+// --- CRUD request/response deterministic tests ---
+
+func TestCreateScheduleRequest(t *testing.T) {
+	for _, item := range []*types.CreateScheduleRequest{nil, {}, &testdata.CreateScheduleRequest} {
+		assert.Equal(t, item, ToCreateScheduleRequest(FromCreateScheduleRequest(item)))
+	}
+}
+
+func TestCreateScheduleResponse(t *testing.T) {
+	for _, item := range []*types.CreateScheduleResponse{nil, {}, &testdata.CreateScheduleResponse} {
+		assert.Equal(t, item, ToCreateScheduleResponse(FromCreateScheduleResponse(item)))
+	}
+}
+
+func TestDescribeScheduleRequest(t *testing.T) {
+	for _, item := range []*types.DescribeScheduleRequest{nil, {}, &testdata.DescribeScheduleRequest} {
+		assert.Equal(t, item, ToDescribeScheduleRequest(FromDescribeScheduleRequest(item)))
+	}
+}
+
+func TestDescribeScheduleResponse(t *testing.T) {
+	for _, item := range []*types.DescribeScheduleResponse{nil, {}, &testdata.DescribeScheduleResponse} {
+		assert.Equal(t, item, ToDescribeScheduleResponse(FromDescribeScheduleResponse(item)))
+	}
+}
+
+func TestUpdateScheduleRequest(t *testing.T) {
+	for _, item := range []*types.UpdateScheduleRequest{nil, {}, &testdata.UpdateScheduleRequest} {
+		assert.Equal(t, item, ToUpdateScheduleRequest(FromUpdateScheduleRequest(item)))
+	}
+}
+
+func TestUpdateScheduleResponse(t *testing.T) {
+	for _, item := range []*types.UpdateScheduleResponse{nil, {}, &testdata.UpdateScheduleResponse} {
+		assert.Equal(t, item, ToUpdateScheduleResponse(FromUpdateScheduleResponse(item)))
+	}
+}
+
+func TestDeleteScheduleRequest(t *testing.T) {
+	for _, item := range []*types.DeleteScheduleRequest{nil, {}, &testdata.DeleteScheduleRequest} {
+		assert.Equal(t, item, ToDeleteScheduleRequest(FromDeleteScheduleRequest(item)))
+	}
+}
+
+func TestDeleteScheduleResponse(t *testing.T) {
+	for _, item := range []*types.DeleteScheduleResponse{nil, {}, &testdata.DeleteScheduleResponse} {
+		assert.Equal(t, item, ToDeleteScheduleResponse(FromDeleteScheduleResponse(item)))
+	}
+}
+
+// --- CRUD request/response fuzz tests ---
+
+func TestCreateScheduleRequestFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.CreateScheduleRequest
+		fuzzer.Fuzz(&orig)
+		out := ToCreateScheduleRequest(FromCreateScheduleRequest(orig))
+		assert.Equal(t, orig, out, "CreateScheduleRequest did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if orig.Domain == "" && orig.ScheduleID == "" && orig.Spec == nil {
+			return "empty"
+		}
+		return "filled"
+	})
+}
+
+func TestDescribeScheduleRequestFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.DescribeScheduleRequest
+		fuzzer.Fuzz(&orig)
+		out := ToDescribeScheduleRequest(FromDescribeScheduleRequest(orig))
+		assert.Equal(t, orig, out, "DescribeScheduleRequest did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if orig.Domain == "" && orig.ScheduleID == "" {
+			return "empty"
+		}
+		return "filled"
+	})
+}
+
+func TestDescribeScheduleResponseFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.DescribeScheduleResponse
+		fuzzer.Fuzz(&orig)
+		out := ToDescribeScheduleResponse(FromDescribeScheduleResponse(orig))
+		assert.Equal(t, orig, out, "DescribeScheduleResponse did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if orig.Spec == nil && orig.Action == nil && orig.State == nil {
+			return "empty"
+		}
+		return "filled"
+	})
+}
+
+func TestUpdateScheduleRequestFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.UpdateScheduleRequest
+		fuzzer.Fuzz(&orig)
+		out := ToUpdateScheduleRequest(FromUpdateScheduleRequest(orig))
+		assert.Equal(t, orig, out, "UpdateScheduleRequest did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if orig.Domain == "" && orig.ScheduleID == "" && orig.Spec == nil {
+			return "empty"
+		}
+		return "filled"
+	})
+}
+
+func TestDeleteScheduleRequestFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.DeleteScheduleRequest
+		fuzzer.Fuzz(&orig)
+		out := ToDeleteScheduleRequest(FromDeleteScheduleRequest(orig))
+		assert.Equal(t, orig, out, "DeleteScheduleRequest did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if orig.Domain == "" && orig.ScheduleID == "" {
+			return "empty"
+		}
+		return "filled"
+	})
+}
