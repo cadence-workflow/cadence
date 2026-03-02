@@ -29,12 +29,17 @@ import (
 	"math"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
+
+// ephemeralBatchInterval is the time window over which GetShardOwner calls for
+// ephemeral namespaces are collected before being processed as a single batch.
+const ephemeralBatchInterval = 100 * time.Millisecond
 
 func NewHandler(
 	logger log.Logger,
@@ -46,6 +51,8 @@ func NewHandler(
 		shardDistributionCfg: shardDistributionCfg,
 		storage:              storage,
 	}
+
+	handler.batcher = newShardBatcher(ephemeralBatchInterval, handler.assignEphemeralBatch)
 
 	// prevent us from trying to serve requests before shard distributor is started and ready
 	handler.startWG.Add(1)
@@ -59,13 +66,17 @@ type handlerImpl struct {
 
 	storage              store.Store
 	shardDistributionCfg config.ShardDistribution
+
+	batcher *shardBatcher
 }
 
 func (h *handlerImpl) Start() {
+	h.batcher.Start()
 	h.startWG.Done()
 }
 
 func (h *handlerImpl) Stop() {
+	h.batcher.Stop()
 }
 
 func (h *handlerImpl) Health(ctx context.Context) (*types.HealthStatus, error) {
@@ -90,7 +101,8 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 	shardOwner, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
 	if errors.Is(err, store.ErrShardNotFound) {
 		if h.shardDistributionCfg.Namespaces[namespaceIdx].Type == config.NamespaceTypeEphemeral {
-			return h.assignEphemeralShard(ctx, request.Namespace, request.ShardKey)
+			// Fan-in: hand off to the micro-batcher instead of assigning inline.
+			return h.batcher.Submit(ctx, request.Namespace, request.ShardKey)
 		}
 
 		return nil, &types.ShardNotFoundError{
@@ -111,54 +123,95 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 	return resp, nil
 }
 
-func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string, shardID string) (*types.GetShardOwnerResponse, error) {
-
-	// Get the current state of the namespace and find the executor with the least assigned shards
+// assignEphemeralBatch is the ephemeralBatchFn wired into the shardBatcher.
+// It processes a whole batch of unassigned shard keys for a single ephemeral
+// namespace using exactly two storage operations:
+//  1. GetState  — read current namespace state once for the whole batch.
+//  2. AssignShards — write all new assignments atomically in one operation.
+//
+// Within the batch the least-loaded ACTIVE executor is chosen per shard, with
+// the in-batch running count updated after each pick so load is spread evenly.
+// Executor metadata for the response is read from the state returned by GetState.
+func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string, shardKeys []string) (map[string]*types.GetShardOwnerResponse, error) {
 	state, err := h.storage.GetState(ctx, namespace)
 	if err != nil {
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
 	}
 
-	var executorID string
-	minAssignedShards := math.MaxInt
-
-	for assignedExecutor, assignment := range state.ShardAssignments {
-		executorState, ok := state.Executors[assignedExecutor]
+	// Snapshot the active executor shard counts. We mutate this map as we
+	// distribute shards within the batch so that later picks account for
+	// earlier ones made in the same flush cycle.
+	assignedCounts := make(map[string]int, len(state.ShardAssignments))
+	for executorID, assignment := range state.ShardAssignments {
+		executorState, ok := state.Executors[executorID]
 		if !ok || executorState.Status != types.ExecutorStatusACTIVE {
 			continue
 		}
+		assignedCounts[executorID] = len(assignment.AssignedShards)
+	}
 
-		if len(assignment.AssignedShards) < minAssignedShards {
-			minAssignedShards = len(assignment.AssignedShards)
-			executorID = assignedExecutor
+	// Assign each shard key to the least-loaded executor, tracking choices so
+	// we can build the response map after the single AssignShards call.
+	chosenExecutors := make(map[string]string, len(shardKeys))
+	for _, shardKey := range shardKeys {
+		chosenExecutor := ""
+		minCount := math.MaxInt
+		for executorID, count := range assignedCounts {
+			if count < minCount {
+				minCount = count
+				chosenExecutor = executorID
+			}
+		}
+		chosenExecutors[shardKey] = chosenExecutor
+
+		// Optimistically bump the count so the next shard in this batch steers
+		// toward a different executor when load is equal.
+		if chosenExecutor != "" {
+			assignedCounts[chosenExecutor]++
 		}
 	}
 
-	// Assign the shard to the executor with the least assigned shards
-	err = h.storage.AssignShard(ctx, namespace, shardID, executorID)
-	// If shard is already assigned, return the assigned owner
-	var alreadyAssigned *store.ErrShardAlreadyAssigned
-	if errors.As(err, &alreadyAssigned) {
-		return &types.GetShardOwnerResponse{
-			Owner:     alreadyAssigned.AssignedTo,
+	// Merge the new shard assignments into the namespace state. We copy the
+	// AssignedShards maps to avoid mutating the object returned by GetState.
+	for executorID, shardsForExecutor := range invertMap(chosenExecutors) {
+		existing := state.ShardAssignments[executorID]
+		newShards := make(map[string]*types.ShardAssignment, len(existing.AssignedShards)+len(shardsForExecutor))
+		for k, v := range existing.AssignedShards {
+			newShards[k] = v
+		}
+		for _, shardKey := range shardsForExecutor {
+			newShards[shardKey] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
+		}
+		existing.AssignedShards = newShards
+		state.ShardAssignments[executorID] = existing
+	}
+
+	// Single atomic write for the entire batch.
+	if err := h.storage.AssignShards(ctx, namespace, store.AssignShardsRequest{NewState: state}, store.NopGuard()); err != nil {
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("assign ephemeral shards: %v", err)}
+	}
+
+	// Build responses using executor metadata already available in the state.
+	results := make(map[string]*types.GetShardOwnerResponse, len(shardKeys))
+	for _, shardKey := range shardKeys {
+		executorID := chosenExecutors[shardKey]
+		results[shardKey] = &types.GetShardOwnerResponse{
+			Owner:     executorID,
 			Namespace: namespace,
-			Metadata:  alreadyAssigned.Metadata,
-		}, nil
-	}
-	if err != nil {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("assign ephemeral shard: %v", err)}
+			Metadata:  state.Executors[executorID].Metadata,
+		}
 	}
 
-	executor, err := h.storage.GetExecutor(ctx, namespace, executorID)
-	if err != nil {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get executor: %v", err)}
-	}
+	return results, nil
+}
 
-	return &types.GetShardOwnerResponse{
-		Owner:     executor.ExecutorID,
-		Namespace: namespace,
-		Metadata:  executor.Metadata,
-	}, nil
+// invertMap turns map[shardKey]executorID into map[executorID][]shardKey.
+func invertMap(m map[string]string) map[string][]string {
+	out := make(map[string][]string)
+	for shardKey, executorID := range m {
+		out[executorID] = append(out[executorID], shardKey)
+	}
+	return out
 }
 
 func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequest, server WatchNamespaceStateServer) error {

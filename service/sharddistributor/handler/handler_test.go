@@ -43,6 +43,22 @@ const (
 	_testNamespaceEphemeral = "test-ephemeral"
 )
 
+// newTestHandler creates a handlerImpl wired with a real shardBatcher backed by
+// the provided store mock. The batcher is started and the handler is returned
+// ready to use; callers should call Stop() when done.
+func newTestHandler(t *testing.T, cfg config.ShardDistribution, mockStore *store.MockStore) *handlerImpl {
+	t.Helper()
+	handler := &handlerImpl{
+		logger:               testlogger.New(t),
+		shardDistributionCfg: cfg,
+		storage:              mockStore,
+	}
+	handler.batcher = newShardBatcher(10*time.Millisecond, handler.assignEphemeralBatch)
+	handler.batcher.Start()
+	t.Cleanup(handler.batcher.Stop)
+	return handler
+}
+
 func TestGetShardOwner(t *testing.T) {
 	cfg := config.ShardDistribution{
 		Namespaces: []config.Namespace{
@@ -139,8 +155,8 @@ func TestGetShardOwner(t *testing.T) {
 				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
 					Executors: map[string]store.HeartbeatState{
-						"owner1": {Status: types.ExecutorStatusACTIVE},
-						"owner2": {Status: types.ExecutorStatusACTIVE},
+						"owner1": {Status: types.ExecutorStatusACTIVE, Metadata: map[string]string{"ip": "127.0.0.1", "port": "1234"}},
+						"owner2": {Status: types.ExecutorStatusACTIVE, Metadata: map[string]string{"ip": "127.0.0.1", "port": "1234"}},
 					},
 					ShardAssignments: map[string]store.AssignedState{
 						"owner1": {
@@ -157,12 +173,8 @@ func TestGetShardOwner(t *testing.T) {
 						},
 					},
 				}, nil)
-				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner2").Return(&store.ShardOwner{
-					ExecutorID: "owner2",
-					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
-				}, nil)
-				// owner2 has the fewest shards assigned, so we assign the shard to it
-				mockStore.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD", "owner2").Return(nil)
+				// owner2 has the fewest shards; expect a single batch AssignShards call.
+				mockStore.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
 			},
 			expectedOwner: "owner2",
 			expectedError: false,
@@ -177,9 +189,9 @@ func TestGetShardOwner(t *testing.T) {
 				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
 					Executors: map[string]store.HeartbeatState{
-						"owner1": {Status: types.ExecutorStatusACTIVE},
+						"owner1": {Status: types.ExecutorStatusACTIVE, Metadata: map[string]string{"ip": "127.0.0.1", "port": "1234"}},
 						// owner2 is DRAINING, should be skipped even though it has fewer shards
-						"owner2": {Status: types.ExecutorStatusDRAINING},
+						"owner2": {Status: types.ExecutorStatusDRAINING, Metadata: map[string]string{"ip": "127.0.0.1", "port": "1234"}},
 					},
 					ShardAssignments: map[string]store.AssignedState{
 						"owner1": {
@@ -197,12 +209,8 @@ func TestGetShardOwner(t *testing.T) {
 						},
 					},
 				}, nil)
-				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner1").Return(&store.ShardOwner{
-					ExecutorID: "owner1",
-					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
-				}, nil)
-				// owner1 should be selected even though owner2 has fewer shards, because owner2 is DRAINING
-				mockStore.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD", "owner1").Return(nil)
+				// owner1 should be selected; single batch write
+				mockStore.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
 			},
 			expectedOwner: "owner1",
 			expectedError: false,
@@ -221,7 +229,7 @@ func TestGetShardOwner(t *testing.T) {
 			expectedErrMsg: "get state failure",
 		},
 		{
-			name: "ShardNotFound_Ephemeral_AssignShardFailure",
+			name: "ShardNotFound_Ephemeral_AssignShardsFailure",
 			request: &types.GetShardOwnerRequest{
 				Namespace: _testNamespaceEphemeral,
 				ShardKey:  "NON-EXISTING-SHARD",
@@ -231,45 +239,20 @@ func TestGetShardOwner(t *testing.T) {
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
 					Executors:        map[string]store.HeartbeatState{"owner1": {Status: types.ExecutorStatusACTIVE}},
 					ShardAssignments: map[string]store.AssignedState{"owner1": {AssignedShards: map[string]*types.ShardAssignment{}}}}, nil)
-				mockStore.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD", "owner1").Return(errors.New("assign shard failure"))
+				mockStore.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(errors.New("assign shards failure"))
 			},
 			expectedError:  true,
-			expectedErrMsg: "assign shard failure",
-		},
-		{
-			name: "ShardNotFound_Ephemeral_AlreadyAssigned",
-			request: &types.GetShardOwnerRequest{
-				Namespace: _testNamespaceEphemeral,
-				ShardKey:  "CONCURRENT-SHARD",
-			},
-			setupMocks: func(mockStore *store.MockStore) {
-				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "CONCURRENT-SHARD").Return(nil, store.ErrShardNotFound)
-				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
-					Executors:        map[string]store.HeartbeatState{"owner1": {Status: types.ExecutorStatusACTIVE}},
-					ShardAssignments: map[string]store.AssignedState{"owner1": {AssignedShards: map[string]*types.ShardAssignment{}}}}, nil)
-				mockStore.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, "CONCURRENT-SHARD", "owner1").Return(&store.ErrShardAlreadyAssigned{
-					ShardID:    "CONCURRENT-SHARD",
-					AssignedTo: "owner2",
-					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
-				})
-			},
-			expectedOwner: "owner2",
-			expectedError: false,
+			expectedErrMsg: "assign shards failure",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-
-			logger := testlogger.New(t)
 			mockStorage := store.NewMockStore(ctrl)
 
-			handler := &handlerImpl{
-				logger:               logger,
-				shardDistributionCfg: cfg,
-				storage:              mockStorage,
-			}
+			handler := newTestHandler(t, cfg, mockStorage)
+
 			if tt.setupMocks != nil {
 				tt.setupMocks(mockStorage)
 			}
