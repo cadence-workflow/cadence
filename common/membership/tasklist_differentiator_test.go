@@ -18,6 +18,16 @@ func TestTaskListExcludedFromShardDistributor(t *testing.T) {
 			want:         true,
 		},
 		{
+			name:         "task list with short UUID (end segment is 11 characters)",
+			taskListName: "tasklist-550e8400-e29b-41d4-a716-4466554400a",
+			want:         true,
+		},
+		{
+			name:         "task list with short UUID (end segment is 10 characters)",
+			taskListName: "tasklist-550e8400-e29b-41d4-a716-4466554400suffix",
+			want:         true,
+		},
+		{
 			name:         "task list with uppercase UUID",
 			taskListName: "tasklist-550E8400-E29B-41D4-A716-446655440000",
 			want:         true,
