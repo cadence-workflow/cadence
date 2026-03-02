@@ -421,7 +421,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 			executor:           executor,
 			membershipResolver: resolver,
 			config: &config.Config{
-				EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
+				EnableTasklistOwnershipGuard:               func(opts ...dynamicproperties.FilterOption) bool { return true },
 				ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
 			},
 			shutdown: make(chan struct{}),
@@ -1233,7 +1233,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				timeSource:       clock.NewRealTimeSource(),
 				domainCache:      mockDomainCache,
 				config: &config.Config{
-					EnableAdaptiveScaler: dynamicproperties.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
+					EnableAdaptiveScaler:                       dynamicproperties.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
 					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
 				},
 				executor: mockExecutor,
