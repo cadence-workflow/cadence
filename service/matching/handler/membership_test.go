@@ -336,11 +336,14 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
-		config:             &config.Config{EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true }},
-		shutdown:           make(chan struct{}),
-		logger:             log.NewNoop(),
-		domainCache:        mockDomainCache,
-		executor:           mockExecutor,
+		config: &config.Config{
+			EnableTasklistOwnershipGuard:               func(opts ...dynamicproperties.FilterOption) bool { return true },
+			ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return true },
+		},
+		shutdown:    make(chan struct{}),
+		logger:      log.NewNoop(),
+		domainCache: mockDomainCache,
+		executor:    mockExecutor,
 	}
 
 	// set this engine to be shutting down to trigger the tasklistGetTasklistByID guard

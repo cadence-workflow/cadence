@@ -391,6 +391,9 @@ func TestCancelOutstandingPoll(t *testing.T) {
 			engine := &matchingEngineImpl{
 				taskListRegistry: taskListRegistry,
 				executor:         executor,
+				config: &config.Config{
+					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
+				},
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
 			hCtx := &handlerContext{Context: context.Background()}
@@ -419,6 +422,7 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 			membershipResolver: resolver,
 			config: &config.Config{
 				EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
+				ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
 			},
 			shutdown: make(chan struct{}),
 			logger:   log.NewNoop(),
@@ -499,6 +503,91 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
 		require.NoError(t, err)
 	})
+
+	t.Run("excluded tasklist bypasses executor even when onboarded to sd, uses ringpop and owner is the same", func(t *testing.T) {
+		engine, _, resolver := newEngine(t)
+		engine.config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
+		// Use a UUID-containing tasklist name so it is excluded from the ShardDistributor
+		excludedID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
+		resolver.EXPECT().Lookup(service.Matching, excludedID.GetName()).Return(membership.NewDetailedHostInfo("self", "self", nil), nil)
+		// executor should not be called at all for excluded task lists
+
+		err := engine.errIfShardOwnershipLost(context.Background(), excludedID)
+		require.NoError(t, err)
+	})
+
+	t.Run("excluded tasklist bypasses executor even when onboarded to sd, uses ringpop and owner has changed", func(t *testing.T) {
+		engine, _, resolver := newEngine(t)
+		engine.config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
+		excludedID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
+		resolver.EXPECT().Lookup(service.Matching, excludedID.GetName()).Return(membership.NewDetailedHostInfo("other-host", "other-host", nil), nil)
+
+		err := engine.errIfShardOwnershipLost(context.Background(), excludedID)
+		assertTypedOwnershipErr(t, err, "other-host", "self")
+	})
+
+	t.Run("non-excluded tasklist with uuid-like name and flag disabled still uses executor", func(t *testing.T) {
+		engine, executor, resolver := newEngine(t)
+		engine.config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return false }
+		uuidID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
+		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil)
+		executor.EXPECT().IsOnboardedToSD().Return(false)
+		resolver.EXPECT().Lookup(service.Matching, uuidID.GetName()).Return(membership.NewDetailedHostInfo("self", "self", nil), nil)
+
+		err := engine.errIfShardOwnershipLost(context.Background(), uuidID)
+		require.NoError(t, err)
+	})
+}
+
+func TestIsExcludedFromShardDistributor(t *testing.T) {
+	tests := []struct {
+		name         string
+		taskListName string
+		flagEnabled  bool
+		want         bool
+	}{
+		{
+			name:         "flag disabled, uuid name",
+			taskListName: "tasklist-550e8400-e29b-41d4-a716-446655440000",
+			flagEnabled:  false,
+			want:         false,
+		},
+		{
+			name:         "flag enabled, no uuid in name",
+			taskListName: "my-regular-tasklist",
+			flagEnabled:  true,
+			want:         false,
+		},
+		{
+			name:         "flag enabled, uuid in name",
+			taskListName: "tasklist-550e8400-e29b-41d4-a716-446655440000",
+			flagEnabled:  true,
+			want:         true,
+		},
+		{
+			name:         "flag enabled, uuid-only name",
+			taskListName: "550e8400-e29b-41d4-a716-446655440000",
+			flagEnabled:  true,
+			want:         true,
+		},
+		{
+			name:         "flag disabled, no uuid in name",
+			taskListName: "my-regular-tasklist",
+			flagEnabled:  false,
+			want:         false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			engine := &matchingEngineImpl{
+				config: &config.Config{
+					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return tc.flagEnabled },
+				},
+			}
+			got := engine.isExcludedFromShardDistributor(tc.taskListName)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
 
 func TestRespondQueryTaskCompleted(t *testing.T) {
@@ -675,6 +764,9 @@ func TestQueryWorkflow(t *testing.T) {
 				timeSource:           clock.NewRealTimeSource(),
 				lockableQueryTaskMap: lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
 				executor:             executor,
+				config: &config.Config{
+					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
+				},
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
 			tc.mockSetup(mockManager, &engine.lockableQueryTaskMap, mockCtrl, executor)
@@ -1142,6 +1234,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				domainCache:      mockDomainCache,
 				config: &config.Config{
 					EnableAdaptiveScaler: dynamicproperties.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
+					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
 				},
 				executor: mockExecutor,
 			}
@@ -1321,6 +1414,9 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 				taskListRegistry: taskListRegistry,
 				timeSource:       clock.NewRealTimeSource(),
 				executor:         mockExecutor,
+				config: &config.Config{
+					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
+				},
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
 			taskListRegistry.Register(*tasklistID2, mockManager)

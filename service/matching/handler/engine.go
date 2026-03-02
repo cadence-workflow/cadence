@@ -259,16 +259,22 @@ func (e *matchingEngineImpl) String() string {
 // Returns taskListManager for a task list. If not already cached gets new range from DB and
 // if successful creates one.
 func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, taskList *tasklist.Identifier, taskListKind types.TaskListKind) (tasklist.Manager, error) {
-	// We have a shard-processor shared by all the task lists with the same name.
-	// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
-	sp, _ := e.executor.GetShardProcess(ctx, taskList.GetName())
-	if sp != nil {
-		// The first check is an optimization so almost all requests will have a task list manager
-		// and return avoiding the write lock
-		if result, ok := e.taskListRegistry.ManagerByTaskListIdentifier(*taskList); ok {
+	// The first check is an optimization so almost all requests will have a task list manager
+	// and return avoiding the write lock
+	result, ok := e.taskListRegistry.ManagerByTaskListIdentifier(*taskList)
+
+	// Task lists excluded from the ShardDistributor (short-lived task lists with UUIDs) bypass
+	// the executor/shard-processor entirely and always use local hash-ring assignment.
+	if e.isExcludedFromShardDistributor(taskList.GetName()) && ok {
+		return result, nil
+	}
+	if !e.isExcludedFromShardDistributor(taskList.GetName()) {
+		sp, _ := e.executor.GetShardProcess(ctx, taskList.GetName())
+		if sp != nil && ok {
 			return result, nil
 		}
 	}
+
 	err := e.errIfShardOwnershipLost(ctx, taskList)
 	if err != nil {
 		return nil, err
@@ -322,7 +328,7 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	}
 
 	// If the ShardDistributor is not responsible for the shard assignment, the assignment is handled by the local logic
-	if !e.executor.IsOnboardedToSD() {
+	if !e.executor.IsOnboardedToSD() && !e.isExcludedFromShardDistributor(taskList.GetName()) {
 		err = e.executor.AssignShardsFromLocalLogic(ctx, map[string]*types.ShardAssignment{
 			taskList.GetName(): {Status: types.AssignmentStatusREADY},
 		})
@@ -1501,18 +1507,22 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 		return newNotOwnedByHostError("not known")
 	}
 
-	// We have a shard-processor shared by all the task lists with the same name.
-	// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
-	sp, err := e.executor.GetShardProcess(ctx, taskList.GetName())
-	if e.executor.IsOnboardedToSD() {
-		if err != nil {
-			return fmt.Errorf("failed to lookup ownership in SD: %w", err)
-		}
-		if sp == nil {
-			return newNotOwnedByHostError("not known")
-		}
+	// Task lists excluded from the ShardDistributor bypass the executor entirely and rely on
+	// the local hash-ring for ownership, so skip the SD-based ownership check for them.
+	if !e.isExcludedFromShardDistributor(taskList.GetName()) {
+		// We have a shard-processor shared by all the task lists with the same name.
+		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
+		sp, err := e.executor.GetShardProcess(ctx, taskList.GetName())
+		if e.executor.IsOnboardedToSD() {
+			if err != nil {
+				return fmt.Errorf("failed to lookup ownership in SD: %w", err)
+			}
+			if sp == nil {
+				return newNotOwnedByHostError("not known")
+			}
 
-		return nil
+			return nil
+		}
 	}
 
 	// Defensive check to make sure we actually own the task list
@@ -1543,6 +1553,14 @@ func (e *matchingEngineImpl) isShuttingDown() bool {
 	default:
 		return false
 	}
+}
+
+// isExcludedFromShardDistributor returns true if the task list should bypass the
+// ShardDistributor and executor, and instead rely on local hash-ring assignment.
+// This applies to short-lived task lists (e.g. sticky or bits task lists whose names
+// contain a UUID) when the corresponding feature flag is enabled.
+func (e *matchingEngineImpl) isExcludedFromShardDistributor(taskListName string) bool {
+	return e.config.ExcludeShortLivedTaskListsFromShardManager() && membership.TaskListExcludedFromShardDistributor(taskListName)
 }
 
 func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {
