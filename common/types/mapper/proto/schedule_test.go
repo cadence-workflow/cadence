@@ -22,10 +22,13 @@ package proto
 
 import (
 	"testing"
+	"time"
 
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
 )
 
@@ -51,4 +54,104 @@ func TestSchedulePolicies(t *testing.T) {
 	for _, item := range []*types.SchedulePolicies{nil, {}, &testdata.SchedulePolicies} {
 		assert.Equal(t, item, ToSchedulePolicies(FromSchedulePolicies(item)))
 	}
+}
+
+func scheduleFuzzer(f *fuzz.Fuzzer) *fuzz.Fuzzer {
+	return f.Funcs(
+		func(t *time.Time, c fuzz.Continue) {
+			if c.Intn(10) < 3 {
+				*t = time.Time{}
+				return
+			}
+			*t = time.Unix(c.Int63n(4102444800), c.Int63n(1e9)).UTC()
+		},
+		func(d *time.Duration, c fuzz.Continue) {
+			if c.Intn(10) < 3 {
+				*d = 0
+				return
+			}
+			*d = time.Duration(c.Int63n(int64(24 * time.Hour)))
+		},
+		func(p *types.ScheduleOverlapPolicy, c fuzz.Continue) {
+			*p = types.ScheduleOverlapPolicy(c.Intn(6)) // 0-5: Invalid through TerminatePrevious
+		},
+		func(p *types.ScheduleCatchUpPolicy, c fuzz.Continue) {
+			*p = types.ScheduleCatchUpPolicy(c.Intn(4)) // 0-3: Invalid through All
+		},
+		func(p *types.TaskListKind, c fuzz.Continue) {
+			*p = types.TaskListKind(c.Intn(3)) // 0-2: Normal, Sticky, Ephemeral
+		},
+	).NilChance(0.3)
+}
+
+func TestScheduleSpecFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.ScheduleSpec
+		fuzzer.Fuzz(&orig)
+		out := ToScheduleSpec(FromScheduleSpec(orig))
+		assert.Equal(t, orig, out, "ScheduleSpec did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if orig.CronExpression == "" && orig.StartTime.IsZero() && orig.EndTime.IsZero() && orig.Jitter == 0 {
+			return "empty"
+		}
+		return "filled"
+	})
+}
+
+func TestStartWorkflowActionFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.StartWorkflowAction
+		fuzzer.Fuzz(&orig)
+		out := ToStartWorkflowAction(FromStartWorkflowAction(orig))
+		assert.Equal(t, orig, out, "StartWorkflowAction did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if orig.WorkflowType == nil && orig.TaskList == nil && orig.Input == nil && orig.WorkflowIDPrefix == "" {
+			return "empty"
+		}
+		return "filled"
+	})
+}
+
+func TestScheduleActionFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.ScheduleAction
+		fuzzer.Fuzz(&orig)
+		out := ToScheduleAction(FromScheduleAction(orig))
+		assert.Equal(t, orig, out, "ScheduleAction did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if orig.StartWorkflow == nil {
+			return "empty"
+		}
+		return "filled"
+	})
+}
+
+func TestSchedulePoliciesFuzz(t *testing.T) {
+	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
+		fuzzer := scheduleFuzzer(f)
+		var orig *types.SchedulePolicies
+		fuzzer.Fuzz(&orig)
+		out := ToSchedulePolicies(FromSchedulePolicies(orig))
+		assert.Equal(t, orig, out, "SchedulePolicies did not survive round-tripping")
+
+		if orig == nil {
+			return "nil"
+		}
+		if orig.OverlapPolicy == 0 && orig.CatchUpPolicy == 0 && orig.CatchUpWindow == 0 && !orig.PauseOnFailure {
+			return "empty"
+		}
+		return "filled"
+	})
 }
