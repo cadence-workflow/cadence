@@ -40,6 +40,20 @@ func (m *MockSpectator) EXPECT() *MockSpectatorMockRecorder {
 	return m.recorder
 }
 
+// GetExecutors mocks base method.
+func (m *MockSpectator) GetExecutors() map[string]*ShardOwner {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExecutors")
+	ret0, _ := ret[0].(map[string]*ShardOwner)
+	return ret0
+}
+
+// GetExecutors indicates an expected call of GetExecutors.
+func (mr *MockSpectatorMockRecorder) GetExecutors() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutors", reflect.TypeOf((*MockSpectator)(nil).GetExecutors))
+}
+
 // GetShardOwner mocks base method.
 func (m *MockSpectator) GetShardOwner(ctx context.Context, shardKey string) (*ShardOwner, error) {
 	m.ctrl.T.Helper()
@@ -79,4 +93,33 @@ func (m *MockSpectator) Stop() {
 func (mr *MockSpectatorMockRecorder) Stop() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockSpectator)(nil).Stop))
+}
+
+// Subscribe mocks base method.
+func (m *MockSpectator) Subscribe(subscriberName string) (<-chan struct{}, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Subscribe", subscriberName)
+	ret0, _ := ret[0].(<-chan struct{})
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Subscribe indicates an expected call of Subscribe.
+func (mr *MockSpectatorMockRecorder) Subscribe(subscriberName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockSpectator)(nil).Subscribe), subscriberName)
+}
+
+// Unsubscribe mocks base method.
+func (m *MockSpectator) Unsubscribe(subscriberName string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Unsubscribe", subscriberName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Unsubscribe indicates an expected call of Unsubscribe.
+func (mr *MockSpectatorMockRecorder) Unsubscribe(subscriberName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unsubscribe", reflect.TypeOf((*MockSpectator)(nil).Unsubscribe), subscriberName)
 }

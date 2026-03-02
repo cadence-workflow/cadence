@@ -3,6 +3,7 @@ package spectatorclient
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -191,4 +192,181 @@ func TestSpectatorPeerChooser_Choose_ReusesPeer(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, firstPeer, secondPeer)
 	assert.Len(t, chooser.peers, 1)
+}
+
+func TestSpectatorPeerChooser_ReleaseStalePeers(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSpectator := NewMockSpectator(ctrl)
+	peerTransport := grpc.NewTransport()
+
+	chooser := NewSpectatorPeerChooser(SpectatorPeerChooserParams{
+		Transport: peerTransport,
+		Logger:    testlogger.New(t),
+	}).(*SpectatorPeerChooser)
+
+	chooser.spectators = &Spectators{
+		spectators: map[string]Spectator{
+			"test-namespace": mockSpectator,
+		},
+	}
+
+	// Create some peers manually by calling Choose
+	req1 := &transport.Request{
+		ShardKey: "shard-1",
+		Headers:  transport.NewHeaders().With(NamespaceHeader, "test-namespace"),
+	}
+	req2 := &transport.Request{
+		ShardKey: "shard-2",
+		Headers:  transport.NewHeaders().With(NamespaceHeader, "test-namespace"),
+	}
+
+	// Mock spectator to return two different executors with different addresses
+	mockSpectator.EXPECT().
+		GetShardOwner(gomock.Any(), "shard-1").
+		Return(&ShardOwner{
+			ExecutorID: "executor-1",
+			Metadata: map[string]string{
+				clientcommon.GrpcAddressMetadataKey: "127.0.0.1:7953",
+			},
+		}, nil)
+
+	mockSpectator.EXPECT().
+		GetShardOwner(gomock.Any(), "shard-2").
+		Return(&ShardOwner{
+			ExecutorID: "executor-2",
+			Metadata: map[string]string{
+				clientcommon.GrpcAddressMetadataKey: "127.0.0.1:7954",
+			},
+		}, nil)
+
+	// Create two peers
+	_, _, err := chooser.Choose(context.Background(), req1)
+	require.NoError(t, err)
+	_, _, err = chooser.Choose(context.Background(), req2)
+	require.NoError(t, err)
+
+	// Verify we have 2 peers
+	assert.Len(t, chooser.peers, 2)
+
+	// Now simulate executor-2 being removed (only executor-1 remains)
+	mockSpectator.EXPECT().
+		GetExecutors().
+		Return(map[string]*ShardOwner{
+			"executor-1": {
+				ExecutorID: "executor-1",
+				Metadata: map[string]string{
+					clientcommon.GrpcAddressMetadataKey: "127.0.0.1:7953",
+				},
+			},
+		})
+
+	// Call removeStaleExecutors
+	chooser.removeStaleExecutors(mockSpectator)
+
+	// Verify that only 1 peer remains (executor-1)
+	chooser.peersMutex.RLock()
+	assert.Len(t, chooser.peers, 1)
+	_, exists := chooser.peers["127.0.0.1:7953"]
+	assert.True(t, exists)
+	_, exists = chooser.peers["127.0.0.1:7954"]
+	assert.False(t, exists)
+	chooser.peersMutex.RUnlock()
+}
+
+func TestSpectatorPeerChooser_WatchExecutorUpdates(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSpectator := NewMockSpectator(ctrl)
+	peerTransport := grpc.NewTransport()
+
+	chooser := NewSpectatorPeerChooser(SpectatorPeerChooserParams{
+		Transport: peerTransport,
+		Logger:    testlogger.New(t),
+	}).(*SpectatorPeerChooser)
+
+	chooser.spectators = &Spectators{
+		spectators: map[string]Spectator{
+			"test-namespace": mockSpectator,
+		},
+	}
+
+	// Create initial peers
+	req1 := &transport.Request{
+		ShardKey: "shard-1",
+		Headers:  transport.NewHeaders().With(NamespaceHeader, "test-namespace"),
+	}
+	req2 := &transport.Request{
+		ShardKey: "shard-2",
+		Headers:  transport.NewHeaders().With(NamespaceHeader, "test-namespace"),
+	}
+
+	mockSpectator.EXPECT().
+		GetShardOwner(gomock.Any(), "shard-1").
+		Return(&ShardOwner{
+			ExecutorID: "executor-1",
+			Metadata: map[string]string{
+				clientcommon.GrpcAddressMetadataKey: "127.0.0.1:7953",
+			},
+		}, nil)
+
+	mockSpectator.EXPECT().
+		GetShardOwner(gomock.Any(), "shard-2").
+		Return(&ShardOwner{
+			ExecutorID: "executor-2",
+			Metadata: map[string]string{
+				clientcommon.GrpcAddressMetadataKey: "127.0.0.1:7954",
+			},
+		}, nil)
+
+	_, _, err := chooser.Choose(context.Background(), req1)
+	require.NoError(t, err)
+	_, _, err = chooser.Choose(context.Background(), req2)
+	require.NoError(t, err)
+
+	assert.Len(t, chooser.peers, 2)
+
+	// Create a notification channel
+	updateCh := make(chan struct{}, 1)
+
+	// Start watchExecutorUpdates in a goroutine
+	chooser.stopWG.Add(1)
+	go chooser.watchExecutorUpdates("test-namespace", mockSpectator, updateCh)
+
+	// Mock GetExecutors to return only executor-1 (executor-2 is removed)
+	mockSpectator.EXPECT().
+		GetExecutors().
+		Return(map[string]*ShardOwner{
+			"executor-1": {
+				ExecutorID: "executor-1",
+				Metadata: map[string]string{
+					clientcommon.GrpcAddressMetadataKey: "127.0.0.1:7953",
+				},
+			},
+		})
+
+	// Send update notification
+	updateCh <- struct{}{}
+
+	// Wait a bit for the update to be processed
+	require.Eventually(t, func() bool {
+		chooser.peersMutex.RLock()
+		defer chooser.peersMutex.RUnlock()
+		return len(chooser.peers) == 1
+	}, 1*time.Second, 10*time.Millisecond)
+
+	// Verify that stale peer was released
+	chooser.peersMutex.RLock()
+	assert.Len(t, chooser.peers, 1)
+	_, exists := chooser.peers["127.0.0.1:7953"]
+	assert.True(t, exists)
+	_, exists = chooser.peers["127.0.0.1:7954"]
+	assert.False(t, exists)
+	chooser.peersMutex.RUnlock()
+
+	// Test stopping the watch goroutine
+	close(chooser.stopCh)
+	chooser.stopWG.Wait()
 }

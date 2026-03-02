@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	NamespaceHeader = "x-shard-distributor-namespace"
+	NamespaceHeader           = "x-shard-distributor-namespace"
+	peerChooserSubscriberName = "peer-chooser"
 )
 
 // SpectatorPeerChooserInterface extends peer.Chooser with SetSpectators method
@@ -45,6 +46,9 @@ type SpectatorPeerChooser struct {
 
 	peersMutex sync.RWMutex
 	peers      map[string]peer.Peer // grpc_address -> peer
+
+	stopCh chan struct{}
+	stopWG sync.WaitGroup
 }
 
 type SpectatorPeerChooserParams struct {
@@ -61,18 +65,52 @@ func NewSpectatorPeerChooser(
 		transport: params.Transport,
 		logger:    params.Logger,
 		peers:     make(map[string]peer.Peer),
+		stopCh:    make(chan struct{}),
 	}
 }
 
 // Start satisfies the peer.Chooser interface
 func (c *SpectatorPeerChooser) Start() error {
 	c.logger.Info("Starting shard distributor peer chooser", tag.ShardNamespace(c.namespace))
+
+	// Subscribe to executor updates from all spectators
+	if c.spectators != nil {
+		for namespace, spectator := range c.spectators.spectators {
+			ch, err := spectator.Subscribe(peerChooserSubscriberName)
+			if err != nil {
+				c.logger.Error("Failed to subscribe to spectator updates", tag.Error(err), tag.ShardNamespace(namespace))
+				continue
+			}
+
+			// Start a goroutine to listen for updates
+			c.stopWG.Add(1)
+			go c.watchExecutorUpdates(namespace, spectator, ch)
+		}
+	}
+
 	return nil
 }
 
 // Stop satisfies the peer.Chooser interface
 func (c *SpectatorPeerChooser) Stop() error {
 	c.logger.Info("Stopping shard distributor peer chooser", tag.ShardNamespace(c.namespace))
+
+	// Signal all watch goroutines to stop (if stopCh was initialized)
+	if c.stopCh != nil {
+		close(c.stopCh)
+	}
+
+	// Unsubscribe from all spectators
+	if c.spectators != nil {
+		for namespace, spectator := range c.spectators.spectators {
+			if err := spectator.Unsubscribe(peerChooserSubscriberName); err != nil {
+				c.logger.Warn("Failed to unsubscribe from spectator", tag.Error(err), tag.ShardNamespace(namespace))
+			}
+		}
+	}
+
+	// Wait for all watch goroutines to finish
+	c.stopWG.Wait()
 
 	// Release all peers
 	c.peersMutex.Lock()
@@ -170,6 +208,52 @@ func (c *SpectatorPeerChooser) getOrCreatePeer(grpcAddress string) (peer.Peer, e
 
 	c.peers[grpcAddress] = peer
 	return peer, nil
+}
+
+// watchExecutorUpdates listens for executor updates and releases stale peers
+func (c *SpectatorPeerChooser) watchExecutorUpdates(namespace string, spectator Spectator, updateCh <-chan struct{}) {
+	defer c.stopWG.Done()
+
+	c.logger.Info("Started watching executor updates", tag.ShardNamespace(namespace))
+
+	for {
+		select {
+		case <-c.stopCh:
+			c.logger.Info("Stopped watching executor updates", tag.ShardNamespace(namespace))
+			return
+		case <-updateCh:
+			c.logger.Debug("Received executor update notification", tag.ShardNamespace(namespace))
+			c.removeStaleExecutors(spectator)
+		}
+	}
+}
+
+// removeStaleExecutors releases peers for executors that are no longer in the current executor list
+func (c *SpectatorPeerChooser) removeStaleExecutors(spectator Spectator) {
+	// Get current executors
+	currentExecutors := spectator.GetExecutors()
+
+	// Build set of current grpc addresses
+	currentAddresses := make(map[string]bool)
+	for _, owner := range currentExecutors {
+		if grpcAddr, ok := owner.Metadata[clientcommon.GrpcAddressMetadataKey]; ok {
+			currentAddresses[grpcAddr] = true
+		}
+	}
+
+	// Find and release stale peers
+	c.peersMutex.Lock()
+	defer c.peersMutex.Unlock()
+
+	for addr, p := range c.peers {
+		if !currentAddresses[addr] {
+			c.logger.Info("Releasing stale peer", tag.Address(addr))
+			if err := c.transport.ReleasePeer(p, &noOpSubscriber{}); err != nil {
+				c.logger.Error("Failed to release stale peer", tag.Error(err), tag.Address(addr))
+			}
+			delete(c.peers, addr)
+		}
+	}
 }
 
 // noOpSubscriber is a no-op implementation of peer.Subscriber

@@ -49,12 +49,20 @@ type spectatorImpl struct {
 	stopWG sync.WaitGroup
 
 	// State storage with lock for thread-safe access
+	stateMu sync.RWMutex
 	// Map from shard ID to shard owner (executor ID + metadata)
-	stateMu      sync.RWMutex
 	shardToOwner map[string]*ShardOwner
+	// Map from executor ID to shard owner (executor ID + metadata)
+	executorToOwner map[string]*ShardOwner
 
 	// Signal to notify when first state is received
 	firstStateSignal *csync.ResettableSignal
+
+	// Map of subscriber name to notification channel.
+	// Subscribers will receive a signal on their channel whenever there is a change in executors
+	// (new executor added or existing executor removed).
+	subscribersMu sync.RWMutex
+	subscribers   map[string]chan<- struct{}
 }
 
 func (s *spectatorImpl) Start(ctx context.Context) error {
@@ -78,6 +86,11 @@ func (s *spectatorImpl) Stop() {
 	// Close the firstStateSignal to unblock any goroutines waiting for first state
 	s.firstStateSignal.Done()
 	s.stopWG.Wait()
+
+	// cleanup subscribers
+	s.subscribersMu.Lock()
+	s.subscribers = make(map[string]chan<- struct{})
+	s.subscribersMu.Unlock()
 }
 
 func (s *spectatorImpl) watchLoop(ctx context.Context) {
@@ -181,6 +194,8 @@ func (s *spectatorImpl) disabledState(ctx context.Context) stateFn {
 func (s *spectatorImpl) handleResponse(response *types.WatchNamespaceStateResponse) {
 	// Build inverted map: shard ID -> shard owner (executor ID + metadata)
 	shardToOwner := make(map[string]*ShardOwner)
+	executorToOwner := make(map[string]*ShardOwner, len(response.Executors))
+
 	for _, executor := range response.Executors {
 		owner := &ShardOwner{
 			ExecutorID: executor.ExecutorID,
@@ -189,15 +204,25 @@ func (s *spectatorImpl) handleResponse(response *types.WatchNamespaceStateRespon
 		for _, shard := range executor.AssignedShards {
 			shardToOwner[shard.ShardKey] = owner
 		}
+		executorToOwner[executor.ExecutorID] = owner
 	}
+
+	executorsChanged := s.diffExecutors(executorToOwner)
 
 	s.stateMu.Lock()
 	s.shardToOwner = shardToOwner
+	s.executorToOwner = executorToOwner
 	s.stateMu.Unlock()
 
 	// Signal that first state has been received - this function is free to call
 	// multiple times.
 	s.firstStateSignal.Done()
+
+	// Notify subscribers if there are changes in executors
+	// (new executors added or existing executors removed)
+	if executorsChanged {
+		s.notifySubscribers()
+	}
 
 	s.logger.Debug("Received namespace state update",
 		tag.ShardNamespace(s.namespace),
@@ -239,4 +264,69 @@ func (s *spectatorImpl) GetShardOwner(ctx context.Context, shardKey string) (*Sh
 		ExecutorID: response.Owner,
 		Metadata:   response.Metadata,
 	}, nil
+}
+
+func (s *spectatorImpl) GetExecutors() map[string]*ShardOwner {
+	s.stateMu.RLock()
+	defer s.stateMu.RUnlock()
+	return s.executorToOwner
+}
+
+func (s *spectatorImpl) Subscribe(subscriberName string) (<-chan struct{}, error) {
+	s.subscribersMu.Lock()
+	defer s.subscribersMu.Unlock()
+
+	_, ok := s.subscribers[subscriberName]
+	if ok {
+		return nil, fmt.Errorf("subscriber with name %q already exists", subscriberName)
+	}
+
+	ch := make(chan struct{}, 1) // Buffered channel to avoid blocking
+	s.subscribers[subscriberName] = ch
+
+	return ch, nil
+}
+
+// Unsubscribe removes subscriber
+func (s *spectatorImpl) Unsubscribe(subscriberName string) error {
+	s.subscribersMu.Lock()
+	defer s.subscribersMu.Unlock()
+	delete(s.subscribers, subscriberName)
+	return nil
+}
+
+// notifySubscribers sends notifications to all subscribers about changes in shard ownership.
+func (s *spectatorImpl) notifySubscribers() {
+	s.subscribersMu.RLock()
+	defer s.subscribersMu.RUnlock()
+
+	for name, ch := range s.subscribers {
+		// Non-blocking send to avoid blocking if subscriber is slow or not receiving
+		select {
+		case ch <- struct{}{}:
+			// Notification sent successfully
+		default:
+			s.logger.Warn("Subscriber channel is full, skipping notification", tag.ShardNamespace(s.namespace), tag.Name(name))
+		}
+	}
+}
+
+// diffExecutors compares the current executorToOwner map with a new one to determine
+// if there are any changes in executors (new executors added or existing executors removed).
+func (s *spectatorImpl) diffExecutors(new map[string]*ShardOwner) bool {
+	s.stateMu.RLock()
+	defer s.stateMu.RUnlock()
+
+	if len(s.executorToOwner) != len(new) {
+		return true
+	}
+
+	// Check that the same executors exist in both maps
+	for executorID := range new {
+		if _, ok := s.executorToOwner[executorID]; !ok {
+			return true
+		}
+	}
+
+	return false
 }
