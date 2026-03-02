@@ -1,25 +1,3 @@
-// The MIT License (MIT)
-
-// Copyright (c) 2017-2020 Uber Technologies Inc.
-
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-
 package handler
 
 import (
@@ -235,6 +213,26 @@ func TestGetShardOwner(t *testing.T) {
 			},
 			expectedError:  true,
 			expectedErrMsg: "get state failure",
+		},
+		{
+			// When two batches race and the first wins, the second gets
+			// ErrVersionConflict from AssignShards. This is surfaced as an
+			// internal error; the caller is expected to retry GetShardOwner,
+			// which will then find the shard already assigned in the cache.
+			name: "ShardNotFound_Ephemeral_VersionConflict",
+			request: &types.GetShardOwnerRequest{
+				Namespace: _testNamespaceEphemeral,
+				ShardKey:  "CONCURRENT-SHARD",
+			},
+			setupMocks: func(mockStore *store.MockStore) {
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "CONCURRENT-SHARD").Return(nil, store.ErrShardNotFound)
+				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+					Executors:        map[string]store.HeartbeatState{"owner1": {Status: types.ExecutorStatusACTIVE}},
+					ShardAssignments: map[string]store.AssignedState{"owner1": {AssignedShards: map[string]*types.ShardAssignment{}}}}, nil)
+				mockStore.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(store.ErrVersionConflict)
+			},
+			expectedError:  true,
+			expectedErrMsg: "version conflict",
 		},
 		{
 			name: "ShardNotFound_Ephemeral_AssignShardsFailure",
