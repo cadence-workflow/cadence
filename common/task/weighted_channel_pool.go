@@ -37,8 +37,6 @@ import (
 const defaultIdleChannelTTLInSeconds = 3600
 
 type (
-	weightedChannels[V any] []*weightedChannel[V]
-
 	weightedChannel[V any] struct {
 		weight        int
 		c             chan V
@@ -64,7 +62,7 @@ type (
 		channelMap              map[K]*weightedChannel[V]
 
 		// a snapshot of the channels to be used for the IWRR schedule
-		iwrrSchedule atomic.Value // Schedule[*weightedChannel[V]]
+		iwrrSchedule atomic.Pointer[iwrrSchedule[*weightedChannel[V]]]
 	}
 )
 
@@ -196,7 +194,7 @@ func (p *WeightedRoundRobinChannelPool[K, V]) GetAllChannels() []chan V {
 }
 
 func (p *WeightedRoundRobinChannelPool[K, V]) GetSchedule() Schedule[*weightedChannel[V]] {
-	return p.iwrrSchedule.Load().(Schedule[*weightedChannel[V]])
+	return p.iwrrSchedule.Load()
 }
 
 func (p *WeightedRoundRobinChannelPool[K, V]) updateScheduleLocked() {
@@ -205,18 +203,6 @@ func (p *WeightedRoundRobinChannelPool[K, V]) updateScheduleLocked() {
 	// Update memory gauge - now only stores channel references once, not weight times
 	memoryBytes := len(p.channelMap) * 16 // channel map entries
 	p.metricsScope.UpdateGauge(metrics.WeightedChannelPoolSizeGauge, float64(memoryBytes))
-}
-
-func (w weightedChannels[V]) Len() int {
-	return len(w)
-}
-
-func (w weightedChannels[V]) Less(i, j int) bool {
-	return w[i].weight < w[j].weight
-}
-
-func (w weightedChannels[V]) Swap(i, j int) {
-	w[i], w[j] = w[j], w[i]
 }
 
 func (w *weightedChannel[V]) Weight() int {
