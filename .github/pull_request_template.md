@@ -1,20 +1,34 @@
-<!-- Describe what has changed in this PR -->
+<!-- If you are new to contributing or want a refresher, please read ./pull_request_guidance.md -->
 **What changed?**
 
 
-<!-- Tell your future self why have you made these changes -->
 **Why?**
 
 
-<!-- How have you verified this change? Tested locally? Added a unit test? Checked in staging env? -->
 **How did you test it?**
 
 
-<!-- Assuming the worst case, what can be broken when deploying this change to production? -->
 **Potential risks**
 
-<!-- Is it notable for release? e.g. schema updates, configuration or data migration required? If so, please mention it, and also update CHANGELOG.md -->
+
 **Release notes**
 
-<!-- Is there any documentation updates should be made for config, https://cadenceworkflow.io/docs/operation-guide/setup/ ? If so, please open an PR in https://github.com/cadence-workflow/cadence-docs -->
+
 **Documentation Changes**
+
+---
+
+## Reviewer Validation
+
+**PR Description Quality** (check these before reviewing code):
+
+- [ ] **"What changed"** provides a clear 1-2 line summary
+  - [ ] Project Issue is linked
+- [ ] **"Why"** explains the full motivation with sufficient context
+- [ ] **Testing is documented:**
+  - [ ] Unit test commands are included (with exact `go test` invocation)
+  - [ ] Integration test setup/commands included (if integration tests were run)
+  - [ ] Canary testing details included (if canary was mentioned)
+- [ ] **Potential risks** section is thoughtfully filled out (or legitimately N/A)
+- [ ] **Release notes** included if this completes a user-facing feature
+- [ ] **Documentation** needs are addressed (or noted if uncertain)

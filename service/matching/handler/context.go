@@ -104,6 +104,9 @@ func (reqCtx *handlerContext) handleErr(err error) error {
 	case errors.As(err, new(*types.StickyWorkerUnavailableError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrStickyWorkerUnavailablePerTaskListCounter)
 		return err
+	case errors.As(err, new(*types.ReadOnlyPartitionError)):
+		reqCtx.scope.IncCounter(metrics.CadenceErrReadOnlyPartitionPerTaskListCounter)
+		return err
 	case errors.As(err, new(*cadence_errors.TaskListNotOwnedByHostError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrTaskListNotOwnedByHostPerTaskListCounter)
 		return err

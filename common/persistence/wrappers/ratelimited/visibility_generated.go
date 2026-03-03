@@ -7,31 +7,27 @@ package ratelimited
 import (
 	"context"
 
-	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 )
 
 // ratelimitedVisibilityManager implements persistence.VisibilityManager interface instrumented with rate limiter.
 type ratelimitedVisibilityManager struct {
-	wrapped       persistence.VisibilityManager
-	rateLimiter   quotas.Limiter
-	metricsClient metrics.Client
-	datastoreName string
+	wrapped      persistence.VisibilityManager
+	rateLimiter  quotas.Limiter
+	callerBypass quotas.CallerBypass
 }
 
 // NewVisibilityManager creates a new instance of VisibilityManager with ratelimiter.
 func NewVisibilityManager(
 	wrapped persistence.VisibilityManager,
 	rateLimiter quotas.Limiter,
-	metricsClient metrics.Client,
-	datastoreName string,
+	callerBypass quotas.CallerBypass,
 ) persistence.VisibilityManager {
 	return &ratelimitedVisibilityManager{
-		wrapped:       wrapped,
-		rateLimiter:   rateLimiter,
-		metricsClient: metricsClient,
-		datastoreName: datastoreName,
+		wrapped:      wrapped,
+		rateLimiter:  rateLimiter,
+		callerBypass: callerBypass,
 	}
 }
 
@@ -41,11 +37,7 @@ func (c *ratelimitedVisibilityManager) Close() {
 }
 
 func (c *ratelimitedVisibilityManager) CountWorkflowExecutions(ctx context.Context, request *persistence.CountWorkflowExecutionsRequest) (cp1 *persistence.CountWorkflowExecutionsResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -53,11 +45,7 @@ func (c *ratelimitedVisibilityManager) CountWorkflowExecutions(ctx context.Conte
 }
 
 func (c *ratelimitedVisibilityManager) DeleteUninitializedWorkflowExecution(ctx context.Context, request *persistence.VisibilityDeleteWorkflowExecutionRequest) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -65,11 +53,7 @@ func (c *ratelimitedVisibilityManager) DeleteUninitializedWorkflowExecution(ctx 
 }
 
 func (c *ratelimitedVisibilityManager) DeleteWorkflowExecution(ctx context.Context, request *persistence.VisibilityDeleteWorkflowExecutionRequest) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -77,11 +61,7 @@ func (c *ratelimitedVisibilityManager) DeleteWorkflowExecution(ctx context.Conte
 }
 
 func (c *ratelimitedVisibilityManager) GetClosedWorkflowExecution(ctx context.Context, request *persistence.GetClosedWorkflowExecutionRequest) (gp1 *persistence.GetClosedWorkflowExecutionResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -93,11 +73,7 @@ func (c *ratelimitedVisibilityManager) GetName() (s1 string) {
 }
 
 func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutions(ctx context.Context, request *persistence.ListWorkflowExecutionsRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -105,11 +81,7 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutions(ctx context.
 }
 
 func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByStatus(ctx context.Context, request *persistence.ListClosedWorkflowExecutionsByStatusRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -117,11 +89,7 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByStatus(ctx 
 }
 
 func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByType(ctx context.Context, request *persistence.ListWorkflowExecutionsByTypeRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -129,11 +97,7 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByType(ctx co
 }
 
 func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByWorkflowID(ctx context.Context, request *persistence.ListWorkflowExecutionsByWorkflowIDRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -141,11 +105,7 @@ func (c *ratelimitedVisibilityManager) ListClosedWorkflowExecutionsByWorkflowID(
 }
 
 func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutions(ctx context.Context, request *persistence.ListWorkflowExecutionsRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -153,11 +113,7 @@ func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutions(ctx context.Co
 }
 
 func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutionsByType(ctx context.Context, request *persistence.ListWorkflowExecutionsByTypeRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -165,11 +121,7 @@ func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutionsByType(ctx cont
 }
 
 func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutionsByWorkflowID(ctx context.Context, request *persistence.ListWorkflowExecutionsByWorkflowIDRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -177,11 +129,7 @@ func (c *ratelimitedVisibilityManager) ListOpenWorkflowExecutionsByWorkflowID(ct
 }
 
 func (c *ratelimitedVisibilityManager) ListWorkflowExecutions(ctx context.Context, request *persistence.ListWorkflowExecutionsByQueryRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -189,11 +137,7 @@ func (c *ratelimitedVisibilityManager) ListWorkflowExecutions(ctx context.Contex
 }
 
 func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionClosed(ctx context.Context, request *persistence.RecordWorkflowExecutionClosedRequest) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -201,11 +145,7 @@ func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionClosed(ctx context
 }
 
 func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionStarted(ctx context.Context, request *persistence.RecordWorkflowExecutionStartedRequest) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -213,11 +153,7 @@ func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionStarted(ctx contex
 }
 
 func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionUninitialized(ctx context.Context, request *persistence.RecordWorkflowExecutionUninitializedRequest) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -225,11 +161,7 @@ func (c *ratelimitedVisibilityManager) RecordWorkflowExecutionUninitialized(ctx 
 }
 
 func (c *ratelimitedVisibilityManager) ScanWorkflowExecutions(ctx context.Context, request *persistence.ListWorkflowExecutionsByQueryRequest) (lp1 *persistence.ListWorkflowExecutionsResponse, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -237,11 +169,7 @@ func (c *ratelimitedVisibilityManager) ScanWorkflowExecutions(ctx context.Contex
 }
 
 func (c *ratelimitedVisibilityManager) UpsertWorkflowExecution(ctx context.Context, request *persistence.UpsertWorkflowExecutionRequest) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}

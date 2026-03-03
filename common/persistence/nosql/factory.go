@@ -105,7 +105,7 @@ func (f *Factory) NewVisibilityStore(sortByCloseTime bool) (persistence.Visibili
 }
 
 // NewQueue returns a new queue backed by cassandra
-func (f *Factory) NewQueue(queueType persistence.QueueType) (persistence.Queue, error) {
+func (f *Factory) NewQueue(queueType persistence.QueueType) (persistence.QueueStore, error) {
 	return newNoSQLQueueStore(f.cfg, f.logger, f.metricsClient, queueType, f.dc)
 }
 

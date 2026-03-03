@@ -31,12 +31,12 @@ import (
 
 const (
 	templateCreateWorkflowExecutionStarted = `INSERT IGNORE INTO executions_visibility (` +
-		`domain_id, workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, is_cron, num_clusters, update_time, shard_id) ` +
-		`VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		`domain_id, workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time) ` +
+		`VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	templateCreateWorkflowExecutionClosed = `REPLACE INTO executions_visibility (` +
-		`domain_id, workflow_id, run_id, start_time, execution_time, workflow_type_name, close_time, close_status, history_length, memo, encoding, is_cron, num_clusters, update_time, shard_id) ` +
-		`VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		`domain_id, workflow_id, run_id, start_time, execution_time, workflow_type_name, close_time, close_status, history_length, memo, encoding, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time) ` +
+		`VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	// RunID condition is needed for correct pagination
 	templateConditions = ` AND domain_id = ?
@@ -80,6 +80,7 @@ var errCloseParams = errors.New("missing one of {closeStatus, closeTime, history
 // its left as such and no update will be made
 func (mdb *DB) InsertIntoVisibility(ctx context.Context, row *sqlplugin.VisibilityRow) (sql.Result, error) {
 	row.StartTime = mdb.converter.ToDateTime(row.StartTime)
+	scheduledExecutionTime := mdb.converter.ToDateTime(row.ScheduledExecutionTime)
 	dbShardID := sqlplugin.GetDBShardIDFromDomainID(row.DomainID, mdb.GetTotalNumDBShards())
 	return mdb.driver.ExecContext(ctx,
 		dbShardID,
@@ -95,7 +96,10 @@ func (mdb *DB) InsertIntoVisibility(ctx context.Context, row *sqlplugin.Visibili
 		row.IsCron,
 		row.NumClusters,
 		row.UpdateTime,
-		row.ShardID)
+		row.ShardID,
+		row.ExecutionStatus,
+		row.CronSchedule,
+		scheduledExecutionTime)
 }
 
 // ReplaceIntoVisibility replaces an existing row if it exist or creates a new row in visibility table
@@ -105,6 +109,7 @@ func (mdb *DB) ReplaceIntoVisibility(ctx context.Context, row *sqlplugin.Visibil
 	case row.CloseStatus != nil && row.CloseTime != nil && row.HistoryLength != nil:
 		row.StartTime = mdb.converter.ToDateTime(row.StartTime)
 		closeTime := mdb.converter.ToDateTime(*row.CloseTime)
+		scheduledExecutionTime := mdb.converter.ToDateTime(row.ScheduledExecutionTime)
 		return mdb.driver.ExecContext(ctx,
 			dbShardID,
 			templateCreateWorkflowExecutionClosed,
@@ -122,7 +127,10 @@ func (mdb *DB) ReplaceIntoVisibility(ctx context.Context, row *sqlplugin.Visibil
 			row.IsCron,
 			row.NumClusters,
 			row.UpdateTime,
-			row.ShardID)
+			row.ShardID,
+			row.ExecutionStatus,
+			row.CronSchedule,
+			scheduledExecutionTime)
 	default:
 		return nil, errCloseParams
 	}

@@ -7,31 +7,27 @@ package ratelimited
 import (
 	"context"
 
-	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 )
 
 // ratelimitedQueueManager implements persistence.QueueManager interface instrumented with rate limiter.
 type ratelimitedQueueManager struct {
-	wrapped       persistence.QueueManager
-	rateLimiter   quotas.Limiter
-	metricsClient metrics.Client
-	datastoreName string
+	wrapped      persistence.QueueManager
+	rateLimiter  quotas.Limiter
+	callerBypass quotas.CallerBypass
 }
 
 // NewQueueManager creates a new instance of QueueManager with ratelimiter.
 func NewQueueManager(
 	wrapped persistence.QueueManager,
 	rateLimiter quotas.Limiter,
-	metricsClient metrics.Client,
-	datastoreName string,
+	callerBypass quotas.CallerBypass,
 ) persistence.QueueManager {
 	return &ratelimitedQueueManager{
-		wrapped:       wrapped,
-		rateLimiter:   rateLimiter,
-		metricsClient: metricsClient,
-		datastoreName: datastoreName,
+		wrapped:      wrapped,
+		rateLimiter:  rateLimiter,
+		callerBypass: callerBypass,
 	}
 }
 
@@ -40,146 +36,98 @@ func (c *ratelimitedQueueManager) Close() {
 	return
 }
 
-func (c *ratelimitedQueueManager) DeleteMessageFromDLQ(ctx context.Context, messageID int64) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+func (c *ratelimitedQueueManager) DeleteMessageFromDLQ(ctx context.Context, request *persistence.DeleteMessageFromDLQRequest) (err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.DeleteMessageFromDLQ(ctx, messageID)
+	return c.wrapped.DeleteMessageFromDLQ(ctx, request)
 }
 
-func (c *ratelimitedQueueManager) DeleteMessagesBefore(ctx context.Context, messageID int64) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+func (c *ratelimitedQueueManager) DeleteMessagesBefore(ctx context.Context, request *persistence.DeleteMessagesBeforeRequest) (err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.DeleteMessagesBefore(ctx, messageID)
+	return c.wrapped.DeleteMessagesBefore(ctx, request)
 }
 
-func (c *ratelimitedQueueManager) EnqueueMessage(ctx context.Context, messagePayload []byte) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+func (c *ratelimitedQueueManager) EnqueueMessage(ctx context.Context, request *persistence.EnqueueMessageRequest) (err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.EnqueueMessage(ctx, messagePayload)
+	return c.wrapped.EnqueueMessage(ctx, request)
 }
 
-func (c *ratelimitedQueueManager) EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+func (c *ratelimitedQueueManager) EnqueueMessageToDLQ(ctx context.Context, request *persistence.EnqueueMessageToDLQRequest) (err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.EnqueueMessageToDLQ(ctx, messagePayload)
+	return c.wrapped.EnqueueMessageToDLQ(ctx, request)
 }
 
-func (c *ratelimitedQueueManager) GetAckLevels(ctx context.Context) (m1 map[string]int64, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+func (c *ratelimitedQueueManager) GetAckLevels(ctx context.Context, request *persistence.GetAckLevelsRequest) (gp1 *persistence.GetAckLevelsResponse, err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.GetAckLevels(ctx)
+	return c.wrapped.GetAckLevels(ctx, request)
 }
 
-func (c *ratelimitedQueueManager) GetDLQAckLevels(ctx context.Context) (m1 map[string]int64, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+func (c *ratelimitedQueueManager) GetDLQAckLevels(ctx context.Context, request *persistence.GetDLQAckLevelsRequest) (gp1 *persistence.GetDLQAckLevelsResponse, err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.GetDLQAckLevels(ctx)
+	return c.wrapped.GetDLQAckLevels(ctx, request)
 }
 
-func (c *ratelimitedQueueManager) GetDLQSize(ctx context.Context) (i1 int64, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+func (c *ratelimitedQueueManager) GetDLQSize(ctx context.Context, request *persistence.GetDLQSizeRequest) (gp1 *persistence.GetDLQSizeResponse, err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.GetDLQSize(ctx)
+	return c.wrapped.GetDLQSize(ctx, request)
 }
 
-func (c *ratelimitedQueueManager) RangeDeleteMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+func (c *ratelimitedQueueManager) RangeDeleteMessagesFromDLQ(ctx context.Context, request *persistence.RangeDeleteMessagesFromDLQRequest) (err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.RangeDeleteMessagesFromDLQ(ctx, firstMessageID, lastMessageID)
+	return c.wrapped.RangeDeleteMessagesFromDLQ(ctx, request)
 }
 
-func (c *ratelimitedQueueManager) ReadMessages(ctx context.Context, lastMessageID int64, maxCount int) (q1 persistence.QueueMessageList, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+func (c *ratelimitedQueueManager) ReadMessages(ctx context.Context, request *persistence.ReadMessagesRequest) (rp1 *persistence.ReadMessagesResponse, err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.ReadMessages(ctx, lastMessageID, maxCount)
+	return c.wrapped.ReadMessages(ctx, request)
 }
 
-func (c *ratelimitedQueueManager) ReadMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64, pageSize int, pageToken []byte) (qpa1 []*persistence.QueueMessage, ba1 []byte, err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+func (c *ratelimitedQueueManager) ReadMessagesFromDLQ(ctx context.Context, request *persistence.ReadMessagesFromDLQRequest) (rp1 *persistence.ReadMessagesFromDLQResponse, err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.ReadMessagesFromDLQ(ctx, firstMessageID, lastMessageID, pageSize, pageToken)
+	return c.wrapped.ReadMessagesFromDLQ(ctx, request)
 }
 
-func (c *ratelimitedQueueManager) UpdateAckLevel(ctx context.Context, messageID int64, clusterName string) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+func (c *ratelimitedQueueManager) UpdateAckLevel(ctx context.Context, request *persistence.UpdateAckLevelRequest) (err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.UpdateAckLevel(ctx, messageID, clusterName)
+	return c.wrapped.UpdateAckLevel(ctx, request)
 }
 
-func (c *ratelimitedQueueManager) UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string) (err error) {
-	if c.metricsClient != nil {
-		scope := c.metricsClient.Scope(metrics.PersistenceCreateShardScope, metrics.DatastoreTag(c.datastoreName))
-		scope.UpdateGauge(metrics.PersistenceQuota, float64(c.rateLimiter.Limit()))
-	}
-	if ok := c.rateLimiter.Allow(); !ok {
+func (c *ratelimitedQueueManager) UpdateDLQAckLevel(ctx context.Context, request *persistence.UpdateDLQAckLevelRequest) (err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.UpdateDLQAckLevel(ctx, messageID, clusterName)
+	return c.wrapped.UpdateDLQAckLevel(ctx, request)
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/types"
 )
 
 type authOutboundMiddleware struct {
@@ -113,6 +114,29 @@ func (m *InboundMetricsMiddleware) Handle(ctx context.Context, req *transport.Re
 		metrics.TransportTag(req.Transport),
 	)
 	return h.Handle(ctx, req, resw)
+}
+
+// CallerInfoMiddleware extracts caller information from headers and adds it to the context.
+type CallerInfoMiddleware struct{}
+
+func (m *CallerInfoMiddleware) Handle(ctx context.Context, req *transport.Request, resw transport.ResponseWriter, h transport.UnaryHandler) error {
+	ctx = types.GetContextWithCallerInfoFromHeaders(ctx, req.Headers)
+	return h.Handle(ctx, req, resw)
+}
+
+// CallerInfoOutboundMiddleware sets the caller type header on outbound calls.
+// If the caller type is not already set in headers (by HeaderForwardingMiddleware),
+// it sets to "internal" only if the call originated from internal service logic.
+// External requests without the header are left unset and will be extracted as "unknown" by the receiving service.
+type CallerInfoOutboundMiddleware struct{}
+
+func (m *CallerInfoOutboundMiddleware) Call(ctx context.Context, request *transport.Request, out transport.UnaryOutbound) (*transport.Response, error) {
+	if _, ok := request.Headers.Get(types.CallerTypeHeaderName); !ok {
+		if yarpc.CallFromContext(ctx) == nil {
+			request.Headers = request.Headers.With(types.CallerTypeHeaderName, string(types.CallerTypeInternal))
+		}
+	}
+	return out.Call(ctx, request)
 }
 
 type overrideCallerMiddleware struct {

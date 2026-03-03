@@ -9,6 +9,7 @@ import (
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/election"
 )
@@ -19,21 +20,28 @@ var Module = fx.Module(
 	fx.Invoke(NewManager),
 )
 
+// stateFn is a recursive function type representing a state in the election
+// state machine.
+// Each state function blocks until a transition occurs and returns the next state function,
+// or nil to stop the machine.
+type stateFn func(ctx context.Context) stateFn
+
 type Manager struct {
 	cfg             config.ShardDistribution
 	logger          log.Logger
 	electionFactory election.Factory
+	drainObserver   clientcommon.DrainSignalObserver
 	namespaces      map[string]*namespaceHandler
 	ctx             context.Context
 	cancel          context.CancelFunc
 }
 
 type namespaceHandler struct {
-	logger       log.Logger
-	elector      election.Elector
-	cancel       context.CancelFunc
-	namespaceCfg config.Namespace
-	cleanupWg    sync.WaitGroup
+	logger          log.Logger
+	electionFactory election.Factory
+	namespaceCfg    config.Namespace
+	drainObserver   clientcommon.DrainSignalObserver
+	cleanupWg       sync.WaitGroup
 }
 
 type ManagerParams struct {
@@ -43,6 +51,7 @@ type ManagerParams struct {
 	Logger          log.Logger
 	ElectionFactory election.Factory
 	Lifecycle       fx.Lifecycle
+	DrainObserver   clientcommon.DrainSignalObserver `optional:"true"`
 }
 
 // NewManager creates a new namespace manager
@@ -51,6 +60,7 @@ func NewManager(p ManagerParams) *Manager {
 		cfg:             p.Cfg,
 		logger:          p.Logger.WithTags(tag.ComponentNamespaceManager),
 		electionFactory: p.ElectionFactory,
+		drainObserver:   p.DrainObserver,
 		namespaces:      make(map[string]*namespaceHandler),
 	}
 
@@ -73,7 +83,9 @@ func (m *Manager) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop gracefully stops all namespace handlers
+// Stop gracefully stops all namespace handlers.
+// Cancels the manager context which cascades to all handler contexts,
+// then waits for all election goroutines to finish.
 func (m *Manager) Stop(ctx context.Context) error {
 	if m.cancel == nil {
 		return fmt.Errorf("manager was not running")
@@ -82,69 +94,119 @@ func (m *Manager) Stop(ctx context.Context) error {
 	m.cancel()
 
 	for ns, handler := range m.namespaces {
-		m.logger.Info("Stopping namespace handler", tag.ShardNamespace(ns))
-		if handler.cancel != nil {
-			handler.cancel()
-		}
+		m.logger.Info("Waiting for namespace handler to stop", tag.ShardNamespace(ns))
+		handler.cleanupWg.Wait()
 	}
 
 	return nil
 }
 
-// handleNamespace sets up leadership election for a namespace
+// handleNamespace sets up a namespace handler and starts its election goroutine.
 func (m *Manager) handleNamespace(namespaceCfg config.Namespace) error {
 	if _, exists := m.namespaces[namespaceCfg.Name]; exists {
 		return fmt.Errorf("namespace %s already running", namespaceCfg.Name)
 	}
 
-	m.logger.Info("Setting up namespace handler", tag.ShardNamespace(namespaceCfg.Name))
-
-	ctx, cancel := context.WithCancel(m.ctx)
-
-	// Create elector for this namespace
-	elector, err := m.electionFactory.CreateElector(ctx, namespaceCfg)
-	if err != nil {
-		cancel()
-		return err
-	}
-
 	handler := &namespaceHandler{
-		logger:  m.logger.WithTags(tag.ShardNamespace(namespaceCfg.Name)),
-		elector: elector,
-	}
-	// cancel cancels the context and ensures that electionRunner is stopped.
-	handler.cancel = func() {
-		cancel()
-		handler.cleanupWg.Wait()
+		logger:          m.logger.WithTags(tag.ShardNamespace(namespaceCfg.Name)),
+		electionFactory: m.electionFactory,
+		namespaceCfg:    namespaceCfg,
+		drainObserver:   m.drainObserver,
 	}
 
 	m.namespaces[namespaceCfg.Name] = handler
 	handler.cleanupWg.Add(1)
-	// Start leadership election
-	go handler.runElection(ctx)
+
+	go handler.runElection(m.ctx)
 
 	return nil
 }
 
-// runElection manages the leadership election for a namespace
-func (handler *namespaceHandler) runElection(ctx context.Context) {
-	defer handler.cleanupWg.Done()
+// runElection drives the election state machine for a namespace.
+// It starts in the campaigning state and follows state transitions
+// until a state returns nil (stop).
+func (h *namespaceHandler) runElection(ctx context.Context) {
+	defer h.cleanupWg.Done()
 
-	handler.logger.Info("Starting election for namespace")
+	for state := h.campaigning; state != nil; {
+		state = state(ctx)
+	}
+}
 
-	leaderCh := handler.elector.Run(ctx)
+func (h *namespaceHandler) drainChannel() <-chan struct{} {
+	if h.drainObserver != nil {
+		return h.drainObserver.Drain()
+	}
+	return nil
+}
+
+func (h *namespaceHandler) startElection(ctx context.Context) (<-chan bool, context.CancelFunc, error) {
+	electorCtx, cancel := context.WithCancel(ctx)
+	elector, err := h.electionFactory.CreateElector(electorCtx, h.namespaceCfg)
+	if err != nil {
+		cancel()
+		return nil, nil, err
+	}
+	return elector.Run(electorCtx), cancel, nil
+}
+
+// campaigning creates an elector and participates in leader election.
+// Transitions: h.idle on drain, h.campaigning on recoverable error, nil on stop.
+func (h *namespaceHandler) campaigning(ctx context.Context) stateFn {
+	h.logger.Info("Entering campaigning state")
+
+	drainCh := h.drainChannel()
+
+	select {
+	case <-drainCh:
+		h.logger.Info("Drain signal detected before election start")
+		return h.idle
+	default:
+	}
+
+	leaderCh, cancel, err := h.startElection(ctx)
+	if err != nil {
+		h.logger.Error("Failed to create elector", tag.Error(err))
+		return nil
+	}
+	defer cancel()
 
 	for {
 		select {
 		case <-ctx.Done():
-			handler.logger.Info("Context cancelled, stopping election")
-			return
-		case isLeader := <-leaderCh:
+			return nil
+		case <-drainCh:
+			h.logger.Info("Drain signal received, resigning from election")
+			return h.idle
+		case isLeader, ok := <-leaderCh:
+			if !ok {
+				h.logger.Error("Election channel closed unexpectedly")
+				return h.campaigning
+			}
 			if isLeader {
-				handler.logger.Info("Became leader for namespace")
+				h.logger.Info("Became leader for namespace")
 			} else {
-				handler.logger.Info("Lost leadership for namespace")
+				h.logger.Info("Lost leadership for namespace")
 			}
 		}
+	}
+}
+
+// idle waits for an undrain signal to resume campaigning.
+// Transitions: h.campaigning on undrain, nil on stop.
+func (h *namespaceHandler) idle(ctx context.Context) stateFn {
+	h.logger.Info("Entering idle state (drained)")
+
+	var undrainCh <-chan struct{}
+	if h.drainObserver != nil {
+		undrainCh = h.drainObserver.Undrain()
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case <-undrainCh:
+		h.logger.Info("Undrain signal received, resuming election")
+		return h.campaigning
 	}
 }

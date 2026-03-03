@@ -225,10 +225,10 @@ $(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
 
 # https://docs.buf.build/
 # changing BUF_VERSION will automatically download and use the specified version.
-BUF_VERSION = 0.36.0
+BUF_VERSION = 1.47.2
 OS = $(shell uname -s)
 ARCH = $(shell $(EMULATE_X86) uname -m)
-BUF_URL = https://github.com/bufbuild/buf/releases/download/v$(BUF_VERSION)/buf-$(OS)-$(ARCH)
+BUF_URL = https://github.com/bufbuild/buf/releases/download/v$(BUF_VERSION)/buf-$(OS)-$(shell uname -m)
 # use BUF_VERSION_BIN as a bin prerequisite, not "buf", so the correct version will be used.
 # otherwise this must be a .PHONY rule, or the buf bin / symlink could become out of date.
 BUF_VERSION_BIN = buf-$(BUF_VERSION)
@@ -478,10 +478,14 @@ $Q echo "make $1..."
 $Q output=$$(mktemp); $(MAKE) $1 > $$output 2>&1 || ( cat $$output; echo -e '\nfailed `make $1`, check output above' >&2; exit 1)
 endef
 
+override GEN_DIR := $(patsubst %/,%,$(strip $(GEN_DIR)))
+GO_GENERATE_SCOPE ?= $(if $(GEN_DIR),./$(GEN_DIR)/...,./...)
+GO_GENERATE_MAKE_ARG = $(if $(GEN_DIR),GEN_DIR=$(GEN_DIR),)
+
 # pre-PR target to build and refresh everything
-pr: ## Redo all codegen and basic checks, to ensure your PR will be able to run tests.  Recommended before opening a github PR
+pr: ## Redo all codegen and basic checks, to ensure your PR will be able to run tests. Optional: GEN_DIR=path/to/package to scope go-generate
 	$Q $(if $(verbose),$(MAKE) tidy,$(call make_quietly,tidy))
-	$Q $(if $(verbose),$(MAKE) go-generate,$(call make_quietly,go-generate))
+	$Q $(if $(verbose),$(MAKE) go-generate $(GO_GENERATE_MAKE_ARG),$(call make_quietly,go-generate $(GO_GENERATE_MAKE_ARG)))
 	$Q $(if $(verbose),$(MAKE) fmt,$(call make_quietly,fmt))
 	$Q $(if $(verbose),$(MAKE) lint,$(call make_quietly,lint))
 # 	$Q $(if $(verbose),$(MAKE) copyright,$(call make_quietly,copyright))
@@ -555,9 +559,9 @@ bins: $(BINS) ## Build all binaries, and any fast codegen needed (does not refre
 tools: $(TOOLS)
 
 go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `go generate` to regen mocks, enums, etc
-	$Q echo "running go generate ./..., this takes a minute or more..."
+	$Q echo "running go generate $(GO_GENERATE_SCOPE), this takes a minute or more..."
 	$Q # add our bins to PATH so `go generate` can find them
-	$Q $(BIN_PATH) go generate $(if $(verbose),-v) ./...
+	$Q $(BIN_PATH) go generate $(if $(verbose),-v) $(GO_GENERATE_SCOPE)
 	$Q $(MAKE) --no-print-directory fmt
 # 	$Q echo "updating copyright headers"
 # 	$Q $(MAKE) --no-print-directory copyright
@@ -801,8 +805,8 @@ install-schema-es-v6:
 	curl -X PUT "http://127.0.0.1:9200/cadence-visibility-dev"
 
 install-schema-es-opensearch:
-	curl -X PUT "https://127.0.0.1:9200/_template/cadence-visibility-template" -H 'Content-Type: application/json' -d @./schema/elasticsearch/os2/visibility/index_template.json -u admin:DevTestInitial123! --insecure
-	curl -X PUT "https://127.0.0.1:9200/cadence-visibility-dev" -u admin:DevTestInitial123! --insecure
+	curl -X PUT "http://127.0.0.1:9200/_template/cadence-visibility-template" -H 'Content-Type: application/json' -d @./schema/elasticsearch/os2/visibility/index_template.json
+	curl -X PUT "http://127.0.0.1:9200/cadence-visibility-dev"
 
 start: bins
 	./cadence-server start

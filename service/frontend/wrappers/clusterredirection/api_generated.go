@@ -66,7 +66,7 @@ func (handler *clusterRedirectionHandler) CountWorkflowExecutions(ctx context.Co
 	var (
 		apiName                   = "CountWorkflowExecutions"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -117,7 +117,7 @@ func (handler *clusterRedirectionHandler) DescribeTaskList(ctx context.Context, 
 	var (
 		apiName                   = "DescribeTaskList"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -156,7 +156,7 @@ func (handler *clusterRedirectionHandler) DescribeWorkflowExecution(ctx context.
 	var (
 		apiName                   = "DescribeWorkflowExecution"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 	// Only autoforward strong consistent queries, this is done for two reasons:
 	// 1. Query is meant to be fast, autoforwarding all queries will increase latency.
@@ -217,7 +217,7 @@ func (handler *clusterRedirectionHandler) GetTaskListsByDomain(ctx context.Conte
 	var (
 		apiName                   = "GetTaskListsByDomain"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -256,7 +256,7 @@ func (handler *clusterRedirectionHandler) GetWorkflowExecutionHistory(ctx contex
 	var (
 		apiName                   = "GetWorkflowExecutionHistory"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 	// Only autoforward strong consistent queries, this is done for two reasons:
 	// 1. Query is meant to be fast, autoforwarding all queries will increase latency.
@@ -306,7 +306,7 @@ func (handler *clusterRedirectionHandler) ListArchivedWorkflowExecutions(ctx con
 	var (
 		apiName                   = "ListArchivedWorkflowExecutions"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -345,7 +345,7 @@ func (handler *clusterRedirectionHandler) ListClosedWorkflowExecutions(ctx conte
 	var (
 		apiName                   = "ListClosedWorkflowExecutions"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -392,7 +392,7 @@ func (handler *clusterRedirectionHandler) ListOpenWorkflowExecutions(ctx context
 	var (
 		apiName                   = "ListOpenWorkflowExecutions"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -431,7 +431,7 @@ func (handler *clusterRedirectionHandler) ListTaskListPartitions(ctx context.Con
 	var (
 		apiName                   = "ListTaskListPartitions"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -470,7 +470,7 @@ func (handler *clusterRedirectionHandler) ListWorkflowExecutions(ctx context.Con
 	var (
 		apiName                   = "ListWorkflowExecutions"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -509,7 +509,7 @@ func (handler *clusterRedirectionHandler) PollForActivityTask(ctx context.Contex
 	var (
 		apiName                   = "PollForActivityTask"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -548,7 +548,7 @@ func (handler *clusterRedirectionHandler) PollForDecisionTask(ctx context.Contex
 	var (
 		apiName                   = "PollForDecisionTask"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -587,7 +587,7 @@ func (handler *clusterRedirectionHandler) QueryWorkflow(ctx context.Context, qp1
 	var (
 		apiName                   = "QueryWorkflow"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 	// Only autoforward strong consistent queries, this is done for two reasons:
 	// 1. Query is meant to be fast, autoforwarding all queries will increase latency.
@@ -632,7 +632,7 @@ func (handler *clusterRedirectionHandler) RecordActivityTaskHeartbeat(ctx contex
 	var (
 		apiName                   = "RecordActivityTaskHeartbeat"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -676,7 +676,7 @@ func (handler *clusterRedirectionHandler) RecordActivityTaskHeartbeatByID(ctx co
 	var (
 		apiName                   = "RecordActivityTaskHeartbeatByID"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -715,7 +715,7 @@ func (handler *clusterRedirectionHandler) RefreshWorkflowTasks(ctx context.Conte
 	var (
 		apiName                   = "RefreshWorkflowTasks"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -758,7 +758,7 @@ func (handler *clusterRedirectionHandler) RequestCancelWorkflowExecution(ctx con
 	var (
 		apiName                   = "RequestCancelWorkflowExecution"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -798,7 +798,7 @@ func (handler *clusterRedirectionHandler) ResetStickyTaskList(ctx context.Contex
 	var (
 		apiName                   = "ResetStickyTaskList"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -837,7 +837,7 @@ func (handler *clusterRedirectionHandler) ResetWorkflowExecution(ctx context.Con
 	var (
 		apiName                   = "ResetWorkflowExecution"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -877,7 +877,7 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCanceled(ctx contex
 	var (
 		apiName                   = "RespondActivityTaskCanceled"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -921,7 +921,7 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCanceledByID(ctx co
 	var (
 		apiName                   = "RespondActivityTaskCanceledByID"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -960,7 +960,7 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCompleted(ctx conte
 	var (
 		apiName                   = "RespondActivityTaskCompleted"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1004,7 +1004,7 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCompletedByID(ctx c
 	var (
 		apiName                   = "RespondActivityTaskCompletedByID"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1043,7 +1043,7 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskFailed(ctx context.
 	var (
 		apiName                   = "RespondActivityTaskFailed"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1087,7 +1087,7 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskFailedByID(ctx cont
 	var (
 		apiName                   = "RespondActivityTaskFailedByID"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1126,7 +1126,7 @@ func (handler *clusterRedirectionHandler) RespondDecisionTaskCompleted(ctx conte
 	var (
 		apiName                   = "RespondDecisionTaskCompleted"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1170,7 +1170,7 @@ func (handler *clusterRedirectionHandler) RespondDecisionTaskFailed(ctx context.
 	var (
 		apiName                   = "RespondDecisionTaskFailed"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1214,7 +1214,7 @@ func (handler *clusterRedirectionHandler) RespondQueryTaskCompleted(ctx context.
 	var (
 		apiName                   = "RespondQueryTaskCompleted"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1258,7 +1258,7 @@ func (handler *clusterRedirectionHandler) RestartWorkflowExecution(ctx context.C
 	var (
 		apiName                   = "RestartWorkflowExecution"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1298,7 +1298,7 @@ func (handler *clusterRedirectionHandler) ScanWorkflowExecutions(ctx context.Con
 	var (
 		apiName                   = "ScanWorkflowExecutions"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1337,7 +1337,7 @@ func (handler *clusterRedirectionHandler) SignalWithStartWorkflowExecution(ctx c
 	var (
 		apiName                   = "SignalWithStartWorkflowExecution"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1383,7 +1383,7 @@ func (handler *clusterRedirectionHandler) SignalWithStartWorkflowExecutionAsync(
 	var (
 		apiName                   = "SignalWithStartWorkflowExecutionAsync"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1426,7 +1426,7 @@ func (handler *clusterRedirectionHandler) SignalWorkflowExecution(ctx context.Co
 	var (
 		apiName                   = "SignalWorkflowExecution"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1466,7 +1466,7 @@ func (handler *clusterRedirectionHandler) StartWorkflowExecution(ctx context.Con
 	var (
 		apiName                   = "StartWorkflowExecution"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1509,7 +1509,7 @@ func (handler *clusterRedirectionHandler) StartWorkflowExecutionAsync(ctx contex
 	var (
 		apiName                   = "StartWorkflowExecutionAsync"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry
@@ -1552,7 +1552,7 @@ func (handler *clusterRedirectionHandler) TerminateWorkflowExecution(ctx context
 	var (
 		apiName                   = "TerminateWorkflowExecution"
 		cluster                   string
-		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
 	)
 
 	var domainEntry *cache.DomainCacheEntry

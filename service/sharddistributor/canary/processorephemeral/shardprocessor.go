@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -27,13 +28,14 @@ const (
 
 // NewShardProcessor creates a new ShardProcessor.
 func NewShardProcessor(shardID string, timeSource clock.TimeSource, logger *zap.Logger) *ShardProcessor {
-	return &ShardProcessor{
+	p := &ShardProcessor{
 		shardID:    shardID,
 		timeSource: timeSource,
 		logger:     logger,
 		stopChan:   make(chan struct{}),
-		status:     types.ShardStatusREADY,
 	}
+	p.SetShardStatus(types.ShardStatusREADY)
+	return p
 }
 
 // ShardProcessor is a processor for a shard.
@@ -45,7 +47,7 @@ type ShardProcessor struct {
 	goRoutineWg  sync.WaitGroup
 	processSteps int
 
-	status types.ShardStatus
+	status atomic.Int32
 }
 
 var _ executorclient.ShardProcessor = (*ShardProcessor)(nil)
@@ -53,8 +55,8 @@ var _ executorclient.ShardProcessor = (*ShardProcessor)(nil)
 // GetShardReport implements executorclient.ShardProcessor.
 func (p *ShardProcessor) GetShardReport() executorclient.ShardReport {
 	return executorclient.ShardReport{
-		ShardLoad: 1.0,      // We return 1.0 for all shards for now.
-		Status:    p.status, // Report the status of the shard
+		ShardLoad: 1.0,                                // We return 1.0 for all shards for now.
+		Status:    types.ShardStatus(p.status.Load()), // Report the status of the shard
 	}
 }
 
@@ -72,6 +74,10 @@ func (p *ShardProcessor) Stop() {
 	p.goRoutineWg.Wait()
 }
 
+func (p *ShardProcessor) SetShardStatus(status types.ShardStatus) {
+	p.status.Store(int32(status))
+}
+
 func (p *ShardProcessor) process() {
 	defer p.goRoutineWg.Done()
 
@@ -84,15 +90,15 @@ func (p *ShardProcessor) process() {
 	for {
 		select {
 		case <-p.stopChan:
-			p.logger.Info("Stopping shard processor", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", p.status.String()))
+			p.logger.Info("Stopping shard processor", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", types.ShardStatus(p.status.Load()).String()))
 			return
 		case <-ticker.Chan():
-			p.logger.Info("Processing shard", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", p.status.String()))
+			p.logger.Info("Processing shard", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", types.ShardStatus(p.status.Load()).String()))
 		case <-stopTicker.Chan():
 			p.processSteps++
 			if rand.Intn(shardProcessorDoneChance) == 0 {
-				p.logger.Info("Setting shard processor to done", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", p.status.String()))
-				p.status = types.ShardStatusDONE
+				p.logger.Info("Setting shard processor to done", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", types.ShardStatus(p.status.Load()).String()))
+				p.SetShardStatus(types.ShardStatusDONE)
 			}
 		}
 	}

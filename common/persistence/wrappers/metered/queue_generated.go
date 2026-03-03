@@ -25,8 +25,6 @@ func NewQueueManager(
 	metricClient metrics.Client,
 	logger log.Logger,
 	cfg *config.Persistence,
-	hostname string,
-	datastoreName string,
 ) persistence.QueueManager {
 	return &meteredQueueManager{
 		wrapped: wrapped,
@@ -34,8 +32,6 @@ func NewQueueManager(
 			metricClient:                  metricClient,
 			logger:                        logger,
 			enableLatencyHistogramMetrics: cfg.EnablePersistenceLatencyHistogramMetrics,
-			hostname:                      hostname,
-			datastoreName:                 datastoreName,
 		},
 	}
 }
@@ -45,131 +41,134 @@ func (c *meteredQueueManager) Close() {
 	return
 }
 
-func (c *meteredQueueManager) DeleteMessageFromDLQ(ctx context.Context, messageID int64) (err error) {
+func (c *meteredQueueManager) DeleteMessageFromDLQ(ctx context.Context, request *persistence.DeleteMessageFromDLQRequest) (err error) {
 	op := func() error {
-		err = c.wrapped.DeleteMessageFromDLQ(ctx, messageID)
-		c.emptyMetric("QueueManager.DeleteMessageFromDLQ", messageID, err, err)
+		err = c.wrapped.DeleteMessageFromDLQ(ctx, request)
+		c.emptyMetric("QueueManager.DeleteMessageFromDLQ", request, err, err)
 		return err
 	}
 
-	err = c.call(metrics.PersistenceDeleteMessageFromDLQScope, op, getCustomMetricTags(messageID)...)
+	err = c.call(metrics.PersistenceDeleteMessageFromDLQScope, op, getCustomMetricTags(request)...)
 	return
 }
 
-func (c *meteredQueueManager) DeleteMessagesBefore(ctx context.Context, messageID int64) (err error) {
+func (c *meteredQueueManager) DeleteMessagesBefore(ctx context.Context, request *persistence.DeleteMessagesBeforeRequest) (err error) {
 	op := func() error {
-		err = c.wrapped.DeleteMessagesBefore(ctx, messageID)
-		c.emptyMetric("QueueManager.DeleteMessagesBefore", messageID, err, err)
+		err = c.wrapped.DeleteMessagesBefore(ctx, request)
+		c.emptyMetric("QueueManager.DeleteMessagesBefore", request, err, err)
 		return err
 	}
 
-	err = c.call(metrics.PersistenceDeleteMessagesBeforeScope, op, getCustomMetricTags(messageID)...)
+	err = c.call(metrics.PersistenceDeleteMessagesBeforeScope, op, getCustomMetricTags(request)...)
 	return
 }
 
-func (c *meteredQueueManager) EnqueueMessage(ctx context.Context, messagePayload []byte) (err error) {
+func (c *meteredQueueManager) EnqueueMessage(ctx context.Context, request *persistence.EnqueueMessageRequest) (err error) {
 	op := func() error {
-		err = c.wrapped.EnqueueMessage(ctx, messagePayload)
-		c.emptyMetric("QueueManager.EnqueueMessage", messagePayload, err, err)
+		err = c.wrapped.EnqueueMessage(ctx, request)
+		c.emptyMetric("QueueManager.EnqueueMessage", request, err, err)
 		return err
 	}
 
-	err = c.call(metrics.PersistenceEnqueueMessageScope, op, getCustomMetricTags(messagePayload)...)
+	err = c.call(metrics.PersistenceEnqueueMessageScope, op, getCustomMetricTags(request)...)
 	return
 }
 
-func (c *meteredQueueManager) EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte) (err error) {
+func (c *meteredQueueManager) EnqueueMessageToDLQ(ctx context.Context, request *persistence.EnqueueMessageToDLQRequest) (err error) {
 	op := func() error {
-		err = c.wrapped.EnqueueMessageToDLQ(ctx, messagePayload)
-		c.emptyMetric("QueueManager.EnqueueMessageToDLQ", messagePayload, err, err)
+		err = c.wrapped.EnqueueMessageToDLQ(ctx, request)
+		c.emptyMetric("QueueManager.EnqueueMessageToDLQ", request, err, err)
 		return err
 	}
 
-	err = c.call(metrics.PersistenceEnqueueMessageToDLQScope, op, getCustomMetricTags(messagePayload)...)
+	err = c.call(metrics.PersistenceEnqueueMessageToDLQScope, op, getCustomMetricTags(request)...)
 	return
 }
 
-func (c *meteredQueueManager) GetAckLevels(ctx context.Context) (m1 map[string]int64, err error) {
+func (c *meteredQueueManager) GetAckLevels(ctx context.Context, request *persistence.GetAckLevelsRequest) (gp1 *persistence.GetAckLevelsResponse, err error) {
 	op := func() error {
-		m1, err = c.wrapped.GetAckLevels(ctx)
+		gp1, err = c.wrapped.GetAckLevels(ctx, request)
+		c.emptyMetric("QueueManager.GetAckLevels", request, gp1, err)
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetAckLevelsScope, op)
+	err = c.call(metrics.PersistenceGetAckLevelsScope, op, getCustomMetricTags(request)...)
 	return
 }
 
-func (c *meteredQueueManager) GetDLQAckLevels(ctx context.Context) (m1 map[string]int64, err error) {
+func (c *meteredQueueManager) GetDLQAckLevels(ctx context.Context, request *persistence.GetDLQAckLevelsRequest) (gp1 *persistence.GetDLQAckLevelsResponse, err error) {
 	op := func() error {
-		m1, err = c.wrapped.GetDLQAckLevels(ctx)
+		gp1, err = c.wrapped.GetDLQAckLevels(ctx, request)
+		c.emptyMetric("QueueManager.GetDLQAckLevels", request, gp1, err)
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetDLQAckLevelsScope, op)
+	err = c.call(metrics.PersistenceGetDLQAckLevelsScope, op, getCustomMetricTags(request)...)
 	return
 }
 
-func (c *meteredQueueManager) GetDLQSize(ctx context.Context) (i1 int64, err error) {
+func (c *meteredQueueManager) GetDLQSize(ctx context.Context, request *persistence.GetDLQSizeRequest) (gp1 *persistence.GetDLQSizeResponse, err error) {
 	op := func() error {
-		i1, err = c.wrapped.GetDLQSize(ctx)
+		gp1, err = c.wrapped.GetDLQSize(ctx, request)
+		c.emptyMetric("QueueManager.GetDLQSize", request, gp1, err)
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetDLQSizeScope, op)
+	err = c.call(metrics.PersistenceGetDLQSizeScope, op, getCustomMetricTags(request)...)
 	return
 }
 
-func (c *meteredQueueManager) RangeDeleteMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64) (err error) {
+func (c *meteredQueueManager) RangeDeleteMessagesFromDLQ(ctx context.Context, request *persistence.RangeDeleteMessagesFromDLQRequest) (err error) {
 	op := func() error {
-		err = c.wrapped.RangeDeleteMessagesFromDLQ(ctx, firstMessageID, lastMessageID)
-		c.emptyMetric("QueueManager.RangeDeleteMessagesFromDLQ", firstMessageID, err, err)
+		err = c.wrapped.RangeDeleteMessagesFromDLQ(ctx, request)
+		c.emptyMetric("QueueManager.RangeDeleteMessagesFromDLQ", request, err, err)
 		return err
 	}
 
-	err = c.call(metrics.PersistenceRangeDeleteMessagesFromDLQScope, op, getCustomMetricTags(firstMessageID)...)
+	err = c.call(metrics.PersistenceRangeDeleteMessagesFromDLQScope, op, getCustomMetricTags(request)...)
 	return
 }
 
-func (c *meteredQueueManager) ReadMessages(ctx context.Context, lastMessageID int64, maxCount int) (q1 persistence.QueueMessageList, err error) {
+func (c *meteredQueueManager) ReadMessages(ctx context.Context, request *persistence.ReadMessagesRequest) (rp1 *persistence.ReadMessagesResponse, err error) {
 	op := func() error {
-		q1, err = c.wrapped.ReadMessages(ctx, lastMessageID, maxCount)
-		c.emptyMetric("QueueManager.ReadMessages", lastMessageID, q1, err)
+		rp1, err = c.wrapped.ReadMessages(ctx, request)
+		c.emptyMetric("QueueManager.ReadMessages", request, rp1, err)
 		return err
 	}
 
-	err = c.call(metrics.PersistenceReadMessagesScope, op, getCustomMetricTags(lastMessageID)...)
+	err = c.call(metrics.PersistenceReadMessagesScope, op, getCustomMetricTags(request)...)
 	return
 }
 
-func (c *meteredQueueManager) ReadMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64, pageSize int, pageToken []byte) (qpa1 []*persistence.QueueMessage, ba1 []byte, err error) {
+func (c *meteredQueueManager) ReadMessagesFromDLQ(ctx context.Context, request *persistence.ReadMessagesFromDLQRequest) (rp1 *persistence.ReadMessagesFromDLQResponse, err error) {
 	op := func() error {
-		qpa1, ba1, err = c.wrapped.ReadMessagesFromDLQ(ctx, firstMessageID, lastMessageID, pageSize, pageToken)
-		c.emptyMetric("QueueManager.ReadMessagesFromDLQ", firstMessageID, qpa1, err)
+		rp1, err = c.wrapped.ReadMessagesFromDLQ(ctx, request)
+		c.emptyMetric("QueueManager.ReadMessagesFromDLQ", request, rp1, err)
 		return err
 	}
 
-	err = c.call(metrics.PersistenceReadMessagesFromDLQScope, op, getCustomMetricTags(firstMessageID)...)
+	err = c.call(metrics.PersistenceReadMessagesFromDLQScope, op, getCustomMetricTags(request)...)
 	return
 }
 
-func (c *meteredQueueManager) UpdateAckLevel(ctx context.Context, messageID int64, clusterName string) (err error) {
+func (c *meteredQueueManager) UpdateAckLevel(ctx context.Context, request *persistence.UpdateAckLevelRequest) (err error) {
 	op := func() error {
-		err = c.wrapped.UpdateAckLevel(ctx, messageID, clusterName)
-		c.emptyMetric("QueueManager.UpdateAckLevel", messageID, err, err)
+		err = c.wrapped.UpdateAckLevel(ctx, request)
+		c.emptyMetric("QueueManager.UpdateAckLevel", request, err, err)
 		return err
 	}
 
-	err = c.call(metrics.PersistenceUpdateAckLevelScope, op, getCustomMetricTags(messageID)...)
+	err = c.call(metrics.PersistenceUpdateAckLevelScope, op, getCustomMetricTags(request)...)
 	return
 }
 
-func (c *meteredQueueManager) UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string) (err error) {
+func (c *meteredQueueManager) UpdateDLQAckLevel(ctx context.Context, request *persistence.UpdateDLQAckLevelRequest) (err error) {
 	op := func() error {
-		err = c.wrapped.UpdateDLQAckLevel(ctx, messageID, clusterName)
-		c.emptyMetric("QueueManager.UpdateDLQAckLevel", messageID, err, err)
+		err = c.wrapped.UpdateDLQAckLevel(ctx, request)
+		c.emptyMetric("QueueManager.UpdateDLQAckLevel", request, err, err)
 		return err
 	}
 
-	err = c.call(metrics.PersistenceUpdateDLQAckLevelScope, op, getCustomMetricTags(messageID)...)
+	err = c.call(metrics.PersistenceUpdateDLQAckLevelScope, op, getCustomMetricTags(request)...)
 	return
 }

@@ -25,6 +25,7 @@ var (
 type ErrShardAlreadyAssigned struct {
 	ShardID    string
 	AssignedTo string
+	Metadata   map[string]string
 }
 
 func (e *ErrShardAlreadyAssigned) Error() string {
@@ -70,7 +71,8 @@ type Store interface {
 	// AssignShard assigns a single shard to an executor within a namespace.
 	AssignShard(ctx context.Context, namespace string, shardID string, executorID string) error
 
-	Subscribe(ctx context.Context, namespace string) (<-chan int64, error)
+	// SubscribeToExecutorStatusChanges subscribes to changes of executors' status key within a namespace.
+	SubscribeToExecutorStatusChanges(ctx context.Context, namespace string) (<-chan int64, error)
 	DeleteExecutors(ctx context.Context, namespace string, executorIDs []string, guard GuardFunc) error
 
 	// DeleteAssignedStates deletes the assigned states of multiple executors within a namespace.

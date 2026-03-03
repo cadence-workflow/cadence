@@ -31,6 +31,7 @@ jobs:
             chore
             ci
             build
+            revert
           # TODO: Remove this once we've decided on scopes
           requireScope: false
           # Skip validation for certain labels if needed

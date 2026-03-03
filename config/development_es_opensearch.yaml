@@ -5,12 +5,10 @@ persistence:
       elasticsearch:
         disableSniff: true
         version: "os2"
-        username: "admin"
-        password: "DevTestInitial123!"
         tls:
-          enabled: true
+          enabled: false
         url:
-          scheme: "https"
+          scheme: "http"
           host: "127.0.0.1:9200"
         indices:
           visibility: cadence-visibility-dev

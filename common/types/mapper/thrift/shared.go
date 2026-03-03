@@ -6733,6 +6733,74 @@ func ToWorkflowExecutionCloseStatus(t *shared.WorkflowExecutionCloseStatus) *typ
 	panic("unexpected enum value")
 }
 
+// FromWorkflowExecutionStatus converts internal WorkflowExecutionStatus type to thrift
+func FromWorkflowExecutionStatus(t *types.WorkflowExecutionStatus) *shared.WorkflowExecutionStatus {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case types.WorkflowExecutionStatusPending:
+		v := shared.WorkflowExecutionStatusPending
+		return &v
+	case types.WorkflowExecutionStatusStarted:
+		v := shared.WorkflowExecutionStatusStarted
+		return &v
+	case types.WorkflowExecutionStatusCompleted:
+		v := shared.WorkflowExecutionStatusCompleted
+		return &v
+	case types.WorkflowExecutionStatusFailed:
+		v := shared.WorkflowExecutionStatusFailed
+		return &v
+	case types.WorkflowExecutionStatusCanceled:
+		v := shared.WorkflowExecutionStatusCanceled
+		return &v
+	case types.WorkflowExecutionStatusTerminated:
+		v := shared.WorkflowExecutionStatusTerminated
+		return &v
+	case types.WorkflowExecutionStatusContinuedAsNew:
+		v := shared.WorkflowExecutionStatusContinuedAsNew
+		return &v
+	case types.WorkflowExecutionStatusTimedOut:
+		v := shared.WorkflowExecutionStatusTimedOut
+		return &v
+	}
+	panic("unexpected enum value")
+}
+
+// ToWorkflowExecutionStatus converts thrift WorkflowExecutionStatus type to internal
+func ToWorkflowExecutionStatus(t *shared.WorkflowExecutionStatus) *types.WorkflowExecutionStatus {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case shared.WorkflowExecutionStatusPending:
+		v := types.WorkflowExecutionStatusPending
+		return &v
+	case shared.WorkflowExecutionStatusStarted:
+		v := types.WorkflowExecutionStatusStarted
+		return &v
+	case shared.WorkflowExecutionStatusCompleted:
+		v := types.WorkflowExecutionStatusCompleted
+		return &v
+	case shared.WorkflowExecutionStatusFailed:
+		v := types.WorkflowExecutionStatusFailed
+		return &v
+	case shared.WorkflowExecutionStatusCanceled:
+		v := types.WorkflowExecutionStatusCanceled
+		return &v
+	case shared.WorkflowExecutionStatusTerminated:
+		v := types.WorkflowExecutionStatusTerminated
+		return &v
+	case shared.WorkflowExecutionStatusContinuedAsNew:
+		v := types.WorkflowExecutionStatusContinuedAsNew
+		return &v
+	case shared.WorkflowExecutionStatusTimedOut:
+		v := types.WorkflowExecutionStatusTimedOut
+		return &v
+	}
+	panic("unexpected enum value")
+}
+
 // FromWorkflowExecutionCompletedEventAttributes converts internal WorkflowExecutionCompletedEventAttributes type to thrift
 func FromWorkflowExecutionCompletedEventAttributes(t *types.WorkflowExecutionCompletedEventAttributes) *shared.WorkflowExecutionCompletedEventAttributes {
 	if t == nil {
@@ -6908,6 +6976,9 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *shared.WorkflowE
 		PartitionConfig:              t.PartitionConfig,
 		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
 		ActiveClusterSelectionPolicy: FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronSchedule:                 t.CronSchedule,
+		ExecutionStatus:              FromWorkflowExecutionStatus(t.ExecutionStatus),
+		ScheduledExecutionTime:       t.ScheduledExecutionTime,
 	}
 }
 
@@ -6937,6 +7008,9 @@ func ToWorkflowExecutionInfo(t *shared.WorkflowExecutionInfo) *types.WorkflowExe
 		PartitionConfig:              t.PartitionConfig,
 		CronOverlapPolicy:            ToCronOverlapPolicy(t.CronOverlapPolicy),
 		ActiveClusterSelectionPolicy: ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronSchedule:                 t.CronSchedule,
+		ExecutionStatus:              ToWorkflowExecutionStatus(t.ExecutionStatus),
+		ScheduledExecutionTime:       t.ScheduledExecutionTime,
 	}
 }
 

@@ -415,6 +415,8 @@ type (
 		Memo                               map[string][]byte
 		SearchAttributes                   map[string][]byte
 		PartitionConfig                    map[string]string
+		ExecutionStatus                    types.WorkflowExecutionStatus
+		ScheduledExecutionTimestamp        int64 // unit is unix nano, used to record the actual execution timestamp if it's a cron workflow
 		// for retry
 		Attempt            int32
 		HasRetryPolicy     bool
@@ -426,10 +428,10 @@ type (
 		NonRetriableErrors []string
 		BranchToken        []byte
 		// Cron
-		CronSchedule      string
 		IsCron            bool
 		CronOverlapPolicy types.CronOverlapPolicy
 		ExpirationSeconds int32 // TODO: is this field useful?
+		CronSchedule      string
 
 		ActiveClusterSelectionPolicy *types.ActiveClusterSelectionPolicy
 	}
@@ -485,6 +487,7 @@ type (
 		ScheduleID              int64
 		Version                 int64
 		RecordVisibility        bool
+		OriginalTaskList        string
 	}
 
 	// CrossClusterTaskInfo describes a cross-cluster task
@@ -522,6 +525,7 @@ type (
 		EventID             int64
 		ScheduleAttempt     int64
 		Version             int64
+		TaskList            string
 	}
 
 	// TaskListInfo describes a state of a task list implementation.
@@ -1695,21 +1699,91 @@ type (
 		GetDomainAuditLogs(ctx context.Context, request *GetDomainAuditLogsRequest) (*GetDomainAuditLogsResponse, error)
 	}
 
+	EnqueueMessageRequest struct {
+		MessagePayload []byte
+	}
+
+	ReadMessagesRequest struct {
+		LastMessageID int64
+		MaxCount      int
+	}
+
+	ReadMessagesResponse struct {
+		Messages QueueMessageList
+	}
+
+	DeleteMessagesBeforeRequest struct {
+		MessageID int64
+	}
+
+	UpdateAckLevelRequest struct {
+		MessageID   int64
+		ClusterName string
+	}
+
+	GetAckLevelsRequest struct{}
+
+	GetAckLevelsResponse struct {
+		AckLevels map[string]int64
+	}
+
+	EnqueueMessageToDLQRequest struct {
+		MessagePayload []byte
+	}
+
+	ReadMessagesFromDLQRequest struct {
+		FirstMessageID int64
+		LastMessageID  int64
+		PageSize       int
+		PageToken      []byte
+	}
+
+	ReadMessagesFromDLQResponse struct {
+		Messages      []*QueueMessage
+		NextPageToken []byte
+	}
+
+	DeleteMessageFromDLQRequest struct {
+		MessageID int64
+	}
+
+	RangeDeleteMessagesFromDLQRequest struct {
+		FirstMessageID int64
+		LastMessageID  int64
+	}
+
+	UpdateDLQAckLevelRequest struct {
+		MessageID   int64
+		ClusterName string
+	}
+
+	GetDLQAckLevelsRequest struct{}
+
+	GetDLQAckLevelsResponse struct {
+		AckLevels map[string]int64
+	}
+
+	GetDLQSizeRequest struct{}
+
+	GetDLQSizeResponse struct {
+		Size int64
+	}
+
 	// QueueManager is used to manage queue store
 	QueueManager interface {
 		Closeable
-		EnqueueMessage(ctx context.Context, messagePayload []byte) error
-		ReadMessages(ctx context.Context, lastMessageID int64, maxCount int) (QueueMessageList, error)
-		DeleteMessagesBefore(ctx context.Context, messageID int64) error
-		UpdateAckLevel(ctx context.Context, messageID int64, clusterName string) error
-		GetAckLevels(ctx context.Context) (map[string]int64, error)
-		EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte) error
-		ReadMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64, pageSize int, pageToken []byte) ([]*QueueMessage, []byte, error)
-		DeleteMessageFromDLQ(ctx context.Context, messageID int64) error
-		RangeDeleteMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64) error
-		UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string) error
-		GetDLQAckLevels(ctx context.Context) (map[string]int64, error)
-		GetDLQSize(ctx context.Context) (int64, error)
+		EnqueueMessage(ctx context.Context, request *EnqueueMessageRequest) error
+		ReadMessages(ctx context.Context, request *ReadMessagesRequest) (*ReadMessagesResponse, error)
+		DeleteMessagesBefore(ctx context.Context, request *DeleteMessagesBeforeRequest) error
+		UpdateAckLevel(ctx context.Context, request *UpdateAckLevelRequest) error
+		GetAckLevels(ctx context.Context, request *GetAckLevelsRequest) (*GetAckLevelsResponse, error)
+		EnqueueMessageToDLQ(ctx context.Context, request *EnqueueMessageToDLQRequest) error
+		ReadMessagesFromDLQ(ctx context.Context, request *ReadMessagesFromDLQRequest) (*ReadMessagesFromDLQResponse, error)
+		DeleteMessageFromDLQ(ctx context.Context, request *DeleteMessageFromDLQRequest) error
+		RangeDeleteMessagesFromDLQ(ctx context.Context, request *RangeDeleteMessagesFromDLQRequest) error
+		UpdateDLQAckLevel(ctx context.Context, request *UpdateDLQAckLevelRequest) error
+		GetDLQAckLevels(ctx context.Context, request *GetDLQAckLevelsRequest) (*GetDLQAckLevelsResponse, error)
+		GetDLQSize(ctx context.Context, request *GetDLQSizeRequest) (*GetDLQSizeResponse, error)
 	}
 
 	// QueueMessage is the message that stores in the queue
@@ -1779,6 +1853,16 @@ func (t *TransferTaskInfo) GetDomainID() string {
 	return t.DomainID
 }
 
+// GetTaskList returns the task list for transfer task
+func (t *TransferTaskInfo) GetTaskList() string {
+	return t.TaskList
+}
+
+// GetOriginalTaskList returns the original task list for transfer task
+func (t *TransferTaskInfo) GetOriginalTaskList() string {
+	return t.OriginalTaskList
+}
+
 // String returns a string representation for transfer task
 func (t *TransferTaskInfo) String() string {
 	return fmt.Sprintf("%#v", t)
@@ -1811,39 +1895,50 @@ func (t *TransferTaskInfo) ToTask() (Task, error) {
 			TargetDomainID:     t.TargetDomainID,
 			TaskList:           t.TaskList,
 			ScheduleID:         t.ScheduleID,
+			OriginalTaskList:   t.OriginalTaskList,
 		}, nil
 	case TransferTaskTypeCloseExecution:
 		return &CloseExecutionTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeRecordWorkflowStarted:
 		return &RecordWorkflowStartedTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeResetWorkflow:
 		return &ResetWorkflowTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeRecordWorkflowClosed:
 		return &RecordWorkflowClosedTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeRecordChildExecutionCompleted:
+		targetRunID := t.TargetRunID
+		if t.TargetRunID == TransferTaskTransferTargetRunID {
+			targetRunID = ""
+		}
 		return &RecordChildExecutionCompletedTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			TargetDomainID:     t.TargetDomainID,
 			TargetWorkflowID:   t.TargetWorkflowID,
-			TargetRunID:        t.TargetRunID,
+			TargetRunID:        targetRunID,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeUpsertWorkflowSearchAttributes:
 		return &UpsertWorkflowSearchAttributesTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeStartChildExecution:
 		return &StartChildExecutionTask{
@@ -1852,26 +1947,37 @@ func (t *TransferTaskInfo) ToTask() (Task, error) {
 			TargetDomainID:     t.TargetDomainID,
 			TargetWorkflowID:   t.TargetWorkflowID,
 			InitiatedID:        t.ScheduleID,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeCancelExecution:
+		targetRunID := t.TargetRunID
+		if t.TargetRunID == TransferTaskTransferTargetRunID {
+			targetRunID = ""
+		}
 		return &CancelExecutionTask{
 			WorkflowIdentifier:      workflowIdentifier,
 			TaskData:                taskData,
 			TargetDomainID:          t.TargetDomainID,
 			TargetWorkflowID:        t.TargetWorkflowID,
-			TargetRunID:             t.TargetRunID,
+			TargetRunID:             targetRunID,
 			InitiatedID:             t.ScheduleID,
 			TargetChildWorkflowOnly: t.TargetChildWorkflowOnly,
+			TaskList:                t.TaskList,
 		}, nil
 	case TransferTaskTypeSignalExecution:
+		targetRunID := t.TargetRunID
+		if t.TargetRunID == TransferTaskTransferTargetRunID {
+			targetRunID = ""
+		}
 		return &SignalExecutionTask{
 			WorkflowIdentifier:      workflowIdentifier,
 			TaskData:                taskData,
 			TargetDomainID:          t.TargetDomainID,
 			TargetWorkflowID:        t.TargetWorkflowID,
-			TargetRunID:             t.TargetRunID,
+			TargetRunID:             targetRunID,
 			InitiatedID:             t.ScheduleID,
 			TargetChildWorkflowOnly: t.TargetChildWorkflowOnly,
+			TaskList:                t.TaskList,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown task type: %d", t.TaskType)
@@ -1955,6 +2061,11 @@ func (t *TimerTaskInfo) GetDomainID() string {
 	return t.DomainID
 }
 
+// GetTaskList returns the task list for timer task
+func (t *TimerTaskInfo) GetTaskList() string {
+	return t.TaskList
+}
+
 // String returns a string representation for timer task
 func (t *TimerTaskInfo) String() string {
 	return fmt.Sprintf(
@@ -1982,6 +2093,7 @@ func (t *TimerTaskInfo) ToTask() (Task, error) {
 			EventID:            t.EventID,
 			ScheduleAttempt:    t.ScheduleAttempt,
 			TimeoutType:        t.TimeoutType,
+			TaskList:           t.TaskList,
 		}, nil
 	case TaskTypeActivityTimeout:
 		return &ActivityTimeoutTask{
@@ -1990,22 +2102,26 @@ func (t *TimerTaskInfo) ToTask() (Task, error) {
 			TimeoutType:        t.TimeoutType,
 			EventID:            t.EventID,
 			Attempt:            t.ScheduleAttempt,
+			TaskList:           t.TaskList,
 		}, nil
 	case TaskTypeDeleteHistoryEvent:
 		return &DeleteHistoryEventTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TaskTypeWorkflowTimeout:
 		return &WorkflowTimeoutTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TaskTypeUserTimer:
 		return &UserTimerTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			EventID:            t.EventID,
+			TaskList:           t.TaskList,
 		}, nil
 	case TaskTypeActivityRetryTimer:
 		return &ActivityRetryTimerTask{
@@ -2013,12 +2129,14 @@ func (t *TimerTaskInfo) ToTask() (Task, error) {
 			TaskData:           taskData,
 			EventID:            t.EventID,
 			Attempt:            t.ScheduleAttempt,
+			TaskList:           t.TaskList,
 		}, nil
 	case TaskTypeWorkflowBackoffTimer:
 		return &WorkflowBackoffTimerTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			TimeoutType:        t.TimeoutType,
+			TaskList:           t.TaskList,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown task type: %d", t.TaskType)

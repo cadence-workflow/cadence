@@ -582,6 +582,10 @@ func ActorEmail(actorEmail string) Tag {
 	return newStringTag("actor-email", actorEmail)
 }
 
+func IsShadowModeEnabled(isShadow bool) Tag {
+	return newBoolTag("is-shadow-mode-enabled", isShadow)
+}
+
 // HandlerCall returns tag for the API name of a request
 func HandlerCall(handlerCall string) Tag {
 	return newStringTag("handler-call", handlerCall)

@@ -22,10 +22,11 @@ package matching
 
 import (
 	"context"
+	"errors"
 
 	"go.uber.org/yarpc"
 
-	"github.com/uber/cadence/common/errors"
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/future"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -75,6 +76,11 @@ func (c *clientImpl) AddActivityTask(
 	}
 	resp, err := c.client.AddActivityTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
 	if err != nil {
+		// ReadOnlyPartitionError indicates the partition is being drained - invalidate cache to force next request to route to root partition
+		var readOnlyErr *types.ReadOnlyPartitionError
+		if errors.As(err, &readOnlyErr) {
+			c.provider.InvalidatePartitionCache(request.GetDomainUUID(), *originalTaskList, persistence.TaskListTypeActivity)
+		}
 		return nil, err
 	}
 	request.TaskList = originalTaskList
@@ -107,6 +113,11 @@ func (c *clientImpl) AddDecisionTask(
 	}
 	resp, err := c.client.AddDecisionTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
 	if err != nil {
+		// ReadOnlyPartitionError indicates the partition is being drained - invalidate cache to force next request to route to root partition
+		var readOnlyErr *types.ReadOnlyPartitionError
+		if errors.As(err, &readOnlyErr) {
+			c.provider.InvalidatePartitionCache(request.GetDomainUUID(), *originalTaskList, persistence.TaskListTypeDecision)
+		}
 		return nil, err
 	}
 	request.TaskList = originalTaskList
@@ -140,7 +151,7 @@ func (c *clientImpl) PollForActivityTask(
 	}
 	resp, err := c.client.PollForActivityTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
 	if err != nil {
-		return nil, errors.NewPeerHostnameError(err, peer)
+		return nil, cadence_errors.NewPeerHostnameError(err, peer)
 	}
 
 	request.PollRequest.TaskList = originalTaskList
@@ -182,7 +193,7 @@ func (c *clientImpl) PollForDecisionTask(
 	}
 	resp, err := c.client.PollForDecisionTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
 	if err != nil {
-		return nil, errors.NewPeerHostnameError(err, peer)
+		return nil, cadence_errors.NewPeerHostnameError(err, peer)
 	}
 	request.PollRequest.TaskList = originalTaskList
 	c.provider.UpdatePartitionConfig(
@@ -321,7 +332,7 @@ func (c *clientImpl) GetTaskListsByDomain(
 	for i, future := range futures {
 		var resp *types.GetTaskListsByDomainResponse
 		if err = future.Get(ctx, &resp); err != nil {
-			return nil, errors.NewPeerHostnameError(err, peers[i])
+			return nil, cadence_errors.NewPeerHostnameError(err, peers[i])
 		}
 		for name, tl := range resp.GetDecisionTaskListMap() {
 			if _, ok := decisionTaskListMap[name]; !ok {

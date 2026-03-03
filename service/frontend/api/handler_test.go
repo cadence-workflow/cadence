@@ -34,11 +34,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 	"go.uber.org/yarpc/yarpctest"
 
-	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
@@ -4745,11 +4745,11 @@ func (s *workflowHandlerSuite) TestNormalizeVersionedErrors() {
 		},
 	})
 
-	s.mockVersionChecker.EXPECT().SupportsWorkflowAlreadyCompletedError("impl-header", "feature-version", shared.FeatureFlags{}).Return(nil)
+	s.mockVersionChecker.EXPECT().SupportsWorkflowAlreadyCompletedError("impl-header", "feature-version", apiv1.FeatureFlags{}).Return(nil)
 	err := wh.normalizeVersionedErrors(ctx, &types.WorkflowExecutionAlreadyCompletedError{})
 	s.IsType(err, &types.WorkflowExecutionAlreadyCompletedError{})
 
-	s.mockVersionChecker.EXPECT().SupportsWorkflowAlreadyCompletedError("impl-header", "feature-version", shared.FeatureFlags{}).Return(errors.New("error"))
+	s.mockVersionChecker.EXPECT().SupportsWorkflowAlreadyCompletedError("impl-header", "feature-version", apiv1.FeatureFlags{}).Return(errors.New("error"))
 	err = wh.normalizeVersionedErrors(ctx, &types.WorkflowExecutionAlreadyCompletedError{})
 	s.IsType(err, &types.EntityNotExistsError{})
 }

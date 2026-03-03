@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 )
@@ -526,21 +527,24 @@ type (
 
 	// VisibilityRow represents a row in executions_visibility table
 	VisibilityRow struct {
-		DomainID         string
-		RunID            string
-		WorkflowTypeName string
-		WorkflowID       string
-		StartTime        time.Time
-		ExecutionTime    time.Time
-		CloseStatus      *int32
-		CloseTime        *time.Time
-		HistoryLength    *int64
-		Memo             []byte
-		Encoding         string
-		IsCron           bool
-		NumClusters      int16
-		UpdateTime       time.Time
-		ShardID          int16
+		DomainID               string
+		RunID                  string
+		WorkflowTypeName       string
+		WorkflowID             string
+		StartTime              time.Time
+		ExecutionTime          time.Time
+		CloseStatus            *int32
+		CloseTime              *time.Time
+		HistoryLength          *int64
+		Memo                   []byte
+		Encoding               string
+		IsCron                 bool
+		CronSchedule           string
+		NumClusters            int16
+		UpdateTime             time.Time
+		ShardID                int16
+		ExecutionStatus        int32
+		ScheduledExecutionTime time.Time
 	}
 
 	// VisibilityFilter contains the column names within executions_visibility table that
@@ -577,6 +581,33 @@ type (
 		Timestamp    time.Time
 		Data         []byte
 		DataEncoding string
+	}
+
+	// DomainAuditLogRow represents a row in domain_audit_log table
+	DomainAuditLogRow struct {
+		DomainID            string
+		EventID             string
+		StateBefore         []byte
+		StateBeforeEncoding constants.EncodingType
+		StateAfter          []byte
+		StateAfterEncoding  constants.EncodingType
+		OperationType       persistence.DomainAuditOperationType
+		CreatedTime         time.Time
+		LastUpdatedTime     time.Time
+		Identity            string
+		IdentityType        string
+		Comment             string
+	}
+
+	// DomainAuditLogFilter contains the filter criteria for querying domain audit logs
+	DomainAuditLogFilter struct {
+		DomainID       string
+		OperationType  persistence.DomainAuditOperationType
+		MinCreatedTime *time.Time
+		PageSize       int
+		// PageMaxCreatedTime and PageMinEventID are used to paginate Select queries
+		PageMaxCreatedTime *time.Time
+		PageMinEventID     *string
 	}
 
 	// tableCRUD defines the API for interacting with the database tables
@@ -815,6 +846,11 @@ type (
 		InsertConfig(ctx context.Context, row *persistence.InternalConfigStoreEntry) error
 		// SelectLatestConfig returns the config entry of the row_type with the largest(latest) version value
 		SelectLatestConfig(ctx context.Context, rowType int) (*persistence.InternalConfigStoreEntry, error)
+
+		// InsertDomainAuditLog inserts a new audit log entry for a domain operation. Returns error if there is any failure
+		InsertIntoDomainAuditLog(ctx context.Context, row *DomainAuditLogRow) (sql.Result, error)
+		// SelectFromDomainAuditLogs returns audit log entries for a domain. Returns paginated results ordered by created_time DESC, event_id ASC
+		SelectFromDomainAuditLogs(ctx context.Context, filter *DomainAuditLogFilter) ([]*DomainAuditLogRow, error)
 
 		// The follow provide information about the underlying sql crud implementation
 		SupportsTTL() bool

@@ -101,5 +101,11 @@ type (
 
 		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
 		ShardDistributorMatchingConfig clientcommon.Config
+
+		// DrainObserver is an optional observer that signals when this instance is
+		// drained from service discovery.
+		// It is used by shard-distributor executor clients to
+		// gracefully stop processing during drains.
+		DrainObserver clientcommon.DrainSignalObserver
 	}
 )

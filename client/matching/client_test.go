@@ -203,6 +203,24 @@ func TestClient_withResponse(t *testing.T) {
 			wantError: true,
 		},
 		{
+			name: "AddActivityTask - ReadOnlyPartitionError triggers cache invalidation",
+			op: func(c Client) (any, error) {
+				return c.AddActivityTask(context.Background(), testAddActivityTaskRequest())
+			},
+			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
+				balancer.EXPECT().PickWritePartition(persistence.TaskListTypeActivity, testAddActivityTaskRequest()).Return(_testPartition)
+				p.EXPECT().FromTaskList(_testPartition).Return("peer0", nil)
+				c.EXPECT().AddActivityTask(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(nil, &types.ReadOnlyPartitionError{Message: "partition drained"})
+				mp.EXPECT().InvalidatePartitionCache(_testDomainUUID, types.TaskList{Name: _testTaskList}, persistence.TaskListTypeActivity)
+			},
+			wantError: true,
+			validateError: func(t *testing.T, err error) {
+				var readOnlyErr *types.ReadOnlyPartitionError
+				assert.True(t, stdErrors.As(err, &readOnlyErr))
+				assert.Equal(t, "partition drained", readOnlyErr.Message)
+			},
+		},
+		{
 			name: "AddDecisionTask",
 			op: func(c Client) (any, error) {
 				return c.AddDecisionTask(context.Background(), testAddDecisionTaskRequest())
@@ -237,6 +255,24 @@ func TestClient_withResponse(t *testing.T) {
 				c.EXPECT().AddDecisionTask(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(nil, assert.AnError)
 			},
 			wantError: true,
+		},
+		{
+			name: "AddDecisionTask - ReadOnlyPartitionError triggers cache invalidation",
+			op: func(c Client) (any, error) {
+				return c.AddDecisionTask(context.Background(), testAddDecisionTaskRequest())
+			},
+			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
+				balancer.EXPECT().PickWritePartition(persistence.TaskListTypeDecision, testAddDecisionTaskRequest()).Return(_testPartition)
+				p.EXPECT().FromTaskList(_testPartition).Return("peer0", nil)
+				c.EXPECT().AddDecisionTask(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(nil, &types.ReadOnlyPartitionError{Message: "partition drained"})
+				mp.EXPECT().InvalidatePartitionCache(_testDomainUUID, types.TaskList{Name: _testTaskList}, persistence.TaskListTypeDecision)
+			},
+			wantError: true,
+			validateError: func(t *testing.T, err error) {
+				var readOnlyErr *types.ReadOnlyPartitionError
+				assert.True(t, stdErrors.As(err, &readOnlyErr))
+				assert.Equal(t, "partition drained", readOnlyErr.Message)
+			},
 		},
 		{
 			name: "PollForActivityTask",

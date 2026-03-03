@@ -16,6 +16,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
+	csync "github.com/uber/cadence/service/sharddistributor/client/spectatorclient/sync"
 )
 
 func TestWatchLoopBasicFlow(t *testing.T) {
@@ -25,13 +26,17 @@ func TestWatchLoopBasicFlow(t *testing.T) {
 	mockClient := sharddistributor.NewMockClient(ctrl)
 	mockStream := sharddistributor.NewMockWatchNamespaceStateClient(ctrl)
 
+	// Create a context to control when the mock stream should unblock
+	streamCtx, cancelStream := context.WithCancel(context.Background())
+
 	spectator := &spectatorImpl{
-		namespace:    "test-ns",
-		client:       mockClient,
-		logger:       log.NewNoop(),
-		scope:        tally.NoopScope,
-		timeSource:   clock.NewRealTimeSource(),
-		firstStateCh: make(chan struct{}),
+		namespace:        "test-ns",
+		client:           mockClient,
+		logger:           log.NewNoop(),
+		scope:            tally.NoopScope,
+		timeSource:       clock.NewRealTimeSource(),
+		firstStateSignal: csync.NewResettableSignal(),
+		enabled:          func() bool { return true },
 	}
 
 	// Expect stream creation
@@ -58,8 +63,8 @@ func TestWatchLoopBasicFlow(t *testing.T) {
 	// Second Recv blocks until shutdown
 	mockStream.EXPECT().Recv().DoAndReturn(func(...interface{}) (*types.WatchNamespaceStateResponse, error) {
 		// Wait for context to be done
-		<-spectator.ctx.Done()
-		return nil, spectator.ctx.Err()
+		<-streamCtx.Done()
+		return nil, streamCtx.Err()
 	})
 
 	mockStream.EXPECT().CloseSend().Return(nil)
@@ -67,10 +72,13 @@ func TestWatchLoopBasicFlow(t *testing.T) {
 	ctx := context.Background()
 	err := spectator.Start(ctx)
 	require.NoError(t, err)
-	defer spectator.Stop()
+	defer func() {
+		cancelStream()
+		spectator.Stop()
+	}()
 
 	// Wait for first state
-	<-spectator.firstStateCh
+	require.NoError(t, spectator.firstStateSignal.Wait(context.Background()))
 
 	// Query shard owner
 	owner, err := spectator.GetShardOwner(context.Background(), "shard-1")
@@ -90,13 +98,17 @@ func TestGetShardOwner_CacheMiss_FallbackToRPC(t *testing.T) {
 	mockClient := sharddistributor.NewMockClient(ctrl)
 	mockStream := sharddistributor.NewMockWatchNamespaceStateClient(ctrl)
 
+	// Create a context to control when the mock stream should unblock
+	streamCtx, cancelStream := context.WithCancel(context.Background())
+
 	spectator := &spectatorImpl{
-		namespace:    "test-ns",
-		client:       mockClient,
-		logger:       log.NewNoop(),
-		scope:        tally.NoopScope,
-		timeSource:   clock.NewRealTimeSource(),
-		firstStateCh: make(chan struct{}),
+		namespace:        "test-ns",
+		client:           mockClient,
+		logger:           log.NewNoop(),
+		scope:            tally.NoopScope,
+		timeSource:       clock.NewRealTimeSource(),
+		firstStateSignal: csync.NewResettableSignal(),
+		enabled:          func() bool { return true },
 	}
 
 	// Setup stream
@@ -120,8 +132,8 @@ func TestGetShardOwner_CacheMiss_FallbackToRPC(t *testing.T) {
 	// Second Recv blocks until shutdown
 	mockStream.EXPECT().Recv().AnyTimes().DoAndReturn(func(...interface{}) (*types.WatchNamespaceStateResponse, error) {
 		// Wait for context to be done
-		<-spectator.ctx.Done()
-		return nil, spectator.ctx.Err()
+		<-streamCtx.Done()
+		return nil, streamCtx.Err()
 	})
 
 	mockStream.EXPECT().CloseSend().Return(nil)
@@ -140,9 +152,12 @@ func TestGetShardOwner_CacheMiss_FallbackToRPC(t *testing.T) {
 		}, nil)
 
 	spectator.Start(context.Background())
-	defer spectator.Stop()
+	defer func() {
+		cancelStream()
+		spectator.Stop()
+	}()
 
-	<-spectator.firstStateCh
+	require.NoError(t, spectator.firstStateSignal.Wait(context.Background()))
 
 	// Cache hit
 	owner, err := spectator.GetShardOwner(context.Background(), "shard-1")
@@ -165,13 +180,17 @@ func TestStreamReconnection(t *testing.T) {
 	mockStream2 := sharddistributor.NewMockWatchNamespaceStateClient(ctrl)
 	mockTimeSource := clock.NewMockedTimeSource()
 
+	// Create a context to control when the mock stream should unblock
+	streamCtx, cancelStream := context.WithCancel(context.Background())
+
 	spectator := &spectatorImpl{
-		namespace:    "test-ns",
-		client:       mockClient,
-		logger:       log.NewNoop(),
-		scope:        tally.NoopScope,
-		timeSource:   mockTimeSource,
-		firstStateCh: make(chan struct{}),
+		namespace:        "test-ns",
+		client:           mockClient,
+		logger:           log.NewNoop(),
+		scope:            tally.NoopScope,
+		timeSource:       mockTimeSource,
+		firstStateSignal: csync.NewResettableSignal(),
+		enabled:          func() bool { return true },
 	}
 
 	// First stream fails immediately
@@ -195,20 +214,23 @@ func TestStreamReconnection(t *testing.T) {
 	// Second Recv blocks until shutdown
 	mockStream2.EXPECT().Recv().AnyTimes().DoAndReturn(func(...interface{}) (*types.WatchNamespaceStateResponse, error) {
 		// Wait for context to be done
-		<-spectator.ctx.Done()
+		<-streamCtx.Done()
 		return nil, errors.New("shutdown")
 	})
 
 	mockStream2.EXPECT().CloseSend().Return(nil)
 
 	spectator.Start(context.Background())
-	defer spectator.Stop()
+	defer func() {
+		cancelStream()
+		spectator.Stop()
+	}()
 
 	// Wait for the goroutine to be blocked in Sleep, then advance time
 	mockTimeSource.BlockUntil(1) // Wait for 1 goroutine to be blocked in Sleep
 	mockTimeSource.Advance(2 * time.Second)
 
-	<-spectator.firstStateCh
+	require.NoError(t, spectator.firstStateSignal.Wait(context.Background()))
 }
 
 func TestGetShardOwner_TimeoutBeforeFirstState(t *testing.T) {
@@ -218,12 +240,13 @@ func TestGetShardOwner_TimeoutBeforeFirstState(t *testing.T) {
 	mockClient := sharddistributor.NewMockClient(ctrl)
 
 	spectator := &spectatorImpl{
-		namespace:    "test-ns",
-		client:       mockClient,
-		logger:       log.NewNoop(),
-		scope:        tally.NoopScope,
-		timeSource:   clock.NewRealTimeSource(),
-		firstStateCh: make(chan struct{}),
+		namespace:        "test-ns",
+		client:           mockClient,
+		logger:           log.NewNoop(),
+		scope:            tally.NoopScope,
+		timeSource:       clock.NewRealTimeSource(),
+		firstStateSignal: csync.NewResettableSignal(),
+		enabled:          func() bool { return true },
 	}
 
 	// Create a context with a short timeout
@@ -234,5 +257,36 @@ func TestGetShardOwner_TimeoutBeforeFirstState(t *testing.T) {
 	// Should timeout and return an error
 	_, err := spectator.GetShardOwner(ctx, "shard-1")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "context cancelled while waiting for first state")
+	assert.Contains(t, err.Error(), "wait for first state")
+}
+
+func TestWatchLoopDisabled(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	stateSignal := csync.NewResettableSignal()
+	timeSource := clock.NewMockedTimeSource()
+
+	spectator := &spectatorImpl{
+		firstStateSignal: stateSignal,
+		timeSource:       timeSource,
+		logger:           log.NewNoop(),
+		enabled:          func() bool { return false },
+	}
+
+	err := spectator.Start(context.Background())
+	assert.NoError(t, err)
+
+	// Disabled state enters a sleep loop, verify it sleeps periodically
+	timeSource.BlockUntil(1)
+	timeSource.Advance(1200 * time.Millisecond)
+
+	timeSource.BlockUntil(1)
+	timeSource.Advance(1200 * time.Millisecond)
+
+	// Stop exits cleanly and calls Done() on the signal
+	spectator.Stop()
+
+	// After Stop(), Done() has been called so Wait returns nil
+	err = stateSignal.Wait(context.Background())
+	assert.NoError(t, err)
 }
