@@ -44,8 +44,9 @@ type SpectatorPeerChooser struct {
 	logger     log.Logger
 	namespace  string
 
-	peersMutex sync.RWMutex
-	peers      map[string]peer.Peer // grpc_address -> peer
+	peersMutex      sync.RWMutex
+	peers           map[string]peer.Peer           // grpc_address -> peer
+	grpcAddressToNs map[string]map[string]struct{} // grpc_address -> set of namespaces that have executors at this address
 
 	stopCh chan struct{}
 	stopWG sync.WaitGroup
@@ -62,10 +63,11 @@ func NewSpectatorPeerChooser(
 	params SpectatorPeerChooserParams,
 ) SpectatorPeerChooserInterface {
 	return &SpectatorPeerChooser{
-		transport: params.Transport,
-		logger:    params.Logger,
-		peers:     make(map[string]peer.Peer),
-		stopCh:    make(chan struct{}),
+		transport:       params.Transport,
+		logger:          params.Logger,
+		peers:           make(map[string]peer.Peer),
+		grpcAddressToNs: make(map[string]map[string]struct{}),
+		stopCh:          make(chan struct{}),
 	}
 }
 
@@ -171,7 +173,7 @@ func (c *SpectatorPeerChooser) Choose(ctx context.Context, req *transport.Reques
 	}
 
 	// Get peer for this address
-	peer, err = c.getOrCreatePeer(grpcAddress)
+	peer, err = c.getOrCreatePeer(grpcAddress, namespace)
 	if err != nil {
 		return nil, nil, yarpcerrors.InternalErrorf("get or create peer for address %s: %v", grpcAddress, err)
 	}
@@ -183,31 +185,31 @@ func (c *SpectatorPeerChooser) SetSpectators(spectators *Spectators) {
 	c.spectators = spectators
 }
 
-func (c *SpectatorPeerChooser) getOrCreatePeer(grpcAddress string) (peer.Peer, error) {
-	c.peersMutex.RLock()
-	peer, ok := c.peers[grpcAddress]
-	c.peersMutex.RUnlock()
-
-	if ok {
-		return peer, nil
-	}
-
-	// Create new peer for this address
+func (c *SpectatorPeerChooser) getOrCreatePeer(grpcAddress, namespace string) (peer.Peer, error) {
 	c.peersMutex.Lock()
 	defer c.peersMutex.Unlock()
 
-	// Check again in case another goroutine added it
-	if peer, ok := c.peers[grpcAddress]; ok {
-		return peer, nil
+	// Check if peer already exists
+	if p, ok := c.peers[grpcAddress]; ok {
+		// Add namespace to the set of namespaces using this address
+		if c.grpcAddressToNs[grpcAddress] == nil {
+			c.grpcAddressToNs[grpcAddress] = make(map[string]struct{})
+		}
+		c.grpcAddressToNs[grpcAddress][namespace] = struct{}{}
+		return p, nil
 	}
 
-	peer, err := c.transport.RetainPeer(hostport.Identify(grpcAddress), &noOpSubscriber{})
+	// Create new peer for this address
+	p, err := c.transport.RetainPeer(hostport.Identify(grpcAddress), &noOpSubscriber{})
 	if err != nil {
 		return nil, fmt.Errorf("retain peer: %w", err)
 	}
 
-	c.peers[grpcAddress] = peer
-	return peer, nil
+	// Cache the peer for future use
+	c.peers[grpcAddress] = p
+	c.grpcAddressToNs[grpcAddress] = map[string]struct{}{namespace: {}}
+
+	return p, nil
 }
 
 // watchExecutorUpdates listens for executor updates and releases stale peers
@@ -221,39 +223,80 @@ func (c *SpectatorPeerChooser) watchExecutorUpdates(namespace string, spectator 
 		case <-c.stopCh:
 			c.logger.Info("Stopped watching executor updates", tag.ShardNamespace(namespace))
 			return
-		case <-updateCh:
+		case _, ok := <-updateCh:
+			if !ok {
+				c.logger.Info("Update channel closed, stopping watch", tag.ShardNamespace(namespace))
+				return
+			}
 			c.logger.Debug("Received executor update notification", tag.ShardNamespace(namespace))
-			c.removeStaleExecutors(spectator)
+			c.removeStaleExecutors(namespace, spectator)
 		}
 	}
 }
 
-// removeStaleExecutors releases peers for executors that are no longer in the current executor list
-func (c *SpectatorPeerChooser) removeStaleExecutors(spectator Spectator) {
-	// Get current executors
-	currentExecutors := spectator.GetExecutors()
+// removeStaleExecutors releases peers for executors that are no longer in any namespace.
+// It updates the grpcAddressToNs map based on the current executors in the given namespace,
+// and only releases a peer if no namespace is using that address anymore.
+func (c *SpectatorPeerChooser) removeStaleExecutors(namespace string, spectator Spectator) {
+	newGrpcAddresses := c.getSpectatorGrpcAddresses(spectator)
 
-	// Build set of current grpc addresses
-	currentAddresses := make(map[string]bool)
-	for _, owner := range currentExecutors {
-		if grpcAddr, ok := owner.Metadata[clientcommon.GrpcAddressMetadataKey]; ok {
-			currentAddresses[grpcAddr] = true
-		}
-	}
-
-	// Find and release stale peers
 	c.peersMutex.Lock()
 	defer c.peersMutex.Unlock()
 
+	// Update grpcAddressToNs: remove this namespace from addresses it no longer uses
+	for addr, namespaces := range c.grpcAddressToNs {
+		if _, ok := namespaces[namespace]; !ok {
+			// This address was not previously associated with this namespace, so we can skip it
+			continue
+		}
+
+		if _, ok := newGrpcAddresses[addr]; ok {
+			// This address is still used by this namespace, so we can skip it
+			continue
+		}
+
+		c.logger.Info("Namespace no longer uses this address", tag.Address(addr), tag.ShardNamespace(namespace))
+		delete(namespaces, namespace)
+	}
+
 	for addr, p := range c.peers {
-		if !currentAddresses[addr] {
-			c.logger.Info("Releasing stale peer", tag.Address(addr))
-			if err := c.transport.ReleasePeer(p, &noOpSubscriber{}); err != nil {
-				c.logger.Error("Failed to release stale peer", tag.Error(err), tag.Address(addr))
-			}
-			delete(c.peers, addr)
+		// If there are still namespaces using this address, skip releasing the peer
+		if len(c.grpcAddressToNs[addr]) > 0 {
+			continue
+		}
+
+		if err := c.transport.ReleasePeer(p, &noOpSubscriber{}); err != nil {
+			c.logger.Warn("Failed to release stale peer", tag.Error(err), tag.Address(addr))
+
+			// If releasing the peer fails, we keep it in the map to avoid losing connectivity to the executor.
+			// We will try releasing it again on the next update.
+			// If the peer will be returned by getOrCreatePeer, grpcAddressToNs will be updated with the correct namespaces,
+			// so we won't leak peers indefinitely.
+			continue
+		}
+
+		delete(c.peers, addr)
+		delete(c.grpcAddressToNs, addr)
+
+		c.logger.Info("Released stale peer (no namespaces using it)", tag.Address(addr))
+	}
+}
+
+// getSpectatorGrpcAddresses returns the set of grpc addresses for the current executors in the given spectator's namespace.
+// This is used to determine which addresses are still in use by the namespace and which ones can potentially be released if they are no longer used by any namespace.
+func (c *SpectatorPeerChooser) getSpectatorGrpcAddresses(spectator Spectator) map[string]struct{} {
+	// Get current executors for this namespace
+	executors := spectator.GetExecutors()
+
+	// Build set of current grpc addresses for this namespace
+	grpcAddresses := make(map[string]struct{})
+	for _, owner := range executors {
+		if grpcAddr, ok := owner.Metadata[clientcommon.GrpcAddressMetadataKey]; ok {
+			grpcAddresses[grpcAddr] = struct{}{}
 		}
 	}
+
+	return grpcAddresses
 }
 
 // noOpSubscriber is a no-op implementation of peer.Subscriber
