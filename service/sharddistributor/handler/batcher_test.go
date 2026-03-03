@@ -56,11 +56,11 @@ func TestShardBatcher_Submit(t *testing.T) {
 		namespace string
 		shardKey  string
 		// ctxFn builds the context used for the Submit call; defaults to context.Background().
-		ctxFn       func() context.Context
-		wantErr     bool
-		wantErrIs   error
-		wantErrMsg  string
-		wantOwner   string
+		ctxFn      func() context.Context
+		wantErr    bool
+		wantErrIs  error
+		wantErrMsg string
+		wantOwner  string
 	}{
 		{
 			name: "single request resolved from map",
@@ -140,9 +140,9 @@ func TestShardBatcher_Submit(t *testing.T) {
 
 func TestShardBatcher_MultipleNamespacesIsolated(t *testing.T) {
 	tests := []struct {
-		name      string
-		results   map[string]*types.GetShardOwnerResponse
-		requests  []struct {
+		name     string
+		results  map[string]*types.GetShardOwnerResponse
+		requests []struct {
 			namespace string
 			shardKey  string
 			wantOwner string
@@ -291,9 +291,9 @@ func TestShardBatcher_ConcurrentRequestsBatchedTogether(t *testing.T) {
 
 func TestShardBatcher_StopDrainsAndCancelsRemainingRequests(t *testing.T) {
 	tests := []struct {
-		name          string
-		enqueueDelay  time.Duration
-		stopTimeout   time.Duration
+		name         string
+		enqueueDelay time.Duration
+		stopTimeout  time.Duration
 	}{
 		{
 			name:         "in-flight request resolves after Stop",

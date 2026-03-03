@@ -161,11 +161,11 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 				chosenExecutor = executorID
 			}
 		}
-		chosenExecutors[shardKey] = chosenExecutor
-
-		if chosenExecutor != "" {
-			assignedCounts[chosenExecutor]++
+		if chosenExecutor == "" {
+			return nil, &types.InternalServiceError{Message: "no active executors available for namespace: " + namespace}
 		}
+		chosenExecutors[shardKey] = chosenExecutor
+		assignedCounts[chosenExecutor]++
 	}
 
 	// Merge the new shard assignments into the namespace state. We copy the

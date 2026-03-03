@@ -257,6 +257,29 @@ func TestGetShardOwner(t *testing.T) {
 			expectedErrMsg: "version conflict",
 		},
 		{
+			name: "ShardNotFound_Ephemeral_NoActiveExecutors",
+			request: &types.GetShardOwnerRequest{
+				Namespace: _testNamespaceEphemeral,
+				ShardKey:  "NON-EXISTING-SHARD",
+			},
+			setupMocks: func(mockStore *store.MockStore) {
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
+				// All executors are DRAINING — none are eligible for assignment.
+				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+					Executors: map[string]store.HeartbeatState{
+						"owner1": {Status: types.ExecutorStatusDRAINING},
+						"owner2": {Status: types.ExecutorStatusDRAINING},
+					},
+					ShardAssignments: map[string]store.AssignedState{
+						"owner1": {AssignedShards: map[string]*types.ShardAssignment{}},
+						"owner2": {AssignedShards: map[string]*types.ShardAssignment{}},
+					},
+				}, nil)
+			},
+			expectedError:  true,
+			expectedErrMsg: "no active executors available for namespace",
+		},
+		{
 			name: "ShardNotFound_Ephemeral_AssignShardsFailure",
 			request: &types.GetShardOwnerRequest{
 				Namespace: _testNamespaceEphemeral,
