@@ -123,6 +123,7 @@ func TestSelectDomainAuditLogs(t *testing.T) {
 		iterMockFn  func(iter *gocql.MockIter)
 		wantRows    []*nosqlplugin.DomainAuditLogRow
 		wantToken   []byte
+		wantQueries []string
 		wantErr     bool
 	}{
 		{
@@ -145,8 +146,9 @@ func TestSelectDomainAuditLogs(t *testing.T) {
 				iter.EXPECT().PageState().Return([]byte(nil)).Times(1)
 				iter.EXPECT().Close().Return(nil).Times(1)
 			},
-			wantRows:  []*nosqlplugin.DomainAuditLogRow{},
-			wantToken: nil,
+			wantRows:    []*nosqlplugin.DomainAuditLogRow{},
+			wantToken:   nil,
+			wantQueries: []string{`SELECT event_id, domain_id, state_before, state_before_encoding, state_after, state_after_encoding, operation_type, created_time, last_updated_time, identity, identity_type, comment FROM domain_audit_log WHERE domain_id = test-domain-id AND operation_type = Failover AND created_time >= 2024-01-01T00:00:00Z AND created_time < 2024-12-31T23:59:59Z`},
 		},
 		{
 			name: "success with custom time range and single result",
@@ -205,7 +207,8 @@ func TestSelectDomainAuditLogs(t *testing.T) {
 					Comment:             "comment-1",
 				},
 			},
-			wantToken: []byte("next-page"),
+			wantToken:   []byte("next-page"),
+			wantQueries: []string{`SELECT event_id, domain_id, state_before, state_before_encoding, state_after, state_after_encoding, operation_type, created_time, last_updated_time, identity, identity_type, comment FROM domain_audit_log WHERE domain_id = test-domain-id AND operation_type = Failover AND created_time >= 2024-01-01T00:00:00Z AND created_time < 2024-12-31T23:59:59Z`},
 		},
 		{
 			name: "success with page size set",
@@ -229,8 +232,9 @@ func TestSelectDomainAuditLogs(t *testing.T) {
 				iter.EXPECT().PageState().Return([]byte(nil)).Times(1)
 				iter.EXPECT().Close().Return(nil).Times(1)
 			},
-			wantRows:  []*nosqlplugin.DomainAuditLogRow{},
-			wantToken: nil,
+			wantRows:    []*nosqlplugin.DomainAuditLogRow{},
+			wantToken:   nil,
+			wantQueries: []string{`SELECT event_id, domain_id, state_before, state_before_encoding, state_after, state_after_encoding, operation_type, created_time, last_updated_time, identity, identity_type, comment FROM domain_audit_log WHERE domain_id = test-domain-id AND operation_type = Failover AND created_time >= 2024-01-01T00:00:00Z AND created_time < 2024-12-31T23:59:59Z`},
 		},
 		{
 			name: "success with pagination token",
@@ -256,8 +260,9 @@ func TestSelectDomainAuditLogs(t *testing.T) {
 				iter.EXPECT().PageState().Return([]byte(nil)).Times(1)
 				iter.EXPECT().Close().Return(nil).Times(1)
 			},
-			wantRows:  []*nosqlplugin.DomainAuditLogRow{},
-			wantToken: nil,
+			wantRows:    []*nosqlplugin.DomainAuditLogRow{},
+			wantToken:   nil,
+			wantQueries: []string{`SELECT event_id, domain_id, state_before, state_before_encoding, state_after, state_after_encoding, operation_type, created_time, last_updated_time, identity, identity_type, comment FROM domain_audit_log WHERE domain_id = test-domain-id AND operation_type = Failover AND created_time >= 2024-01-01T00:00:00Z AND created_time < 2024-12-31T23:59:59Z`},
 		},
 		{
 			name: "success with page size limiting - breaks after PageSize rows",
@@ -315,7 +320,8 @@ func TestSelectDomainAuditLogs(t *testing.T) {
 					LastUpdatedTime: createdTime2,
 				},
 			},
-			wantToken: []byte("next-page"),
+			wantToken:   []byte("next-page"),
+			wantQueries: []string{`SELECT event_id, domain_id, state_before, state_before_encoding, state_after, state_after_encoding, operation_type, created_time, last_updated_time, identity, identity_type, comment FROM domain_audit_log WHERE domain_id = test-domain-id AND operation_type = Failover AND created_time >= 2024-01-01T00:00:00Z AND created_time < 2024-12-31T23:59:59Z`},
 		},
 		{
 			name: "success with multiple results",
@@ -376,7 +382,8 @@ func TestSelectDomainAuditLogs(t *testing.T) {
 					LastUpdatedTime: createdTime2,
 				},
 			},
-			wantToken: nil,
+			wantToken:   nil,
+			wantQueries: []string{`SELECT event_id, domain_id, state_before, state_before_encoding, state_after, state_after_encoding, operation_type, created_time, last_updated_time, identity, identity_type, comment FROM domain_audit_log WHERE domain_id = test-domain-id AND operation_type = Failover AND created_time >= 2024-01-01T00:00:00Z AND created_time < 2024-12-31T23:59:59Z`},
 		},
 		{
 			name: "error when iterator is nil",
@@ -472,6 +479,7 @@ func TestSelectDomainAuditLogs(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.wantToken, token)
+			assert.Equal(t, tc.wantQueries, session.queries)
 		})
 	}
 }
