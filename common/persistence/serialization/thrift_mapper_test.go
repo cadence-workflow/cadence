@@ -541,6 +541,7 @@ func TestTransferTaskInfo(t *testing.T) {
 		TargetChildWorkflowOnly: true,
 		ScheduleID:              int64(rand.Intn(1000)),
 		Version:                 int64(rand.Intn(1000)),
+		OriginalTaskList:        "OriginalTaskList",
 	}
 	actual := transferTaskInfoFromThrift(transferTaskInfoToThrift(expected))
 	assert.Equal(t, expected, actual)
@@ -558,6 +559,7 @@ func TestTimerTaskInfo(t *testing.T) {
 		Version:         int64(rand.Intn(1000)),
 		ScheduleAttempt: int64(rand.Intn(1000)),
 		EventID:         int64(rand.Intn(1000)),
+		TaskList:        "TaskList",
 	}
 	actual := timerTaskInfoFromThrift(timerTaskInfoToThrift(expected))
 	assert.Equal(t, expected, actual)

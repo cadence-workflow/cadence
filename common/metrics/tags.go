@@ -360,6 +360,10 @@ func ExecutorStatusTag(status string) Tag {
 	return metricWithUnknown("executor_status", status)
 }
 
+func ShardDistributorWatchTypeTag(watchType string) Tag {
+	return metricWithUnknown("watch_type", watchType)
+}
+
 func TaskCategoryTag(category string) Tag {
 	return metricWithUnknown("task_category", category)
 }

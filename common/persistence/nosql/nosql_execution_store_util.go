@@ -219,57 +219,9 @@ func (d *nosqlExecutionStore) prepareTimerTasksForWorkflowTxn(domainID, workflow
 	var tasks []*nosqlplugin.HistoryMigrationTask
 
 	for _, task := range timerTasks {
-		var eventID int64
-		var attempt int64
-
-		timeoutType := 0
-
-		switch t := task.(type) {
-		case *persistence.DecisionTimeoutTask:
-			eventID = t.EventID
-			timeoutType = t.TimeoutType
-			attempt = t.ScheduleAttempt
-
-		case *persistence.ActivityTimeoutTask:
-			eventID = t.EventID
-			timeoutType = t.TimeoutType
-			attempt = t.Attempt
-
-		case *persistence.UserTimerTask:
-			eventID = t.EventID
-
-		case *persistence.ActivityRetryTimerTask:
-			eventID = t.EventID
-			attempt = int64(t.Attempt)
-
-		case *persistence.WorkflowBackoffTimerTask:
-			timeoutType = t.TimeoutType
-
-		case *persistence.WorkflowTimeoutTask:
-			// noop
-
-		case *persistence.DeleteHistoryEventTask:
-			// noop
-
-		default:
-			return nil, &types.InternalServiceError{
-				Message: fmt.Sprintf("Unknow timer type: %v", task.GetTaskType()),
-			}
-		}
-
-		nt := &nosqlplugin.TimerTask{
-			TaskType:   task.GetTaskType(),
-			DomainID:   domainID,
-			WorkflowID: workflowID,
-			RunID:      runID,
-
-			VisibilityTimestamp: task.GetVisibilityTimestamp(),
-			TaskID:              task.GetTaskID(),
-
-			TimeoutType:     timeoutType,
-			EventID:         eventID,
-			ScheduleAttempt: attempt,
-			Version:         task.GetVersion(),
+		nt, err := task.ToTimerTaskInfo()
+		if err != nil {
+			return nil, err
 		}
 		var blob *persistence.DataBlob
 		if d.dc.EnableHistoryTaskDualWriteMode() {
@@ -387,85 +339,9 @@ func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workf
 	var tasks []*nosqlplugin.HistoryMigrationTask
 
 	for _, task := range transferTasks {
-		var taskList string
-		var scheduleID int64
-		targetDomainID := domainID
-		targetDomainIDs := map[string]struct{}{}
-		targetWorkflowID := persistence.TransferTaskTransferTargetWorkflowID
-		targetRunID := persistence.TransferTaskTransferTargetRunID
-		targetChildWorkflowOnly := false
-
-		switch task.GetTaskType() {
-		case persistence.TransferTaskTypeActivityTask:
-			targetDomainID = task.(*persistence.ActivityTask).TargetDomainID
-			taskList = task.(*persistence.ActivityTask).TaskList
-			scheduleID = task.(*persistence.ActivityTask).ScheduleID
-
-		case persistence.TransferTaskTypeDecisionTask:
-			targetDomainID = task.(*persistence.DecisionTask).TargetDomainID
-			taskList = task.(*persistence.DecisionTask).TaskList
-			scheduleID = task.(*persistence.DecisionTask).ScheduleID
-
-		case persistence.TransferTaskTypeCancelExecution:
-			targetDomainID = task.(*persistence.CancelExecutionTask).TargetDomainID
-			targetWorkflowID = task.(*persistence.CancelExecutionTask).TargetWorkflowID
-			targetRunID = task.(*persistence.CancelExecutionTask).TargetRunID
-			if targetRunID == "" {
-				targetRunID = persistence.TransferTaskTransferTargetRunID
-			}
-			targetChildWorkflowOnly = task.(*persistence.CancelExecutionTask).TargetChildWorkflowOnly
-			scheduleID = task.(*persistence.CancelExecutionTask).InitiatedID
-
-		case persistence.TransferTaskTypeSignalExecution:
-			targetDomainID = task.(*persistence.SignalExecutionTask).TargetDomainID
-			targetWorkflowID = task.(*persistence.SignalExecutionTask).TargetWorkflowID
-			targetRunID = task.(*persistence.SignalExecutionTask).TargetRunID
-			if targetRunID == "" {
-				targetRunID = persistence.TransferTaskTransferTargetRunID
-			}
-			targetChildWorkflowOnly = task.(*persistence.SignalExecutionTask).TargetChildWorkflowOnly
-			scheduleID = task.(*persistence.SignalExecutionTask).InitiatedID
-
-		case persistence.TransferTaskTypeStartChildExecution:
-			targetDomainID = task.(*persistence.StartChildExecutionTask).TargetDomainID
-			targetWorkflowID = task.(*persistence.StartChildExecutionTask).TargetWorkflowID
-			scheduleID = task.(*persistence.StartChildExecutionTask).InitiatedID
-
-		case persistence.TransferTaskTypeRecordChildExecutionCompleted:
-			targetDomainID = task.(*persistence.RecordChildExecutionCompletedTask).TargetDomainID
-			targetWorkflowID = task.(*persistence.RecordChildExecutionCompletedTask).TargetWorkflowID
-			targetRunID = task.(*persistence.RecordChildExecutionCompletedTask).TargetRunID
-			if targetRunID == "" {
-				targetRunID = persistence.TransferTaskTransferTargetRunID
-			}
-
-		case persistence.TransferTaskTypeCloseExecution,
-			persistence.TransferTaskTypeRecordWorkflowStarted,
-			persistence.TransferTaskTypeResetWorkflow,
-			persistence.TransferTaskTypeUpsertWorkflowSearchAttributes,
-			persistence.TransferTaskTypeRecordWorkflowClosed:
-			// No explicit property needs to be set
-
-		default:
-			return nil, &types.InternalServiceError{
-				Message: fmt.Sprintf("Unknown transfer type: %v", task.GetTaskType()),
-			}
-		}
-		t := &nosqlplugin.TransferTask{
-			TaskType:                task.GetTaskType(),
-			DomainID:                domainID,
-			WorkflowID:              workflowID,
-			RunID:                   runID,
-			VisibilityTimestamp:     task.GetVisibilityTimestamp(),
-			TaskID:                  task.GetTaskID(),
-			TargetDomainID:          targetDomainID,
-			TargetDomainIDs:         targetDomainIDs,
-			TargetWorkflowID:        targetWorkflowID,
-			TargetRunID:             targetRunID,
-			TargetChildWorkflowOnly: targetChildWorkflowOnly,
-			TaskList:                taskList,
-			ScheduleID:              scheduleID,
-			Version:                 task.GetVersion(),
+		t, err := task.ToTransferTaskInfo()
+		if err != nil {
+			return nil, err
 		}
 		var blob *persistence.DataBlob
 		if d.dc.EnableHistoryTaskDualWriteMode() {

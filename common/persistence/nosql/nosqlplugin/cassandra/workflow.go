@@ -97,7 +97,10 @@ func (db *CDB) SelectCurrentWorkflow(
 	}
 
 	currentRunID := result["current_run_id"].(gocql.UUID).String()
-	executionInfo := parseWorkflowExecutionInfo(result["execution"].(map[string]interface{}))
+	executionInfo, err := parseWorkflowExecutionInfo(result)
+	if err != nil {
+		return nil, err
+	}
 	lastWriteVersion := constants.EmptyVersion
 	if result["workflow_last_write_version"] != nil {
 		lastWriteVersion = result["workflow_last_write_version"].(int64)
@@ -205,7 +208,10 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	}
 
 	state := &nosqlplugin.WorkflowExecution{}
-	info := parseWorkflowExecutionInfo(result["execution"].(map[string]interface{}))
+	info, err := parseWorkflowExecutionInfo(result)
+	if err != nil {
+		return nil, err
+	}
 	state.ExecutionInfo = info
 	state.VersionHistories = persistence.NewDataBlob(result["version_histories"].([]byte), constants.EncodingType(result["version_histories_encoding"].(string)))
 	// TODO: remove this after all 2DC workflows complete
@@ -357,8 +363,12 @@ func (db *CDB) SelectAllWorkflowExecutions(ctx context.Context, shardID int, pag
 			result = make(map[string]interface{})
 			continue
 		}
+		executionInfo, err := parseWorkflowExecutionInfo(result)
+		if err != nil {
+			return nil, nil, err
+		}
 		executions = append(executions, &persistence.InternalListConcreteExecutionsEntity{
-			ExecutionInfo:    parseWorkflowExecutionInfo(result["execution"].(map[string]interface{})),
+			ExecutionInfo:    executionInfo,
 			VersionHistories: persistence.NewDataBlob(result["version_histories"].([]byte), constants.EncodingType(result["version_histories_encoding"].(string))),
 		})
 		result = make(map[string]interface{})

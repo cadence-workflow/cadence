@@ -35,20 +35,25 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 )
 
-type modeKey string
+type ModeKey string
 
-var (
-	modeKeyHashRing                       modeKey = "hash_ring"
-	modeKeyShardDistributor               modeKey = "shard_distributor"
-	modeKeyHashRingShadowShardDistributor modeKey = "hash_ring-shadow-shard_distributor"
-	modeKeyShardDistributorShadowHashRing modeKey = "shard_distributor-shadow-hash_ring"
+const (
+	// ModeKeyHashRing represents the hash ring shard distribution mode
+	ModeKeyHashRing ModeKey = "hash_ring"
+	// ModeKeyShardDistributor represents the shard distributor mode
+	ModeKeyShardDistributor ModeKey = "shard_distributor"
+	// ModeKeyHashRingShadowShardDistributor represents hash ring mode with shard distributor shadow
+	ModeKeyHashRingShadowShardDistributor ModeKey = "hash_ring-shadow-shard_distributor"
+	// ModeKeyShardDistributorShadowHashRing represents shard distributor mode with hash ring shadow
+	ModeKeyShardDistributorShadowHashRing ModeKey = "shard_distributor-shadow-hash_ring"
 )
 
 type shardDistributorResolver struct {
-	shardDistributionMode dynamicproperties.StringPropertyFn
-	spectator             spectatorclient.Spectator
-	ring                  SingleProvider
-	logger                log.Logger
+	shardDistributionMode      dynamicproperties.StringPropertyFn
+	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn
+	spectator                  spectatorclient.Spectator
+	ring                       SingleProvider
+	logger                     log.Logger
 }
 
 func (s shardDistributorResolver) AddressToHost(owner string) (HostInfo, error) {
@@ -58,14 +63,16 @@ func (s shardDistributorResolver) AddressToHost(owner string) (HostInfo, error) 
 func NewShardDistributorResolver(
 	spectator spectatorclient.Spectator,
 	shardDistributionMode dynamicproperties.StringPropertyFn,
+	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn,
 	ring SingleProvider,
 	logger log.Logger,
 ) SingleProvider {
 	return &shardDistributorResolver{
-		spectator:             spectator,
-		shardDistributionMode: shardDistributionMode,
-		ring:                  ring,
-		logger:                logger,
+		spectator:                  spectator,
+		shardDistributionMode:      shardDistributionMode,
+		excludeShortLivedTaskLists: excludeShortLivedTaskLists,
+		ring:                       ring,
+		logger:                     logger,
 	}
 }
 
@@ -87,12 +94,16 @@ func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
 		return s.ring.Lookup(key)
 	}
 
-	switch modeKey(s.shardDistributionMode()) {
-	case modeKeyHashRing:
+	if s.excludeShortLivedTaskLists() && TaskListExcludedFromShardDistributor(key) {
 		return s.ring.Lookup(key)
-	case modeKeyShardDistributor:
+	}
+
+	switch ModeKey(s.shardDistributionMode()) {
+	case ModeKeyHashRing:
+		return s.ring.Lookup(key)
+	case ModeKeyShardDistributor:
 		return s.lookUpInShardDistributor(key)
-	case modeKeyHashRingShadowShardDistributor:
+	case ModeKeyHashRingShadowShardDistributor:
 		hashRingResult, err := s.ring.Lookup(key)
 		if err != nil {
 			return HostInfo{}, err
@@ -108,7 +119,7 @@ func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
 		}()
 
 		return hashRingResult, nil
-	case modeKeyShardDistributorShadowHashRing:
+	case ModeKeyShardDistributorShadowHashRing:
 		shardDistributorResult, err := s.lookUpInShardDistributor(key)
 		if err != nil {
 			return HostInfo{}, err

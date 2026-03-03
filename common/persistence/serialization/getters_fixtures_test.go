@@ -115,6 +115,7 @@ var expectedNil = map[string]map[string]any{
 		"GetScheduleID":              int64(0),
 		"GetVersion":                 int64(0),
 		"GetVisibilityTimestamp":     zeroUnix,
+		"GetOriginalTaskList":        "",
 	},
 	"*serialization.TimerTaskInfo": {
 		"GetDomainID":        []uint8(nil),
@@ -125,6 +126,7 @@ var expectedNil = map[string]map[string]any{
 		"GetTimeoutType":     int16(0),
 		"GetVersion":         int64(0),
 		"GetWorkflowID":      "",
+		"GetTaskList":        "",
 	},
 	"*serialization.ReplicationTaskInfo": {
 		"GetBranchToken":             []uint8(nil),
@@ -360,6 +362,7 @@ var expectedEmpty = map[string]map[string]any{
 		"GetScheduleID":              int64(0),
 		"GetVersion":                 int64(0),
 		"GetVisibilityTimestamp":     time.Time{},
+		"GetOriginalTaskList":        "",
 	},
 	"*serialization.TimerTaskInfo": {
 		"GetDomainID":        []uint8(nil),
@@ -370,6 +373,7 @@ var expectedEmpty = map[string]map[string]any{
 		"GetTimeoutType":     int16(0),
 		"GetVersion":         int64(0),
 		"GetWorkflowID":      "",
+		"GetTaskList":        "",
 	},
 	"*serialization.ReplicationTaskInfo": {
 		"GetBranchToken":             []uint8(nil),
@@ -607,6 +611,7 @@ var expectedNonEmpty = map[string]map[string]any{
 		"GetScheduleID":              int64(2),
 		"GetVersion":                 int64(3),
 		"GetVisibilityTimestamp":     taskInfoCreateTime,
+		"GetOriginalTaskList":        "originalTaskList",
 	},
 	"*serialization.TimerTaskInfo": {
 		"GetDomainID":        []byte(taskDomainID),
@@ -617,6 +622,7 @@ var expectedNonEmpty = map[string]map[string]any{
 		"GetTimeoutType":     int16(2),
 		"GetVersion":         int64(3),
 		"GetWorkflowID":      "workflowID",
+		"GetTaskList":        "taskList",
 	},
 	"*serialization.ReplicationTaskInfo": {
 		"GetBranchToken":             []byte("branchToken"),

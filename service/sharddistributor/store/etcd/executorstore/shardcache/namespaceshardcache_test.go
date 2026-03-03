@@ -17,6 +17,7 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
@@ -39,7 +40,7 @@ func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
 	})
 
 	// Start the cache
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource())
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource(), metrics.NewNoopMetricsClient())
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
 	time.Sleep(50 * time.Millisecond)
@@ -91,7 +92,7 @@ func TestNamespaceShardToExecutor_Subscribe(t *testing.T) {
 	})
 
 	// Start the cache
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource())
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource(), metrics.NewNoopMetricsClient())
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
 
@@ -159,7 +160,7 @@ func TestNamespaceShardToExecutor_watch_watchChanErrors(t *testing.T) {
 		Return(watchChan).
 		AnyTimes()
 
-	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, clock.NewRealTimeSource())
+	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, clock.NewRealTimeSource(), metrics.NewNoopMetricsClient())
 	require.NoError(t, err)
 
 	triggerChan := make(chan struct{}, 1)
@@ -433,7 +434,7 @@ func TestNamespaceShardToExecutor_namespaceRefreshLoop_watchError(t *testing.T) 
 		MinTimes(0).
 		MaxTimes(1)
 
-	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, timeSource)
+	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, timeSource, metrics.NewNoopMetricsClient())
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
@@ -650,7 +651,7 @@ func setupNamespaceShardToExecutorTestCase(t *testing.T) *namespaceShardToExecut
 		Return(tc.watchChan).
 		AnyTimes()
 
-	e, err := newNamespaceShardToExecutor(tc.prefix, tc.namespace, tc.etcdClient, tc.stopCh, logger, clock.NewRealTimeSource())
+	e, err := newNamespaceShardToExecutor(tc.prefix, tc.namespace, tc.etcdClient, tc.stopCh, logger, clock.NewRealTimeSource(), metrics.NewNoopMetricsClient())
 	require.NoError(t, err)
 	tc.e = e
 	return tc

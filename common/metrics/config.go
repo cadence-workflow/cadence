@@ -41,18 +41,45 @@ func (h *HistogramMigration) UnmarshalYAML(read func(any) error) error {
 // This is likely best done in an `init` func, to ensure it happens early enough
 // and does not race with config reading.
 var HistogramMigrationMetrics = map[string]struct{}{
-	"task_latency_processing":    {},
-	"task_latency_processing_ns": {},
+	"task_attempt":                          {},
+	"task_attempt_counts":                   {},
+	"task_attempt_per_domain":               {},
+	"task_attempt_per_domain_counts":        {},
+	"task_latency":                          {},
+	"task_latency_ns":                       {},
+	"task_latency_per_domain":               {},
+	"task_latency_per_domain_ns":            {},
+	"task_latency_processing":               {},
+	"task_latency_processing_ns":            {},
+	"task_latency_queue":                    {},
+	"task_latency_queue_ns":                 {},
+	"task_latency_processing_per_domain":    {},
+	"task_latency_processing_per_domain_ns": {},
+	"task_latency_queue_per_domain":         {},
+	"task_latency_queue_per_domain_ns":      {},
 
-	// Replication task processor histograms (PR #7685).
-	// Dual-emitted as timer + histogram.
 	"replication_tasks_lag":                {},
-	"replication_tasks_lag_ns":             {},
+	"replication_tasks_lag_counts":         {},
 	"replication_tasks_applied_latency":    {},
 	"replication_tasks_applied_latency_ns": {},
 
+	"cache_latency":     {},
+	"cache_latency_ns":  {},
+	"cache_size":        {},
+	"cache_size_counts": {},
+
 	"replication_task_latency":    {},
 	"replication_task_latency_ns": {},
+
+	"replication_tasks_returned":             {},
+	"replication_tasks_returned_counts":      {},
+	"replication_tasks_returned_diff":        {},
+	"replication_tasks_returned_diff_counts": {},
+
+	"replication_tasks_fetched":        {},
+	"replication_tasks_fetched_counts": {},
+	"replication_tasks_lag_raw":        {},
+	"replication_tasks_lag_raw_counts": {},
 }
 
 func (h HistogramMigration) EmitTimer(name string) bool {

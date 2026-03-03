@@ -1,0 +1,9 @@
+{
+  "CurrVersion": "0.45",
+  "MinCompatibleVersion": "0.45",
+  "Description": "Adding original_task_list and task_list to transfer and timer tasks",
+  "SchemaUpdateCqlFiles": [
+    "transfer_task.cql",
+    "timer_task.cql"
+  ]
+}

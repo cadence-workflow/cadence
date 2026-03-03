@@ -13,23 +13,21 @@ import (
 )
 
 type ShardProcessorParams struct {
-	ShardID       string
-	TaskListsLock *sync.RWMutex
-	TaskLists     map[Identifier]Manager
-	ReportTTL     time.Duration
-	TimeSource    clock.TimeSource
+	ShardID           string
+	TaskListsRegistry TaskListRegistry
+	ReportTTL         time.Duration
+	TimeSource        clock.TimeSource
 }
 
 type shardProcessorImpl struct {
-	shardID       string
-	taskListsLock *sync.RWMutex          // locks mutation of taskLists
-	taskLists     map[Identifier]Manager // Convert to LRU cache
-	Status        atomic.Int32
-	reportLock    sync.RWMutex
-	shardReport   executorclient.ShardReport
-	reportTime    time.Time
-	reportTTL     time.Duration
-	timeSource    clock.TimeSource
+	shardID           string
+	taskListsRegistry TaskListRegistry
+	Status            atomic.Int32
+	reportLock        sync.RWMutex
+	shardReport       executorclient.ShardReport
+	reportTime        time.Time
+	reportTTL         time.Duration
+	timeSource        clock.TimeSource
 }
 
 func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
@@ -38,13 +36,12 @@ func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
 		return nil, err
 	}
 	shardprocessor := &shardProcessorImpl{
-		shardID:       params.ShardID,
-		taskListsLock: params.TaskListsLock,
-		taskLists:     params.TaskLists,
-		shardReport:   executorclient.ShardReport{},
-		reportTime:    params.TimeSource.Now(),
-		reportTTL:     params.ReportTTL,
-		timeSource:    params.TimeSource,
+		shardID:           params.ShardID,
+		taskListsRegistry: params.TaskListsRegistry,
+		shardReport:       executorclient.ShardReport{},
+		reportTime:        params.TimeSource.Now(),
+		reportTTL:         params.ReportTTL,
+		timeSource:        params.TimeSource,
 	}
 	shardprocessor.SetShardStatus(types.ShardStatusREADY)
 	shardprocessor.shardReport = executorclient.ShardReport{
@@ -64,14 +61,7 @@ func (sp *shardProcessorImpl) Start(ctx context.Context) error {
 
 // Stop is stopping the tasklist when a shard is not assigned to this executor anymore.
 func (sp *shardProcessorImpl) Stop() {
-	sp.taskListsLock.RLock()
-	var toShutDown []Manager
-	for _, tlMgr := range sp.taskLists {
-		if tlMgr.TaskListID().name == sp.shardID {
-			toShutDown = append(toShutDown, tlMgr)
-		}
-	}
-	sp.taskListsLock.RUnlock()
+	toShutDown := sp.taskListsRegistry.ManagersByTaskListName(sp.shardID)
 	for _, tlMgr := range toShutDown {
 		tlMgr.Stop()
 	}
@@ -97,19 +87,15 @@ func (sp *shardProcessorImpl) SetShardStatus(status types.ShardStatus) {
 }
 
 func (sp *shardProcessorImpl) getShardLoad() float64 {
-	sp.taskListsLock.RLock()
-	defer sp.taskListsLock.RUnlock()
 	var load float64
 
 	// We assign a shard only based on the task list name
 	// so task lists of different task type (decisions/activities), of different kind (normal, sticky, ephemeral) or partitions
 	// will be assigned all to the same matching instance (executor)
 	// we need to sum the rps for each of the tasklist to calculate the load.
-	for _, tlMgr := range sp.taskLists {
-		if tlMgr.TaskListID().name == sp.shardID {
-			qps := tlMgr.QueriesPerSecond()
-			load = load + qps
-		}
+	for _, tlMgr := range sp.taskListsRegistry.ManagersByTaskListName(sp.shardID) {
+		qps := tlMgr.QueriesPerSecond()
+		load = load + qps
 	}
 	return load
 }
@@ -118,11 +104,8 @@ func validateSPParams(params ShardProcessorParams) error {
 	if params.ShardID == "" {
 		return errors.New("ShardID must be specified")
 	}
-	if params.TaskListsLock == nil {
-		return errors.New("TaskListsLock must be specified")
-	}
-	if params.TaskLists == nil {
-		return errors.New("TaskLists must be specified")
+	if params.TaskListsRegistry == nil {
+		return errors.New("TaskListsRegistry must be specified")
 	}
 	if params.TimeSource == nil {
 		return errors.New("TimeSource must be specified")

@@ -21,6 +21,7 @@
 package task
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,7 +39,8 @@ type fifoTaskSchedulerImpl struct {
 	options      *FIFOTaskSchedulerOptions
 	dispatcherWG sync.WaitGroup
 	taskCh       chan PriorityTask
-	shutdownCh   chan struct{}
+	ctx          context.Context
+	cancel       context.CancelFunc
 
 	processor Processor
 }
@@ -52,13 +54,15 @@ func NewFIFOTaskScheduler(
 	metricsClient metrics.Client,
 	options *FIFOTaskSchedulerOptions,
 ) Scheduler {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &fifoTaskSchedulerImpl{
 		status:       common.DaemonStatusInitialized,
 		logger:       logger,
 		metricsScope: metricsClient.Scope(metrics.TaskSchedulerScope),
 		options:      options,
 		taskCh:       make(chan PriorityTask, options.QueueSize),
-		shutdownCh:   make(chan struct{}),
+		ctx:          ctx,
+		cancel:       cancel,
 		processor: NewParallelTaskProcessor(
 			logger,
 			metricsClient,
@@ -91,7 +95,7 @@ func (f *fifoTaskSchedulerImpl) Stop() {
 		return
 	}
 
-	close(f.shutdownCh)
+	f.cancel()
 
 	f.processor.Stop()
 
@@ -119,7 +123,7 @@ func (f *fifoTaskSchedulerImpl) Submit(task PriorityTask) error {
 			f.drainAndNackTasks()
 		}
 		return nil
-	case <-f.shutdownCh:
+	case <-f.ctx.Done():
 		return ErrTaskSchedulerClosed
 	}
 }
@@ -136,7 +140,7 @@ func (f *fifoTaskSchedulerImpl) TrySubmit(task PriorityTask) (bool, error) {
 			f.drainAndNackTasks()
 		}
 		return true, nil
-	case <-f.shutdownCh:
+	case <-f.ctx.Done():
 		return false, ErrTaskSchedulerClosed
 	default:
 		return false, nil
@@ -153,7 +157,7 @@ func (f *fifoTaskSchedulerImpl) dispatcher() {
 				f.logger.Error("failed to submit task to processor", tag.Error(err))
 				task.Nack(err)
 			}
-		case <-f.shutdownCh:
+		case <-f.ctx.Done():
 			return
 		}
 	}

@@ -26,7 +26,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,44 +65,6 @@ func (td *queueStoreTestData) newQueueStore() (persistence.QueueStore, error) {
 }
 
 func (td *queueStoreTestData) createValidQueueStore(t *testing.T) persistence.QueueStore {
-	const initialQueueVersion = int64(0)
-
-	row := nosqlplugin.QueueMetadataRow{
-		QueueType:        testQueueType,
-		Version:          initialQueueVersion,
-		CurrentTimeStamp: time.Now(),
-	}
-	// return no queue metadata which should force to create a new one
-	mainQueueCheckExists := td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testQueueType).Return(nil, nil)
-	mainMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), gomock.Any()).
-		DoAndReturn(
-			func(_ context.Context, actualRequest nosqlplugin.QueueMetadataRow) error {
-				assert.Equal(t, row.QueueType, actualRequest.QueueType)
-				assert.Equal(t, row.Version, actualRequest.Version)
-
-				assert.WithinDuration(t, row.CurrentTimeStamp, actualRequest.CurrentTimeStamp, time.Second)
-				return nil
-			})
-
-	// now the corresponding DLQ metadata should be created
-	dlqCheckExists := td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testDLQueueType).Return(nil, nil)
-	dlqMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), gomock.Any()).
-		DoAndReturn(
-			func(_ context.Context, actualRequest nosqlplugin.QueueMetadataRow) error {
-				assert.Equal(t, testDLQueueType, actualRequest.QueueType)
-				assert.Equal(t, row.Version, actualRequest.Version)
-
-				assert.WithinDuration(t, row.CurrentTimeStamp, actualRequest.CurrentTimeStamp, time.Second)
-				return nil
-			})
-
-	gomock.InOrder(
-		mainQueueCheckExists,
-		mainMetadataInsert,
-		dlqCheckExists,
-		dlqMetadataInsert,
-	)
-
 	store, err := td.newQueueStore()
 	require.NoError(t, err)
 	require.NotNil(t, store)
@@ -124,83 +85,7 @@ func (td *queueStoreTestData) mockErrConversion(err error) {
 
 func TestNewNoSQLQueueStore_Succeeds(t *testing.T) {
 	td := newQueueStoreTestData(t)
-	td.createValidQueueStore(t) // all the validation already performed inside
-}
-
-func TestNewNoSQLQueueStore_FailsIfCantReadMetadata(t *testing.T) {
-	selectErr := errors.New("select main-queue metadata failed")
-	td := newQueueStoreTestData(t)
-
-	td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testQueueType).Return(nil, selectErr)
-	td.mockIsNotFoundErrCheck(selectErr, false)
-
-	td.mockErrConversion(selectErr)
-
-	store, err := td.newQueueStore()
-	assert.ErrorContains(t, err, selectErr.Error())
-	assert.Nil(t, store)
-}
-
-func TestNewNoSQLQueueStore_FailsIfCantInsertMetadata(t *testing.T) {
-	insertErr := errors.New("insert main-queue metadata failed")
-	td := newQueueStoreTestData(t)
-
-	td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testQueueType).Return(nil, nil)
-	td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), gomock.Any()).Return(insertErr)
-	td.mockErrConversion(insertErr)
-
-	store, err := td.newQueueStore()
-	assert.ErrorContains(t, err, insertErr.Error())
-	assert.Nil(t, store)
-}
-
-func TestNewNoSQLQueueStore_FailsIfCantReadDLQMetadata(t *testing.T) {
-	errSelect := errors.New("select dlq metadata failed")
-
-	td := newQueueStoreTestData(t)
-	mainQueueCheckExists := td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testQueueType).Return(nil, nil)
-	mainMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), gomock.Any()).
-		Return(nil)
-
-	dlqCheckExists := td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testDLQueueType).Return(nil, errSelect)
-	td.mockIsNotFoundErrCheck(errSelect, false)
-
-	gomock.InOrder(
-		mainQueueCheckExists,
-		mainMetadataInsert,
-		dlqCheckExists,
-	)
-
-	td.mockErrConversion(errSelect)
-
-	store, err := td.newQueueStore()
-	assert.ErrorContains(t, err, errSelect.Error())
-	assert.Nil(t, store)
-}
-
-func TestNewNoSQLQueueStore_FailsIfCantInsertDLQMetadata(t *testing.T) {
-	errInsert := errors.New("insert dlq metadata failed")
-
-	td := newQueueStoreTestData(t)
-	mainQueueCheckExists := td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testQueueType).Return(nil, nil)
-	mainMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), gomock.Any()).
-		Return(nil)
-
-	dlqCheckExists := td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testDLQueueType).Return(nil, nil)
-	dlqMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), gomock.Any()).Return(errInsert)
-
-	gomock.InOrder(
-		mainQueueCheckExists,
-		mainMetadataInsert,
-		dlqCheckExists,
-		dlqMetadataInsert,
-	)
-
-	td.mockErrConversion(errInsert)
-
-	store, err := td.newQueueStore()
-	assert.ErrorContains(t, err, errInsert.Error())
-	assert.Nil(t, store)
+	td.createValidQueueStore(t)
 }
 
 func TestEnqueueMessage_Succeeds(t *testing.T) {
@@ -212,9 +97,9 @@ func TestEnqueueMessage_Succeeds(t *testing.T) {
 	// clusterAckLevels are affecting lastMessageID
 	clusterAckLevels := map[string]int64{"cluster1": lastMessageID + 10, "cluster2": lastMessageID + 20}
 
-	td.mockDB.EXPECT().SelectLastEnqueuedMessageID(ctx, testQueueType).Return(lastMessageID, nil)
 	td.mockDB.EXPECT().SelectQueueMetadata(ctx, testQueueType).
 		Return(&nosqlplugin.QueueMetadataRow{ClusterAckLevels: clusterAckLevels}, nil)
+	td.mockDB.EXPECT().SelectLastEnqueuedMessageID(ctx, testQueueType).Return(lastMessageID, nil)
 	td.mockDB.EXPECT().InsertIntoQueue(ctx, gomock.Any()).
 		Do(func(_ context.Context, row *nosqlplugin.QueueMessageRow) {
 			assert.Equal(
@@ -235,6 +120,35 @@ func TestEnqueueMessage_Succeeds(t *testing.T) {
 	}))
 }
 
+func TestEnqueueMessage_Succeeds_CreateMetadataIfMissing(t *testing.T) {
+	const lastMessageID = int64(123)
+	td := newQueueStoreTestData(t)
+	store := td.createValidQueueStore(t)
+	ctx := context.Background()
+
+	td.mockDB.EXPECT().SelectQueueMetadata(ctx, testQueueType).Return(nil, nil)
+	td.mockDB.EXPECT().InsertQueueMetadata(ctx, nosqlplugin.QueueMetadataRow{
+		QueueType:        testQueueType,
+		Version:          0,
+		CurrentTimeStamp: FixedTime,
+	}).Return(nil)
+	td.mockDB.EXPECT().SelectQueueMetadata(ctx, testQueueType).
+		Return(&nosqlplugin.QueueMetadataRow{ClusterAckLevels: map[string]int64{}}, nil)
+	td.mockDB.EXPECT().SelectLastEnqueuedMessageID(ctx, testQueueType).Return(lastMessageID, nil)
+	td.mockDB.EXPECT().InsertIntoQueue(ctx, gomock.Any()).
+		Do(func(_ context.Context, row *nosqlplugin.QueueMessageRow) {
+			assert.Equal(t, lastMessageID+1, row.ID)
+			assert.Equal(t, testQueueType, row.QueueType)
+			assert.Equal(t, testPayload, row.Payload)
+			assert.Equal(t, FixedTime, row.CurrentTimeStamp)
+		}).Return(nil)
+
+	require.NoError(t, store.EnqueueMessage(ctx, &persistence.InternalEnqueueMessageRequest{
+		MessagePayload:   testPayload,
+		CurrentTimeStamp: FixedTime,
+	}))
+}
+
 func TestEnqueueMessage_FailsIfCantSelectLastMessageID(t *testing.T) {
 	errSelect := errors.New("failed to select message ID")
 
@@ -242,6 +156,8 @@ func TestEnqueueMessage_FailsIfCantSelectLastMessageID(t *testing.T) {
 	store := td.createValidQueueStore(t)
 	ctx := context.Background()
 
+	td.mockDB.EXPECT().SelectQueueMetadata(ctx, testQueueType).
+		Return(&nosqlplugin.QueueMetadataRow{ClusterAckLevels: map[string]int64{}}, nil)
 	td.mockDB.EXPECT().SelectLastEnqueuedMessageID(ctx, testQueueType).Return(int64(0), errSelect)
 	td.mockIsNotFoundErrCheck(errSelect, false)
 	td.mockErrConversion(errSelect)
@@ -258,7 +174,6 @@ func TestEnqueueMessage_FailsIfCantSelectQueueMetadata(t *testing.T) {
 	store := td.createValidQueueStore(t)
 	ctx := context.Background()
 
-	td.mockDB.EXPECT().SelectLastEnqueuedMessageID(ctx, testQueueType).Return(int64(0), nil)
 	td.mockDB.EXPECT().SelectQueueMetadata(ctx, testQueueType).Return(nil, errSelect)
 	td.mockIsNotFoundErrCheck(errSelect, false)
 	td.mockErrConversion(errSelect)
@@ -267,6 +182,23 @@ func TestEnqueueMessage_FailsIfCantSelectQueueMetadata(t *testing.T) {
 		MessagePayload:   testPayload,
 		CurrentTimeStamp: FixedTime,
 	}), errSelect.Error())
+}
+
+func TestEnqueueMessage_FailsIfCantInsertMetadata(t *testing.T) {
+	errInsert := errors.New("insert main-queue metadata failed")
+	td := newQueueStoreTestData(t)
+	store := td.createValidQueueStore(t)
+	ctx := context.Background()
+
+	td.mockDB.EXPECT().SelectQueueMetadata(ctx, testQueueType).Return(nil, nil)
+	td.mockDB.EXPECT().InsertQueueMetadata(ctx, gomock.Any()).Return(errInsert)
+	td.mockErrConversion(errInsert)
+	td.mockDB.EXPECT().SelectQueueMetadata(ctx, testQueueType).Return(nil, nil)
+
+	assert.ErrorContains(t, store.EnqueueMessage(ctx, &persistence.InternalEnqueueMessageRequest{
+		MessagePayload:   testPayload,
+		CurrentTimeStamp: FixedTime,
+	}), errInsert.Error())
 }
 
 func TestEnqueueMessage_FailsIfCantInsertMessageToQueue(t *testing.T) {
@@ -294,6 +226,8 @@ func TestEnqueueMessageToDLQ_Succeeds(t *testing.T) {
 	store := td.createValidQueueStore(t)
 	ctx := context.Background()
 
+	td.mockDB.EXPECT().SelectQueueMetadata(ctx, dlqMessageType).
+		Return(&nosqlplugin.QueueMetadataRow{ClusterAckLevels: map[string]int64{}}, nil)
 	td.mockDB.EXPECT().SelectLastEnqueuedMessageID(ctx, dlqMessageType).Return(lastMessageID, nil)
 	td.mockDB.EXPECT().InsertIntoQueue(ctx, gomock.Any()).
 		Do(func(_ context.Context, row *nosqlplugin.QueueMessageRow) {
@@ -322,6 +256,8 @@ func TestEnqueueMessageToDLQ_FailsIfCantSelectLastMessageID(t *testing.T) {
 	store := td.createValidQueueStore(t)
 	ctx := context.Background()
 
+	td.mockDB.EXPECT().SelectQueueMetadata(ctx, testDLQueueType).
+		Return(&nosqlplugin.QueueMetadataRow{ClusterAckLevels: map[string]int64{}}, nil)
 	td.mockDB.EXPECT().SelectLastEnqueuedMessageID(ctx, testDLQueueType).Return(int64(0), errSelect)
 	td.mockIsNotFoundErrCheck(errSelect, false)
 	td.mockErrConversion(errSelect)
@@ -338,6 +274,8 @@ func TestEnqueueMessageToDLQ_FailsIfCantInsertMessageToQueue(t *testing.T) {
 	store := td.createValidQueueStore(t)
 	ctx := context.Background()
 
+	td.mockDB.EXPECT().SelectQueueMetadata(ctx, testDLQueueType).
+		Return(&nosqlplugin.QueueMetadataRow{ClusterAckLevels: map[string]int64{}}, nil)
 	td.mockDB.EXPECT().SelectLastEnqueuedMessageID(ctx, testDLQueueType).Return(int64(0), nil)
 	td.mockDB.EXPECT().InsertIntoQueue(ctx, gomock.Any()).Return(errInsert)
 	td.mockErrConversion(errInsert)

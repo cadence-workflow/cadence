@@ -126,29 +126,33 @@ func TestGetSchedule(t *testing.T) {
 	defer releaseFn3()
 
 	schedule := pool.GetSchedule()
-	assert.Len(t, schedule, 6)
+	assert.Equal(t, 6, schedule.Len())
 
-	assert.Equal(t, c3, schedule[0])
-	assert.Equal(t, c3, schedule[1])
-	assert.Equal(t, c2, schedule[2])
-	assert.Equal(t, c3, schedule[3])
-	assert.Equal(t, c2, schedule[4])
-	assert.Equal(t, c1, schedule[5])
+	iter1 := schedule.NewIterator()
+
+	// Verify IWRR sequence: [c3, c3, c2, c3, c2, c1]
+	expectedSequence1 := []chan int{c3, c3, c2, c3, c2, c1}
+	for _, expected := range expectedSequence1 {
+		ch, ok := iter1.TryNext()
+		assert.True(t, ok)
+		assert.Equal(t, expected, ch)
+	}
 
 	c4, releaseFn4 := pool.GetOrCreateChannel("k2", 4)
 	defer releaseFn4()
 	assert.Equal(t, c2, c4)
 	schedule = pool.GetSchedule()
-	assert.Len(t, schedule, 8)
+	assert.Equal(t, 8, schedule.Len())
 
-	assert.Equal(t, c2, schedule[0])
-	assert.Equal(t, c2, schedule[1])
-	assert.Equal(t, c3, schedule[2])
-	assert.Equal(t, c2, schedule[3])
-	assert.Equal(t, c3, schedule[4])
-	assert.Equal(t, c2, schedule[5])
-	assert.Equal(t, c3, schedule[6])
-	assert.Equal(t, c1, schedule[7])
+	iter2 := schedule.NewIterator()
+
+	// Verify IWRR sequence after weight change: [c2, c2, c3, c2, c3, c2, c3, c1]
+	expectedSequence2 := []chan int{c2, c2, c3, c2, c3, c2, c3, c1}
+	for _, expected := range expectedSequence2 {
+		ch, ok := iter2.TryNext()
+		assert.True(t, ok)
+		assert.Equal(t, expected, ch)
+	}
 }
 
 func TestCleanup(t *testing.T) {

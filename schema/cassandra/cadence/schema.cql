@@ -134,6 +134,7 @@ CREATE TYPE transfer_task (
   schedule_id                bigint,
   version                    bigint,       -- the failover version when this task is created, used to compare against the mutable state, in case the events got overwritten
   record_visibility          boolean,      -- indicates whether or not to create a visibility record
+  original_task_list         text,         -- the original task list of the task if the task is a sticky decision task
 );
 
 CREATE TYPE replication_task (
@@ -166,6 +167,7 @@ CREATE TYPE timer_task (
   event_id         bigint, -- Corresponds to event ID in history that is responsible for this timer.
   schedule_attempt bigint, -- Used to retry failed decision tasks using mutable state
   version          bigint, -- the failover version when this task is created, used to compare against the mutable state, in case the events got overwritten
+  task_list        text, -- the task list associated with the timer task
 );
 
 -- Workflow activity in progress mutable state
@@ -548,7 +550,7 @@ CREATE TABLE domain_audit_log (
     state_after blob, -- state_after stores the domain state after the request
     state_after_encoding text, -- the encoding type used for state_after
 
-    operation_type int, -- operation_type stores the type of operation that was performed. It is deserialized as an enum and can be used to customize the serialization/deserialization strategy. 
+    operation_type int, -- operation_type stores the type of operation that was performed. It is deserialized as an enum and can be used to customize the serialization/deserialization strategy.
 
     created_time timestamp, -- created_time the time this row was inserted
     last_updated_time timestamp,

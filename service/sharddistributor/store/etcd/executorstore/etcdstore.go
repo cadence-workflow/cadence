@@ -16,6 +16,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/statistics"
@@ -27,18 +28,24 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/executorstore/shardcache"
 )
 
+const (
+	// guardOpOverhead is the number of transaction slots consumed by the leadership guard's If condition.
+	guardOpOverhead = 1
+)
+
 var (
 	_executorStatusRunningJSON = fmt.Sprintf(`"%s"`, types.ExecutorStatusACTIVE)
 )
 
 type executorStoreImpl struct {
-	client       etcdclient.Client
-	prefix       string
-	logger       log.Logger
-	shardCache   *shardcache.ShardToExecutorCache
-	timeSource   clock.TimeSource
-	recordWriter *common.RecordWriter
-	cfg          *config.Config
+	client        etcdclient.Client
+	prefix        string
+	logger        log.Logger
+	shardCache    *shardcache.ShardToExecutorCache
+	timeSource    clock.TimeSource
+	recordWriter  *common.RecordWriter
+	cfg           *config.Config
+	metricsClient metrics.Client
 }
 
 // shardStatisticsUpdate holds the staged statistics for a shard so we can write them
@@ -52,17 +59,18 @@ type shardStatisticsUpdate struct {
 type ExecutorStoreParams struct {
 	fx.In
 
-	Client     etcdclient.Client `name:"executorstore"`
-	ETCDConfig ETCDConfig
-	Lifecycle  fx.Lifecycle
-	Logger     log.Logger
-	TimeSource clock.TimeSource
-	Config     *config.Config
+	Client        etcdclient.Client `name:"executorstore"`
+	ETCDConfig    ETCDConfig
+	Lifecycle     fx.Lifecycle
+	Logger        log.Logger
+	TimeSource    clock.TimeSource
+	Config        *config.Config
+	MetricsClient metrics.Client
 }
 
 // NewStore creates a new etcd-backed store and provides it to the fx application.
 func NewStore(p ExecutorStoreParams) (store.Store, error) {
-	shardCache := shardcache.NewShardToExecutorCache(p.ETCDConfig.Prefix, p.Client, p.Logger, p.TimeSource)
+	shardCache := shardcache.NewShardToExecutorCache(p.ETCDConfig.Prefix, p.Client, p.Logger, p.TimeSource, p.MetricsClient)
 
 	timeSource := p.TimeSource
 	if timeSource == nil {
@@ -74,13 +82,14 @@ func NewStore(p ExecutorStoreParams) (store.Store, error) {
 		return nil, fmt.Errorf("create record writer: %w", err)
 	}
 	store := &executorStoreImpl{
-		client:       p.Client,
-		prefix:       p.ETCDConfig.Prefix,
-		logger:       p.Logger,
-		shardCache:   shardCache,
-		timeSource:   timeSource,
-		recordWriter: recordWriter,
-		cfg:          p.Config,
+		client:        p.Client,
+		prefix:        p.ETCDConfig.Prefix,
+		logger:        p.Logger,
+		shardCache:    shardCache,
+		timeSource:    timeSource,
+		recordWriter:  recordWriter,
+		cfg:           p.Config,
+		metricsClient: p.MetricsClient,
 	}
 
 	p.Lifecycle.Append(fx.StartStopHook(store.Start, store.Stop))
@@ -335,6 +344,11 @@ func (s *executorStoreImpl) SubscribeToExecutorStatusChanges(ctx context.Context
 
 	go func() {
 		defer close(revisionChan)
+
+		scope := s.metricsClient.Scope(metrics.ShardDistributorWatchScope).
+			Tagged(metrics.NamespaceTag(namespace)).
+			Tagged(metrics.ShardDistributorWatchTypeTag("rebalance"))
+
 		watchChan := s.client.Watch(ctx,
 			etcdkeys.BuildExecutorsPrefix(s.prefix, namespace),
 			clientv3.WithPrefix(),
@@ -346,7 +360,12 @@ func (s *executorStoreImpl) SubscribeToExecutorStatusChanges(ctx context.Context
 				return
 			}
 
+			// Track watch metrics
+			sw := scope.StartTimer(metrics.ShardDistributorWatchProcessingLatency)
+			scope.AddCounter(metrics.ShardDistributorWatchEventsReceived, int64(len(watchResp.Events)))
+
 			if !s.hasExecutorStatusChanged(watchResp, namespace) {
+				sw.Stop()
 				continue
 			}
 
@@ -358,6 +377,7 @@ func (s *executorStoreImpl) SubscribeToExecutorStatusChanges(ctx context.Context
 			}
 
 			revisionChan <- watchResp.Header.Revision
+			sw.Stop()
 		}
 	}()
 
@@ -596,7 +616,7 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 			return fmt.Errorf("checking shard owner: %w", err)
 		}
 		if err == nil {
-			return &store.ErrShardAlreadyAssigned{ShardID: shardID, AssignedTo: shardOwner.ExecutorID}
+			return &store.ErrShardAlreadyAssigned{ShardID: shardID, AssignedTo: shardOwner.ExecutorID, Metadata: shardOwner.Metadata}
 		}
 
 		// TODO: Extract to higher level so that statistics updates are prepared
@@ -666,40 +686,64 @@ func (s *executorStoreImpl) AssignShard(ctx context.Context, namespace, shardID,
 	}
 }
 
+// commitGuardedOps commits the given operations in batches to stay within etcd's per-transaction operation limit.
+// Each batch creates a new guarded transaction. If any batch fails, the function returns immediately
+// with the error
+func (s *executorStoreImpl) commitGuardedOps(ctx context.Context, ops []clientv3.Op, guard store.GuardFunc) error {
+	if len(ops) == 0 {
+		return nil
+	}
+	maxOpsPerTxn := s.cfg.MaxEtcdTxnOps() - guardOpOverhead
+	if maxOpsPerTxn < 1 {
+		maxOpsPerTxn = 1
+	}
+
+	numBatches := (len(ops) + maxOpsPerTxn - 1) / maxOpsPerTxn
+	batchSize := (len(ops) + numBatches - 1) / numBatches
+
+	for i := 0; i < len(ops); i += batchSize {
+		end := i + batchSize
+		if end > len(ops) {
+			end = len(ops)
+		}
+
+		nativeTxn := s.client.Txn(ctx)
+		guardedTxn, err := guard(nativeTxn)
+		if err != nil {
+			return fmt.Errorf("apply transaction guard: %w", err)
+		}
+		etcdGuardedTxn, ok := guardedTxn.(clientv3.Txn)
+		if !ok {
+			return fmt.Errorf("guard function returned invalid transaction type")
+		}
+
+		etcdGuardedTxn = etcdGuardedTxn.Then(ops[i:end]...)
+		resp, err := etcdGuardedTxn.Commit()
+		if err != nil {
+			return fmt.Errorf("commit batch: %w", err)
+		}
+		if !resp.Succeeded {
+			return fmt.Errorf("transaction failed, leadership may have changed")
+		}
+	}
+	return nil
+}
+
 // DeleteExecutors deletes the given executors from the store. It does not delete the shards owned by the executors, this
 // should be handled by the namespace processor loop as we want to reassign, not delete the shards.
 func (s *executorStoreImpl) DeleteExecutors(ctx context.Context, namespace string, executorIDs []string, guard store.GuardFunc) error {
 	if len(executorIDs) == 0 {
 		return nil
 	}
-	var ops []clientv3.Op
+	ops := make([]clientv3.Op, 0, len(executorIDs))
 
 	for _, executorID := range executorIDs {
 		executorIDPrefix := etcdkeys.BuildExecutorIDPrefix(s.prefix, namespace, executorID)
 		ops = append(ops, clientv3.OpDelete(executorIDPrefix, clientv3.WithPrefix()))
 	}
 
-	if len(ops) == 0 {
-		return nil
-	}
-
-	nativeTxn := s.client.Txn(ctx)
-	guardedTxn, err := guard(nativeTxn)
-	if err != nil {
-		return fmt.Errorf("apply transaction guard: %w", err)
-	}
-	etcdGuardedTxn, ok := guardedTxn.(clientv3.Txn)
-	if !ok {
-		return fmt.Errorf("guard function returned invalid transaction type")
-	}
-
-	etcdGuardedTxn = etcdGuardedTxn.Then(ops...)
-	resp, err := etcdGuardedTxn.Commit()
-	if err != nil {
-		return fmt.Errorf("commit executor deletion: %w", err)
-	}
-	if !resp.Succeeded {
-		return fmt.Errorf("transaction failed, leadership may have changed")
+	if err := s.commitGuardedOps(ctx, ops, guard); err != nil {
+		return fmt.Errorf("delete executors: %w", err)
 	}
 	return nil
 }
@@ -708,30 +752,15 @@ func (s *executorStoreImpl) DeleteAssignedStates(ctx context.Context, namespace 
 	if len(executorIDs) == 0 {
 		return nil
 	}
-	var ops []clientv3.Op
+	ops := make([]clientv3.Op, 0, len(executorIDs))
 
 	for _, executorID := range executorIDs {
 		executorIDPrefix := etcdkeys.BuildExecutorKey(s.prefix, namespace, executorID, etcdkeys.ExecutorAssignedStateKey)
 		ops = append(ops, clientv3.OpDelete(executorIDPrefix, clientv3.WithPrefix()))
 	}
 
-	nativeTxn := s.client.Txn(ctx)
-	guardedTxn, err := guard(nativeTxn)
-	if err != nil {
-		return fmt.Errorf("apply transaction guard: %w", err)
-	}
-	etcdGuardedTxn, ok := guardedTxn.(clientv3.Txn)
-	if !ok {
-		return fmt.Errorf("guard function returned invalid transaction type")
-	}
-
-	etcdGuardedTxn = etcdGuardedTxn.Then(ops...)
-	resp, err := etcdGuardedTxn.Commit()
-	if err != nil {
-		return fmt.Errorf("commit executor deletion: %w", err)
-	}
-	if !resp.Succeeded {
-		return fmt.Errorf("transaction failed, leadership may have changed")
+	if err := s.commitGuardedOps(ctx, ops, guard); err != nil {
+		return fmt.Errorf("delete assigned states: %w", err)
 	}
 	return nil
 }
@@ -820,26 +849,9 @@ func (s *executorStoreImpl) DeleteShardStats(ctx context.Context, namespace stri
 		ops = append(ops, clientv3.OpPut(statsKey, string(compressedPayload)))
 	}
 
-	nativeTxn := s.client.Txn(ctx)
-	guardedTxn, err := guard(nativeTxn)
-	if err != nil {
-		return fmt.Errorf("apply transaction guard: %w", err)
+	if err := s.commitGuardedOps(ctx, ops, guard); err != nil {
+		return fmt.Errorf("delete shard stats: %w", err)
 	}
-
-	etcdGuardedTxn, ok := guardedTxn.(clientv3.Txn)
-	if !ok {
-		return fmt.Errorf("guard function returned invalid transaction type")
-	}
-
-	etcdGuardedTxn = etcdGuardedTxn.Then(ops...)
-	txnResp, err := etcdGuardedTxn.Commit()
-	if err != nil {
-		return fmt.Errorf("commit shard statistics deletion: %w", err)
-	}
-	if !txnResp.Succeeded {
-		return fmt.Errorf("transaction failed, leadership may have changed")
-	}
-
 	return nil
 }
 

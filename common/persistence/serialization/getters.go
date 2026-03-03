@@ -1574,6 +1574,14 @@ func (t *TransferTaskInfo) GetVisibilityTimestamp() time.Time {
 	return time.Unix(0, 0)
 }
 
+// GetOriginalTaskList internal sql blob getter
+func (t *TransferTaskInfo) GetOriginalTaskList() (o string) {
+	if t != nil {
+		return t.OriginalTaskList
+	}
+	return
+}
+
 // GetDomainID internal sql blob getter
 func (t *TimerTaskInfo) GetDomainID() (o []byte) {
 	if t != nil && t.DomainID != nil {
@@ -1634,6 +1642,14 @@ func (t *TimerTaskInfo) GetScheduleAttempt() (o int64) {
 func (t *TimerTaskInfo) GetEventID() (o int64) {
 	if t != nil {
 		return t.EventID
+	}
+	return
+}
+
+// GetTaskList internal sql blob getter
+func (t *TimerTaskInfo) GetTaskList() (o string) {
+	if t != nil {
+		return t.TaskList
 	}
 	return
 }

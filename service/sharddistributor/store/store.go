@@ -25,6 +25,7 @@ var (
 type ErrShardAlreadyAssigned struct {
 	ShardID    string
 	AssignedTo string
+	Metadata   map[string]string
 }
 
 func (e *ErrShardAlreadyAssigned) Error() string {

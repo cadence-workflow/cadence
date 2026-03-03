@@ -9,6 +9,7 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/testhelper"
 )
 
@@ -16,7 +17,7 @@ func TestNewShardToExecutorCache(t *testing.T) {
 	logger := testlogger.New(t)
 
 	client := &clientv3.Client{}
-	cache := NewShardToExecutorCache("some-prefix", client, logger, clock.NewRealTimeSource())
+	cache := NewShardToExecutorCache("some-prefix", client, logger, clock.NewRealTimeSource(), metrics.NewNoopMetricsClient())
 
 	assert.NotNil(t, cache)
 
@@ -38,7 +39,7 @@ func TestShardExecutorCacheForwarding(t *testing.T) {
 		"rack":       "rack-42",
 	})
 
-	cache := NewShardToExecutorCache(testCluster.EtcdPrefix, testCluster.Client, logger, clock.NewRealTimeSource())
+	cache := NewShardToExecutorCache(testCluster.EtcdPrefix, testCluster.Client, logger, clock.NewRealTimeSource(), metrics.NewNoopMetricsClient())
 	cache.Start()
 	defer cache.Stop()
 

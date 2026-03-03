@@ -9,6 +9,7 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
@@ -24,6 +25,7 @@ type ShardToExecutorCache struct {
 	logger            log.Logger
 	prefix            string
 	wg                sync.WaitGroup
+	metricsClient     metrics.Client
 }
 
 func NewShardToExecutorCache(
@@ -31,6 +33,7 @@ func NewShardToExecutorCache(
 	client etcdclient.Client,
 	logger log.Logger,
 	timeSource clock.TimeSource,
+	metricsClient metrics.Client,
 ) *ShardToExecutorCache {
 	shardCache := &ShardToExecutorCache{
 		namespaceToShards: make(NamespaceToShards),
@@ -40,6 +43,7 @@ func NewShardToExecutorCache(
 		prefix:            prefix,
 		client:            client,
 		wg:                sync.WaitGroup{},
+		metricsClient:     metricsClient,
 	}
 
 	return shardCache
@@ -106,7 +110,7 @@ func (s *ShardToExecutorCache) getNamespaceShardToExecutor(namespace string) (*n
 	s.Lock()
 	defer s.Unlock()
 
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(s.prefix, namespace, s.client, s.stopC, s.logger, s.timeSource)
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(s.prefix, namespace, s.client, s.stopC, s.logger, s.timeSource, s.metricsClient)
 	if err != nil {
 		return nil, fmt.Errorf("new namespace shard to executor: %w", err)
 	}

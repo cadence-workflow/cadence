@@ -14,6 +14,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
@@ -41,6 +42,7 @@ type namespaceShardToExecutor struct {
 	client           etcdclient.Client
 	pubSub           *executorStatePubSub
 	timeSource       clock.TimeSource
+	metricsClient    metrics.Client
 
 	executorStatistics *namespaceExecutorStatistics
 }
@@ -109,7 +111,7 @@ func (n *namespaceShardToExecutor) parseExecutorData(resp *clientv3.GetResponse,
 	return data, nil
 }
 
-func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient.Client, stopCh chan struct{}, logger log.Logger, timeSource clock.TimeSource) (*namespaceShardToExecutor, error) {
+func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient.Client, stopCh chan struct{}, logger log.Logger, timeSource clock.TimeSource, metricsClient metrics.Client) (*namespaceShardToExecutor, error) {
 	return &namespaceShardToExecutor{
 		shardToExecutor:    make(map[string]*store.ShardOwner),
 		executorState:      make(map[*store.ShardOwner][]string),
@@ -123,6 +125,7 @@ func newNamespaceShardToExecutor(etcdPrefix, namespace string, client etcdclient
 		timeSource:         timeSource,
 		pubSub:             newExecutorStatePubSub(logger, namespace),
 		executorStatistics: newNamespaceExecutorStatistics(),
+		metricsClient:      metricsClient,
 	}, nil
 }
 
@@ -296,6 +299,10 @@ func (n *namespaceShardToExecutor) watch(triggerCh chan<- struct{}) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	scope := n.metricsClient.Scope(metrics.ShardDistributorWatchScope).
+		Tagged(metrics.NamespaceTag(n.namespace)).
+		Tagged(metrics.ShardDistributorWatchTypeTag("cache_refresh"))
+
 	watchChan := n.client.Watch(
 		// WithRequireLeader ensures that the etcd cluster has a leader
 		clientv3.WithRequireLeader(ctx),
@@ -318,12 +325,22 @@ func (n *namespaceShardToExecutor) watch(triggerCh chan<- struct{}) error {
 				return fmt.Errorf("watch channel closed")
 			}
 
-			if n.executorStateChanges(watchResp.Events) {
-				if err := n.refresh(context.Background()); err != nil {
-					n.logger.Error("failed to refresh namespace shard to executor", tag.ShardNamespace(n.namespace), tag.Error(err))
-					return err
-				}
+			// Track watch metrics
+			sw := scope.StartTimer(metrics.ShardDistributorWatchProcessingLatency)
+			scope.AddCounter(metrics.ShardDistributorWatchEventsReceived, int64(len(watchResp.Events)))
+
+			// Only trigger refresh if the change is related to executor assigned state or metadata
+			if !n.executorStateChanges(watchResp.Events) {
+				sw.Stop()
+				continue
 			}
+
+			select {
+			case triggerCh <- struct{}{}:
+			default:
+				n.logger.Info("Cache is being refreshed, skipping trigger")
+			}
+			sw.Stop()
 		}
 	}
 }

@@ -236,6 +236,26 @@ func TestGetShardOwner(t *testing.T) {
 			expectedError:  true,
 			expectedErrMsg: "assign shard failure",
 		},
+		{
+			name: "ShardNotFound_Ephemeral_AlreadyAssigned",
+			request: &types.GetShardOwnerRequest{
+				Namespace: _testNamespaceEphemeral,
+				ShardKey:  "CONCURRENT-SHARD",
+			},
+			setupMocks: func(mockStore *store.MockStore) {
+				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "CONCURRENT-SHARD").Return(nil, store.ErrShardNotFound)
+				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+					Executors:        map[string]store.HeartbeatState{"owner1": {Status: types.ExecutorStatusACTIVE}},
+					ShardAssignments: map[string]store.AssignedState{"owner1": {AssignedShards: map[string]*types.ShardAssignment{}}}}, nil)
+				mockStore.EXPECT().AssignShard(gomock.Any(), _testNamespaceEphemeral, "CONCURRENT-SHARD", "owner1").Return(&store.ErrShardAlreadyAssigned{
+					ShardID:    "CONCURRENT-SHARD",
+					AssignedTo: "owner2",
+					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
+				})
+			},
+			expectedOwner: "owner2",
+			expectedError: false,
+		},
 	}
 
 	for _, tt := range tests {

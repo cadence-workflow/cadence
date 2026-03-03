@@ -136,6 +136,15 @@ func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string
 
 	// Assign the shard to the executor with the least assigned shards
 	err = h.storage.AssignShard(ctx, namespace, shardID, executorID)
+	// If shard is already assigned, return the assigned owner
+	var alreadyAssigned *store.ErrShardAlreadyAssigned
+	if errors.As(err, &alreadyAssigned) {
+		return &types.GetShardOwnerResponse{
+			Owner:     alreadyAssigned.AssignedTo,
+			Namespace: namespace,
+			Metadata:  alreadyAssigned.Metadata,
+		}, nil
+	}
 	if err != nil {
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("assign ephemeral shard: %v", err)}
 	}

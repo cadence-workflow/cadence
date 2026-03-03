@@ -1558,6 +1558,15 @@ const (
 	// Allowed filters: N/A
 	QueueMaxVirtualQueueCount
 
+	// ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction.
+	// etcd enforces a server-side limit (--max-txn-ops, default 128).
+	// This value must not exceed the etcd cluster's configured limit.
+	// KeyName: shardDistributor.maxEtcdTxnOps
+	// Value type: Int
+	// Default value: 128
+	// Allowed filters: N/A
+	ShardDistributorMaxEtcdTxnOps
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -2264,6 +2273,14 @@ const (
 	// Default value: false
 	// Allowed filters: DomainName
 	EnforceDecisionTaskAttempts
+
+	// MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists)
+	// from using the shard manager to handle these shards. These short-lived task lists are assigned using hash_ring.
+	// KeyName: matching.excludeShortLivedTaskListsFromShardManager
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingExcludeShortLivedTaskListsFromShardManager
 
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
@@ -3117,6 +3134,13 @@ const (
 	// Default value: 3 seconds
 	// Allowed filters: domainName, taskListName, taskListType
 	AsyncTaskDispatchTimeout
+
+	// AppendTaskTimeout is the timeout of appending tasks to persistence.
+	// KeyName: matching.appendTaskTimeout
+	// Value type: Duration
+	// Default value: 5 seconds
+	// Allowed filters: domainName, taskListName, taskListType
+	AppendTaskTimeout
 
 	// HistoryGlobalRatelimiterDecayAfter defines how long to wait for an update before considering a host's data "possibly gone", causing its weight to gradually decline.
 	// KeyName: history.globalRatelimiterDecayAfter
@@ -4301,6 +4325,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
 		DefaultValue: 2,
 	},
+	ShardDistributorMaxEtcdTxnOps: {
+		KeyName:      "shardDistributor.maxEtcdTxnOps",
+		Description:  "ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction, must not exceed the etcd cluster's configured --max-txn-ops limit",
+		DefaultValue: 128,
+	},
 }
 
 var BoolKeys = map[BoolKey]DynamicBool{
@@ -4927,6 +4956,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.enforceDecisionTaskAttempts",
 		Filters:      []Filter{DomainName},
 		Description:  "EnforceDecisionTaskAttempts is the key for enforcing decision retry attempts limit in case of timeouts",
+		DefaultValue: false,
+	},
+	MatchingExcludeShortLivedTaskListsFromShardManager: {
+		KeyName:      "matching.excludeShortLivedTaskListsFromShardManager",
+		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
 		DefaultValue: false,
 	},
 }
@@ -5663,6 +5697,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "AsyncTaskDispatchTimeout is the timeout of dispatching tasks for async match",
 		DefaultValue: time.Second * 3,
+	},
+	AppendTaskTimeout: {
+		KeyName:      "matching.appendTaskTimeout",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "AppendTaskTimeout is the timeout of appending tasks to persistence.",
+		DefaultValue: time.Second * 5,
 	},
 	HistoryGlobalRatelimiterDecayAfter: {
 		KeyName:      "history.globalRatelimiterDecayAfter",

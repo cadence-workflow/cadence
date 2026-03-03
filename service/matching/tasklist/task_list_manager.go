@@ -94,7 +94,7 @@ type (
 		ClusterMetadata cluster.Metadata
 		IsolationState  isolationgroup.State
 		MatchingClient  matching.Client
-		Registry        ManagerRegistry // Registry that owns this manager, notified on Stop()
+		Registry        TaskListRegistry
 		TaskList        *Identifier
 		TaskListKind    types.TaskListKind
 		Cfg             *config.Config
@@ -140,7 +140,7 @@ type (
 		stopWG        sync.WaitGroup
 		stopped       int32
 		stoppedLock   sync.RWMutex
-		registry      ManagerRegistry // parent registry that tracks this manager
+		registry      TaskListRegistry
 		throttleRetry *backoff.ThrottleRetry
 
 		qpsTracker     stats.QPSTrackerGroup
@@ -318,7 +318,7 @@ func (c *taskListManagerImpl) Stop() {
 	}
 
 	// Notify parent registry to unregister this manager
-	c.registry.UnregisterManager(c)
+	c.registry.Unregister(c)
 
 	if c.adaptiveScaler != nil {
 		c.adaptiveScaler.Stop()
@@ -578,7 +578,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 
 		// Persist the standby task, but the sync match still fails.
 		// Return the false syncMatch flag along with any error
-		_, err = c.taskWriter.appendTask(params.TaskInfo)
+		_, err = c.taskWriter.appendTask(ctx, params.TaskInfo)
 		if err == nil {
 			// Signal the task reader only if appendTask succeeded
 			c.taskReader.Signal()
@@ -608,7 +608,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 
 	e.EventName = "Task Sent to Writer"
 	event.Log(e)
-	if _, err := c.taskWriter.appendTask(params.TaskInfo); err != nil {
+	if _, err := c.taskWriter.appendTask(ctx, params.TaskInfo); err != nil {
 		return syncMatch, err
 	}
 	c.taskReader.Signal()
@@ -1071,6 +1071,9 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		},
 		EnableGetNumberOfPartitionsFromCache: func() bool {
 			return cfg.EnableGetNumberOfPartitionsFromCache(domainName, id.GetRoot(), taskType)
+		},
+		AppendTaskTimeout: func() time.Duration {
+			return cfg.AppendTaskTimeout(domainName, taskListName, taskType)
 		},
 		AsyncTaskDispatchTimeout: func() time.Duration {
 			return cfg.AsyncTaskDispatchTimeout(domainName, taskListName, taskType)

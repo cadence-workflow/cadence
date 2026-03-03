@@ -90,8 +90,8 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 	deps.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).Times(1)
 	config := config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
 	mockHistoryService := history.NewMockClient(ctrl)
-	mockRegistry := NewMockManagerRegistry(ctrl)
-	mockRegistry.EXPECT().UnregisterManager(gomock.Any()).AnyTimes()
+	mockRegistry := NewMockTaskListRegistry(ctrl)
+	mockRegistry.EXPECT().Unregister(gomock.Any()).AnyTimes()
 	params := ManagerParams{
 		DomainCache:     deps.mockDomainCache,
 		Logger:          logger,
@@ -238,8 +238,8 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 	mockMatchingClient := matching.NewMockClient(controller)
 	mockMatchingClient.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	mockHistoryService := history.NewMockClient(controller)
-	mockRegistry := NewMockManagerRegistry(controller)
-	mockRegistry.EXPECT().UnregisterManager(gomock.Any()).AnyTimes()
+	mockRegistry := NewMockTaskListRegistry(controller)
+	mockRegistry.EXPECT().Unregister(gomock.Any()).AnyTimes()
 	tl := "tl"
 	dID := "domain"
 	tlID, err := NewIdentifier(dID, tl, persistence.TaskListTypeActivity)
@@ -271,7 +271,7 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 
 func TestTaskListManagerRegistryNotification(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	mockRegistry := NewMockManagerRegistry(ctrl)
+	mockRegistry := NewMockTaskListRegistry(ctrl)
 
 	// Create a minimal task list manager for testing
 	taskListID := NewTestTaskListID(t, uuid.New(), "test-tasklist", 0)
@@ -284,14 +284,14 @@ func TestTaskListManagerRegistryNotification(t *testing.T) {
 	// Replace the registry with our mock
 	tlm.registry = mockRegistry
 
-	// Expect UnregisterManager to be called exactly once with the manager instance
-	mockRegistry.EXPECT().UnregisterManager(tlm).Times(1)
+	// Expect Unregister to be called exactly once with the manager instance
+	mockRegistry.EXPECT().Unregister(tlm).Times(1)
 
 	// Start the manager
 	err := tlm.Start(context.Background())
 	require.NoError(t, err)
 
-	// Stop should call UnregisterManager
+	// Stop should call Unregister
 	tlm.Stop()
 	// Verify the manager stopped
 	require.Equal(t, int32(1), tlm.stopped)
@@ -964,8 +964,8 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	cfg := defaultTestConfig()
 	cfg.RangeSize = rangeSize
 	cfg.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
-	mockRegistry := NewMockManagerRegistry(controller)
-	mockRegistry.EXPECT().UnregisterManager(gomock.Any()).AnyTimes()
+	mockRegistry := NewMockTaskListRegistry(controller)
+	mockRegistry.EXPECT().Unregister(gomock.Any()).AnyTimes()
 	params := ManagerParams{
 		DomainCache:     mockDomainCache,
 		Logger:          logger,
@@ -1098,8 +1098,8 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 	cfg.RangeSize = rangeSize
 	cfg.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
 
-	mockRegistry := NewMockManagerRegistry(controller)
-	mockRegistry.EXPECT().UnregisterManager(gomock.Any()).AnyTimes()
+	mockRegistry := NewMockTaskListRegistry(controller)
+	mockRegistry.EXPECT().Unregister(gomock.Any()).AnyTimes()
 	params := ManagerParams{
 		DomainCache:     mockDomainCache,
 		Logger:          logger,
@@ -1248,8 +1248,8 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 			// set idle timer check to a really small value to assert that we don't accidentally drop tasks while blocking
 			// on enqueuing a task to task buffer
 			cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(20 * time.Millisecond)
-			mockRegistry := NewMockManagerRegistry(controller)
-			mockRegistry.EXPECT().UnregisterManager(gomock.Any()).AnyTimes()
+			mockRegistry := NewMockTaskListRegistry(controller)
+			mockRegistry.EXPECT().Unregister(gomock.Any()).AnyTimes()
 			params := ManagerParams{
 				DomainCache:     mockDomainCache,
 				Logger:          logger,
