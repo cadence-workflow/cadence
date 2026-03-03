@@ -101,7 +101,6 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 	shardOwner, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
 	if errors.Is(err, store.ErrShardNotFound) {
 		if h.shardDistributionCfg.Namespaces[namespaceIdx].Type == config.NamespaceTypeEphemeral {
-			// Fan-in: hand off to the micro-batcher instead of assigning inline.
 			return h.batcher.Submit(ctx, request.Namespace, request.ShardKey)
 		}
 
@@ -141,9 +140,6 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
 	}
 
-	// Snapshot the active executor shard counts. We mutate this map as we
-	// distribute shards within the batch so that later picks account for
-	// earlier ones made in the same flush cycle.
 	assignedCounts := make(map[string]int, len(state.ShardAssignments))
 	for executorID, assignment := range state.ShardAssignments {
 		executorState, ok := state.Executors[executorID]
@@ -167,8 +163,6 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 		}
 		chosenExecutors[shardKey] = chosenExecutor
 
-		// Optimistically bump the count so the next shard in this batch steers
-		// toward a different executor when load is equal.
 		if chosenExecutor != "" {
 			assignedCounts[chosenExecutor]++
 		}

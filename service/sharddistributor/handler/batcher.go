@@ -30,6 +30,8 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
+const _requestsChannelLimit = 1024
+
 // ephemeralBatchFn is a function that assigns a batch of shards within a namespace
 // and returns a map of shardKey -> GetShardOwnerResponse for each successfully assigned shard.
 // Keys absent from the result map indicate an error for that specific shard.
@@ -44,15 +46,13 @@ type batchRequest struct {
 	respChan chan batchResponse
 }
 
-// batchResponse carries the result for a single batchRequest.
 type batchResponse struct {
 	resp *types.GetShardOwnerResponse
 	err  error
 }
 
 // shardBatcher collects GetShardOwner calls for ephemeral namespaces over a
-// configurable time window and processes them in a single batch, reducing the
-// number of storage round-trips under high concurrency.
+// configurable time window and processes them in a single batch.
 //
 // Usage:
 //
@@ -73,17 +73,14 @@ type shardBatcher struct {
 	wg     sync.WaitGroup
 }
 
-// newShardBatcher creates a new shardBatcher that will flush pending requests
-// every interval using the provided processBatch function.
 func newShardBatcher(interval time.Duration, processBatch ephemeralBatchFn) *shardBatcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &shardBatcher{
 		interval:     interval,
 		processBatch: processBatch,
-		// Generous buffer so callers are not blocked when submitting requests.
-		requestChan: make(chan *batchRequest, 1024),
-		ctx:         ctx,
-		cancel:      cancel,
+		requestChan:  make(chan *batchRequest, _requestsChannelLimit),
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 }
 
@@ -128,8 +125,6 @@ func (b *shardBatcher) Submit(ctx context.Context, namespace, shardKey string) (
 	}
 }
 
-// loop is the single background goroutine that drives micro-batching.
-// It collects requests during each interval tick and flushes them together.
 func (b *shardBatcher) loop() {
 	defer b.wg.Done()
 
@@ -146,12 +141,9 @@ func (b *shardBatcher) loop() {
 
 		case <-ticker.C:
 			b.flush(pending)
-			// Re-initialise; flush takes ownership of the old map entries.
 			pending = make(map[string][]*batchRequest)
 
 		case <-b.ctx.Done():
-			// Drain any remaining requests in the channel before exiting so
-			// callers that already submitted get an orderly cancellation response.
 			b.drainAndCancel(pending)
 			return
 		}
