@@ -537,7 +537,7 @@ func TestNamespaceShardToExecutor_ExecutorStatistics(t *testing.T) {
 	}
 	putExecutorStatisticsInEtcd(t, testCluster, executorID, initialStats)
 
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, mockTime)
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, mockTime, metrics.NewNoopMetricsClient())
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
 
