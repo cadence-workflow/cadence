@@ -40,8 +40,8 @@ type namespaceShardToExecutor struct {
 	stopCh           chan struct{}
 	logger           log.Logger
 	client           etcdclient.Client
-	pubSub           *executorStatePubSub
 	timeSource       clock.TimeSource
+	pubSub           *executorStatePubSub
 	metricsClient    metrics.Client
 
 	executorStatistics *namespaceExecutorStatistics
@@ -316,11 +316,11 @@ func (n *namespaceShardToExecutor) watch(triggerCh chan<- struct{}) error {
 		case <-n.stopCh:
 			n.logger.Info("stop channel closed, exiting watch loop")
 			return nil
+
 		case watchResp, ok := <-watchChan:
 			if err := watchResp.Err(); err != nil {
 				return fmt.Errorf("watch response: %w", err)
 			}
-
 			if !ok {
 				return fmt.Errorf("watch channel closed")
 			}
@@ -330,7 +330,7 @@ func (n *namespaceShardToExecutor) watch(triggerCh chan<- struct{}) error {
 			scope.AddCounter(metrics.ShardDistributorWatchEventsReceived, int64(len(watchResp.Events)))
 
 			// Only trigger refresh if the change is related to executor assigned state or metadata
-			if !n.executorStateChanges(watchResp.Events) {
+			if !n.hasExecutorStateChanged(watchResp) {
 				sw.Stop()
 				continue
 			}
@@ -345,12 +345,14 @@ func (n *namespaceShardToExecutor) watch(triggerCh chan<- struct{}) error {
 	}
 }
 
-func (n *namespaceShardToExecutor) executorStateChanges(events []*clientv3.Event) bool {
+// hasExecutorStateChanged checks if any of the events in the watch response indicate a change to executor assigned state or metadata,
+// and if the value actually changed (not just same value written again)
+func (n *namespaceShardToExecutor) hasExecutorStateChanged(watchResp clientv3.WatchResponse) bool {
 	needsRefresh := false
-	for _, event := range events {
+	for _, event := range watchResp.Events {
 		executorID, keyType, keyErr := etcdkeys.ParseExecutorKey(n.etcdPrefix, n.namespace, string(event.Kv.Key))
 		if keyErr != nil {
-			n.logger.Error("failed to parse executor key", tag.ShardNamespace(n.namespace), tag.Error(keyErr))
+			n.logger.Warn("Received watch event with unrecognized key format", tag.Value(keyErr))
 			continue
 		}
 

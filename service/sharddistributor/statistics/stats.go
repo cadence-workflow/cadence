@@ -9,6 +9,9 @@ func CalculateSmoothedLoad(prev, current float64, lastUpdate, now time.Time) flo
 	if math.IsNaN(current) || math.IsInf(current, 0) {
 		current = 0
 	}
+	if math.IsNaN(prev) || math.IsInf(prev, 0) {
+		prev = 0
+	}
 	const tau = 30 * time.Second // smaller = more responsive, larger = smoother
 	if lastUpdate.IsZero() || tau <= 0 {
 		return current
