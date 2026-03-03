@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"go.uber.org/fx"
+	"go.uber.org/multierr"
 	"go.uber.org/yarpc/api/peer"
 	"go.uber.org/yarpc/api/transport"
 	"go.uber.org/yarpc/peer/hostport"
@@ -75,19 +76,13 @@ func NewSpectatorPeerChooser(
 func (c *SpectatorPeerChooser) Start() error {
 	c.logger.Info("Starting shard distributor peer chooser", tag.ShardNamespace(c.namespace))
 
-	// Subscribe to executor updates from all spectators
-	if c.spectators != nil {
-		for namespace, spectator := range c.spectators.spectators {
-			ch, err := spectator.Subscribe(peerChooserSubscriberName)
-			if err != nil {
-				c.logger.Error("Failed to subscribe to spectator updates", tag.Error(err), tag.ShardNamespace(namespace))
-				continue
-			}
-
-			// Start a goroutine to listen for updates
-			c.stopWG.Add(1)
-			go c.watchExecutorUpdates(namespace, spectator, ch)
+	// Subscribe to all spectators - fail fast on error
+	if err := c.subscribe(); err != nil {
+		if err := c.unsubscribe(); err != nil {
+			c.logger.Warn("Failed to unsubscribe after subscribe error", tag.Error(err))
 		}
+
+		return err
 	}
 
 	return nil
@@ -102,14 +97,8 @@ func (c *SpectatorPeerChooser) Stop() error {
 		close(c.stopCh)
 	}
 
-	// Unsubscribe from all spectators
-	if c.spectators != nil {
-		for namespace, spectator := range c.spectators.spectators {
-			if err := spectator.Unsubscribe(peerChooserSubscriberName); err != nil {
-				c.logger.Warn("Failed to unsubscribe from spectator", tag.Error(err), tag.ShardNamespace(namespace))
-			}
-		}
-	}
+	// Unsubscribe from all spectators - collect all errors
+	unsubErr := c.unsubscribe()
 
 	// Wait for all watch goroutines to finish
 	c.stopWG.Wait()
@@ -125,7 +114,7 @@ func (c *SpectatorPeerChooser) Stop() error {
 	}
 	c.peers = make(map[string]peer.Peer)
 
-	return nil
+	return unsubErr
 }
 
 // IsRunning satisfies the peer.Chooser interface
@@ -297,6 +286,43 @@ func (c *SpectatorPeerChooser) getSpectatorGrpcAddresses(spectator Spectator) ma
 	}
 
 	return grpcAddresses
+}
+
+// subscribe attempts to subscribe to all spectators and start watchExecutorUpdates goroutines
+func (c *SpectatorPeerChooser) subscribe() error {
+	if c.spectators == nil {
+		return nil
+	}
+
+	for namespace, spectator := range c.spectators.spectators {
+		ch, err := spectator.Subscribe(peerChooserSubscriberName)
+		if err != nil {
+			c.logger.Error("Failed to subscribe to spectator updates", tag.Error(err), tag.ShardNamespace(namespace))
+			return fmt.Errorf("failed to subscribe to spectator for namespace %s: %w", namespace, err)
+		}
+
+		// Start a goroutine to listen for updates
+		c.stopWG.Add(1)
+		go c.watchExecutorUpdates(namespace, spectator, ch)
+	}
+
+	return nil
+}
+
+// unsubscribe attempts to unsubscribe from all spectators
+func (c *SpectatorPeerChooser) unsubscribe() error {
+	if c.spectators == nil {
+		return nil
+	}
+
+	var errs error
+	for namespace, spectator := range c.spectators.spectators {
+		if err := spectator.Unsubscribe(peerChooserSubscriberName); err != nil {
+			errs = multierr.Append(errs, fmt.Errorf("unsubscribe from namespace %s: %w", namespace, err))
+		}
+	}
+
+	return errs
 }
 
 // noOpSubscriber is a no-op implementation of peer.Subscriber

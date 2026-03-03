@@ -291,6 +291,12 @@ func (s *spectatorImpl) Subscribe(subscriberName string) (<-chan struct{}, error
 func (s *spectatorImpl) Unsubscribe(subscriberName string) error {
 	s.subscribersMu.Lock()
 	defer s.subscribersMu.Unlock()
+
+	if _, ok := s.subscribers[subscriberName]; !ok {
+		return fmt.Errorf("subscriber with name %q does not exist", subscriberName)
+	}
+
+	close(s.subscribers[subscriberName])
 	delete(s.subscribers, subscriberName)
 	return nil
 }

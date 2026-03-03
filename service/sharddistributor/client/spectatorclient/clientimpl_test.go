@@ -368,7 +368,7 @@ func TestUnsubscribe_NonExistentSubscriber(t *testing.T) {
 
 	// Unsubscribe non-existent subscriber should not error
 	err := spectator.Unsubscribe("non-existent")
-	require.NoError(t, err)
+	require.Error(t, err)
 }
 
 func TestGetExecutors(t *testing.T) {
