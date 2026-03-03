@@ -527,3 +527,163 @@ func ToDeleteScheduleResponse(t *apiv1.DeleteScheduleResponse) *types.DeleteSche
 	}
 	return &types.DeleteScheduleResponse{}
 }
+
+// --- Action request/response mappers ---
+
+func FromPauseScheduleRequest(t *types.PauseScheduleRequest) *apiv1.PauseScheduleRequest {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.PauseScheduleRequest{
+		Domain:     t.Domain,
+		ScheduleId: t.ScheduleID,
+		Reason:     t.Reason,
+	}
+}
+
+func ToPauseScheduleRequest(t *apiv1.PauseScheduleRequest) *types.PauseScheduleRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.PauseScheduleRequest{
+		Domain:     t.Domain,
+		ScheduleID: t.ScheduleId,
+		Reason:     t.Reason,
+	}
+}
+
+func FromPauseScheduleResponse(t *types.PauseScheduleResponse) *apiv1.PauseScheduleResponse {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.PauseScheduleResponse{}
+}
+
+func ToPauseScheduleResponse(t *apiv1.PauseScheduleResponse) *types.PauseScheduleResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.PauseScheduleResponse{}
+}
+
+func FromUnpauseScheduleRequest(t *types.UnpauseScheduleRequest) *apiv1.UnpauseScheduleRequest {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.UnpauseScheduleRequest{
+		Domain:        t.Domain,
+		ScheduleId:    t.ScheduleID,
+		Reason:        t.Reason,
+		CatchUpPolicy: FromScheduleCatchUpPolicy(t.CatchUpPolicy),
+	}
+}
+
+func ToUnpauseScheduleRequest(t *apiv1.UnpauseScheduleRequest) *types.UnpauseScheduleRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.UnpauseScheduleRequest{
+		Domain:        t.Domain,
+		ScheduleID:    t.ScheduleId,
+		Reason:        t.Reason,
+		CatchUpPolicy: ToScheduleCatchUpPolicy(t.CatchUpPolicy),
+	}
+}
+
+func FromUnpauseScheduleResponse(t *types.UnpauseScheduleResponse) *apiv1.UnpauseScheduleResponse {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.UnpauseScheduleResponse{}
+}
+
+func ToUnpauseScheduleResponse(t *apiv1.UnpauseScheduleResponse) *types.UnpauseScheduleResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.UnpauseScheduleResponse{}
+}
+
+func FromListSchedulesRequest(t *types.ListSchedulesRequest) *apiv1.ListSchedulesRequest {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListSchedulesRequest{
+		Domain:        t.Domain,
+		PageSize:      t.PageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+func ToListSchedulesRequest(t *apiv1.ListSchedulesRequest) *types.ListSchedulesRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ListSchedulesRequest{
+		Domain:        t.Domain,
+		PageSize:      t.PageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+func FromListSchedulesResponse(t *types.ListSchedulesResponse) *apiv1.ListSchedulesResponse {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListSchedulesResponse{
+		Schedules:     FromScheduleListEntryArray(t.Schedules),
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+func ToListSchedulesResponse(t *apiv1.ListSchedulesResponse) *types.ListSchedulesResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ListSchedulesResponse{
+		Schedules:     ToScheduleListEntryArray(t.Schedules),
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+func FromBackfillScheduleRequest(t *types.BackfillScheduleRequest) *apiv1.BackfillScheduleRequest {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.BackfillScheduleRequest{
+		Domain:        t.Domain,
+		ScheduleId:    t.ScheduleID,
+		StartTime:     timeToTimestamp(&t.StartTime),
+		EndTime:       timeToTimestamp(&t.EndTime),
+		OverlapPolicy: FromScheduleOverlapPolicy(t.OverlapPolicy),
+		BackfillId:    t.BackfillID,
+	}
+}
+
+func ToBackfillScheduleRequest(t *apiv1.BackfillScheduleRequest) *types.BackfillScheduleRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.BackfillScheduleRequest{
+		Domain:        t.Domain,
+		ScheduleID:    t.ScheduleId,
+		StartTime:     timestampToTimeVal(t.StartTime),
+		EndTime:       timestampToTimeVal(t.EndTime),
+		OverlapPolicy: ToScheduleOverlapPolicy(t.OverlapPolicy),
+		BackfillID:    t.BackfillId,
+	}
+}
+
+func FromBackfillScheduleResponse(t *types.BackfillScheduleResponse) *apiv1.BackfillScheduleResponse {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.BackfillScheduleResponse{}
+}
+
+func ToBackfillScheduleResponse(t *apiv1.BackfillScheduleResponse) *types.BackfillScheduleResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.BackfillScheduleResponse{}
+}
