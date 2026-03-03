@@ -135,20 +135,38 @@ func TestIWRRSchedule_LargeWeights(t *testing.T) {
 
 	iter := schedule.NewIterator()
 
-	// Count how many times each item appears
-	counts := make(map[*testWeightedItem]int)
+	// IWRR pattern for [100, 50, 25]:
+	// Rounds 99-50 (50 rounds): only item 0 (weight 100 > round)
+	// Rounds 49-25 (25 rounds): items 0, 1 (weights 100, 50 > round)
+	// Rounds 24-0 (25 rounds): items 0, 1, 2 (all weights > round)
+	var expectedSequence []*testWeightedItem
 
-	for {
-		item, ok := iter.TryNext()
-		if !ok {
-			break
-		}
-		counts[item]++
+	// First 50 rounds: only item 0
+	for i := 0; i < 50; i++ {
+		expectedSequence = append(expectedSequence, items[0])
 	}
 
-	assert.Equal(t, 100, counts[items[0]], "item 0 should appear 100 times")
-	assert.Equal(t, 50, counts[items[1]], "item 1 should appear 50 times")
-	assert.Equal(t, 25, counts[items[2]], "item 2 should appear 25 times")
+	// Next 25 rounds: items 0, 1
+	for i := 0; i < 25; i++ {
+		expectedSequence = append(expectedSequence, items[0], items[1])
+	}
+
+	// Last 25 rounds: items 0, 1, 2
+	for i := 0; i < 25; i++ {
+		expectedSequence = append(expectedSequence, items[0], items[1], items[2])
+	}
+
+	// Verify the sequence
+	for i, expected := range expectedSequence {
+		item, ok := iter.TryNext()
+		require.True(t, ok, "iteration %d should succeed", i)
+		assert.Equal(t, expected, item, "iteration %d", i)
+	}
+
+	// Should be exhausted
+	item, ok := iter.TryNext()
+	assert.False(t, ok)
+	assert.Nil(t, item)
 }
 
 func TestIWRRSchedule_ChannelWithZeroWeight(t *testing.T) {

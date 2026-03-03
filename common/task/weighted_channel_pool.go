@@ -38,10 +38,8 @@ const defaultIdleChannelTTLInSeconds = 3600
 
 type (
 	weightedChannel[V any] struct {
-		weight        int
-		c             chan V
-		refCount      atomic.Int32
-		lastWriteTime atomic.Int64
+		*TTLChannel[V]
+		weight int
 	}
 
 	WeightedRoundRobinChannelPoolOptions struct {
@@ -127,9 +125,10 @@ func (p *WeightedRoundRobinChannelPool[K, V]) doCleanup() {
 	p.Lock()
 	defer p.Unlock()
 	var channelsToCleanup []K
-	now := p.timeSource.Now().Unix()
+	now := p.timeSource.Now()
+	ttl := time.Duration(p.idleChannelTTLInSeconds) * time.Second
 	for k, v := range p.channelMap {
-		if now-v.lastWriteTime.Load() > p.idleChannelTTLInSeconds && len(v.c) == 0 && v.refCount.Load() == 0 {
+		if v.ShouldCleanup(now, ttl) {
 			channelsToCleanup = append(channelsToCleanup, k)
 		}
 	}
@@ -147,40 +146,34 @@ func (p *WeightedRoundRobinChannelPool[K, V]) doCleanup() {
 func (p *WeightedRoundRobinChannelPool[K, V]) GetOrCreateChannel(key K, weight int) (chan V, func()) {
 	p.RLock()
 	if v := p.channelMap[key]; v != nil && v.weight == weight {
-		v.refCount.Add(1)
-		v.lastWriteTime.Store(p.timeSource.Now().Unix())
+		v.IncRef()
+		v.UpdateLastWriteTime(p.timeSource.Now())
 		p.RUnlock()
-		return v.c, func() {
-			v.refCount.Add(-1)
-		}
+		return v.Chan(), v.DecRef
 	}
 	p.RUnlock()
 
 	p.Lock()
 	defer p.Unlock()
 	if v := p.channelMap[key]; v != nil {
-		v.refCount.Add(1)
-		v.lastWriteTime.Store(p.timeSource.Now().Unix())
+		v.IncRef()
+		v.UpdateLastWriteTime(p.timeSource.Now())
 		if v.weight != weight {
 			v.weight = weight
 			p.updateScheduleLocked()
 		}
-		return v.c, func() {
-			v.refCount.Add(-1)
-		}
+		return v.Chan(), v.DecRef
 	}
 
 	v := &weightedChannel[V]{
-		weight: weight,
-		c:      make(chan V, p.bufferSize),
+		TTLChannel: NewTTLChannel[V](p.bufferSize),
+		weight:     weight,
 	}
 	p.channelMap[key] = v
-	v.refCount.Add(1)
-	v.lastWriteTime.Store(p.timeSource.Now().Unix())
+	v.IncRef()
+	v.UpdateLastWriteTime(p.timeSource.Now())
 	p.updateScheduleLocked()
-	return v.c, func() {
-		v.refCount.Add(-1)
-	}
+	return v.Chan(), v.DecRef
 }
 
 func (p *WeightedRoundRobinChannelPool[K, V]) GetAllChannels() []chan V {
@@ -188,7 +181,7 @@ func (p *WeightedRoundRobinChannelPool[K, V]) GetAllChannels() []chan V {
 	defer p.RUnlock()
 	allChannels := make([]chan V, 0, len(p.channelMap))
 	for _, v := range p.channelMap {
-		allChannels = append(allChannels, v.c)
+		allChannels = append(allChannels, v.Chan())
 	}
 	return allChannels
 }
