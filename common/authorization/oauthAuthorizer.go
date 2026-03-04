@@ -151,6 +151,13 @@ func (a *oauthAuthority) Authorize(ctx context.Context, attributes *Attributes) 
 		return Result{Decision: DecisionAllow}, nil
 	}
 
+	// For cluster-level APIs (no domain), allow any authenticated non-admin user.
+	// Domain-level permission checks rely on groups configured in domain data, which
+	// does not exist for cluster-scoped operations. A valid token is sufficient.
+	if attributes.DomainName == "" {
+		return Result{Decision: DecisionAllow}, nil
+	}
+
 	domain, err := a.domainCache.GetDomain(attributes.DomainName)
 	if err != nil {
 		return Result{Decision: DecisionDeny}, err

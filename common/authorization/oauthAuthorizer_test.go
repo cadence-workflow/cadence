@@ -170,6 +170,23 @@ func (s *oauthSuite) TestGetDomainError() {
 	s.EqualError(err, "error")
 }
 
+// TestClusterAPIWithNonAdminToken verifies that non-admin tokens can access cluster-level APIs
+// (those with an empty DomainName, such as DescribeCluster) without a domain cache lookup.
+func (s *oauthSuite) TestClusterAPIWithNonAdminToken() {
+	// No domain cache call should be made when DomainName is empty.
+	clusterAttr := Attributes{
+		Actor:      "John Doe",
+		APIName:    "DescribeCluster",
+		DomainName: "",
+		Permission: PermissionRead,
+	}
+	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
+	s.NoError(err)
+	result, err := authorizer.Authorize(s.ctx, &clusterAttr)
+	s.NoError(err)
+	s.Equal(DecisionAllow, result.Decision)
+}
+
 func (s *oauthSuite) TestIncorrectPublicKey() {
 	s.cfg.JwtCredentials.PublicKey = "incorrectPublicKey"
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
