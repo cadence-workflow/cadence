@@ -204,93 +204,33 @@ func TestDeleteScheduleResponse(t *testing.T) {
 // --- CRUD request/response fuzz tests ---
 
 func TestCreateScheduleRequestFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.CreateScheduleRequest
-		fuzzer.Fuzz(&orig)
-		out := ToCreateScheduleRequest(FromCreateScheduleRequest(orig))
-		assert.Equal(t, orig, out, "CreateScheduleRequest did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.Domain == "" && orig.ScheduleID == "" && orig.Spec == nil {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromCreateScheduleRequest, ToCreateScheduleRequest,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestDescribeScheduleRequestFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.DescribeScheduleRequest
-		fuzzer.Fuzz(&orig)
-		out := ToDescribeScheduleRequest(FromDescribeScheduleRequest(orig))
-		assert.Equal(t, orig, out, "DescribeScheduleRequest did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.Domain == "" && orig.ScheduleID == "" {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromDescribeScheduleRequest, ToDescribeScheduleRequest,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestDescribeScheduleResponseFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.DescribeScheduleResponse
-		fuzzer.Fuzz(&orig)
-		out := ToDescribeScheduleResponse(FromDescribeScheduleResponse(orig))
-		assert.Equal(t, orig, out, "DescribeScheduleResponse did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.Spec == nil && orig.Action == nil && orig.State == nil {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromDescribeScheduleResponse, ToDescribeScheduleResponse,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestUpdateScheduleRequestFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.UpdateScheduleRequest
-		fuzzer.Fuzz(&orig)
-		out := ToUpdateScheduleRequest(FromUpdateScheduleRequest(orig))
-		assert.Equal(t, orig, out, "UpdateScheduleRequest did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.Domain == "" && orig.ScheduleID == "" && orig.Spec == nil {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromUpdateScheduleRequest, ToUpdateScheduleRequest,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestDeleteScheduleRequestFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.DeleteScheduleRequest
-		fuzzer.Fuzz(&orig)
-		out := ToDeleteScheduleRequest(FromDeleteScheduleRequest(orig))
-		assert.Equal(t, orig, out, "DeleteScheduleRequest did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.Domain == "" && orig.ScheduleID == "" {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromDeleteScheduleRequest, ToDeleteScheduleRequest,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 // --- Action request/response deterministic tests ---
@@ -346,91 +286,31 @@ func TestBackfillScheduleResponse(t *testing.T) {
 // --- Action request/response fuzz tests ---
 
 func TestPauseScheduleRequestFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.PauseScheduleRequest
-		fuzzer.Fuzz(&orig)
-		out := ToPauseScheduleRequest(FromPauseScheduleRequest(orig))
-		assert.Equal(t, orig, out, "PauseScheduleRequest did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.Domain == "" && orig.ScheduleID == "" {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromPauseScheduleRequest, ToPauseScheduleRequest,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestUnpauseScheduleRequestFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.UnpauseScheduleRequest
-		fuzzer.Fuzz(&orig)
-		out := ToUnpauseScheduleRequest(FromUnpauseScheduleRequest(orig))
-		assert.Equal(t, orig, out, "UnpauseScheduleRequest did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.Domain == "" && orig.ScheduleID == "" {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromUnpauseScheduleRequest, ToUnpauseScheduleRequest,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestListSchedulesRequestFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.ListSchedulesRequest
-		fuzzer.Fuzz(&orig)
-		out := ToListSchedulesRequest(FromListSchedulesRequest(orig))
-		assert.Equal(t, orig, out, "ListSchedulesRequest did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.Domain == "" && orig.NextPageToken == nil {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromListSchedulesRequest, ToListSchedulesRequest,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestListSchedulesResponseFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.ListSchedulesResponse
-		fuzzer.Fuzz(&orig)
-		out := ToListSchedulesResponse(FromListSchedulesResponse(orig))
-		assert.Equal(t, orig, out, "ListSchedulesResponse did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.Schedules == nil && orig.NextPageToken == nil {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromListSchedulesResponse, ToListSchedulesResponse,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestBackfillScheduleRequestFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.BackfillScheduleRequest
-		fuzzer.Fuzz(&orig)
-		out := ToBackfillScheduleRequest(FromBackfillScheduleRequest(orig))
-		assert.Equal(t, orig, out, "BackfillScheduleRequest did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.Domain == "" && orig.ScheduleID == "" {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromBackfillScheduleRequest, ToBackfillScheduleRequest,
+		WithScheduleEnumFuzzers(),
+	)
 }
