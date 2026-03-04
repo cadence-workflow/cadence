@@ -150,6 +150,11 @@ func validatePermission(claims *JWTClaims, attributes *Attributes, data domainDa
 		return fmt.Errorf("permission %v is not supported", attributes.Permission)
 	}
 
+	// nil domain data means cluster-level API with no domain: allow any authenticated user.
+	if data == nil {
+		return nil
+	}
+
 	allowedGroups := map[string]bool{}
 	// groups that allowed by domain configuration(in domainData)
 	// write groups are always checked

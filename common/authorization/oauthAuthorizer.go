@@ -152,10 +152,10 @@ func (a *oauthAuthority) Authorize(ctx context.Context, attributes *Attributes) 
 	}
 
 	if attributes.DomainName == "" {
-		// For cluster-level APIs (no domain), validate the permission level is supported
-		// but skip domain group checks since there is no domain data to look up.
-		if (attributes.Permission < PermissionRead) || (attributes.Permission > PermissionProcess) {
-			a.log.Debug("request is not authorized", tag.Error(fmt.Errorf("permission %v is not supported", attributes.Permission)))
+		// For cluster-level APIs (no domain), skip domain cache lookup and group checks.
+		// Pass nil domain data to validatePermission to signal no domain restrictions.
+		if err := validatePermission(&claims, attributes, nil); err != nil {
+			a.log.Debug("request is not authorized", tag.Error(err))
 			return Result{Decision: DecisionDeny}, nil
 		}
 		return Result{Decision: DecisionAllow}, nil
