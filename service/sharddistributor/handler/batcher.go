@@ -27,10 +27,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/types"
 )
 
-const _requestsChannelLimit = 1024
+const (
+	_requestsChannelLimit = 1024
+	_intervalJitterCoeff  = 0.1 // 10% jitter
+)
 
 // ephemeralBatchFn is a function that assigns a batch of shards within a namespace
 // and returns a map of shardKey -> GetShardOwnerResponse for each successfully assigned shard.
@@ -61,6 +66,7 @@ type batchResponse struct {
 //	defer b.Stop()
 //	resp, err := b.Submit(ctx, namespace, shardKey)
 type shardBatcher struct {
+	timeSource   clock.TimeSource
 	interval     time.Duration
 	processBatch ephemeralBatchFn
 
@@ -73,9 +79,10 @@ type shardBatcher struct {
 	wg     sync.WaitGroup
 }
 
-func newShardBatcher(interval time.Duration, processBatch ephemeralBatchFn) *shardBatcher {
+func newShardBatcher(timeSource clock.TimeSource, interval time.Duration, processBatch ephemeralBatchFn) *shardBatcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &shardBatcher{
+		timeSource:   timeSource,
 		interval:     interval,
 		processBatch: processBatch,
 		requestChan:  make(chan *batchRequest, _requestsChannelLimit),
@@ -128,7 +135,7 @@ func (b *shardBatcher) Submit(ctx context.Context, namespace, shardKey string) (
 func (b *shardBatcher) loop() {
 	defer b.wg.Done()
 
-	ticker := time.NewTicker(b.interval)
+	ticker := b.timeSource.NewTicker(backoff.JitDuration(b.interval, _intervalJitterCoeff))
 	defer ticker.Stop()
 
 	// pending maps namespace -> list of batchRequests accumulated since last flush.
@@ -139,7 +146,7 @@ func (b *shardBatcher) loop() {
 		case req := <-b.requestChan:
 			pending[req.namespace] = append(pending[req.namespace], req)
 
-		case <-ticker.C:
+		case <-ticker.Chan():
 			b.flush(pending)
 			pending = make(map[string][]*batchRequest)
 

@@ -31,7 +31,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -49,7 +51,23 @@ func processFnFromMap(results map[string]*types.GetShardOwnerResponse) ephemeral
 	}
 }
 
+// advanceUntilDone repeatedly advances the mocked clock by step until done is closed.
+// Each advance fires one ticker cycle, draining whatever requests have been enqueued
+// since the previous tick. This avoids races between goroutine scheduling and a
+// single Advance call.
+func advanceUntilDone(ts clock.MockedTimeSource, done <-chan struct{}, step time.Duration) {
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			ts.Advance(step)
+		}
+	}
+}
+
 func TestShardBatcher_Submit(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	tests := []struct {
 		name      string
 		batchFn   ephemeralBatchFn
@@ -108,7 +126,8 @@ func TestShardBatcher_Submit(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			b := newShardBatcher(10*time.Millisecond, tc.batchFn)
+			ts := clock.NewMockedTimeSource()
+			b := newShardBatcher(ts, 10*time.Millisecond, tc.batchFn)
 			b.Start()
 			defer b.Stop()
 
@@ -117,28 +136,46 @@ func TestShardBatcher_Submit(t *testing.T) {
 				ctx = tc.ctxFn()
 			}
 
-			resp, err := b.Submit(ctx, tc.namespace, tc.shardKey)
+			type result struct {
+				resp *types.GetShardOwnerResponse
+				err  error
+			}
+			done := make(chan struct{})
+			ch := make(chan result, 1)
+			go func() {
+				resp, err := b.Submit(ctx, tc.namespace, tc.shardKey)
+				ch <- result{resp, err}
+				close(done)
+			}()
 
+			// Keep ticking until the goroutine finishes. Advancing by 2x the interval
+			// per step accounts for jitter and ensures the request is flushed even if
+			// it races with the first tick.
+			ts.BlockUntil(1)
+			advanceUntilDone(ts, done, 20*time.Millisecond)
+
+			got := <-ch
 			if tc.wantErr {
-				require.Error(t, err)
+				require.Error(t, got.err)
 				if tc.wantErrIs != nil {
-					assert.ErrorIs(t, err, tc.wantErrIs)
+					assert.ErrorIs(t, got.err, tc.wantErrIs)
 				}
 				if tc.wantErrMsg != "" {
-					assert.ErrorContains(t, err, tc.wantErrMsg)
+					assert.ErrorContains(t, got.err, tc.wantErrMsg)
 				}
 				return
 			}
 
-			require.NoError(t, err)
+			require.NoError(t, got.err)
 			if tc.wantOwner != "" {
-				assert.Equal(t, tc.wantOwner, resp.Owner)
+				assert.Equal(t, tc.wantOwner, got.resp.Owner)
 			}
 		})
 	}
 }
 
 func TestShardBatcher_MultipleNamespacesIsolated(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	tests := []struct {
 		name     string
 		results  map[string]*types.GetShardOwnerResponse
@@ -167,26 +204,46 @@ func TestShardBatcher_MultipleNamespacesIsolated(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			b := newShardBatcher(10*time.Millisecond, processFnFromMap(tc.results))
+			ts := clock.NewMockedTimeSource()
+			b := newShardBatcher(ts, 10*time.Millisecond, processFnFromMap(tc.results))
 			b.Start()
 			defer b.Stop()
 
+			type result struct {
+				owner string
+				err   error
+			}
+			got := make([]result, len(tc.requests))
 			var wg sync.WaitGroup
-			for _, req := range tc.requests {
+			for i, req := range tc.requests {
 				wg.Add(1)
-				go func(namespace, shardKey, wantOwner string) {
+				go func(i int, namespace, shardKey string) {
 					defer wg.Done()
 					resp, err := b.Submit(context.Background(), namespace, shardKey)
-					require.NoError(t, err)
-					assert.Equal(t, wantOwner, resp.Owner)
-				}(req.namespace, req.shardKey, req.wantOwner)
+					if err == nil {
+						got[i] = result{owner: resp.Owner}
+					} else {
+						got[i] = result{err: err}
+					}
+				}(i, req.namespace, req.shardKey)
 			}
-			wg.Wait()
+
+			done := make(chan struct{})
+			go func() { wg.Wait(); close(done) }()
+
+			ts.BlockUntil(1)
+			advanceUntilDone(ts, done, 20*time.Millisecond)
+
+			for i, req := range tc.requests {
+				require.NoError(t, got[i].err)
+				assert.Equal(t, req.wantOwner, got[i].owner)
+			}
 		})
 	}
 }
 
 func TestShardBatcher_ErrorPropagatedToAllCallers(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	tests := []struct {
 		name       string
 		batchErr   error
@@ -205,7 +262,8 @@ func TestShardBatcher_ErrorPropagatedToAllCallers(t *testing.T) {
 				return nil, tc.batchErr
 			}
 
-			b := newShardBatcher(10*time.Millisecond, batchFn)
+			ts := clock.NewMockedTimeSource()
+			b := newShardBatcher(ts, 10*time.Millisecond, batchFn)
 			b.Start()
 			defer b.Stop()
 
@@ -218,7 +276,12 @@ func TestShardBatcher_ErrorPropagatedToAllCallers(t *testing.T) {
 					_, errs[i] = b.Submit(context.Background(), "ns", "shard")
 				}(i)
 			}
-			wg.Wait()
+
+			done := make(chan struct{})
+			go func() { wg.Wait(); close(done) }()
+
+			ts.BlockUntil(1)
+			advanceUntilDone(ts, done, 20*time.Millisecond)
 
 			for i, err := range errs {
 				assert.ErrorContains(t, err, tc.batchErr.Error(), "caller %d should receive the batch error", i)
@@ -228,11 +291,11 @@ func TestShardBatcher_ErrorPropagatedToAllCallers(t *testing.T) {
 }
 
 func TestShardBatcher_ConcurrentRequestsBatchedTogether(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	tests := []struct {
 		name      string
 		numShards int
-		// interval is kept generous so all goroutines queue before the first flush.
-		interval time.Duration
+		interval  time.Duration
 	}{
 		{
 			name:      "20 concurrent shards collapsed into fewer batch calls",
@@ -243,18 +306,21 @@ func TestShardBatcher_ConcurrentRequestsBatchedTogether(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var mu sync.Mutex
-			callCount := 0
-
 			results := make(map[string]*types.GetShardOwnerResponse, tc.numShards)
 			for i := range tc.numShards {
 				key := "shard-" + string(rune('A'+i))
 				results[key] = &types.GetShardOwnerResponse{Owner: "exec-1", Namespace: "ns"}
 			}
 
+			// maxBatchSize tracks the largest single batch seen. Batching is confirmed
+			// when at least one flush call receives more than one shard key.
+			var mu sync.Mutex
+			maxBatchSize := 0
 			batchFn := func(_ context.Context, _ string, shardKeys []string) (map[string]*types.GetShardOwnerResponse, error) {
 				mu.Lock()
-				callCount++
+				if len(shardKeys) > maxBatchSize {
+					maxBatchSize = len(shardKeys)
+				}
 				mu.Unlock()
 				out := make(map[string]*types.GetShardOwnerResponse, len(shardKeys))
 				for _, k := range shardKeys {
@@ -265,7 +331,8 @@ func TestShardBatcher_ConcurrentRequestsBatchedTogether(t *testing.T) {
 				return out, nil
 			}
 
-			b := newShardBatcher(tc.interval, batchFn)
+			ts := clock.NewMockedTimeSource()
+			b := newShardBatcher(ts, tc.interval, batchFn)
 			b.Start()
 			defer b.Stop()
 
@@ -280,25 +347,31 @@ func TestShardBatcher_ConcurrentRequestsBatchedTogether(t *testing.T) {
 					assert.Equal(t, "exec-1", resp.Owner)
 				}(i)
 			}
-			wg.Wait()
+
+			done := make(chan struct{})
+			go func() { wg.Wait(); close(done) }()
+
+			// Keep ticking until all callers finish. Each advance drains whatever
+			// has been enqueued since the previous tick.
+			ts.BlockUntil(1)
+			advanceUntilDone(ts, done, 2*tc.interval)
 
 			mu.Lock()
 			defer mu.Unlock()
-			assert.Less(t, callCount, tc.numShards, "expected batching to reduce the number of processBatch invocations")
+			assert.Greater(t, maxBatchSize, 1, "expected at least one batch call to receive more than one shard")
 		})
 	}
 }
 
 func TestShardBatcher_StopDrainsAndCancelsRemainingRequests(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	tests := []struct {
-		name         string
-		enqueueDelay time.Duration
-		stopTimeout  time.Duration
+		name        string
+		stopTimeout time.Duration
 	}{
 		{
-			name:         "in-flight request resolves after Stop",
-			enqueueDelay: 20 * time.Millisecond,
-			stopTimeout:  500 * time.Millisecond,
+			name:        "in-flight request resolves after Stop",
+			stopTimeout: 500 * time.Millisecond,
 		},
 	}
 
@@ -310,19 +383,23 @@ func TestShardBatcher_StopDrainsAndCancelsRemainingRequests(t *testing.T) {
 				return nil, nil
 			}
 
-			b := newShardBatcher(5*time.Millisecond, batchFn)
+			ts := clock.NewMockedTimeSource()
+			b := newShardBatcher(ts, 5*time.Millisecond, batchFn)
 			b.Start()
 
 			errCh := make(chan error, 1)
+			done := make(chan struct{})
 			go func() {
 				_, err := b.Submit(context.Background(), "ns", "shard-1")
 				errCh <- err
+				close(done)
 			}()
 
-			// Give the goroutine time to enqueue.
-			time.Sleep(tc.enqueueDelay)
+			// Keep ticking until the flush is triggered and the goroutine unblocks.
+			ts.BlockUntil(1)
+			go advanceUntilDone(ts, done, 10*time.Millisecond)
 
-			// Unblock and stop concurrently.
+			// Unblock the batchFn and stop the batcher.
 			close(block)
 			b.Stop()
 

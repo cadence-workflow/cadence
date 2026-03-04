@@ -26,23 +26,26 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"sync"
 	"time"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-// ephemeralBatchInterval is the time window over which GetShardOwner calls for
-// ephemeral namespaces are collected before being processed as a single batch.
-const ephemeralBatchInterval = 100 * time.Millisecond
+const (
+	// ephemeralBatchInterval is the time window over which GetShardOwner calls for
+	// ephemeral namespaces are collected before being processed as a single batch.
+	ephemeralBatchInterval = 100 * time.Millisecond
+)
 
 func NewHandler(
 	logger log.Logger,
+	timeSource clock.TimeSource,
 	shardDistributionCfg config.ShardDistribution,
 	storage store.Store,
 ) Handler {
@@ -52,7 +55,7 @@ func NewHandler(
 		storage:              storage,
 	}
 
-	handler.batcher = newShardBatcher(ephemeralBatchInterval, handler.assignEphemeralBatch)
+	handler.batcher = newShardBatcher(timeSource, ephemeralBatchInterval, handler.assignEphemeralBatch)
 
 	// prevent us from trying to serve requests before shard distributor is started and ready
 	handler.startWG.Add(1)
@@ -120,110 +123,6 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 	}
 
 	return resp, nil
-}
-
-// assignEphemeralBatch is the ephemeralBatchFn wired into the shardBatcher.
-// It processes a whole batch of unassigned shard keys for a single ephemeral
-// namespace using two storage operations:
-//  1. GetState     — read current namespace state once for the whole batch.
-//  2. AssignShards — write all new assignments atomically in one operation.
-//
-// After the write, GetExecutor is called once per unique chosen executor (not
-// per shard) to fetch metadata for the response, since metadata is stored
-// separately in the shard cache and is not returned by GetState.
-//
-// Within the batch the least-loaded ACTIVE executor is chosen per shard, with
-// the in-batch running count updated after each pick so load is spread evenly.
-func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string, shardKeys []string) (map[string]*types.GetShardOwnerResponse, error) {
-	state, err := h.storage.GetState(ctx, namespace)
-	if err != nil {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
-	}
-
-	assignedCounts := make(map[string]int, len(state.ShardAssignments))
-	for executorID, assignment := range state.ShardAssignments {
-		executorState, ok := state.Executors[executorID]
-		if !ok || executorState.Status != types.ExecutorStatusACTIVE {
-			continue
-		}
-		assignedCounts[executorID] = len(assignment.AssignedShards)
-	}
-
-	// Assign each shard key to the least-loaded executor, tracking choices so
-	// we can build the response map after the single AssignShards call.
-	chosenExecutors := make(map[string]string, len(shardKeys))
-	for _, shardKey := range shardKeys {
-		chosenExecutor := ""
-		minCount := math.MaxInt
-		for executorID, count := range assignedCounts {
-			if count < minCount {
-				minCount = count
-				chosenExecutor = executorID
-			}
-		}
-		if chosenExecutor == "" {
-			return nil, &types.InternalServiceError{Message: "no active executors available for namespace: " + namespace}
-		}
-		chosenExecutors[shardKey] = chosenExecutor
-		assignedCounts[chosenExecutor]++
-	}
-
-	// Merge the new shard assignments into the namespace state. We copy the
-	// AssignedShards maps to avoid mutating the object returned by GetState.
-	for executorID, shardsForExecutor := range invertMap(chosenExecutors) {
-		existing := state.ShardAssignments[executorID]
-		newShards := make(map[string]*types.ShardAssignment, len(existing.AssignedShards)+len(shardsForExecutor))
-		for k, v := range existing.AssignedShards {
-			newShards[k] = v
-		}
-		for _, shardKey := range shardsForExecutor {
-			newShards[shardKey] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
-		}
-		existing.AssignedShards = newShards
-		state.ShardAssignments[executorID] = existing
-	}
-
-	// Single atomic write for the entire batch.
-	if err := h.storage.AssignShards(ctx, namespace, store.AssignShardsRequest{NewState: state}, store.NopGuard()); err != nil {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("assign ephemeral shards: %v", err)}
-	}
-
-	// Fetch metadata from the shard cache once per unique chosen executor.
-	// Metadata is stored separately from HeartbeatState and is not returned
-	// by GetState, so GetExecutor is required here.
-	executorOwners := make(map[string]*store.ShardOwner, len(assignedCounts))
-	for _, executorID := range chosenExecutors {
-		if _, already := executorOwners[executorID]; already {
-			continue
-		}
-		owner, execErr := h.storage.GetExecutor(ctx, namespace, executorID)
-		if execErr != nil {
-			return nil, &types.InternalServiceError{Message: fmt.Sprintf("get executor %q: %v", executorID, execErr)}
-		}
-		executorOwners[executorID] = owner
-	}
-
-	results := make(map[string]*types.GetShardOwnerResponse, len(shardKeys))
-	for _, shardKey := range shardKeys {
-		executorID := chosenExecutors[shardKey]
-		owner := executorOwners[executorID]
-		results[shardKey] = &types.GetShardOwnerResponse{
-			Owner:     owner.ExecutorID,
-			Namespace: namespace,
-			Metadata:  owner.Metadata,
-		}
-	}
-
-	return results, nil
-}
-
-// invertMap turns map[shardKey]executorID into map[executorID][]shardKey.
-func invertMap(m map[string]string) map[string][]string {
-	out := make(map[string][]string)
-	for shardKey, executorID := range m {
-		out[executorID] = append(out[executorID], shardKey)
-	}
-	return out
 }
 
 func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequest, server WatchNamespaceStateServer) error {
