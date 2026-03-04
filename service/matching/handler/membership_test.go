@@ -339,6 +339,7 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 		config: &config.Config{
 			EnableTasklistOwnershipGuard:               func(opts ...dynamicproperties.FilterOption) bool { return true },
 			ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return true },
+			PercentageOnboardedToShardManager:          func(opts ...dynamicproperties.FilterOption) int { return 100 },
 		},
 		shutdown:    make(chan struct{}),
 		logger:      log.NewNoop(),

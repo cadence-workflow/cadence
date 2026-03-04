@@ -37,6 +37,7 @@ type (
 	Config struct {
 		LoadBalancingMode dynamicproperties.StringPropertyFnWithNamespaceFilters
 		MigrationMode     dynamicproperties.StringPropertyFnWithNamespaceFilters
+		MaxEtcdTxnOps     dynamicproperties.IntPropertyFn
 
 		LoadBalancingNaive LoadBalancingNaiveConfig
 	}
@@ -131,6 +132,7 @@ func NewConfig(dc *dynamicconfig.Collection) *Config {
 	return &Config{
 		LoadBalancingMode: dc.GetStringPropertyFilteredByNamespace(dynamicproperties.ShardDistributorLoadBalancingMode),
 		MigrationMode:     dc.GetStringPropertyFilteredByNamespace(dynamicproperties.ShardDistributorMigrationMode),
+		MaxEtcdTxnOps:     dc.GetIntProperty(dynamicproperties.ShardDistributorMaxEtcdTxnOps),
 
 		LoadBalancingNaive: LoadBalancingNaiveConfig{
 			MaxDeviation: dc.GetFloat64PropertyFilteredByNamespace(dynamicproperties.ShardDistributorLoadBalancingNaiveMaxDeviation),

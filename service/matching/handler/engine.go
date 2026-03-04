@@ -1560,7 +1560,7 @@ func (e *matchingEngineImpl) isShuttingDown() bool {
 // This applies to short-lived task lists (e.g. sticky or bits task lists whose names
 // contain a UUID) when the corresponding feature flag is enabled.
 func (e *matchingEngineImpl) isExcludedFromShardDistributor(taskListName string) bool {
-	return e.config.ExcludeShortLivedTaskListsFromShardManager() && membership.TaskListExcludedFromShardDistributor(taskListName)
+	return e.config.ExcludeShortLivedTaskListsFromShardManager() && membership.TaskListExcludedFromShardDistributor(taskListName, uint64(e.config.PercentageOnboardedToShardManager()))
 }
 
 func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {

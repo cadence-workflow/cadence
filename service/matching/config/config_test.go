@@ -107,6 +107,7 @@ func TestNewConfig(t *testing.T) {
 		"EnableReturnAllTaskListKinds":               {dynamicproperties.MatchingEnableReturnAllTaskListKinds, true},
 		"AppendTaskTimeout":                          {dynamicproperties.AppendTaskTimeout, time.Duration(42)},
 		"ExcludeShortLivedTaskListsFromShardManager": {dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager, false},
+		"PercentageOnboardedToShardManager":          {dynamicproperties.MatchingPercentageOnboardedToShardManager, 0},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {

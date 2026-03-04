@@ -850,6 +850,12 @@ const (
 	// Default value: 2
 	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingIsolationGroupsPerPartition
+	// MatchingPercentageOnboardedToShardManager is the percentage of task lists that will be onboarded to the shard manager.
+	// KeyName: matching.percentageOnboardedToShardManager
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
+	MatchingPercentageOnboardedToShardManager
 
 	// key for history
 
@@ -1557,6 +1563,15 @@ const (
 	// Default value: 2
 	// Allowed filters: N/A
 	QueueMaxVirtualQueueCount
+
+	// ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction.
+	// etcd enforces a server-side limit (--max-txn-ops, default 128).
+	// This value must not exceed the etcd cluster's configured limit.
+	// KeyName: shardDistributor.maxEtcdTxnOps
+	// Value type: Int
+	// Default value: 128
+	// Allowed filters: N/A
+	ShardDistributorMaxEtcdTxnOps
 
 	// LastIntKey must be the last one in this const group
 	LastIntKey
@@ -3723,6 +3738,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "MatchingIsolationGroupsPerPartition is the target number of isolation groups to assign to each partition",
 		DefaultValue: 2,
 	},
+	MatchingPercentageOnboardedToShardManager: {
+		KeyName:      "matching.percentageOnboardedToShardManager",
+		Description:  "MatchingPercentageOnboardedToShardManager is the percentage of task lists that will be onboarded to the shard manager",
+		DefaultValue: 0,
+	},
 	HistoryRPS: {
 		KeyName:      "history.rps",
 		Description:  "HistoryRPS is request rate per second for each history host",
@@ -4315,6 +4335,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "history.queueMaxVirtualQueueCount",
 		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
 		DefaultValue: 2,
+	},
+	ShardDistributorMaxEtcdTxnOps: {
+		KeyName:      "shardDistributor.maxEtcdTxnOps",
+		Description:  "ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction, must not exceed the etcd cluster's configured --max-txn-ops limit",
+		DefaultValue: 128,
 	},
 }
 

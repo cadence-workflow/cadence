@@ -3,21 +3,26 @@ package executorstore
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/fx/fxtest"
+	"go.uber.org/mock/gomock"
 	"gopkg.in/yaml.v2"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/executorstore/common"
@@ -651,6 +656,7 @@ func TestShardStatisticsPersistence(t *testing.T) {
 		LoadBalancingMode: func(namespace string) string {
 			return config.LoadBalancingModeGREEDY
 		},
+		MaxEtcdTxnOps: dynamicproperties.GetIntPropertyFn(128),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -768,6 +774,203 @@ func recordHeartbeats(ctx context.Context, t *testing.T, executorStore store.Sto
 	}
 }
 
+// trackingTxn implements clientv3.Txn to record operations per batch for testing.
+type trackingTxn struct {
+	opsCount int
+	commitFn func(numOps int) (*clientv3.TxnResponse, error)
+}
+
+func (t *trackingTxn) If(_ ...clientv3.Cmp) clientv3.Txn    { return t }
+func (t *trackingTxn) Else(_ ...clientv3.Op) clientv3.Txn   { return t }
+func (t *trackingTxn) Then(ops ...clientv3.Op) clientv3.Txn { t.opsCount += len(ops); return t }
+func (t *trackingTxn) Commit() (*clientv3.TxnResponse, error) {
+	return t.commitFn(t.opsCount)
+}
+
+func TestCommitGuardedOps_Batching(t *testing.T) {
+	const testMaxTxnOps = 128
+	const testMaxOpsPerBatch = testMaxTxnOps - guardOpOverhead
+
+	tests := []struct {
+		name            string
+		numOps          int
+		expectedBatches int
+	}{
+		{
+			name:            "ZeroOps",
+			numOps:          0,
+			expectedBatches: 0,
+		},
+		{
+			name:            "SingleOp",
+			numOps:          1,
+			expectedBatches: 1,
+		},
+		{
+			name:            "BelowLimit",
+			numOps:          50,
+			expectedBatches: 1,
+		},
+		{
+			name:            "ExactlyAtLimit",
+			numOps:          testMaxOpsPerBatch,
+			expectedBatches: 1,
+		},
+		{
+			name:            "OneOverLimit",
+			numOps:          testMaxOpsPerBatch + 1,
+			expectedBatches: 2,
+		},
+		{
+			name:            "ExactlyTwoBatches",
+			numOps:          testMaxOpsPerBatch * 2,
+			expectedBatches: 2,
+		},
+		{
+			name:            "MultipleBatches",
+			numOps:          testMaxOpsPerBatch*3 + 10,
+			expectedBatches: 4,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockClient := etcdclient.NewMockClient(ctrl)
+
+			var batchSizes []int
+
+			ops := make([]clientv3.Op, tt.numOps)
+			for i := range ops {
+				ops[i] = clientv3.OpDelete(fmt.Sprintf("/test/key/%d", i))
+			}
+
+			for range tt.expectedBatches {
+				txn := &trackingTxn{
+					commitFn: func(numOps int) (*clientv3.TxnResponse, error) {
+						batchSizes = append(batchSizes, numOps)
+						return &clientv3.TxnResponse{Succeeded: true}, nil
+					},
+				}
+				mockClient.EXPECT().Txn(gomock.Any()).Return(txn)
+			}
+
+			s := &executorStoreImpl{
+				client: mockClient,
+				cfg:    &config.Config{MaxEtcdTxnOps: dynamicproperties.GetIntPropertyFn(testMaxTxnOps)},
+			}
+			err := s.commitGuardedOps(context.Background(), ops, store.NopGuard())
+			require.NoError(t, err)
+
+			require.Len(t, batchSizes, tt.expectedBatches)
+
+			totalOps := 0
+			for _, size := range batchSizes {
+				assert.LessOrEqual(t, size, testMaxOpsPerBatch)
+				totalOps += size
+			}
+			assert.Equal(t, tt.numOps, totalOps)
+		})
+	}
+}
+
+func TestCommitGuardedOps_CommitError_StopsEarly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockClient := etcdclient.NewMockClient(ctrl)
+
+	commitCount := 0
+	makeTxn := func(err error) *trackingTxn {
+		return &trackingTxn{
+			commitFn: func(numOps int) (*clientv3.TxnResponse, error) {
+				commitCount++
+				if err != nil {
+					return nil, err
+				}
+				return &clientv3.TxnResponse{Succeeded: true}, nil
+			},
+		}
+	}
+
+	// Use a small limit so we get multiple batches with fewer ops
+	const testMaxTxnOps = 10
+	ops := make([]clientv3.Op, testMaxTxnOps+5)
+	for i := range ops {
+		ops[i] = clientv3.OpDelete(fmt.Sprintf("/test/key/%d", i))
+	}
+
+	mockClient.EXPECT().Txn(gomock.Any()).Return(makeTxn(fmt.Errorf("etcd unavailable")))
+
+	s := &executorStoreImpl{
+		client: mockClient,
+		cfg:    &config.Config{MaxEtcdTxnOps: dynamicproperties.GetIntPropertyFn(testMaxTxnOps)},
+	}
+	err := s.commitGuardedOps(context.Background(), ops, store.NopGuard())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "commit batch")
+	assert.Equal(t, 1, commitCount, "should stop after first failing batch")
+}
+
+func TestCommitGuardedOps_LeadershipLost_StopsEarly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockClient := etcdclient.NewMockClient(ctrl)
+
+	commitCount := 0
+	makeTxn := func(succeeded bool) *trackingTxn {
+		return &trackingTxn{
+			commitFn: func(numOps int) (*clientv3.TxnResponse, error) {
+				commitCount++
+				return &clientv3.TxnResponse{Succeeded: succeeded}, nil
+			},
+		}
+	}
+
+	const testMaxTxnOps = 10
+	ops := make([]clientv3.Op, testMaxTxnOps+5)
+	for i := range ops {
+		ops[i] = clientv3.OpDelete(fmt.Sprintf("/test/key/%d", i))
+	}
+
+	mockClient.EXPECT().Txn(gomock.Any()).Return(makeTxn(false))
+
+	s := &executorStoreImpl{
+		client: mockClient,
+		cfg:    &config.Config{MaxEtcdTxnOps: dynamicproperties.GetIntPropertyFn(testMaxTxnOps)},
+	}
+	err := s.commitGuardedOps(context.Background(), ops, store.NopGuard())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "leadership may have changed")
+	assert.Equal(t, 1, commitCount, "should stop after first leadership failure")
+}
+
+func TestCommitGuardedOps_GuardError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockClient := etcdclient.NewMockClient(ctrl)
+
+	txn := &trackingTxn{
+		commitFn: func(numOps int) (*clientv3.TxnResponse, error) {
+			t.Fatal("should not reach commit")
+			return nil, nil
+		},
+	}
+	mockClient.EXPECT().Txn(gomock.Any()).Return(txn)
+
+	failingGuard := func(txn store.Txn) (store.Txn, error) {
+		return nil, fmt.Errorf("guard failure")
+	}
+
+	ops := []clientv3.Op{clientv3.OpDelete("/test/key")}
+	s := &executorStoreImpl{
+		client: mockClient,
+		cfg:    &config.Config{MaxEtcdTxnOps: dynamicproperties.GetIntPropertyFn(128)},
+	}
+	err := s.commitGuardedOps(context.Background(), ops, failingGuard)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "apply transaction guard")
+}
+
 func createStore(t *testing.T, tc *testhelper.StoreTestCluster) store.Store {
 	t.Helper()
 
@@ -783,6 +986,7 @@ func createStore(t *testing.T, tc *testhelper.StoreTestCluster) store.Store {
 		MetricsClient: metrics.NewNoopMetricsClient(),
 		Config: &config.Config{
 			LoadBalancingMode: func(namespace string) string { return config.LoadBalancingModeNAIVE },
+			MaxEtcdTxnOps:     dynamicproperties.GetIntPropertyFn(128),
 		},
 	})
 	require.NoError(t, err)

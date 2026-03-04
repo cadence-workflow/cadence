@@ -108,4 +108,88 @@ var (
 		State:          &ScheduleState,
 		CronExpression: "*/5 * * * *",
 	}
+
+	CreateScheduleRequest = types.CreateScheduleRequest{
+		Domain:           DomainName,
+		ScheduleID:       "my-schedule-id",
+		Spec:             &ScheduleSpec,
+		Action:           &ScheduleAction,
+		Policies:         &SchedulePolicies,
+		Memo:             &Memo,
+		SearchAttributes: &SearchAttributes,
+	}
+
+	CreateScheduleResponse = types.CreateScheduleResponse{}
+
+	DescribeScheduleRequest = types.DescribeScheduleRequest{
+		Domain:     DomainName,
+		ScheduleID: "my-schedule-id",
+	}
+
+	DescribeScheduleResponse = types.DescribeScheduleResponse{
+		Spec:             &ScheduleSpec,
+		Action:           &ScheduleAction,
+		Policies:         &SchedulePolicies,
+		State:            &ScheduleState,
+		Info:             &ScheduleInfo,
+		Memo:             &Memo,
+		SearchAttributes: &SearchAttributes,
+	}
+
+	UpdateScheduleRequest = types.UpdateScheduleRequest{
+		Domain:           DomainName,
+		ScheduleID:       "my-schedule-id",
+		Spec:             &ScheduleSpec,
+		Action:           &ScheduleAction,
+		Policies:         &SchedulePolicies,
+		SearchAttributes: &SearchAttributes,
+	}
+
+	UpdateScheduleResponse = types.UpdateScheduleResponse{}
+
+	DeleteScheduleRequest = types.DeleteScheduleRequest{
+		Domain:     DomainName,
+		ScheduleID: "my-schedule-id",
+	}
+
+	DeleteScheduleResponse = types.DeleteScheduleResponse{}
+
+	PauseScheduleRequest = types.PauseScheduleRequest{
+		Domain:     DomainName,
+		ScheduleID: "my-schedule-id",
+		Reason:     "maintenance window",
+	}
+
+	PauseScheduleResponse = types.PauseScheduleResponse{}
+
+	UnpauseScheduleRequest = types.UnpauseScheduleRequest{
+		Domain:        DomainName,
+		ScheduleID:    "my-schedule-id",
+		Reason:        "maintenance complete",
+		CatchUpPolicy: types.ScheduleCatchUpPolicyOne,
+	}
+
+	UnpauseScheduleResponse = types.UnpauseScheduleResponse{}
+
+	ListSchedulesRequest = types.ListSchedulesRequest{
+		Domain:        DomainName,
+		PageSize:      10,
+		NextPageToken: []byte("next-page-token"),
+	}
+
+	ListSchedulesResponse = types.ListSchedulesResponse{
+		Schedules:     []*types.ScheduleListEntry{&ScheduleListEntry},
+		NextPageToken: []byte("next-page-token-2"),
+	}
+
+	BackfillScheduleRequest = types.BackfillScheduleRequest{
+		Domain:        DomainName,
+		ScheduleID:    "my-schedule-id",
+		StartTime:     scheduleTime1,
+		EndTime:       scheduleTime3,
+		OverlapPolicy: types.ScheduleOverlapPolicyConcurrent,
+		BackfillID:    "backfill-003",
+	}
+
+	BackfillScheduleResponse = types.BackfillScheduleResponse{}
 )
