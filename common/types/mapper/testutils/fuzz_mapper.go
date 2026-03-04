@@ -242,7 +242,9 @@ func clearFieldsIf(obj interface{}, shouldClear func(fieldName string) bool) {
 	}
 
 	v := reflect.ValueOf(obj)
-	if v.Kind() == reflect.Ptr {
+	// Dereference through multiple pointer levels to handle cases like **types.ScheduleSpec
+	// This happens when TInternal is a pointer type and we pass &orig to clearExcludedFields
+	for v.Kind() == reflect.Ptr {
 		if v.IsNil() {
 			return
 		}
@@ -286,14 +288,12 @@ func clearFieldsIf(obj interface{}, shouldClear func(fieldName string) bool) {
 					}
 				}
 			case reflect.Map:
-				// Note: Map values cannot be modified through reflection in Go.
-				iter := field.MapRange()
-				for iter.Next() {
-					val := iter.Value()
-					if val.CanInterface() {
-						clearFieldsIf(val.Interface(), shouldClear)
-					}
-				}
+				// Map values cannot be modified through reflection in Go.
+				// Calling clearFieldsIf on map values would operate on copies that are discarded.
+				// To properly handle maps with struct values, the map would need to be rebuilt
+				// with cleared values, which is beyond the scope of this utility.
+				// Since Cadence types primarily use slices and pointers rather than maps of structs,
+				// this limitation has minimal practical impact.
 			}
 		}
 	}

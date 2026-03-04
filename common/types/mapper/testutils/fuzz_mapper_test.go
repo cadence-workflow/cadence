@@ -152,3 +152,69 @@ func TestClearFieldsIf_ProtobufFields(t *testing.T) {
 	assert.Equal(t, struct{}{}, obj.XXX_NoUnkeyedLit, "XXX_NoUnkeyedLit should be cleared")
 	assert.Nil(t, obj.XXX_unrecognized, "XXX_unrecognized should be cleared")
 }
+
+func TestClearFieldsIf_DoublePointer(t *testing.T) {
+	// This test verifies the fix for the double-pointer bug (code review issue #3)
+	// When TInternal is a pointer type (like *types.ScheduleSpec), RunMapperFuzzTest
+	// calls clearExcludedFields(&orig, ...), passing a **types.ScheduleSpec.
+	// The function must dereference through multiple pointer levels.
+	type innerStruct struct {
+		KeepMe      string
+		XXX_ClearMe string // revive:disable-line:var-naming Protobuf field
+		AlsoClearMe string
+	}
+
+	// Simulate the actual usage pattern in RunMapperFuzzTest
+	orig := &innerStruct{
+		KeepMe:      "keep",
+		XXX_ClearMe: "clear",
+		AlsoClearMe: "clear",
+	}
+
+	// This is what RunMapperFuzzTest does: passes &orig where orig is already a pointer
+	// So we're passing **innerStruct to clearExcludedFields
+	clearExcludedFields(&orig, []string{"AlsoClearMe"})
+
+	// Fields should be cleared even through the double pointer
+	assert.Equal(t, "keep", orig.KeepMe, "KeepMe should not be cleared")
+	assert.Equal(t, "", orig.XXX_ClearMe, "XXX_ClearMe should be cleared through double pointer")
+	assert.Equal(t, "", orig.AlsoClearMe, "AlsoClearMe should be cleared through double pointer")
+}
+
+func TestClearFieldsIf_TriplePointer(t *testing.T) {
+	// Edge case: ensure we handle arbitrary pointer depth
+	type innerStruct struct {
+		XXX_ClearMe string // revive:disable-line:var-naming Protobuf field
+	}
+
+	level1 := &innerStruct{XXX_ClearMe: "clear"}
+	level2 := &level1
+	level3 := &level2
+
+	clearExcludedFields(level3, nil)
+
+	assert.Equal(t, "", level1.XXX_ClearMe, "Should clear through triple pointer")
+}
+
+func TestClearFieldsIf_WithExcludedFields(t *testing.T) {
+	// This test verifies that WithExcludedFields works correctly with pointer types
+	// Previously, this would silently do nothing due to the double-pointer bug
+	type testStruct struct {
+		KeepMe        string
+		ExcludeMe     string
+		AlsoExcludeMe string
+	}
+
+	orig := &testStruct{
+		KeepMe:        "keep",
+		ExcludeMe:     "exclude1",
+		AlsoExcludeMe: "exclude2",
+	}
+
+	// Simulate RunMapperFuzzTest usage pattern
+	clearExcludedFields(&orig, []string{"ExcludeMe", "AlsoExcludeMe"})
+
+	assert.Equal(t, "keep", orig.KeepMe, "KeepMe should not be cleared")
+	assert.Equal(t, "", orig.ExcludeMe, "ExcludeMe should be cleared via WithExcludedFields")
+	assert.Equal(t, "", orig.AlsoExcludeMe, "AlsoExcludeMe should be cleared via WithExcludedFields")
+}
