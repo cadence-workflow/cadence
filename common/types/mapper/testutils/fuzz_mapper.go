@@ -269,16 +269,24 @@ func clearFieldsIf(obj interface{}, shouldClear func(fieldName string) bool) {
 					clearFieldsIf(field.Interface(), shouldClear)
 				}
 			case reflect.Struct:
-				clearFieldsIf(field.Addr().Interface(), shouldClear)
+				if field.CanAddr() {
+					clearFieldsIf(field.Addr().Interface(), shouldClear)
+				}
 			case reflect.Slice:
 				for j := 0; j < field.Len(); j++ {
 					elem := field.Index(j)
 					if elem.CanInterface() {
-						clearFieldsIf(elem.Interface(), shouldClear)
+						// For struct elements, pass the address to ensure modifications work
+						// For pointer elements, pass the interface directly
+						if elem.Kind() == reflect.Struct && elem.CanAddr() {
+							clearFieldsIf(elem.Addr().Interface(), shouldClear)
+						} else {
+							clearFieldsIf(elem.Interface(), shouldClear)
+						}
 					}
 				}
 			case reflect.Map:
-				// For maps, we need to iterate and potentially clear values
+				// Note: Map values cannot be modified through reflection in Go.
 				iter := field.MapRange()
 				for iter.Next() {
 					val := iter.Value()
@@ -292,7 +300,8 @@ func clearFieldsIf(obj interface{}, shouldClear func(fieldName string) bool) {
 }
 
 // clearExcludedFields clears both protobuf internal fields and user-specified excluded fields.
-// Protobuf internal fields (XXX_*, state, sizeCache) are always cleared to avoid comparison issues.
+// Protobuf internal fields (XXX_*, sizeCache, unknownFields) are always cleared to avoid comparison issues.
+// state is not excluded as it is generic enough it may be used by a mapper in future
 func clearExcludedFields(obj interface{}, excludedFields []string) {
 	// Create a map for O(1) lookup of excluded fields
 	excludedMap := make(map[string]bool)
@@ -303,7 +312,6 @@ func clearExcludedFields(obj interface{}, excludedFields []string) {
 	clearFieldsIf(obj, func(fieldName string) bool {
 		// Clear if it's a protobuf internal field OR if it's in the excluded list
 		return strings.HasPrefix(fieldName, "XXX_") ||
-			fieldName == "state" ||
 			fieldName == "sizeCache" ||
 			fieldName == "unknownFields" ||
 			excludedMap[fieldName]
