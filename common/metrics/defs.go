@@ -2738,18 +2738,18 @@ const (
 	ReplicationTasksApplied
 	ReplicationTasksFailed
 	ReplicationTasksLag
-	ExponentialReplicationTasksLag
+	ReplicationTasksLagHistogram
 	ReplicationTasksLagRaw
-	ExponentialReplicationTasksLagRaw
+	ReplicationTasksLagRawHistogram
 	ReplicationTasksDelay
 	ReplicationTasksFetched
-	ExponentialReplicationTasksFetched
+	ReplicationTasksFetchedHistogram
 	ReplicationTasksReturned
-	ExponentialReplicationTasksReturned
+	ReplicationTasksReturnedHistogram
 	ReplicationTasksReturnedDiff
-	ExponentialReplicationTasksReturnedDiff
+	ReplicationTasksReturnedDiffHistogram
 	ReplicationTasksAppliedLatency
-	ExponentialReplicationTasksAppliedLatency
+	ReplicationTasksAppliedLatencyHistogram
 	ReplicationTasksBatchSize
 	ReplicationDynamicTaskBatchSizerDecision
 	ReplicationDLQFailed
@@ -3500,7 +3500,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		HistoryConflictsCounter:                                      {metricName: "history_conflicts", metricType: Counter},
 		CompleteTaskFailedCounter:                                    {metricName: "complete_task_fail_count", metricType: Counter},
 		CacheSize:                                                    {metricName: "cache_size", metricType: Timer},
-		CacheSizeHistogram:                                           {metricName: "cache_size_counts", metricType: Histogram, buckets: ResponseRowSizeBuckets},
+		CacheSizeHistogram:                                           {metricName: "cache_size_counts", metricType: Histogram, buckets: TaskCountBuckets},
 		CacheRequests:                                                {metricName: "cache_requests", metricType: Counter},
 		CacheFailures:                                                {metricName: "cache_errors", metricType: Counter},
 		CacheLatency:                                                 {metricName: "cache_latency", metricType: Timer},
@@ -3572,18 +3572,18 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ReplicationTasksApplied:                                      {metricName: "replication_tasks_applied", metricType: Counter},
 		ReplicationTasksFailed:                                       {metricName: "replication_tasks_failed", metricType: Counter},
 		ReplicationTasksLag:                                          {metricName: "replication_tasks_lag", metricType: Timer},
-		ExponentialReplicationTasksLag:                               {metricName: "replication_tasks_lag_counts", metricType: Histogram, buckets: TaskCountBuckets},
+		ReplicationTasksLagHistogram:                                 {metricName: "replication_tasks_lag_counts", metricType: Histogram, buckets: TaskCountBuckets},
 		ReplicationTasksLagRaw:                                       {metricName: "replication_tasks_lag_raw", metricType: Timer},
-		ExponentialReplicationTasksLagRaw:                            {metricName: "replication_tasks_lag_raw_counts", metricType: Histogram, buckets: TaskCountBuckets},
+		ReplicationTasksLagRawHistogram:                              {metricName: "replication_tasks_lag_raw_counts", metricType: Histogram, buckets: TaskCountBuckets},
 		ReplicationTasksDelay:                                        {metricName: "replication_tasks_delay", metricType: Histogram, buckets: ReplicationTaskDelayBucket},
 		ReplicationTasksFetched:                                      {metricName: "replication_tasks_fetched", metricType: Timer},
-		ExponentialReplicationTasksFetched:                           {metricName: "replication_tasks_fetched_counts", metricType: Histogram, buckets: ResponseRowSizeBuckets},
+		ReplicationTasksFetchedHistogram:                             {metricName: "replication_tasks_fetched_counts", metricType: Histogram, buckets: ResponseRowSizeBuckets},
 		ReplicationTasksReturned:                                     {metricName: "replication_tasks_returned", metricType: Timer},
-		ExponentialReplicationTasksReturned:                          {metricName: "replication_tasks_returned_counts", metricType: Histogram, buckets: ResponseRowSizeBuckets},
+		ReplicationTasksReturnedHistogram:                            {metricName: "replication_tasks_returned_counts", metricType: Histogram, buckets: ResponseRowSizeBuckets},
 		ReplicationTasksReturnedDiff:                                 {metricName: "replication_tasks_returned_diff", metricType: Timer},
-		ExponentialReplicationTasksReturnedDiff:                      {metricName: "replication_tasks_returned_diff_counts", metricType: Histogram, buckets: ResponseRowSizeBuckets},
+		ReplicationTasksReturnedDiffHistogram:                        {metricName: "replication_tasks_returned_diff_counts", metricType: Histogram, buckets: ResponseRowSizeBuckets},
 		ReplicationTasksAppliedLatency:                               {metricName: "replication_tasks_applied_latency", metricType: Timer},
-		ExponentialReplicationTasksAppliedLatency:                    {metricName: "replication_tasks_applied_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		ReplicationTasksAppliedLatencyHistogram:                      {metricName: "replication_tasks_applied_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		ReplicationTasksBatchSize:                                    {metricName: "replication_tasks_batch_size", metricType: Gauge},
 		ReplicationDynamicTaskBatchSizerDecision:                     {metricName: "replication_dynamic_task_batch_sizer_decision", metricType: Counter},
 		ReplicationDLQFailed:                                         {metricName: "replication_dlq_enqueue_failed", metricType: Counter},

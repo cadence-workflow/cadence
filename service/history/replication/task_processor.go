@@ -283,7 +283,7 @@ func (p *taskProcessorImpl) cleanupAckedReplicationTasks() error {
 		metrics.TargetClusterTag(p.currentCluster),
 	)
 	scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(lagCount))
-	scope.RecordHistogramValue(metrics.ExponentialReplicationTasksLag, float64(lagCount))
+	scope.RecordHistogramValue(metrics.ReplicationTasksLagHistogram, float64(lagCount))
 	for {
 		pageSize := p.config.ReplicatorTaskDeleteBatchSize()
 		resp, err := p.shard.GetExecutionManager().RangeCompleteHistoryTask(
@@ -344,7 +344,7 @@ func (p *taskProcessorImpl) processResponse(response *types.ReplicationMessages)
 	} else {
 		appliedLatency := time.Since(batchRequestStartTime)
 		scope.RecordTimer(metrics.ReplicationTasksAppliedLatency, appliedLatency)
-		scope.ExponentialHistogram(metrics.ExponentialReplicationTasksAppliedLatency, appliedLatency)
+		scope.ExponentialHistogram(metrics.ReplicationTasksAppliedLatencyHistogram, appliedLatency)
 	}
 
 	if p.isShuttingDown() {
