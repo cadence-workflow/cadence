@@ -187,6 +187,25 @@ func (s *oauthSuite) TestClusterAPIWithNonAdminToken() {
 	s.Equal(DecisionAllow, result.Decision)
 }
 
+// TestClusterAPIWithInvalidPermission verifies that even for cluster-level APIs (empty DomainName),
+// an invalid permission level is still rejected.
+func (s *oauthSuite) TestClusterAPIWithInvalidPermission() {
+	clusterAttr := Attributes{
+		Actor:      "John Doe",
+		APIName:    "DescribeCluster",
+		DomainName: "",
+		Permission: Permission(15),
+	}
+	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)
+	s.NoError(err)
+	s.logger.EXPECT().Debug("request is not authorized", gomock.Cond(func(t []tag.Tag) bool {
+		return fmt.Sprintf("%v", t[0].Field().Interface) == "permission 15 is not supported"
+	}))
+	result, err := authorizer.Authorize(s.ctx, &clusterAttr)
+	s.NoError(err)
+	s.Equal(DecisionDeny, result.Decision)
+}
+
 func (s *oauthSuite) TestIncorrectPublicKey() {
 	s.cfg.JwtCredentials.PublicKey = "incorrectPublicKey"
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)

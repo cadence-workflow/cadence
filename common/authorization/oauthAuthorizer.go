@@ -151,10 +151,13 @@ func (a *oauthAuthority) Authorize(ctx context.Context, attributes *Attributes) 
 		return Result{Decision: DecisionAllow}, nil
 	}
 
-	// For cluster-level APIs (no domain), allow any authenticated non-admin user.
-	// Domain-level permission checks rely on groups configured in domain data, which
-	// does not exist for cluster-scoped operations. A valid token is sufficient.
 	if attributes.DomainName == "" {
+		// For cluster-level APIs (no domain), validate the permission level is supported
+		// but skip domain group checks since there is no domain data to look up.
+		if (attributes.Permission < PermissionRead) || (attributes.Permission > PermissionProcess) {
+			a.log.Debug("request is not authorized", tag.Error(fmt.Errorf("permission %v is not supported", attributes.Permission)))
+			return Result{Decision: DecisionDeny}, nil
+		}
 		return Result{Decision: DecisionAllow}, nil
 	}
 
