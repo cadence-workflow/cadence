@@ -22,7 +22,6 @@ package proto
 
 import (
 	"testing"
-	"time"
 
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
@@ -86,192 +85,68 @@ func TestScheduleListEntry(t *testing.T) {
 	}
 }
 
-func scheduleFuzzer(f *fuzz.Fuzzer) *fuzz.Fuzzer {
-	return f.Funcs(
-		func(t *time.Time, c fuzz.Continue) {
-			if c.Intn(10) < 3 {
-				*t = time.Time{}
-				return
-			}
-			*t = time.Unix(c.Int63n(4102444800), c.Int63n(1e9)).UTC()
-		},
-		func(d *time.Duration, c fuzz.Continue) {
-			if c.Intn(10) < 3 {
-				*d = 0
-				return
-			}
-			*d = time.Duration(c.Int63n(int64(24 * time.Hour)))
-		},
-		func(p *types.ScheduleOverlapPolicy, c fuzz.Continue) {
-			*p = types.ScheduleOverlapPolicy(c.Intn(6)) // 0-5: Invalid through TerminatePrevious
-		},
-		func(p *types.ScheduleCatchUpPolicy, c fuzz.Continue) {
-			*p = types.ScheduleCatchUpPolicy(c.Intn(4)) // 0-3: Invalid through All
-		},
-		func(p *types.TaskListKind, c fuzz.Continue) {
-			*p = types.TaskListKind(c.Intn(3)) // 0-2: Normal, Sticky, Ephemeral
-		},
-	).NilChance(0.3)
-}
-
 func TestScheduleSpecFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.ScheduleSpec
-		fuzzer.Fuzz(&orig)
-		out := ToScheduleSpec(FromScheduleSpec(orig))
-		assert.Equal(t, orig, out, "ScheduleSpec did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.CronExpression == "" && orig.StartTime.IsZero() && orig.EndTime.IsZero() && orig.Jitter == 0 {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromScheduleSpec, ToScheduleSpec,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestStartWorkflowActionFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.StartWorkflowAction
-		fuzzer.Fuzz(&orig)
-		out := ToStartWorkflowAction(FromStartWorkflowAction(orig))
-		assert.Equal(t, orig, out, "StartWorkflowAction did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.WorkflowType == nil && orig.TaskList == nil && orig.Input == nil && orig.WorkflowIDPrefix == "" {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromStartWorkflowAction, ToStartWorkflowAction,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestScheduleActionFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.ScheduleAction
-		fuzzer.Fuzz(&orig)
-		out := ToScheduleAction(FromScheduleAction(orig))
-		assert.Equal(t, orig, out, "ScheduleAction did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.StartWorkflow == nil {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromScheduleAction, ToScheduleAction,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestSchedulePoliciesFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.SchedulePolicies
-		fuzzer.Fuzz(&orig)
-		out := ToSchedulePolicies(FromSchedulePolicies(orig))
-		assert.Equal(t, orig, out, "SchedulePolicies did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.OverlapPolicy == 0 && orig.CatchUpPolicy == 0 && orig.CatchUpWindow == 0 && !orig.PauseOnFailure {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromSchedulePolicies, ToSchedulePolicies,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestSchedulePauseInfoFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.SchedulePauseInfo
-		fuzzer.Fuzz(&orig)
-		out := ToSchedulePauseInfo(FromSchedulePauseInfo(orig))
-		assert.Equal(t, orig, out, "SchedulePauseInfo did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.Reason == "" && orig.PausedAt.IsZero() && orig.PausedBy == "" {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromSchedulePauseInfo, ToSchedulePauseInfo,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestScheduleStateFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.ScheduleState
-		fuzzer.Fuzz(&orig)
-		out := ToScheduleState(FromScheduleState(orig))
-		assert.Equal(t, orig, out, "ScheduleState did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if !orig.Paused && orig.PauseInfo == nil {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromScheduleState, ToScheduleState,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestBackfillInfoFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.BackfillInfo
-		fuzzer.Fuzz(&orig)
-		out := ToBackfillInfo(FromBackfillInfo(orig))
-		assert.Equal(t, orig, out, "BackfillInfo did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.BackfillID == "" && orig.StartTime.IsZero() && orig.EndTime.IsZero() {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromBackfillInfo, ToBackfillInfo,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestScheduleInfoFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.ScheduleInfo
-		fuzzer.Fuzz(&orig)
-		out := ToScheduleInfo(FromScheduleInfo(orig))
-		assert.Equal(t, orig, out, "ScheduleInfo did not survive round-tripping")
-
-		if orig == nil {
-			return "nil"
-		}
-		if orig.OngoingBackfills == nil {
-			return "empty"
-		}
-		return "filled"
-	})
+	testutils.RunMapperFuzzTest(t, FromScheduleInfo, ToScheduleInfo,
+		WithScheduleEnumFuzzers(),
+	)
 }
 
 func TestScheduleListEntryFuzz(t *testing.T) {
-	testutils.EnsureFuzzCoverage(t, []string{"nil", "empty", "filled"}, func(t *testing.T, f *fuzz.Fuzzer) string {
-		fuzzer := scheduleFuzzer(f)
-		var orig *types.ScheduleListEntry
-		fuzzer.Fuzz(&orig)
-		out := ToScheduleListEntry(FromScheduleListEntry(orig))
-		assert.Equal(t, orig, out, "ScheduleListEntry did not survive round-tripping")
+	testutils.RunMapperFuzzTest(t, FromScheduleListEntry, ToScheduleListEntry,
+		WithScheduleEnumFuzzers(),
+	)
+}
 
-		if orig == nil {
-			return "nil"
-		}
-		if orig.ScheduleID == "" && orig.WorkflowType == nil && orig.State == nil && orig.CronExpression == "" {
-			return "empty"
-		}
-		return "filled"
-	})
+// WithScheduleEnumFuzzers adds fuzzers for Schedule-specific enum types
+func WithScheduleEnumFuzzers() testutils.FuzzOption {
+	return testutils.WithCustomFuncs(
+		func(e *types.ScheduleOverlapPolicy, c fuzz.Continue) {
+			*e = types.ScheduleOverlapPolicy(c.Intn(6)) // 0-5: Invalid through TerminatePrevious
+		},
+		func(e *types.ScheduleCatchUpPolicy, c fuzz.Continue) {
+			*e = types.ScheduleCatchUpPolicy(c.Intn(4)) // 0-3: Invalid through All
+		},
+	)
 }
