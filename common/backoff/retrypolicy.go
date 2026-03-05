@@ -44,6 +44,7 @@ type (
 	// RetryPolicy is the API which needs to be implemented by various retry policy implementations
 	RetryPolicy interface {
 		ComputeNextDelay(elapsedTime time.Duration, numAttempts int) time.Duration
+		Expiration() time.Duration
 	}
 
 	// Retrier manages the state of retry operation
@@ -194,6 +195,10 @@ func (p *ExponentialRetryPolicy) ComputeNextDelay(elapsedTime time.Duration, num
 	return time.Duration(nextInterval)
 }
 
+func (p *ExponentialRetryPolicy) Expiration() time.Duration {
+	return p.expirationInterval
+}
+
 // ComputeNextDelay returns the next delay interval.
 func (tp MultiPhasesRetryPolicy) ComputeNextDelay(elapsedTime time.Duration, numAttempts int) time.Duration {
 	previousStageRetryCount := 0
@@ -205,6 +210,18 @@ func (tp MultiPhasesRetryPolicy) ComputeNextDelay(elapsedTime time.Duration, num
 		previousStageRetryCount += policy.maximumAttempts
 	}
 	return done
+}
+
+func (tp MultiPhasesRetryPolicy) Expiration() time.Duration {
+	var sum time.Duration
+	for _, policy := range tp.policies {
+		exp := policy.Expiration()
+		if exp == NoInterval {
+			return NoInterval
+		}
+		sum += exp
+	}
+	return sum
 }
 
 // Reset will set the Retrier into initial state
