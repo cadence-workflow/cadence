@@ -55,6 +55,10 @@ const (
 	historyServiceOperationMaxInterval        = 10 * time.Second
 	historyServiceOperationExpirationInterval = 30 * time.Second
 
+	recordTaskStartedInitialInterval    = 50 * time.Millisecond
+	recordTaskStartedMaxInterval        = 1 * time.Second
+	recordTaskStartedExpirationInterval = 3 * time.Second
+
 	matchingServiceOperationInitialInterval    = 1000 * time.Millisecond
 	matchingServiceOperationMaxInterval        = 10 * time.Second
 	matchingServiceOperationExpirationInterval = 30 * time.Second
@@ -159,6 +163,14 @@ func CreateHistoryServiceRetryPolicy() backoff.RetryPolicy {
 	policy := backoff.NewExponentialRetryPolicy(historyServiceOperationInitialInterval)
 	policy.SetMaximumInterval(historyServiceOperationMaxInterval)
 	policy.SetExpirationInterval(historyServiceOperationExpirationInterval)
+
+	return policy
+}
+
+func CreateRecordTaskStartedRetryPolicy() backoff.RetryPolicy {
+	policy := backoff.NewExponentialRetryPolicy(recordTaskStartedInitialInterval)
+	policy.SetMaximumInterval(recordTaskStartedMaxInterval)
+	policy.SetExpirationInterval(recordTaskStartedExpirationInterval)
 
 	return policy
 }
