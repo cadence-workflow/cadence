@@ -142,6 +142,14 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				nil,
 			).(*matchingEngineImpl)
 
+			// getOrCreateTaskListManager falls through to the ringpop ownership guard, which
+			// is what these tests are specifically exercising.
+			mockExec := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+			mockExec.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+			mockExec.EXPECT().Start(gomock.Any()).AnyTimes()
+			mockExec.EXPECT().Stop().AnyTimes()
+			matchingEngine.executor = mockExec
+
 			resolverMock.EXPECT().Lookup(gomock.Any(), gomock.Any()).Return(
 				membership.NewDetailedHostInfo("", tc.lookUpResult, make(membership.PortMap)), tc.lookUpErr,
 			).AnyTimes()

@@ -262,13 +262,14 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	// The first check is an optimization so almost all requests will have a task list manager
 	// and return avoiding the write lock
 	result, ok := e.taskListRegistry.ManagerByTaskListIdentifier(*taskList)
+	excludedFromShardDistributor := e.isExcludedFromShardDistributor(taskList.GetName())
 
 	// Task lists excluded from the ShardDistributor (short-lived task lists with UUIDs) bypass
 	// the executor/shard-processor entirely and always use local hash-ring assignment.
-	if e.isExcludedFromShardDistributor(taskList.GetName()) && ok {
+	if excludedFromShardDistributor && ok {
 		return result, nil
 	}
-	if !e.isExcludedFromShardDistributor(taskList.GetName()) {
+	if !excludedFromShardDistributor {
 		sp, _ := e.executor.GetShardProcess(ctx, taskList.GetName())
 		if sp != nil && ok {
 			return result, nil
@@ -325,16 +326,6 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	if err != nil {
 		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
 		return nil, err
-	}
-
-	// If the ShardDistributor is not responsible for the shard assignment, the assignment is handled by the local logic
-	if !e.executor.IsOnboardedToSD() && !e.isExcludedFromShardDistributor(taskList.GetName()) {
-		err = e.executor.AssignShardsFromLocalLogic(ctx, map[string]*types.ShardAssignment{
-			taskList.GetName(): {Status: types.AssignmentStatusREADY},
-		})
-		if err != nil {
-			logger.Error("Error in local assignment", tag.Error(err))
-		}
 	}
 
 	logger.Info("Task list manager state changed", tag.LifeCycleStarted)
@@ -1513,16 +1504,13 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 		// We have a shard-processor shared by all the task lists with the same name.
 		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
 		sp, err := e.executor.GetShardProcess(ctx, taskList.GetName())
-		if e.executor.IsOnboardedToSD() {
-			if err != nil {
-				return fmt.Errorf("failed to lookup ownership in SD: %w", err)
-			}
-			if sp == nil {
-				return newNotOwnedByHostError("not known")
-			}
-
-			return nil
+		if err != nil {
+			return fmt.Errorf("failed to lookup ownership in SD: %w", err)
 		}
+		if sp == nil {
+			return newNotOwnedByHostError("not known")
+		}
+		return nil
 	}
 
 	// Defensive check to make sure we actually own the task list

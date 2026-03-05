@@ -447,31 +447,28 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("onboarded to sd with shard process error", func(t *testing.T) {
+	t.Run("not excluded from sd with shard process error", func(t *testing.T) {
 		engine, executor, _ := newEngine(t)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, errors.New("sd lookup failed"))
-		executor.EXPECT().IsOnboardedToSD().Return(true)
 
 		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "failed to lookup ownership in SD")
 	})
 
-	t.Run("onboarded to sd and shard no longer owned", func(t *testing.T) {
+	t.Run("not excluded from sd and shard no longer owned", func(t *testing.T) {
 		engine, executor, _ := newEngine(t)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil)
-		executor.EXPECT().IsOnboardedToSD().Return(true)
 
 		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
 		assertTypedOwnershipErr(t, err, "not known", "self")
 	})
 
-	t.Run("onboarded to sd and shard and is still owned by this host", func(t *testing.T) {
+	t.Run("not excluded from sd and shard is still owned by this host", func(t *testing.T) {
 		engine, executor, _ := newEngine(t)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).
 			Return(&tasklist.MockShardProcessor{}, nil). // not nil being returned because the shard is still owned by this host
 			AnyTimes()
-		executor.EXPECT().IsOnboardedToSD().Return(true)
 
 		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
 		require.NoError(t, err)
@@ -485,55 +482,31 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		assertTypedOwnershipErr(t, err, "not known", "self")
 	})
 
-	t.Run("ringpop and owner has changed", func(t *testing.T) {
-		engine, executor, resolver := newEngine(t)
-		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil)
-		executor.EXPECT().IsOnboardedToSD().Return(false)
-		resolver.EXPECT().Lookup(service.Matching, taskListID.GetName()).Return(membership.NewDetailedHostInfo("owner", "owner", nil), nil)
+	t.Run("excluded from sd, ringpop and owner has changed", func(t *testing.T) {
+		engine, _, resolver := newEngine(t)
+		engine.config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
+		excludedID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
+		resolver.EXPECT().Lookup(service.Matching, excludedID.GetName()).Return(membership.NewDetailedHostInfo("owner", "owner", nil), nil)
 
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+		err := engine.errIfShardOwnershipLost(context.Background(), excludedID)
 		assertTypedOwnershipErr(t, err, "owner", "self")
 	})
 
-	t.Run("ringpop and owner is the same", func(t *testing.T) {
-		engine, executor, resolver := newEngine(t)
-		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil)
-		executor.EXPECT().IsOnboardedToSD().Return(false)
-		resolver.EXPECT().Lookup(service.Matching, taskListID.GetName()).Return(membership.NewDetailedHostInfo("self", "self", nil), nil)
-
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
-		require.NoError(t, err)
-	})
-
-	t.Run("excluded tasklist bypasses executor even when onboarded to sd, uses ringpop and owner is the same", func(t *testing.T) {
+	t.Run("excluded from sd, ringpop and owner is the same", func(t *testing.T) {
 		engine, _, resolver := newEngine(t)
 		engine.config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
-		// Use a UUID-containing tasklist name so it is excluded from the ShardDistributor
 		excludedID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
 		resolver.EXPECT().Lookup(service.Matching, excludedID.GetName()).Return(membership.NewDetailedHostInfo("self", "self", nil), nil)
-		// executor should not be called at all for excluded task lists
 
 		err := engine.errIfShardOwnershipLost(context.Background(), excludedID)
 		require.NoError(t, err)
-	})
-
-	t.Run("excluded tasklist bypasses executor even when onboarded to sd, uses ringpop and owner has changed", func(t *testing.T) {
-		engine, _, resolver := newEngine(t)
-		engine.config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
-		excludedID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
-		resolver.EXPECT().Lookup(service.Matching, excludedID.GetName()).Return(membership.NewDetailedHostInfo("other-host", "other-host", nil), nil)
-
-		err := engine.errIfShardOwnershipLost(context.Background(), excludedID)
-		assertTypedOwnershipErr(t, err, "other-host", "self")
 	})
 
 	t.Run("non-excluded tasklist with uuid-like name and flag disabled still uses executor", func(t *testing.T) {
-		engine, executor, resolver := newEngine(t)
+		engine, executor, _ := newEngine(t)
 		engine.config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return false }
 		uuidID := mustNewIdentifier(t, "test-domain-id", "tasklist-550e8400-e29b-41d4-a716-446655440000", 0)
-		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil)
-		executor.EXPECT().IsOnboardedToSD().Return(false)
-		resolver.EXPECT().Lookup(service.Matching, uuidID.GetName()).Return(membership.NewDetailedHostInfo("self", "self", nil), nil)
+		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(&tasklist.MockShardProcessor{}, nil)
 
 		err := engine.errIfShardOwnershipLost(context.Background(), uuidID)
 		require.NoError(t, err)
