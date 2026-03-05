@@ -340,7 +340,6 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 
 	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
 	mockExecutor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	mockExecutor.EXPECT().IsOnboardedToSD().Return(false).AnyTimes()
 	mockExecutor.EXPECT().Stop()
 
 	shutdownWG := sync.WaitGroup{}
