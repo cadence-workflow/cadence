@@ -433,9 +433,9 @@ MAYBE_TOUCH_COPYRIGHT=
 $(BUILD)/fmt: $(ALL_SRC) $(BIN)/goimports $(BIN)/gci | $(BUILD)
 	$Q echo "removing unused imports..."
 	$Q # goimports thrashes on internal/tools, sadly.  just hide it.
-	$Q find . \( -path './vendor/*' -o -path './idls/*' -o -path './.build/*' -o -path './.bin/*' -o -path './.git/*' -o -path './.worktrees/*' \) -prune -o -name '*.go' -type f -not -path './internal/tools/tools.go' -print | xargs $(BIN)/goimports -w
+	$Q echo $(filter-out ./internal/tools/tools.go,$(FRESH_ALL_SRC)) | xargs $(BIN)/goimports -w
 	$Q echo "grouping imports..."
-	$Q find . \( -path './vendor/*' -o -path './idls/*' -o -path './.build/*' -o -path './.bin/*' -o -path './.git/*' -o -path './.worktrees/*' \) -prune -o -name '*.go' -type f -print | xargs $(BIN)/gci write --section standard --section 'Prefix(github.com/uber/cadence/)' --section default --section blank
+	$Q echo $(FRESH_ALL_SRC) | xargs $(BIN)/gci write --section standard --section 'Prefix(github.com/uber/cadence/)' --section default --section blank
 	$Q touch $@
 # 	$Q $(MAYBE_TOUCH_COPYRIGHT)
 
