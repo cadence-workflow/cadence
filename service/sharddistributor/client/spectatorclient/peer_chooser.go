@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"go.uber.org/fx"
-	"go.uber.org/multierr"
 	"go.uber.org/yarpc/api/peer"
 	"go.uber.org/yarpc/api/transport"
 	"go.uber.org/yarpc/peer/hostport"
@@ -78,10 +77,7 @@ func (c *SpectatorPeerChooser) Start() error {
 
 	// Subscribe to all spectators - fail fast on error
 	if err := c.subscribe(); err != nil {
-		if err := c.unsubscribe(); err != nil {
-			c.logger.Warn("Failed to unsubscribe after subscribe error", tag.Error(err))
-		}
-
+		c.unsubscribe()
 		return err
 	}
 
@@ -97,8 +93,8 @@ func (c *SpectatorPeerChooser) Stop() error {
 		close(c.stopCh)
 	}
 
-	// Unsubscribe from all spectators - collect all errors
-	unsubErr := c.unsubscribe()
+	// Unsubscribe from all spectators
+	c.unsubscribe()
 
 	// Wait for all watch goroutines to finish
 	c.stopWG.Wait()
@@ -114,7 +110,7 @@ func (c *SpectatorPeerChooser) Stop() error {
 	}
 	c.peers = make(map[string]peer.Peer)
 
-	return unsubErr
+	return nil
 }
 
 // IsRunning satisfies the peer.Chooser interface
@@ -310,19 +306,14 @@ func (c *SpectatorPeerChooser) subscribe() error {
 }
 
 // unsubscribe attempts to unsubscribe from all spectators
-func (c *SpectatorPeerChooser) unsubscribe() error {
+func (c *SpectatorPeerChooser) unsubscribe() {
 	if c.spectators == nil {
-		return nil
+		return
 	}
 
-	var errs error
-	for namespace, spectator := range c.spectators.spectators {
-		if err := spectator.Unsubscribe(peerChooserSubscriberName); err != nil {
-			errs = multierr.Append(errs, fmt.Errorf("unsubscribe from namespace %s: %w", namespace, err))
-		}
+	for _, spectator := range c.spectators.spectators {
+		spectator.Unsubscribe(peerChooserSubscriberName)
 	}
-
-	return errs
 }
 
 // noOpSubscriber is a no-op implementation of peer.Subscriber

@@ -77,7 +77,7 @@ type Spectator interface {
 
 	// Unsubscribe removes a subscriber with the given name.
 	// All channels returned by Subscribe will be closed when the subscriber is unsubscribed.
-	Unsubscribe(subscriberName string) error
+	Unsubscribe(subscriberName string)
 }
 
 type Params struct {

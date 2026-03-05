@@ -111,11 +111,9 @@ func (mr *MockSpectatorMockRecorder) Subscribe(subscriberName any) *gomock.Call 
 }
 
 // Unsubscribe mocks base method.
-func (m *MockSpectator) Unsubscribe(subscriberName string) error {
+func (m *MockSpectator) Unsubscribe(subscriberName string) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Unsubscribe", subscriberName)
-	ret0, _ := ret[0].(error)
-	return ret0
+	m.ctrl.Call(m, "Unsubscribe", subscriberName)
 }
 
 // Unsubscribe indicates an expected call of Unsubscribe.

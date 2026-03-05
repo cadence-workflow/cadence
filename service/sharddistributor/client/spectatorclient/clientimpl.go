@@ -288,17 +288,17 @@ func (s *spectatorImpl) Subscribe(subscriberName string) (<-chan struct{}, error
 }
 
 // Unsubscribe removes subscriber
-func (s *spectatorImpl) Unsubscribe(subscriberName string) error {
+func (s *spectatorImpl) Unsubscribe(subscriberName string) {
 	s.subscribersMu.Lock()
 	defer s.subscribersMu.Unlock()
 
-	if _, ok := s.subscribers[subscriberName]; !ok {
-		return fmt.Errorf("subscriber with name %q does not exist", subscriberName)
+	ch, ok := s.subscribers[subscriberName]
+	if !ok {
+		return
 	}
 
-	close(s.subscribers[subscriberName])
+	close(ch)
 	delete(s.subscribers, subscriberName)
-	return nil
 }
 
 // notifySubscribers sends notifications to all subscribers about changes in shard ownership.

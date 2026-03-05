@@ -348,8 +348,7 @@ func TestUnsubscribe(t *testing.T) {
 	assert.True(t, exists)
 
 	// Unsubscribe
-	err = spectator.Unsubscribe("subscriber-1")
-	require.NoError(t, err)
+	spectator.Unsubscribe("subscriber-1")
 
 	// Verify subscription was removed
 	spectator.subscribersMu.RLock()
@@ -366,9 +365,13 @@ func TestUnsubscribe_NonExistentSubscriber(t *testing.T) {
 		firstStateSignal: csync.NewResettableSignal(),
 	}
 
-	// Unsubscribe non-existent subscriber should not error
-	err := spectator.Unsubscribe("non-existent")
-	require.Error(t, err)
+	// Unsubscribe non-existent subscriber should be idempotent (no-op, no error)
+	spectator.Unsubscribe("non-existent")
+
+	// Verify no panic occurred and subscribers map is still empty
+	spectator.subscribersMu.RLock()
+	assert.Len(t, spectator.subscribers, 0)
+	spectator.subscribersMu.RUnlock()
 }
 
 func TestGetExecutors(t *testing.T) {

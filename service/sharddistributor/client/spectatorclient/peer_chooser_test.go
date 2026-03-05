@@ -129,7 +129,7 @@ func TestSpectatorPeerChooser_Start_WithSubscriptions(t *testing.T) {
 	err := chooser.Start()
 	require.NoError(t, err)
 
-	mockSpectator.EXPECT().Unsubscribe(peerChooserSubscriberName).Return(nil)
+	mockSpectator.EXPECT().Unsubscribe(peerChooserSubscriberName)
 	err = chooser.Stop()
 	assert.NoError(t, err)
 }
@@ -142,7 +142,7 @@ func TestSpectatorPeerChooser_Start_SubscriptionError(t *testing.T) {
 	chooser := newTestChooserWithSpectators(t, map[string]Spectator{"test-namespace": mockSpectator})
 
 	mockSpectator.EXPECT().Subscribe(peerChooserSubscriberName).Return(nil, assert.AnError)
-	mockSpectator.EXPECT().Unsubscribe(peerChooserSubscriberName).Return(nil) // cleanup partial subscriptions
+	mockSpectator.EXPECT().Unsubscribe(peerChooserSubscriberName) // cleanup partial subscriptions
 	err := chooser.Start()
 	require.Error(t, err) // Start should fail fast on subscription error
 	assert.Contains(t, err.Error(), "failed to subscribe to spectator for namespace test-namespace")
@@ -164,26 +164,13 @@ func TestSpectatorPeerChooser_Stop_WithPeers(t *testing.T) {
 	assert.Len(t, chooser.peers, 1)
 	chooser.peersMutex.RUnlock()
 
-	mockSpectator.EXPECT().Unsubscribe(peerChooserSubscriberName).Return(nil)
+	mockSpectator.EXPECT().Unsubscribe(peerChooserSubscriberName)
 	err = chooser.Stop()
 	assert.NoError(t, err)
 
 	chooser.peersMutex.RLock()
 	assert.Len(t, chooser.peers, 0)
 	chooser.peersMutex.RUnlock()
-}
-
-func TestSpectatorPeerChooser_Stop_UnsubscribeError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockSpectator := NewMockSpectator(ctrl)
-	chooser := newTestChooserWithSpectators(t, map[string]Spectator{"test-namespace": mockSpectator})
-
-	mockSpectator.EXPECT().Unsubscribe(peerChooserSubscriberName).Return(assert.AnError)
-	err := chooser.Stop()
-	require.Error(t, err) // Stop should return unsubscribe error
-	assert.Contains(t, err.Error(), "unsubscribe from namespace test-namespace")
 }
 
 func TestSpectatorPeerChooser_Subscribe_FailFast(t *testing.T) {
@@ -204,28 +191,6 @@ func TestSpectatorPeerChooser_Subscribe_FailFast(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to subscribe to spectator for namespace test-namespace")
 }
 
-func TestSpectatorPeerChooser_Unsubscribe_CombinesErrors(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockSpectator1, mockSpectator2 := NewMockSpectator(ctrl), NewMockSpectator(ctrl)
-	chooser := newTestChooser(t)
-	chooser.spectators = &Spectators{spectators: map[string]Spectator{
-		"ns-1": mockSpectator1,
-		"ns-2": mockSpectator2,
-	}}
-
-	// Both spectators will fail to unsubscribe
-	mockSpectator1.EXPECT().Unsubscribe(peerChooserSubscriberName).Return(assert.AnError)
-	mockSpectator2.EXPECT().Unsubscribe(peerChooserSubscriberName).Return(assert.AnError)
-
-	err := chooser.unsubscribe()
-	require.Error(t, err)
-	// Both namespace errors should be present in the combined error
-	assert.Contains(t, err.Error(), "unsubscribe from namespace ns-1")
-	assert.Contains(t, err.Error(), "unsubscribe from namespace ns-2")
-}
-
 func TestSpectatorPeerChooser_Start_UnsubscribesOnFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -240,7 +205,7 @@ func TestSpectatorPeerChooser_Start_UnsubscribesOnFailure(t *testing.T) {
 	mockSpectator.EXPECT().Subscribe(peerChooserSubscriberName).Return(nil, assert.AnError)
 
 	// unsubscribe should be called during cleanup (even though subscribe failed)
-	mockSpectator.EXPECT().Unsubscribe(peerChooserSubscriberName).Return(nil)
+	mockSpectator.EXPECT().Unsubscribe(peerChooserSubscriberName)
 
 	err := chooser.Start()
 	require.Error(t, err)
@@ -257,11 +222,11 @@ func TestSpectatorPeerChooser_Stop_ReleasePeerError(t *testing.T) {
 	chooser.peers = map[string]peer.Peer{"127.0.0.1:7953": mockPeer}
 	chooser.spectators = &Spectators{spectators: map[string]Spectator{"test-namespace": mockSpectator}}
 
-	mockSpectator.EXPECT().Unsubscribe(peerChooserSubscriberName).Return(nil)
+	mockSpectator.EXPECT().Unsubscribe(peerChooserSubscriberName)
 	mockTransport.EXPECT().ReleasePeer(mockPeer, gomock.Any()).Return(assert.AnError)
 
 	err := chooser.Stop()
-	assert.NoError(t, err)
+	assert.NoError(t, err) // Stop always returns nil
 
 	chooser.peersMutex.RLock()
 	assert.Len(t, chooser.peers, 0)
