@@ -22,6 +22,7 @@ package backoff
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -32,6 +33,8 @@ import (
 type retryCountKeyType string
 
 const retryCountKey = retryCountKeyType("retryCount")
+
+var causeOperationTimeout = errors.New("operation timeout")
 
 type (
 	// Operation to retry
@@ -54,11 +57,13 @@ type (
 
 	// ThrottleRetry is used to run operation with retry and also avoid throttling dependencies
 	ThrottleRetry struct {
-		policy         RetryPolicy
-		isRetryable    IsRetryable
-		throttlePolicy RetryPolicy
-		isThrottle     IsRetryable
-		clock          clock.TimeSource
+		policy           RetryPolicy
+		isRetryable      IsRetryable
+		throttlePolicy   RetryPolicy
+		isThrottle       IsRetryable
+		clock            clock.TimeSource
+		operationTimeout time.Duration
+		expireContext    bool
 	}
 )
 
@@ -161,6 +166,18 @@ func WithThrottleError(isThrottle IsRetryable) ThrottleRetryOption {
 	}
 }
 
+func WithOperationTimeout(operationTimeout time.Duration) ThrottleRetryOption {
+	return func(tr *ThrottleRetry) {
+		tr.operationTimeout = operationTimeout
+	}
+}
+
+func WithContextExpiration() ThrottleRetryOption {
+	return func(tr *ThrottleRetry) {
+		tr.expireContext = true
+	}
+}
+
 func WithClock(clock clock.TimeSource) ThrottleRetryOption {
 	return func(tr *ThrottleRetry) {
 		tr.clock = clock
@@ -175,21 +192,29 @@ func (tr *ThrottleRetry) Do(ctx context.Context, op Operation) error {
 
 	r := NewRetrier(tr.policy, tr.clock)
 	t := NewRetrier(tr.throttlePolicy, tr.clock)
+	// If enabled and the RetryPolicy has an expiration, enforce it via context timeout
+	if expirationInterval := tr.policy.Expiration(); tr.expireContext && expirationInterval > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, expirationInterval)
+		defer cancel()
+	}
 	retryCount := 0
 	for {
 		// record the previous error before an operation
 		prevErr = err
 
-		// update context with retry count
-		ctx = context.WithValue(ctx, retryCountKey, retryCount)
+		// Avoid shadowing err
+		var attemptTimedOut bool
+		err, attemptTimedOut = tr.attempt(ctx, retryCount, op)
 		// operation completed successfully. No need to retry.
-		if err = op(ctx); err == nil {
+		if err == nil {
 			return nil
 		}
 		retryCount++
 
 		// Check if the error is retryable
-		if !tr.isRetryable(err) {
+		// Attempts timing out is considered retryable
+		if !tr.isRetryable(err) && !attemptTimedOut {
 			// The returned error will be preferred to a previous one if one exists. That's because the
 			// very last error is very likely a timeout error, and it's not useful for logging/troubleshooting
 			if prevErr != nil {
@@ -222,6 +247,28 @@ func (tr *ThrottleRetry) Do(ctx context.Context, op Operation) error {
 		case <-tr.clock.After(next):
 		}
 	}
+}
+
+func (tr *ThrottleRetry) attempt(ctx context.Context, retryCount int, op Operation) (error, bool) {
+	// update context with retry count
+	ctx = context.WithValue(ctx, retryCountKey, retryCount)
+	// If configured with an operation timeout, set it on the context
+	if tr.operationTimeout > 0 {
+		// Avoid shadowing ctx
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeoutCause(ctx, tr.operationTimeout, causeOperationTimeout)
+		defer cancel()
+	}
+	opErr := op(ctx)
+	// Confirm that the context was cancelled by the above timeout
+	// Validating the cause ensures that any other Context cancellation (incoming timeout, explicit cancel) doesn't
+	// get treated as an attempt timeout.
+	// Validating the returned error is/wraps a DeadlineExceeded adds confidence that it was caused by the context
+	// timing out.
+	if cause := context.Cause(ctx); errors.Is(cause, causeOperationTimeout) && errors.Is(opErr, context.DeadlineExceeded) {
+		return opErr, true
+	}
+	return opErr, false
 }
 
 // IgnoreErrors can be used as IsRetryable handler for Retry function to exclude certain errors from the retry list
