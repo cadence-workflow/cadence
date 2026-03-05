@@ -174,7 +174,9 @@ func (b *shardBatcher) flush(pending map[string][]*batchRequest) {
 		// Use a background context so individual caller cancellations do not
 		// abort the whole batch; callers will surface their own context error
 		// via the select in Submit.
-		results, err := b.processBatch(context.Background(), namespace, shardKeys)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*b.interval)
+		results, err := b.processBatch(ctx, namespace, shardKeys)
+		cancel()
 
 		for _, req := range reqs {
 			var res batchResponse
