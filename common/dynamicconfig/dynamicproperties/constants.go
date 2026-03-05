@@ -2014,6 +2014,12 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableBatcher
+	// EnableScheduler decides whether to start the scheduler worker for cron-based scheduling
+	// KeyName: worker.enableScheduler
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableScheduler
 	// EnableParentClosePolicyWorker decides whether or not enable system workers for processing parent close policy task
 	// KeyName: system.enableParentClosePolicyWorker
 	// Value type: Bool
@@ -4742,6 +4748,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "worker.enableBatcher",
 		Description:  "EnableBatcher is decides whether start batcher in our worker",
 		DefaultValue: true,
+	},
+	EnableScheduler: {
+		KeyName:      "worker.enableScheduler",
+		Description:  "EnableScheduler decides whether to start the scheduler worker for cron-based scheduling",
+		DefaultValue: false,
 	},
 	EnableParentClosePolicyWorker: {
 		KeyName:      "system.enableParentClosePolicyWorker",

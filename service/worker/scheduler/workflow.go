@@ -40,10 +40,6 @@ type signalChannels struct {
 	delete   workflow.Channel
 }
 
-func init() {
-	workflow.RegisterWithOptions(SchedulerWorkflow, workflow.RegisterOptions{Name: WorkflowTypeName})
-}
-
 // SchedulerWorkflow is a long-running workflow that manages a single schedule.
 // It computes the next fire time from the cron expression, waits via a timer,
 // and dispatches the configured action. Signals control pause/unpause, update,
