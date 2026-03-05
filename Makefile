@@ -720,7 +720,7 @@ integration_tests_etcd:
 
 	$Q echo "Running integration tests with etcd"
 	$Q mkdir -p $(BUILD)/$(INTEG_TEST_DIR)
-	$Q (ETCD_TEST_DIRS=$$(find . \( -path './vendor/*' -o -path './idls/*' -o -path './.build/*' -o -path './.bin/*' -o -path './.git/*' -o -path './.worktrees/*' \) -prune -o -name "*_test.go" -type f -exec grep -l "testhelper.SetupStoreTestCluster\|testflags.RequireEtcd" {} \; | xargs -n1 dirname | sort | uniq); \
+	$Q (ETCD_TEST_DIRS=$$(find . -name "*_test.go" -exec grep -l "testhelper.SetupStoreTestCluster\|testflags.RequireEtcd" {} \; | xargs -n1 dirname | sort | uniq); \
 		echo "Found etcd test directories:"; \
 		echo "$$ETCD_TEST_DIRS"; \
 		echo "Using ETCD_ENDPOINTS='$(ETCD_ENDPOINTS)'"; \
