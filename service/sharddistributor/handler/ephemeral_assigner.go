@@ -31,7 +31,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-// assignEphemeralBatch is the ephemeralBatchFn wired into the shardBatcher.
+// assignEphemeralBatch is the ephemeralAssignmentBatchFn wired into the shardBatcher.
 // It processes a whole batch of unassigned shard keys for a single ephemeral
 // namespace using two storage operations:
 //  1. GetState     — read current namespace state once for the whole batch.

@@ -37,9 +37,9 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-// processFnFromMap returns an ephemeralBatchFn that resolves shard keys from a
+// processFnFromMap returns an ephemeralAssignmentBatchFn that resolves shard keys from a
 // fixed map, returning an empty map (and no error) for any key not present.
-func processFnFromMap(results map[string]*types.GetShardOwnerResponse) ephemeralBatchFn {
+func processFnFromMap(results map[string]*types.GetShardOwnerResponse) ephemeralAssignmentBatchFn {
 	return func(_ context.Context, _ string, shardKeys []string) (map[string]*types.GetShardOwnerResponse, error) {
 		out := make(map[string]*types.GetShardOwnerResponse, len(shardKeys))
 		for _, k := range shardKeys {
@@ -70,7 +70,7 @@ func TestShardBatcher_Submit(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	tests := []struct {
 		name      string
-		batchFn   ephemeralBatchFn
+		batchFn   ephemeralAssignmentBatchFn
 		namespace string
 		shardKey  string
 		// ctxFn builds the context used for the Submit call; defaults to context.Background().
@@ -143,7 +143,7 @@ func TestShardBatcher_Submit(t *testing.T) {
 			done := make(chan struct{})
 			ch := make(chan result, 1)
 			go func() {
-				resp, err := b.Submit(ctx, tc.namespace, tc.shardKey)
+				resp, err := b.Submit(ctx, &types.GetShardOwnerRequest{Namespace: tc.namespace, ShardKey: tc.shardKey})
 				ch <- result{resp, err}
 				close(done)
 			}()
@@ -219,7 +219,7 @@ func TestShardBatcher_MultipleNamespacesIsolated(t *testing.T) {
 				wg.Add(1)
 				go func(i int, namespace, shardKey string) {
 					defer wg.Done()
-					resp, err := b.Submit(context.Background(), namespace, shardKey)
+					resp, err := b.Submit(context.Background(), &types.GetShardOwnerRequest{Namespace: namespace, ShardKey: shardKey})
 					if err == nil {
 						got[i] = result{owner: resp.Owner}
 					} else {
@@ -273,7 +273,7 @@ func TestShardBatcher_ErrorPropagatedToAllCallers(t *testing.T) {
 				wg.Add(1)
 				go func(i int) {
 					defer wg.Done()
-					_, errs[i] = b.Submit(context.Background(), "ns", "shard")
+					_, errs[i] = b.Submit(context.Background(), &types.GetShardOwnerRequest{Namespace: "ns", ShardKey: "shard"})
 				}(i)
 			}
 
@@ -342,7 +342,7 @@ func TestShardBatcher_ConcurrentRequestsBatchedTogether(t *testing.T) {
 				go func(i int) {
 					defer wg.Done()
 					key := "shard-" + string(rune('A'+i))
-					resp, err := b.Submit(context.Background(), "ns", key)
+					resp, err := b.Submit(context.Background(), &types.GetShardOwnerRequest{Namespace: "ns", ShardKey: key})
 					require.NoError(t, err)
 					assert.Equal(t, "exec-1", resp.Owner)
 				}(i)
@@ -390,7 +390,7 @@ func TestShardBatcher_StopDrainsAndCancelsRemainingRequests(t *testing.T) {
 			errCh := make(chan error, 1)
 			done := make(chan struct{})
 			go func() {
-				_, err := b.Submit(context.Background(), "ns", "shard-1")
+				_, err := b.Submit(context.Background(), &types.GetShardOwnerRequest{Namespace: "ns", ShardKey: "shard-1"})
 				errCh <- err
 				close(done)
 			}()

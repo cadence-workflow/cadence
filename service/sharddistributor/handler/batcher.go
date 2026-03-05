@@ -37,10 +37,10 @@ const (
 	_intervalJitterCoeff  = 0.1 // 10% jitter
 )
 
-// ephemeralBatchFn is a function that assigns a batch of shards within a namespace
+// ephemeralAssignmentBatchFn is a function that assigns a batch of shards within a namespace
 // and returns a map of shardKey -> GetShardOwnerResponse for each successfully assigned shard.
 // Keys absent from the result map indicate an error for that specific shard.
-type ephemeralBatchFn func(ctx context.Context, namespace string, shardKeys []string) (map[string]*types.GetShardOwnerResponse, error)
+type ephemeralAssignmentBatchFn func(ctx context.Context, namespace string, shardKeys []string) (map[string]*types.GetShardOwnerResponse, error)
 
 // batchRequest is a single caller's request submitted to the shardBatcher.
 type batchRequest struct {
@@ -64,11 +64,11 @@ type batchResponse struct {
 //	b := newShardBatcher(100*time.Millisecond, processFn)
 //	b.Start()
 //	defer b.Stop()
-//	resp, err := b.Submit(ctx, namespace, shardKey)
+//	resp, err := b.Submit(ctx, &types.GetShardOwnerRequest{Namespace: namespace, ShardKey: shardKey})
 type shardBatcher struct {
 	timeSource   clock.TimeSource
 	interval     time.Duration
-	processBatch ephemeralBatchFn
+	processBatch ephemeralAssignmentBatchFn
 
 	// requestChan is shared across all goroutines; requests are keyed by namespace
 	// inside the loop so a single goroutine can handle multiple namespaces.
@@ -79,7 +79,7 @@ type shardBatcher struct {
 	wg     sync.WaitGroup
 }
 
-func newShardBatcher(timeSource clock.TimeSource, interval time.Duration, processBatch ephemeralBatchFn) *shardBatcher {
+func newShardBatcher(timeSource clock.TimeSource, interval time.Duration, processBatch ephemeralAssignmentBatchFn) *shardBatcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &shardBatcher{
 		timeSource:   timeSource,
@@ -107,10 +107,10 @@ func (b *shardBatcher) Stop() {
 
 // Submit enqueues a single GetShardOwner request and blocks until the batcher
 // has processed the batch that contains it, or until ctx is cancelled.
-func (b *shardBatcher) Submit(ctx context.Context, namespace, shardKey string) (*types.GetShardOwnerResponse, error) {
+func (b *shardBatcher) Submit(ctx context.Context, request *types.GetShardOwnerRequest) (*types.GetShardOwnerResponse, error) {
 	req := &batchRequest{
-		namespace: namespace,
-		shardKey:  shardKey,
+		namespace: request.Namespace,
+		shardKey:  request.ShardKey,
 		respChan:  make(chan batchResponse, 1),
 	}
 
@@ -151,6 +151,8 @@ func (b *shardBatcher) loop() {
 			pending = make(map[string][]*batchRequest)
 
 		case <-b.ctx.Done():
+			// drainAndCancel sends a cancellation response to all requests that arrived
+			// after the last tick but before the context was cancelled.
 			b.drainAndCancel(pending)
 			return
 		}
@@ -195,8 +197,6 @@ func (b *shardBatcher) flush(pending map[string][]*batchRequest) {
 	}
 }
 
-// drainAndCancel sends a cancellation response to all requests that arrived
-// after the last tick but before the context was cancelled.
 func (b *shardBatcher) drainAndCancel(pending map[string][]*batchRequest) {
 	// First flush whatever was already accumulated.
 	b.flush(pending)

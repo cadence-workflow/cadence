@@ -104,7 +104,7 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 	shardOwner, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
 	if errors.Is(err, store.ErrShardNotFound) {
 		if h.shardDistributionCfg.Namespaces[namespaceIdx].Type == config.NamespaceTypeEphemeral {
-			return h.batcher.Submit(ctx, request.Namespace, request.ShardKey)
+			return h.batcher.Submit(ctx, request)
 		}
 
 		return nil, &types.ShardNotFoundError{
