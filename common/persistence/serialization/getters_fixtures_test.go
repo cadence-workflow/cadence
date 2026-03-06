@@ -116,6 +116,7 @@ var expectedNil = map[string]map[string]any{
 		"GetVersion":                 int64(0),
 		"GetVisibilityTimestamp":     zeroUnix,
 		"GetOriginalTaskList":        "",
+		"GetOriginalTaskListKind":    types.TaskListKindNormal,
 	},
 	"*serialization.TimerTaskInfo": {
 		"GetDomainID":        []uint8(nil),
@@ -363,6 +364,7 @@ var expectedEmpty = map[string]map[string]any{
 		"GetVersion":                 int64(0),
 		"GetVisibilityTimestamp":     time.Time{},
 		"GetOriginalTaskList":        "",
+		"GetOriginalTaskListKind":    types.TaskListKindNormal,
 	},
 	"*serialization.TimerTaskInfo": {
 		"GetDomainID":        []uint8(nil),
@@ -612,6 +614,7 @@ var expectedNonEmpty = map[string]map[string]any{
 		"GetVersion":                 int64(3),
 		"GetVisibilityTimestamp":     taskInfoCreateTime,
 		"GetOriginalTaskList":        "originalTaskList",
+		"GetOriginalTaskListKind":    types.TaskListKindEphemeral,
 	},
 	"*serialization.TimerTaskInfo": {
 		"GetDomainID":        []byte(taskDomainID),

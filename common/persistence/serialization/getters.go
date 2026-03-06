@@ -1582,6 +1582,14 @@ func (t *TransferTaskInfo) GetOriginalTaskList() (o string) {
 	return
 }
 
+// GetOriginalTaskListKind internal sql blob getter
+func (t *TransferTaskInfo) GetOriginalTaskListKind() (o types.TaskListKind) {
+	if t != nil {
+		return t.OriginalTaskListKind
+	}
+	return
+}
+
 // GetDomainID internal sql blob getter
 func (t *TimerTaskInfo) GetDomainID() (o []byte) {
 	if t != nil && t.DomainID != nil {
