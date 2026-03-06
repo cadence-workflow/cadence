@@ -39,6 +39,11 @@ const (
 	StartWorkflowActivityName = "scheduler-start-workflow"
 
 	maxIterationsBeforeContinueAsNew = 500
+
+	localActivityScheduleToCloseTimeout = 60 * time.Second
+	localActivityMaxRetries             = 3
+	localActivityRetryInitialInterval   = time.Second
+	localActivityRetryMaxInterval       = 10 * time.Second
 )
 
 // SchedulerWorkflowInput is the input to the scheduler workflow.
