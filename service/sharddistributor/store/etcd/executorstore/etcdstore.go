@@ -81,6 +81,7 @@ func NewStore(p ExecutorStoreParams) (store.Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create record writer: %w", err)
 	}
+
 	store := &executorStoreImpl{
 		client:        p.Client,
 		prefix:        p.ETCDConfig.Prefix,
@@ -150,13 +151,18 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 	if err != nil {
 		return fmt.Errorf("record heartbeat: %w", err)
 	}
-
-	statsUpdates, err := s.calcUpdatedStatistics(ctx, namespace, executorID, request.ReportedShards)
-	if err != nil {
-		return err
+	if s.cfg.GetLoadBalancingMode(namespace) == types.LoadBalancingModeGREEDY {
+		statsUpdates, err := s.calcUpdatedStatistics(ctx, namespace, executorID, request.ReportedShards)
+		if err != nil {
+			return err
+		}
+		err = s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
+		if err != nil {
+			return err
+		}
 	}
 
-	return s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
+	return nil
 }
 
 func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace, executorID string, reported map[string]*types.ShardStatusReport) ([]shardStatisticsUpdate, error) {

@@ -140,7 +140,6 @@ func TestNamespaceShardToExecutor_Subscribe(t *testing.T) {
 	})
 
 	wg.Wait()
-
 }
 
 func TestNamespaceShardToExecutor_watch_watchChanErrors(t *testing.T) {
