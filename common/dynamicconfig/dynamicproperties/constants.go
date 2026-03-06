@@ -2290,7 +2290,7 @@ const (
 	// from using the shard manager to handle these shards. These short-lived task lists are assigned using hash_ring.
 	// KeyName: matching.excludeShortLivedTaskListsFromShardManager
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
 
@@ -4983,7 +4983,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	MatchingExcludeShortLivedTaskListsFromShardManager: {
 		KeyName:      "matching.excludeShortLivedTaskListsFromShardManager",
 		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 }
 
