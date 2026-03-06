@@ -99,7 +99,7 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 			timerFuture = workflow.NewTimer(timerCtx, dur)
 		}
 
-		changed := applyAllInputs(ctx, logger, timerFuture, chs, state, &input)
+		changed, timerFired := applyAllInputs(ctx, logger, timerFuture, chs, state, &input)
 
 		if timerCancel != nil {
 			timerCancel()
@@ -109,6 +109,11 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 			logger.Info("schedule deleted")
 			return nil
 		}
+
+		if timerFired && !state.Paused {
+			processScheduleFire(ctx, logger, &input, state)
+		}
+
 		if changed || state.Iterations >= maxIterationsBeforeContinueAsNew {
 			return safeContinueAsNew(ctx, logger, chs.delete, input, state)
 		}
@@ -119,7 +124,9 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 // processes it, then drains any remaining buffered signals.
 // Signals and the timer are treated uniformly: each mutates state without
 // triggering side effects (no timer cancellation, no ContinueAsNew).
-// Returns true if a state-changing signal (pause, unpause, update) was received.
+// Returns (stateChanged, timerFired): stateChanged is true if a state-changing
+// signal (pause, unpause, update) was received; timerFired is true if the timer
+// completed successfully.
 func applyAllInputs(
 	ctx workflow.Context,
 	logger *zap.Logger,
@@ -127,21 +134,17 @@ func applyAllInputs(
 	chs signalChannels,
 	state *SchedulerWorkflowState,
 	input *SchedulerWorkflowInput,
-) bool {
+) (bool, bool) {
 	selector := workflow.NewSelector(ctx)
 	stateChanged := false
 
+	timerFired := false
 	if timerFuture != nil {
 		selector.AddFuture(timerFuture, func(f workflow.Future) {
 			if f.Get(ctx, nil) != nil {
 				return
 			}
-			state.LastRunTime = state.NextRunTime
-			state.TotalRuns++
-			logger.Info("schedule fired",
-				zap.Time("scheduledTime", state.NextRunTime),
-				zap.Int64("totalRuns", state.TotalRuns),
-			)
+			timerFired = true
 		})
 	}
 
@@ -186,7 +189,7 @@ func applyAllInputs(
 		stateChanged = true
 	}
 
-	return stateChanged
+	return stateChanged, timerFired
 }
 
 // drainBufferedSignals processes any remaining buffered signals without blocking.
@@ -297,6 +300,68 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 		zap.Time("endTime", sig.EndTime),
 		zap.String("overlapPolicy", sig.OverlapPolicy.String()),
 		zap.String("backfillId", sig.BackfillID),
+	)
+}
+
+// processScheduleFire executes the configured action for a schedule fire.
+// It calls the start-workflow activity, updates state counters, and logs the outcome.
+// Activity failures do not terminate the schedule, they are logged and counted as missed runs.
+func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) {
+	scheduledTime := state.NextRunTime
+	state.LastRunTime = scheduledTime
+	state.TotalRuns++
+
+	logger.Info("schedule fired",
+		zap.Time("scheduledTime", scheduledTime),
+		zap.Int64("totalRuns", state.TotalRuns),
+	)
+
+	activityOpts := workflow.LocalActivityOptions{
+		ScheduleToCloseTimeout: localActivityScheduleToCloseTimeout,
+		RetryPolicy: &workflow.RetryPolicy{
+			InitialInterval:    localActivityRetryInitialInterval,
+			MaximumInterval:    localActivityRetryMaxInterval,
+			MaximumAttempts:    localActivityMaxRetries,
+			BackoffCoefficient: 2,
+		},
+	}
+	actCtx := workflow.WithLocalActivityOptions(ctx, activityOpts)
+
+	if input.Action.StartWorkflow == nil {
+		state.MissedRuns++
+		logger.Error("schedule action has no StartWorkflow configuration")
+		return
+	}
+
+	req := StartWorkflowRequest{
+		Domain:        input.Domain,
+		ScheduleID:    input.ScheduleID,
+		Action:        *input.Action.StartWorkflow,
+		ScheduledTime: scheduledTime,
+	}
+
+	var result StartWorkflowResult
+	err := workflow.ExecuteLocalActivity(actCtx, startWorkflowActivity, req).Get(ctx, &result)
+	if err != nil {
+		state.MissedRuns++
+		logger.Error("scheduled action failed",
+			zap.Time("scheduledTime", scheduledTime),
+			zap.Error(err),
+		)
+		return
+	}
+
+	if result.Skipped {
+		state.SkippedRuns++
+		logger.Info("scheduled action skipped (already running)",
+			zap.String("workflowId", result.WorkflowID),
+		)
+		return
+	}
+
+	logger.Info("scheduled workflow started",
+		zap.String("workflowId", result.WorkflowID),
+		zap.String("runId", result.RunID),
 	)
 }
 
