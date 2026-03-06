@@ -393,6 +393,7 @@ func TestCancelOutstandingPoll(t *testing.T) {
 				executor:         executor,
 				config: &config.Config{
 					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
+					PercentageOnboardedToShardManager:          func(opts ...dynamicproperties.FilterOption) int { return 100 },
 				},
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
@@ -741,6 +742,7 @@ func TestQueryWorkflow(t *testing.T) {
 				executor:             executor,
 				config: &config.Config{
 					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
+					PercentageOnboardedToShardManager:          func(opts ...dynamicproperties.FilterOption) int { return 100 },
 				},
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
@@ -1210,6 +1212,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				config: &config.Config{
 					EnableAdaptiveScaler:                       dynamicproperties.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
 					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
+					PercentageOnboardedToShardManager:          func(opts ...dynamicproperties.FilterOption) int { return 100 },
 				},
 				executor: mockExecutor,
 			}
@@ -1391,6 +1394,7 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 				executor:         mockExecutor,
 				config: &config.Config{
 					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
+					PercentageOnboardedToShardManager:          func(opts ...dynamicproperties.FilterOption) int { return 100 },
 				},
 			}
 			taskListRegistry.Register(*tasklistID, mockManager)
