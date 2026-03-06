@@ -135,6 +135,7 @@ CREATE TYPE transfer_task (
   version                    bigint,       -- the failover version when this task is created, used to compare against the mutable state, in case the events got overwritten
   record_visibility          boolean,      -- indicates whether or not to create a visibility record
   original_task_list         text,         -- the original task list of the task if the task is a sticky decision task
+  original_task_list_kind    int,          -- enum TaskListKind {Normal, Sticky, Ephemeral},
 );
 
 CREATE TYPE replication_task (
