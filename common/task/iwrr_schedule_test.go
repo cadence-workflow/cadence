@@ -7,217 +7,283 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testWeightedItem is a simple implementation for testing
+type testWeightedItem struct {
+	id int
+}
+
+// toWeightedMap converts a map of items with weights to a map of weightedContainers
+func toWeightedMap(items map[int]*testWeightedItem, weights map[int]int) map[int]weightedContainer[*testWeightedItem] {
+	result := make(map[int]weightedContainer[*testWeightedItem])
+	for k, item := range items {
+		result[k] = weightedContainer[*testWeightedItem]{
+			item:   item,
+			weight: weights[k],
+		}
+	}
+	return result
+}
+
 func TestIWRRSchedule_Empty(t *testing.T) {
-	schedule := newIWRRSchedule[int](nil)
+	schedule := newIWRRSchedule[int, *testWeightedItem](nil)
 
 	assert.Equal(t, 0, schedule.Len())
 
 	iter := schedule.NewIterator()
-	ch, ok := iter.TryNext()
+	item, ok := iter.TryNext()
 	assert.False(t, ok)
-	assert.Nil(t, ch)
+	assert.Nil(t, item)
 }
 
 func TestIWRRSchedule_SingleChannel(t *testing.T) {
-	channels := []*weightedChannel[int]{
-		{weight: 3, c: make(chan int, 10)},
+	items := map[int]*testWeightedItem{
+		0: {id: 0},
+	}
+	weights := map[int]int{
+		0: 3,
 	}
 
-	schedule := newIWRRSchedule[int](channels)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	// Total length should be the weight
 	assert.Equal(t, 3, schedule.Len())
 
 	iter := schedule.NewIterator()
 
-	// Should return the channel 3 times
+	// Should return the item 3 times
 	for i := 0; i < 3; i++ {
-		ch, ok := iter.TryNext()
+		item, ok := iter.TryNext()
 		assert.True(t, ok, "iteration %d should succeed", i)
-		assert.Equal(t, channels[0].c, ch)
+		assert.Equal(t, items[0], item)
 	}
 
 	// Fourth call should return false (exhausted)
-	ch, ok := iter.TryNext()
+	item, ok := iter.TryNext()
 	assert.False(t, ok)
-	assert.Nil(t, ch)
+	assert.Nil(t, item)
 }
 
 func TestIWRRSchedule_MultipleChannels_EqualWeights(t *testing.T) {
-	channels := []*weightedChannel[int]{
-		{weight: 2, c: make(chan int, 10)},
-		{weight: 2, c: make(chan int, 10)},
-		{weight: 2, c: make(chan int, 10)},
+	items := map[int]*testWeightedItem{
+		0: {id: 0},
+		1: {id: 1},
+		2: {id: 2},
+	}
+	weights := map[int]int{
+		0: 2,
+		1: 2,
+		2: 2,
 	}
 
-	schedule := newIWRRSchedule[int](channels)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	assert.Equal(t, 6, schedule.Len())
 
 	iter := schedule.NewIterator()
 
-	// With equal weights, IWRR should interleave: [2, 1, 0, 2, 1, 0]
-	// (highest index first in each round)
-	expectedOrder := []int{2, 1, 0, 2, 1, 0}
-
-	for i, expectedIdx := range expectedOrder {
-		ch, ok := iter.TryNext()
-		require.True(t, ok, "iteration %d should succeed", i)
-		assert.Equal(t, channels[expectedIdx].c, ch, "iteration %d", i)
+	// With equal weights, each item should appear equal number of times
+	// Note: the exact order depends on map iteration order
+	counts := make(map[*testWeightedItem]int)
+	for {
+		item, ok := iter.TryNext()
+		if !ok {
+			break
+		}
+		counts[item]++
 	}
 
-	// Should be exhausted
-	ch, ok := iter.TryNext()
-	assert.False(t, ok)
-	assert.Nil(t, ch)
+	assert.Equal(t, 2, counts[items[0]], "item 0 should appear 2 times")
+	assert.Equal(t, 2, counts[items[1]], "item 1 should appear 2 times")
+	assert.Equal(t, 2, counts[items[2]], "item 2 should appear 2 times")
 }
 
 func TestIWRRSchedule_MultipleChannels_DifferentWeights(t *testing.T) {
-	// Create channels with weights [1, 2, 3]
-	channels := []*weightedChannel[int]{
-		{weight: 1, c: make(chan int, 10)},
-		{weight: 2, c: make(chan int, 10)},
-		{weight: 3, c: make(chan int, 10)},
+	// Create items with weights [1, 2, 3]
+	items := map[int]*testWeightedItem{
+		0: {id: 0},
+		1: {id: 1},
+		2: {id: 2},
+	}
+	weights := map[int]int{
+		0: 1,
+		1: 2,
+		2: 3,
 	}
 
-	schedule := newIWRRSchedule[int](channels)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	assert.Equal(t, 6, schedule.Len())
 
 	iter := schedule.NewIterator()
 
 	// IWRR with weights [1, 2, 3] processes rounds from 2 down to 0:
-	// Round 2: channels with weight > 2 → channel 2 (weight 3)
-	// Round 1: channels with weight > 1 → channels 2, 1 (weights 3, 2)
-	// Round 0: channels with weight > 0 → channels 2, 1, 0 (weights 3, 2, 1)
+	// Round 2: items with weight > 2 → item 2 (weight 3)
+	// Round 1: items with weight > 1 → items 2, 1 (weights 3, 2)
+	// Round 0: items with weight > 0 → items 2, 1, 0 (weights 3, 2, 1)
 	// Result: [2, 2, 1, 2, 1, 0]
-	expectedSequence := []chan int{
-		channels[2].c, // round 2: weight 3
-		channels[2].c, // round 1: weight 3
-		channels[1].c, // round 1: weight 2
-		channels[2].c, // round 0: weight 3
-		channels[1].c, // round 0: weight 2
-		channels[0].c, // round 0: weight 1
+	expectedSequence := []*testWeightedItem{
+		items[2], // round 2: weight 3
+		items[2], // round 1: weight 3
+		items[1], // round 1: weight 2
+		items[2], // round 0: weight 3
+		items[1], // round 0: weight 2
+		items[0], // round 0: weight 1
 	}
 
-	for i, expectedCh := range expectedSequence {
-		ch, ok := iter.TryNext()
+	for i, expected := range expectedSequence {
+		item, ok := iter.TryNext()
 		require.True(t, ok, "iteration %d should succeed", i)
-		assert.Equal(t, expectedCh, ch, "iteration %d", i)
+		assert.Equal(t, expected, item, "iteration %d", i)
 	}
 
 	// Should be exhausted
-	ch, ok := iter.TryNext()
+	item, ok := iter.TryNext()
 	assert.False(t, ok)
-	assert.Nil(t, ch)
+	assert.Nil(t, item)
 }
 
 func TestIWRRSchedule_LargeWeights(t *testing.T) {
-	channels := []*weightedChannel[int]{
-		{weight: 100, c: make(chan int, 10)},
-		{weight: 50, c: make(chan int, 10)},
-		{weight: 25, c: make(chan int, 10)},
+	items := map[int]*testWeightedItem{
+		0: {id: 0},
+		1: {id: 1},
+		2: {id: 2},
+	}
+	weights := map[int]int{
+		0: 100,
+		1: 50,
+		2: 25,
 	}
 
-	schedule := newIWRRSchedule[int](channels)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	assert.Equal(t, 175, schedule.Len())
 
 	iter := schedule.NewIterator()
 
-	// Count how many times each channel appears
-	counts := make(map[chan int]int)
+	// IWRR pattern for [100, 50, 25]:
+	// Rounds 99-50 (50 rounds): only item 0 (weight 100 > round)
+	// Rounds 49-25 (25 rounds): items 0, 1 (weights 100, 50 > round)
+	// Rounds 24-0 (25 rounds): items 0, 1, 2 (all weights > round)
+	var expectedSequence []*testWeightedItem
 
-	for {
-		ch, ok := iter.TryNext()
-		if !ok {
-			break
-		}
-		counts[ch]++
+	// First 50 rounds: only item 0
+	for i := 0; i < 50; i++ {
+		expectedSequence = append(expectedSequence, items[0])
 	}
 
-	assert.Equal(t, 100, counts[channels[0].c], "channel 0 should appear 100 times")
-	assert.Equal(t, 50, counts[channels[1].c], "channel 1 should appear 50 times")
-	assert.Equal(t, 25, counts[channels[2].c], "channel 2 should appear 25 times")
+	// Next 25 rounds: items 0, 1
+	for i := 0; i < 25; i++ {
+		expectedSequence = append(expectedSequence, items[0], items[1])
+	}
+
+	// Last 25 rounds: items 0, 1, 2
+	for i := 0; i < 25; i++ {
+		expectedSequence = append(expectedSequence, items[0], items[1], items[2])
+	}
+
+	// Verify the sequence
+	for i, expected := range expectedSequence {
+		item, ok := iter.TryNext()
+		require.True(t, ok, "iteration %d should succeed", i)
+		assert.Equal(t, expected, item, "iteration %d", i)
+	}
+
+	// Should be exhausted
+	item, ok := iter.TryNext()
+	assert.False(t, ok)
+	assert.Nil(t, item)
 }
 
 func TestIWRRSchedule_ChannelWithZeroWeight(t *testing.T) {
-	channels := []*weightedChannel[int]{
-		{weight: 0, c: make(chan int, 10)},
-		{weight: 3, c: make(chan int, 10)},
+	items := map[int]*testWeightedItem{
+		0: {id: 0},
+		1: {id: 1},
+	}
+	weights := map[int]int{
+		0: 0,
+		1: 3,
 	}
 
-	schedule := newIWRRSchedule[int](channels)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	// Total length should only count non-zero weights
 	assert.Equal(t, 3, schedule.Len())
 
 	iter := schedule.NewIterator()
 
-	// Should only return channel with weight 3
+	// Should only return item with weight 3
 	for i := 0; i < 3; i++ {
-		ch, ok := iter.TryNext()
+		item, ok := iter.TryNext()
 		require.True(t, ok, "iteration %d", i)
-		assert.Equal(t, channels[1].c, ch)
+		assert.Equal(t, items[1], item)
 	}
 
 	// Should be exhausted
-	ch, ok := iter.TryNext()
+	item, ok := iter.TryNext()
 	assert.False(t, ok)
-	assert.Nil(t, ch)
+	assert.Nil(t, item)
 }
 
 func TestIWRRSchedule_WeightedChannelFields(t *testing.T) {
-	// Verify that the returned channel is correct
-	// Note: The schedule only stores weight and c internally, and returns only the channel
-	testChan := make(chan int, 10)
-	channels := []*weightedChannel[int]{
-		{
-			weight: 10,
-			c:      testChan,
-		},
+	// Verify that the returned item is correct
+	testItem := &testWeightedItem{
+		id: 0,
+	}
+	items := map[int]*testWeightedItem{
+		0: testItem,
+	}
+	weights := map[int]int{
+		0: 10,
 	}
 
-	schedule := newIWRRSchedule[int](channels)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	iter := schedule.NewIterator()
 
-	ch, ok := iter.TryNext()
+	item, ok := iter.TryNext()
 	require.True(t, ok)
-	assert.Equal(t, testChan, ch)
+	assert.Equal(t, testItem, item)
 }
 
 func TestIWRRSchedule_ExhaustedSchedule_MultipleCallsReturnFalse(t *testing.T) {
-	channels := []*weightedChannel[int]{
-		{weight: 1, c: make(chan int, 10)},
+	items := map[int]*testWeightedItem{
+		0: {id: 0},
+	}
+	weights := map[int]int{
+		0: 1,
 	}
 
-	schedule := newIWRRSchedule[int](channels)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	iter := schedule.NewIterator()
 
 	// Exhaust the iterator
-	ch, ok := iter.TryNext()
+	item, ok := iter.TryNext()
 	assert.True(t, ok)
-	assert.NotNil(t, ch)
+	assert.NotNil(t, item)
 
 	// Multiple calls after exhaustion should all return false
 	for i := 0; i < 5; i++ {
-		ch, ok := iter.TryNext()
+		item, ok := iter.TryNext()
 		assert.False(t, ok, "call %d after exhaustion", i)
-		assert.Nil(t, ch, "call %d after exhaustion", i)
+		assert.Nil(t, item, "call %d after exhaustion", i)
 	}
 }
 
 func TestIWRRSchedule_Ordering_Weights_5_3_1(t *testing.T) {
 	// Test case from task pool tests: weights [5, 3, 1]
-	channels := []*weightedChannel[int]{
-		{weight: 5, c: make(chan int, 10)},
-		{weight: 3, c: make(chan int, 10)},
-		{weight: 1, c: make(chan int, 10)},
+	items := map[int]*testWeightedItem{
+		0: {id: 0},
+		1: {id: 1},
+		2: {id: 2},
+	}
+	weights := map[int]int{
+		0: 5,
+		1: 3,
+		2: 1,
 	}
 
-	schedule := newIWRRSchedule[int](channels)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	assert.Equal(t, 9, schedule.Len())
 
@@ -233,48 +299,52 @@ func TestIWRRSchedule_Ordering_Weights_5_3_1(t *testing.T) {
 	expectedPattern := []int{0, 0, 0, 1, 0, 1, 0, 1, 2}
 
 	for i, expectedIdx := range expectedPattern {
-		ch, ok := iter.TryNext()
+		item, ok := iter.TryNext()
 		require.True(t, ok, "iteration %d", i)
-		assert.Equal(t, channels[expectedIdx].c, ch, "iteration %d", i)
+		assert.Equal(t, items[expectedIdx], item, "iteration %d", i)
 	}
 
 	// Exhausted
-	ch, ok := iter.TryNext()
+	item, ok := iter.TryNext()
 	assert.False(t, ok)
-	assert.Nil(t, ch)
+	assert.Nil(t, item)
 }
 
 func TestIWRRSchedule_StatelessSchedule_MultipleIterators(t *testing.T) {
 	// Test that the schedule is stateless and can create multiple independent iterators
-	c1 := make(chan int, 10)
-	c2 := make(chan int, 10)
-	channels := []*weightedChannel[int]{
-		{weight: 2, c: c1},
-		{weight: 1, c: c2},
+	item1 := &testWeightedItem{id: 0}
+	item2 := &testWeightedItem{id: 1}
+	items := map[int]*testWeightedItem{
+		0: item1,
+		1: item2,
+	}
+	weights := map[int]int{
+		0: 2,
+		1: 1,
 	}
 
-	schedule := newIWRRSchedule[int](channels)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
-	// IWRR for weights [2, 1]: [c1, c1, c2]
+	// IWRR for weights [2, 1]: [item1, item1, item2]
 	// Create first iterator and consume partially
 	iter1 := schedule.NewIterator()
-	ch1, ok1 := iter1.TryNext()
+	i1, ok1 := iter1.TryNext()
 	require.True(t, ok1)
-	assert.Equal(t, c1, ch1)
+	assert.Equal(t, item1, i1)
 
 	// Create second iterator - should start from the beginning
 	iter2 := schedule.NewIterator()
-	ch2, ok2 := iter2.TryNext()
+	i2, ok2 := iter2.TryNext()
 	require.True(t, ok2)
-	assert.Equal(t, c1, ch2, "second iterator should start from beginning")
+	assert.Equal(t, item1, i2, "second iterator should start from beginning")
 
 	// First iterator should continue from where it left off
-	ch1, ok1 = iter1.TryNext()
+	i1, ok1 = iter1.TryNext()
 	require.True(t, ok1)
-	assert.Equal(t, c1, ch1)
+	assert.Equal(t, item1, i1)
 
 	// Second iterator should be independent and continue its own iteration
-	ch2, ok2 = iter2.TryNext()
+	i2, ok2 = iter2.TryNext()
 	require.True(t, ok2)
-	assert.Equal(t, c1, ch2)
+	assert.Equal(t, item1, i2)
 }

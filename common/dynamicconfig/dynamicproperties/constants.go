@@ -850,6 +850,12 @@ const (
 	// Default value: 2
 	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingIsolationGroupsPerPartition
+	// MatchingPercentageOnboardedToShardManager is the percentage of task lists that will be onboarded to the shard manager.
+	// KeyName: matching.percentageOnboardedToShardManager
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
+	MatchingPercentageOnboardedToShardManager
 
 	// key for history
 
@@ -2008,6 +2014,12 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableBatcher
+	// EnableScheduler decides whether to start the scheduler worker for cron-based scheduling
+	// KeyName: worker.enableScheduler
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableScheduler
 	// EnableParentClosePolicyWorker decides whether or not enable system workers for processing parent close policy task
 	// KeyName: system.enableParentClosePolicyWorker
 	// Value type: Bool
@@ -3732,6 +3744,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "MatchingIsolationGroupsPerPartition is the target number of isolation groups to assign to each partition",
 		DefaultValue: 2,
 	},
+	MatchingPercentageOnboardedToShardManager: {
+		KeyName:      "matching.percentageOnboardedToShardManager",
+		Description:  "MatchingPercentageOnboardedToShardManager is the percentage of task lists that will be onboarded to the shard manager",
+		DefaultValue: 0,
+	},
 	HistoryRPS: {
 		KeyName:      "history.rps",
 		Description:  "HistoryRPS is request rate per second for each history host",
@@ -4731,6 +4748,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "worker.enableBatcher",
 		Description:  "EnableBatcher is decides whether start batcher in our worker",
 		DefaultValue: true,
+	},
+	EnableScheduler: {
+		KeyName:      "worker.enableScheduler",
+		Description:  "EnableScheduler decides whether to start the scheduler worker for cron-based scheduling",
+		DefaultValue: false,
 	},
 	EnableParentClosePolicyWorker: {
 		KeyName:      "system.enableParentClosePolicyWorker",

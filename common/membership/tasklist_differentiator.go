@@ -1,13 +1,26 @@
 package membership
 
-import "regexp"
+import (
+	"regexp"
+
+	"github.com/dgryski/go-farm"
+)
 
 const uuidRegex = `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`
 
 var uuidRegexp = regexp.MustCompile(uuidRegex)
 
-func TaskListExcludedFromShardDistributor(taskListName string) bool {
+func TaskListExcludedFromShardDistributor(taskListName string, percentageOnboarded uint64) bool {
 	// This regex checks if the task list name has a UUID, if it does we
 	// consider it a short lived tasklist that will not be managed by the shard distributor.
-	return uuidRegexp.MatchString(taskListName)
+	return uuidRegexp.MatchString(taskListName) || !belowPercentage(taskListName, percentageOnboarded)
+}
+
+func belowPercentage(taskListName string, percentageOnboarded uint64) bool {
+	hash := farm.Fingerprint64([]byte(taskListName))
+	return isbelowPercentage(hash, percentageOnboarded)
+}
+
+func isbelowPercentage(hash uint64, percentageOnboarded uint64) bool {
+	return hash%100 < percentageOnboarded
 }

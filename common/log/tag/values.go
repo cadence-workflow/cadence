@@ -127,6 +127,7 @@ var (
 	ComponentESVisibilityManager              = component("es-visibility-manager")
 	ComponentArchiver                         = component("archiver")
 	ComponentBatcher                          = component("batcher")
+	ComponentScheduler                        = component("scheduler")
 	ComponentWorker                           = component("worker")
 	ComponentServiceResolver                  = component("service-resolver")
 	ComponentFailoverCoordinator              = component("failover-coordinator")

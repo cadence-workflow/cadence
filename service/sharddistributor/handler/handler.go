@@ -26,18 +26,26 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"sync"
+	"time"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
+const (
+	// ephemeralBatchInterval is the time window over which GetShardOwner calls for
+	// ephemeral namespaces are collected before being processed as a single batch.
+	ephemeralBatchInterval = 100 * time.Millisecond
+)
+
 func NewHandler(
 	logger log.Logger,
+	timeSource clock.TimeSource,
 	shardDistributionCfg config.ShardDistribution,
 	storage store.Store,
 ) Handler {
@@ -46,6 +54,8 @@ func NewHandler(
 		shardDistributionCfg: shardDistributionCfg,
 		storage:              storage,
 	}
+
+	handler.batcher = newShardBatcher(timeSource, ephemeralBatchInterval, handler.assignEphemeralBatch)
 
 	// prevent us from trying to serve requests before shard distributor is started and ready
 	handler.startWG.Add(1)
@@ -59,13 +69,17 @@ type handlerImpl struct {
 
 	storage              store.Store
 	shardDistributionCfg config.ShardDistribution
+
+	batcher *shardBatcher
 }
 
 func (h *handlerImpl) Start() {
+	h.batcher.Start()
 	h.startWG.Done()
 }
 
 func (h *handlerImpl) Stop() {
+	h.batcher.Stop()
 }
 
 func (h *handlerImpl) Health(ctx context.Context) (*types.HealthStatus, error) {
@@ -90,7 +104,7 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 	shardOwner, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
 	if errors.Is(err, store.ErrShardNotFound) {
 		if h.shardDistributionCfg.Namespaces[namespaceIdx].Type == config.NamespaceTypeEphemeral {
-			return h.assignEphemeralShard(ctx, request.Namespace, request.ShardKey)
+			return h.batcher.Submit(ctx, request)
 		}
 
 		return nil, &types.ShardNotFoundError{
@@ -109,56 +123,6 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 	}
 
 	return resp, nil
-}
-
-func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string, shardID string) (*types.GetShardOwnerResponse, error) {
-
-	// Get the current state of the namespace and find the executor with the least assigned shards
-	state, err := h.storage.GetState(ctx, namespace)
-	if err != nil {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
-	}
-
-	var executorID string
-	minAssignedShards := math.MaxInt
-
-	for assignedExecutor, assignment := range state.ShardAssignments {
-		executorState, ok := state.Executors[assignedExecutor]
-		if !ok || executorState.Status != types.ExecutorStatusACTIVE {
-			continue
-		}
-
-		if len(assignment.AssignedShards) < minAssignedShards {
-			minAssignedShards = len(assignment.AssignedShards)
-			executorID = assignedExecutor
-		}
-	}
-
-	// Assign the shard to the executor with the least assigned shards
-	err = h.storage.AssignShard(ctx, namespace, shardID, executorID)
-	// If shard is already assigned, return the assigned owner
-	var alreadyAssigned *store.ErrShardAlreadyAssigned
-	if errors.As(err, &alreadyAssigned) {
-		return &types.GetShardOwnerResponse{
-			Owner:     alreadyAssigned.AssignedTo,
-			Namespace: namespace,
-			Metadata:  alreadyAssigned.Metadata,
-		}, nil
-	}
-	if err != nil {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("assign ephemeral shard: %v", err)}
-	}
-
-	executor, err := h.storage.GetExecutor(ctx, namespace, executorID)
-	if err != nil {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get executor: %v", err)}
-	}
-
-	return &types.GetShardOwnerResponse{
-		Owner:     executor.ExecutorID,
-		Namespace: namespace,
-		Metadata:  executor.Metadata,
-	}, nil
 }
 
 func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequest, server WatchNamespaceStateServer) error {

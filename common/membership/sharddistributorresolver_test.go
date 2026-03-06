@@ -354,6 +354,7 @@ func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T
 				spectator,
 				dynamicproperties.GetStringPropertyFn(string(tc.mode)),
 				dynamicproperties.GetBoolPropertyFn(tc.excludeShortLivedTaskLists),
+				dynamicproperties.GetIntPropertyFn(100),
 				ring,
 				logger,
 			).(*shardDistributorResolver)
@@ -389,10 +390,11 @@ func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *Mock
 	spectator := spectatorclient.NewMockSpectator(ctrl)
 	shardDistributionMode := dynamicproperties.GetStringPropertyFn("")
 	excludeShortLivedTaskLists := dynamicproperties.GetBoolPropertyFn(false)
+	percentageOnboarded := dynamicproperties.GetIntPropertyFn(100)
 	ring := NewMockSingleProvider(ctrl)
 	logger := log.NewNoop()
 
-	resolver := NewShardDistributorResolver(spectator, shardDistributionMode, excludeShortLivedTaskLists, ring, logger).(*shardDistributorResolver)
+	resolver := NewShardDistributorResolver(spectator, shardDistributionMode, excludeShortLivedTaskLists, percentageOnboarded, ring, logger).(*shardDistributorResolver)
 
 	return resolver, ring, spectator
 }
