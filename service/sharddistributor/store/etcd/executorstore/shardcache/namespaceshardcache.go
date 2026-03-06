@@ -420,6 +420,11 @@ func (n *namespaceShardToExecutor) applyExecutorData(data map[string]executorDat
 	n.executorRevision = make(map[string]int64)
 	n.shardOwners = make(map[string]*store.ShardOwner)
 
+	// Clear statistics to remove stale entries for deleted executors
+	n.executorStatistics.lock.Lock()
+	n.executorStatistics.stats = make(map[string]map[string]etcdtypes.ShardStatistics)
+	n.executorStatistics.lock.Unlock()
+
 	for executorID, executordata := range data {
 		shardOwner := getOrCreateShardOwner(n.shardOwners, executorID)
 		shardIDs := make([]string, 0, len(executordata.assignedStates.AssignedShards))
