@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	NamespaceHeader = "x-shard-distributor-namespace"
+	NamespaceHeader           = "x-shard-distributor-namespace"
+	peerChooserSubscriberName = "peer-chooser"
 )
 
 // SpectatorPeerChooserInterface extends peer.Chooser with SetSpectators method
@@ -43,8 +44,12 @@ type SpectatorPeerChooser struct {
 	logger     log.Logger
 	namespace  string
 
-	peersMutex sync.RWMutex
-	peers      map[string]peer.Peer // grpc_address -> peer
+	peersMutex      sync.RWMutex
+	peers           map[string]peer.Peer           // grpc_address -> peer
+	grpcAddressToNs map[string]map[string]struct{} // grpc_address -> set of namespaces that have executors at this address
+
+	stopCh chan struct{}
+	stopWG sync.WaitGroup
 }
 
 type SpectatorPeerChooserParams struct {
@@ -58,21 +63,41 @@ func NewSpectatorPeerChooser(
 	params SpectatorPeerChooserParams,
 ) SpectatorPeerChooserInterface {
 	return &SpectatorPeerChooser{
-		transport: params.Transport,
-		logger:    params.Logger,
-		peers:     make(map[string]peer.Peer),
+		transport:       params.Transport,
+		logger:          params.Logger,
+		peers:           make(map[string]peer.Peer),
+		grpcAddressToNs: make(map[string]map[string]struct{}),
+		stopCh:          make(chan struct{}),
 	}
 }
 
 // Start satisfies the peer.Chooser interface
 func (c *SpectatorPeerChooser) Start() error {
 	c.logger.Info("Starting shard distributor peer chooser", tag.ShardNamespace(c.namespace))
+
+	// Subscribe to all spectators - fail fast on error
+	if err := c.subscribe(); err != nil {
+		c.unsubscribe()
+		return err
+	}
+
 	return nil
 }
 
 // Stop satisfies the peer.Chooser interface
 func (c *SpectatorPeerChooser) Stop() error {
 	c.logger.Info("Stopping shard distributor peer chooser", tag.ShardNamespace(c.namespace))
+
+	// Signal all watch goroutines to stop (if stopCh was initialized)
+	if c.stopCh != nil {
+		close(c.stopCh)
+	}
+
+	// Unsubscribe from all spectators
+	c.unsubscribe()
+
+	// Wait for all watch goroutines to finish
+	c.stopWG.Wait()
 
 	// Release all peers
 	c.peersMutex.Lock()
@@ -133,7 +158,7 @@ func (c *SpectatorPeerChooser) Choose(ctx context.Context, req *transport.Reques
 	}
 
 	// Get peer for this address
-	peer, err = c.getOrCreatePeer(grpcAddress)
+	peer, err = c.getOrCreatePeer(grpcAddress, namespace)
 	if err != nil {
 		return nil, nil, yarpcerrors.InternalErrorf("get or create peer for address %s: %v", grpcAddress, err)
 	}
@@ -145,31 +170,150 @@ func (c *SpectatorPeerChooser) SetSpectators(spectators *Spectators) {
 	c.spectators = spectators
 }
 
-func (c *SpectatorPeerChooser) getOrCreatePeer(grpcAddress string) (peer.Peer, error) {
-	c.peersMutex.RLock()
-	peer, ok := c.peers[grpcAddress]
-	c.peersMutex.RUnlock()
-
-	if ok {
-		return peer, nil
-	}
-
-	// Create new peer for this address
+func (c *SpectatorPeerChooser) getOrCreatePeer(grpcAddress, namespace string) (peer.Peer, error) {
 	c.peersMutex.Lock()
 	defer c.peersMutex.Unlock()
 
-	// Check again in case another goroutine added it
-	if peer, ok := c.peers[grpcAddress]; ok {
-		return peer, nil
+	// Check if peer already exists
+	if p, ok := c.peers[grpcAddress]; ok {
+		// Add namespace to the set of namespaces using this address
+		if c.grpcAddressToNs[grpcAddress] == nil {
+			c.grpcAddressToNs[grpcAddress] = make(map[string]struct{})
+		}
+		c.grpcAddressToNs[grpcAddress][namespace] = struct{}{}
+		return p, nil
 	}
 
-	peer, err := c.transport.RetainPeer(hostport.Identify(grpcAddress), &noOpSubscriber{})
+	// Create new peer for this address
+	p, err := c.transport.RetainPeer(hostport.Identify(grpcAddress), &noOpSubscriber{})
 	if err != nil {
 		return nil, fmt.Errorf("retain peer: %w", err)
 	}
 
-	c.peers[grpcAddress] = peer
-	return peer, nil
+	// Cache the peer for future use
+	c.peers[grpcAddress] = p
+	c.grpcAddressToNs[grpcAddress] = map[string]struct{}{namespace: {}}
+
+	return p, nil
+}
+
+// watchExecutorUpdates listens for executor updates and releases stale peers
+func (c *SpectatorPeerChooser) watchExecutorUpdates(namespace string, spectator Spectator, updateCh <-chan struct{}) {
+	defer c.stopWG.Done()
+
+	c.logger.Info("Started watching executor updates", tag.ShardNamespace(namespace))
+
+	for {
+		select {
+		case <-c.stopCh:
+			c.logger.Info("Stopped watching executor updates", tag.ShardNamespace(namespace))
+			return
+		case _, ok := <-updateCh:
+			if !ok {
+				c.logger.Info("Update channel closed, stopping watch", tag.ShardNamespace(namespace))
+				return
+			}
+			c.logger.Debug("Received executor update notification", tag.ShardNamespace(namespace))
+			c.removeStaleExecutors(namespace, spectator)
+		}
+	}
+}
+
+// removeStaleExecutors releases peers for executors that are no longer in any namespace.
+// It updates the grpcAddressToNs map based on the current executors in the given namespace,
+// and only releases a peer if no namespace is using that address anymore.
+func (c *SpectatorPeerChooser) removeStaleExecutors(namespace string, spectator Spectator) {
+	newGrpcAddresses := c.getSpectatorGrpcAddresses(spectator)
+
+	c.peersMutex.Lock()
+	defer c.peersMutex.Unlock()
+
+	// Update grpcAddressToNs: remove this namespace from addresses it no longer uses
+	for addr, namespaces := range c.grpcAddressToNs {
+		if _, ok := namespaces[namespace]; !ok {
+			// This address was not previously associated with this namespace, so we can skip it
+			continue
+		}
+
+		if _, ok := newGrpcAddresses[addr]; ok {
+			// This address is still used by this namespace, so we can skip it
+			continue
+		}
+
+		c.logger.Info("Namespace no longer uses this address", tag.Address(addr), tag.ShardNamespace(namespace))
+		delete(namespaces, namespace)
+	}
+
+	for addr, p := range c.peers {
+		// If there are still namespaces using this address, skip releasing the peer
+		if len(c.grpcAddressToNs[addr]) > 0 {
+			continue
+		}
+
+		if err := c.transport.ReleasePeer(p, &noOpSubscriber{}); err != nil {
+			c.logger.Warn("Failed to release stale peer", tag.Error(err), tag.Address(addr))
+
+			// If releasing the peer fails, we keep it in the map to avoid losing connectivity to the executor.
+			// We will try releasing it again on the next update.
+			// If the peer will be returned by getOrCreatePeer, grpcAddressToNs will be updated with the correct namespaces,
+			// so we won't leak peers indefinitely.
+			continue
+		}
+
+		delete(c.peers, addr)
+		delete(c.grpcAddressToNs, addr)
+
+		c.logger.Info("Released stale peer (no namespaces using it)", tag.Address(addr))
+	}
+}
+
+// getSpectatorGrpcAddresses returns the set of grpc addresses for the current executors in the given spectator's namespace.
+// This is used to determine which addresses are still in use by the namespace and which ones can potentially be released if they are no longer used by any namespace.
+func (c *SpectatorPeerChooser) getSpectatorGrpcAddresses(spectator Spectator) map[string]struct{} {
+	// Get current executors for this namespace
+	executors := spectator.GetExecutors()
+
+	// Build set of current grpc addresses for this namespace
+	grpcAddresses := make(map[string]struct{})
+	for _, owner := range executors {
+		if grpcAddr, ok := owner.Metadata[clientcommon.GrpcAddressMetadataKey]; ok {
+			grpcAddresses[grpcAddr] = struct{}{}
+		}
+	}
+
+	return grpcAddresses
+}
+
+// subscribe attempts to subscribe to all spectators and start watchExecutorUpdates goroutines
+func (c *SpectatorPeerChooser) subscribe() error {
+	if c.spectators == nil {
+		return nil
+	}
+
+	for namespace, spectator := range c.spectators.spectators {
+		ch, err := spectator.Subscribe(peerChooserSubscriberName)
+		if err != nil {
+			c.logger.Error("Failed to subscribe to spectator updates", tag.Error(err), tag.ShardNamespace(namespace))
+			return fmt.Errorf("failed to subscribe to spectator for namespace %s: %w", namespace, err)
+		}
+
+		// Start a goroutine to listen for updates
+		c.stopWG.Add(1)
+		go c.watchExecutorUpdates(namespace, spectator, ch)
+	}
+
+	return nil
+}
+
+// unsubscribe attempts to unsubscribe from all spectators
+func (c *SpectatorPeerChooser) unsubscribe() {
+	if c.spectators == nil {
+		return
+	}
+
+	for _, spectator := range c.spectators.spectators {
+		spectator.Unsubscribe(peerChooserSubscriberName)
+	}
 }
 
 // noOpSubscriber is a no-op implementation of peer.Subscriber

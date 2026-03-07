@@ -66,6 +66,18 @@ type Spectator interface {
 
 	// GetShardOwner returns the owner of a shard
 	GetShardOwner(ctx context.Context, shardKey string) (*ShardOwner, error)
+
+	// GetExecutors returns a map of executor ID to ShardOwner for all executors in the namespace
+	GetExecutors() map[string]*ShardOwner
+
+	// Subscribe allows a caller to subscribe to executor changes.
+	// The returned channel will receive a signal whenever there is a new executor or an existing executor is removed.
+	// The caller can then call GetExecutors to get the updated list of executors.
+	Subscribe(subscriberName string) (<-chan struct{}, error)
+
+	// Unsubscribe removes a subscriber with the given name.
+	// All channels returned by Subscribe will be closed when the subscriber is unsubscribed.
+	Unsubscribe(subscriberName string)
 }
 
 type Params struct {
@@ -119,6 +131,7 @@ func newSpectatorWithConfig(params Params, namespaceConfig *clientcommon.Namespa
 		timeSource:       params.TimeSource,
 		firstStateSignal: csync.NewResettableSignal(),
 		enabled:          enabled,
+		subscribers:      make(map[string]chan<- struct{}),
 	}
 
 	return impl, nil
