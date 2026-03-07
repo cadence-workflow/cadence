@@ -488,6 +488,7 @@ type (
 		Version                 int64
 		RecordVisibility        bool
 		OriginalTaskList        string
+		OriginalTaskListKind    types.TaskListKind
 	}
 
 	// CrossClusterTaskInfo describes a cross-cluster task
@@ -1863,6 +1864,11 @@ func (t *TransferTaskInfo) GetOriginalTaskList() string {
 	return t.OriginalTaskList
 }
 
+// GetOriginalTaskListKind returns the original task list kind for transfer task
+func (t *TransferTaskInfo) GetOriginalTaskListKind() types.TaskListKind {
+	return t.OriginalTaskListKind
+}
+
 // String returns a string representation for transfer task
 func (t *TransferTaskInfo) String() string {
 	return fmt.Sprintf("%#v", t)
@@ -1890,12 +1896,13 @@ func (t *TransferTaskInfo) ToTask() (Task, error) {
 		}, nil
 	case TransferTaskTypeDecisionTask:
 		return &DecisionTask{
-			WorkflowIdentifier: workflowIdentifier,
-			TaskData:           taskData,
-			TargetDomainID:     t.TargetDomainID,
-			TaskList:           t.TaskList,
-			ScheduleID:         t.ScheduleID,
-			OriginalTaskList:   t.OriginalTaskList,
+			WorkflowIdentifier:   workflowIdentifier,
+			TaskData:             taskData,
+			TargetDomainID:       t.TargetDomainID,
+			TaskList:             t.TaskList,
+			ScheduleID:           t.ScheduleID,
+			OriginalTaskList:     t.OriginalTaskList,
+			OriginalTaskListKind: t.OriginalTaskListKind,
 		}, nil
 	case TransferTaskTypeCloseExecution:
 		return &CloseExecutionTask{
