@@ -54,11 +54,13 @@ type (
 
 	// ThrottleRetry is used to run operation with retry and also avoid throttling dependencies
 	ThrottleRetry struct {
-		policy         RetryPolicy
-		isRetryable    IsRetryable
-		throttlePolicy RetryPolicy
-		isThrottle     IsRetryable
-		clock          clock.TimeSource
+		policy           RetryPolicy
+		isRetryable      IsRetryable
+		throttlePolicy   RetryPolicy
+		isThrottle       IsRetryable
+		clock            clock.TimeSource
+		operationTimeout time.Duration
+		expireContext    bool
 	}
 )
 
@@ -161,6 +163,18 @@ func WithThrottleError(isThrottle IsRetryable) ThrottleRetryOption {
 	}
 }
 
+func WithOperationTimeout(operationTimeout time.Duration) ThrottleRetryOption {
+	return func(tr *ThrottleRetry) {
+		tr.operationTimeout = operationTimeout
+	}
+}
+
+func WithContextExpiration() ThrottleRetryOption {
+	return func(tr *ThrottleRetry) {
+		tr.expireContext = true
+	}
+}
+
 func WithClock(clock clock.TimeSource) ThrottleRetryOption {
 	return func(tr *ThrottleRetry) {
 		tr.clock = clock
@@ -175,15 +189,18 @@ func (tr *ThrottleRetry) Do(ctx context.Context, op Operation) error {
 
 	r := NewRetrier(tr.policy, tr.clock)
 	t := NewRetrier(tr.throttlePolicy, tr.clock)
+	if expirationInterval := tr.policy.Expiration(); tr.expireContext && expirationInterval > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, expirationInterval)
+		defer cancel()
+	}
 	retryCount := 0
 	for {
 		// record the previous error before an operation
 		prevErr = err
 
-		// update context with retry count
-		ctx = context.WithValue(ctx, retryCountKey, retryCount)
 		// operation completed successfully. No need to retry.
-		if err = op(ctx); err == nil {
+		if err = tr.attempt(ctx, retryCount, op); err == nil {
 			return nil
 		}
 		retryCount++
@@ -222,6 +239,18 @@ func (tr *ThrottleRetry) Do(ctx context.Context, op Operation) error {
 		case <-tr.clock.After(next):
 		}
 	}
+}
+
+func (tr *ThrottleRetry) attempt(ctx context.Context, retryCount int, op Operation) error {
+	// update context with retry count
+	ctx = context.WithValue(ctx, retryCountKey, retryCount)
+	if tr.operationTimeout > 0 {
+		// Avoid shadowing ctx
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, tr.operationTimeout)
+		defer cancel()
+	}
+	return op(ctx)
 }
 
 // IgnoreErrors can be used as IsRetryable handler for Retry function to exclude certain errors from the retry list
