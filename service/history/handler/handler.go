@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -31,7 +32,6 @@ import (
 
 	"github.com/pborman/uuid"
 	"go.uber.org/yarpc/yarpcerrors"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/uber/cadence/common"
@@ -2112,7 +2112,7 @@ func (h *handlerImpl) RatelimitUpdate(
 	//
 	// "_" is ignoring "used RPS" data here.  it is likely useful for being friendlier
 	// to brief, bursty-but-within-limits load, but that has not yet been built.
-	weights, err := h.ratelimitAggregator.HostUsage(arg.ID, maps.Keys(arg.Load))
+	weights, err := h.ratelimitAggregator.HostUsage(arg.ID, slices.Collect(maps.Keys(arg.Load)))
 	if err != nil {
 		return nil, h.error(fmt.Errorf("failed to retrieve updated weights: %w", err), scope, "", "", "")
 	}
