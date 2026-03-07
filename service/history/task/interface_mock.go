@@ -10,1458 +10,1486 @@
 package task
 
 import (
-	reflect "reflect"
-	time "time"
+  reflect "reflect"
+  time "time"
 
-	gomock "go.uber.org/mock/gomock"
+  gomock "go.uber.org/mock/gomock"
 
-	future "github.com/uber/cadence/common/future"
-	persistence "github.com/uber/cadence/common/persistence"
-	task "github.com/uber/cadence/common/task"
-	types "github.com/uber/cadence/common/types"
-	shard "github.com/uber/cadence/service/history/shard"
+  future "github.com/uber/cadence/common/future"
+  persistence "github.com/uber/cadence/common/persistence"
+  task "github.com/uber/cadence/common/task"
+  types "github.com/uber/cadence/common/types"
+  shard "github.com/uber/cadence/service/history/shard"
 )
 
 // MockTask is a mock of Task interface.
 type MockTask struct {
-	ctrl     *gomock.Controller
-	recorder *MockTaskMockRecorder
-	isgomock struct{}
+  ctrl     *gomock.Controller
+  recorder *MockTaskMockRecorder
+  isgomock struct{}
 }
 
 // MockTaskMockRecorder is the mock recorder for MockTask.
 type MockTaskMockRecorder struct {
-	mock *MockTask
+  mock *MockTask
 }
 
 // NewMockTask creates a new mock instance.
 func NewMockTask(ctrl *gomock.Controller) *MockTask {
-	mock := &MockTask{ctrl: ctrl}
-	mock.recorder = &MockTaskMockRecorder{mock}
-	return mock
+  mock := &MockTask{ctrl: ctrl}
+  mock.recorder = &MockTaskMockRecorder{mock}
+  return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockTask) EXPECT() *MockTaskMockRecorder {
-	return m.recorder
+  return m.recorder
 }
 
 // Ack mocks base method.
 func (m *MockTask) Ack() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Ack")
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Ack")
 }
 
 // Ack indicates an expected call of Ack.
 func (mr *MockTaskMockRecorder) Ack() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ack", reflect.TypeOf((*MockTask)(nil).Ack))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ack", reflect.TypeOf((*MockTask)(nil).Ack))
 }
 
 // ByteSize mocks base method.
 func (m *MockTask) ByteSize() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ByteSize")
-	ret0, _ := ret[0].(uint64)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "ByteSize")
+  ret0, _ := ret[0].(uint64)
+  return ret0
 }
 
 // ByteSize indicates an expected call of ByteSize.
 func (mr *MockTaskMockRecorder) ByteSize() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSize", reflect.TypeOf((*MockTask)(nil).ByteSize))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSize", reflect.TypeOf((*MockTask)(nil).ByteSize))
 }
 
 // Cancel mocks base method.
 func (m *MockTask) Cancel() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Cancel")
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Cancel")
 }
 
 // Cancel indicates an expected call of Cancel.
 func (mr *MockTaskMockRecorder) Cancel() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cancel", reflect.TypeOf((*MockTask)(nil).Cancel))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cancel", reflect.TypeOf((*MockTask)(nil).Cancel))
 }
 
 // Execute mocks base method.
 func (m *MockTask) Execute() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute")
-	ret0, _ := ret[0].(error)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "Execute")
+  ret0, _ := ret[0].(error)
+  return ret0
 }
 
 // Execute indicates an expected call of Execute.
 func (mr *MockTaskMockRecorder) Execute() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockTask)(nil).Execute))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockTask)(nil).Execute))
 }
 
 // GetAttempt mocks base method.
 func (m *MockTask) GetAttempt() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAttempt")
-	ret0, _ := ret[0].(int)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetAttempt")
+  ret0, _ := ret[0].(int)
+  return ret0
 }
 
 // GetAttempt indicates an expected call of GetAttempt.
 func (mr *MockTaskMockRecorder) GetAttempt() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAttempt", reflect.TypeOf((*MockTask)(nil).GetAttempt))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAttempt", reflect.TypeOf((*MockTask)(nil).GetAttempt))
 }
 
 // GetDomainID mocks base method.
 func (m *MockTask) GetDomainID() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDomainID")
-	ret0, _ := ret[0].(string)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetDomainID")
+  ret0, _ := ret[0].(string)
+  return ret0
 }
 
 // GetDomainID indicates an expected call of GetDomainID.
 func (mr *MockTaskMockRecorder) GetDomainID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainID", reflect.TypeOf((*MockTask)(nil).GetDomainID))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainID", reflect.TypeOf((*MockTask)(nil).GetDomainID))
 }
 
 // GetInfo mocks base method.
 func (m *MockTask) GetInfo() persistence.Task {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetInfo")
-	ret0, _ := ret[0].(persistence.Task)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetInfo")
+  ret0, _ := ret[0].(persistence.Task)
+  return ret0
 }
 
 // GetInfo indicates an expected call of GetInfo.
 func (mr *MockTaskMockRecorder) GetInfo() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInfo", reflect.TypeOf((*MockTask)(nil).GetInfo))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInfo", reflect.TypeOf((*MockTask)(nil).GetInfo))
 }
 
 // GetOriginalTaskList mocks base method.
 func (m *MockTask) GetOriginalTaskList() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOriginalTaskList")
-	ret0, _ := ret[0].(string)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetOriginalTaskList")
+  ret0, _ := ret[0].(string)
+  return ret0
 }
 
 // GetOriginalTaskList indicates an expected call of GetOriginalTaskList.
 func (mr *MockTaskMockRecorder) GetOriginalTaskList() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOriginalTaskList", reflect.TypeOf((*MockTask)(nil).GetOriginalTaskList))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOriginalTaskList", reflect.TypeOf((*MockTask)(nil).GetOriginalTaskList))
+}
+
+// GetOriginalTaskListKind mocks base method.
+func (m *MockTask) GetOriginalTaskListKind() types.TaskListKind {
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetOriginalTaskListKind")
+  ret0, _ := ret[0].(types.TaskListKind)
+  return ret0
+}
+
+// GetOriginalTaskListKind indicates an expected call of GetOriginalTaskListKind.
+func (mr *MockTaskMockRecorder) GetOriginalTaskListKind() *gomock.Call {
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOriginalTaskListKind", reflect.TypeOf((*MockTask)(nil).GetOriginalTaskListKind))
 }
 
 // GetQueueType mocks base method.
 func (m *MockTask) GetQueueType() QueueType {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetQueueType")
-	ret0, _ := ret[0].(QueueType)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetQueueType")
+  ret0, _ := ret[0].(QueueType)
+  return ret0
 }
 
 // GetQueueType indicates an expected call of GetQueueType.
 func (mr *MockTaskMockRecorder) GetQueueType() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQueueType", reflect.TypeOf((*MockTask)(nil).GetQueueType))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQueueType", reflect.TypeOf((*MockTask)(nil).GetQueueType))
 }
 
 // GetRunID mocks base method.
 func (m *MockTask) GetRunID() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRunID")
-	ret0, _ := ret[0].(string)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetRunID")
+  ret0, _ := ret[0].(string)
+  return ret0
 }
 
 // GetRunID indicates an expected call of GetRunID.
 func (mr *MockTaskMockRecorder) GetRunID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunID", reflect.TypeOf((*MockTask)(nil).GetRunID))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunID", reflect.TypeOf((*MockTask)(nil).GetRunID))
 }
 
 // GetShard mocks base method.
 func (m *MockTask) GetShard() shard.Context {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetShard")
-	ret0, _ := ret[0].(shard.Context)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetShard")
+  ret0, _ := ret[0].(shard.Context)
+  return ret0
 }
 
 // GetShard indicates an expected call of GetShard.
 func (mr *MockTaskMockRecorder) GetShard() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShard", reflect.TypeOf((*MockTask)(nil).GetShard))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShard", reflect.TypeOf((*MockTask)(nil).GetShard))
 }
 
 // GetTaskCategory mocks base method.
 func (m *MockTask) GetTaskCategory() persistence.HistoryTaskCategory {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTaskCategory")
-	ret0, _ := ret[0].(persistence.HistoryTaskCategory)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetTaskCategory")
+  ret0, _ := ret[0].(persistence.HistoryTaskCategory)
+  return ret0
 }
 
 // GetTaskCategory indicates an expected call of GetTaskCategory.
 func (mr *MockTaskMockRecorder) GetTaskCategory() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskCategory", reflect.TypeOf((*MockTask)(nil).GetTaskCategory))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskCategory", reflect.TypeOf((*MockTask)(nil).GetTaskCategory))
 }
 
 // GetTaskID mocks base method.
 func (m *MockTask) GetTaskID() int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTaskID")
-	ret0, _ := ret[0].(int64)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetTaskID")
+  ret0, _ := ret[0].(int64)
+  return ret0
 }
 
 // GetTaskID indicates an expected call of GetTaskID.
 func (mr *MockTaskMockRecorder) GetTaskID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskID", reflect.TypeOf((*MockTask)(nil).GetTaskID))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskID", reflect.TypeOf((*MockTask)(nil).GetTaskID))
 }
 
 // GetTaskKey mocks base method.
 func (m *MockTask) GetTaskKey() persistence.HistoryTaskKey {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTaskKey")
-	ret0, _ := ret[0].(persistence.HistoryTaskKey)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetTaskKey")
+  ret0, _ := ret[0].(persistence.HistoryTaskKey)
+  return ret0
 }
 
 // GetTaskKey indicates an expected call of GetTaskKey.
 func (mr *MockTaskMockRecorder) GetTaskKey() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskKey", reflect.TypeOf((*MockTask)(nil).GetTaskKey))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskKey", reflect.TypeOf((*MockTask)(nil).GetTaskKey))
 }
 
 // GetTaskList mocks base method.
 func (m *MockTask) GetTaskList() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTaskList")
-	ret0, _ := ret[0].(string)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetTaskList")
+  ret0, _ := ret[0].(string)
+  return ret0
 }
 
 // GetTaskList indicates an expected call of GetTaskList.
 func (mr *MockTaskMockRecorder) GetTaskList() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskList", reflect.TypeOf((*MockTask)(nil).GetTaskList))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskList", reflect.TypeOf((*MockTask)(nil).GetTaskList))
 }
 
 // GetTaskType mocks base method.
 func (m *MockTask) GetTaskType() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTaskType")
-	ret0, _ := ret[0].(int)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetTaskType")
+  ret0, _ := ret[0].(int)
+  return ret0
 }
 
 // GetTaskType indicates an expected call of GetTaskType.
 func (mr *MockTaskMockRecorder) GetTaskType() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskType", reflect.TypeOf((*MockTask)(nil).GetTaskType))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskType", reflect.TypeOf((*MockTask)(nil).GetTaskType))
 }
 
 // GetVersion mocks base method.
 func (m *MockTask) GetVersion() int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVersion")
-	ret0, _ := ret[0].(int64)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetVersion")
+  ret0, _ := ret[0].(int64)
+  return ret0
 }
 
 // GetVersion indicates an expected call of GetVersion.
 func (mr *MockTaskMockRecorder) GetVersion() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVersion", reflect.TypeOf((*MockTask)(nil).GetVersion))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVersion", reflect.TypeOf((*MockTask)(nil).GetVersion))
 }
 
 // GetVisibilityTimestamp mocks base method.
 func (m *MockTask) GetVisibilityTimestamp() time.Time {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVisibilityTimestamp")
-	ret0, _ := ret[0].(time.Time)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetVisibilityTimestamp")
+  ret0, _ := ret[0].(time.Time)
+  return ret0
 }
 
 // GetVisibilityTimestamp indicates an expected call of GetVisibilityTimestamp.
 func (mr *MockTaskMockRecorder) GetVisibilityTimestamp() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVisibilityTimestamp", reflect.TypeOf((*MockTask)(nil).GetVisibilityTimestamp))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVisibilityTimestamp", reflect.TypeOf((*MockTask)(nil).GetVisibilityTimestamp))
 }
 
 // GetWorkflowID mocks base method.
 func (m *MockTask) GetWorkflowID() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkflowID")
-	ret0, _ := ret[0].(string)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetWorkflowID")
+  ret0, _ := ret[0].(string)
+  return ret0
 }
 
 // GetWorkflowID indicates an expected call of GetWorkflowID.
 func (mr *MockTaskMockRecorder) GetWorkflowID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkflowID", reflect.TypeOf((*MockTask)(nil).GetWorkflowID))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkflowID", reflect.TypeOf((*MockTask)(nil).GetWorkflowID))
 }
 
 // HandleErr mocks base method.
 func (m *MockTask) HandleErr(err error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HandleErr", err)
-	ret0, _ := ret[0].(error)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "HandleErr", err)
+  ret0, _ := ret[0].(error)
+  return ret0
 }
 
 // HandleErr indicates an expected call of HandleErr.
 func (mr *MockTaskMockRecorder) HandleErr(err any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleErr", reflect.TypeOf((*MockTask)(nil).HandleErr), err)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleErr", reflect.TypeOf((*MockTask)(nil).HandleErr), err)
 }
 
 // Nack mocks base method.
 func (m *MockTask) Nack(err error) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Nack", err)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Nack", err)
 }
 
 // Nack indicates an expected call of Nack.
 func (mr *MockTaskMockRecorder) Nack(err any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Nack", reflect.TypeOf((*MockTask)(nil).Nack), err)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Nack", reflect.TypeOf((*MockTask)(nil).Nack), err)
 }
 
 // Priority mocks base method.
 func (m *MockTask) Priority() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Priority")
-	ret0, _ := ret[0].(int)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "Priority")
+  ret0, _ := ret[0].(int)
+  return ret0
 }
 
 // Priority indicates an expected call of Priority.
 func (mr *MockTaskMockRecorder) Priority() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Priority", reflect.TypeOf((*MockTask)(nil).Priority))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Priority", reflect.TypeOf((*MockTask)(nil).Priority))
 }
 
 // RetryErr mocks base method.
 func (m *MockTask) RetryErr(err error) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RetryErr", err)
-	ret0, _ := ret[0].(bool)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "RetryErr", err)
+  ret0, _ := ret[0].(bool)
+  return ret0
 }
 
 // RetryErr indicates an expected call of RetryErr.
 func (mr *MockTaskMockRecorder) RetryErr(err any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryErr", reflect.TypeOf((*MockTask)(nil).RetryErr), err)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryErr", reflect.TypeOf((*MockTask)(nil).RetryErr), err)
 }
 
 // SetInitialSubmitTime mocks base method.
 func (m *MockTask) SetInitialSubmitTime(arg0 time.Time) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetInitialSubmitTime", arg0)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "SetInitialSubmitTime", arg0)
 }
 
 // SetInitialSubmitTime indicates an expected call of SetInitialSubmitTime.
 func (mr *MockTaskMockRecorder) SetInitialSubmitTime(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInitialSubmitTime", reflect.TypeOf((*MockTask)(nil).SetInitialSubmitTime), arg0)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInitialSubmitTime", reflect.TypeOf((*MockTask)(nil).SetInitialSubmitTime), arg0)
 }
 
 // SetPriority mocks base method.
 func (m *MockTask) SetPriority(arg0 int) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetPriority", arg0)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "SetPriority", arg0)
 }
 
 // SetPriority indicates an expected call of SetPriority.
 func (mr *MockTaskMockRecorder) SetPriority(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPriority", reflect.TypeOf((*MockTask)(nil).SetPriority), arg0)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPriority", reflect.TypeOf((*MockTask)(nil).SetPriority), arg0)
 }
 
 // SetTaskID mocks base method.
 func (m *MockTask) SetTaskID(id int64) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetTaskID", id)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "SetTaskID", id)
 }
 
 // SetTaskID indicates an expected call of SetTaskID.
 func (mr *MockTaskMockRecorder) SetTaskID(id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTaskID", reflect.TypeOf((*MockTask)(nil).SetTaskID), id)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTaskID", reflect.TypeOf((*MockTask)(nil).SetTaskID), id)
 }
 
 // SetVersion mocks base method.
 func (m *MockTask) SetVersion(version int64) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetVersion", version)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "SetVersion", version)
 }
 
 // SetVersion indicates an expected call of SetVersion.
 func (mr *MockTaskMockRecorder) SetVersion(version any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVersion", reflect.TypeOf((*MockTask)(nil).SetVersion), version)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVersion", reflect.TypeOf((*MockTask)(nil).SetVersion), version)
 }
 
 // SetVisibilityTimestamp mocks base method.
 func (m *MockTask) SetVisibilityTimestamp(timestamp time.Time) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetVisibilityTimestamp", timestamp)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "SetVisibilityTimestamp", timestamp)
 }
 
 // SetVisibilityTimestamp indicates an expected call of SetVisibilityTimestamp.
 func (mr *MockTaskMockRecorder) SetVisibilityTimestamp(timestamp any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVisibilityTimestamp", reflect.TypeOf((*MockTask)(nil).SetVisibilityTimestamp), timestamp)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVisibilityTimestamp", reflect.TypeOf((*MockTask)(nil).SetVisibilityTimestamp), timestamp)
 }
 
 // State mocks base method.
 func (m *MockTask) State() task.State {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "State")
-	ret0, _ := ret[0].(task.State)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "State")
+  ret0, _ := ret[0].(task.State)
+  return ret0
 }
 
 // State indicates an expected call of State.
 func (mr *MockTaskMockRecorder) State() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "State", reflect.TypeOf((*MockTask)(nil).State))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "State", reflect.TypeOf((*MockTask)(nil).State))
 }
 
 // ToInternalReplicationTaskInfo mocks base method.
 func (m *MockTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ToInternalReplicationTaskInfo")
-	ret0, _ := ret[0].(*types.ReplicationTaskInfo)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "ToInternalReplicationTaskInfo")
+  ret0, _ := ret[0].(*types.ReplicationTaskInfo)
+  ret1, _ := ret[1].(error)
+  return ret0, ret1
 }
 
 // ToInternalReplicationTaskInfo indicates an expected call of ToInternalReplicationTaskInfo.
 func (mr *MockTaskMockRecorder) ToInternalReplicationTaskInfo() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToInternalReplicationTaskInfo", reflect.TypeOf((*MockTask)(nil).ToInternalReplicationTaskInfo))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToInternalReplicationTaskInfo", reflect.TypeOf((*MockTask)(nil).ToInternalReplicationTaskInfo))
 }
 
 // ToTimerTaskInfo mocks base method.
 func (m *MockTask) ToTimerTaskInfo() (*persistence.TimerTaskInfo, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ToTimerTaskInfo")
-	ret0, _ := ret[0].(*persistence.TimerTaskInfo)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "ToTimerTaskInfo")
+  ret0, _ := ret[0].(*persistence.TimerTaskInfo)
+  ret1, _ := ret[1].(error)
+  return ret0, ret1
 }
 
 // ToTimerTaskInfo indicates an expected call of ToTimerTaskInfo.
 func (mr *MockTaskMockRecorder) ToTimerTaskInfo() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTimerTaskInfo", reflect.TypeOf((*MockTask)(nil).ToTimerTaskInfo))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTimerTaskInfo", reflect.TypeOf((*MockTask)(nil).ToTimerTaskInfo))
 }
 
 // ToTransferTaskInfo mocks base method.
 func (m *MockTask) ToTransferTaskInfo() (*persistence.TransferTaskInfo, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ToTransferTaskInfo")
-	ret0, _ := ret[0].(*persistence.TransferTaskInfo)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "ToTransferTaskInfo")
+  ret0, _ := ret[0].(*persistence.TransferTaskInfo)
+  ret1, _ := ret[1].(error)
+  return ret0, ret1
 }
 
 // ToTransferTaskInfo indicates an expected call of ToTransferTaskInfo.
 func (mr *MockTaskMockRecorder) ToTransferTaskInfo() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTransferTaskInfo", reflect.TypeOf((*MockTask)(nil).ToTransferTaskInfo))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTransferTaskInfo", reflect.TypeOf((*MockTask)(nil).ToTransferTaskInfo))
 }
 
 // MockCrossClusterTask is a mock of CrossClusterTask interface.
 type MockCrossClusterTask struct {
-	ctrl     *gomock.Controller
-	recorder *MockCrossClusterTaskMockRecorder
-	isgomock struct{}
+  ctrl     *gomock.Controller
+  recorder *MockCrossClusterTaskMockRecorder
+  isgomock struct{}
 }
 
 // MockCrossClusterTaskMockRecorder is the mock recorder for MockCrossClusterTask.
 type MockCrossClusterTaskMockRecorder struct {
-	mock *MockCrossClusterTask
+  mock *MockCrossClusterTask
 }
 
 // NewMockCrossClusterTask creates a new mock instance.
 func NewMockCrossClusterTask(ctrl *gomock.Controller) *MockCrossClusterTask {
-	mock := &MockCrossClusterTask{ctrl: ctrl}
-	mock.recorder = &MockCrossClusterTaskMockRecorder{mock}
-	return mock
+  mock := &MockCrossClusterTask{ctrl: ctrl}
+  mock.recorder = &MockCrossClusterTaskMockRecorder{mock}
+  return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockCrossClusterTask) EXPECT() *MockCrossClusterTaskMockRecorder {
-	return m.recorder
+  return m.recorder
 }
 
 // Ack mocks base method.
 func (m *MockCrossClusterTask) Ack() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Ack")
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Ack")
 }
 
 // Ack indicates an expected call of Ack.
 func (mr *MockCrossClusterTaskMockRecorder) Ack() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ack", reflect.TypeOf((*MockCrossClusterTask)(nil).Ack))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ack", reflect.TypeOf((*MockCrossClusterTask)(nil).Ack))
 }
 
 // ByteSize mocks base method.
 func (m *MockCrossClusterTask) ByteSize() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ByteSize")
-	ret0, _ := ret[0].(uint64)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "ByteSize")
+  ret0, _ := ret[0].(uint64)
+  return ret0
 }
 
 // ByteSize indicates an expected call of ByteSize.
 func (mr *MockCrossClusterTaskMockRecorder) ByteSize() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSize", reflect.TypeOf((*MockCrossClusterTask)(nil).ByteSize))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSize", reflect.TypeOf((*MockCrossClusterTask)(nil).ByteSize))
 }
 
 // Cancel mocks base method.
 func (m *MockCrossClusterTask) Cancel() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Cancel")
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Cancel")
 }
 
 // Cancel indicates an expected call of Cancel.
 func (mr *MockCrossClusterTaskMockRecorder) Cancel() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cancel", reflect.TypeOf((*MockCrossClusterTask)(nil).Cancel))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cancel", reflect.TypeOf((*MockCrossClusterTask)(nil).Cancel))
 }
 
 // Execute mocks base method.
 func (m *MockCrossClusterTask) Execute() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute")
-	ret0, _ := ret[0].(error)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "Execute")
+  ret0, _ := ret[0].(error)
+  return ret0
 }
 
 // Execute indicates an expected call of Execute.
 func (mr *MockCrossClusterTaskMockRecorder) Execute() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockCrossClusterTask)(nil).Execute))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockCrossClusterTask)(nil).Execute))
 }
 
 // GetAttempt mocks base method.
 func (m *MockCrossClusterTask) GetAttempt() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAttempt")
-	ret0, _ := ret[0].(int)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetAttempt")
+  ret0, _ := ret[0].(int)
+  return ret0
 }
 
 // GetAttempt indicates an expected call of GetAttempt.
 func (mr *MockCrossClusterTaskMockRecorder) GetAttempt() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAttempt", reflect.TypeOf((*MockCrossClusterTask)(nil).GetAttempt))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAttempt", reflect.TypeOf((*MockCrossClusterTask)(nil).GetAttempt))
 }
 
 // GetCrossClusterRequest mocks base method.
 func (m *MockCrossClusterTask) GetCrossClusterRequest() (*types.CrossClusterTaskRequest, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCrossClusterRequest")
-	ret0, _ := ret[0].(*types.CrossClusterTaskRequest)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetCrossClusterRequest")
+  ret0, _ := ret[0].(*types.CrossClusterTaskRequest)
+  ret1, _ := ret[1].(error)
+  return ret0, ret1
 }
 
 // GetCrossClusterRequest indicates an expected call of GetCrossClusterRequest.
 func (mr *MockCrossClusterTaskMockRecorder) GetCrossClusterRequest() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCrossClusterRequest", reflect.TypeOf((*MockCrossClusterTask)(nil).GetCrossClusterRequest))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCrossClusterRequest", reflect.TypeOf((*MockCrossClusterTask)(nil).GetCrossClusterRequest))
 }
 
 // GetDomainID mocks base method.
 func (m *MockCrossClusterTask) GetDomainID() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDomainID")
-	ret0, _ := ret[0].(string)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetDomainID")
+  ret0, _ := ret[0].(string)
+  return ret0
 }
 
 // GetDomainID indicates an expected call of GetDomainID.
 func (mr *MockCrossClusterTaskMockRecorder) GetDomainID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainID", reflect.TypeOf((*MockCrossClusterTask)(nil).GetDomainID))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainID", reflect.TypeOf((*MockCrossClusterTask)(nil).GetDomainID))
 }
 
 // GetInfo mocks base method.
 func (m *MockCrossClusterTask) GetInfo() persistence.Task {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetInfo")
-	ret0, _ := ret[0].(persistence.Task)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetInfo")
+  ret0, _ := ret[0].(persistence.Task)
+  return ret0
 }
 
 // GetInfo indicates an expected call of GetInfo.
 func (mr *MockCrossClusterTaskMockRecorder) GetInfo() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInfo", reflect.TypeOf((*MockCrossClusterTask)(nil).GetInfo))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInfo", reflect.TypeOf((*MockCrossClusterTask)(nil).GetInfo))
 }
 
 // GetOriginalTaskList mocks base method.
 func (m *MockCrossClusterTask) GetOriginalTaskList() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOriginalTaskList")
-	ret0, _ := ret[0].(string)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetOriginalTaskList")
+  ret0, _ := ret[0].(string)
+  return ret0
 }
 
 // GetOriginalTaskList indicates an expected call of GetOriginalTaskList.
 func (mr *MockCrossClusterTaskMockRecorder) GetOriginalTaskList() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOriginalTaskList", reflect.TypeOf((*MockCrossClusterTask)(nil).GetOriginalTaskList))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOriginalTaskList", reflect.TypeOf((*MockCrossClusterTask)(nil).GetOriginalTaskList))
+}
+
+// GetOriginalTaskListKind mocks base method.
+func (m *MockCrossClusterTask) GetOriginalTaskListKind() types.TaskListKind {
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetOriginalTaskListKind")
+  ret0, _ := ret[0].(types.TaskListKind)
+  return ret0
+}
+
+// GetOriginalTaskListKind indicates an expected call of GetOriginalTaskListKind.
+func (mr *MockCrossClusterTaskMockRecorder) GetOriginalTaskListKind() *gomock.Call {
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOriginalTaskListKind", reflect.TypeOf((*MockCrossClusterTask)(nil).GetOriginalTaskListKind))
 }
 
 // GetQueueType mocks base method.
 func (m *MockCrossClusterTask) GetQueueType() QueueType {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetQueueType")
-	ret0, _ := ret[0].(QueueType)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetQueueType")
+  ret0, _ := ret[0].(QueueType)
+  return ret0
 }
 
 // GetQueueType indicates an expected call of GetQueueType.
 func (mr *MockCrossClusterTaskMockRecorder) GetQueueType() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQueueType", reflect.TypeOf((*MockCrossClusterTask)(nil).GetQueueType))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQueueType", reflect.TypeOf((*MockCrossClusterTask)(nil).GetQueueType))
 }
 
 // GetRunID mocks base method.
 func (m *MockCrossClusterTask) GetRunID() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRunID")
-	ret0, _ := ret[0].(string)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetRunID")
+  ret0, _ := ret[0].(string)
+  return ret0
 }
 
 // GetRunID indicates an expected call of GetRunID.
 func (mr *MockCrossClusterTaskMockRecorder) GetRunID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunID", reflect.TypeOf((*MockCrossClusterTask)(nil).GetRunID))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunID", reflect.TypeOf((*MockCrossClusterTask)(nil).GetRunID))
 }
 
 // GetShard mocks base method.
 func (m *MockCrossClusterTask) GetShard() shard.Context {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetShard")
-	ret0, _ := ret[0].(shard.Context)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetShard")
+  ret0, _ := ret[0].(shard.Context)
+  return ret0
 }
 
 // GetShard indicates an expected call of GetShard.
 func (mr *MockCrossClusterTaskMockRecorder) GetShard() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShard", reflect.TypeOf((*MockCrossClusterTask)(nil).GetShard))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShard", reflect.TypeOf((*MockCrossClusterTask)(nil).GetShard))
 }
 
 // GetTaskCategory mocks base method.
 func (m *MockCrossClusterTask) GetTaskCategory() persistence.HistoryTaskCategory {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTaskCategory")
-	ret0, _ := ret[0].(persistence.HistoryTaskCategory)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetTaskCategory")
+  ret0, _ := ret[0].(persistence.HistoryTaskCategory)
+  return ret0
 }
 
 // GetTaskCategory indicates an expected call of GetTaskCategory.
 func (mr *MockCrossClusterTaskMockRecorder) GetTaskCategory() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskCategory", reflect.TypeOf((*MockCrossClusterTask)(nil).GetTaskCategory))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskCategory", reflect.TypeOf((*MockCrossClusterTask)(nil).GetTaskCategory))
 }
 
 // GetTaskID mocks base method.
 func (m *MockCrossClusterTask) GetTaskID() int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTaskID")
-	ret0, _ := ret[0].(int64)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetTaskID")
+  ret0, _ := ret[0].(int64)
+  return ret0
 }
 
 // GetTaskID indicates an expected call of GetTaskID.
 func (mr *MockCrossClusterTaskMockRecorder) GetTaskID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskID", reflect.TypeOf((*MockCrossClusterTask)(nil).GetTaskID))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskID", reflect.TypeOf((*MockCrossClusterTask)(nil).GetTaskID))
 }
 
 // GetTaskKey mocks base method.
 func (m *MockCrossClusterTask) GetTaskKey() persistence.HistoryTaskKey {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTaskKey")
-	ret0, _ := ret[0].(persistence.HistoryTaskKey)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetTaskKey")
+  ret0, _ := ret[0].(persistence.HistoryTaskKey)
+  return ret0
 }
 
 // GetTaskKey indicates an expected call of GetTaskKey.
 func (mr *MockCrossClusterTaskMockRecorder) GetTaskKey() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskKey", reflect.TypeOf((*MockCrossClusterTask)(nil).GetTaskKey))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskKey", reflect.TypeOf((*MockCrossClusterTask)(nil).GetTaskKey))
 }
 
 // GetTaskList mocks base method.
 func (m *MockCrossClusterTask) GetTaskList() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTaskList")
-	ret0, _ := ret[0].(string)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetTaskList")
+  ret0, _ := ret[0].(string)
+  return ret0
 }
 
 // GetTaskList indicates an expected call of GetTaskList.
 func (mr *MockCrossClusterTaskMockRecorder) GetTaskList() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskList", reflect.TypeOf((*MockCrossClusterTask)(nil).GetTaskList))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskList", reflect.TypeOf((*MockCrossClusterTask)(nil).GetTaskList))
 }
 
 // GetTaskType mocks base method.
 func (m *MockCrossClusterTask) GetTaskType() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTaskType")
-	ret0, _ := ret[0].(int)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetTaskType")
+  ret0, _ := ret[0].(int)
+  return ret0
 }
 
 // GetTaskType indicates an expected call of GetTaskType.
 func (mr *MockCrossClusterTaskMockRecorder) GetTaskType() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskType", reflect.TypeOf((*MockCrossClusterTask)(nil).GetTaskType))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskType", reflect.TypeOf((*MockCrossClusterTask)(nil).GetTaskType))
 }
 
 // GetVersion mocks base method.
 func (m *MockCrossClusterTask) GetVersion() int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVersion")
-	ret0, _ := ret[0].(int64)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetVersion")
+  ret0, _ := ret[0].(int64)
+  return ret0
 }
 
 // GetVersion indicates an expected call of GetVersion.
 func (mr *MockCrossClusterTaskMockRecorder) GetVersion() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVersion", reflect.TypeOf((*MockCrossClusterTask)(nil).GetVersion))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVersion", reflect.TypeOf((*MockCrossClusterTask)(nil).GetVersion))
 }
 
 // GetVisibilityTimestamp mocks base method.
 func (m *MockCrossClusterTask) GetVisibilityTimestamp() time.Time {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVisibilityTimestamp")
-	ret0, _ := ret[0].(time.Time)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetVisibilityTimestamp")
+  ret0, _ := ret[0].(time.Time)
+  return ret0
 }
 
 // GetVisibilityTimestamp indicates an expected call of GetVisibilityTimestamp.
 func (mr *MockCrossClusterTaskMockRecorder) GetVisibilityTimestamp() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVisibilityTimestamp", reflect.TypeOf((*MockCrossClusterTask)(nil).GetVisibilityTimestamp))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVisibilityTimestamp", reflect.TypeOf((*MockCrossClusterTask)(nil).GetVisibilityTimestamp))
 }
 
 // GetWorkflowID mocks base method.
 func (m *MockCrossClusterTask) GetWorkflowID() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkflowID")
-	ret0, _ := ret[0].(string)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetWorkflowID")
+  ret0, _ := ret[0].(string)
+  return ret0
 }
 
 // GetWorkflowID indicates an expected call of GetWorkflowID.
 func (mr *MockCrossClusterTaskMockRecorder) GetWorkflowID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkflowID", reflect.TypeOf((*MockCrossClusterTask)(nil).GetWorkflowID))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkflowID", reflect.TypeOf((*MockCrossClusterTask)(nil).GetWorkflowID))
 }
 
 // HandleErr mocks base method.
 func (m *MockCrossClusterTask) HandleErr(err error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HandleErr", err)
-	ret0, _ := ret[0].(error)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "HandleErr", err)
+  ret0, _ := ret[0].(error)
+  return ret0
 }
 
 // HandleErr indicates an expected call of HandleErr.
 func (mr *MockCrossClusterTaskMockRecorder) HandleErr(err any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleErr", reflect.TypeOf((*MockCrossClusterTask)(nil).HandleErr), err)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleErr", reflect.TypeOf((*MockCrossClusterTask)(nil).HandleErr), err)
 }
 
 // IsReadyForPoll mocks base method.
 func (m *MockCrossClusterTask) IsReadyForPoll() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsReadyForPoll")
-	ret0, _ := ret[0].(bool)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "IsReadyForPoll")
+  ret0, _ := ret[0].(bool)
+  return ret0
 }
 
 // IsReadyForPoll indicates an expected call of IsReadyForPoll.
 func (mr *MockCrossClusterTaskMockRecorder) IsReadyForPoll() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsReadyForPoll", reflect.TypeOf((*MockCrossClusterTask)(nil).IsReadyForPoll))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsReadyForPoll", reflect.TypeOf((*MockCrossClusterTask)(nil).IsReadyForPoll))
 }
 
 // IsValid mocks base method.
 func (m *MockCrossClusterTask) IsValid() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsValid")
-	ret0, _ := ret[0].(bool)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "IsValid")
+  ret0, _ := ret[0].(bool)
+  return ret0
 }
 
 // IsValid indicates an expected call of IsValid.
 func (mr *MockCrossClusterTaskMockRecorder) IsValid() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsValid", reflect.TypeOf((*MockCrossClusterTask)(nil).IsValid))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsValid", reflect.TypeOf((*MockCrossClusterTask)(nil).IsValid))
 }
 
 // Nack mocks base method.
 func (m *MockCrossClusterTask) Nack(err error) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Nack", err)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Nack", err)
 }
 
 // Nack indicates an expected call of Nack.
 func (mr *MockCrossClusterTaskMockRecorder) Nack(err any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Nack", reflect.TypeOf((*MockCrossClusterTask)(nil).Nack), err)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Nack", reflect.TypeOf((*MockCrossClusterTask)(nil).Nack), err)
 }
 
 // Priority mocks base method.
 func (m *MockCrossClusterTask) Priority() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Priority")
-	ret0, _ := ret[0].(int)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "Priority")
+  ret0, _ := ret[0].(int)
+  return ret0
 }
 
 // Priority indicates an expected call of Priority.
 func (mr *MockCrossClusterTaskMockRecorder) Priority() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Priority", reflect.TypeOf((*MockCrossClusterTask)(nil).Priority))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Priority", reflect.TypeOf((*MockCrossClusterTask)(nil).Priority))
 }
 
 // RecordResponse mocks base method.
 func (m *MockCrossClusterTask) RecordResponse(arg0 *types.CrossClusterTaskResponse) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RecordResponse", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "RecordResponse", arg0)
+  ret0, _ := ret[0].(error)
+  return ret0
 }
 
 // RecordResponse indicates an expected call of RecordResponse.
 func (mr *MockCrossClusterTaskMockRecorder) RecordResponse(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordResponse", reflect.TypeOf((*MockCrossClusterTask)(nil).RecordResponse), arg0)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordResponse", reflect.TypeOf((*MockCrossClusterTask)(nil).RecordResponse), arg0)
 }
 
 // RetryErr mocks base method.
 func (m *MockCrossClusterTask) RetryErr(err error) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RetryErr", err)
-	ret0, _ := ret[0].(bool)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "RetryErr", err)
+  ret0, _ := ret[0].(bool)
+  return ret0
 }
 
 // RetryErr indicates an expected call of RetryErr.
 func (mr *MockCrossClusterTaskMockRecorder) RetryErr(err any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryErr", reflect.TypeOf((*MockCrossClusterTask)(nil).RetryErr), err)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryErr", reflect.TypeOf((*MockCrossClusterTask)(nil).RetryErr), err)
 }
 
 // SetInitialSubmitTime mocks base method.
 func (m *MockCrossClusterTask) SetInitialSubmitTime(arg0 time.Time) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetInitialSubmitTime", arg0)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "SetInitialSubmitTime", arg0)
 }
 
 // SetInitialSubmitTime indicates an expected call of SetInitialSubmitTime.
 func (mr *MockCrossClusterTaskMockRecorder) SetInitialSubmitTime(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInitialSubmitTime", reflect.TypeOf((*MockCrossClusterTask)(nil).SetInitialSubmitTime), arg0)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInitialSubmitTime", reflect.TypeOf((*MockCrossClusterTask)(nil).SetInitialSubmitTime), arg0)
 }
 
 // SetPriority mocks base method.
 func (m *MockCrossClusterTask) SetPriority(arg0 int) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetPriority", arg0)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "SetPriority", arg0)
 }
 
 // SetPriority indicates an expected call of SetPriority.
 func (mr *MockCrossClusterTaskMockRecorder) SetPriority(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPriority", reflect.TypeOf((*MockCrossClusterTask)(nil).SetPriority), arg0)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPriority", reflect.TypeOf((*MockCrossClusterTask)(nil).SetPriority), arg0)
 }
 
 // SetTaskID mocks base method.
 func (m *MockCrossClusterTask) SetTaskID(id int64) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetTaskID", id)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "SetTaskID", id)
 }
 
 // SetTaskID indicates an expected call of SetTaskID.
 func (mr *MockCrossClusterTaskMockRecorder) SetTaskID(id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTaskID", reflect.TypeOf((*MockCrossClusterTask)(nil).SetTaskID), id)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTaskID", reflect.TypeOf((*MockCrossClusterTask)(nil).SetTaskID), id)
 }
 
 // SetVersion mocks base method.
 func (m *MockCrossClusterTask) SetVersion(version int64) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetVersion", version)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "SetVersion", version)
 }
 
 // SetVersion indicates an expected call of SetVersion.
 func (mr *MockCrossClusterTaskMockRecorder) SetVersion(version any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVersion", reflect.TypeOf((*MockCrossClusterTask)(nil).SetVersion), version)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVersion", reflect.TypeOf((*MockCrossClusterTask)(nil).SetVersion), version)
 }
 
 // SetVisibilityTimestamp mocks base method.
 func (m *MockCrossClusterTask) SetVisibilityTimestamp(timestamp time.Time) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetVisibilityTimestamp", timestamp)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "SetVisibilityTimestamp", timestamp)
 }
 
 // SetVisibilityTimestamp indicates an expected call of SetVisibilityTimestamp.
 func (mr *MockCrossClusterTaskMockRecorder) SetVisibilityTimestamp(timestamp any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVisibilityTimestamp", reflect.TypeOf((*MockCrossClusterTask)(nil).SetVisibilityTimestamp), timestamp)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVisibilityTimestamp", reflect.TypeOf((*MockCrossClusterTask)(nil).SetVisibilityTimestamp), timestamp)
 }
 
 // State mocks base method.
 func (m *MockCrossClusterTask) State() task.State {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "State")
-	ret0, _ := ret[0].(task.State)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "State")
+  ret0, _ := ret[0].(task.State)
+  return ret0
 }
 
 // State indicates an expected call of State.
 func (mr *MockCrossClusterTaskMockRecorder) State() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "State", reflect.TypeOf((*MockCrossClusterTask)(nil).State))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "State", reflect.TypeOf((*MockCrossClusterTask)(nil).State))
 }
 
 // ToInternalReplicationTaskInfo mocks base method.
 func (m *MockCrossClusterTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ToInternalReplicationTaskInfo")
-	ret0, _ := ret[0].(*types.ReplicationTaskInfo)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "ToInternalReplicationTaskInfo")
+  ret0, _ := ret[0].(*types.ReplicationTaskInfo)
+  ret1, _ := ret[1].(error)
+  return ret0, ret1
 }
 
 // ToInternalReplicationTaskInfo indicates an expected call of ToInternalReplicationTaskInfo.
 func (mr *MockCrossClusterTaskMockRecorder) ToInternalReplicationTaskInfo() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToInternalReplicationTaskInfo", reflect.TypeOf((*MockCrossClusterTask)(nil).ToInternalReplicationTaskInfo))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToInternalReplicationTaskInfo", reflect.TypeOf((*MockCrossClusterTask)(nil).ToInternalReplicationTaskInfo))
 }
 
 // ToTimerTaskInfo mocks base method.
 func (m *MockCrossClusterTask) ToTimerTaskInfo() (*persistence.TimerTaskInfo, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ToTimerTaskInfo")
-	ret0, _ := ret[0].(*persistence.TimerTaskInfo)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "ToTimerTaskInfo")
+  ret0, _ := ret[0].(*persistence.TimerTaskInfo)
+  ret1, _ := ret[1].(error)
+  return ret0, ret1
 }
 
 // ToTimerTaskInfo indicates an expected call of ToTimerTaskInfo.
 func (mr *MockCrossClusterTaskMockRecorder) ToTimerTaskInfo() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTimerTaskInfo", reflect.TypeOf((*MockCrossClusterTask)(nil).ToTimerTaskInfo))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTimerTaskInfo", reflect.TypeOf((*MockCrossClusterTask)(nil).ToTimerTaskInfo))
 }
 
 // ToTransferTaskInfo mocks base method.
 func (m *MockCrossClusterTask) ToTransferTaskInfo() (*persistence.TransferTaskInfo, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ToTransferTaskInfo")
-	ret0, _ := ret[0].(*persistence.TransferTaskInfo)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "ToTransferTaskInfo")
+  ret0, _ := ret[0].(*persistence.TransferTaskInfo)
+  ret1, _ := ret[1].(error)
+  return ret0, ret1
 }
 
 // ToTransferTaskInfo indicates an expected call of ToTransferTaskInfo.
 func (mr *MockCrossClusterTaskMockRecorder) ToTransferTaskInfo() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTransferTaskInfo", reflect.TypeOf((*MockCrossClusterTask)(nil).ToTransferTaskInfo))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTransferTaskInfo", reflect.TypeOf((*MockCrossClusterTask)(nil).ToTransferTaskInfo))
 }
 
 // MockKey is a mock of Key interface.
 type MockKey struct {
-	ctrl     *gomock.Controller
-	recorder *MockKeyMockRecorder
-	isgomock struct{}
+  ctrl     *gomock.Controller
+  recorder *MockKeyMockRecorder
+  isgomock struct{}
 }
 
 // MockKeyMockRecorder is the mock recorder for MockKey.
 type MockKeyMockRecorder struct {
-	mock *MockKey
+  mock *MockKey
 }
 
 // NewMockKey creates a new mock instance.
 func NewMockKey(ctrl *gomock.Controller) *MockKey {
-	mock := &MockKey{ctrl: ctrl}
-	mock.recorder = &MockKeyMockRecorder{mock}
-	return mock
+  mock := &MockKey{ctrl: ctrl}
+  mock.recorder = &MockKeyMockRecorder{mock}
+  return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockKey) EXPECT() *MockKeyMockRecorder {
-	return m.recorder
+  return m.recorder
 }
 
 // Less mocks base method.
 func (m *MockKey) Less(arg0 Key) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Less", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "Less", arg0)
+  ret0, _ := ret[0].(bool)
+  return ret0
 }
 
 // Less indicates an expected call of Less.
 func (mr *MockKeyMockRecorder) Less(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Less", reflect.TypeOf((*MockKey)(nil).Less), arg0)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Less", reflect.TypeOf((*MockKey)(nil).Less), arg0)
 }
 
 // MockExecutor is a mock of Executor interface.
 type MockExecutor struct {
-	ctrl     *gomock.Controller
-	recorder *MockExecutorMockRecorder
-	isgomock struct{}
+  ctrl     *gomock.Controller
+  recorder *MockExecutorMockRecorder
+  isgomock struct{}
 }
 
 // MockExecutorMockRecorder is the mock recorder for MockExecutor.
 type MockExecutorMockRecorder struct {
-	mock *MockExecutor
+  mock *MockExecutor
 }
 
 // NewMockExecutor creates a new mock instance.
 func NewMockExecutor(ctrl *gomock.Controller) *MockExecutor {
-	mock := &MockExecutor{ctrl: ctrl}
-	mock.recorder = &MockExecutorMockRecorder{mock}
-	return mock
+  mock := &MockExecutor{ctrl: ctrl}
+  mock.recorder = &MockExecutorMockRecorder{mock}
+  return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
-	return m.recorder
+  return m.recorder
 }
 
 // Execute mocks base method.
 func (m *MockExecutor) Execute(task Task) (ExecuteResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", task)
-	ret0, _ := ret[0].(ExecuteResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "Execute", task)
+  ret0, _ := ret[0].(ExecuteResponse)
+  ret1, _ := ret[1].(error)
+  return ret0, ret1
 }
 
 // Execute indicates an expected call of Execute.
 func (mr *MockExecutorMockRecorder) Execute(task any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockExecutor)(nil).Execute), task)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockExecutor)(nil).Execute), task)
 }
 
 // Stop mocks base method.
 func (m *MockExecutor) Stop() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop")
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Stop")
 }
 
 // Stop indicates an expected call of Stop.
 func (mr *MockExecutorMockRecorder) Stop() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockExecutor)(nil).Stop))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockExecutor)(nil).Stop))
 }
 
 // MockPriorityAssigner is a mock of PriorityAssigner interface.
 type MockPriorityAssigner struct {
-	ctrl     *gomock.Controller
-	recorder *MockPriorityAssignerMockRecorder
-	isgomock struct{}
+  ctrl     *gomock.Controller
+  recorder *MockPriorityAssignerMockRecorder
+  isgomock struct{}
 }
 
 // MockPriorityAssignerMockRecorder is the mock recorder for MockPriorityAssigner.
 type MockPriorityAssignerMockRecorder struct {
-	mock *MockPriorityAssigner
+  mock *MockPriorityAssigner
 }
 
 // NewMockPriorityAssigner creates a new mock instance.
 func NewMockPriorityAssigner(ctrl *gomock.Controller) *MockPriorityAssigner {
-	mock := &MockPriorityAssigner{ctrl: ctrl}
-	mock.recorder = &MockPriorityAssignerMockRecorder{mock}
-	return mock
+  mock := &MockPriorityAssigner{ctrl: ctrl}
+  mock.recorder = &MockPriorityAssignerMockRecorder{mock}
+  return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockPriorityAssigner) EXPECT() *MockPriorityAssignerMockRecorder {
-	return m.recorder
+  return m.recorder
 }
 
 // Assign mocks base method.
 func (m *MockPriorityAssigner) Assign(arg0 Task) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Assign", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "Assign", arg0)
+  ret0, _ := ret[0].(error)
+  return ret0
 }
 
 // Assign indicates an expected call of Assign.
 func (mr *MockPriorityAssignerMockRecorder) Assign(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Assign", reflect.TypeOf((*MockPriorityAssigner)(nil).Assign), arg0)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Assign", reflect.TypeOf((*MockPriorityAssigner)(nil).Assign), arg0)
 }
 
 // MockProcessor is a mock of Processor interface.
 type MockProcessor struct {
-	ctrl     *gomock.Controller
-	recorder *MockProcessorMockRecorder
-	isgomock struct{}
+  ctrl     *gomock.Controller
+  recorder *MockProcessorMockRecorder
+  isgomock struct{}
 }
 
 // MockProcessorMockRecorder is the mock recorder for MockProcessor.
 type MockProcessorMockRecorder struct {
-	mock *MockProcessor
+  mock *MockProcessor
 }
 
 // NewMockProcessor creates a new mock instance.
 func NewMockProcessor(ctrl *gomock.Controller) *MockProcessor {
-	mock := &MockProcessor{ctrl: ctrl}
-	mock.recorder = &MockProcessorMockRecorder{mock}
-	return mock
+  mock := &MockProcessor{ctrl: ctrl}
+  mock.recorder = &MockProcessorMockRecorder{mock}
+  return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockProcessor) EXPECT() *MockProcessorMockRecorder {
-	return m.recorder
+  return m.recorder
 }
 
 // Start mocks base method.
 func (m *MockProcessor) Start() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Start")
 }
 
 // Start indicates an expected call of Start.
 func (mr *MockProcessorMockRecorder) Start() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockProcessor)(nil).Start))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockProcessor)(nil).Start))
 }
 
 // Stop mocks base method.
 func (m *MockProcessor) Stop() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop")
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Stop")
 }
 
 // Stop indicates an expected call of Stop.
 func (mr *MockProcessorMockRecorder) Stop() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockProcessor)(nil).Stop))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockProcessor)(nil).Stop))
 }
 
 // Submit mocks base method.
 func (m *MockProcessor) Submit(arg0 Task) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Submit", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "Submit", arg0)
+  ret0, _ := ret[0].(error)
+  return ret0
 }
 
 // Submit indicates an expected call of Submit.
 func (mr *MockProcessorMockRecorder) Submit(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Submit", reflect.TypeOf((*MockProcessor)(nil).Submit), arg0)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Submit", reflect.TypeOf((*MockProcessor)(nil).Submit), arg0)
 }
 
 // TrySubmit mocks base method.
 func (m *MockProcessor) TrySubmit(arg0 Task) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TrySubmit", arg0)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "TrySubmit", arg0)
+  ret0, _ := ret[0].(bool)
+  ret1, _ := ret[1].(error)
+  return ret0, ret1
 }
 
 // TrySubmit indicates an expected call of TrySubmit.
 func (mr *MockProcessorMockRecorder) TrySubmit(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TrySubmit", reflect.TypeOf((*MockProcessor)(nil).TrySubmit), arg0)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TrySubmit", reflect.TypeOf((*MockProcessor)(nil).TrySubmit), arg0)
 }
 
 // MockRedispatcher is a mock of Redispatcher interface.
 type MockRedispatcher struct {
-	ctrl     *gomock.Controller
-	recorder *MockRedispatcherMockRecorder
-	isgomock struct{}
+  ctrl     *gomock.Controller
+  recorder *MockRedispatcherMockRecorder
+  isgomock struct{}
 }
 
 // MockRedispatcherMockRecorder is the mock recorder for MockRedispatcher.
 type MockRedispatcherMockRecorder struct {
-	mock *MockRedispatcher
+  mock *MockRedispatcher
 }
 
 // NewMockRedispatcher creates a new mock instance.
 func NewMockRedispatcher(ctrl *gomock.Controller) *MockRedispatcher {
-	mock := &MockRedispatcher{ctrl: ctrl}
-	mock.recorder = &MockRedispatcherMockRecorder{mock}
-	return mock
+  mock := &MockRedispatcher{ctrl: ctrl}
+  mock.recorder = &MockRedispatcherMockRecorder{mock}
+  return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockRedispatcher) EXPECT() *MockRedispatcherMockRecorder {
-	return m.recorder
+  return m.recorder
 }
 
 // AddTask mocks base method.
 func (m *MockRedispatcher) AddTask(arg0 Task) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddTask", arg0)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "AddTask", arg0)
 }
 
 // AddTask indicates an expected call of AddTask.
 func (mr *MockRedispatcherMockRecorder) AddTask(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTask", reflect.TypeOf((*MockRedispatcher)(nil).AddTask), arg0)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTask", reflect.TypeOf((*MockRedispatcher)(nil).AddTask), arg0)
 }
 
 // Redispatch mocks base method.
 func (m *MockRedispatcher) Redispatch(targetSize int) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Redispatch", targetSize)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Redispatch", targetSize)
 }
 
 // Redispatch indicates an expected call of Redispatch.
 func (mr *MockRedispatcherMockRecorder) Redispatch(targetSize any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Redispatch", reflect.TypeOf((*MockRedispatcher)(nil).Redispatch), targetSize)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Redispatch", reflect.TypeOf((*MockRedispatcher)(nil).Redispatch), targetSize)
 }
 
 // RedispatchTask mocks base method.
 func (m *MockRedispatcher) RedispatchTask(arg0 Task, arg1 time.Time) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RedispatchTask", arg0, arg1)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "RedispatchTask", arg0, arg1)
 }
 
 // RedispatchTask indicates an expected call of RedispatchTask.
 func (mr *MockRedispatcherMockRecorder) RedispatchTask(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RedispatchTask", reflect.TypeOf((*MockRedispatcher)(nil).RedispatchTask), arg0, arg1)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RedispatchTask", reflect.TypeOf((*MockRedispatcher)(nil).RedispatchTask), arg0, arg1)
 }
 
 // Size mocks base method.
 func (m *MockRedispatcher) Size() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Size")
-	ret0, _ := ret[0].(int)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "Size")
+  ret0, _ := ret[0].(int)
+  return ret0
 }
 
 // Size indicates an expected call of Size.
 func (mr *MockRedispatcherMockRecorder) Size() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockRedispatcher)(nil).Size))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockRedispatcher)(nil).Size))
 }
 
 // Start mocks base method.
 func (m *MockRedispatcher) Start() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Start")
 }
 
 // Start indicates an expected call of Start.
 func (mr *MockRedispatcherMockRecorder) Start() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockRedispatcher)(nil).Start))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockRedispatcher)(nil).Start))
 }
 
 // Stop mocks base method.
 func (m *MockRedispatcher) Stop() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop")
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Stop")
 }
 
 // Stop indicates an expected call of Stop.
 func (mr *MockRedispatcherMockRecorder) Stop() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockRedispatcher)(nil).Stop))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockRedispatcher)(nil).Stop))
 }
 
 // MockRescheduler is a mock of Rescheduler interface.
 type MockRescheduler struct {
-	ctrl     *gomock.Controller
-	recorder *MockReschedulerMockRecorder
-	isgomock struct{}
+  ctrl     *gomock.Controller
+  recorder *MockReschedulerMockRecorder
+  isgomock struct{}
 }
 
 // MockReschedulerMockRecorder is the mock recorder for MockRescheduler.
 type MockReschedulerMockRecorder struct {
-	mock *MockRescheduler
+  mock *MockRescheduler
 }
 
 // NewMockRescheduler creates a new mock instance.
 func NewMockRescheduler(ctrl *gomock.Controller) *MockRescheduler {
-	mock := &MockRescheduler{ctrl: ctrl}
-	mock.recorder = &MockReschedulerMockRecorder{mock}
-	return mock
+  mock := &MockRescheduler{ctrl: ctrl}
+  mock.recorder = &MockReschedulerMockRecorder{mock}
+  return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockRescheduler) EXPECT() *MockReschedulerMockRecorder {
-	return m.recorder
+  return m.recorder
 }
 
 // RescheduleDomains mocks base method.
 func (m *MockRescheduler) RescheduleDomains(domainIDs map[string]struct{}) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RescheduleDomains", domainIDs)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "RescheduleDomains", domainIDs)
 }
 
 // RescheduleDomains indicates an expected call of RescheduleDomains.
 func (mr *MockReschedulerMockRecorder) RescheduleDomains(domainIDs any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RescheduleDomains", reflect.TypeOf((*MockRescheduler)(nil).RescheduleDomains), domainIDs)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RescheduleDomains", reflect.TypeOf((*MockRescheduler)(nil).RescheduleDomains), domainIDs)
 }
 
 // RescheduleTask mocks base method.
 func (m *MockRescheduler) RescheduleTask(arg0 Task, arg1 time.Time) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RescheduleTask", arg0, arg1)
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "RescheduleTask", arg0, arg1)
 }
 
 // RescheduleTask indicates an expected call of RescheduleTask.
 func (mr *MockReschedulerMockRecorder) RescheduleTask(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RescheduleTask", reflect.TypeOf((*MockRescheduler)(nil).RescheduleTask), arg0, arg1)
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RescheduleTask", reflect.TypeOf((*MockRescheduler)(nil).RescheduleTask), arg0, arg1)
 }
 
 // Size mocks base method.
 func (m *MockRescheduler) Size() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Size")
-	ret0, _ := ret[0].(int)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "Size")
+  ret0, _ := ret[0].(int)
+  return ret0
 }
 
 // Size indicates an expected call of Size.
 func (mr *MockReschedulerMockRecorder) Size() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockRescheduler)(nil).Size))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockRescheduler)(nil).Size))
 }
 
 // Start mocks base method.
 func (m *MockRescheduler) Start() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Start")
 }
 
 // Start indicates an expected call of Start.
 func (mr *MockReschedulerMockRecorder) Start() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockRescheduler)(nil).Start))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockRescheduler)(nil).Start))
 }
 
 // Stop mocks base method.
 func (m *MockRescheduler) Stop() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop")
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Stop")
 }
 
 // Stop indicates an expected call of Stop.
 func (mr *MockReschedulerMockRecorder) Stop() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockRescheduler)(nil).Stop))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockRescheduler)(nil).Stop))
 }
 
 // MockFetcher is a mock of Fetcher interface.
 type MockFetcher struct {
-	ctrl     *gomock.Controller
-	recorder *MockFetcherMockRecorder
-	isgomock struct{}
+  ctrl     *gomock.Controller
+  recorder *MockFetcherMockRecorder
+  isgomock struct{}
 }
 
 // MockFetcherMockRecorder is the mock recorder for MockFetcher.
 type MockFetcherMockRecorder struct {
-	mock *MockFetcher
+  mock *MockFetcher
 }
 
 // NewMockFetcher creates a new mock instance.
 func NewMockFetcher(ctrl *gomock.Controller) *MockFetcher {
-	mock := &MockFetcher{ctrl: ctrl}
-	mock.recorder = &MockFetcherMockRecorder{mock}
-	return mock
+  mock := &MockFetcher{ctrl: ctrl}
+  mock.recorder = &MockFetcherMockRecorder{mock}
+  return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockFetcher) EXPECT() *MockFetcherMockRecorder {
-	return m.recorder
+  return m.recorder
 }
 
 // Fetch mocks base method.
 func (m *MockFetcher) Fetch(shardID int, fetchParams ...any) future.Future {
-	m.ctrl.T.Helper()
-	varargs := []any{shardID}
-	for _, a := range fetchParams {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "Fetch", varargs...)
-	ret0, _ := ret[0].(future.Future)
-	return ret0
+  m.ctrl.T.Helper()
+  varargs := []any{shardID}
+  for _, a := range fetchParams {
+    varargs = append(varargs, a)
+  }
+  ret := m.ctrl.Call(m, "Fetch", varargs...)
+  ret0, _ := ret[0].(future.Future)
+  return ret0
 }
 
 // Fetch indicates an expected call of Fetch.
 func (mr *MockFetcherMockRecorder) Fetch(shardID any, fetchParams ...any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{shardID}, fetchParams...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fetch", reflect.TypeOf((*MockFetcher)(nil).Fetch), varargs...)
+  mr.mock.ctrl.T.Helper()
+  varargs := append([]any{shardID}, fetchParams...)
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fetch", reflect.TypeOf((*MockFetcher)(nil).Fetch), varargs...)
 }
 
 // GetSourceCluster mocks base method.
 func (m *MockFetcher) GetSourceCluster() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSourceCluster")
-	ret0, _ := ret[0].(string)
-	return ret0
+  m.ctrl.T.Helper()
+  ret := m.ctrl.Call(m, "GetSourceCluster")
+  ret0, _ := ret[0].(string)
+  return ret0
 }
 
 // GetSourceCluster indicates an expected call of GetSourceCluster.
 func (mr *MockFetcherMockRecorder) GetSourceCluster() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSourceCluster", reflect.TypeOf((*MockFetcher)(nil).GetSourceCluster))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSourceCluster", reflect.TypeOf((*MockFetcher)(nil).GetSourceCluster))
 }
 
 // Start mocks base method.
 func (m *MockFetcher) Start() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Start")
 }
 
 // Start indicates an expected call of Start.
 func (mr *MockFetcherMockRecorder) Start() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockFetcher)(nil).Start))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockFetcher)(nil).Start))
 }
 
 // Stop mocks base method.
 func (m *MockFetcher) Stop() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop")
+  m.ctrl.T.Helper()
+  m.ctrl.Call(m, "Stop")
 }
 
 // Stop indicates an expected call of Stop.
 func (mr *MockFetcherMockRecorder) Stop() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockFetcher)(nil).Stop))
+  mr.mock.ctrl.T.Helper()
+  return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockFetcher)(nil).Stop))
 }

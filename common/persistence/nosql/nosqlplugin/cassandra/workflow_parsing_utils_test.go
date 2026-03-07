@@ -643,6 +643,7 @@ func Test_parseTransferTaskInfo(t *testing.T) {
 		"record_visibility":          true,
 		"version":                    int64(4),
 		"original_task_list":         "original_task_list",
+		"original_task_list_kind":    2,
 	}
 	expected := &persistence.TransferTaskInfo{
 		DomainID:                "domain_id",
@@ -661,6 +662,7 @@ func Test_parseTransferTaskInfo(t *testing.T) {
 		RecordVisibility:        true,
 		Version:                 int64(4),
 		OriginalTaskList:        "original_task_list",
+		OriginalTaskListKind:    types.TaskListKindEphemeral,
 	}
 	assert.Equal(t, expected, parseTransferTaskInfo(testInput))
 
