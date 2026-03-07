@@ -22,7 +22,6 @@ package cassandra
 
 import (
 	"context"
-	"time"
 
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/types"
@@ -67,21 +66,11 @@ func (db *CDB) InsertDomainAuditLog(ctx context.Context, row *nosqlplugin.Domain
 // SelectDomainAuditLogs returns audit log entries for a domain and operation type
 func (db *CDB) SelectDomainAuditLogs(ctx context.Context, filter *nosqlplugin.DomainAuditLogFilter) ([]*nosqlplugin.DomainAuditLogRow, []byte, error) {
 
-	start := time.Unix(0, 0)
-	end := time.Unix(0, time.Now().UnixNano())
-
-	if filter.MinCreatedTime != nil {
-		start = *filter.MinCreatedTime
-	}
-	if filter.MaxCreatedTime != nil {
-		end = *filter.MaxCreatedTime
-	}
-
 	query := db.session.Query(templateSelectDomainAuditLogsQuery,
 		filter.DomainID,
 		filter.OperationType,
-		start,
-		end,
+		*filter.MinCreatedTime,
+		*filter.MaxCreatedTime,
 	).WithContext(ctx)
 
 	// Set page size

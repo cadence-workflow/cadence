@@ -23,6 +23,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/golang/snappy"
 	"github.com/google/uuid"
@@ -134,6 +135,15 @@ func (m *domainAuditManagerImpl) GetDomainAuditLogs(
 	ctx context.Context,
 	request *GetDomainAuditLogsRequest,
 ) (*GetDomainAuditLogsResponse, error) {
+	if request.MinCreatedTime == nil {
+		start := time.Unix(0, 0)
+		request.MinCreatedTime = &start
+	}
+	if request.MaxCreatedTime == nil {
+		end := m.timeSrc.Now()
+		request.MaxCreatedTime = &end
+	}
+
 	internalResp, err := m.persistence.GetDomainAuditLogs(ctx, request)
 	if err != nil {
 		return nil, err
