@@ -84,6 +84,8 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	for {
 		state.Iterations++
 
+		processMissedRuns(ctx, logger, sched, &input, state)
+
 		// Set up timer only when not paused. When paused, applyAllInputs
 		// blocks on signals alone until an unpause or delete arrives.
 		var timerFuture workflow.Future
@@ -118,7 +120,7 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		}
 
 		if timerFired && !state.Paused {
-			processScheduleFire(ctx, logger, &input, state)
+			processScheduleFire(ctx, logger, &input, state, state.NextRunTime)
 		}
 
 		if changed || state.Iterations >= maxIterationsBeforeContinueAsNew {
@@ -310,11 +312,10 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 	)
 }
 
-// processScheduleFire executes the configured action for a schedule fire.
+// processScheduleFire executes the configured action for a single schedule fire.
 // It calls the start-workflow activity, updates state counters, and logs the outcome.
 // Activity failures do not terminate the schedule, they are logged and counted as missed runs.
-func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) {
-	scheduledTime := state.NextRunTime
+func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time) {
 	state.LastRunTime = scheduledTime
 	state.TotalRuns++
 
@@ -383,6 +384,77 @@ func computeNextRunTime(sched cron.Schedule, now time.Time, spec types.ScheduleS
 		return time.Time{}
 	}
 	return next
+}
+
+// computeMissedFireTimes returns all cron fire times between (lastRun, now].
+// It caps the result at maxCatchUpFires to prevent unbounded iteration
+// for very frequent schedules that were paused for a long time.
+func computeMissedFireTimes(sched cron.Schedule, lastRun, now time.Time, spec types.ScheduleSpec) []time.Time {
+	const maxCatchUpFires = 1000
+	var missed []time.Time
+	t := lastRun
+	for len(missed) < maxCatchUpFires {
+		next := computeNextRunTime(sched, t, spec)
+		if next.IsZero() || next.After(now) {
+			break
+		}
+		missed = append(missed, next)
+		t = next
+	}
+	return missed
+}
+
+// processMissedRuns checks for and processes any cron fires that were missed
+// while the schedule was paused or during ContinueAsNew transitions.
+// The catch-up policy determines how missed fires are handled:
+//   - Skip (or default): all missed fires are counted as skipped
+//   - One: only the most recent eligible fire (within CatchUpWindow) is executed
+//   - All: all eligible fires within the CatchUpWindow are executed
+func processMissedRuns(ctx workflow.Context, logger *zap.Logger, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) {
+	if state.Paused || state.LastRunTime.IsZero() {
+		return
+	}
+	now := workflow.Now(ctx)
+	missed := computeMissedFireTimes(sched, state.LastRunTime, now, input.Spec)
+	if len(missed) == 0 {
+		return
+	}
+
+	window := input.Policies.CatchUpWindow
+	var eligible []time.Time
+	for _, t := range missed {
+		if window <= 0 || now.Sub(t) <= window {
+			eligible = append(eligible, t)
+		}
+	}
+	skipped := int64(len(missed) - len(eligible))
+
+	switch input.Policies.CatchUpPolicy {
+	case types.ScheduleCatchUpPolicyOne:
+		if len(eligible) > 0 {
+			processScheduleFire(ctx, logger, input, state, eligible[len(eligible)-1])
+			skipped += int64(len(eligible) - 1)
+		}
+	case types.ScheduleCatchUpPolicyAll:
+		for _, t := range eligible {
+			processScheduleFire(ctx, logger, input, state, t)
+		}
+	default:
+		skipped = int64(len(missed))
+	}
+
+	if skipped > 0 {
+		state.SkippedRuns += skipped
+		logger.Info("catch-up skipped missed fires",
+			zap.Int64("skipped", skipped),
+			zap.Int("total_missed", len(missed)),
+			zap.String("policy", input.Policies.CatchUpPolicy.String()),
+		)
+	}
+
+	if last := missed[len(missed)-1]; last.After(state.LastRunTime) {
+		state.LastRunTime = last
+	}
 }
 
 // buildScheduleDescription creates a snapshot of the current schedule

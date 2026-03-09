@@ -119,6 +119,80 @@ func TestComputeNextRunTime(t *testing.T) {
 	}
 }
 
+func TestComputeMissedFireTimes(t *testing.T) {
+	tests := []struct {
+		name    string
+		cron    string
+		lastRun time.Time
+		now     time.Time
+		spec    types.ScheduleSpec
+		want    []time.Time
+	}{
+		{
+			name:    "no missed fires - now is before next fire",
+			cron:    "0 * * * *",
+			lastRun: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			now:     time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC),
+			want:    nil,
+		},
+		{
+			name:    "one missed fire",
+			cron:    "0 * * * *",
+			lastRun: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			now:     time.Date(2026, 1, 15, 11, 30, 0, 0, time.UTC),
+			want: []time.Time{
+				time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+			},
+		},
+		{
+			name:    "multiple missed fires",
+			cron:    "0 * * * *",
+			lastRun: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			now:     time.Date(2026, 1, 15, 13, 30, 0, 0, time.UTC),
+			want: []time.Time{
+				time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+				time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
+				time.Date(2026, 1, 15, 13, 0, 0, 0, time.UTC),
+			},
+		},
+		{
+			name:    "missed fire exactly at now is included",
+			cron:    "0 * * * *",
+			lastRun: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			now:     time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+			want: []time.Time{
+				time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+			},
+		},
+		{
+			name:    "respects endTime - no fires past end",
+			cron:    "0 * * * *",
+			lastRun: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			now:     time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC),
+			spec:    types.ScheduleSpec{EndTime: time.Date(2026, 1, 15, 12, 30, 0, 0, time.UTC)},
+			want: []time.Time{
+				time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+				time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
+			},
+		},
+		{
+			name:    "lastRun equals now - no missed fires",
+			cron:    "0 * * * *",
+			lastRun: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			now:     time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			want:    nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sched := mustParseCron(t, tt.cron)
+			got := computeMissedFireTimes(sched, tt.lastRun, tt.now, tt.spec)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestBuildScheduleDescription(t *testing.T) {
 	lastRun := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	nextRun := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
