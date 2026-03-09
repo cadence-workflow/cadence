@@ -65,6 +65,11 @@ func (db *CDB) InsertDomainAuditLog(ctx context.Context, row *nosqlplugin.Domain
 
 // SelectDomainAuditLogs returns audit log entries for a domain and operation type
 func (db *CDB) SelectDomainAuditLogs(ctx context.Context, filter *nosqlplugin.DomainAuditLogFilter) ([]*nosqlplugin.DomainAuditLogRow, []byte, error) {
+	if filter.MinCreatedTime == nil || filter.MaxCreatedTime == nil {
+		return nil, nil, &types.InternalServiceError{
+			Message: "SelectDomainAuditLogs requires non-nil MinCreatedTime and MaxCreatedTime",
+		}
+	}
 
 	query := db.session.Query(templateSelectDomainAuditLogsQuery,
 		filter.DomainID,
