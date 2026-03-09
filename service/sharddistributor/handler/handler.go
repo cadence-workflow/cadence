@@ -30,6 +30,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
@@ -41,6 +42,15 @@ const (
 	// ephemeralBatchInterval is the time window over which GetShardOwner calls for
 	// ephemeral namespaces are collected before being processed as a single batch.
 	ephemeralBatchInterval = 100 * time.Millisecond
+
+	// versionConflictRetryInitialInterval is the starting backoff for retries
+	// triggered when a concurrent shard assignment causes a version conflict.
+	versionConflictRetryInitialInterval = 50 * time.Millisecond
+	// versionConflictRetryMaxInterval caps the per-attempt sleep.
+	versionConflictRetryMaxInterval = 1 * time.Second
+	// versionConflictRetryMaxAttempts is the maximum number of retry attempts
+	// before the error is surfaced to the caller.
+	versionConflictRetryMaxAttempts = 3
 )
 
 func NewHandler(
@@ -104,7 +114,7 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 	shardOwner, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
 	if errors.Is(err, store.ErrShardNotFound) {
 		if h.shardDistributionCfg.Namespaces[namespaceIdx].Type == config.NamespaceTypeEphemeral {
-			return h.batcher.Submit(ctx, request)
+			return h.getOrAssignEphemeralShard(ctx, request)
 		}
 
 		return nil, &types.ShardNotFoundError{
@@ -116,12 +126,61 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to get shard owner: %v", err)}
 	}
 
-	resp = &types.GetShardOwnerResponse{
+	return &types.GetShardOwnerResponse{
 		Owner:     shardOwner.ExecutorID,
 		Metadata:  shardOwner.Metadata,
 		Namespace: request.Namespace,
-	}
+	}, nil
+}
 
+// getOrAssignEphemeralShard assigns an ephemeral shard that does not yet exist
+// in storage. It submits the request to the batcher and, on a version conflict
+// (concurrent assignment by another goroutine), retries with exponential backoff.
+// Each retry re-reads storage first: if the concurrent writer already committed
+// the assignment we return it immediately without re-submitting to the batcher.
+func (h *handlerImpl) getOrAssignEphemeralShard(ctx context.Context, request *types.GetShardOwnerRequest) (*types.GetShardOwnerResponse, error) {
+	retryPolicy := backoff.NewExponentialRetryPolicy(versionConflictRetryInitialInterval)
+	retryPolicy.SetMaximumInterval(versionConflictRetryMaxInterval)
+	retryPolicy.SetMaximumAttempts(versionConflictRetryMaxAttempts)
+
+	throttleRetry := backoff.NewThrottleRetry(
+		backoff.WithRetryPolicy(retryPolicy),
+		backoff.WithRetryableError(func(err error) bool {
+			return errors.Is(err, store.ErrVersionConflict)
+		}),
+	)
+
+	var resp *types.GetShardOwnerResponse
+	isRetry := false
+	err := throttleRetry.Do(ctx, func(ctx context.Context) error {
+		if isRetry {
+			// A concurrent batch won the race. Re-read storage first: if the
+			// winner already committed our shard's assignment we can return
+			// immediately without re-submitting to the batcher.
+			owner, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
+			if err != nil && !errors.Is(err, store.ErrShardNotFound) {
+				return &types.InternalServiceError{Message: fmt.Sprintf("failed to get shard owner: %v", err)}
+			}
+			if err == nil {
+				resp = &types.GetShardOwnerResponse{
+					Owner:     owner.ExecutorID,
+					Metadata:  owner.Metadata,
+					Namespace: request.Namespace,
+				}
+				return nil
+			}
+		}
+		isRetry = true
+
+		// Submit to the batcher to assign the shard.
+		var err error
+		resp, err = h.batcher.Submit(ctx, request)
+		return err
+	})
+
+	if err != nil {
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to assign ephemeral shard: %v", err)}
+	}
 	return resp, nil
 }
 
