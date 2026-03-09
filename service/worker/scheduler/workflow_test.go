@@ -119,6 +119,92 @@ func TestComputeNextRunTime(t *testing.T) {
 	}
 }
 
+func TestBuildScheduleDescription(t *testing.T) {
+	lastRun := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	nextRun := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name  string
+		input SchedulerWorkflowInput
+		state SchedulerWorkflowState
+		want  *ScheduleDescription
+	}{
+		{
+			name: "running schedule with counters",
+			input: SchedulerWorkflowInput{
+				ScheduleID: "sched-1",
+				Domain:     "test-domain",
+				Spec:       types.ScheduleSpec{CronExpression: "0 * * * *"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "my-wf"},
+					},
+				},
+				Policies: types.SchedulePolicies{OverlapPolicy: types.ScheduleOverlapPolicySkipNew},
+			},
+			state: SchedulerWorkflowState{
+				LastRunTime: lastRun,
+				NextRunTime: nextRun,
+				TotalRuns:   42,
+				MissedRuns:  1,
+				SkippedRuns: 3,
+			},
+			want: &ScheduleDescription{
+				ScheduleID: "sched-1",
+				Domain:     "test-domain",
+				Spec:       types.ScheduleSpec{CronExpression: "0 * * * *"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "my-wf"},
+					},
+				},
+				Policies:    types.SchedulePolicies{OverlapPolicy: types.ScheduleOverlapPolicySkipNew},
+				LastRunTime: lastRun,
+				NextRunTime: nextRun,
+				TotalRuns:   42,
+				MissedRuns:  1,
+				SkippedRuns: 3,
+			},
+		},
+		{
+			name: "paused schedule",
+			input: SchedulerWorkflowInput{
+				ScheduleID: "sched-2",
+				Domain:     "prod",
+				Spec:       types.ScheduleSpec{CronExpression: "0 0 * * *"},
+			},
+			state: SchedulerWorkflowState{
+				Paused:      true,
+				PauseReason: "maintenance",
+				PausedBy:    "admin@test.com",
+				TotalRuns:   10,
+			},
+			want: &ScheduleDescription{
+				ScheduleID:  "sched-2",
+				Domain:      "prod",
+				Spec:        types.ScheduleSpec{CronExpression: "0 0 * * *"},
+				Paused:      true,
+				PauseReason: "maintenance",
+				PausedBy:    "admin@test.com",
+				TotalRuns:   10,
+			},
+		},
+		{
+			name:  "fresh schedule with no runs",
+			input: SchedulerWorkflowInput{ScheduleID: "sched-new", Domain: "dev"},
+			state: SchedulerWorkflowState{},
+			want:  &ScheduleDescription{ScheduleID: "sched-new", Domain: "dev"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildScheduleDescription(&tt.input, &tt.state)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestHandlePause(t *testing.T) {
 	tests := []struct {
 		name         string

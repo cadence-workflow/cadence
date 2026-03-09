@@ -60,6 +60,13 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 
 	state := &input.State
 
+	err := workflow.SetQueryHandler(ctx, QueryTypeDescribe, func() (*ScheduleDescription, error) {
+		return buildScheduleDescription(&input, state), nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to register query handler: %w", err)
+	}
+
 	chs := signalChannels{
 		pause:    workflow.GetSignalChannel(ctx, SignalNamePause),
 		unpause:  workflow.GetSignalChannel(ctx, SignalNameUnpause),
@@ -376,6 +383,26 @@ func computeNextRunTime(sched cron.Schedule, now time.Time, spec types.ScheduleS
 		return time.Time{}
 	}
 	return next
+}
+
+// buildScheduleDescription creates a snapshot of the current schedule
+// configuration and runtime state for the describe query handler.
+func buildScheduleDescription(input *SchedulerWorkflowInput, state *SchedulerWorkflowState) *ScheduleDescription {
+	return &ScheduleDescription{
+		ScheduleID:  input.ScheduleID,
+		Domain:      input.Domain,
+		Spec:        input.Spec,
+		Action:      input.Action,
+		Policies:    input.Policies,
+		Paused:      state.Paused,
+		PauseReason: state.PauseReason,
+		PausedBy:    state.PausedBy,
+		LastRunTime: state.LastRunTime,
+		NextRunTime: state.NextRunTime,
+		TotalRuns:   state.TotalRuns,
+		MissedRuns:  state.MissedRuns,
+		SkippedRuns: state.SkippedRuns,
+	}
 }
 
 // safeContinueAsNew drains the delete channel before performing ContinueAsNew.

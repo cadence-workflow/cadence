@@ -36,6 +36,8 @@ const (
 	SignalNameBackfill = "scheduler-backfill"
 	SignalNameDelete   = "scheduler-delete"
 
+	QueryTypeDescribe = "scheduler-describe"
+
 	StartWorkflowActivityName = "scheduler-start-workflow"
 
 	maxIterationsBeforeContinueAsNew = 500
@@ -97,6 +99,24 @@ type BackfillSignal struct {
 	EndTime       time.Time                   `json:"endTime"`
 	OverlapPolicy types.ScheduleOverlapPolicy `json:"overlapPolicy"`
 	BackfillID    string                      `json:"backfillId,omitempty"`
+}
+
+// ScheduleDescription is the query result returned by the describe query handler.
+// It provides a snapshot of the schedule's current configuration and runtime state.
+type ScheduleDescription struct {
+	ScheduleID  string                 `json:"scheduleId"`
+	Domain      string                 `json:"domain"`
+	Spec        types.ScheduleSpec     `json:"spec"`
+	Action      types.ScheduleAction   `json:"action"`
+	Policies    types.SchedulePolicies `json:"policies"`
+	Paused      bool                   `json:"paused"`
+	PauseReason string                 `json:"pauseReason,omitempty"`
+	PausedBy    string                 `json:"pausedBy,omitempty"`
+	LastRunTime time.Time              `json:"lastRunTime,omitempty"`
+	NextRunTime time.Time              `json:"nextRunTime,omitempty"`
+	TotalRuns   int64                  `json:"totalRuns"`
+	MissedRuns  int64                  `json:"missedRuns"`
+	SkippedRuns int64                  `json:"skippedRuns"`
 }
 
 // StartWorkflowRequest is the input to the start-workflow activity.
