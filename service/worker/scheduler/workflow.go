@@ -404,12 +404,55 @@ func computeMissedFireTimes(sched cron.Schedule, lastRun, now time.Time, spec ty
 	return missed
 }
 
+// missedRunPolicyResult is the output of applyMissedRunPolicy.
+type missedRunPolicyResult struct {
+	toFire  []time.Time // fire times to execute, in order
+	skipped int64       // fires to count as skipped
+}
+
+// applyMissedRunPolicy is a pure function that determines which missed fires
+// to execute and how many to skip, given the catch-up policy and window.
+// It is separated from processMissedRuns to allow direct unit testing.
+func applyMissedRunPolicy(policy types.ScheduleCatchUpPolicy, window time.Duration, missed []time.Time, now time.Time, logger *zap.Logger) missedRunPolicyResult {
+	var eligible []time.Time
+	for _, t := range missed {
+		if window <= 0 || now.Sub(t) <= window {
+			eligible = append(eligible, t)
+		}
+	}
+	outOfWindow := int64(len(missed) - len(eligible))
+
+	switch policy {
+	case types.ScheduleCatchUpPolicyOne:
+		if len(eligible) == 0 {
+			return missedRunPolicyResult{skipped: int64(len(missed))}
+		}
+		return missedRunPolicyResult{
+			toFire:  []time.Time{eligible[len(eligible)-1]},
+			skipped: outOfWindow + int64(len(eligible)-1),
+		}
+	case types.ScheduleCatchUpPolicyAll:
+		return missedRunPolicyResult{
+			toFire:  eligible,
+			skipped: outOfWindow,
+		}
+	case types.ScheduleCatchUpPolicySkip:
+		return missedRunPolicyResult{skipped: int64(len(missed))}
+	default:
+		logger.Warn("unknown catch-up policy, defaulting to skip",
+			zap.Int32("policy", int32(policy)),
+		)
+		return missedRunPolicyResult{skipped: int64(len(missed))}
+	}
+}
+
 // processMissedRuns checks for and processes any cron fires that were missed
 // while the schedule was paused or during ContinueAsNew transitions.
 // The catch-up policy determines how missed fires are handled:
-//   - Skip (or default): all missed fires are counted as skipped
+//   - Skip: all missed fires are counted as skipped
 //   - One: only the most recent eligible fire (within CatchUpWindow) is executed
-//   - All: all eligible fires within the CatchUpWindow are executed
+//   - All: all eligible fires within the CatchUpWindow are executed, yielding
+//     between each to avoid exceeding the decision task timeout
 func processMissedRuns(ctx workflow.Context, logger *zap.Logger, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) {
 	if state.Paused || state.LastRunTime.IsZero() {
 		return
@@ -420,33 +463,20 @@ func processMissedRuns(ctx workflow.Context, logger *zap.Logger, sched cron.Sche
 		return
 	}
 
-	window := input.Policies.CatchUpWindow
-	var eligible []time.Time
-	for _, t := range missed {
-		if window <= 0 || now.Sub(t) <= window {
-			eligible = append(eligible, t)
-		}
-	}
-	skipped := int64(len(missed) - len(eligible))
+	result := applyMissedRunPolicy(input.Policies.CatchUpPolicy, input.Policies.CatchUpWindow, missed, now, logger)
 
-	switch input.Policies.CatchUpPolicy {
-	case types.ScheduleCatchUpPolicyOne:
-		if len(eligible) > 0 {
-			processScheduleFire(ctx, logger, input, state, eligible[len(eligible)-1])
-			skipped += int64(len(eligible) - 1)
-		}
-	case types.ScheduleCatchUpPolicyAll:
-		for _, t := range eligible {
-			processScheduleFire(ctx, logger, input, state, t)
-		}
-	default:
-		skipped = int64(len(missed))
+	for _, t := range result.toFire {
+		processScheduleFire(ctx, logger, input, state, t)
+		// Yield between fires so each local activity result is checkpointed
+		// in its own decision task, preventing decision task timeout when
+		// catching up a large number of missed fires.
+		_ = workflow.Sleep(ctx, 0)
 	}
 
-	if skipped > 0 {
-		state.SkippedRuns += skipped
+	if result.skipped > 0 {
+		state.SkippedRuns += result.skipped
 		logger.Info("catch-up skipped missed fires",
-			zap.Int64("skipped", skipped),
+			zap.Int64("skipped", result.skipped),
 			zap.Int("total_missed", len(missed)),
 			zap.String("policy", input.Policies.CatchUpPolicy.String()),
 		)

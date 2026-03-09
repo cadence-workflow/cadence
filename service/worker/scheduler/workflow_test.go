@@ -193,6 +193,84 @@ func TestComputeMissedFireTimes(t *testing.T) {
 	}
 }
 
+func TestApplyMissedRunPolicy(t *testing.T) {
+	now := time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC)
+	fires := []time.Time{
+		time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC), // 3h ago
+		time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC), // 2h ago
+		time.Date(2026, 1, 15, 13, 0, 0, 0, time.UTC), // 1h ago
+	}
+
+	tests := []struct {
+		name        string
+		policy      types.ScheduleCatchUpPolicy
+		window      time.Duration
+		wantToFire  []time.Time
+		wantSkipped int64
+	}{
+		{
+			name:        "Skip - all missed fires are skipped",
+			policy:      types.ScheduleCatchUpPolicySkip,
+			wantToFire:  nil,
+			wantSkipped: 3,
+		},
+		{
+			name:        "Invalid (zero value) - defaults to skip",
+			policy:      types.ScheduleCatchUpPolicyInvalid,
+			wantToFire:  nil,
+			wantSkipped: 3,
+		},
+		{
+			name:        "One - no window, fires most recent",
+			policy:      types.ScheduleCatchUpPolicyOne,
+			wantToFire:  []time.Time{fires[2]},
+			wantSkipped: 2,
+		},
+		{
+			name:        "One - window excludes two oldest, fires most recent eligible",
+			policy:      types.ScheduleCatchUpPolicyOne,
+			window:      90 * time.Minute,
+			wantToFire:  []time.Time{fires[2]}, // only 13:00 is within 90min of 14:00
+			wantSkipped: 2,                     // 2 out-of-window, 0 skipped eligible
+		},
+		{
+			name:        "One - window excludes all, nothing fired",
+			policy:      types.ScheduleCatchUpPolicyOne,
+			window:      30 * time.Minute,
+			wantToFire:  nil,
+			wantSkipped: 3,
+		},
+		{
+			name:        "All - no window, fires all",
+			policy:      types.ScheduleCatchUpPolicyAll,
+			wantToFire:  fires,
+			wantSkipped: 0,
+		},
+		{
+			name:        "All - window filters two oldest, fires most recent only",
+			policy:      types.ScheduleCatchUpPolicyAll,
+			window:      90 * time.Minute,
+			wantToFire:  fires[2:], // only 13:00 is within 90min of 14:00
+			wantSkipped: 2,
+		},
+		{
+			name:        "All - window excludes all, nothing fired",
+			policy:      types.ScheduleCatchUpPolicyAll,
+			window:      30 * time.Minute,
+			wantToFire:  nil,
+			wantSkipped: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := applyMissedRunPolicy(tt.policy, tt.window, fires, now, testLogger)
+			assert.Equal(t, tt.wantToFire, got.toFire)
+			assert.Equal(t, tt.wantSkipped, got.skipped)
+		})
+	}
+}
+
 func TestBuildScheduleDescription(t *testing.T) {
 	lastRun := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	nextRun := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
