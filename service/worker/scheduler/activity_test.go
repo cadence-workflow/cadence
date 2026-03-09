@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -71,6 +72,29 @@ func TestGenerateWorkflowID(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func TestGenerateRequestID(t *testing.T) {
+	t.Run("returns valid UUID", func(t *testing.T) {
+		id := generateRequestID("sched-1", 1000000000)
+		_, err := uuid.Parse(id)
+		assert.NoError(t, err)
+	})
+	t.Run("deterministic for same inputs", func(t *testing.T) {
+		a := generateRequestID("sched-1", 1000000000)
+		b := generateRequestID("sched-1", 1000000000)
+		assert.Equal(t, a, b)
+	})
+	t.Run("different for different scheduleID", func(t *testing.T) {
+		a := generateRequestID("sched-1", 1000000000)
+		b := generateRequestID("sched-2", 1000000000)
+		assert.NotEqual(t, a, b)
+	})
+	t.Run("different for different time", func(t *testing.T) {
+		a := generateRequestID("sched-1", 1000000000)
+		b := generateRequestID("sched-1", 2000000000)
+		assert.NotEqual(t, a, b)
+	})
 }
 
 func TestIsAlreadyStartedError(t *testing.T) {
@@ -137,7 +161,9 @@ func TestStartWorkflowActivity(t *testing.T) {
 						assert.Equal(t, "my-prefix-"+formatNanos(scheduledTime), req.WorkflowID)
 						assert.Equal(t, "my-workflow", req.WorkflowType.Name)
 						assert.Equal(t, "my-tasklist", req.TaskList.Name)
-						assert.Equal(t, "sched-1-"+formatNanos(scheduledTime), req.RequestID)
+						_, uuidErr := uuid.Parse(req.RequestID)
+						assert.NoError(t, uuidErr, "RequestID must be a valid UUID")
+						assert.Equal(t, generateRequestID("sched-1", scheduledTime.UnixNano()), req.RequestID, "RequestID must be deterministic")
 						return &types.StartWorkflowExecutionResponse{RunID: "run-abc"}, nil
 					})
 			},

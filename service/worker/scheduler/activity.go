@@ -24,9 +24,16 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common/types"
 )
+
+// schedulerRequestIDNamespace is a stable UUID namespace used to derive
+// deterministic RequestIDs. Cassandra's schema stores create_request_id as
+// a uuid column, so plain strings are rejected by the gocql driver.
+var schedulerRequestIDNamespace = uuid.NewSHA1(uuid.NameSpaceDNS, []byte("cadence.scheduler"))
 
 type contextKey string
 
@@ -57,7 +64,7 @@ func startWorkflowActivity(ctx context.Context, req StartWorkflowRequest) (*Star
 		Input:                               req.Action.Input,
 		ExecutionStartToCloseTimeoutSeconds: req.Action.ExecutionStartToCloseTimeoutSeconds,
 		TaskStartToCloseTimeoutSeconds:      req.Action.TaskStartToCloseTimeoutSeconds,
-		RequestID:                           fmt.Sprintf("%s-%d", req.ScheduleID, req.ScheduledTime.UnixNano()),
+		RequestID:                           generateRequestID(req.ScheduleID, req.ScheduledTime.UnixNano()),
 		WorkflowIDReusePolicy:               &reusePolicy,
 		RetryPolicy:                         req.Action.RetryPolicy,
 		Memo:                                req.Action.Memo,
@@ -91,6 +98,15 @@ func generateWorkflowID(prefix, scheduleID string, scheduledTimeNanos int64) str
 		prefix = scheduleID
 	}
 	return fmt.Sprintf("%s-%d", prefix, scheduledTimeNanos)
+}
+
+// generateRequestID produces a deterministic UUID from the schedule ID
+// and scheduled time. This satisfies Cassandra's uuid column type while
+// ensuring the same schedule fire always yields the same RequestID for
+// server-side deduplication across activity retries.
+func generateRequestID(scheduleID string, scheduledTimeNanos int64) string {
+	name := fmt.Sprintf("%s-%d", scheduleID, scheduledTimeNanos)
+	return uuid.NewSHA1(schedulerRequestIDNamespace, []byte(name)).String()
 }
 
 func isAlreadyStartedError(err error) bool {
