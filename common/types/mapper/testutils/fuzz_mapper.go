@@ -145,7 +145,7 @@ func WithCommonEnumFuzzers() FuzzOption {
 			*e = types.ContinueAsNewInitiator(c.Intn(4)) // 0-3
 		},
 		func(e *types.ParentClosePolicy, c fuzz.Continue) {
-			*e = types.ParentClosePolicy(c.Intn(4)) // 0-3
+			*e = types.ParentClosePolicy(c.Intn(3)) // 0-2
 		},
 		func(e *types.PendingActivityState, c fuzz.Continue) {
 			*e = types.PendingActivityState(c.Intn(3)) // 0-2

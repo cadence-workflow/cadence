@@ -1584,3 +1584,849 @@ func TestFailoverType(t *testing.T) {
 	assert.Nil(t, ToFailoverType(apiv1.FailoverType_FAILOVER_TYPE_INVALID))
 	assert.Nil(t, ToFailoverType(apiv1.FailoverType(999))) // Unknown value
 }
+// Fuzz tests generated for comprehensive mapper coverage
+// Uses testutils.RunMapperFuzzTest for simple, maintainable tests
+
+func TestDataBlobArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDataBlobArray, ToDataBlobArray)
+}
+
+func TestPendingActivityInfoArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPendingActivityInfoArray, ToPendingActivityInfoArray)
+}
+
+func TestDeleteDomainRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDeleteDomainRequest, ToDeleteDomainRequest)
+}
+
+func TestDescribeWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDescribeWorkflowExecutionRequest, ToDescribeWorkflowExecutionRequest)
+}
+
+func TestRequestCancelWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRequestCancelWorkflowExecutionRequest, ToRequestCancelWorkflowExecutionRequest)
+}
+
+func TestRespondActivityTaskFailedByIDRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRespondActivityTaskFailedByIDRequest, ToRespondActivityTaskFailedByIDRequest)
+}
+
+func TestSignalExternalWorkflowExecutionFailedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSignalExternalWorkflowExecutionFailedEventAttributes, ToSignalExternalWorkflowExecutionFailedEventAttributes)
+}
+
+func TestClusterReplicationConfigurationArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromClusterReplicationConfigurationArray, ToClusterReplicationConfigurationArray)
+}
+
+func TestIndexedValueTypeMapFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromIndexedValueTypeMap, ToIndexedValueTypeMap)
+}
+
+func TestPollForActivityTaskRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPollForActivityTaskRequest, ToPollForActivityTaskRequest)
+}
+
+func TestResetPointInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromResetPointInfo, ToResetPointInfo)
+}
+
+func TestCancelTimerDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCancelTimerDecisionAttributes, ToCancelTimerDecisionAttributes)
+}
+
+func TestListDomainsRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListDomainsRequest, ToListDomainsRequest)
+}
+
+func TestPollForActivityTaskResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPollForActivityTaskResponse, ToPollForActivityTaskResponse)
+}
+
+func TestTaskListMetadataFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromTaskListMetadata, ToTaskListMetadata)
+}
+
+func TestListFailoverHistoryResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListFailoverHistoryResponse, ToListFailoverHistoryResponse)
+}
+
+func TestDescribeTaskListResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDescribeTaskListResponse, ToDescribeTaskListResponse)
+}
+
+func TestStartWorkflowExecutionAsyncRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromStartWorkflowExecutionAsyncRequest, ToStartWorkflowExecutionAsyncRequest)
+}
+
+func TestStartWorkflowExecutionResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromStartWorkflowExecutionResponse, ToStartWorkflowExecutionResponse)
+}
+
+func TestListFailoverHistoryRequestFiltersFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListFailoverHistoryRequestFilters, ToListFailoverHistoryRequestFilters)
+}
+
+func TestChildWorkflowExecutionTerminatedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromChildWorkflowExecutionTerminatedEventAttributes, ToChildWorkflowExecutionTerminatedEventAttributes)
+}
+
+func TestCountWorkflowExecutionsRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCountWorkflowExecutionsRequest, ToCountWorkflowExecutionsRequest)
+}
+
+func TestRequestCancelExternalWorkflowExecutionFailedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRequestCancelExternalWorkflowExecutionFailedEventAttributes, ToRequestCancelExternalWorkflowExecutionFailedEventAttributes)
+}
+
+func TestRequestCancelExternalWorkflowExecutionInitiatedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRequestCancelExternalWorkflowExecutionInitiatedEventAttributes, ToRequestCancelExternalWorkflowExecutionInitiatedEventAttributes)
+}
+
+func TestRespondDecisionTaskCompletedRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRespondDecisionTaskCompletedRequest, ToRespondDecisionTaskCompletedRequest)
+}
+
+func TestWorkflowQueryResultMapFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowQueryResultMap, ToWorkflowQueryResultMap)
+}
+
+func TestDecisionTaskStartedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDecisionTaskStartedEventAttributes, ToDecisionTaskStartedEventAttributes)
+}
+
+func TestResetWorkflowExecutionResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromResetWorkflowExecutionResponse, ToResetWorkflowExecutionResponse)
+}
+
+func TestRespondActivityTaskCompletedByIDRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRespondActivityTaskCompletedByIDRequest, ToRespondActivityTaskCompletedByIDRequest)
+}
+
+func TestIsolationGroupMetricsFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromIsolationGroupMetrics, ToIsolationGroupMetrics)
+}
+
+func TestFailoverDomainResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverDomainResponse, ToFailoverDomainResponse)
+}
+
+func TestFailoverEventArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverEventArray, ToFailoverEventArray)
+}
+
+func TestWorkflowQueryMapFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowQueryMap, ToWorkflowQueryMap)
+}
+
+func TestActivityTaskCompletedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActivityTaskCompletedEventAttributes, ToActivityTaskCompletedEventAttributes)
+}
+
+func TestHealthResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHealthResponse, ToHealthResponse)
+}
+
+func TestListArchivedWorkflowExecutionsResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListArchivedWorkflowExecutionsResponse, ToListArchivedWorkflowExecutionsResponse)
+}
+
+func TestListOpenWorkflowExecutionsResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListOpenWorkflowExecutionsResponse, ToListOpenWorkflowExecutionsResponse)
+}
+
+func TestRespondDecisionTaskFailedRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRespondDecisionTaskFailedRequest, ToRespondDecisionTaskFailedRequest)
+}
+
+func TestDescribeDomainResponseArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDescribeDomainResponseArray, ToDescribeDomainResponseArray)
+}
+
+func TestDescribeWorkflowExecutionResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDescribeWorkflowExecutionResponse, ToDescribeWorkflowExecutionResponse)
+}
+
+func TestExternalWorkflowExecutionCancelRequestedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromExternalWorkflowExecutionCancelRequestedEventAttributes, ToExternalWorkflowExecutionCancelRequestedEventAttributes)
+}
+
+func TestSignalExternalWorkflowExecutionInitiatedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSignalExternalWorkflowExecutionInitiatedEventAttributes, ToSignalExternalWorkflowExecutionInitiatedEventAttributes)
+}
+
+func TestStartChildWorkflowExecutionInitiatedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromStartChildWorkflowExecutionInitiatedEventAttributes, ToStartChildWorkflowExecutionInitiatedEventAttributes)
+}
+
+func TestWorkflowExecutionTerminatedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionTerminatedEventAttributes, ToWorkflowExecutionTerminatedEventAttributes)
+}
+
+func TestWorkerVersionInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkerVersionInfo, ToWorkerVersionInfo)
+}
+
+func TestListOpenWorkflowExecutionsRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListOpenWorkflowExecutionsRequest, ToListOpenWorkflowExecutionsRequest)
+}
+
+func TestGetTaskListsByDomainResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromGetTaskListsByDomainResponse, ToGetTaskListsByDomainResponse)
+}
+
+func TestRefreshWorkflowTasksRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRefreshWorkflowTasksRequest, ToRefreshWorkflowTasksRequest)
+}
+
+func TestRestartWorkflowExecutionResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRestartWorkflowExecutionResponse, ToRestartWorkflowExecutionResponse)
+}
+
+func TestScanWorkflowExecutionsRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromScanWorkflowExecutionsRequest, ToScanWorkflowExecutionsRequest)
+}
+
+func TestUpsertWorkflowSearchAttributesDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromUpsertWorkflowSearchAttributesDecisionAttributes, ToUpsertWorkflowSearchAttributesDecisionAttributes)
+}
+
+func TestWorkflowExecutionCompletedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionCompletedEventAttributes, ToWorkflowExecutionCompletedEventAttributes)
+}
+
+func TestWorkflowQueryFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowQuery, ToWorkflowQuery)
+}
+
+func TestHistoryEventFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryEvent, ToHistoryEvent)
+}
+
+func TestActivityTaskFailedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActivityTaskFailedEventAttributes, ToActivityTaskFailedEventAttributes)
+}
+
+func TestHistoryFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistory, ToHistory)
+}
+
+func TestResetWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromResetWorkflowExecutionRequest, ToResetWorkflowExecutionRequest)
+}
+
+func TestRespondActivityTaskCanceledByIDRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRespondActivityTaskCanceledByIDRequest, ToRespondActivityTaskCanceledByIDRequest)
+}
+
+func TestTimerCanceledEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromTimerCanceledEventAttributes, ToTimerCanceledEventAttributes)
+}
+
+func TestDiagnoseWorkflowExecutionResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDiagnoseWorkflowExecutionResponse, ToDiagnoseWorkflowExecutionResponse)
+}
+
+func TestListArchivedWorkflowExecutionsRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListArchivedWorkflowExecutionsRequest, ToListArchivedWorkflowExecutionsRequest)
+}
+
+func TestChildWorkflowExecutionCanceledEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromChildWorkflowExecutionCanceledEventAttributes, ToChildWorkflowExecutionCanceledEventAttributes)
+}
+
+func TestRequestCancelExternalWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRequestCancelExternalWorkflowExecutionDecisionAttributes, ToRequestCancelExternalWorkflowExecutionDecisionAttributes)
+}
+
+func TestDecisionFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDecision, ToDecision)
+}
+
+func TestDeprecateDomainRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDeprecateDomainRequest, ToDeprecateDomainRequest)
+}
+
+func TestFailoverDomainRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverDomainRequest, ToFailoverDomainRequest)
+}
+
+func TestChildWorkflowExecutionStartedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromChildWorkflowExecutionStartedEventAttributes, ToChildWorkflowExecutionStartedEventAttributes)
+}
+
+func TestPollForDecisionTaskResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPollForDecisionTaskResponse, ToPollForDecisionTaskResponse)
+}
+
+func TestDecisionArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDecisionArray, ToDecisionArray)
+}
+
+func TestClusterAttributeFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromClusterAttribute, ToClusterAttribute)
+}
+
+func TestDecisionTaskTimedOutEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDecisionTaskTimedOutEventAttributes, ToDecisionTaskTimedOutEventAttributes)
+}
+
+func TestIndexedValueTypeFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t,
+		func(v types.IndexedValueType) apiv1.IndexedValueType {
+			return FromIndexedValueType(v)
+		},
+		func(v apiv1.IndexedValueType) types.IndexedValueType {
+			return ToIndexedValueType(v)
+		},
+	)
+}
+
+func TestDescribeTaskListRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDescribeTaskListRequest, ToDescribeTaskListRequest)
+}
+
+func TestPollerInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPollerInfo, ToPollerInfo)
+}
+
+func TestTerminateWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromTerminateWorkflowExecutionRequest, ToTerminateWorkflowExecutionRequest)
+}
+
+func TestListFailoverHistoryRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListFailoverHistoryRequest, ToListFailoverHistoryRequest)
+}
+
+func TestListClosedWorkflowExecutionsRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListClosedWorkflowExecutionsRequest, ToListClosedWorkflowExecutionsRequest)
+}
+
+func TestChildWorkflowExecutionFailedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromChildWorkflowExecutionFailedEventAttributes, ToChildWorkflowExecutionFailedEventAttributes)
+}
+
+func TestListClosedWorkflowExecutionsResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListClosedWorkflowExecutionsResponse, ToListClosedWorkflowExecutionsResponse)
+}
+
+func TestRestartWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRestartWorkflowExecutionRequest, ToRestartWorkflowExecutionRequest)
+}
+
+func TestActivityTaskCanceledEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActivityTaskCanceledEventAttributes, ToActivityTaskCanceledEventAttributes)
+}
+
+func TestListDomainsResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListDomainsResponse, ToListDomainsResponse)
+}
+
+func TestMarkerRecordedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMarkerRecordedEventAttributes, ToMarkerRecordedEventAttributes)
+}
+
+func TestTimerFiredEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromTimerFiredEventAttributes, ToTimerFiredEventAttributes)
+}
+
+func TestUpdateDomainRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromUpdateDomainRequest, ToUpdateDomainRequest)
+}
+
+func TestActivityTaskTimedOutEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActivityTaskTimedOutEventAttributes, ToActivityTaskTimedOutEventAttributes)
+}
+
+func TestChildWorkflowExecutionTimedOutEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromChildWorkflowExecutionTimedOutEventAttributes, ToChildWorkflowExecutionTimedOutEventAttributes)
+}
+
+func TestDecisionTaskCompletedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDecisionTaskCompletedEventAttributes, ToDecisionTaskCompletedEventAttributes)
+}
+
+func TestGetWorkflowExecutionHistoryResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromGetWorkflowExecutionHistoryResponse, ToGetWorkflowExecutionHistoryResponse)
+}
+
+func TestQueryRejectedFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromQueryRejected, ToQueryRejected)
+}
+
+func TestResetPointsFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromResetPoints, ToResetPoints)
+}
+
+func TestSignalWithStartWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSignalWithStartWorkflowExecutionRequest, ToSignalWithStartWorkflowExecutionRequest)
+}
+
+func TestWorkflowExecutionFailedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionFailedEventAttributes, ToWorkflowExecutionFailedEventAttributes)
+}
+
+func TestPendingDecisionInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPendingDecisionInfo, ToPendingDecisionInfo)
+}
+
+func TestStickyExecutionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromStickyExecutionAttributes, ToStickyExecutionAttributes)
+}
+
+func TestWorkflowExecutionFilterFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionFilter, ToWorkflowExecutionFilter)
+}
+
+func TestActivityTaskStartedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActivityTaskStartedEventAttributes, ToActivityTaskStartedEventAttributes)
+}
+
+func TestDecisionTaskScheduledEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDecisionTaskScheduledEventAttributes, ToDecisionTaskScheduledEventAttributes)
+}
+
+func TestQueryWorkflowResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromQueryWorkflowResponse, ToQueryWorkflowResponse)
+}
+
+func TestSignalWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSignalWorkflowExecutionRequest, ToSignalWorkflowExecutionRequest)
+}
+
+func TestPendingChildExecutionInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPendingChildExecutionInfo, ToPendingChildExecutionInfo)
+}
+
+func TestPollForDecisionTaskRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPollForDecisionTaskRequest, ToPollForDecisionTaskRequest)
+}
+
+func TestRecordMarkerDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRecordMarkerDecisionAttributes, ToRecordMarkerDecisionAttributes)
+}
+
+func TestWorkflowQueryResultFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowQueryResult, ToWorkflowQueryResult)
+}
+
+func TestStartChildWorkflowExecutionFailedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromStartChildWorkflowExecutionFailedEventAttributes, ToStartChildWorkflowExecutionFailedEventAttributes)
+}
+
+func TestTaskListStatusFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromTaskListStatus, ToTaskListStatus)
+}
+
+func TestTaskListPartitionMetadataArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromTaskListPartitionMetadataArray, ToTaskListPartitionMetadataArray)
+}
+
+func TestDecisionTaskFailedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDecisionTaskFailedEventAttributes, ToDecisionTaskFailedEventAttributes)
+}
+
+func TestDescribeDomainRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDescribeDomainRequest, ToDescribeDomainRequest)
+}
+
+func TestResetStickyTaskListRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromResetStickyTaskListRequest, ToResetStickyTaskListRequest)
+}
+
+func TestActivityTaskCancelRequestedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActivityTaskCancelRequestedEventAttributes, ToActivityTaskCancelRequestedEventAttributes)
+}
+
+func TestBadBinaryInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromBadBinaryInfo, ToBadBinaryInfo)
+}
+
+func TestCancelTimerFailedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCancelTimerFailedEventAttributes, ToCancelTimerFailedEventAttributes)
+}
+
+func TestRespondActivityTaskCompletedRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRespondActivityTaskCompletedRequest, ToRespondActivityTaskCompletedRequest)
+}
+
+func TestPaginationOptionsFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPaginationOptions, ToPaginationOptions)
+}
+
+func TestCancelWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCancelWorkflowExecutionDecisionAttributes, ToCancelWorkflowExecutionDecisionAttributes)
+}
+
+func TestFailoverInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverInfo, ToFailoverInfo)
+}
+
+func TestRespondActivityTaskFailedRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRespondActivityTaskFailedRequest, ToRespondActivityTaskFailedRequest)
+}
+
+func TestScanWorkflowExecutionsResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromScanWorkflowExecutionsResponse, ToScanWorkflowExecutionsResponse)
+}
+
+func TestScheduleActivityTaskDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromScheduleActivityTaskDecisionAttributes, ToScheduleActivityTaskDecisionAttributes)
+}
+
+func TestTaskListFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromTaskList, ToTaskList)
+}
+
+func TestMemoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMemo, ToMemo)
+}
+
+func TestResetPointInfoArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromResetPointInfoArray, ToResetPointInfoArray)
+}
+
+func TestSearchAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSearchAttributes, ToSearchAttributes)
+}
+
+func TestTaskListPartitionMetadataFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromTaskListPartitionMetadata, ToTaskListPartitionMetadata)
+}
+
+func TestWorkflowExecutionSignaledEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionSignaledEventAttributes, ToWorkflowExecutionSignaledEventAttributes)
+}
+
+func TestHistoryEventArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryEventArray, ToHistoryEventArray)
+}
+
+func TestActivityLocalDispatchInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActivityLocalDispatchInfo, ToActivityLocalDispatchInfo)
+}
+
+func TestStartWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromStartWorkflowExecutionRequest, ToStartWorkflowExecutionRequest)
+}
+
+func TestUpsertWorkflowSearchAttributesEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromUpsertWorkflowSearchAttributesEventAttributes, ToUpsertWorkflowSearchAttributesEventAttributes)
+}
+
+func TestExternalWorkflowExecutionSignaledEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromExternalWorkflowExecutionSignaledEventAttributes, ToExternalWorkflowExecutionSignaledEventAttributes)
+}
+
+func TestWorkflowTypeFilterFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowTypeFilter, ToWorkflowTypeFilter)
+}
+
+func TestDescribeTaskListResponseMapFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDescribeTaskListResponseMap, ToDescribeTaskListResponseMap)
+}
+
+func TestTimerStartedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromTimerStartedEventAttributes, ToTimerStartedEventAttributes)
+}
+
+func TestActivityTypeFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActivityType, ToActivityType)
+}
+
+func TestWorkflowExecutionFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecution, ToWorkflowExecution)
+}
+
+func TestCompleteWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCompleteWorkflowExecutionDecisionAttributes, ToCompleteWorkflowExecutionDecisionAttributes)
+}
+
+func TestListTaskListPartitionsRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListTaskListPartitionsRequest, ToListTaskListPartitionsRequest)
+}
+
+func TestCountWorkflowExecutionsResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCountWorkflowExecutionsResponse, ToCountWorkflowExecutionsResponse)
+}
+
+func TestDataBlobFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDataBlob, ToDataBlob)
+}
+
+func TestActiveClusterInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActiveClusterInfo, ToActiveClusterInfo)
+}
+
+func TestActiveClusterSelectionPolicyFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActiveClusterSelectionPolicy, ToActiveClusterSelectionPolicy)
+}
+
+func TestRespondActivityTaskCanceledRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRespondActivityTaskCanceledRequest, ToRespondActivityTaskCanceledRequest)
+}
+
+func TestPendingChildExecutionInfoArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPendingChildExecutionInfoArray, ToPendingChildExecutionInfoArray)
+}
+
+func TestRecordActivityTaskHeartbeatResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRecordActivityTaskHeartbeatResponse, ToRecordActivityTaskHeartbeatResponse)
+}
+
+func TestStartTimerDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromStartTimerDecisionAttributes, ToStartTimerDecisionAttributes)
+}
+
+func TestSupportedClientVersionsFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSupportedClientVersions, ToSupportedClientVersions)
+}
+
+func TestClusterFailoverArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromClusterFailoverArray, ToClusterFailoverArray)
+}
+
+func TestActiveClustersFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActiveClusters, ToActiveClusters)
+}
+
+func TestChildWorkflowExecutionCompletedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromChildWorkflowExecutionCompletedEventAttributes, ToChildWorkflowExecutionCompletedEventAttributes)
+}
+
+func TestClusterReplicationConfigurationFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromClusterReplicationConfiguration, ToClusterReplicationConfiguration)
+}
+
+func TestWorkflowExecutionInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionInfo, ToWorkflowExecutionInfo)
+}
+
+func TestIsolationGroupMetricsMapFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromIsolationGroupMetricsMap, ToIsolationGroupMetricsMap)
+}
+
+func TestSignalExternalWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSignalExternalWorkflowExecutionDecisionAttributes, ToSignalExternalWorkflowExecutionDecisionAttributes)
+}
+
+func TestSignalWithStartWorkflowExecutionAsyncRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSignalWithStartWorkflowExecutionAsyncRequest, ToSignalWithStartWorkflowExecutionAsyncRequest)
+}
+
+func TestPollerInfoArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPollerInfoArray, ToPollerInfoArray)
+}
+
+func TestResetStickyTaskListResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromResetStickyTaskListResponse, ToResetStickyTaskListResponse)
+}
+
+func TestAPITaskListPartitionFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAPITaskListPartition, ToAPITaskListPartition)
+}
+
+func TestListWorkflowExecutionsResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListWorkflowExecutionsResponse, ToListWorkflowExecutionsResponse)
+}
+
+func TestParentExecutionInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromParentExecutionInfo, ToParentExecutionInfo)
+}
+
+func TestFailWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailWorkflowExecutionDecisionAttributes, ToFailWorkflowExecutionDecisionAttributes)
+}
+
+func TestGetClusterInfoResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromGetClusterInfoResponse, ToGetClusterInfoResponse)
+}
+
+func TestSignalWithStartWorkflowExecutionAsyncResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSignalWithStartWorkflowExecutionAsyncResponse, ToSignalWithStartWorkflowExecutionAsyncResponse)
+}
+
+func TestDescribeDomainResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDescribeDomainResponse, ToDescribeDomainResponse)
+}
+
+func TestListWorkflowExecutionsRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListWorkflowExecutionsRequest, ToListWorkflowExecutionsRequest)
+}
+
+func TestRequestCancelActivityTaskFailedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRequestCancelActivityTaskFailedEventAttributes, ToRequestCancelActivityTaskFailedEventAttributes)
+}
+
+func TestStatusFilterFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromStatusFilter, ToStatusFilter)
+}
+
+func TestPayloadFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPayload, ToPayload)
+}
+
+func TestRespondDecisionTaskCompletedResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRespondDecisionTaskCompletedResponse, ToRespondDecisionTaskCompletedResponse)
+}
+
+func TestStartTimeFilterFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromStartTimeFilter, ToStartTimeFilter)
+}
+
+func TestWorkflowExecutionContinuedAsNewEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionContinuedAsNewEventAttributes, ToWorkflowExecutionContinuedAsNewEventAttributes)
+}
+
+func TestGetSearchAttributesResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromGetSearchAttributesResponse, ToGetSearchAttributesResponse)
+}
+
+func TestRecordActivityTaskHeartbeatByIDRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRecordActivityTaskHeartbeatByIDRequest, ToRecordActivityTaskHeartbeatByIDRequest)
+}
+
+func TestTaskIDBlockFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromTaskIDBlock, ToTaskIDBlock)
+}
+
+func TestActivityLocalDispatchInfoMapFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActivityLocalDispatchInfoMap, ToActivityLocalDispatchInfoMap)
+}
+
+func TestHeaderFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHeader, ToHeader)
+}
+
+func TestQueryWorkflowRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromQueryWorkflowRequest, ToQueryWorkflowRequest)
+}
+
+func TestRecordActivityTaskHeartbeatByIDResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRecordActivityTaskHeartbeatByIDResponse, ToRecordActivityTaskHeartbeatByIDResponse)
+}
+
+func TestWorkflowExecutionConfigurationFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionConfiguration, ToWorkflowExecutionConfiguration)
+}
+
+func TestPendingActivityInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPendingActivityInfo, ToPendingActivityInfo)
+}
+
+func TestDiagnoseWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDiagnoseWorkflowExecutionRequest, ToDiagnoseWorkflowExecutionRequest)
+}
+
+func TestWorkflowExecutionStartedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionStartedEventAttributes, ToWorkflowExecutionStartedEventAttributes)
+}
+
+func TestGetWorkflowExecutionHistoryRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromGetWorkflowExecutionHistoryRequest, ToGetWorkflowExecutionHistoryRequest)
+}
+
+func TestRequestCancelActivityTaskDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRequestCancelActivityTaskDecisionAttributes, ToRequestCancelActivityTaskDecisionAttributes)
+}
+
+func TestClusterFailoverFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromClusterFailover, ToClusterFailover)
+}
+
+func TestDescribeDomainResponseDomainFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDescribeDomainResponseDomain, ToDescribeDomainResponseDomain)
+}
+
+func TestRetryPolicyFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRetryPolicy, ToRetryPolicy)
+}
+
+func TestStartWorkflowExecutionAsyncResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromStartWorkflowExecutionAsyncResponse, ToStartWorkflowExecutionAsyncResponse)
+}
+
+func TestAPITaskListPartitionConfigFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAPITaskListPartitionConfig, ToAPITaskListPartitionConfig)
+}
+
+func TestRespondQueryTaskCompletedRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRespondQueryTaskCompletedRequest, ToRespondQueryTaskCompletedRequest)
+}
+
+func TestListTaskListPartitionsResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromListTaskListPartitionsResponse, ToListTaskListPartitionsResponse)
+}
+
+func TestWorkflowTypeFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowType, ToWorkflowType)
+}
+
+func TestWorkflowExecutionInfoArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionInfoArray, ToWorkflowExecutionInfoArray)
+}
+
+func TestRecordActivityTaskHeartbeatRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRecordActivityTaskHeartbeatRequest, ToRecordActivityTaskHeartbeatRequest)
+}
+
+func TestWorkflowExecutionCancelRequestedEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionCancelRequestedEventAttributes, ToWorkflowExecutionCancelRequestedEventAttributes)
+}
+
+func TestUpdateDomainResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromUpdateDomainResponse, ToUpdateDomainResponse)
+}
+
+func TestWorkflowExecutionCanceledEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionCanceledEventAttributes, ToWorkflowExecutionCanceledEventAttributes)
+}
+
+func TestWorkflowExecutionTimedOutEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionTimedOutEventAttributes, ToWorkflowExecutionTimedOutEventAttributes)
+}
+
+func TestPayloadMapFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPayloadMap, ToPayloadMap)
+}
+
+func TestAutoConfigHintFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAutoConfigHint, ToAutoConfigHint)
+}
+
+func TestBadBinariesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromBadBinaries, ToBadBinaries)
+}
+
+func TestSignalWithStartWorkflowExecutionResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSignalWithStartWorkflowExecutionResponse, ToSignalWithStartWorkflowExecutionResponse)
+}
+
+func TestStartChildWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromStartChildWorkflowExecutionDecisionAttributes, ToStartChildWorkflowExecutionDecisionAttributes)
+}
+
+func TestActivityTaskScheduledEventAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromActivityTaskScheduledEventAttributes, ToActivityTaskScheduledEventAttributes)
+}
+
+func TestGetTaskListsByDomainRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromGetTaskListsByDomainRequest, ToGetTaskListsByDomainRequest)
+}
+
+func TestFailoverEventFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverEvent, ToFailoverEvent)
+}
+
+func TestContinueAsNewWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromContinueAsNewWorkflowExecutionDecisionAttributes, ToContinueAsNewWorkflowExecutionDecisionAttributes)
+}
+
+func TestClusterAttributeScopeFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromClusterAttributeScope, ToClusterAttributeScope)
+}
+
+func TestBadBinaryInfoMapFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromBadBinaryInfoMap, ToBadBinaryInfoMap)
+}
+
