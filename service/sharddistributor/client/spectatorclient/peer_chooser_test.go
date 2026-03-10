@@ -3,6 +3,7 @@ package spectatorclient
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -210,7 +211,6 @@ func TestSpectatorPeerChooser_Choose_TracksLastUsed(t *testing.T) {
 	defer peerTransport.Stop()
 
 	mockClock := clock.NewMockedTimeSource()
-	now := mockClock.Now()
 
 	chooser := &SpectatorPeerChooser{
 		transport:  peerTransport,
@@ -222,18 +222,31 @@ func TestSpectatorPeerChooser_Choose_TracksLastUsed(t *testing.T) {
 		},
 	}
 
+	req := &transport.Request{
+		ShardKey: "shard-1",
+		Headers:  transport.NewHeaders().With(NamespaceHeader, "ns"),
+	}
+
+	// First call — creates peer, sets lastUsed to t0
 	mockSpectator.EXPECT().
 		GetShardOwner(gomock.Any(), "shard-1").
 		Return(&ShardOwner{
 			ExecutorID: "exec-1",
 			Metadata:   map[string]string{clientcommon.GrpcAddressMetadataKey: "127.0.0.1:7953"},
-		}, nil)
+		}, nil).Times(2)
 
-	_, _, err := chooser.Choose(context.Background(), &transport.Request{
-		ShardKey: "shard-1",
-		Headers:  transport.NewHeaders().With(NamespaceHeader, "ns"),
-	})
+	_, _, err := chooser.Choose(context.Background(), req)
 	require.NoError(t, err)
+	firstLastUsed := chooser.peers["127.0.0.1:7953"].lastUsed
 
-	assert.Equal(t, now, chooser.peers["127.0.0.1:7953"].lastUsed)
+	// Advance the clock
+	mockClock.Advance(30 * time.Second)
+
+	// Second call — reuses peer, should update lastUsed to t0+30s
+	_, _, err = chooser.Choose(context.Background(), req)
+	require.NoError(t, err)
+	secondLastUsed := chooser.peers["127.0.0.1:7953"].lastUsed
+
+	// lastUsed should have advanced
+	assert.True(t, secondLastUsed.After(firstLastUsed), "lastUsed should be updated on reuse")
 }
