@@ -1789,6 +1789,74 @@ func IndexedValueTypeFuzzer(e *types.IndexedValueType, c fuzz.Continue) {
 	*e = types.IndexedValueType(c.Intn(6))
 }
 
+func ActiveClusterSelectionPolicyFuzzerClearAttribute(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
+	// ActiveClusterSelectionPolicy requires string fields to match strategy
+	// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
+	// When strategy is set, only the relevant string fields should be set
+	c.Fuzz(&p.ActiveClusterSelectionStrategy)
+	if p.ActiveClusterSelectionStrategy == nil {
+		p.StickyRegion = ""
+		p.ExternalEntityType = ""
+		p.ExternalEntityKey = ""
+	} else {
+		switch *p.ActiveClusterSelectionStrategy {
+		case types.ActiveClusterSelectionStrategyRegionSticky:
+			c.Fuzz(&p.StickyRegion)
+			p.ExternalEntityType = ""
+			p.ExternalEntityKey = ""
+		case types.ActiveClusterSelectionStrategyExternalEntity:
+			c.Fuzz(&p.ExternalEntityType)
+			c.Fuzz(&p.ExternalEntityKey)
+			p.StickyRegion = ""
+		}
+	}
+	// ClusterAttribute is always cleared (mapper uses strategy+strings)
+	p.ClusterAttribute = nil
+}
+
+func ActiveClusterSelectionPolicyFuzzerWithAttribute(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
+	// ActiveClusterSelectionPolicy requires string fields to match strategy
+	// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
+	// When strategy is set, only the relevant string fields should be set
+	c.Fuzz(&p.ActiveClusterSelectionStrategy)
+	if p.ActiveClusterSelectionStrategy == nil {
+		p.StickyRegion = ""
+		p.ExternalEntityType = ""
+		p.ExternalEntityKey = ""
+	} else {
+		switch *p.ActiveClusterSelectionStrategy {
+		case types.ActiveClusterSelectionStrategyRegionSticky:
+			c.Fuzz(&p.StickyRegion)
+			p.ExternalEntityType = ""
+			p.ExternalEntityKey = ""
+		case types.ActiveClusterSelectionStrategyExternalEntity:
+			p.StickyRegion = ""
+			c.Fuzz(&p.ExternalEntityType)
+			c.Fuzz(&p.ExternalEntityKey)
+		}
+	}
+	c.Fuzz(&p.ClusterAttribute)
+}
+
+func ActiveClusterSelectionPolicyFuzzerNoCustom(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
+	// Fuzz all fields first without custom fuzzers
+	c.FuzzNoCustom(p)
+	// Then clear mutually exclusive fields based on strategy
+	if p.ActiveClusterSelectionStrategy != nil {
+		switch *p.ActiveClusterSelectionStrategy {
+		case types.ActiveClusterSelectionStrategyRegionSticky:
+			p.ExternalEntityType = ""
+			p.ExternalEntityKey = ""
+		case types.ActiveClusterSelectionStrategyExternalEntity:
+			p.StickyRegion = ""
+		}
+	} else {
+		p.StickyRegion = ""
+		p.ExternalEntityType = ""
+		p.ExternalEntityKey = ""
+	}
+}
+
 func TestDataBlobArrayFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromDataBlobArray, ToDataBlobArray,
 		testutils.WithCustomFuncs(EncodingTypeFuzzer),
@@ -1895,30 +1963,7 @@ func TestStartWorkflowExecutionAsyncRequestFuzz(t *testing.T) {
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
 			ActiveClusterSelectionStrategyFuzzer,
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				// ActiveClusterSelectionPolicy requires string fields to match strategy
-				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
-				// When strategy is set, only the relevant string fields should be set
-				c.Fuzz(&p.ActiveClusterSelectionStrategy)
-				if p.ActiveClusterSelectionStrategy == nil {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				} else {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						c.Fuzz(&p.StickyRegion)
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						c.Fuzz(&p.ExternalEntityType)
-						c.Fuzz(&p.ExternalEntityKey)
-						p.StickyRegion = ""
-					}
-				}
-				// ClusterAttribute is always cleared (mapper uses strategy+strings)
-				p.ClusterAttribute = nil
-			},
+			ActiveClusterSelectionPolicyFuzzerClearAttribute,
 		),
 	)
 }
@@ -2175,29 +2220,7 @@ func TestStartChildWorkflowExecutionInitiatedEventAttributesFuzz(t *testing.T) {
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
 			ActiveClusterSelectionStrategyFuzzer,
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				// ActiveClusterSelectionPolicy requires string fields to match strategy
-				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
-				// When strategy is set, only the relevant string fields should be set
-				c.Fuzz(&p.ActiveClusterSelectionStrategy)
-				if p.ActiveClusterSelectionStrategy == nil {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				} else {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						c.Fuzz(&p.StickyRegion)
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-						c.Fuzz(&p.ExternalEntityType)
-						c.Fuzz(&p.ExternalEntityKey)
-					}
-				}
-				c.Fuzz(&p.ClusterAttribute)
-			},
+			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 	)
 }
@@ -2278,29 +2301,7 @@ func TestHistoryEventFuzz(t *testing.T) {
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
 			ActiveClusterSelectionStrategyFuzzer,
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				// ActiveClusterSelectionPolicy requires string fields to match strategy
-				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
-				// When strategy is set, only the relevant string fields should be set
-				c.Fuzz(&p.ActiveClusterSelectionStrategy)
-				if p.ActiveClusterSelectionStrategy == nil {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				} else {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						c.Fuzz(&p.StickyRegion)
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-						c.Fuzz(&p.ExternalEntityType)
-						c.Fuzz(&p.ExternalEntityKey)
-					}
-				}
-				c.Fuzz(&p.ClusterAttribute)
-			},
+			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 	)
 }
@@ -2333,29 +2334,7 @@ func TestHistoryFuzz(t *testing.T) {
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
 			ActiveClusterSelectionStrategyFuzzer,
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				// ActiveClusterSelectionPolicy requires string fields to match strategy
-				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
-				// When strategy is set, only the relevant string fields should be set
-				c.Fuzz(&p.ActiveClusterSelectionStrategy)
-				if p.ActiveClusterSelectionStrategy == nil {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				} else {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						c.Fuzz(&p.StickyRegion)
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-						c.Fuzz(&p.ExternalEntityType)
-						c.Fuzz(&p.ExternalEntityKey)
-					}
-				}
-				c.Fuzz(&p.ClusterAttribute)
-			},
+			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 		testutils.WithExcludedFields("Events"),
 	)
@@ -2405,29 +2384,7 @@ func TestDecisionFuzz(t *testing.T) {
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
 			ActiveClusterSelectionStrategyFuzzer,
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				// ActiveClusterSelectionPolicy requires string fields to match strategy
-				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
-				// When strategy is set, only the relevant string fields should be set
-				c.Fuzz(&p.ActiveClusterSelectionStrategy)
-				if p.ActiveClusterSelectionStrategy == nil {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				} else {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						c.Fuzz(&p.StickyRegion)
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-						c.Fuzz(&p.ExternalEntityType)
-						c.Fuzz(&p.ExternalEntityKey)
-					}
-				}
-				c.Fuzz(&p.ClusterAttribute)
-			},
+			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 	)
 }
@@ -2480,30 +2437,7 @@ func TestPollForDecisionTaskResponseFuzz(t *testing.T) {
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
 			ActiveClusterSelectionStrategyFuzzer,
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				// ActiveClusterSelectionPolicy requires string fields to match strategy
-				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
-				// When strategy is set, only the relevant string fields should be set
-				c.Fuzz(&p.ActiveClusterSelectionStrategy)
-				if p.ActiveClusterSelectionStrategy == nil {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				} else {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						c.Fuzz(&p.StickyRegion)
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						c.Fuzz(&p.ExternalEntityType)
-						c.Fuzz(&p.ExternalEntityKey)
-						p.StickyRegion = ""
-					}
-				}
-				// ClusterAttribute is always cleared (mapper uses strategy+strings)
-				p.ClusterAttribute = nil
-			},
+			ActiveClusterSelectionPolicyFuzzerClearAttribute,
 			SignalExternalWorkflowExecutionFailedCauseFuzzer,
 			CancelExternalWorkflowExecutionFailedCauseFuzzer,
 			ChildWorkflowExecutionFailedCauseFuzzer,
@@ -2529,29 +2463,7 @@ func TestDecisionArrayFuzz(t *testing.T) {
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
 			ActiveClusterSelectionStrategyFuzzer,
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				// ActiveClusterSelectionPolicy requires string fields to match strategy
-				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
-				// When strategy is set, only the relevant string fields should be set
-				c.Fuzz(&p.ActiveClusterSelectionStrategy)
-				if p.ActiveClusterSelectionStrategy == nil {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				} else {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						c.Fuzz(&p.StickyRegion)
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-						c.Fuzz(&p.ExternalEntityType)
-						c.Fuzz(&p.ExternalEntityKey)
-					}
-				}
-				c.Fuzz(&p.ClusterAttribute)
-			},
+			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 	)
 }
@@ -2761,30 +2673,7 @@ func TestGetWorkflowExecutionHistoryResponseFuzz(t *testing.T) {
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
 			ActiveClusterSelectionStrategyFuzzer,
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				// ActiveClusterSelectionPolicy requires string fields to match strategy
-				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
-				// When strategy is set, only the relevant string fields should be set
-				c.Fuzz(&p.ActiveClusterSelectionStrategy)
-				if p.ActiveClusterSelectionStrategy == nil {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				} else {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						c.Fuzz(&p.StickyRegion)
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						c.Fuzz(&p.ExternalEntityType)
-						c.Fuzz(&p.ExternalEntityKey)
-						p.StickyRegion = ""
-					}
-				}
-				// ClusterAttribute is always cleared (mapper uses strategy+strings)
-				p.ClusterAttribute = nil
-			},
+			ActiveClusterSelectionPolicyFuzzerClearAttribute,
 			SignalExternalWorkflowExecutionFailedCauseFuzzer,
 			CancelExternalWorkflowExecutionFailedCauseFuzzer,
 			ChildWorkflowExecutionFailedCauseFuzzer,
@@ -2809,29 +2698,7 @@ func TestSignalWithStartWorkflowExecutionRequestFuzz(t *testing.T) {
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
 			ActiveClusterSelectionStrategyFuzzer,
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				// ActiveClusterSelectionPolicy requires string fields to match strategy
-				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
-				// When strategy is set, only the relevant string fields should be set
-				c.Fuzz(&p.ActiveClusterSelectionStrategy)
-				if p.ActiveClusterSelectionStrategy == nil {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				} else {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						c.Fuzz(&p.StickyRegion)
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-						c.Fuzz(&p.ExternalEntityType)
-						c.Fuzz(&p.ExternalEntityKey)
-					}
-				}
-				c.Fuzz(&p.ClusterAttribute)
-			},
+			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 	)
 }
@@ -2999,22 +2866,7 @@ func TestScanWorkflowExecutionsResponseFuzz(t *testing.T) {
 	// WorkflowExecutionInfo has multiple known mapping issues
 	testutils.RunMapperFuzzTest(t, FromScanWorkflowExecutionsResponse, ToScanWorkflowExecutionsResponse,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 		),
 		testutils.WithExcludedFields("UpdateTime", "ParentDomainID", "ParentDomain", "ParentInitiatedID", "CronSchedule"),
 	)
@@ -3066,22 +2918,7 @@ func TestStartWorkflowExecutionRequestFuzz(t *testing.T) {
 	// ActiveClusterSelectionPolicy has mutually exclusive fields, WorkflowIDReusePolicy enum
 	testutils.RunMapperFuzzTest(t, FromStartWorkflowExecutionRequest, ToStartWorkflowExecutionRequest,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			WorkflowIDReusePolicyFuzzer,
 		),
 	)
@@ -3165,22 +3002,7 @@ func TestActiveClusterSelectionPolicyFuzz(t *testing.T) {
 	// ActiveClusterSelectionPolicy has mutually exclusive fields based on Strategy
 	testutils.RunMapperFuzzTest(t, FromActiveClusterSelectionPolicy, ToActiveClusterSelectionPolicy,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 		),
 	)
 }
@@ -3236,22 +3058,7 @@ func TestWorkflowExecutionInfoFuzz(t *testing.T) {
 	// WorkflowExecutionInfo has multiple known mapping issues
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionInfo, ToWorkflowExecutionInfo,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 		),
 		testutils.WithExcludedFields("UpdateTime", "ParentDomainID", "ParentDomain", "ParentInitiatedID", "CronSchedule"),
 	)
@@ -3269,22 +3076,7 @@ func TestSignalWithStartWorkflowExecutionAsyncRequestFuzz(t *testing.T) {
 	// ActiveClusterSelectionPolicy has mutually exclusive fields, WorkflowIDReusePolicy enum
 	testutils.RunMapperFuzzTest(t, FromSignalWithStartWorkflowExecutionAsyncRequest, ToSignalWithStartWorkflowExecutionAsyncRequest,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			WorkflowIDReusePolicyFuzzer,
 		),
 	)
@@ -3306,22 +3098,7 @@ func TestListWorkflowExecutionsResponseFuzz(t *testing.T) {
 	// WorkflowExecutionInfo has multiple known mapping issues
 	testutils.RunMapperFuzzTest(t, FromListWorkflowExecutionsResponse, ToListWorkflowExecutionsResponse,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 		),
 		testutils.WithExcludedFields("UpdateTime", "ParentDomainID", "ParentDomain", "ParentInitiatedID", "CronSchedule"),
 	)
@@ -3352,22 +3129,7 @@ func TestDescribeDomainResponseFuzz(t *testing.T) {
 	// DomainInfo, Configuration, ReplicationConfiguration must be non-nil
 	testutils.RunMapperFuzzTest(t, FromDescribeDomainResponse, ToDescribeDomainResponse,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			func(r *types.DescribeDomainResponse, c fuzz.Continue) {
 				c.Fuzz(r)
 				// Proto mapper requires these to be non-nil
@@ -3429,22 +3191,7 @@ func TestWorkflowExecutionContinuedAsNewEventAttributesFuzz(t *testing.T) {
 	// FailureDetails requires FailureReason to be set
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionContinuedAsNewEventAttributes, ToWorkflowExecutionContinuedAsNewEventAttributes,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 		),
 		testutils.WithExcludedFields("Initiator", "JitterStartSeconds", "FailureDetails"),
 	)
@@ -3510,22 +3257,7 @@ func TestWorkflowExecutionStartedEventAttributesFuzz(t *testing.T) {
 	// Empty string fields become nil
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionStartedEventAttributes, ToWorkflowExecutionStartedEventAttributes,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			func(e *types.WorkflowExecutionStartedEventAttributes, c fuzz.Continue) {
 				c.Fuzz(e)
 				// Empty strings become nil after proto roundtrip
@@ -3565,22 +3297,7 @@ func TestDescribeDomainResponseDomainFuzz(t *testing.T) {
 	// DomainInfo, Configuration, ReplicationConfiguration must be non-nil
 	testutils.RunMapperFuzzTest(t, FromDescribeDomainResponseDomain, ToDescribeDomainResponseDomain,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			func(r *types.DescribeDomainResponse, c fuzz.Continue) {
 				c.Fuzz(r)
 				// Proto mapper requires these to be non-nil
@@ -3649,22 +3366,7 @@ func TestWorkflowExecutionInfoArrayFuzz(t *testing.T) {
 	// WorkflowExecutionInfo has multiple known mapping issues
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionInfoArray, ToWorkflowExecutionInfoArray,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 		),
 		testutils.WithExcludedFields("UpdateTime", "ParentDomainID", "ParentDomain", "ParentInitiatedID", "CronSchedule"),
 	)
@@ -3687,22 +3389,7 @@ func TestUpdateDomainResponseFuzz(t *testing.T) {
 	// DomainInfo, Configuration, ReplicationConfiguration must be non-nil
 	testutils.RunMapperFuzzTest(t, FromUpdateDomainResponse, ToUpdateDomainResponse,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			func(r *types.UpdateDomainResponse, c fuzz.Continue) {
 				c.Fuzz(r)
 				// Proto mapper requires these to be non-nil
@@ -3750,22 +3437,7 @@ func TestStartChildWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
 	// ActiveClusterSelectionPolicy has mutually exclusive fields, WorkflowIDReusePolicy enum
 	testutils.RunMapperFuzzTest(t, FromStartChildWorkflowExecutionDecisionAttributes, ToStartChildWorkflowExecutionDecisionAttributes,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			WorkflowIDReusePolicyFuzzer,
 		),
 		testutils.WithExcludedFields("Domain"),
@@ -3807,22 +3479,7 @@ func TestContinueAsNewWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
 	// FailureDetails requires FailureReason to be set
 	testutils.RunMapperFuzzTest(t, FromContinueAsNewWorkflowExecutionDecisionAttributes, ToContinueAsNewWorkflowExecutionDecisionAttributes,
 		testutils.WithCustomFuncs(
-			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-				c.FuzzNoCustom(p)
-				if p.ActiveClusterSelectionStrategy != nil {
-					switch *p.ActiveClusterSelectionStrategy {
-					case types.ActiveClusterSelectionStrategyRegionSticky:
-						p.ExternalEntityType = ""
-						p.ExternalEntityKey = ""
-					case types.ActiveClusterSelectionStrategyExternalEntity:
-						p.StickyRegion = ""
-					}
-				} else {
-					p.StickyRegion = ""
-					p.ExternalEntityType = ""
-					p.ExternalEntityKey = ""
-				}
-			},
+			ActiveClusterSelectionPolicyFuzzerNoCustom,
 		),
 		testutils.WithExcludedFields("LastCompletionResult", "Initiator", "JitterStartSeconds", "FailureDetails"),
 	)
