@@ -1,9 +1,6 @@
-# Cadence Development Agent Configuration
+# Development Guidelines
 
-This document contains development guidelines and agent configurations for the Cadence codebase.
-It is read by both Claude Code and Cursor.
-
----
+This document contains critical development guidelines for working with this codebase.
 
 ## Core Development Rules
 
@@ -26,29 +23,15 @@ It is read by both Claude Code and Cursor.
 - Never use IDL code directly in service logic
 - Map them to `common/types` or `common/persistence` types
 
----
-
 ## System Architecture
 
 ### Core Components
 
-- `common/persistence` - All persistence layer packages
-  - Structured with PersistenceManager per component
-  - PersistenceStore handles NoSQL and SQL datastore implementations
-  - Database-specific implementations in plugins under these directories
-
-- `common/types` - RPC layer internal type representation
-  - Should have few dependencies (top of dependency tree)
-  - Contains values representing IDL values
-  - Mappers in `common/types/mapper`
-
+- `common/persistence` contains all persistence layer packages. These are structured with a PersistenceManager for each component and typically have a PersistenceStore which knows how to handle NoSQL and Sql datastore implementations, with various specific database implementations in plugins under these directories
+- `common/types` contains the RPC layer internal type representation. This package should have few, if any dependencies and should be the top of the dependency tree. It should have values which represent IDL values and for which there are mappers in `common/types/mapper`
 - `services` - Major services: history, matching, frontend, worker
-
 - `tools/cli` - Cadence CLI
-
 - `idls` - Submodule for Thrift codegen (Protobuf via go module)
-
----
 
 ## Development Workflow
 
@@ -60,60 +43,20 @@ It is read by both Claude Code and Cursor.
 - Build: `go build ...` or `make build`
 - Format: `make fmt`
 
-### Workflow Process
-
-1. Write code
-2. Write tests for code
-3. Build code
-4. Test code
-5. Format code
-
 **Test Guidelines:**
 - Tests in `<filename>_test.go`
 - Run with `go test /path/to/changes` during development
 - Only run `make test` at the end for final sanity check (very slow)
 
----
+## Generic Rules 
 
-## Generic Rules (Tool-Agnostic)
-
-See `.agents/` directory for:
+See the `.agents/` directory for:
 - `go-style.md` - Go formatting and style (Uber style guide)
-- `development-workflow.md` - Development process
 - `shell-style.md` - Shell scripting conventions
-
----
-
-## Tool-Specific Extensions
-
-### Cursor
-
-See `.cursor/rules/` for:
-- `CADENCE-WORKFLOWS.mdc` - Workflow code style checking
-
-### Claude Code
-
-See `.claude/agents/` for:
-- `simulation-test-runner.md` - Simulation test execution specialist
-
----
 
 ## Workflow Code in Repository
 
 When adding workflow code to tests, examples, or tools:
 
-- Follow determinism rules:
-  - Use `workflow.Now(ctx)` not `time.Now()`
-  - Use `workflow.Sleep(ctx, d)` not `time.Sleep(d)`
-  - Use `workflow.Go(ctx, func)` not `go func()`
-  - Use `workflow.NewChannel(ctx)` not `make(chan T)`
-  - Use `workflow.NewSelector(ctx)` not `select {}`
-  - Sort map keys before iteration
-  - Use `workflow.GetVersion()` when modifying workflow logic
-
 - See [docs/non-deterministic-error.md](docs/non-deterministic-error.md) for debugging
 - See `.cursor/rules/CADENCE-WORKFLOWS.mdc` for detailed patterns
-
----
-
-*This is the canonical configuration. CLAUDE.md symlinks to this file.*
