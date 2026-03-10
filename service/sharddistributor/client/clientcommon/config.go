@@ -9,6 +9,8 @@ import (
 	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 )
 
+const defaultPeerTTL = 2 * time.Minute
+
 // NamespaceConfig represents configuration for a single namespace
 type NamespaceConfig struct {
 	Namespace         string        `yaml:"namespace"`
@@ -54,8 +56,6 @@ func (c *Config) GetSingleConfig() (*NamespaceConfig, error) {
 	}
 	return &c.Namespaces[0], nil
 }
-
-const defaultPeerTTL = 2 * time.Minute
 
 // GetPeerTTL returns the configured peer TTL, or the default 2m if not set.
 func (c *Config) GetPeerTTL() time.Duration {

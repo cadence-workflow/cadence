@@ -93,6 +93,11 @@ func TestConfig_GetPeerTTL(t *testing.T) {
 			peerTTL:  5 * time.Minute,
 			expected: 5 * time.Minute,
 		},
+		{
+			name:     "negative uses default",
+			peerTTL:  -1 * time.Second,
+			expected: 2 * time.Minute,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
