@@ -2,7 +2,7 @@
 
 Follow the Uber Go Style Guide for all Go code.
 
-**Reference:** `~/.rules/uber_go_style_guide.md`
+**Reference:** https://raw.githubusercontent.com/uber-go/guide/refs/heads/master/style.md
 
 When writing or editing Go code:
 - Consult the style guide for specific patterns
