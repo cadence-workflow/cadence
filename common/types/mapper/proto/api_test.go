@@ -1584,16 +1584,33 @@ func TestFailoverType(t *testing.T) {
 	assert.Nil(t, ToFailoverType(apiv1.FailoverType_FAILOVER_TYPE_INVALID))
 	assert.Nil(t, ToFailoverType(apiv1.FailoverType(999))) // Unknown value
 }
-// Fuzz tests generated for comprehensive mapper coverage
-// Uses testutils.RunMapperFuzzTest for simple, maintainable tests
+
+// TODO(c-warren): remove these comments once refactoring is completed
+// special string
+func EncodingTypeFuzzer(e *types.EncodingType, c fuzz.Continue) {
+	// Valid types are:
+	// - EncodingTypeThriftRW
+	// - EncodingTypeJSON
+	*e = types.EncodingType(c.Intn(2))
+}
+
+func QueryConsistencyLevelFuzzer(e *types.QueryConsistencyLevel, c fuzz.Continue) {
+	// Valid types are:
+	// - QueryConsistencyLevelEventual
+	// - QueryConsistencyLevelStrong
+	*e = types.QueryConsistencyLevel(c.Intn(2))
+}
+
+func SignalExternalWorkflowExecutionFailedCauseFuzzer(e *types.SignalExternalWorkflowExecutionFailedCause, c fuzz.Continue) {
+	// Valid types are:
+	// - SignalExternalWorkflowExecutionFailedCauseUnknownExternalWorkflowExecution
+	// - SignalExternalWorkflowExecutionFailedCauseWorkflowAlreadyCompleted
+	*e = types.SignalExternalWorkflowExecutionFailedCause(c.Intn(2))
+}
 
 func TestDataBlobArrayFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromDataBlobArray, ToDataBlobArray,
-		testutils.WithCustomFuncs(
-			func(e *types.EncodingType, c fuzz.Continue) {
-				*e = types.EncodingType(c.Intn(2)) // 0-1: ThriftRW, JSON
-			},
-		),
+		testutils.WithCustomFuncs(EncodingTypeFuzzer),
 	)
 }
 
@@ -1612,11 +1629,7 @@ func TestDeleteDomainRequestFuzz(t *testing.T) {
 
 func TestDescribeWorkflowExecutionRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromDescribeWorkflowExecutionRequest, ToDescribeWorkflowExecutionRequest,
-		testutils.WithCustomFuncs(
-			func(e *types.QueryConsistencyLevel, c fuzz.Continue) {
-				*e = types.QueryConsistencyLevel(c.Intn(2)) // 0-1: Eventual, Strong
-			},
-		),
+		testutils.WithCustomFuncs(QueryConsistencyLevelFuzzer),
 	)
 }
 
@@ -1634,9 +1647,7 @@ func TestRespondActivityTaskFailedByIDRequestFuzz(t *testing.T) {
 func TestSignalExternalWorkflowExecutionFailedEventAttributesFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromSignalExternalWorkflowExecutionFailedEventAttributes, ToSignalExternalWorkflowExecutionFailedEventAttributes,
 		testutils.WithCustomFuncs(
-			func(e *types.SignalExternalWorkflowExecutionFailedCause, c fuzz.Continue) {
-				*e = types.SignalExternalWorkflowExecutionFailedCause(c.Intn(2)) // 0-1: UnknownExternalWorkflowExecution, WorkflowAlreadyCompleted
-			},
+			SignalExternalWorkflowExecutionFailedCauseFuzzer,
 		),
 	)
 }
@@ -2408,9 +2419,7 @@ func TestPollForDecisionTaskResponseFuzz(t *testing.T) {
 				// ClusterAttribute is always cleared (mapper uses strategy+strings)
 				p.ClusterAttribute = nil
 			},
-			func(e *types.SignalExternalWorkflowExecutionFailedCause, c fuzz.Continue) {
-				*e = types.SignalExternalWorkflowExecutionFailedCause(c.Intn(2)) // 0-1: UnknownExternalWorkflowExecution, WorkflowAlreadyCompleted
-			},
+			SignalExternalWorkflowExecutionFailedCauseFuzzer,
 			func(e *types.CancelExternalWorkflowExecutionFailedCause, c fuzz.Continue) {
 				*e = types.CancelExternalWorkflowExecutionFailedCause(c.Intn(2)) // 0-1: UnknownExternalWorkflowExecution, WorkflowAlreadyCompleted
 			},
@@ -2733,9 +2742,7 @@ func TestGetWorkflowExecutionHistoryResponseFuzz(t *testing.T) {
 				// ClusterAttribute is always cleared (mapper uses strategy+strings)
 				p.ClusterAttribute = nil
 			},
-			func(e *types.SignalExternalWorkflowExecutionFailedCause, c fuzz.Continue) {
-				*e = types.SignalExternalWorkflowExecutionFailedCause(c.Intn(2)) // 0-1: UnknownExternalWorkflowExecution, WorkflowAlreadyCompleted
-			},
+			SignalExternalWorkflowExecutionFailedCauseFuzzer,
 			func(e *types.CancelExternalWorkflowExecutionFailedCause, c fuzz.Continue) {
 				*e = types.CancelExternalWorkflowExecutionFailedCause(c.Intn(2)) // 0-1: UnknownExternalWorkflowExecution, WorkflowAlreadyCompleted
 			},
@@ -3451,9 +3458,7 @@ func TestQueryWorkflowRequestFuzz(t *testing.T) {
 			func(e *types.QueryRejectCondition, c fuzz.Continue) {
 				*e = types.QueryRejectCondition(c.Intn(2)) // 0: NotOpen, 1: NotCompletedCleanly
 			},
-			func(e *types.QueryConsistencyLevel, c fuzz.Continue) {
-				*e = types.QueryConsistencyLevel(c.Intn(2)) // 0: Eventual, 1: Strong
-			},
+			QueryConsistencyLevelFuzzer,
 		),
 	)
 }
@@ -3528,9 +3533,7 @@ func TestGetWorkflowExecutionHistoryRequestFuzz(t *testing.T) {
 			func(e *types.HistoryEventFilterType, c fuzz.Continue) {
 				*e = types.HistoryEventFilterType(c.Intn(2)) // 0: AllEvent, 1: CloseEvent
 			},
-			func(e *types.QueryConsistencyLevel, c fuzz.Continue) {
-				*e = types.QueryConsistencyLevel(c.Intn(2)) // 0: Eventual, 1: Strong
-			},
+			QueryConsistencyLevelFuzzer,
 		),
 	)
 }
@@ -3823,4 +3826,3 @@ func TestClusterAttributeScopeFuzz(t *testing.T) {
 func TestBadBinaryInfoMapFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromBadBinaryInfoMap, ToBadBinaryInfoMap)
 }
-
