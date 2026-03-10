@@ -1585,208 +1585,104 @@ func TestFailoverType(t *testing.T) {
 	assert.Nil(t, ToFailoverType(apiv1.FailoverType(999))) // Unknown value
 }
 
-// TODO(c-warren): remove these comments once refactoring is completed
-// special string
 func EncodingTypeFuzzer(e *types.EncodingType, c fuzz.Continue) {
-	// Valid types are:
-	// - EncodingTypeThriftRW
-	// - EncodingTypeJSON
-	*e = types.EncodingType(c.Intn(2))
+	*e = types.EncodingType(c.Intn(2)) // 0-1: ThriftRW, JSON
 }
 
 func QueryConsistencyLevelFuzzer(e *types.QueryConsistencyLevel, c fuzz.Continue) {
-	// Valid types are:
-	// - QueryConsistencyLevelEventual
-	// - QueryConsistencyLevelStrong
-	*e = types.QueryConsistencyLevel(c.Intn(2))
+	*e = types.QueryConsistencyLevel(c.Intn(2)) // 0-1: Eventual, Strong
 }
 
 func SignalExternalWorkflowExecutionFailedCauseFuzzer(e *types.SignalExternalWorkflowExecutionFailedCause, c fuzz.Continue) {
-	// Valid types are:
-	// - SignalExternalWorkflowExecutionFailedCauseUnknownExternalWorkflowExecution
-	// - SignalExternalWorkflowExecutionFailedCauseWorkflowAlreadyCompleted
-	*e = types.SignalExternalWorkflowExecutionFailedCause(c.Intn(2))
+	*e = types.SignalExternalWorkflowExecutionFailedCause(c.Intn(2)) // 0-1: UnknownExternalWorkflowExecution, WorkflowAlreadyCompleted
 }
 
 func WorkflowIDReusePolicyFuzzer(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
-	// Valid types are:
-	// - WorkflowIDReusePolicyAllowDuplicateFailedOnly (0)
-	// - WorkflowIDReusePolicyAllowDuplicate (1)
-	// - WorkflowIDReusePolicyRejectDuplicate (2)
-	// - WorkflowIDReusePolicyTerminateIfRunning (3)
-	*e = types.WorkflowIDReusePolicy(c.Intn(4))
+	*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
 }
 
 func ActiveClusterSelectionStrategyFuzzer(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
-	// Valid types are:
-	// - ActiveClusterSelectionStrategyRegionSticky (0)
-	// - ActiveClusterSelectionStrategyExternalEntity (1)
-	*e = types.ActiveClusterSelectionStrategy(c.Intn(2))
+	*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
 }
 
 func CronOverlapPolicyFuzzer(e *types.CronOverlapPolicy, c fuzz.Continue) {
-	// Valid types are:
-	// - CronOverlapPolicySkip (0)
-	// - CronOverlapPolicyBufferOne (1)
-	*e = types.CronOverlapPolicy(c.Intn(2))
+	*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
 }
 
 func DecisionTypeFuzzer(e *types.DecisionType, c fuzz.Continue) {
-	// Valid types are:
-	// - DecisionTypeScheduleActivityTask (0)
-	// - DecisionTypeRequestCancelActivityTask (1)
-	// - DecisionTypeStartTimer (2)
-	// - DecisionTypeCancelTimer (3)
-	// - DecisionTypeCompleteWorkflowExecution (4)
-	// - DecisionTypeFailWorkflowExecution (5)
-	// - DecisionTypeContinueAsNewWorkflowExecution (6)
-	// - DecisionTypeCancelWorkflowExecution (7)
-	// - DecisionTypeStartChildWorkflowExecution (8)
-	// - DecisionTypeSignalExternalWorkflowExecution (9)
-	// - DecisionTypeUpsertWorkflowSearchAttributes (10)
-	// - DecisionTypeRecordMarker (11)
-	// - DecisionTypeRequestCancelExternalWorkflowExecution (12)
 	*e = types.DecisionType(c.Intn(13))
 }
 
 func EventTypeFuzzer(e *types.EventType, c fuzz.Continue) {
-	// Valid types are EventType values from 0-41
 	*e = types.EventType(c.Intn(42))
 }
 
 func TimeoutTypeFuzzer(e *types.TimeoutType, c fuzz.Continue) {
-	// Valid types are:
-	// - TimeoutTypeStartToClose (0)
-	// - TimeoutTypeScheduleToStart (1)
-	// - TimeoutTypeScheduleToClose (2)
-	// - TimeoutTypeHeartbeat (3)
-	*e = types.TimeoutType(c.Intn(4))
+	*e = types.TimeoutType(c.Intn(4)) // 0-3: StartToClose, ScheduleToStart, ScheduleToClose, Heartbeat
 }
 
 func TaskListKindFuzzer(e *types.TaskListKind, c fuzz.Continue) {
-	// Valid types are:
-	// - TaskListKindNormal (0)
-	// - TaskListKindSticky (1)
-	// - TaskListKindBoth (2)
-	*e = types.TaskListKind(c.Intn(3))
+	*e = types.TaskListKind(c.Intn(3)) // 0-2: Normal, Sticky, Ephemeral
 }
 
 func FailoverTypeFuzzer(e *types.FailoverType, c fuzz.Continue) {
-	// Valid types are:
-	// - FailoverTypeForce (1)
-	// - FailoverTypeGraceful (2)
-	// Note: Skip 0 (Invalid) which maps to nil
-	*e = types.FailoverType(c.Intn(2) + 1)
+	*e = types.FailoverType(c.Intn(2) + 1) // 1-2: Force, Graceful (skip 0=Invalid which maps to nil)
 }
 
 func ArchivalStatusFuzzer(e *types.ArchivalStatus, c fuzz.Continue) {
-	// Valid types are:
-	// - ArchivalStatusDisabled (0)
-	// - ArchivalStatusEnabled (1)
-	// - ArchivalStatusPaused (2)
-	*e = types.ArchivalStatus(c.Intn(3))
+	*e = types.ArchivalStatus(c.Intn(3)) // 0-2: Disabled, Enabled, Paused
 }
 
 func DomainStatusFuzzer(e *types.DomainStatus, c fuzz.Continue) {
-	// Valid types are:
-	// - DomainStatusRegistered (0)
-	// - DomainStatusDeprecated (1)
-	// - DomainStatusDeleted (2)
-	*e = types.DomainStatus(c.Intn(3))
+	*e = types.DomainStatus(c.Intn(3)) // 0-2: Registered, Deprecated, Deleted
 }
 
 func IsolationGroupStateFuzzer(e *types.IsolationGroupState, c fuzz.Continue) {
-	// Valid types are:
-	// - IsolationGroupStateInvalid (0)
-	// - IsolationGroupStateHealthy (1)
-	// - IsolationGroupStateDrained (2)
-	*e = types.IsolationGroupState(c.Intn(3))
+	*e = types.IsolationGroupState(c.Intn(3)) // 0-2: Invalid, Healthy, Drained
 }
 
 func ContinueAsNewInitiatorFuzzer(e *types.ContinueAsNewInitiator, c fuzz.Continue) {
-	// Valid types are:
-	// - ContinueAsNewInitiatorDecider (0)
-	// - ContinueAsNewInitiatorRetryPolicy (1)
-	// - ContinueAsNewInitiatorCronSchedule (2)
-	*e = types.ContinueAsNewInitiator(c.Intn(3))
+	*e = types.ContinueAsNewInitiator(c.Intn(3)) // 0-2: Decider, RetryPolicy, CronSchedule
 }
 
 func CancelExternalWorkflowExecutionFailedCauseFuzzer(e *types.CancelExternalWorkflowExecutionFailedCause, c fuzz.Continue) {
-	// Valid types are:
-	// - CancelExternalWorkflowExecutionFailedCauseUnknownExternalWorkflowExecution (0)
-	// - CancelExternalWorkflowExecutionFailedCauseWorkflowAlreadyCompleted (1)
-	*e = types.CancelExternalWorkflowExecutionFailedCause(c.Intn(2))
+	*e = types.CancelExternalWorkflowExecutionFailedCause(c.Intn(2)) // 0-1: UnknownExternalWorkflowExecution, WorkflowAlreadyCompleted
 }
 
 func ChildWorkflowExecutionFailedCauseFuzzer(e *types.ChildWorkflowExecutionFailedCause, c fuzz.Continue) {
-	// Valid types are:
-	// - ChildWorkflowExecutionFailedCauseWorkflowAlreadyRunning (0)
-	// - ChildWorkflowExecutionFailedCauseDeprecatedDomain (1)
-	*e = types.ChildWorkflowExecutionFailedCause(c.Intn(2))
+	*e = types.ChildWorkflowExecutionFailedCause(c.Intn(2)) // 0-1: WorkflowAlreadyRunning, DeprecatedDomain
 }
 
 func WorkflowExecutionCloseStatusFuzzer(e *types.WorkflowExecutionCloseStatus, c fuzz.Continue) {
-	// Valid types are:
-	// - WorkflowExecutionCloseStatusCompleted (0)
-	// - WorkflowExecutionCloseStatusFailed (1)
-	// - WorkflowExecutionCloseStatusCanceled (2)
-	// - WorkflowExecutionCloseStatusTerminated (3)
-	// - WorkflowExecutionCloseStatusContinuedAsNew (4)
-	// - WorkflowExecutionCloseStatusTimedOut (5)
-	*e = types.WorkflowExecutionCloseStatus(c.Intn(6))
+	*e = types.WorkflowExecutionCloseStatus(c.Intn(6)) // 0-5: Completed, Failed, Canceled, Terminated, ContinuedAsNew, TimedOut
 }
 
 func ParentClosePolicyFuzzer(e *types.ParentClosePolicy, c fuzz.Continue) {
-	// Valid types are:
-	// - ParentClosePolicyAbandon (0)
-	// - ParentClosePolicyRequestCancel (1)
-	// - ParentClosePolicyTerminate (2)
-	*e = types.ParentClosePolicy(c.Intn(3))
+	*e = types.ParentClosePolicy(c.Intn(3)) // 0-2: Abandon, RequestCancel, Terminate
 }
 
 func DecisionTaskTimedOutCauseFuzzer(e *types.DecisionTaskTimedOutCause, c fuzz.Continue) {
-	// Valid types are:
-	// - DecisionTaskTimedOutCauseTimeout (0)
-	// - DecisionTaskTimedOutCauseReset (1)
-	*e = types.DecisionTaskTimedOutCause(c.Intn(2))
+	*e = types.DecisionTaskTimedOutCause(c.Intn(2)) // 0-1: Timeout, Reset
 }
 
 func DecisionTaskFailedCauseFuzzer(e *types.DecisionTaskFailedCause, c fuzz.Continue) {
-	// Valid types are DecisionTaskFailedCause values from 0-22
-	*e = types.DecisionTaskFailedCause(c.Intn(23))
+	*e = types.DecisionTaskFailedCause(c.Intn(23)) // 0-22: All DecisionTaskFailedCause values
 }
 
 func QueryRejectConditionFuzzer(e *types.QueryRejectCondition, c fuzz.Continue) {
-	// Valid types are:
-	// - QueryRejectConditionNotOpen (0)
-	// - QueryRejectConditionNotCompletedCleanly (1)
-	*e = types.QueryRejectCondition(c.Intn(2))
+	*e = types.QueryRejectCondition(c.Intn(2)) // 0-1: NotOpen, NotCompletedCleanly
 }
 
 func PendingActivityStateFuzzer(e *types.PendingActivityState, c fuzz.Continue) {
-	// Valid types are:
-	// - PendingActivityStateScheduled (0)
-	// - PendingActivityStateStarted (1)
-	// - PendingActivityStateCancelRequested (2)
-	*e = types.PendingActivityState(c.Intn(3))
+	*e = types.PendingActivityState(c.Intn(3)) // 0-2: Scheduled, Started, CancelRequested
 }
 
 func HistoryEventFilterTypeFuzzer(e *types.HistoryEventFilterType, c fuzz.Continue) {
-	// Valid types are:
-	// - HistoryEventFilterTypeAllEvent (0)
-	// - HistoryEventFilterTypeCloseEvent (1)
-	*e = types.HistoryEventFilterType(c.Intn(2))
+	*e = types.HistoryEventFilterType(c.Intn(2)) // 0-1: AllEvent, CloseEvent
 }
 
 func IndexedValueTypeFuzzer(e *types.IndexedValueType, c fuzz.Continue) {
-	// Valid types are:
-	// - IndexedValueTypeString (0)
-	// - IndexedValueTypeKeyword (1)
-	// - IndexedValueTypeInt (2)
-	// - IndexedValueTypeDouble (3)
-	// - IndexedValueTypeBool (4)
-	// - IndexedValueTypeDatetime (5)
-	*e = types.IndexedValueType(c.Intn(6))
+	*e = types.IndexedValueType(c.Intn(6)) // 0-5: String, Keyword, Int, Double, Bool, Datetime
 }
 
 func ActiveClusterSelectionPolicyFuzzerClearAttribute(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
