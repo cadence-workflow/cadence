@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc/api/transport"
+	"go.uber.org/yarpc/peer/hostport"
 	"go.uber.org/yarpc/transport/grpc"
 
 	"github.com/uber/cadence/common/clock"
@@ -249,4 +250,70 @@ func TestSpectatorPeerChooser_Choose_TracksLastUsed(t *testing.T) {
 
 	// lastUsed should have advanced
 	assert.True(t, secondLastUsed.After(firstLastUsed), "lastUsed should be updated on reuse")
+}
+
+func TestSpectatorPeerChooser_EvictStalePeers(t *testing.T) {
+	tests := []struct {
+		name          string
+		peerTTL       time.Duration
+		advanceBy     time.Duration
+		expectEvicted bool
+	}{
+		{
+			name:          "peer within TTL is kept",
+			peerTTL:       2 * time.Minute,
+			advanceBy:     1 * time.Minute,
+			expectEvicted: false,
+		},
+		{
+			name:          "peer exactly at TTL boundary is kept",
+			peerTTL:       2 * time.Minute,
+			advanceBy:     2 * time.Minute,
+			expectEvicted: false,
+		},
+		{
+			name:          "peer past TTL is evicted",
+			peerTTL:       2 * time.Minute,
+			advanceBy:     2*time.Minute + time.Millisecond,
+			expectEvicted: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			peerTransport := grpc.NewTransport()
+			require.NoError(t, peerTransport.Start())
+			defer peerTransport.Stop()
+
+			mockClock := clock.NewMockedTimeSource()
+
+			chooser := &SpectatorPeerChooser{
+				transport:  peerTransport,
+				logger:     testlogger.New(t),
+				peers:      make(map[string]*trackedPeer),
+				timeSource: mockClock,
+				peerTTL:    tc.peerTTL,
+			}
+
+			// Manually insert a tracked peer with lastUsed = now
+			p, err := peerTransport.RetainPeer(hostport.Identify("127.0.0.1:7953"), &noOpSubscriber{})
+			require.NoError(t, err)
+			chooser.peers["127.0.0.1:7953"] = &trackedPeer{
+				peer:     p,
+				lastUsed: mockClock.Now(),
+			}
+
+			// Advance clock
+			mockClock.Advance(tc.advanceBy)
+
+			// Run eviction directly
+			chooser.evictStalePeers()
+
+			if tc.expectEvicted {
+				assert.Empty(t, chooser.peers)
+			} else {
+				assert.Len(t, chooser.peers, 1)
+			}
+		})
+	}
 }

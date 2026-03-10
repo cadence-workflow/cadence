@@ -53,6 +53,9 @@ type SpectatorPeerChooser struct {
 	peersMutex sync.RWMutex
 	peers      map[string]*trackedPeer // grpc_address -> peer
 	timeSource clock.TimeSource
+	peerTTL    time.Duration
+	stopCh     chan struct{}
+	stopWG     sync.WaitGroup
 }
 
 type SpectatorPeerChooserParams struct {
@@ -76,6 +79,9 @@ func NewSpectatorPeerChooser(
 // Start satisfies the peer.Chooser interface
 func (c *SpectatorPeerChooser) Start() error {
 	c.logger.Info("Starting shard distributor peer chooser", tag.ShardNamespace(c.namespace))
+	if c.peerTTL > 0 {
+		c.startEvictionLoop()
+	}
 	return nil
 }
 
@@ -83,7 +89,11 @@ func (c *SpectatorPeerChooser) Start() error {
 func (c *SpectatorPeerChooser) Stop() error {
 	c.logger.Info("Stopping shard distributor peer chooser", tag.ShardNamespace(c.namespace))
 
-	// Release all peers
+	if c.stopCh != nil {
+		close(c.stopCh)
+		c.stopWG.Wait()
+	}
+
 	c.peersMutex.Lock()
 	defer c.peersMutex.Unlock()
 
@@ -171,6 +181,40 @@ func (c *SpectatorPeerChooser) getOrCreatePeer(grpcAddress string) (*trackedPeer
 	tp := &trackedPeer{peer: p, lastUsed: c.timeSource.Now()}
 	c.peers[grpcAddress] = tp
 	return tp, nil
+}
+
+func (c *SpectatorPeerChooser) evictStalePeers() {
+	now := c.timeSource.Now()
+
+	c.peersMutex.Lock()
+	defer c.peersMutex.Unlock()
+
+	for addr, tp := range c.peers {
+		if now.Sub(tp.lastUsed) > c.peerTTL {
+			if err := c.transport.ReleasePeer(tp.peer, &noOpSubscriber{}); err != nil {
+				c.logger.Error("Failed to release stale peer", tag.Error(err), tag.Address(addr))
+			}
+			delete(c.peers, addr)
+		}
+	}
+}
+
+func (c *SpectatorPeerChooser) startEvictionLoop() {
+	c.stopCh = make(chan struct{})
+	c.stopWG.Add(1)
+	go func() {
+		defer c.stopWG.Done()
+		ticker := time.NewTicker(c.peerTTL / 2)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				c.evictStalePeers()
+			case <-c.stopCh:
+				return
+			}
+		}
+	}()
 }
 
 // noOpSubscriber is a no-op implementation of peer.Subscriber
