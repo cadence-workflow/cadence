@@ -1608,6 +1608,187 @@ func SignalExternalWorkflowExecutionFailedCauseFuzzer(e *types.SignalExternalWor
 	*e = types.SignalExternalWorkflowExecutionFailedCause(c.Intn(2))
 }
 
+func WorkflowIDReusePolicyFuzzer(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
+	// Valid types are:
+	// - WorkflowIDReusePolicyAllowDuplicateFailedOnly (0)
+	// - WorkflowIDReusePolicyAllowDuplicate (1)
+	// - WorkflowIDReusePolicyRejectDuplicate (2)
+	// - WorkflowIDReusePolicyTerminateIfRunning (3)
+	*e = types.WorkflowIDReusePolicy(c.Intn(4))
+}
+
+func ActiveClusterSelectionStrategyFuzzer(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
+	// Valid types are:
+	// - ActiveClusterSelectionStrategyRegionSticky (0)
+	// - ActiveClusterSelectionStrategyExternalEntity (1)
+	*e = types.ActiveClusterSelectionStrategy(c.Intn(2))
+}
+
+func CronOverlapPolicyFuzzer(e *types.CronOverlapPolicy, c fuzz.Continue) {
+	// Valid types are:
+	// - CronOverlapPolicySkip (0)
+	// - CronOverlapPolicyBufferOne (1)
+	*e = types.CronOverlapPolicy(c.Intn(2))
+}
+
+func DecisionTypeFuzzer(e *types.DecisionType, c fuzz.Continue) {
+	// Valid types are:
+	// - DecisionTypeScheduleActivityTask (0)
+	// - DecisionTypeRequestCancelActivityTask (1)
+	// - DecisionTypeStartTimer (2)
+	// - DecisionTypeCancelTimer (3)
+	// - DecisionTypeCompleteWorkflowExecution (4)
+	// - DecisionTypeFailWorkflowExecution (5)
+	// - DecisionTypeContinueAsNewWorkflowExecution (6)
+	// - DecisionTypeCancelWorkflowExecution (7)
+	// - DecisionTypeStartChildWorkflowExecution (8)
+	// - DecisionTypeSignalExternalWorkflowExecution (9)
+	// - DecisionTypeUpsertWorkflowSearchAttributes (10)
+	// - DecisionTypeRecordMarker (11)
+	// - DecisionTypeRequestCancelExternalWorkflowExecution (12)
+	*e = types.DecisionType(c.Intn(13))
+}
+
+func EventTypeFuzzer(e *types.EventType, c fuzz.Continue) {
+	// Valid types are EventType values from 0-41
+	*e = types.EventType(c.Intn(42))
+}
+
+func TimeoutTypeFuzzer(e *types.TimeoutType, c fuzz.Continue) {
+	// Valid types are:
+	// - TimeoutTypeStartToClose (0)
+	// - TimeoutTypeScheduleToStart (1)
+	// - TimeoutTypeScheduleToClose (2)
+	// - TimeoutTypeHeartbeat (3)
+	*e = types.TimeoutType(c.Intn(4))
+}
+
+func TaskListKindFuzzer(e *types.TaskListKind, c fuzz.Continue) {
+	// Valid types are:
+	// - TaskListKindNormal (0)
+	// - TaskListKindSticky (1)
+	// - TaskListKindBoth (2)
+	*e = types.TaskListKind(c.Intn(3))
+}
+
+func FailoverTypeFuzzer(e *types.FailoverType, c fuzz.Continue) {
+	// Valid types are:
+	// - FailoverTypeForce (1)
+	// - FailoverTypeGraceful (2)
+	// Note: Skip 0 (Invalid) which maps to nil
+	*e = types.FailoverType(c.Intn(2) + 1)
+}
+
+func ArchivalStatusFuzzer(e *types.ArchivalStatus, c fuzz.Continue) {
+	// Valid types are:
+	// - ArchivalStatusDisabled (0)
+	// - ArchivalStatusEnabled (1)
+	// - ArchivalStatusPaused (2)
+	*e = types.ArchivalStatus(c.Intn(3))
+}
+
+func DomainStatusFuzzer(e *types.DomainStatus, c fuzz.Continue) {
+	// Valid types are:
+	// - DomainStatusRegistered (0)
+	// - DomainStatusDeprecated (1)
+	// - DomainStatusDeleted (2)
+	*e = types.DomainStatus(c.Intn(3))
+}
+
+func IsolationGroupStateFuzzer(e *types.IsolationGroupState, c fuzz.Continue) {
+	// Valid types are:
+	// - IsolationGroupStateInvalid (0)
+	// - IsolationGroupStateHealthy (1)
+	// - IsolationGroupStateDrained (2)
+	*e = types.IsolationGroupState(c.Intn(3))
+}
+
+func ContinueAsNewInitiatorFuzzer(e *types.ContinueAsNewInitiator, c fuzz.Continue) {
+	// Valid types are:
+	// - ContinueAsNewInitiatorDecider (0)
+	// - ContinueAsNewInitiatorRetryPolicy (1)
+	// - ContinueAsNewInitiatorCronSchedule (2)
+	*e = types.ContinueAsNewInitiator(c.Intn(3))
+}
+
+func CancelExternalWorkflowExecutionFailedCauseFuzzer(e *types.CancelExternalWorkflowExecutionFailedCause, c fuzz.Continue) {
+	// Valid types are:
+	// - CancelExternalWorkflowExecutionFailedCauseUnknownExternalWorkflowExecution (0)
+	// - CancelExternalWorkflowExecutionFailedCauseWorkflowAlreadyCompleted (1)
+	*e = types.CancelExternalWorkflowExecutionFailedCause(c.Intn(2))
+}
+
+func ChildWorkflowExecutionFailedCauseFuzzer(e *types.ChildWorkflowExecutionFailedCause, c fuzz.Continue) {
+	// Valid types are:
+	// - ChildWorkflowExecutionFailedCauseWorkflowAlreadyRunning (0)
+	// - ChildWorkflowExecutionFailedCauseDeprecatedDomain (1)
+	*e = types.ChildWorkflowExecutionFailedCause(c.Intn(2))
+}
+
+func WorkflowExecutionCloseStatusFuzzer(e *types.WorkflowExecutionCloseStatus, c fuzz.Continue) {
+	// Valid types are:
+	// - WorkflowExecutionCloseStatusCompleted (0)
+	// - WorkflowExecutionCloseStatusFailed (1)
+	// - WorkflowExecutionCloseStatusCanceled (2)
+	// - WorkflowExecutionCloseStatusTerminated (3)
+	// - WorkflowExecutionCloseStatusContinuedAsNew (4)
+	// - WorkflowExecutionCloseStatusTimedOut (5)
+	*e = types.WorkflowExecutionCloseStatus(c.Intn(6))
+}
+
+func ParentClosePolicyFuzzer(e *types.ParentClosePolicy, c fuzz.Continue) {
+	// Valid types are:
+	// - ParentClosePolicyAbandon (0)
+	// - ParentClosePolicyRequestCancel (1)
+	// - ParentClosePolicyTerminate (2)
+	*e = types.ParentClosePolicy(c.Intn(3))
+}
+
+func DecisionTaskTimedOutCauseFuzzer(e *types.DecisionTaskTimedOutCause, c fuzz.Continue) {
+	// Valid types are:
+	// - DecisionTaskTimedOutCauseTimeout (0)
+	// - DecisionTaskTimedOutCauseReset (1)
+	*e = types.DecisionTaskTimedOutCause(c.Intn(2))
+}
+
+func DecisionTaskFailedCauseFuzzer(e *types.DecisionTaskFailedCause, c fuzz.Continue) {
+	// Valid types are DecisionTaskFailedCause values from 0-22
+	*e = types.DecisionTaskFailedCause(c.Intn(23))
+}
+
+func QueryRejectConditionFuzzer(e *types.QueryRejectCondition, c fuzz.Continue) {
+	// Valid types are:
+	// - QueryRejectConditionNotOpen (0)
+	// - QueryRejectConditionNotCompletedCleanly (1)
+	*e = types.QueryRejectCondition(c.Intn(2))
+}
+
+func PendingActivityStateFuzzer(e *types.PendingActivityState, c fuzz.Continue) {
+	// Valid types are:
+	// - PendingActivityStateScheduled (0)
+	// - PendingActivityStateStarted (1)
+	// - PendingActivityStateCancelRequested (2)
+	*e = types.PendingActivityState(c.Intn(3))
+}
+
+func HistoryEventFilterTypeFuzzer(e *types.HistoryEventFilterType, c fuzz.Continue) {
+	// Valid types are:
+	// - HistoryEventFilterTypeAllEvent (0)
+	// - HistoryEventFilterTypeCloseEvent (1)
+	*e = types.HistoryEventFilterType(c.Intn(2))
+}
+
+func IndexedValueTypeFuzzer(e *types.IndexedValueType, c fuzz.Continue) {
+	// Valid types are:
+	// - IndexedValueTypeString (0)
+	// - IndexedValueTypeKeyword (1)
+	// - IndexedValueTypeInt (2)
+	// - IndexedValueTypeDouble (3)
+	// - IndexedValueTypeBool (4)
+	// - IndexedValueTypeDatetime (5)
+	*e = types.IndexedValueType(c.Intn(6))
+}
+
 func TestDataBlobArrayFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromDataBlobArray, ToDataBlobArray,
 		testutils.WithCustomFuncs(EncodingTypeFuzzer),
@@ -1659,9 +1840,7 @@ func TestClusterReplicationConfigurationArrayFuzz(t *testing.T) {
 func TestIndexedValueTypeMapFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromIndexedValueTypeMap, ToIndexedValueTypeMap,
 		testutils.WithCustomFuncs(
-			func(e *types.IndexedValueType, c fuzz.Continue) {
-				*e = types.IndexedValueType(c.Intn(6)) // 0-5: String, Keyword, Int, Double, Bool, Datetime
-			},
+			IndexedValueTypeFuzzer,
 		),
 	)
 }
@@ -1694,9 +1873,7 @@ func TestListFailoverHistoryResponseFuzz(t *testing.T) {
 	// FailoverEvent.ID: empty string is normalized to nil during conversion (ToFailoverEvent only sets ID if non-empty)
 	testutils.RunMapperFuzzTest(t, FromListFailoverHistoryResponse, ToListFailoverHistoryResponse,
 		testutils.WithCustomFuncs(
-			func(e *types.FailoverType, c fuzz.Continue) {
-				*e = types.FailoverType(c.Intn(2) + 1) // 1-2: Force, Graceful (skip 0=Invalid which maps to nil)
-			},
+			FailoverTypeFuzzer,
 		),
 		testutils.WithExcludedFields("ID"),
 	)
@@ -1715,15 +1892,9 @@ func TestStartWorkflowExecutionAsyncRequestFuzz(t *testing.T) {
 	// ActiveClusterSelectionPolicy: string fields must match strategy
 	testutils.RunMapperFuzzTest(t, FromStartWorkflowExecutionAsyncRequest, ToStartWorkflowExecutionAsyncRequest,
 		testutils.WithCustomFuncs(
-			func(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
-				*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
-			},
-			func(e *types.CronOverlapPolicy, c fuzz.Continue) {
-				*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
-			},
-			func(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
-				*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
-			},
+			WorkflowIDReusePolicyFuzzer,
+			CronOverlapPolicyFuzzer,
+			ActiveClusterSelectionStrategyFuzzer,
 			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
 				// ActiveClusterSelectionPolicy requires string fields to match strategy
 				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
@@ -1771,9 +1942,7 @@ func TestCountWorkflowExecutionsRequestFuzz(t *testing.T) {
 func TestRequestCancelExternalWorkflowExecutionFailedEventAttributesFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromRequestCancelExternalWorkflowExecutionFailedEventAttributes, ToRequestCancelExternalWorkflowExecutionFailedEventAttributes,
 		testutils.WithCustomFuncs(
-			func(e *types.CancelExternalWorkflowExecutionFailedCause, c fuzz.Continue) {
-				*e = types.CancelExternalWorkflowExecutionFailedCause(c.Intn(2)) // 0-1: UnknownExternalWorkflowExecution, WorkflowAlreadyCompleted
-			},
+			CancelExternalWorkflowExecutionFailedCauseFuzzer,
 		),
 	)
 }
@@ -1830,18 +1999,10 @@ func TestFailoverDomainResponseFuzz(t *testing.T) {
 					r.ReplicationConfiguration = &types.DomainReplicationConfiguration{}
 				}
 			},
-			func(e *types.EncodingType, c fuzz.Continue) {
-				*e = types.EncodingType(c.Intn(2)) // 0-1: ThriftRW, JSON
-			},
-			func(e *types.IsolationGroupState, c fuzz.Continue) {
-				*e = types.IsolationGroupState(c.Intn(3)) // 0-2: Invalid, Healthy, Drained
-			},
-			func(e *types.DomainStatus, c fuzz.Continue) {
-				*e = types.DomainStatus(c.Intn(3)) // 0-2: Registered, Deprecated, Deleted
-			},
-			func(e *types.ArchivalStatus, c fuzz.Continue) {
-				*e = types.ArchivalStatus(c.Intn(3)) // 0-2: Disabled, Enabled, (unused)
-			},
+			EncodingTypeFuzzer,
+			IsolationGroupStateFuzzer,
+			DomainStatusFuzzer,
+			ArchivalStatusFuzzer,
 		),
 		testutils.WithExcludedFields("EmitMetric", "WorkflowExecutionRetentionPeriodInDays"),
 	)
@@ -1852,9 +2013,7 @@ func TestFailoverEventArrayFuzz(t *testing.T) {
 	// ID: empty string maps to nil
 	testutils.RunMapperFuzzTest(t, FromFailoverEventArray, ToFailoverEventArray,
 		testutils.WithCustomFuncs(
-			func(e *types.FailoverType, c fuzz.Continue) {
-				*e = types.FailoverType(c.Intn(2) + 1) // 1-2: Force, Graceful (skip 0=Invalid which maps to nil)
-			},
+			FailoverTypeFuzzer,
 			func(e *types.FailoverEvent, c fuzz.Continue) {
 				c.Fuzz(e)
 				// Empty string for ID should be nil
@@ -1953,9 +2112,7 @@ func TestListOpenWorkflowExecutionsResponseFuzz(t *testing.T) {
 func TestRespondDecisionTaskFailedRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromRespondDecisionTaskFailedRequest, ToRespondDecisionTaskFailedRequest,
 		testutils.WithCustomFuncs(
-			func(e *types.DecisionTaskFailedCause, c fuzz.Continue) {
-				*e = types.DecisionTaskFailedCause(c.Intn(23)) // 0-22: All DecisionTaskFailedCause values
-			},
+			DecisionTaskFailedCauseFuzzer,
 		),
 	)
 }
@@ -1978,18 +2135,10 @@ func TestDescribeDomainResponseArrayFuzz(t *testing.T) {
 					r.ReplicationConfiguration = &types.DomainReplicationConfiguration{}
 				}
 			},
-			func(e *types.EncodingType, c fuzz.Continue) {
-				*e = types.EncodingType(c.Intn(2)) // 0-1: ThriftRW, JSON
-			},
-			func(e *types.IsolationGroupState, c fuzz.Continue) {
-				*e = types.IsolationGroupState(c.Intn(3)) // 0-2: Invalid, Healthy, Drained
-			},
-			func(e *types.DomainStatus, c fuzz.Continue) {
-				*e = types.DomainStatus(c.Intn(3)) // 0-2: Registered, Deprecated, Deleted
-			},
-			func(e *types.ArchivalStatus, c fuzz.Continue) {
-				*e = types.ArchivalStatus(c.Intn(3)) // 0-2: Disabled, Enabled, (unused)
-			},
+			EncodingTypeFuzzer,
+			IsolationGroupStateFuzzer,
+			DomainStatusFuzzer,
+			ArchivalStatusFuzzer,
 		),
 		testutils.WithExcludedFields("EmitMetric", "WorkflowExecutionRetentionPeriodInDays"),
 	)
@@ -2023,15 +2172,9 @@ func TestSignalExternalWorkflowExecutionInitiatedEventAttributesFuzz(t *testing.
 func TestStartChildWorkflowExecutionInitiatedEventAttributesFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromStartChildWorkflowExecutionInitiatedEventAttributes, ToStartChildWorkflowExecutionInitiatedEventAttributes,
 		testutils.WithCustomFuncs(
-			func(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
-				*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
-			},
-			func(e *types.CronOverlapPolicy, c fuzz.Continue) {
-				*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
-			},
-			func(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
-				*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
-			},
+			WorkflowIDReusePolicyFuzzer,
+			CronOverlapPolicyFuzzer,
+			ActiveClusterSelectionStrategyFuzzer,
 			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
 				// ActiveClusterSelectionPolicy requires string fields to match strategy
 				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
@@ -2127,30 +2270,14 @@ func TestHistoryEventFuzz(t *testing.T) {
 					h.EventType = &eventType
 				}
 			},
-			func(e *types.EventType, c fuzz.Continue) {
-				*e = types.EventType(c.Intn(42)) // 0-41: All EventType values
-			},
-			func(e *types.DecisionType, c fuzz.Continue) {
-				*e = types.DecisionType(c.Intn(13)) // 0-12: All DecisionType values
-			},
-			func(e *types.TimeoutType, c fuzz.Continue) {
-				*e = types.TimeoutType(c.Intn(4)) // 0-3: StartToClose, ScheduleToStart, ScheduleToClose, Heartbeat
-			},
-			func(e *types.TaskListKind, c fuzz.Continue) {
-				*e = types.TaskListKind(c.Intn(3)) // 0-2: Normal, Sticky, Ephemeral
-			},
-			func(e *types.ContinueAsNewInitiator, c fuzz.Continue) {
-				*e = types.ContinueAsNewInitiator(c.Intn(3)) // 0-2: Decider, RetryPolicy, CronSchedule
-			},
-			func(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
-				*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
-			},
-			func(e *types.CronOverlapPolicy, c fuzz.Continue) {
-				*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
-			},
-			func(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
-				*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
-			},
+			EventTypeFuzzer,
+			DecisionTypeFuzzer,
+			TimeoutTypeFuzzer,
+			TaskListKindFuzzer,
+			ContinueAsNewInitiatorFuzzer,
+			WorkflowIDReusePolicyFuzzer,
+			CronOverlapPolicyFuzzer,
+			ActiveClusterSelectionStrategyFuzzer,
 			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
 				// ActiveClusterSelectionPolicy requires string fields to match strategy
 				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
@@ -2198,30 +2325,14 @@ func TestHistoryFuzz(t *testing.T) {
 					h.EventType = &eventType
 				}
 			},
-			func(e *types.EventType, c fuzz.Continue) {
-				*e = types.EventType(c.Intn(42)) // 0-41: All EventType values
-			},
-			func(e *types.DecisionType, c fuzz.Continue) {
-				*e = types.DecisionType(c.Intn(13)) // 0-12: All DecisionType values
-			},
-			func(e *types.TimeoutType, c fuzz.Continue) {
-				*e = types.TimeoutType(c.Intn(4)) // 0-3: StartToClose, ScheduleToStart, ScheduleToClose, Heartbeat
-			},
-			func(e *types.TaskListKind, c fuzz.Continue) {
-				*e = types.TaskListKind(c.Intn(3)) // 0-2: Normal, Sticky, Ephemeral
-			},
-			func(e *types.ContinueAsNewInitiator, c fuzz.Continue) {
-				*e = types.ContinueAsNewInitiator(c.Intn(3)) // 0-2: Decider, RetryPolicy, CronSchedule
-			},
-			func(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
-				*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
-			},
-			func(e *types.CronOverlapPolicy, c fuzz.Continue) {
-				*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
-			},
-			func(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
-				*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
-			},
+			EventTypeFuzzer,
+			DecisionTypeFuzzer,
+			TimeoutTypeFuzzer,
+			TaskListKindFuzzer,
+			ContinueAsNewInitiatorFuzzer,
+			WorkflowIDReusePolicyFuzzer,
+			CronOverlapPolicyFuzzer,
+			ActiveClusterSelectionStrategyFuzzer,
 			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
 				// ActiveClusterSelectionPolicy requires string fields to match strategy
 				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
@@ -2290,18 +2401,10 @@ func TestDecisionFuzz(t *testing.T) {
 					d.DecisionType = &decisionType
 				}
 			},
-			func(e *types.DecisionType, c fuzz.Continue) {
-				*e = types.DecisionType(c.Intn(13)) // 0-12: All DecisionType values
-			},
-			func(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
-				*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
-			},
-			func(e *types.CronOverlapPolicy, c fuzz.Continue) {
-				*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
-			},
-			func(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
-				*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
-			},
+			DecisionTypeFuzzer,
+			WorkflowIDReusePolicyFuzzer,
+			CronOverlapPolicyFuzzer,
+			ActiveClusterSelectionStrategyFuzzer,
 			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
 				// ActiveClusterSelectionPolicy requires string fields to match strategy
 				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
@@ -2338,9 +2441,7 @@ func TestFailoverDomainRequestFuzz(t *testing.T) {
 	// Reason: not yet implemented in the mapper
 	testutils.RunMapperFuzzTest(t, FromFailoverDomainRequest, ToFailoverDomainRequest,
 		testutils.WithCustomFuncs(
-			func(e *types.FailoverType, c fuzz.Continue) {
-				*e = types.FailoverType(c.Intn(2) + 1) // 1-2: Force, Graceful (skip 0=Invalid which maps to nil)
-			},
+			FailoverTypeFuzzer,
 		),
 		testutils.WithExcludedFields("DomainActiveClusterName", "Reason"),
 	)
@@ -2371,30 +2472,14 @@ func TestPollForDecisionTaskResponseFuzz(t *testing.T) {
 					h.EventType = &eventType
 				}
 			},
-			func(e *types.EventType, c fuzz.Continue) {
-				*e = types.EventType(c.Intn(42)) // 0-41: All EventType values
-			},
-			func(e *types.DecisionType, c fuzz.Continue) {
-				*e = types.DecisionType(c.Intn(13)) // 0-12: All DecisionType values
-			},
-			func(e *types.TimeoutType, c fuzz.Continue) {
-				*e = types.TimeoutType(c.Intn(4)) // 0-3: StartToClose, ScheduleToStart, ScheduleToClose, Heartbeat
-			},
-			func(e *types.TaskListKind, c fuzz.Continue) {
-				*e = types.TaskListKind(c.Intn(3)) // 0-2: Normal, Sticky, Ephemeral
-			},
-			func(e *types.ContinueAsNewInitiator, c fuzz.Continue) {
-				*e = types.ContinueAsNewInitiator(c.Intn(3)) // 0-2: Decider, RetryPolicy, CronSchedule
-			},
-			func(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
-				*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
-			},
-			func(e *types.CronOverlapPolicy, c fuzz.Continue) {
-				*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
-			},
-			func(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
-				*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
-			},
+			EventTypeFuzzer,
+			DecisionTypeFuzzer,
+			TimeoutTypeFuzzer,
+			TaskListKindFuzzer,
+			ContinueAsNewInitiatorFuzzer,
+			WorkflowIDReusePolicyFuzzer,
+			CronOverlapPolicyFuzzer,
+			ActiveClusterSelectionStrategyFuzzer,
 			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
 				// ActiveClusterSelectionPolicy requires string fields to match strategy
 				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
@@ -2420,18 +2505,10 @@ func TestPollForDecisionTaskResponseFuzz(t *testing.T) {
 				p.ClusterAttribute = nil
 			},
 			SignalExternalWorkflowExecutionFailedCauseFuzzer,
-			func(e *types.CancelExternalWorkflowExecutionFailedCause, c fuzz.Continue) {
-				*e = types.CancelExternalWorkflowExecutionFailedCause(c.Intn(2)) // 0-1: UnknownExternalWorkflowExecution, WorkflowAlreadyCompleted
-			},
-			func(e *types.ChildWorkflowExecutionFailedCause, c fuzz.Continue) {
-				*e = types.ChildWorkflowExecutionFailedCause(c.Intn(2)) // 0-1: WorkflowAlreadyRunning
-			},
-			func(e *types.WorkflowExecutionCloseStatus, c fuzz.Continue) {
-				*e = types.WorkflowExecutionCloseStatus(c.Intn(6)) // 0-5: Completed, Failed, Canceled, Terminated, ContinuedAsNew, TimedOut
-			},
-			func(e *types.ParentClosePolicy, c fuzz.Continue) {
-				*e = types.ParentClosePolicy(c.Intn(3)) // 0-2: Abandon, RequestCancel, Terminate
-			},
+			CancelExternalWorkflowExecutionFailedCauseFuzzer,
+			ChildWorkflowExecutionFailedCauseFuzzer,
+			WorkflowExecutionCloseStatusFuzzer,
+			ParentClosePolicyFuzzer,
 		),
 	)
 }
@@ -2448,18 +2525,10 @@ func TestDecisionArrayFuzz(t *testing.T) {
 					d.DecisionType = &decisionType
 				}
 			},
-			func(e *types.DecisionType, c fuzz.Continue) {
-				*e = types.DecisionType(c.Intn(13)) // 0-12: All DecisionType values
-			},
-			func(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
-				*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
-			},
-			func(e *types.CronOverlapPolicy, c fuzz.Continue) {
-				*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
-			},
-			func(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
-				*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
-			},
+			DecisionTypeFuzzer,
+			WorkflowIDReusePolicyFuzzer,
+			CronOverlapPolicyFuzzer,
+			ActiveClusterSelectionStrategyFuzzer,
 			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
 				// ActiveClusterSelectionPolicy requires string fields to match strategy
 				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
@@ -2494,9 +2563,7 @@ func TestClusterAttributeFuzz(t *testing.T) {
 func TestDecisionTaskTimedOutEventAttributesFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromDecisionTaskTimedOutEventAttributes, ToDecisionTaskTimedOutEventAttributes,
 		testutils.WithCustomFuncs(
-			func(e *types.DecisionTaskTimedOutCause, c fuzz.Continue) {
-				*e = types.DecisionTaskTimedOutCause(c.Intn(2)) // 0-1: Timeout, Reset
-			},
+			DecisionTaskTimedOutCauseFuzzer,
 		),
 	)
 }
@@ -2641,18 +2708,10 @@ func TestUpdateDomainRequestFuzz(t *testing.T) {
 	// HistoryArchivalStatus, VisibilityArchivalStatus: only included in field mask if corresponding URI is non-nil
 	testutils.RunMapperFuzzTest(t, FromUpdateDomainRequest, ToUpdateDomainRequest,
 		testutils.WithCustomFuncs(
-			func(e *types.EncodingType, c fuzz.Continue) {
-				*e = types.EncodingType(c.Intn(2)) // 0-1: ThriftRW, JSON
-			},
-			func(e *types.IsolationGroupState, c fuzz.Continue) {
-				*e = types.IsolationGroupState(c.Intn(3)) // 0-2: Invalid, Healthy, Drained
-			},
-			func(e *types.DomainStatus, c fuzz.Continue) {
-				*e = types.DomainStatus(c.Intn(3)) // 0-2: Registered, Deprecated, Deleted
-			},
-			func(e *types.ArchivalStatus, c fuzz.Continue) {
-				*e = types.ArchivalStatus(c.Intn(3)) // 0-2: Disabled, Enabled, (unused)
-			},
+			EncodingTypeFuzzer,
+			IsolationGroupStateFuzzer,
+			DomainStatusFuzzer,
+			ArchivalStatusFuzzer,
 		),
 		testutils.WithExcludedFields("EmitMetric", "FailoverReason", "WorkflowExecutionRetentionPeriodInDays", "HistoryArchivalStatus", "VisibilityArchivalStatus"),
 	)
@@ -2694,30 +2753,14 @@ func TestGetWorkflowExecutionHistoryResponseFuzz(t *testing.T) {
 					h.EventType = &eventType
 				}
 			},
-			func(e *types.EventType, c fuzz.Continue) {
-				*e = types.EventType(c.Intn(42)) // 0-41: All EventType values
-			},
-			func(e *types.DecisionType, c fuzz.Continue) {
-				*e = types.DecisionType(c.Intn(13)) // 0-12: All DecisionType values
-			},
-			func(e *types.TimeoutType, c fuzz.Continue) {
-				*e = types.TimeoutType(c.Intn(4)) // 0-3: StartToClose, ScheduleToStart, ScheduleToClose, Heartbeat
-			},
-			func(e *types.TaskListKind, c fuzz.Continue) {
-				*e = types.TaskListKind(c.Intn(3)) // 0-2: Normal, Sticky, Ephemeral
-			},
-			func(e *types.ContinueAsNewInitiator, c fuzz.Continue) {
-				*e = types.ContinueAsNewInitiator(c.Intn(3)) // 0-2: Decider, RetryPolicy, CronSchedule
-			},
-			func(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
-				*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
-			},
-			func(e *types.CronOverlapPolicy, c fuzz.Continue) {
-				*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
-			},
-			func(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
-				*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
-			},
+			EventTypeFuzzer,
+			DecisionTypeFuzzer,
+			TimeoutTypeFuzzer,
+			TaskListKindFuzzer,
+			ContinueAsNewInitiatorFuzzer,
+			WorkflowIDReusePolicyFuzzer,
+			CronOverlapPolicyFuzzer,
+			ActiveClusterSelectionStrategyFuzzer,
 			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
 				// ActiveClusterSelectionPolicy requires string fields to match strategy
 				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
@@ -2743,21 +2786,11 @@ func TestGetWorkflowExecutionHistoryResponseFuzz(t *testing.T) {
 				p.ClusterAttribute = nil
 			},
 			SignalExternalWorkflowExecutionFailedCauseFuzzer,
-			func(e *types.CancelExternalWorkflowExecutionFailedCause, c fuzz.Continue) {
-				*e = types.CancelExternalWorkflowExecutionFailedCause(c.Intn(2)) // 0-1: UnknownExternalWorkflowExecution, WorkflowAlreadyCompleted
-			},
-			func(e *types.ChildWorkflowExecutionFailedCause, c fuzz.Continue) {
-				*e = types.ChildWorkflowExecutionFailedCause(c.Intn(2)) // 0-1: WorkflowAlreadyRunning
-			},
-			func(e *types.WorkflowExecutionCloseStatus, c fuzz.Continue) {
-				*e = types.WorkflowExecutionCloseStatus(c.Intn(6)) // 0-5: Completed, Failed, Canceled, Terminated, ContinuedAsNew, TimedOut
-			},
-			func(e *types.ParentClosePolicy, c fuzz.Continue) {
-				*e = types.ParentClosePolicy(c.Intn(3)) // 0-2: Abandon, RequestCancel, Terminate
-			},
-			func(e *types.EncodingType, c fuzz.Continue) {
-				*e = types.EncodingType(c.Intn(2)) // 0-1: ThriftRW, JSON
-			},
+			CancelExternalWorkflowExecutionFailedCauseFuzzer,
+			ChildWorkflowExecutionFailedCauseFuzzer,
+			WorkflowExecutionCloseStatusFuzzer,
+			ParentClosePolicyFuzzer,
+			EncodingTypeFuzzer,
 		),
 	)
 }
@@ -2773,15 +2806,9 @@ func TestResetPointsFuzz(t *testing.T) {
 func TestSignalWithStartWorkflowExecutionRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromSignalWithStartWorkflowExecutionRequest, ToSignalWithStartWorkflowExecutionRequest,
 		testutils.WithCustomFuncs(
-			func(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
-				*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
-			},
-			func(e *types.CronOverlapPolicy, c fuzz.Continue) {
-				*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
-			},
-			func(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
-				*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
-			},
+			WorkflowIDReusePolicyFuzzer,
+			CronOverlapPolicyFuzzer,
+			ActiveClusterSelectionStrategyFuzzer,
 			func(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
 				// ActiveClusterSelectionPolicy requires string fields to match strategy
 				// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
@@ -2901,9 +2928,7 @@ func TestDecisionTaskFailedEventAttributesFuzz(t *testing.T) {
 	// FromFailure only creates a Failure object if Reason is non-nil, so Details without Reason are dropped
 	testutils.RunMapperFuzzTest(t, FromDecisionTaskFailedEventAttributes, ToDecisionTaskFailedEventAttributes,
 		testutils.WithCustomFuncs(
-			func(e *types.DecisionTaskFailedCause, c fuzz.Continue) {
-				*e = types.DecisionTaskFailedCause(c.Intn(23)) // 0-22: All DecisionTaskFailedCause values
-			},
+			DecisionTaskFailedCauseFuzzer,
 		),
 		testutils.WithExcludedFields("Details"),
 	)
@@ -3057,9 +3082,7 @@ func TestStartWorkflowExecutionRequestFuzz(t *testing.T) {
 					p.ExternalEntityKey = ""
 				}
 			},
-			func(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
-				*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
-			},
+			WorkflowIDReusePolicyFuzzer,
 		),
 	)
 }
@@ -3129,9 +3152,7 @@ func TestCountWorkflowExecutionsResponseFuzz(t *testing.T) {
 func TestDataBlobFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromDataBlob, ToDataBlob,
 		testutils.WithCustomFuncs(
-			func(e *types.EncodingType, c fuzz.Continue) {
-				*e = types.EncodingType(c.Intn(2)) // 0: ThriftRW, 1: JSON
-			},
+			EncodingTypeFuzzer,
 		),
 	)
 }
@@ -3264,9 +3285,7 @@ func TestSignalWithStartWorkflowExecutionAsyncRequestFuzz(t *testing.T) {
 					p.ExternalEntityKey = ""
 				}
 			},
-			func(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
-				*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3
-			},
+			WorkflowIDReusePolicyFuzzer,
 		),
 	)
 }
@@ -3455,9 +3474,7 @@ func TestQueryWorkflowRequestFuzz(t *testing.T) {
 	// QueryRejectCondition and QueryConsistencyLevel need enum fuzzers
 	testutils.RunMapperFuzzTest(t, FromQueryWorkflowRequest, ToQueryWorkflowRequest,
 		testutils.WithCustomFuncs(
-			func(e *types.QueryRejectCondition, c fuzz.Continue) {
-				*e = types.QueryRejectCondition(c.Intn(2)) // 0: NotOpen, 1: NotCompletedCleanly
-			},
+			QueryRejectConditionFuzzer,
 			QueryConsistencyLevelFuzzer,
 		),
 	)
@@ -3475,9 +3492,7 @@ func TestPendingActivityInfoFuzz(t *testing.T) {
 	// LastFailureDetails is lost when LastFailureReason is nil (FromFailure helper behavior)
 	testutils.RunMapperFuzzTest(t, FromPendingActivityInfo, ToPendingActivityInfo,
 		testutils.WithCustomFuncs(
-			func(e *types.PendingActivityState, c fuzz.Continue) {
-				*e = types.PendingActivityState(c.Intn(3)) // 0: Scheduled, 1: Started, 2: CancelRequested
-			},
+			PendingActivityStateFuzzer,
 		),
 		testutils.WithExcludedFields("LastFailureDetails"),
 	)
@@ -3530,9 +3545,7 @@ func TestGetWorkflowExecutionHistoryRequestFuzz(t *testing.T) {
 	// HistoryEventFilterType and QueryConsistencyLevel enum need fuzzers
 	testutils.RunMapperFuzzTest(t, FromGetWorkflowExecutionHistoryRequest, ToGetWorkflowExecutionHistoryRequest,
 		testutils.WithCustomFuncs(
-			func(e *types.HistoryEventFilterType, c fuzz.Continue) {
-				*e = types.HistoryEventFilterType(c.Intn(2)) // 0: AllEvent, 1: CloseEvent
-			},
+			HistoryEventFilterTypeFuzzer,
 			QueryConsistencyLevelFuzzer,
 		),
 	)
@@ -3753,9 +3766,7 @@ func TestStartChildWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
 					p.ExternalEntityKey = ""
 				}
 			},
-			func(e *types.WorkflowIDReusePolicy, c fuzz.Continue) {
-				*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3
-			},
+			WorkflowIDReusePolicyFuzzer,
 		),
 		testutils.WithExcludedFields("Domain"),
 	)
@@ -3777,9 +3788,7 @@ func TestFailoverEventFuzz(t *testing.T) {
 	// Empty string becomes nil after proto roundtrip
 	testutils.RunMapperFuzzTest(t, FromFailoverEvent, ToFailoverEvent,
 		testutils.WithCustomFuncs(
-			func(e *types.FailoverType, c fuzz.Continue) {
-				*e = types.FailoverType(c.Intn(2) + 1) // 1-2: Force, Graceful
-			},
+			FailoverTypeFuzzer,
 			func(e *types.FailoverEvent, c fuzz.Continue) {
 				c.Fuzz(e)
 				// Empty string ID becomes nil
