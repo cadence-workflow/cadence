@@ -23,6 +23,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -53,7 +54,7 @@ func startWorkflowActivity(ctx context.Context, req StartWorkflowRequest) (*Star
 		return nil, fmt.Errorf("scheduler context not found in activity context")
 	}
 
-	workflowID := generateWorkflowID(req.Action.WorkflowIDPrefix, req.ScheduleID, req.ScheduledTime.UnixNano())
+	workflowID := generateWorkflowID(req.Action.WorkflowIDPrefix, req.ScheduleID, req.ScheduledTime)
 
 	reusePolicy := types.WorkflowIDReusePolicyAllowDuplicate
 	startReq := &types.StartWorkflowExecutionRequest{
@@ -89,15 +90,14 @@ func startWorkflowActivity(ctx context.Context, req StartWorkflowRequest) (*Star
 	}, nil
 }
 
-// generateWorkflowID creates a deterministic workflow ID from the schedule's
-// prefix, schedule ID, and the scheduled time's UnixNano timestamp.
-// This ensures the same schedule fire produces the same workflow ID,
-// giving us idempotency if the activity retries.
-func generateWorkflowID(prefix, scheduleID string, scheduledTimeNanos int64) string {
+// generateWorkflowID creates a deterministic workflow ID from the
+// schedule's prefix (or schedule ID) and the scheduled time.
+// Example: "my-prefix-2026-01-15T10:00:00Z"
+func generateWorkflowID(prefix, scheduleID string, scheduledTime time.Time) string {
 	if prefix == "" {
 		prefix = scheduleID
 	}
-	return fmt.Sprintf("%s-%d", prefix, scheduledTimeNanos)
+	return fmt.Sprintf("%s-%s", prefix, scheduledTime.UTC().Format(time.RFC3339))
 }
 
 // generateRequestID produces a deterministic UUID from the schedule ID
