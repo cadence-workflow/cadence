@@ -251,6 +251,21 @@ func clearFieldsIf(obj interface{}, shouldClear func(fieldName string) bool) {
 		v = v.Elem()
 	}
 
+	// Handle slices at top level (e.g., when TInternal is []*SomeType)
+	if v.Kind() == reflect.Slice {
+		for j := 0; j < v.Len(); j++ {
+			elem := v.Index(j)
+			if elem.CanInterface() {
+				if elem.Kind() == reflect.Struct && elem.CanAddr() {
+					clearFieldsIf(elem.Addr().Interface(), shouldClear)
+				} else {
+					clearFieldsIf(elem.Interface(), shouldClear)
+				}
+			}
+		}
+		return
+	}
+
 	if v.Kind() != reflect.Struct {
 		return
 	}
