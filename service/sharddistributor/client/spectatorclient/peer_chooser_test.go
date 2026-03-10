@@ -252,6 +252,28 @@ func TestSpectatorPeerChooser_Choose_TracksLastUsed(t *testing.T) {
 	assert.True(t, secondLastUsed.After(firstLastUsed), "lastUsed should be updated on reuse")
 }
 
+func TestSpectatorPeerChooser_StartStop_WithTTL(t *testing.T) {
+	peerTransport := grpc.NewTransport()
+	require.NoError(t, peerTransport.Start())
+	defer peerTransport.Stop()
+
+	chooser := &SpectatorPeerChooser{
+		transport:  peerTransport,
+		logger:     testlogger.New(t),
+		peers:      make(map[string]*trackedPeer),
+		timeSource: clock.NewRealTimeSource(),
+		peerTTL:    100 * time.Millisecond,
+	}
+
+	require.NoError(t, chooser.Start())
+	assert.NotNil(t, chooser.stopCh, "eviction loop should be started")
+
+	require.NoError(t, chooser.Stop())
+	// After Stop, the goroutine must have exited (stopWG.Wait() returned)
+	// Verify idempotency: a second Stop should not panic
+	require.NoError(t, chooser.Stop())
+}
+
 func TestSpectatorPeerChooser_EvictStalePeers(t *testing.T) {
 	tests := []struct {
 		name          string

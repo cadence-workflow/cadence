@@ -92,6 +92,7 @@ func (c *SpectatorPeerChooser) Stop() error {
 	if c.stopCh != nil {
 		close(c.stopCh)
 		c.stopWG.Wait()
+		c.stopCh = nil
 	}
 
 	c.peersMutex.Lock()
@@ -200,10 +201,16 @@ func (c *SpectatorPeerChooser) evictStalePeers() {
 }
 
 func (c *SpectatorPeerChooser) startEvictionLoop() {
+	if c.stopCh != nil {
+		return // already started
+	}
 	c.stopCh = make(chan struct{})
 	c.stopWG.Add(1)
 	go func() {
 		defer c.stopWG.Done()
+		// Tick at half the TTL so a peer is evicted within at most 1.5x the TTL
+		// after its last use (worst case: eviction check just missed, then TTL passes,
+		// then next tick fires at TTL/2 later).
 		ticker := time.NewTicker(c.peerTTL / 2)
 		defer ticker.Stop()
 		for {
