@@ -156,25 +156,25 @@ func (c *SpectatorPeerChooser) Choose(ctx context.Context, req *transport.Reques
 	}
 
 	// Get peer for this address
-	tp, err := c.getOrCreatePeer(grpcAddress)
+	p, err := c.getOrCreatePeer(grpcAddress)
 	if err != nil {
 		return nil, nil, yarpcerrors.InternalErrorf("get or create peer for address %s: %v", grpcAddress, err)
 	}
 
-	return tp.peer, func(error) {}, nil
+	return p, func(error) {}, nil
 }
 
 func (c *SpectatorPeerChooser) SetSpectators(spectators *Spectators) {
 	c.spectators = spectators
 }
 
-func (c *SpectatorPeerChooser) getOrCreatePeer(grpcAddress string) (*trackedPeer, error) {
+func (c *SpectatorPeerChooser) getOrCreatePeer(grpcAddress string) (peer.Peer, error) {
 	c.peersMutex.Lock()
 	defer c.peersMutex.Unlock()
 
 	if tp, ok := c.peers[grpcAddress]; ok {
 		tp.lastUsed = c.timeSource.Now()
-		return tp, nil
+		return tp.peer, nil
 	}
 
 	p, err := c.transport.RetainPeer(hostport.Identify(grpcAddress), &noOpSubscriber{})
@@ -184,7 +184,7 @@ func (c *SpectatorPeerChooser) getOrCreatePeer(grpcAddress string) (*trackedPeer
 
 	tp := &trackedPeer{peer: p, lastUsed: c.timeSource.Now()}
 	c.peers[grpcAddress] = tp
-	return tp, nil
+	return p, nil
 }
 
 func (c *SpectatorPeerChooser) evictStalePeers() {
