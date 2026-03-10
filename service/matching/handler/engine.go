@@ -1530,7 +1530,7 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 	if err != nil {
 		return fmt.Errorf("failed to lookup task list owner: %w", err)
 	}
-
+	e.logger.Info("Comparing identity in errIfShardOwnerShipLost", tag.Dynamic("taskListOwner.Identity", taskListOwner.Identity()), tag.Dynamic("selfIdentity", self.Identity()))
 	if taskListOwner.Identity() != self.Identity() {
 		e.logger.Warn("Request to get tasklist is being rejected because engine does not own this shard",
 			tag.WorkflowDomainID(taskList.GetDomainID()),
