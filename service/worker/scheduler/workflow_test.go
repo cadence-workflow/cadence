@@ -622,11 +622,11 @@ func TestHandleUpdate(t *testing.T) {
 
 func TestHandleBackfill(t *testing.T) {
 	tests := []struct {
-		name            string
-		sig             BackfillSignal
-		initialPending  int
-		wantQueued      bool
-		wantPendingLen  int
+		name           string
+		sig            BackfillSignal
+		initialPending int
+		wantQueued     bool
+		wantPendingLen int
 	}{
 		{
 			name: "valid backfill is queued",
