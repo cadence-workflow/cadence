@@ -157,7 +157,19 @@ func WithCommonEnumFuzzers() FuzzOption {
 			*e = types.QueryTaskCompletedType(c.Intn(3)) // 0-2
 		},
 		func(e *types.QueryResultType, c fuzz.Continue) {
-			*e = types.QueryResultType(c.Intn(3)) // 0-2
+			*e = types.QueryResultType(c.Intn(2)) // 0-1: Answered, Failed
+		},
+		func(e *types.IndexedValueType, c fuzz.Continue) {
+			*e = types.IndexedValueType(c.Intn(6)) // 0-5: String, Keyword, Int, Double, Bool, Datetime
+		},
+		func(e *types.CronOverlapPolicy, c fuzz.Continue) {
+			*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
+		},
+		func(e *types.WorkflowExecutionStatus, c fuzz.Continue) {
+			*e = types.WorkflowExecutionStatus(c.Intn(8)) // 0-7: Pending, Started, Completed, Failed, Canceled, Terminated, ContinuedAsNew, TimedOut
+		},
+		func(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
+			*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
 		},
 	)
 }
