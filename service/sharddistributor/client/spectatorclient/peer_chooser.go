@@ -60,8 +60,10 @@ type SpectatorPeerChooser struct {
 
 type SpectatorPeerChooserParams struct {
 	fx.In
-	Transport peer.Transport
-	Logger    log.Logger
+	Transport  peer.Transport
+	Logger     log.Logger
+	Config     clientcommon.Config
+	TimeSource clock.TimeSource
 }
 
 // NewSpectatorPeerChooser creates a new peer chooser that routes based on shard distributor ownership
@@ -72,7 +74,8 @@ func NewSpectatorPeerChooser(
 		transport:  params.Transport,
 		logger:     params.Logger,
 		peers:      make(map[string]*trackedPeer),
-		timeSource: clock.NewRealTimeSource(),
+		peerTTL:    params.Config.GetPeerTTL(),
+		timeSource: params.TimeSource,
 	}
 }
 
