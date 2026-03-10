@@ -65,7 +65,7 @@ func startWorkflowActivity(ctx context.Context, req StartWorkflowRequest) (*Star
 		Input:                               req.Action.Input,
 		ExecutionStartToCloseTimeoutSeconds: req.Action.ExecutionStartToCloseTimeoutSeconds,
 		TaskStartToCloseTimeoutSeconds:      req.Action.TaskStartToCloseTimeoutSeconds,
-		RequestID:                           generateRequestID(req.ScheduleID, req.ScheduledTime.UnixNano()),
+		RequestID:                           generateRequestID(req.ScheduleID, req.ScheduledTime.UnixNano(), req.TriggerSource),
 		WorkflowIDReusePolicy:               &reusePolicy,
 		RetryPolicy:                         req.Action.RetryPolicy,
 		Memo:                                req.Action.Memo,
@@ -100,12 +100,12 @@ func generateWorkflowID(prefix, scheduleID string, scheduledTime time.Time) stri
 	return fmt.Sprintf("%s-%s", prefix, scheduledTime.UTC().Format(time.RFC3339))
 }
 
-// generateRequestID produces a deterministic UUID from the schedule ID
-// and scheduled time. This satisfies Cassandra's uuid column type while
-// ensuring the same schedule fire always yields the same RequestID for
-// server-side deduplication across activity retries.
-func generateRequestID(scheduleID string, scheduledTimeNanos int64) string {
-	name := fmt.Sprintf("%s-%d", scheduleID, scheduledTimeNanos)
+// generateRequestID produces a deterministic UUID from the schedule ID,
+// scheduled time, and trigger source. Including the trigger source ensures
+// that a backfill for the same timestamp as a normal schedule fire produces
+// a distinct RequestID, avoiding unintended server-side deduplication.
+func generateRequestID(scheduleID string, scheduledTimeNanos int64, source TriggerSource) string {
+	name := fmt.Sprintf("%s-%d-%s", scheduleID, scheduledTimeNanos, source)
 	return uuid.NewSHA1(schedulerRequestIDNamespace, []byte(name)).String()
 }
 

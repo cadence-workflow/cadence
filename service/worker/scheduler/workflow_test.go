@@ -619,3 +619,112 @@ func TestHandleUpdate(t *testing.T) {
 		})
 	}
 }
+
+func TestHandleBackfill(t *testing.T) {
+	tests := []struct {
+		name            string
+		sig             BackfillSignal
+		initialPending  int
+		wantQueued      bool
+		wantPendingLen  int
+	}{
+		{
+			name: "valid backfill is queued",
+			sig: BackfillSignal{
+				StartTime:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+				EndTime:       time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+				OverlapPolicy: types.ScheduleOverlapPolicyConcurrent,
+				BackfillID:    "bf-1",
+			},
+			wantQueued:     true,
+			wantPendingLen: 1,
+		},
+		{
+			name: "invalid range (end <= start) is rejected",
+			sig: BackfillSignal{
+				StartTime: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+				EndTime:   time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			},
+			wantQueued:     false,
+			wantPendingLen: 0,
+		},
+		{
+			name: "equal start and end is rejected",
+			sig: BackfillSignal{
+				StartTime: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+				EndTime:   time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			},
+			wantQueued:     false,
+			wantPendingLen: 0,
+		},
+		{
+			name: "multiple backfills accumulate",
+			sig: BackfillSignal{
+				StartTime:  time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 1, 4, 0, 0, 0, 0, time.UTC),
+				BackfillID: "bf-2",
+			},
+			initialPending: 1,
+			wantQueued:     true,
+			wantPendingLen: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := &SchedulerWorkflowState{}
+			for i := 0; i < tt.initialPending; i++ {
+				state.PendingBackfills = append(state.PendingBackfills, BackfillRequest{
+					StartTime: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					EndTime:   time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+				})
+			}
+			got := handleBackfill(testLogger, tt.sig, state)
+			assert.Equal(t, tt.wantQueued, got)
+			assert.Equal(t, tt.wantPendingLen, len(state.PendingBackfills))
+		})
+	}
+}
+
+func TestBackfillFireComputation(t *testing.T) {
+	sched := mustParseCron(t, "0 * * * *")
+
+	tests := []struct {
+		name      string
+		startTime time.Time
+		endTime   time.Time
+		wantFires int
+	}{
+		{
+			name:      "3-hour window [10:00, 13:00] produces 4 fires (inclusive both ends)",
+			startTime: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			endTime:   time.Date(2026, 1, 15, 13, 0, 0, 0, time.UTC),
+			wantFires: 4, // 10:00, 11:00, 12:00, 13:00
+		},
+		{
+			name:      "exact boundary [10:00, 11:00] includes both endpoints",
+			startTime: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			endTime:   time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+			wantFires: 2, // 10:00, 11:00
+		},
+		{
+			name:      "sub-hour window [10:00, 10:30] includes start fire only",
+			startTime: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			endTime:   time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC),
+			wantFires: 1, // 10:00
+		},
+		{
+			name:      "24-hour window [00:00, 00:00+1d] produces 25 fires",
+			startTime: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+			endTime:   time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC),
+			wantFires: 25, // 00:00 through 00:00 next day, inclusive
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fires := computeMissedFireTimes(sched, tt.startTime.Add(-time.Second), tt.endTime, types.ScheduleSpec{})
+			assert.Equal(t, tt.wantFires, len(fires.times))
+		})
+	}
+}
