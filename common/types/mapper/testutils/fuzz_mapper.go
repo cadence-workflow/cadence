@@ -147,6 +147,9 @@ func WithCommonEnumFuzzers() FuzzOption {
 		func(e *types.QueryResultType, c fuzz.Continue) {
 			*e = types.QueryResultType(c.Intn(2)) // 0-1: Answered, Failed
 		},
+		func(e *types.IndexedValueType, c fuzz.Continue) {
+			*e = types.IndexedValueType(c.Intn(6)) // 0-5: String, Keyword, Int, Double, Bool, Datetime
+		},
 		func(e *types.CronOverlapPolicy, c fuzz.Continue) {
 			*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
 		},
