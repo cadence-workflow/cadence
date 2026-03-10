@@ -7,18 +7,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"go.uber.org/yarpc/api/peer"
 	"go.uber.org/yarpc/api/transport"
 	"go.uber.org/yarpc/transport/grpc"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 )
 
 func TestSpectatorPeerChooser_Choose_MissingShardKey(t *testing.T) {
 	chooser := &SpectatorPeerChooser{
-		logger: testlogger.New(t),
-		peers:  make(map[string]peer.Peer),
+		logger:     testlogger.New(t),
+		peers:      make(map[string]*trackedPeer),
+		timeSource: clock.NewRealTimeSource(),
 	}
 
 	req := &transport.Request{
@@ -36,8 +37,9 @@ func TestSpectatorPeerChooser_Choose_MissingShardKey(t *testing.T) {
 
 func TestSpectatorPeerChooser_Choose_MissingNamespaceHeader(t *testing.T) {
 	chooser := &SpectatorPeerChooser{
-		logger: testlogger.New(t),
-		peers:  make(map[string]peer.Peer),
+		logger:     testlogger.New(t),
+		peers:      make(map[string]*trackedPeer),
+		timeSource: clock.NewRealTimeSource(),
 	}
 
 	req := &transport.Request{
@@ -56,7 +58,8 @@ func TestSpectatorPeerChooser_Choose_MissingNamespaceHeader(t *testing.T) {
 func TestSpectatorPeerChooser_Choose_SpectatorNotFound(t *testing.T) {
 	chooser := &SpectatorPeerChooser{
 		logger:     testlogger.New(t),
-		peers:      make(map[string]peer.Peer),
+		peers:      make(map[string]*trackedPeer),
+		timeSource: clock.NewRealTimeSource(),
 		spectators: &Spectators{spectators: make(map[string]Spectator)},
 	}
 
@@ -75,8 +78,9 @@ func TestSpectatorPeerChooser_Choose_SpectatorNotFound(t *testing.T) {
 
 func TestSpectatorPeerChooser_StartStop(t *testing.T) {
 	chooser := &SpectatorPeerChooser{
-		logger: testlogger.New(t),
-		peers:  make(map[string]peer.Peer),
+		logger:     testlogger.New(t),
+		peers:      make(map[string]*trackedPeer),
+		timeSource: clock.NewRealTimeSource(),
 	}
 
 	err := chooser.Start()
@@ -109,9 +113,10 @@ func TestSpectatorPeerChooser_Choose_Success(t *testing.T) {
 	defer peerTransport.Stop()
 
 	chooser := &SpectatorPeerChooser{
-		transport: peerTransport,
-		logger:    testlogger.New(t),
-		peers:     make(map[string]peer.Peer),
+		transport:  peerTransport,
+		logger:     testlogger.New(t),
+		peers:      make(map[string]*trackedPeer),
+		timeSource: clock.NewRealTimeSource(),
 		spectators: &Spectators{
 			spectators: map[string]Spectator{
 				"test-namespace": mockSpectator,
@@ -144,6 +149,7 @@ func TestSpectatorPeerChooser_Choose_Success(t *testing.T) {
 	assert.NotNil(t, onFinish)
 	assert.Equal(t, "127.0.0.1:7953", p.Identifier())
 	assert.Len(t, chooser.peers, 1)
+	assert.Equal(t, "127.0.0.1:7953", chooser.peers["127.0.0.1:7953"].peer.Identifier())
 }
 
 func TestSpectatorPeerChooser_Choose_ReusesPeer(t *testing.T) {
@@ -156,9 +162,10 @@ func TestSpectatorPeerChooser_Choose_ReusesPeer(t *testing.T) {
 	defer peerTransport.Stop()
 
 	chooser := &SpectatorPeerChooser{
-		transport: peerTransport,
-		logger:    testlogger.New(t),
-		peers:     make(map[string]peer.Peer),
+		transport:  peerTransport,
+		logger:     testlogger.New(t),
+		peers:      make(map[string]*trackedPeer),
+		timeSource: clock.NewRealTimeSource(),
 		spectators: &Spectators{
 			spectators: map[string]Spectator{
 				"test-namespace": mockSpectator,
@@ -191,4 +198,42 @@ func TestSpectatorPeerChooser_Choose_ReusesPeer(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, firstPeer, secondPeer)
 	assert.Len(t, chooser.peers, 1)
+}
+
+func TestSpectatorPeerChooser_Choose_TracksLastUsed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSpectator := NewMockSpectator(ctrl)
+	peerTransport := grpc.NewTransport()
+	require.NoError(t, peerTransport.Start())
+	defer peerTransport.Stop()
+
+	mockClock := clock.NewMockedTimeSource()
+	now := mockClock.Now()
+
+	chooser := &SpectatorPeerChooser{
+		transport:  peerTransport,
+		logger:     testlogger.New(t),
+		peers:      make(map[string]*trackedPeer),
+		timeSource: mockClock,
+		spectators: &Spectators{
+			spectators: map[string]Spectator{"ns": mockSpectator},
+		},
+	}
+
+	mockSpectator.EXPECT().
+		GetShardOwner(gomock.Any(), "shard-1").
+		Return(&ShardOwner{
+			ExecutorID: "exec-1",
+			Metadata:   map[string]string{clientcommon.GrpcAddressMetadataKey: "127.0.0.1:7953"},
+		}, nil)
+
+	_, _, err := chooser.Choose(context.Background(), &transport.Request{
+		ShardKey: "shard-1",
+		Headers:  transport.NewHeaders().With(NamespaceHeader, "ns"),
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, now, chooser.peers["127.0.0.1:7953"].lastUsed)
 }
