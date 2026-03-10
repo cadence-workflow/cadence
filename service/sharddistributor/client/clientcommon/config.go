@@ -31,6 +31,7 @@ func (nc *NamespaceConfig) GetMigrationMode() types.MigrationMode {
 // Config represents configuration for multiple namespaces
 type Config struct {
 	Namespaces []NamespaceConfig `yaml:"namespaces"`
+	PeerTTL    time.Duration     `yaml:"peer_ttl"` // TTL for idle peers; default 2m if zero
 }
 
 // GetConfigForNamespace returns the config for a specific namespace
@@ -52,6 +53,16 @@ func (c *Config) GetSingleConfig() (*NamespaceConfig, error) {
 		return nil, fmt.Errorf("multiple namespaces configured (%d), must specify which namespace to use", len(c.Namespaces))
 	}
 	return &c.Namespaces[0], nil
+}
+
+const defaultPeerTTL = 2 * time.Minute
+
+// GetPeerTTL returns the configured peer TTL, or the default 2m if not set.
+func (c *Config) GetPeerTTL() time.Duration {
+	if c.PeerTTL <= 0 {
+		return defaultPeerTTL
+	}
+	return c.PeerTTL
 }
 
 // Validate validates the configuration
