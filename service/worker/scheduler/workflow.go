@@ -584,9 +584,9 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, sched cron.Sched
 
 		if fires.truncated {
 			// More fires exist beyond the 1000-fire scan cap.
-			// Advance start past what we've processed and ContinueAsNew.
+			// Advance start past the last processed fire so it isn't replayed.
 			if len(fires.times) > 0 {
-				bf.StartTime = fires.times[len(fires.times)-1]
+				bf.StartTime = fires.times[len(fires.times)-1].Add(time.Second)
 			}
 			logger.Info("backfill range has more fires beyond scan cap, continuing after ContinueAsNew",
 				zap.String("backfillId", bf.BackfillID),
