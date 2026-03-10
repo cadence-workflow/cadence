@@ -99,6 +99,7 @@ func (s *taskSerializerImpl) serializeTransferTask(task persistence.Task) (persi
 		info.TaskList = t.TaskList
 		info.ScheduleID = t.ScheduleID
 		info.OriginalTaskList = t.OriginalTaskList
+		info.OriginalTaskListKind = t.OriginalTaskListKind
 	case *persistence.CancelExecutionTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
@@ -192,12 +193,13 @@ func (s *taskSerializerImpl) deserializeTransferTask(blob *persistence.DataBlob)
 	switch info.GetTaskType() {
 	case persistence.TransferTaskTypeDecisionTask:
 		task = &persistence.DecisionTask{
-			WorkflowIdentifier: workflowIdentifier,
-			TaskData:           taskData,
-			TargetDomainID:     info.TargetDomainID.String(),
-			TaskList:           info.GetTaskList(),
-			ScheduleID:         info.GetScheduleID(),
-			OriginalTaskList:   info.GetOriginalTaskList(),
+			WorkflowIdentifier:   workflowIdentifier,
+			TaskData:             taskData,
+			TargetDomainID:       info.TargetDomainID.String(),
+			TaskList:             info.GetTaskList(),
+			ScheduleID:           info.GetScheduleID(),
+			OriginalTaskList:     info.GetOriginalTaskList(),
+			OriginalTaskListKind: info.GetOriginalTaskListKind(),
 		}
 	case persistence.TransferTaskTypeActivityTask:
 		task = &persistence.ActivityTask{

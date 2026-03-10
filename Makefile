@@ -128,6 +128,7 @@ FRESH_ALL_SRC = $(shell \
 		-o -path './.build/*' \
 		-o -path './.bin/*' \
 		-o -path './.git/*' \
+		-o -path './.worktrees/*' \
 	\) \
 	-prune \
 	-o -name '*.go' \
@@ -379,7 +380,7 @@ $(BUILD)/gomod-lint: go.mod internal/tools/go.mod common/archiver/gcloud/go.mod 
 	$Q echo "checking for direct submodule dependencies in root go.mod..."
 	$Q ( \
 		MAIN_MODULE=$$(grep "^module " go.mod | awk '{print $$2}'); \
-		SUBMODULES=$$(find . -type f -name "go.mod" -not -path "./go.mod" -not -path "./idls/*" -exec dirname {} \; | sed 's|^\./||'); \
+		SUBMODULES=$$(find . -type f -name "go.mod" -not -path "./go.mod" -not -path "./idls/*" -not -path "./.worktrees/*" -exec dirname {} \; | sed 's|^\./||'); \
 		for submodule in $$SUBMODULES; do \
 			submodule_path="$$MAIN_MODULE/$$submodule"; \
 			if grep -q "$$submodule_path" go.mod; then \
@@ -399,7 +400,7 @@ $(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive $(BIN)/nilaway | $(BUILD)
 	$Q go vet -copylocks ./... ./common/archiver/gcloud/...
 	$Q $(BIN)/revive -config revive.toml -exclude './vendor/...' -exclude './.gen/...' -formatter stylish ./...
 	$Q # look for go files with "//comments", and ignore "//go:build"-style directives ("grep -n" shows "file:line: //go:build" so the regex is a bit complex)
-	$Q bad="$$(find . -type f -name '*.go' -not -path './idls/*' | xargs grep -n -E '^\s*//\S' | grep -E -v '^[^:]+:[^:]+:\s*//[a-z]+:[a-z]+' || true)"; \
+	$Q bad="$$(find . -type f -name '*.go' -not -path './idls/*' -not -path './.worktrees/*' | xargs grep -n -E '^\s*//\S' | grep -E -v '^[^:]+:[^:]+:\s*//[a-z]+:[a-z]+' || true)"; \
 		if [ -n "$$bad" ]; then \
 		  echo "$$bad" >&2; \
 		  echo 'non-directive comments must have a space after the "//"' >&2; \
@@ -432,9 +433,9 @@ MAYBE_TOUCH_COPYRIGHT=
 $(BUILD)/fmt: $(ALL_SRC) $(BIN)/goimports $(BIN)/gci | $(BUILD)
 	$Q echo "removing unused imports..."
 	$Q # goimports thrashes on internal/tools, sadly.  just hide it.
-	$Q $(BIN)/goimports -w $(filter-out ./internal/tools/tools.go,$(FRESH_ALL_SRC))
+	$Q echo $(filter-out ./internal/tools/tools.go,$(FRESH_ALL_SRC)) | xargs $(BIN)/goimports -w
 	$Q echo "grouping imports..."
-	$Q $(BIN)/gci write --section standard --section 'Prefix(github.com/uber/cadence/)' --section default --section blank $(FRESH_ALL_SRC)
+	$Q echo $(FRESH_ALL_SRC) | xargs $(BIN)/gci write --section standard --section 'Prefix(github.com/uber/cadence/)' --section default --section blank
 	$Q touch $@
 # 	$Q $(MAYBE_TOUCH_COPYRIGHT)
 

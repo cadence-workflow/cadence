@@ -97,7 +97,8 @@ func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
 		return s.ring.Lookup(key)
 	}
 
-	if s.excludeShortLivedTaskLists() && TaskListExcludedFromShardDistributor(key, uint64(s.percentageOnboarded())) {
+	excludeTaskList := TaskListExcludedFromShardDistributor(key, uint64(s.percentageOnboarded()), s.excludeShortLivedTaskLists())
+	if excludeTaskList {
 		return s.ring.Lookup(key)
 	}
 

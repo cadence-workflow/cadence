@@ -37,11 +37,6 @@ import (
 const defaultIdleChannelTTLInSeconds = 3600
 
 type (
-	weightedChannel[V any] struct {
-		*TTLChannel[V]
-		weight int
-	}
-
 	WeightedRoundRobinChannelPoolOptions struct {
 		BufferSize              int
 		IdleChannelTTLInSeconds int64
@@ -57,10 +52,10 @@ type (
 		logger                  log.Logger
 		metricsScope            metrics.Scope
 		timeSource              clock.TimeSource
-		channelMap              map[K]*weightedChannel[V]
+		channelMap              map[K]weightedContainer[*TTLChannel[V]]
 
 		// a snapshot of the channels to be used for the IWRR schedule
-		iwrrSchedule atomic.Pointer[iwrrSchedule[*weightedChannel[V]]]
+		iwrrSchedule atomic.Pointer[iwrrSchedule[*TTLChannel[V]]]
 	}
 )
 
@@ -76,11 +71,12 @@ func NewWeightedRoundRobinChannelPool[K comparable, V any](
 		logger:                  logger,
 		metricsScope:            metricsScope,
 		timeSource:              timeSource,
-		channelMap:              make(map[K]*weightedChannel[V]),
+		channelMap:              make(map[K]weightedContainer[*TTLChannel[V]]),
 		shutdownCh:              make(chan struct{}),
 	}
-	// Initialize with empty channels
-	wrr.iwrrSchedule.Store(newIWRRSchedule[K, *weightedChannel[V]](nil))
+	// Initialize with empty schedule
+	schedule := newIWRRSchedule[K, *TTLChannel[V]](nil)
+	wrr.iwrrSchedule.Store(schedule)
 	return wrr
 }
 
@@ -127,8 +123,8 @@ func (p *WeightedRoundRobinChannelPool[K, V]) doCleanup() {
 	var channelsToCleanup []K
 	now := p.timeSource.Now()
 	ttl := time.Duration(p.idleChannelTTLInSeconds) * time.Second
-	for k, v := range p.channelMap {
-		if v.ShouldCleanup(now, ttl) {
+	for k, container := range p.channelMap {
+		if container.item.ShouldCleanup(now, ttl) {
 			channelsToCleanup = append(channelsToCleanup, k)
 		}
 	}
@@ -145,48 +141,51 @@ func (p *WeightedRoundRobinChannelPool[K, V]) doCleanup() {
 
 func (p *WeightedRoundRobinChannelPool[K, V]) GetOrCreateChannel(key K, weight int) (chan V, func()) {
 	p.RLock()
-	if v := p.channelMap[key]; v != nil && v.weight == weight {
-		v.IncRef()
-		v.UpdateLastWriteTime(p.timeSource.Now())
+	if container, exists := p.channelMap[key]; exists && container.weight == weight {
+		container.item.IncRef()
+		container.item.UpdateLastWriteTime(p.timeSource.Now())
 		p.RUnlock()
-		return v.Chan(), v.DecRef
+		return container.item.Chan(), container.item.DecRef
 	}
 	p.RUnlock()
 
 	p.Lock()
 	defer p.Unlock()
-	if v := p.channelMap[key]; v != nil {
-		v.IncRef()
-		v.UpdateLastWriteTime(p.timeSource.Now())
-		if v.weight != weight {
-			v.weight = weight
+	if container, exists := p.channelMap[key]; exists {
+		container.item.IncRef()
+		container.item.UpdateLastWriteTime(p.timeSource.Now())
+		if container.weight != weight {
+			p.channelMap[key] = weightedContainer[*TTLChannel[V]]{
+				item:   container.item,
+				weight: weight,
+			}
 			p.updateScheduleLocked()
 		}
-		return v.Chan(), v.DecRef
+		return container.item.Chan(), container.item.DecRef
 	}
 
-	v := &weightedChannel[V]{
-		TTLChannel: NewTTLChannel[V](p.bufferSize),
-		weight:     weight,
+	c := NewTTLChannel[V](p.bufferSize)
+	p.channelMap[key] = weightedContainer[*TTLChannel[V]]{
+		item:   c,
+		weight: weight,
 	}
-	p.channelMap[key] = v
-	v.IncRef()
-	v.UpdateLastWriteTime(p.timeSource.Now())
+	c.IncRef()
+	c.UpdateLastWriteTime(p.timeSource.Now())
 	p.updateScheduleLocked()
-	return v.Chan(), v.DecRef
+	return c.Chan(), c.DecRef
 }
 
 func (p *WeightedRoundRobinChannelPool[K, V]) GetAllChannels() []chan V {
 	p.RLock()
 	defer p.RUnlock()
 	allChannels := make([]chan V, 0, len(p.channelMap))
-	for _, v := range p.channelMap {
-		allChannels = append(allChannels, v.Chan())
+	for _, container := range p.channelMap {
+		allChannels = append(allChannels, container.item.Chan())
 	}
 	return allChannels
 }
 
-func (p *WeightedRoundRobinChannelPool[K, V]) GetSchedule() Schedule[*weightedChannel[V]] {
+func (p *WeightedRoundRobinChannelPool[K, V]) GetSchedule() Schedule[*TTLChannel[V]] {
 	return p.iwrrSchedule.Load()
 }
 
@@ -196,8 +195,4 @@ func (p *WeightedRoundRobinChannelPool[K, V]) updateScheduleLocked() {
 	// Update memory gauge - now only stores channel references once, not weight times
 	memoryBytes := len(p.channelMap) * 16 // channel map entries
 	p.metricsScope.UpdateGauge(metrics.WeightedChannelPoolSizeGauge, float64(memoryBytes))
-}
-
-func (w *weightedChannel[V]) Weight() int {
-	return w.weight
 }

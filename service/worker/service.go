@@ -54,6 +54,7 @@ import (
 	"github.com/uber/cadence/service/worker/scanner/shardscanner"
 	"github.com/uber/cadence/service/worker/scanner/tasklist"
 	"github.com/uber/cadence/service/worker/scanner/timers"
+	"github.com/uber/cadence/service/worker/scheduler"
 )
 
 type (
@@ -84,6 +85,7 @@ type (
 		PersistenceGlobalMaxQPS             dynamicproperties.IntPropertyFn
 		PersistenceMaxQPS                   dynamicproperties.IntPropertyFn
 		EnableBatcher                       dynamicproperties.BoolPropertyFn
+		EnableScheduler                     dynamicproperties.BoolPropertyFn
 		EnableParentClosePolicyWorker       dynamicproperties.BoolPropertyFn
 		NumParentClosePolicySystemWorkflows dynamicproperties.IntPropertyFn
 		EnableFailoverManager               dynamicproperties.BoolPropertyFn
@@ -181,6 +183,7 @@ func NewConfig(params *resource.Params) *Config {
 			ESAnalyzerWorkflowTypeDomains:            dc.GetStringProperty(dynamicproperties.ESAnalyzerWorkflowTypeMetricDomains),
 		},
 		EnableBatcher:                       dc.GetBoolProperty(dynamicproperties.EnableBatcher),
+		EnableScheduler:                     dc.GetBoolProperty(dynamicproperties.EnableScheduler),
 		EnableParentClosePolicyWorker:       dc.GetBoolProperty(dynamicproperties.EnableParentClosePolicyWorker),
 		NumParentClosePolicySystemWorkflows: dc.GetIntProperty(dynamicproperties.NumParentClosePolicySystemWorkflows),
 		EnableESAnalyzer:                    dc.GetBoolProperty(dynamicproperties.EnableESAnalyzer),
@@ -244,6 +247,9 @@ func (s *Service) Start() {
 	if s.config.EnableBatcher() {
 		s.ensureDomainExists(constants.BatcherLocalDomainName)
 		s.startBatcher()
+	}
+	if s.config.EnableScheduler() {
+		s.startScheduler()
 	}
 	if s.config.EnableParentClosePolicyWorker() {
 		s.startParentClosePolicyProcessor()
@@ -335,6 +341,17 @@ func (s *Service) startBatcher() {
 	}
 	if err := batcher.New(params).Start(); err != nil {
 		s.GetLogger().Fatal("error starting batcher", tag.Error(err))
+	}
+}
+
+func (s *Service) startScheduler() {
+	params := &scheduler.BootstrapParams{
+		ServiceClient:  s.params.PublicClient,
+		FrontendClient: s.GetClientBean().GetFrontendClient(),
+		Logger:         s.GetLogger(),
+	}
+	if err := scheduler.New(params).Start(); err != nil {
+		s.GetLogger().Fatal("error starting scheduler", tag.Error(err))
 	}
 }
 

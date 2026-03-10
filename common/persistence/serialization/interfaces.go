@@ -305,6 +305,7 @@ type (
 		Version                 int64
 		VisibilityTimestamp     time.Time
 		OriginalTaskList        string
+		OriginalTaskListKind    types.TaskListKind
 	}
 
 	// CrossClusterTaskInfo blob in a serialization agnostic format

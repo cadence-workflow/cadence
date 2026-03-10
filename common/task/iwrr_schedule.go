@@ -4,10 +4,6 @@ import "slices"
 
 var _ Schedule[any] = &iwrrSchedule[any]{}
 
-type weightedItem interface {
-	Weight() int
-}
-
 // weightedContainer is a container for an item with a weight
 type weightedContainer[V any] struct {
 	weight int
@@ -30,27 +26,23 @@ type iwrrSchedule[V any] struct {
 type iwrrIterator[V any] struct {
 	schedule     *iwrrSchedule[V]
 	currentRound int // Current round (maxWeight-1 down to 0)
-	currentIndex int // Index within current round's qualifying channels
+	currentIndex int // Index within current round's qualifying items
 }
 
-// newIWRRSchedule creates a new IWRR schedule from a snapshot of weighted items
+// newIWRRSchedule creates a new IWRR schedule from a snapshot of weighted containers
 // Items with weight <= 0 are ignored
-func newIWRRSchedule[K comparable, V weightedItem](items map[K]V) *iwrrSchedule[V] {
+func newIWRRSchedule[K comparable, V any](items map[K]weightedContainer[V]) *iwrrSchedule[V] {
 	if len(items) == 0 {
 		return &iwrrSchedule[V]{}
 	}
 
-	// Filter out items with weight <= 0 and copy only the fields we need
+	// Filter out items with weight <= 0 and copy to slice
 	itemsCopy := make([]weightedContainer[V], 0, len(items))
 	totalLen := 0
-	for _, v := range items {
-		weight := v.Weight()
-		if weight > 0 {
-			itemsCopy = append(itemsCopy, weightedContainer[V]{
-				weight: weight,
-				item:   v,
-			})
-			totalLen += weight
+	for _, container := range items {
+		if container.weight > 0 {
+			itemsCopy = append(itemsCopy, container)
+			totalLen += container.weight
 		}
 	}
 

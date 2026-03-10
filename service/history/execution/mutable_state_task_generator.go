@@ -308,10 +308,11 @@ func (r *mutableStateTaskGeneratorImpl) GenerateDecisionScheduleTasks(
 			// TaskID and VisibilityTimestamp are set by shard context
 			Version: decision.Version,
 		},
-		TargetDomainID:   executionInfo.DomainID,
-		TaskList:         decision.TaskList,
-		ScheduleID:       decision.ScheduleID,
-		OriginalTaskList: originalTaskList,
+		TargetDomainID:       executionInfo.DomainID,
+		TaskList:             decision.TaskList,
+		ScheduleID:           decision.ScheduleID,
+		OriginalTaskList:     originalTaskList,
+		OriginalTaskListKind: executionInfo.TaskListKind,
 	})
 
 	if scheduleToStartTimeout := r.mutableState.GetDecisionScheduleToStartTimeout(); scheduleToStartTimeout != 0 {

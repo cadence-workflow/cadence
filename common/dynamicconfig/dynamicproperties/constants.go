@@ -2014,6 +2014,12 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableBatcher
+	// EnableScheduler decides whether to start the scheduler worker for cron-based scheduling
+	// KeyName: worker.enableScheduler
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableScheduler
 	// EnableParentClosePolicyWorker decides whether or not enable system workers for processing parent close policy task
 	// KeyName: system.enableParentClosePolicyWorker
 	// Value type: Bool
@@ -2284,7 +2290,7 @@ const (
 	// from using the shard manager to handle these shards. These short-lived task lists are assigned using hash_ring.
 	// KeyName: matching.excludeShortLivedTaskListsFromShardManager
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
 
@@ -4743,6 +4749,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableBatcher is decides whether start batcher in our worker",
 		DefaultValue: true,
 	},
+	EnableScheduler: {
+		KeyName:      "worker.enableScheduler",
+		Description:  "EnableScheduler decides whether to start the scheduler worker for cron-based scheduling",
+		DefaultValue: false,
+	},
 	EnableParentClosePolicyWorker: {
 		KeyName:      "system.enableParentClosePolicyWorker",
 		Description:  "EnableParentClosePolicyWorker decides whether or not enable system workers for processing parent close policy task",
@@ -4972,7 +4983,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	MatchingExcludeShortLivedTaskListsFromShardManager: {
 		KeyName:      "matching.excludeShortLivedTaskListsFromShardManager",
 		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 }
 

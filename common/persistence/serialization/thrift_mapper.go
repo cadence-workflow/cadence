@@ -685,6 +685,7 @@ func transferTaskInfoToThrift(info *TransferTaskInfo) *sqlblobs.TransferTaskInfo
 		Version:                  &info.Version,
 		VisibilityTimestampNanos: timeToUnixNanoPtr(info.VisibilityTimestamp),
 		OriginalTaskList:         &info.OriginalTaskList,
+		OriginalTaskListKind:     thrift.FromTaskListKind(&info.OriginalTaskListKind),
 	}
 	if len(info.TargetDomainIDs) > 0 {
 		thriftTaskInfo.TargetDomainIDs = [][]byte{}
@@ -714,6 +715,7 @@ func transferTaskInfoFromThrift(info *sqlblobs.TransferTaskInfo) *TransferTaskIn
 		Version:                 info.GetVersion(),
 		VisibilityTimestamp:     timeFromUnixNano(info.GetVisibilityTimestampNanos()),
 		OriginalTaskList:        info.GetOriginalTaskList(),
+		OriginalTaskListKind:    taskListKindFromThrift(info.OriginalTaskListKind),
 	}
 	if len(info.GetTargetDomainIDs()) > 0 {
 		transferTaskInfo.TargetDomainIDs = []UUID{}

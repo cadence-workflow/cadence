@@ -27,7 +27,7 @@ import (
 	"time"
 )
 
-// TTLChannel is a channel with a last write time and reference count
+// TTLChannel is a channel that can expire if it is not written to for a given amount of time.
 type TTLChannel[V any] struct {
 	c             chan V
 	lastWriteTime atomic.Int64

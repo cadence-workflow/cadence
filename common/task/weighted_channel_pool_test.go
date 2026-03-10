@@ -135,7 +135,7 @@ func TestGetSchedule(t *testing.T) {
 	for _, expected := range expectedSequence1 {
 		ch, ok := iter1.TryNext()
 		assert.True(t, ok)
-		assert.Equal(t, expected, ch.c)
+		assert.Equal(t, expected, ch.Chan())
 	}
 
 	c4, releaseFn4 := pool.GetOrCreateChannel("k2", 4)
@@ -151,7 +151,7 @@ func TestGetSchedule(t *testing.T) {
 	for _, expected := range expectedSequence2 {
 		ch, ok := iter2.TryNext()
 		assert.True(t, ok)
-		assert.Equal(t, expected, ch.c)
+		assert.Equal(t, expected, ch.Chan())
 	}
 }
 

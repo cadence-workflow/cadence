@@ -559,6 +559,8 @@ func parseTransferTaskInfo(
 			info.Version = v.(int64)
 		case "original_task_list":
 			info.OriginalTaskList = v.(string)
+		case "original_task_list_kind":
+			info.OriginalTaskListKind = types.TaskListKind(int32(v.(int)))
 		}
 	}
 

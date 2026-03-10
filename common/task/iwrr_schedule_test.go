@@ -7,14 +7,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testWeightedItem is a simple implementation of weightedItem for testing
+// testWeightedItem is a simple implementation for testing
 type testWeightedItem struct {
-	weight int
-	id     int
+	id int
 }
 
-func (t *testWeightedItem) Weight() int {
-	return t.weight
+// toWeightedMap converts a map of items with weights to a map of weightedContainers
+func toWeightedMap(items map[int]*testWeightedItem, weights map[int]int) map[int]weightedContainer[*testWeightedItem] {
+	result := make(map[int]weightedContainer[*testWeightedItem])
+	for k, item := range items {
+		result[k] = weightedContainer[*testWeightedItem]{
+			item:   item,
+			weight: weights[k],
+		}
+	}
+	return result
 }
 
 func TestIWRRSchedule_Empty(t *testing.T) {
@@ -30,10 +37,13 @@ func TestIWRRSchedule_Empty(t *testing.T) {
 
 func TestIWRRSchedule_SingleChannel(t *testing.T) {
 	items := map[int]*testWeightedItem{
-		0: {weight: 3, id: 0},
+		0: {id: 0},
+	}
+	weights := map[int]int{
+		0: 3,
 	}
 
-	schedule := newIWRRSchedule[int, *testWeightedItem](items)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	// Total length should be the weight
 	assert.Equal(t, 3, schedule.Len())
@@ -55,12 +65,17 @@ func TestIWRRSchedule_SingleChannel(t *testing.T) {
 
 func TestIWRRSchedule_MultipleChannels_EqualWeights(t *testing.T) {
 	items := map[int]*testWeightedItem{
-		0: {weight: 2, id: 0},
-		1: {weight: 2, id: 1},
-		2: {weight: 2, id: 2},
+		0: {id: 0},
+		1: {id: 1},
+		2: {id: 2},
+	}
+	weights := map[int]int{
+		0: 2,
+		1: 2,
+		2: 2,
 	}
 
-	schedule := newIWRRSchedule[int, *testWeightedItem](items)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	assert.Equal(t, 6, schedule.Len())
 
@@ -85,12 +100,17 @@ func TestIWRRSchedule_MultipleChannels_EqualWeights(t *testing.T) {
 func TestIWRRSchedule_MultipleChannels_DifferentWeights(t *testing.T) {
 	// Create items with weights [1, 2, 3]
 	items := map[int]*testWeightedItem{
-		0: {weight: 1, id: 0},
-		1: {weight: 2, id: 1},
-		2: {weight: 3, id: 2},
+		0: {id: 0},
+		1: {id: 1},
+		2: {id: 2},
+	}
+	weights := map[int]int{
+		0: 1,
+		1: 2,
+		2: 3,
 	}
 
-	schedule := newIWRRSchedule[int, *testWeightedItem](items)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	assert.Equal(t, 6, schedule.Len())
 
@@ -124,12 +144,17 @@ func TestIWRRSchedule_MultipleChannels_DifferentWeights(t *testing.T) {
 
 func TestIWRRSchedule_LargeWeights(t *testing.T) {
 	items := map[int]*testWeightedItem{
-		0: {weight: 100, id: 0},
-		1: {weight: 50, id: 1},
-		2: {weight: 25, id: 2},
+		0: {id: 0},
+		1: {id: 1},
+		2: {id: 2},
+	}
+	weights := map[int]int{
+		0: 100,
+		1: 50,
+		2: 25,
 	}
 
-	schedule := newIWRRSchedule[int, *testWeightedItem](items)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	assert.Equal(t, 175, schedule.Len())
 
@@ -171,11 +196,15 @@ func TestIWRRSchedule_LargeWeights(t *testing.T) {
 
 func TestIWRRSchedule_ChannelWithZeroWeight(t *testing.T) {
 	items := map[int]*testWeightedItem{
-		0: {weight: 0, id: 0},
-		1: {weight: 3, id: 1},
+		0: {id: 0},
+		1: {id: 1},
+	}
+	weights := map[int]int{
+		0: 0,
+		1: 3,
 	}
 
-	schedule := newIWRRSchedule[int, *testWeightedItem](items)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	// Total length should only count non-zero weights
 	assert.Equal(t, 3, schedule.Len())
@@ -198,14 +227,16 @@ func TestIWRRSchedule_ChannelWithZeroWeight(t *testing.T) {
 func TestIWRRSchedule_WeightedChannelFields(t *testing.T) {
 	// Verify that the returned item is correct
 	testItem := &testWeightedItem{
-		weight: 10,
-		id:     0,
+		id: 0,
 	}
 	items := map[int]*testWeightedItem{
 		0: testItem,
 	}
+	weights := map[int]int{
+		0: 10,
+	}
 
-	schedule := newIWRRSchedule[int, *testWeightedItem](items)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	iter := schedule.NewIterator()
 
@@ -216,10 +247,13 @@ func TestIWRRSchedule_WeightedChannelFields(t *testing.T) {
 
 func TestIWRRSchedule_ExhaustedSchedule_MultipleCallsReturnFalse(t *testing.T) {
 	items := map[int]*testWeightedItem{
-		0: {weight: 1, id: 0},
+		0: {id: 0},
+	}
+	weights := map[int]int{
+		0: 1,
 	}
 
-	schedule := newIWRRSchedule[int, *testWeightedItem](items)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	iter := schedule.NewIterator()
 
@@ -239,12 +273,17 @@ func TestIWRRSchedule_ExhaustedSchedule_MultipleCallsReturnFalse(t *testing.T) {
 func TestIWRRSchedule_Ordering_Weights_5_3_1(t *testing.T) {
 	// Test case from task pool tests: weights [5, 3, 1]
 	items := map[int]*testWeightedItem{
-		0: {weight: 5, id: 0},
-		1: {weight: 3, id: 1},
-		2: {weight: 1, id: 2},
+		0: {id: 0},
+		1: {id: 1},
+		2: {id: 2},
+	}
+	weights := map[int]int{
+		0: 5,
+		1: 3,
+		2: 1,
 	}
 
-	schedule := newIWRRSchedule[int, *testWeightedItem](items)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	assert.Equal(t, 9, schedule.Len())
 
@@ -273,14 +312,18 @@ func TestIWRRSchedule_Ordering_Weights_5_3_1(t *testing.T) {
 
 func TestIWRRSchedule_StatelessSchedule_MultipleIterators(t *testing.T) {
 	// Test that the schedule is stateless and can create multiple independent iterators
-	item1 := &testWeightedItem{weight: 2, id: 0}
-	item2 := &testWeightedItem{weight: 1, id: 1}
+	item1 := &testWeightedItem{id: 0}
+	item2 := &testWeightedItem{id: 1}
 	items := map[int]*testWeightedItem{
 		0: item1,
 		1: item2,
 	}
+	weights := map[int]int{
+		0: 2,
+		1: 1,
+	}
 
-	schedule := newIWRRSchedule[int, *testWeightedItem](items)
+	schedule := newIWRRSchedule[int, *testWeightedItem](toWeightedMap(items, weights))
 
 	// IWRR for weights [2, 1]: [item1, item1, item2]
 	// Create first iterator and consume partially

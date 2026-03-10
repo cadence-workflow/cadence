@@ -166,6 +166,7 @@ func TestGettersForInfos(t *testing.T) {
 			Version:                 3,
 			VisibilityTimestamp:     taskInfoCreateTime,
 			OriginalTaskList:        "originalTaskList",
+			OriginalTaskListKind:    types.TaskListKindEphemeral,
 		},
 		&TimerTaskInfo{
 			DomainID:        taskDomainID,

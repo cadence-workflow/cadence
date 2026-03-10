@@ -123,6 +123,13 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			config.EnableTasklistOwnershipGuard = func(opts ...dynamicproperties.FilterOption) bool {
 				return taskListEnabled
 			}
+			// Exclude all task lists from the ShardDistributor so that errIfShardOwnershipLost
+			// exercises the ringpop (hash-ring) ownership path that these test cases are actually
+			// testing. With PercentageOnboardedToShardManager=0, no task list name is below the
+			// percentage threshold, so every name is considered excluded regardless of whether it
+			// contains a UUID.
+			config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
+			config.PercentageOnboardedToShardManager = func(opts ...dynamicproperties.FilterOption) int { return 0 }
 
 			matchingEngine := NewEngine(
 				taskManager,
@@ -141,6 +148,13 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				defaultSDExecutorConfig(),
 				nil,
 			).(*matchingEngineImpl)
+
+			// All task lists are excluded from the ShardDistributor, so GetShardProcess is
+			// never called. Only Start/Stop are needed for lifecycle management.
+			mockExec := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+			mockExec.EXPECT().Start(gomock.Any()).AnyTimes()
+			mockExec.EXPECT().Stop().AnyTimes()
+			matchingEngine.executor = mockExec
 
 			resolverMock.EXPECT().Lookup(gomock.Any(), gomock.Any()).Return(
 				membership.NewDetailedHostInfo("", tc.lookUpResult, make(membership.PortMap)), tc.lookUpErr,
@@ -326,7 +340,6 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 
 	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
 	mockExecutor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	mockExecutor.EXPECT().IsOnboardedToSD().Return(false).AnyTimes()
 	mockExecutor.EXPECT().Stop()
 
 	shutdownWG := sync.WaitGroup{}

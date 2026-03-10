@@ -105,7 +105,8 @@ const (
 		`schedule_id: ?, ` +
 		`record_visibility: ?, ` +
 		`version: ?, ` +
-		`original_task_list: ?` +
+		`original_task_list: ?, ` +
+		`original_task_list_kind: ?` +
 		`}`
 
 	templateCrossClusterTaskType = templateTransferTaskType

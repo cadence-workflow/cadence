@@ -145,7 +145,11 @@ func WithCommonEnumFuzzers() FuzzOption {
 			*e = types.ContinueAsNewInitiator(c.Intn(4)) // 0-3
 		},
 		func(e *types.ParentClosePolicy, c fuzz.Continue) {
+<<<<<<< HEAD
 			*e = types.ParentClosePolicy(c.Intn(3)) // 0-2
+=======
+			*e = types.ParentClosePolicy(c.Intn(4)) // 0-3
+>>>>>>> master
 		},
 		func(e *types.PendingActivityState, c fuzz.Continue) {
 			*e = types.PendingActivityState(c.Intn(3)) // 0-2
@@ -157,6 +161,7 @@ func WithCommonEnumFuzzers() FuzzOption {
 			*e = types.QueryTaskCompletedType(c.Intn(3)) // 0-2
 		},
 		func(e *types.QueryResultType, c fuzz.Continue) {
+<<<<<<< HEAD
 			*e = types.QueryResultType(c.Intn(2)) // 0-1: Answered, Failed
 		},
 		func(e *types.IndexedValueType, c fuzz.Continue) {
@@ -170,6 +175,9 @@ func WithCommonEnumFuzzers() FuzzOption {
 		},
 		func(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
 			*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
+=======
+			*e = types.QueryResultType(c.Intn(3)) // 0-2
+>>>>>>> master
 		},
 	)
 }
@@ -263,6 +271,7 @@ func clearFieldsIf(obj interface{}, shouldClear func(fieldName string) bool) {
 		v = v.Elem()
 	}
 
+<<<<<<< HEAD
 	// Handle slices at top level (e.g., when TInternal is []*SomeType)
 	if v.Kind() == reflect.Slice {
 		for j := 0; j < v.Len(); j++ {
@@ -278,6 +287,8 @@ func clearFieldsIf(obj interface{}, shouldClear func(fieldName string) bool) {
 		return
 	}
 
+=======
+>>>>>>> master
 	if v.Kind() != reflect.Struct {
 		return
 	}
