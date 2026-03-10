@@ -81,10 +81,13 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		return fmt.Errorf("invalid cron expression %q: %w", input.Spec.CronExpression, err)
 	}
 
+	// On the first iteration (after ContinueAsNew or fresh start), check for
+	// fires that were missed during the transition gap or prior pause period.
+	// Subsequent iterations don't need this because the timer handles fire times.
+	processMissedRuns(ctx, logger, sched, &input, state)
+
 	for {
 		state.Iterations++
-
-		processMissedRuns(ctx, logger, sched, &input, state)
 
 		// Set up timer only when not paused. When paused, applyAllInputs
 		// blocks on signals alone until an unpause or delete arrives.
