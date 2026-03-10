@@ -135,16 +135,17 @@ func (m *domainAuditManagerImpl) GetDomainAuditLogs(
 	ctx context.Context,
 	request *GetDomainAuditLogsRequest,
 ) (*GetDomainAuditLogsResponse, error) {
-	if request.MinCreatedTime == nil {
+	req := *request
+	if req.MinCreatedTime == nil {
 		start := time.Unix(0, 0)
-		request.MinCreatedTime = &start
+		req.MinCreatedTime = &start
 	}
-	if request.MaxCreatedTime == nil {
+	if req.MaxCreatedTime == nil {
 		end := m.timeSrc.Now()
-		request.MaxCreatedTime = &end
+		req.MaxCreatedTime = &end
 	}
 
-	internalResp, err := m.persistence.GetDomainAuditLogs(ctx, request)
+	internalResp, err := m.persistence.GetDomainAuditLogs(ctx, &req)
 	if err != nil {
 		return nil, err
 	}

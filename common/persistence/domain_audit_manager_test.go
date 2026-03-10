@@ -151,3 +151,38 @@ func TestGetDomainAuditLogs(t *testing.T) {
 		})
 	}
 }
+
+func TestGetDomainAuditLogs_MutateDefaultTimeOnRetry(t *testing.T) {
+	m, mockStore := setUpMocksForDomainAuditManager(t)
+	mockTime := m.timeSrc.(clock.MockedTimeSource)
+
+	t1 := mockTime.Now()
+
+	// a request with nil MaxCreatedTime (meaning "up to now")
+	request := &GetDomainAuditLogsRequest{
+		DomainID: "test-domain",
+	}
+
+	// first call at T1
+	mockStore.EXPECT().GetDomainAuditLogs(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, req *GetDomainAuditLogsRequest) (*InternalGetDomainAuditLogsResponse, error) {
+			assert.Equal(t, t1, *req.MaxCreatedTime)
+			return &InternalGetDomainAuditLogsResponse{}, nil
+		}).Times(1)
+
+	_, _ = m.GetDomainAuditLogs(context.Background(), request)
+
+	mockTime.Advance(2 * time.Minute)
+	t2 := t1.Add(2 * time.Minute)
+
+	// second call at T2 (like in retry loop)
+	mockStore.EXPECT().GetDomainAuditLogs(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, req *GetDomainAuditLogsRequest) (*InternalGetDomainAuditLogsResponse, error) {
+			if *req.MaxCreatedTime == t1 {
+				t.Errorf("MaxCreatedTime is still T1 (%v) but should be new Time.Now T2 (%v)", t1, t2)
+			}
+			return &InternalGetDomainAuditLogsResponse{}, nil
+		}).Times(1)
+
+	_, _ = m.GetDomainAuditLogs(context.Background(), request)
+}
