@@ -1505,6 +1505,11 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
 		sp, err := e.executor.GetShardProcess(ctx, taskList.GetName())
 		if err != nil {
+			if errors.Is(err, executorclient.ErrShardProcessNotFound) {
+				// The shard is not assigned to this host – treat it as an ownership loss,
+				// not an internal error.
+				return newNotOwnedByHostError("not known")
+			}
 			return fmt.Errorf("failed to lookup ownership in SD: %w", err)
 		}
 		if sp == nil {
