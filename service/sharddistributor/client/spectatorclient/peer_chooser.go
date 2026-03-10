@@ -82,9 +82,7 @@ func NewSpectatorPeerChooser(
 // Start satisfies the peer.Chooser interface
 func (c *SpectatorPeerChooser) Start() error {
 	c.logger.Info("Starting shard distributor peer chooser", tag.ShardNamespace(c.namespace))
-	if c.peerTTL > 0 {
-		c.startEvictionLoop()
-	}
+	c.startEvictionLoop()
 	return nil
 }
 

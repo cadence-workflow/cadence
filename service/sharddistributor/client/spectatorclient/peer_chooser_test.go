@@ -83,6 +83,7 @@ func TestSpectatorPeerChooser_StartStop(t *testing.T) {
 		logger:     testlogger.New(t),
 		peers:      make(map[string]*trackedPeer),
 		timeSource: clock.NewRealTimeSource(),
+		peerTTL:    time.Minute,
 	}
 
 	err := chooser.Start()
