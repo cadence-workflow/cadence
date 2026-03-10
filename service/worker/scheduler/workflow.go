@@ -506,7 +506,7 @@ func processMissedRuns(ctx workflow.Context, logger *zap.Logger, sched cron.Sche
 	}
 	unfired := int64(len(result.toFire) - fired)
 
-	if result.skipped > 0 || unfired > 0 {
+	if result.skipped > 0 {
 		state.SkippedRuns += result.skipped
 		logger.Info("catch-up skipped missed fires",
 			zap.Int64("skipped", result.skipped),
@@ -515,10 +515,11 @@ func processMissedRuns(ctx workflow.Context, logger *zap.Logger, sched cron.Sche
 		)
 	}
 
-	// Advance watermark based on what we processed: if we fired some,
-	// advance to the last fired time; otherwise advance past all missed
-	// fires (they were all skipped).
-	if fired > 0 {
+	// Advance watermark past all fires we've fully processed (fired or
+	// skipped) to avoid re-discovering them after ContinueAsNew.
+	// If we capped fires via maxCatchUpFiresPerExecution, only advance
+	// to the last one we actually fired so the rest are retried.
+	if unfired > 0 {
 		state.LastProcessedTime = result.toFire[fired-1]
 	} else if last := fires.times[len(fires.times)-1]; last.After(state.LastProcessedTime) {
 		state.LastProcessedTime = last

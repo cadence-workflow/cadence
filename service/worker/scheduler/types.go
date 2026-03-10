@@ -38,8 +38,6 @@ const (
 
 	QueryTypeDescribe = "scheduler-describe"
 
-	StartWorkflowActivityName = "scheduler-start-workflow"
-
 	maxIterationsBeforeContinueAsNew = 500
 	maxCatchUpFiresPerExecution      = 10
 
