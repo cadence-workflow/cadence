@@ -263,6 +263,7 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	// and return avoiding the write lock
 	result, ok := e.taskListRegistry.ManagerByTaskListIdentifier(*taskList)
 	excludedFromShardDistributor := e.isExcludedFromShardDistributor(taskList.GetName())
+	e.logger.Info("Check exclusion in getOrCreateTaskListManager", tag.Dynamic("value", excludedFromShardDistributor))
 
 	// Task lists excluded from the ShardDistributor (short-lived task lists with UUIDs) bypass
 	// the executor/shard-processor entirely and always use local hash-ring assignment.
@@ -1500,7 +1501,10 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 
 	// Task lists excluded from the ShardDistributor bypass the executor entirely and rely on
 	// the local hash-ring for ownership, so skip the SD-based ownership check for them.
-	if !e.isExcludedFromShardDistributor(taskList.GetName()) {
+	value := e.isExcludedFromShardDistributor(taskList.GetName())
+	if !value {
+		e.logger.Info("Check exclusion in errIfShardOwnershipLost", tag.Dynamic("value", value))
+
 		// We have a shard-processor shared by all the task lists with the same name.
 		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
 		sp, err := e.executor.GetShardProcess(ctx, taskList.GetName())
