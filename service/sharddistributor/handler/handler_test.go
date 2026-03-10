@@ -193,7 +193,7 @@ func TestGetShardOwner(t *testing.T) {
 					ShardAssignments: map[string]store.AssignedState{"owner1": {AssignedShards: map[string]*types.ShardAssignment{}}},
 				}, nil)
 				mockStore.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).
-					Return(fmt.Errorf("assign ephemeral shards: %w", store.ErrVersionConflict))
+					Return(store.ErrVersionConflict)
 
 				// Retry: re-read finds the shard already assigned by the concurrent winner.
 				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").
