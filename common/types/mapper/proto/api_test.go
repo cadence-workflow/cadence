@@ -1630,7 +1630,7 @@ func FailoverTypeFuzzer(e *types.FailoverType, c fuzz.Continue) {
 }
 
 func ArchivalStatusFuzzer(e *types.ArchivalStatus, c fuzz.Continue) {
-	*e = types.ArchivalStatus(c.Intn(3)) // 0-2: Disabled, Enabled, Paused
+	*e = types.ArchivalStatus(c.Intn(2)) // 0-1: Disabled, Enabled
 }
 
 func DomainStatusFuzzer(e *types.DomainStatus, c fuzz.Continue) {
