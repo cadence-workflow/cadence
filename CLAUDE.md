@@ -6,7 +6,7 @@ This document contains critical information about working with this codebase.
 
 - NEVER ever mention a `co-authored-by` or similar aspects. In particular, never mention the tool used to create the commit message or PR.
 
-## Build Commands
+## Development Commands
 
 ```bash
 make bins   # build all binaries (includes codegen + lint)
@@ -53,3 +53,27 @@ PRs must follow the template in `.github/pull_request_guidance.md`.
 ## Development
 
 For database setup, schema installation, and server start options: [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Repository layout
+A Cadence server cluster is composed of four different services: Frontend, Matching, History and Worker(system).
+Here's what's in each top-level directory in this repository:
+
+* **bench/** : Benchmark and load test suite for stress-testing a Cadence cluster
+* **canary/** : The test code that needs to run periodically to ensure Cadence is healthy
+* **client/** : Client wrappers to let the four different services talk to each other
+* **cmd/** : The main function to build binaries for servers and CLI tools
+* **common/** : Basically contains all the rest of the code in Cadence server, the names of the sub folder are the topics of the packages
+* **config/** : Sample configuration files
+* **docker/** : Code/scripts to build docker images
+* **docs/** : Documentation
+* **environment/** : Test helpers for reading environment variables (DB host/port, etc.) used by integration tests
+* **host/** : End-to-end integration tests
+* **idls/** : Git submodule with Thrift and Protobuf IDL definitions; source for all generated code under `.gen/`
+* **internal/** : Internal Go tool dependencies (blank imports to pin codegen tools in `go.mod`)
+* **proto/** : Protobuf definitions for internal persistence blobs and public Cadence APIs
+* **schema/** : Versioned persistence schema for Cassandra/MySQL/Postgres/ElasticSearch
+* **scripts/** : Scripts for CI build
+* **service/** : Contains four sub-folders dedicated to each of the four services (frontend, history, matching, worker)
+* **simulation/** : Black-box simulation tests that spin up a local Docker cluster and validate complex multi-component scenarios
+* **tools/** : CLI tools for Cadence workflows and also schema updates for persistence
+
