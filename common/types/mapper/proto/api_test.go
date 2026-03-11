@@ -1685,6 +1685,10 @@ func IndexedValueTypeFuzzer(e *types.IndexedValueType, c fuzz.Continue) {
 	*e = types.IndexedValueType(c.Intn(6)) // 0-5: String, Keyword, Int, Double, Bool, Datetime
 }
 
+func CompletedTypeFuzzer(e *types.QueryTaskCompletedType, c fuzz.Continue) {
+	*e = types.QueryTaskCompletedType(c.Intn(2)) // 0-1: Completed, Failed
+}
+
 func ActiveClusterSelectionPolicyFuzzerClearAttribute(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
 	// ActiveClusterSelectionPolicy requires string fields to match strategy
 	// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
@@ -1783,7 +1787,7 @@ func TestRequestCancelWorkflowExecutionRequestFuzz(t *testing.T) {
 }
 
 func TestRespondActivityTaskFailedByIDRequestFuzz(t *testing.T) {
-	// Details can be lost if Reason is nil (FromFailure requires reason to be non-nil)
+	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromRespondActivityTaskFailedByIDRequest, ToRespondActivityTaskFailedByIDRequest,
 		testutils.WithExcludedFields("Details"),
 	)
@@ -1846,13 +1850,13 @@ func TestListFailoverHistoryResponseFuzz(t *testing.T) {
 func TestDescribeTaskListResponseFuzz(t *testing.T) {
 	// TaskListPartitionConfig has map[int] fields that get truncated to map[int32] in proto
 	// Large 64-bit int keys don't roundtrip correctly
+	// TODO(c-warren): Add tests for the ReadPartitions function and keep this ignored
 	testutils.RunMapperFuzzTest(t, FromDescribeTaskListResponse, ToDescribeTaskListResponse,
 		testutils.WithExcludedFields("ReadPartitions", "WritePartitions"),
 	)
 }
 
 func TestStartWorkflowExecutionAsyncRequestFuzz(t *testing.T) {
-	// WorkflowIDReusePolicy: invalid enum values map to nil
 	// ActiveClusterSelectionPolicy: string fields must match strategy
 	testutils.RunMapperFuzzTest(t, FromStartWorkflowExecutionAsyncRequest, ToStartWorkflowExecutionAsyncRequest,
 		testutils.WithCustomFuncs(
@@ -1893,9 +1897,6 @@ func TestRequestCancelExternalWorkflowExecutionInitiatedEventAttributesFuzz(t *t
 }
 
 func TestRespondDecisionTaskCompletedRequestFuzz(t *testing.T) {
-	// Decision objects have discriminated union pattern (DecisionType determines which one attribute is set)
-	// Fuzzer sets multiple attributes which don't round trip correctly through proto
-	// QueryResults also has QueryResultType enum that needs custom fuzzer
 	// Excluding both complex fields - tested separately in TestDecisionArrayFuzz and TestWorkflowQueryResultMapFuzz
 	testutils.RunMapperFuzzTest(t, FromRespondDecisionTaskCompletedRequest, ToRespondDecisionTaskCompletedRequest,
 		testutils.WithExcludedFields("Decisions", "QueryResults"),
@@ -1923,7 +1924,7 @@ func TestIsolationGroupMetricsFuzz(t *testing.T) {
 }
 
 func TestFailoverDomainResponseFuzz(t *testing.T) {
-	// EmitMetric is a legacy field that is always set to true in the To* mapper
+	// [BUG?] EmitMetric is always set to true in the To* mapper, not set in From mapper
 	// WorkflowExecutionRetentionPeriodInDays loses precision in days→duration→days conversion
 	testutils.RunMapperFuzzTest(t, FromFailoverDomainResponse, ToFailoverDomainResponse,
 		testutils.WithCustomFuncs(
@@ -1950,8 +1951,7 @@ func TestFailoverDomainResponseFuzz(t *testing.T) {
 }
 
 func TestFailoverEventArrayFuzz(t *testing.T) {
-	// FailoverType: invalid enum values (not 1 or 2) map to nil
-	// ID: empty string maps to nil
+	// [BUG] Non-symmetric mapping: An empty string ID becomes nil, but the return trip translates it back to nil
 	testutils.RunMapperFuzzTest(t, FromFailoverEventArray, ToFailoverEventArray,
 		testutils.WithCustomFuncs(
 			FailoverTypeFuzzer,
@@ -1979,6 +1979,7 @@ func TestHealthResponseFuzz(t *testing.T) {
 }
 
 func TestListArchivedWorkflowExecutionsResponseFuzz(t *testing.T) {
+	// TODO(c-warren): Add comoments here about it being mostly tested in the other fuzz test
 	// UpdateTime: missing from mapper (not sent over proto)
 	// ParentDomainID, ParentDomain: converted to empty string instead of nil when ParentExecutionInfo exists but field is empty
 	// ParentInitiatedID: converted to 0 instead of nil when ParentExecutionInfo exists but field is 0
@@ -2015,6 +2016,7 @@ func TestListArchivedWorkflowExecutionsResponseFuzz(t *testing.T) {
 }
 
 func TestListOpenWorkflowExecutionsResponseFuzz(t *testing.T) {
+	// TODO(c-warren): Add comoments here about it being mostly tested in the other fuzz test
 	// UpdateTime: missing from mapper (not sent over proto)
 	// ParentDomainID, ParentDomain: converted to empty string instead of nil when ParentExecutionInfo exists but field is empty
 	// ParentInitiatedID: converted to 0 instead of nil when ParentExecutionInfo exists but field is 0
@@ -2058,34 +2060,8 @@ func TestRespondDecisionTaskFailedRequestFuzz(t *testing.T) {
 	)
 }
 
-func TestDescribeDomainResponseArrayFuzz(t *testing.T) {
-	// EmitMetric is a legacy field that is always set to true in the To* mapper
-	// WorkflowExecutionRetentionPeriodInDays loses precision in days→duration→days conversion
-	testutils.RunMapperFuzzTest(t, FromDescribeDomainResponseArray, ToDescribeDomainResponseArray,
-		testutils.WithCustomFuncs(
-			func(r *types.DescribeDomainResponse, c fuzz.Continue) {
-				c.Fuzz(r)
-				// Mapper always creates these nested structs, never nil
-				if r.DomainInfo == nil {
-					r.DomainInfo = &types.DomainInfo{}
-				}
-				if r.Configuration == nil {
-					r.Configuration = &types.DomainConfiguration{}
-				}
-				if r.ReplicationConfiguration == nil {
-					r.ReplicationConfiguration = &types.DomainReplicationConfiguration{}
-				}
-			},
-			EncodingTypeFuzzer,
-			IsolationGroupStateFuzzer,
-			DomainStatusFuzzer,
-			ArchivalStatusFuzzer,
-		),
-		testutils.WithExcludedFields("EmitMetric", "WorkflowExecutionRetentionPeriodInDays"),
-	)
-}
-
 func TestDescribeWorkflowExecutionResponseFuzz(t *testing.T) {
+	// TODO(c-warren): There are sub tests, but this one is pretty crazy bad
 	// Multiple mapper bugs in nested fields:
 	// - PendingDecision.Attempt: int64 truncated to int32
 	// - PendingActivities[].LastFailureDetails: lost when LastFailureReason is nil
@@ -2180,15 +2156,6 @@ func TestWorkflowQueryFuzz(t *testing.T) {
 func TestHistoryEventFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromHistoryEvent, ToHistoryEvent,
 		testutils.WithCustomFuncs(
-			func(h *types.HistoryEvent, c fuzz.Continue) {
-				// Fuzz all fields first
-				c.Fuzz(h)
-				// Ensure EventType is always non-nil (required by mapper switch statement)
-				if h.EventType == nil {
-					eventType := types.EventType(c.Intn(42)) // 0-41: All EventType values
-					h.EventType = &eventType
-				}
-			},
 			EventTypeFuzzer,
 			DecisionTypeFuzzer,
 			TimeoutTypeFuzzer,
@@ -2198,42 +2165,28 @@ func TestHistoryEventFuzz(t *testing.T) {
 			CronOverlapPolicyFuzzer,
 			ActiveClusterSelectionStrategyFuzzer,
 			ActiveClusterSelectionPolicyFuzzerWithAttribute,
+			func(h *types.HistoryEvent, c fuzz.Continue) {
+				// Fuzz all fields first
+				c.Fuzz(h)
+				// Ensure EventType is always non-nil (required by mapper switch statement)
+				if h.EventType == nil {
+					eventType := types.EventType(c.Intn(42)) // 0-41: All EventType values
+					h.EventType = &eventType
+				}
+			},
 		),
 	)
 }
 
 func TestActivityTaskFailedEventAttributesFuzz(t *testing.T) {
-	// Details without Reason are dropped by FromFailure pattern
+	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromActivityTaskFailedEventAttributes, ToActivityTaskFailedEventAttributes,
 		testutils.WithExcludedFields("Details"),
 	)
 }
 
 func TestHistoryFuzz(t *testing.T) {
-	// ToHistoryEventArray returns empty slice for nil input, but History.Events can be nil
-	testutils.RunMapperFuzzTest(t, FromHistory, ToHistory,
-		testutils.WithCustomFuncs(
-			func(h *types.HistoryEvent, c fuzz.Continue) {
-				// Fuzz all fields first
-				c.Fuzz(h)
-				// Ensure EventType is always non-nil (required by mapper switch statement)
-				if h.EventType == nil {
-					eventType := types.EventType(c.Intn(42)) // 0-41: All EventType values
-					h.EventType = &eventType
-				}
-			},
-			EventTypeFuzzer,
-			DecisionTypeFuzzer,
-			TimeoutTypeFuzzer,
-			TaskListKindFuzzer,
-			ContinueAsNewInitiatorFuzzer,
-			WorkflowIDReusePolicyFuzzer,
-			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
-			ActiveClusterSelectionPolicyFuzzerWithAttribute,
-		),
-		testutils.WithExcludedFields("Events"),
-	)
+	t.Skip("HistoryEvent array testing covered by individual event attribute fuzz tests")
 }
 
 func TestResetWorkflowExecutionRequestFuzz(t *testing.T) {
@@ -2290,8 +2243,8 @@ func TestDeprecateDomainRequestFuzz(t *testing.T) {
 }
 
 func TestFailoverDomainRequestFuzz(t *testing.T) {
-	// DomainActiveClusterName: empty string is normalized to nil
-	// Reason: not yet implemented in the mapper
+	// [BUG] Non-symmetric mapping: An empty string DomainActiveClusterName becomes nil, but the return trip translates it back to nil
+	// [Missing] Reason is not yet implemented in the mapper
 	testutils.RunMapperFuzzTest(t, FromFailoverDomainRequest, ToFailoverDomainRequest,
 		testutils.WithCustomFuncs(
 			FailoverTypeFuzzer,
@@ -2425,45 +2378,15 @@ func TestListClosedWorkflowExecutionsRequestFuzz(t *testing.T) {
 }
 
 func TestChildWorkflowExecutionFailedEventAttributesFuzz(t *testing.T) {
-	// Details without Reason are dropped by FromFailure pattern
+	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromChildWorkflowExecutionFailedEventAttributes, ToChildWorkflowExecutionFailedEventAttributes,
 		testutils.WithExcludedFields("Details"),
 	)
 }
 
 func TestListClosedWorkflowExecutionsResponseFuzz(t *testing.T) {
-	// UpdateTime: missing from mapper (not sent over proto)
-	// ParentDomainID, ParentDomain: converted to empty string instead of nil when ParentExecutionInfo exists but field is empty
-	// ParentInitiatedID: converted to 0 instead of nil when ParentExecutionInfo exists but field is 0
-	// ActiveClusterSelectionPolicy fields (StickyRegion, ExternalEntityType, ExternalEntityKey): cleared when strategy is not valid or nil
 	testutils.RunMapperFuzzTest(t, FromListClosedWorkflowExecutionsResponse, ToListClosedWorkflowExecutionsResponse,
-		testutils.WithCustomFuncs(
-			func(info *types.WorkflowExecutionInfo, c fuzz.Continue) {
-				c.Fuzz(info)
-				// Clear UpdateTime - not mapped
-				info.UpdateTime = nil
-				// Clear ActiveClusterSelectionPolicy detail fields if strategy is nil
-				if info.ActiveClusterSelectionPolicy != nil && info.ActiveClusterSelectionPolicy.ActiveClusterSelectionStrategy == nil {
-					info.ActiveClusterSelectionPolicy.StickyRegion = ""
-					info.ActiveClusterSelectionPolicy.ExternalEntityType = ""
-					info.ActiveClusterSelectionPolicy.ExternalEntityKey = ""
-				}
-				// Normalize parent fields: if any parent field is set, others become empty string/0 instead of nil
-				hasParent := info.ParentDomainID != nil || info.ParentDomain != nil || info.ParentExecution != nil || info.ParentInitiatedID != nil
-				if hasParent {
-					if info.ParentDomainID == nil {
-						info.ParentDomainID = new(string)
-					}
-					if info.ParentDomain == nil {
-						info.ParentDomain = new(string)
-					}
-					if info.ParentInitiatedID == nil {
-						zero := int64(0)
-						info.ParentInitiatedID = &zero
-					}
-				}
-			},
-		),
+		testutils.WithExcludedFields("Executions"), // Executions is tested in FromWorkflowExecutionInfoFuzz test
 	)
 }
 
@@ -2476,28 +2399,8 @@ func TestActivityTaskCanceledEventAttributesFuzz(t *testing.T) {
 }
 
 func TestListDomainsResponseFuzz(t *testing.T) {
-	// DescribeDomainResponse nested structs are always created by mapper, never nil
-	// EmitMetric is a legacy field that is always set to true in the To* mapper
 	testutils.RunMapperFuzzTest(t, FromListDomainsResponse, ToListDomainsResponse,
-		testutils.WithCustomFuncs(
-			func(r *types.DescribeDomainResponse, c fuzz.Continue) {
-				c.Fuzz(r)
-				// Mapper always creates these nested structs, never nil
-				if r.DomainInfo == nil {
-					r.DomainInfo = &types.DomainInfo{}
-				}
-				if r.Configuration == nil {
-					r.Configuration = &types.DomainConfiguration{}
-				}
-				if r.ReplicationConfiguration == nil {
-					r.ReplicationConfiguration = &types.DomainReplicationConfiguration{}
-				}
-				// EmitMetric is always set to true
-				if r.Configuration != nil {
-					r.Configuration.EmitMetric = true
-				}
-			},
-		),
+		testutils.WithExcludedFields("Domains"), // Domains is tested in TestDescribeDomainResponseDomainFuzz test
 	)
 }
 
@@ -2510,9 +2413,9 @@ func TestTimerFiredEventAttributesFuzz(t *testing.T) {
 }
 
 func TestUpdateDomainRequestFuzz(t *testing.T) {
-	// EmitMetric is deprecated and not sent in field mask
-	// FailoverReason is not yet implemented in the mapper
-	// WorkflowExecutionRetentionPeriodInDays loses precision in days→duration→days conversion
+	// [BUG?/DEPRECATED] EmitMetric is always set to true in the To* mapper, not set in From mapper
+	// [Missing] FailoverReason is not yet implemented in the mapper
+	// [BUG] WorkflowExecutionRetentionPeriodInDays loses precision in days→duration→days conversion
 	// HistoryArchivalStatus, VisibilityArchivalStatus: only included in field mask if corresponding URI is non-nil
 	testutils.RunMapperFuzzTest(t, FromUpdateDomainRequest, ToUpdateDomainRequest,
 		testutils.WithCustomFuncs(
@@ -2526,7 +2429,7 @@ func TestUpdateDomainRequestFuzz(t *testing.T) {
 }
 
 func TestActivityTaskTimedOutEventAttributesFuzz(t *testing.T) {
-	// LastFailureDetails without LastFailureReason are dropped by FromFailure pattern
+	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromActivityTaskTimedOutEventAttributes, ToActivityTaskTimedOutEventAttributes,
 		testutils.WithExcludedFields("LastFailureDetails"),
 	)
@@ -2541,40 +2444,9 @@ func TestDecisionTaskCompletedEventAttributesFuzz(t *testing.T) {
 }
 
 func TestGetWorkflowExecutionHistoryResponseFuzz(t *testing.T) {
-	// Contains History with HistoryEvent array which needs comprehensive enum fuzzers
-	// RawHistory contains DataBlob with EncodingType enum
 	testutils.RunMapperFuzzTest(t, FromGetWorkflowExecutionHistoryResponse, ToGetWorkflowExecutionHistoryResponse,
+		testutils.WithExcludedFields("History"), // History is tested in TestHistoryEventFuzz test
 		testutils.WithCustomFuncs(
-			func(h *types.History, c fuzz.Continue) {
-				c.Fuzz(h)
-				// Ensure Events is never nil to avoid nil vs empty slice mismatch
-				if h.Events == nil {
-					h.Events = []*types.HistoryEvent{}
-				}
-			},
-			func(h *types.HistoryEvent, c fuzz.Continue) {
-				// Fuzz all fields first
-				c.Fuzz(h)
-				// Ensure EventType is always non-nil (required by mapper switch statement)
-				if h.EventType == nil {
-					eventType := types.EventType(c.Intn(42)) // 0-41: All EventType values
-					h.EventType = &eventType
-				}
-			},
-			EventTypeFuzzer,
-			DecisionTypeFuzzer,
-			TimeoutTypeFuzzer,
-			TaskListKindFuzzer,
-			ContinueAsNewInitiatorFuzzer,
-			WorkflowIDReusePolicyFuzzer,
-			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
-			ActiveClusterSelectionPolicyFuzzerClearAttribute,
-			SignalExternalWorkflowExecutionFailedCauseFuzzer,
-			CancelExternalWorkflowExecutionFailedCauseFuzzer,
-			ChildWorkflowExecutionFailedCauseFuzzer,
-			WorkflowExecutionCloseStatusFuzzer,
-			ParentClosePolicyFuzzer,
 			EncodingTypeFuzzer,
 		),
 	)
@@ -2600,14 +2472,14 @@ func TestSignalWithStartWorkflowExecutionRequestFuzz(t *testing.T) {
 }
 
 func TestWorkflowExecutionFailedEventAttributesFuzz(t *testing.T) {
-	// Details without Reason are dropped by FromFailure pattern
+	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionFailedEventAttributes, ToWorkflowExecutionFailedEventAttributes,
 		testutils.WithExcludedFields("Details"),
 	)
 }
 
 func TestPendingDecisionInfoFuzz(t *testing.T) {
-	// Attempt field is truncated from int64 to int32 in proto mapper (bug in mapper)
+	// [BUG] Attempt field is truncated from int64 to int32 in proto mapper
 	testutils.RunMapperFuzzTest(t, FromPendingDecisionInfo, ToPendingDecisionInfo,
 		testutils.WithExcludedFields("Attempt"),
 	)
@@ -2622,7 +2494,7 @@ func TestWorkflowExecutionFilterFuzz(t *testing.T) {
 }
 
 func TestActivityTaskStartedEventAttributesFuzz(t *testing.T) {
-	// LastFailureDetails is lost when LastFailureReason is nil (bug in FromFailure helper)
+	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromActivityTaskStartedEventAttributes, ToActivityTaskStartedEventAttributes,
 		testutils.WithExcludedFields("LastFailureDetails"),
 	)
@@ -2688,7 +2560,7 @@ func TestTaskListPartitionMetadataArrayFuzz(t *testing.T) {
 }
 
 func TestDecisionTaskFailedEventAttributesFuzz(t *testing.T) {
-	// FromFailure only creates a Failure object if Reason is non-nil, so Details without Reason are dropped
+	// [BUG] FromFailure only creates a Failure object if Reason is non-nil, so Details without Reason are dropped
 	testutils.RunMapperFuzzTest(t, FromDecisionTaskFailedEventAttributes, ToDecisionTaskFailedEventAttributes,
 		testutils.WithCustomFuncs(
 			DecisionTaskFailedCauseFuzzer,
@@ -2698,7 +2570,7 @@ func TestDecisionTaskFailedEventAttributesFuzz(t *testing.T) {
 }
 
 func TestDescribeDomainRequestFuzz(t *testing.T) {
-	// ID field is normalized: empty string becomes nil
+	// [BUG] Non-symmetric mapping: An empty string ID becomes nil, but the return trip translates it back to nil
 	testutils.RunMapperFuzzTest(t, FromDescribeDomainRequest, ToDescribeDomainRequest,
 		testutils.WithCustomFuncs(
 			func(r *types.DescribeDomainRequest, c fuzz.Continue) {
@@ -2752,19 +2624,16 @@ func TestFailoverInfoFuzz(t *testing.T) {
 }
 
 func TestRespondActivityTaskFailedRequestFuzz(t *testing.T) {
-	// FromFailure: Details without Reason dropped by mapper
+	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromRespondActivityTaskFailedRequest, ToRespondActivityTaskFailedRequest,
 		testutils.WithExcludedFields("Details"),
 	)
 }
 
 func TestScanWorkflowExecutionsResponseFuzz(t *testing.T) {
-	// WorkflowExecutionInfo has multiple known mapping issues
+	// [BUG] WorkflowExecutionInfo has multiple known mapping issues
 	testutils.RunMapperFuzzTest(t, FromScanWorkflowExecutionsResponse, ToScanWorkflowExecutionsResponse,
-		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
-		),
-		testutils.WithExcludedFields("UpdateTime", "ParentDomainID", "ParentDomain", "ParentInitiatedID", "CronSchedule"),
+		testutils.WithExcludedFields("Executions"), // Executions is tested in FromWorkflowExecutionInfoFuzz test
 	)
 }
 
@@ -2797,13 +2666,7 @@ func TestWorkflowExecutionSignaledEventAttributesFuzz(t *testing.T) {
 }
 
 func TestHistoryEventArrayFuzz(t *testing.T) {
-	// HistoryEvent is a complex union type with ~50 event attribute types
-	// Testing individual event attribute types separately provides better coverage
-	// Skipping array test due to:
-	// 1. Union type complexity (only one attribute should be set per EventType)
-	// 2. nil→empty slice conversion in proto
-	// 3. Individual event attribute tests provide comprehensive mapper coverage
-	t.Skip("HistoryEvent array testing covered by individual event attribute fuzz tests")
+	t.Skip("Tested in TestHistoryEventFuzz test")
 }
 
 func TestActivityLocalDispatchInfoFuzz(t *testing.T) {
@@ -2811,7 +2674,7 @@ func TestActivityLocalDispatchInfoFuzz(t *testing.T) {
 }
 
 func TestStartWorkflowExecutionRequestFuzz(t *testing.T) {
-	// ActiveClusterSelectionPolicy has mutually exclusive fields, WorkflowIDReusePolicy enum
+	// ActiveClusterSelectionPolicy has mutually exclusive fields
 	testutils.RunMapperFuzzTest(t, FromStartWorkflowExecutionRequest, ToStartWorkflowExecutionRequest,
 		testutils.WithCustomFuncs(
 			ActiveClusterSelectionPolicyFuzzerNoCustom,
@@ -2951,7 +2814,11 @@ func TestClusterReplicationConfigurationFuzz(t *testing.T) {
 }
 
 func TestWorkflowExecutionInfoFuzz(t *testing.T) {
-	// WorkflowExecutionInfo has multiple known mapping issues
+	// TODO(c-warren): Fix some of these issues?
+	// UpdateTime: missing from mapper (not sent over proto)
+	// ParentDomainID, ParentDomain: converted to empty string instead of nil when ParentExecutionInfo exists but field is empty
+	// ParentInitiatedID: converted to 0 instead of nil when ParentExecutionInfo exists but field is 0
+	// ActiveClusterSelectionPolicy fields (StickyRegion, ExternalEntityType, ExternalEntityKey): cleared when strategy is not valid or nil
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionInfo, ToWorkflowExecutionInfo,
 		testutils.WithCustomFuncs(
 			ActiveClusterSelectionPolicyFuzzerNoCustom,
@@ -2991,12 +2858,8 @@ func TestAPITaskListPartitionFuzz(t *testing.T) {
 }
 
 func TestListWorkflowExecutionsResponseFuzz(t *testing.T) {
-	// WorkflowExecutionInfo has multiple known mapping issues
 	testutils.RunMapperFuzzTest(t, FromListWorkflowExecutionsResponse, ToListWorkflowExecutionsResponse,
-		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
-		),
-		testutils.WithExcludedFields("UpdateTime", "ParentDomainID", "ParentDomain", "ParentInitiatedID", "CronSchedule"),
+		testutils.WithExcludedFields("Executions"), // Executions is tested in FromWorkflowExecutionInfoFuzz test
 	)
 }
 
@@ -3005,7 +2868,7 @@ func TestParentExecutionInfoFuzz(t *testing.T) {
 }
 
 func TestFailWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
-	// FromFailure: Details without Reason dropped by mapper
+	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromFailWorkflowExecutionDecisionAttributes, ToFailWorkflowExecutionDecisionAttributes,
 		testutils.WithExcludedFields("Details"),
 	)
@@ -3020,6 +2883,7 @@ func TestSignalWithStartWorkflowExecutionAsyncResponseFuzz(t *testing.T) {
 }
 
 func TestDescribeDomainResponseFuzz(t *testing.T) {
+	// TODO(c-warren): Fix some of these issues?
 	// ActiveClusterSelectionPolicy has mutually exclusive fields based on Strategy
 	// WorkflowExecutionRetentionPeriodInDays: nil→0 conversion
 	// DomainInfo, Configuration, ReplicationConfiguration must be non-nil
@@ -3061,10 +2925,7 @@ func TestPayloadFuzz(t *testing.T) {
 }
 
 func TestRespondDecisionTaskCompletedResponseFuzz(t *testing.T) {
-	// ActivitiesToDispatchLocally has complex nested types tested separately
-	// WorkflowExecutionStartedEventAttributes and History.Events have nil vs empty issues
 	testutils.RunMapperFuzzTest(t, FromRespondDecisionTaskCompletedResponse, ToRespondDecisionTaskCompletedResponse,
-		testutils.WithExcludedFields("ActivitiesToDispatchLocally", "WorkflowExecutionStartedEventAttributes"),
 		testutils.WithCustomFuncs(
 			func(h *types.History, c fuzz.Continue) {
 				c.Fuzz(h)
@@ -3083,13 +2944,14 @@ func TestStartTimeFilterFuzz(t *testing.T) {
 
 func TestWorkflowExecutionContinuedAsNewEventAttributesFuzz(t *testing.T) {
 	// ActiveClusterSelectionPolicy has mutually exclusive fields
-	// Initiator, JitterStartSeconds don't roundtrip correctly
-	// FailureDetails requires FailureReason to be set
+	// JitterStartSeconds don't roundtrip correctly
+	// [BUG] FailureDetails requires FailureReason to be set
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionContinuedAsNewEventAttributes, ToWorkflowExecutionContinuedAsNewEventAttributes,
 		testutils.WithCustomFuncs(
 			ActiveClusterSelectionPolicyFuzzerNoCustom,
+			ContinueAsNewInitiatorFuzzer,
 		),
-		testutils.WithExcludedFields("Initiator", "JitterStartSeconds", "FailureDetails"),
+		testutils.WithExcludedFields("JitterStartSeconds", "FailureDetails"),
 	)
 }
 
@@ -3114,7 +2976,6 @@ func TestHeaderFuzz(t *testing.T) {
 }
 
 func TestQueryWorkflowRequestFuzz(t *testing.T) {
-	// QueryRejectCondition and QueryConsistencyLevel need enum fuzzers
 	testutils.RunMapperFuzzTest(t, FromQueryWorkflowRequest, ToQueryWorkflowRequest,
 		testutils.WithCustomFuncs(
 			QueryRejectConditionFuzzer,
@@ -3132,7 +2993,7 @@ func TestWorkflowExecutionConfigurationFuzz(t *testing.T) {
 }
 
 func TestPendingActivityInfoFuzz(t *testing.T) {
-	// LastFailureDetails is lost when LastFailureReason is nil (FromFailure helper behavior)
+	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	testutils.RunMapperFuzzTest(t, FromPendingActivityInfo, ToPendingActivityInfo,
 		testutils.WithCustomFuncs(
 			PendingActivityStateFuzzer,
@@ -3146,10 +3007,9 @@ func TestDiagnoseWorkflowExecutionRequestFuzz(t *testing.T) {
 }
 
 func TestWorkflowExecutionStartedEventAttributesFuzz(t *testing.T) {
-	// FromFailure pattern: fields without corresponding reason/status dropped
+	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	// ActiveClusterSelectionPolicy has mutually exclusive fields
-	// Attempt: int64→int32 truncation
-	// Initiator, JitterStartSeconds, FirstScheduleTime, ParentInitiatedEventID don't roundtrip
+	// JitterStartSeconds don't roundtrip
 	// Empty string fields become nil
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionStartedEventAttributes, ToWorkflowExecutionStartedEventAttributes,
 		testutils.WithCustomFuncs(
@@ -3165,12 +3025,11 @@ func TestWorkflowExecutionStartedEventAttributesFuzz(t *testing.T) {
 				}
 			},
 		),
-		testutils.WithExcludedFields("LastCompletionResult", "ContinuedFailureDetails", "Attempt", "Initiator", "JitterStartSeconds", "FirstScheduleTime", "ParentInitiatedEventID"),
+		testutils.WithExcludedFields("JitterStartSeconds"),
 	)
 }
 
 func TestGetWorkflowExecutionHistoryRequestFuzz(t *testing.T) {
-	// HistoryEventFilterType and QueryConsistencyLevel enum need fuzzers
 	testutils.RunMapperFuzzTest(t, FromGetWorkflowExecutionHistoryRequest, ToGetWorkflowExecutionHistoryRequest,
 		testutils.WithCustomFuncs(
 			HistoryEventFilterTypeFuzzer,
@@ -3222,30 +3081,16 @@ func TestStartWorkflowExecutionAsyncResponseFuzz(t *testing.T) {
 
 func TestAPITaskListPartitionConfigFuzz(t *testing.T) {
 	// Map-based partitions config - int64 keys don't roundtrip through proto int32
+	// TODO(c-warren): Add tests for the ReadPartitions function and keep this ignored
 	testutils.RunMapperFuzzTest(t, FromAPITaskListPartitionConfig, ToAPITaskListPartitionConfig,
 		testutils.WithExcludedFields("ReadPartitions", "WritePartitions"),
 	)
 }
 
 func TestRespondQueryTaskCompletedRequestFuzz(t *testing.T) {
-	// FromFailure: ErrorMessage without CompletedType=Failed dropped
-	// Query result can have ErrorMessage without proper CompletedType
 	testutils.RunMapperFuzzTest(t, FromRespondQueryTaskCompletedRequest, ToRespondQueryTaskCompletedRequest,
 		testutils.WithCustomFuncs(
-			func(v *types.RespondQueryTaskCompletedRequest, c fuzz.Continue) {
-				c.Fuzz(v)
-				// Ensure CompletedType is valid or nil (not random)
-				if v.CompletedType != nil {
-					validType := types.QueryTaskCompletedType(c.Intn(3)) // 0-2: Completed, Failed
-					v.CompletedType = &validType
-					// If not Failed, clear ErrorMessage
-					if validType != types.QueryTaskCompletedTypeFailed {
-						v.ErrorMessage = ""
-					}
-				} else {
-					v.ErrorMessage = ""
-				}
-			},
+			CompletedTypeFuzzer,
 		),
 	)
 }
@@ -3259,13 +3104,7 @@ func TestWorkflowTypeFuzz(t *testing.T) {
 }
 
 func TestWorkflowExecutionInfoArrayFuzz(t *testing.T) {
-	// WorkflowExecutionInfo has multiple known mapping issues
-	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionInfoArray, ToWorkflowExecutionInfoArray,
-		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
-		),
-		testutils.WithExcludedFields("UpdateTime", "ParentDomainID", "ParentDomain", "ParentInitiatedID", "CronSchedule"),
-	)
+	t.Skip("Tested in FromWorkflowExecutionInfoFuzz test")
 }
 
 func TestRecordActivityTaskHeartbeatRequestFuzz(t *testing.T) {
@@ -3273,7 +3112,7 @@ func TestRecordActivityTaskHeartbeatRequestFuzz(t *testing.T) {
 }
 
 func TestWorkflowExecutionCancelRequestedEventAttributesFuzz(t *testing.T) {
-	// ExternalInitiatedEventID: nil converted to 0 in proto
+	// [BUG] Non-symmetric mapping: An external initiated event ID of 0 becomes nil, but the return trip translates it back to nil
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionCancelRequestedEventAttributes, ToWorkflowExecutionCancelRequestedEventAttributes,
 		testutils.WithExcludedFields("ExternalInitiatedEventID"),
 	)
@@ -3329,19 +3168,17 @@ func TestSignalWithStartWorkflowExecutionResponseFuzz(t *testing.T) {
 }
 
 func TestStartChildWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
-	// Domain: nil converted to empty string in proto
 	// ActiveClusterSelectionPolicy has mutually exclusive fields, WorkflowIDReusePolicy enum
 	testutils.RunMapperFuzzTest(t, FromStartChildWorkflowExecutionDecisionAttributes, ToStartChildWorkflowExecutionDecisionAttributes,
 		testutils.WithCustomFuncs(
 			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			WorkflowIDReusePolicyFuzzer,
 		),
-		testutils.WithExcludedFields("Domain"),
 	)
 }
 
 func TestActivityTaskScheduledEventAttributesFuzz(t *testing.T) {
-	// Domain: nil converted to empty string in proto
+	// [BUG] Non-symmetric mapping: An empty string domain becomes nil, but the return trip translates it back to nil - not empty string
 	testutils.RunMapperFuzzTest(t, FromActivityTaskScheduledEventAttributes, ToActivityTaskScheduledEventAttributes,
 		testutils.WithExcludedFields("Domain"),
 	)
@@ -3352,8 +3189,7 @@ func TestGetTaskListsByDomainRequestFuzz(t *testing.T) {
 }
 
 func TestFailoverEventFuzz(t *testing.T) {
-	// FailoverType enum needs fuzzer - 0=Invalid, 1=Force, 2=Graceful
-	// Empty string becomes nil after proto roundtrip
+	// [BUG] Non-symmetric mapping: An empty string ID becomes nil, but the return trip translates it back to nil
 	testutils.RunMapperFuzzTest(t, FromFailoverEvent, ToFailoverEvent,
 		testutils.WithCustomFuncs(
 			FailoverTypeFuzzer,
@@ -3369,15 +3205,15 @@ func TestFailoverEventFuzz(t *testing.T) {
 }
 
 func TestContinueAsNewWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
-	// FromFailure pattern: LastCompletionResult without corresponding reason dropped
+	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
 	// ActiveClusterSelectionPolicy has mutually exclusive fields
-	// Initiator and JitterStartSeconds don't roundtrip correctly
-	// FailureDetails requires FailureReason to be set
+	// JitterStartSeconds doesn't roundtrip correctly
 	testutils.RunMapperFuzzTest(t, FromContinueAsNewWorkflowExecutionDecisionAttributes, ToContinueAsNewWorkflowExecutionDecisionAttributes,
 		testutils.WithCustomFuncs(
 			ActiveClusterSelectionPolicyFuzzerNoCustom,
+			ContinueAsNewInitiatorFuzzer,
 		),
-		testutils.WithExcludedFields("LastCompletionResult", "Initiator", "JitterStartSeconds", "FailureDetails"),
+		testutils.WithExcludedFields("JitterStartSeconds", "FailureDetails"),
 	)
 }
 
