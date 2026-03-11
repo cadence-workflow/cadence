@@ -188,7 +188,7 @@ func applyAllInputs(
 	selector.AddReceive(chs.update, func(c workflow.Channel, more bool) {
 		var sig UpdateSignal
 		c.Receive(ctx, &sig)
-		if handleUpdate(logger, sig, input) {
+		if handleUpdate(logger, sig, input, state) {
 			stateChanged = true
 		}
 	})
@@ -253,7 +253,7 @@ func drainBufferedSignals(
 		if !chs.update.ReceiveAsync(&sig) {
 			break
 		}
-		if handleUpdate(logger, sig, input) {
+		if handleUpdate(logger, sig, input, state) {
 			stateChanged = true
 		}
 	}
@@ -290,7 +290,7 @@ func handleUnpause(logger *zap.Logger, sig UnpauseSignal, state *SchedulerWorkfl
 	return true
 }
 
-func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflowInput) bool {
+func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
 	if sig.Spec == nil && sig.Action == nil && sig.Policies == nil {
 		logger.Info("ignoring empty update signal")
 		return false
@@ -303,6 +303,11 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 		} else {
 			input.Spec = *sig.Spec
 			changed = true
+			if len(state.PendingBackfills) > 0 {
+				logger.Warn("spec change cleared pending backfills",
+					zap.Int("clearedCount", len(state.PendingBackfills)))
+				state.PendingBackfills = nil
+			}
 		}
 	}
 	if sig.Action != nil {

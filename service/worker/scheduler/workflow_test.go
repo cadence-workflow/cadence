@@ -611,13 +611,58 @@ func TestHandleUpdate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			input := original
-			changed := handleUpdate(testLogger, tt.sig, &input)
+			state := &SchedulerWorkflowState{}
+			changed := handleUpdate(testLogger, tt.sig, &input, state)
 			assert.Equal(t, tt.wantChanged, changed)
 			assert.Equal(t, tt.wantCron, input.Spec.CronExpression)
 			assert.Equal(t, tt.wantWF, input.Action.StartWorkflow.WorkflowType.Name)
 			assert.Equal(t, tt.wantPol, input.Policies.OverlapPolicy)
 		})
 	}
+
+	t.Run("spec change clears pending backfills", func(t *testing.T) {
+		input := original
+		state := &SchedulerWorkflowState{
+			PendingBackfills: []BackfillRequest{
+				{StartTime: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), EndTime: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+				{StartTime: time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC), EndTime: time.Date(2026, 1, 4, 0, 0, 0, 0, time.UTC)},
+			},
+		}
+		changed := handleUpdate(testLogger, UpdateSignal{
+			Spec: &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
+		}, &input, state)
+		assert.True(t, changed)
+		assert.Equal(t, "*/5 * * * *", input.Spec.CronExpression)
+		assert.Empty(t, state.PendingBackfills)
+	})
+
+	t.Run("action-only update preserves pending backfills", func(t *testing.T) {
+		input := original
+		state := &SchedulerWorkflowState{
+			PendingBackfills: []BackfillRequest{
+				{StartTime: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), EndTime: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+			},
+		}
+		changed := handleUpdate(testLogger, UpdateSignal{
+			Action: &types.ScheduleAction{StartWorkflow: &types.StartWorkflowAction{WorkflowType: &types.WorkflowType{Name: "new-workflow"}}},
+		}, &input, state)
+		assert.True(t, changed)
+		assert.Len(t, state.PendingBackfills, 1)
+	})
+
+	t.Run("invalid cron does not clear pending backfills", func(t *testing.T) {
+		input := original
+		state := &SchedulerWorkflowState{
+			PendingBackfills: []BackfillRequest{
+				{StartTime: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), EndTime: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+			},
+		}
+		changed := handleUpdate(testLogger, UpdateSignal{
+			Spec: &types.ScheduleSpec{CronExpression: "not-a-cron"},
+		}, &input, state)
+		assert.False(t, changed)
+		assert.Len(t, state.PendingBackfills, 1)
+	})
 }
 
 func TestHandleBackfill(t *testing.T) {
