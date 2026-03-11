@@ -140,7 +140,6 @@ func (e *matchingEngineImpl) getNonOwnedTasklistsLocked() ([]tasklist.Manager, e
 			return nil, fmt.Errorf("failed to lookup task list owner: %w", err)
 		}
 
-		e.logger.Info("Comparing identity in getNonOwnedTasklistsLocked", tag.Dynamic("taskListOwner.Identity", taskListOwner.Identity()), tag.Dynamic("selfIdentity", self.Identity()))
 		if taskListOwner.Identity() != self.Identity() {
 			toShutDown = append(toShutDown, tl)
 		}

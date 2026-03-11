@@ -98,12 +98,9 @@ func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
 	}
 
 	excludeTaskList := TaskListExcludedFromShardDistributor(key, uint64(s.percentageOnboarded()), s.excludeShortLivedTaskLists())
-	s.logger.Info("Check exclusion in Lookup", tag.Dynamic("value", excludeTaskList))
 	if excludeTaskList {
 		return s.ring.Lookup(key)
 	}
-
-	s.logger.Info("Check exclusion in Lookup II", tag.Dynamic("value", excludeTaskList), tag.Dynamic("mode", ModeKey(s.shardDistributionMode())))
 
 	switch ModeKey(s.shardDistributionMode()) {
 	case ModeKeyHashRing:
