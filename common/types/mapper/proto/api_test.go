@@ -1849,8 +1849,7 @@ func TestListFailoverHistoryResponseFuzz(t *testing.T) {
 
 func TestDescribeTaskListResponseFuzz(t *testing.T) {
 	// TaskListPartitionConfig has map[int] fields that get truncated to map[int32] in proto
-	// Large 64-bit int keys don't roundtrip correctly
-	// TODO(c-warren): Add tests for the ReadPartitions function and keep this ignored
+	// From and To are non-invertable operations, so we rely on testdata to verify the mapping is correct
 	testutils.RunMapperFuzzTest(t, FromDescribeTaskListResponse, ToDescribeTaskListResponse,
 		testutils.WithExcludedFields("ReadPartitions", "WritePartitions"),
 	)
@@ -1979,76 +1978,16 @@ func TestHealthResponseFuzz(t *testing.T) {
 }
 
 func TestListArchivedWorkflowExecutionsResponseFuzz(t *testing.T) {
-	// TODO(c-warren): Add comoments here about it being mostly tested in the other fuzz test
-	// UpdateTime: missing from mapper (not sent over proto)
-	// ParentDomainID, ParentDomain: converted to empty string instead of nil when ParentExecutionInfo exists but field is empty
-	// ParentInitiatedID: converted to 0 instead of nil when ParentExecutionInfo exists but field is 0
-	// ActiveClusterSelectionPolicy fields (StickyRegion, ExternalEntityType, ExternalEntityKey): cleared when strategy is not valid or nil
+	// Executions is tested in FromWorkflowExecutionInfoFuzz test
 	testutils.RunMapperFuzzTest(t, FromListArchivedWorkflowExecutionsResponse, ToListArchivedWorkflowExecutionsResponse,
-		testutils.WithCustomFuncs(
-			func(info *types.WorkflowExecutionInfo, c fuzz.Continue) {
-				c.Fuzz(info)
-				// Clear UpdateTime - not mapped
-				info.UpdateTime = nil
-				// Clear ActiveClusterSelectionPolicy detail fields if strategy is nil
-				if info.ActiveClusterSelectionPolicy != nil && info.ActiveClusterSelectionPolicy.ActiveClusterSelectionStrategy == nil {
-					info.ActiveClusterSelectionPolicy.StickyRegion = ""
-					info.ActiveClusterSelectionPolicy.ExternalEntityType = ""
-					info.ActiveClusterSelectionPolicy.ExternalEntityKey = ""
-				}
-				// Normalize parent fields: if any parent field is set, others become empty string/0 instead of nil
-				hasParent := info.ParentDomainID != nil || info.ParentDomain != nil || info.ParentExecution != nil || info.ParentInitiatedID != nil
-				if hasParent {
-					if info.ParentDomainID == nil {
-						info.ParentDomainID = new(string)
-					}
-					if info.ParentDomain == nil {
-						info.ParentDomain = new(string)
-					}
-					if info.ParentInitiatedID == nil {
-						zero := int64(0)
-						info.ParentInitiatedID = &zero
-					}
-				}
-			},
-		),
+		testutils.WithExcludedFields("Executions"),
 	)
 }
 
 func TestListOpenWorkflowExecutionsResponseFuzz(t *testing.T) {
-	// TODO(c-warren): Add comoments here about it being mostly tested in the other fuzz test
-	// UpdateTime: missing from mapper (not sent over proto)
-	// ParentDomainID, ParentDomain: converted to empty string instead of nil when ParentExecutionInfo exists but field is empty
-	// ParentInitiatedID: converted to 0 instead of nil when ParentExecutionInfo exists but field is 0
-	// ActiveClusterSelectionPolicy fields (StickyRegion, ExternalEntityType, ExternalEntityKey): cleared when strategy is not valid or nil
+	// Executions is tested in FromWorkflowExecutionInfoFuzz test
 	testutils.RunMapperFuzzTest(t, FromListOpenWorkflowExecutionsResponse, ToListOpenWorkflowExecutionsResponse,
-		testutils.WithCustomFuncs(
-			func(info *types.WorkflowExecutionInfo, c fuzz.Continue) {
-				c.Fuzz(info)
-				// Clear UpdateTime - not mapped
-				info.UpdateTime = nil
-				// Clear ActiveClusterSelectionPolicy detail fields if strategy is nil
-				if info.ActiveClusterSelectionPolicy != nil && info.ActiveClusterSelectionPolicy.ActiveClusterSelectionStrategy == nil {
-					info.ActiveClusterSelectionPolicy.StickyRegion = ""
-					info.ActiveClusterSelectionPolicy.ExternalEntityType = ""
-					info.ActiveClusterSelectionPolicy.ExternalEntityKey = ""
-				}
-				// Normalize parent fields: if any parent field is set, others become empty string/0 instead of nil
-				hasParent := info.ParentDomainID != nil || info.ParentDomain != nil || info.ParentExecution != nil || info.ParentInitiatedID != nil
-				if hasParent {
-					if info.ParentDomainID == nil {
-						info.ParentDomainID = new(string)
-					}
-					if info.ParentDomain == nil {
-						info.ParentDomain = new(string)
-					}
-					if info.ParentInitiatedID == nil {
-						zero := int64(0)
-						info.ParentInitiatedID = &zero
-					}
-				}
-			},
-		),
+		testutils.WithExcludedFields("Executions"),
 	)
 }
 
@@ -2061,21 +2000,7 @@ func TestRespondDecisionTaskFailedRequestFuzz(t *testing.T) {
 }
 
 func TestDescribeWorkflowExecutionResponseFuzz(t *testing.T) {
-	// TODO(c-warren): There are sub tests, but this one is pretty crazy bad
-	// Multiple mapper bugs in nested fields:
-	// - PendingDecision.Attempt: int64 truncated to int32
-	// - PendingActivities[].LastFailureDetails: lost when LastFailureReason is nil
-	// - WorkflowExecutionInfo.ParentDomainID: empty string instead of nil
-	// - WorkflowExecutionInfo.ParentDomain: empty string instead of nil
-	// - WorkflowExecutionInfo.ParentInitiatedID: 0 instead of nil
-	// - WorkflowExecutionInfo.UpdateTime: not mapped in proto
-	// - WorkflowExecutionInfo.CronSchedule: empty string converted to nil
-	// - ActiveClusterSelectionPolicy.StickyRegion: lost in round trip
-	// - ActiveClusterSelectionPolicy.ExternalEntityType: lost in round trip
-	// - ActiveClusterSelectionPolicy.ExternalEntityKey: lost in round trip
-	testutils.RunMapperFuzzTest(t, FromDescribeWorkflowExecutionResponse, ToDescribeWorkflowExecutionResponse,
-		testutils.WithExcludedFields("Attempt", "LastFailureDetails", "ParentDomainID", "ParentDomain", "ParentInitiatedID", "UpdateTime", "CronSchedule", "StickyRegion", "ExternalEntityType", "ExternalEntityKey"),
-	)
+	t.Skip("All subfields are tested in dedicated fuzz tests")
 }
 
 func TestExternalWorkflowExecutionCancelRequestedEventAttributesFuzz(t *testing.T) {
@@ -2124,7 +2049,7 @@ func TestListOpenWorkflowExecutionsRequestFuzz(t *testing.T) {
 func TestGetTaskListsByDomainResponseFuzz(t *testing.T) {
 	// SKIPPED: PartitionConfig is nested inside map values (map[string]*DescribeTaskListResponse)
 	// clearFieldsIf cannot modify fields inside map values due to Go reflection limitations
-	// TODO: Implement map rebuilding in clearFieldsIf to support this pattern
+	// TODO(c-warren): Implement map rebuilding in clearFieldsIf to support this pattern
 	t.Skip("Map value field exclusion not yet supported")
 	testutils.RunMapperFuzzTest(t, FromGetTaskListsByDomainResponse, ToGetTaskListsByDomainResponse)
 }
@@ -2631,7 +2556,6 @@ func TestRespondActivityTaskFailedRequestFuzz(t *testing.T) {
 }
 
 func TestScanWorkflowExecutionsResponseFuzz(t *testing.T) {
-	// [BUG] WorkflowExecutionInfo has multiple known mapping issues
 	testutils.RunMapperFuzzTest(t, FromScanWorkflowExecutionsResponse, ToScanWorkflowExecutionsResponse,
 		testutils.WithExcludedFields("Executions"), // Executions is tested in FromWorkflowExecutionInfoFuzz test
 	)
@@ -2697,14 +2621,17 @@ func TestWorkflowTypeFilterFuzz(t *testing.T) {
 
 func TestDescribeTaskListResponseMapFuzz(t *testing.T) {
 	// Map[int] with int64 keys don't roundtrip correctly through proto int32
+	// Use custom fuzzer to nil out ReadPartitions/WritePartitions in all map values
 	testutils.RunMapperFuzzTest(t, FromDescribeTaskListResponseMap, ToDescribeTaskListResponseMap,
 		testutils.WithCustomFuncs(
-			func(r *types.DescribeTaskListResponse, c fuzz.Continue) {
-				c.Fuzz(r)
+			func(m *map[string]*types.DescribeTaskListResponse, c fuzz.Continue) {
+				c.Fuzz(m)
 				// Exclude map[int] fields that don't roundtrip through proto
-				if r.PartitionConfig != nil {
-					r.PartitionConfig.ReadPartitions = nil
-					r.PartitionConfig.WritePartitions = nil
+				for _, resp := range *m {
+					if resp != nil && resp.PartitionConfig != nil {
+						resp.PartitionConfig.ReadPartitions = nil
+						resp.PartitionConfig.WritePartitions = nil
+					}
 				}
 			},
 		),
@@ -2814,14 +2741,13 @@ func TestClusterReplicationConfigurationFuzz(t *testing.T) {
 }
 
 func TestWorkflowExecutionInfoFuzz(t *testing.T) {
-	// TODO(c-warren): Fix some of these issues?
-	// UpdateTime: missing from mapper (not sent over proto)
-	// ParentDomainID, ParentDomain: converted to empty string instead of nil when ParentExecutionInfo exists but field is empty
-	// ParentInitiatedID: converted to 0 instead of nil when ParentExecutionInfo exists but field is 0
-	// ActiveClusterSelectionPolicy fields (StickyRegion, ExternalEntityType, ExternalEntityKey): cleared when strategy is not valid or nil
+	// [BUG] UpdateTime missing from mapper (not sent over proto)
+	// [Intended] ParentDomainID, ParentDomain: converted to empty string instead of nil when ParentExecutionInfo exists but field is empty
+	// [Intended] ParentInitiatedID: converted to 0 instead of nil when ParentExecutionInfo exists but field is 0
+	// [BUG] CronSchedule is not round trip safe with an empty string
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionInfo, ToWorkflowExecutionInfo,
 		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
+			ActiveClusterSelectionPolicyFuzzerNoCustom, // ActiveClusterSelectionPolicy has mutually exclusive fields based on Strategy
 		),
 		testutils.WithExcludedFields("UpdateTime", "ParentDomainID", "ParentDomain", "ParentInitiatedID", "CronSchedule"),
 	)
@@ -2883,16 +2809,12 @@ func TestSignalWithStartWorkflowExecutionAsyncResponseFuzz(t *testing.T) {
 }
 
 func TestDescribeDomainResponseFuzz(t *testing.T) {
-	// TODO(c-warren): Fix some of these issues?
-	// ActiveClusterSelectionPolicy has mutually exclusive fields based on Strategy
-	// WorkflowExecutionRetentionPeriodInDays: nil→0 conversion
-	// DomainInfo, Configuration, ReplicationConfiguration must be non-nil
 	testutils.RunMapperFuzzTest(t, FromDescribeDomainResponse, ToDescribeDomainResponse,
 		testutils.WithCustomFuncs(
 			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			func(r *types.DescribeDomainResponse, c fuzz.Continue) {
 				c.Fuzz(r)
-				// Proto mapper requires these to be non-nil
+				// [BUG] On a round-trip, if DomainInfo, Configuration, or ReplicationConfiguration are nil, they become non-nil
 				if r.DomainInfo == nil {
 					r.DomainInfo = &types.DomainInfo{}
 				}
@@ -2904,7 +2826,7 @@ func TestDescribeDomainResponseFuzz(t *testing.T) {
 				}
 			},
 		),
-		testutils.WithExcludedFields("WorkflowExecutionRetentionPeriodInDays", "EmitMetric"),
+		testutils.WithExcludedFields("EmitMetric"), // EmitMetric is deprecated and permanently set to true
 	)
 }
 
@@ -3080,8 +3002,7 @@ func TestStartWorkflowExecutionAsyncResponseFuzz(t *testing.T) {
 }
 
 func TestAPITaskListPartitionConfigFuzz(t *testing.T) {
-	// Map-based partitions config - int64 keys don't roundtrip through proto int32
-	// TODO(c-warren): Add tests for the ReadPartitions function and keep this ignored
+	// From and To are non-invertable operations, so we rely on testdata to verify the mapping is correct
 	testutils.RunMapperFuzzTest(t, FromAPITaskListPartitionConfig, ToAPITaskListPartitionConfig,
 		testutils.WithExcludedFields("ReadPartitions", "WritePartitions"),
 	)
