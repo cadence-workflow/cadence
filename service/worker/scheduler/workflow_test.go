@@ -668,6 +668,17 @@ func TestHandleBackfill(t *testing.T) {
 			wantQueued:     true,
 			wantPendingLen: 2,
 		},
+		{
+			name: "overlapping backfill is queued with warning",
+			sig: BackfillSignal{
+				StartTime:  time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC),
+				BackfillID: "bf-overlap",
+			},
+			initialPending: 1,
+			wantQueued:     true,
+			wantPendingLen: 2,
+		},
 	}
 
 	for _, tt := range tests {

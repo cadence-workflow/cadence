@@ -327,6 +327,16 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 		)
 		return false
 	}
+	for _, existing := range state.PendingBackfills {
+		if sig.StartTime.Before(existing.EndTime) && sig.EndTime.After(existing.StartTime) {
+			logger.Warn("backfill window overlaps with pending backfill, fires for overlapping times will be deduplicated",
+				zap.String("newBackfillId", sig.BackfillID),
+				zap.String("existingBackfillId", existing.BackfillID),
+				zap.Time("overlapStart", maxTime(sig.StartTime, existing.StartTime)),
+				zap.Time("overlapEnd", minTime(sig.EndTime, existing.EndTime)),
+			)
+		}
+	}
 	state.PendingBackfills = append(state.PendingBackfills, BackfillRequest{
 		StartTime:     sig.StartTime,
 		EndTime:       sig.EndTime,
@@ -569,7 +579,7 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, sched cron.Sched
 		fires := computeMissedFireTimes(sched, bf.StartTime.Add(-time.Second), bf.EndTime, input.Spec)
 
 		for _, t := range fires.times {
-			if fired >= maxCatchUpFiresPerExecution {
+			if fired >= maxBackfillFiresPerExecution {
 				bf.StartTime = t
 				logger.Info("backfill batch cap reached, continuing after ContinueAsNew",
 					zap.String("backfillId", bf.BackfillID),
@@ -636,4 +646,18 @@ func safeContinueAsNew(ctx workflow.Context, logger *zap.Logger, deleteCh workfl
 	state.Iterations = 0
 	input.State = *state
 	return workflow.NewContinueAsNewError(ctx, WorkflowTypeName, input)
+}
+
+func minTime(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
+}
+
+func maxTime(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }

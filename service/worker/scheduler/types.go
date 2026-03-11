@@ -40,6 +40,7 @@ const (
 
 	maxIterationsBeforeContinueAsNew = 500
 	maxCatchUpFiresPerExecution      = 10
+	maxBackfillFiresPerExecution     = 10
 
 	localActivityScheduleToCloseTimeout = 60 * time.Second
 	localActivityMaxRetries             = 3
