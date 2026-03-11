@@ -332,6 +332,14 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 		)
 		return false
 	}
+	if len(state.PendingBackfills) >= maxPendingBackfills {
+		logger.Warn("ignoring backfill: pending backfill queue is full",
+			zap.String("backfillId", sig.BackfillID),
+			zap.Int("queueSize", len(state.PendingBackfills)),
+			zap.Int("maxPendingBackfills", maxPendingBackfills),
+		)
+		return false
+	}
 	for _, existing := range state.PendingBackfills {
 		if sig.StartTime.Before(existing.EndTime) && sig.EndTime.After(existing.StartTime) {
 			logger.Warn("backfill window overlaps with pending backfill, fires for overlapping times will be deduplicated",
@@ -573,7 +581,10 @@ func processMissedRuns(ctx workflow.Context, logger *zap.Logger, sched cron.Sche
 // Like processMissedRuns, it caps fires per execution and returns true
 // if more work remains (signalling the caller to ContinueAsNew).
 func processBackfills(ctx workflow.Context, logger *zap.Logger, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
-	if len(state.PendingBackfills) == 0 {
+	// Backfills respect the pause state: an explicit user request to replay a time
+	// range should not fire workflows while the schedule is paused. The pending
+	// backfills are preserved in state and will execute once the schedule is unpaused.
+	if state.Paused || len(state.PendingBackfills) == 0 {
 		return false
 	}
 

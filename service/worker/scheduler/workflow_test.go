@@ -724,6 +724,17 @@ func TestHandleBackfill(t *testing.T) {
 			wantQueued:     true,
 			wantPendingLen: 2,
 		},
+		{
+			name: "backfill rejected when queue is full",
+			sig: BackfillSignal{
+				StartTime:  time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 2, 2, 0, 0, 0, 0, time.UTC),
+				BackfillID: "bf-over-cap",
+			},
+			initialPending: maxPendingBackfills,
+			wantQueued:     false,
+			wantPendingLen: maxPendingBackfills,
+		},
 	}
 
 	for _, tt := range tests {
@@ -740,6 +751,27 @@ func TestHandleBackfill(t *testing.T) {
 			assert.Equal(t, tt.wantPendingLen, len(state.PendingBackfills))
 		})
 	}
+}
+
+func TestProcessBackfillsRespectsPause(t *testing.T) {
+	sched := mustParseCron(t, "0 * * * *")
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+	}
+	state := &SchedulerWorkflowState{
+		Paused: true,
+		PendingBackfills: []BackfillRequest{
+			{
+				StartTime: time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC),
+				EndTime:   time.Date(2026, 1, 1, 13, 0, 0, 0, time.UTC),
+				BackfillID: "bf-paused",
+			},
+		},
+	}
+	// processBackfills should short-circuit without touching PendingBackfills
+	moreWork := processBackfills(nil, testLogger, sched, input, state)
+	assert.False(t, moreWork, "paused schedule should not process backfills")
+	assert.Len(t, state.PendingBackfills, 1, "pending backfills should be preserved while paused")
 }
 
 func TestBackfillFireComputation(t *testing.T) {
