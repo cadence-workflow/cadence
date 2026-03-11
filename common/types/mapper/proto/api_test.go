@@ -2812,6 +2812,8 @@ func TestDescribeDomainResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromDescribeDomainResponse, ToDescribeDomainResponse,
 		testutils.WithCustomFuncs(
 			ActiveClusterSelectionPolicyFuzzerNoCustom,
+			DomainStatusFuzzer,
+			ArchivalStatusFuzzer,
 			func(r *types.DescribeDomainResponse, c fuzz.Continue) {
 				c.Fuzz(r)
 				// [BUG] On a round-trip, if DomainInfo, Configuration, or ReplicationConfiguration are nil, they become non-nil
@@ -2975,6 +2977,8 @@ func TestDescribeDomainResponseDomainFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromDescribeDomainResponseDomain, ToDescribeDomainResponseDomain,
 		testutils.WithCustomFuncs(
 			ActiveClusterSelectionPolicyFuzzerNoCustom,
+			DomainStatusFuzzer,
+			ArchivalStatusFuzzer,
 			func(r *types.DescribeDomainResponse, c fuzz.Continue) {
 				c.Fuzz(r)
 				// Proto mapper requires these to be non-nil
@@ -3046,6 +3050,8 @@ func TestUpdateDomainResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromUpdateDomainResponse, ToUpdateDomainResponse,
 		testutils.WithCustomFuncs(
 			ActiveClusterSelectionPolicyFuzzerNoCustom,
+			DomainStatusFuzzer,
+			ArchivalStatusFuzzer,
 			func(r *types.UpdateDomainResponse, c fuzz.Continue) {
 				c.Fuzz(r)
 				// Proto mapper requires these to be non-nil
