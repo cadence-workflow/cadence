@@ -762,8 +762,8 @@ func TestProcessBackfillsRespectsPause(t *testing.T) {
 		Paused: true,
 		PendingBackfills: []BackfillRequest{
 			{
-				StartTime: time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC),
-				EndTime:   time.Date(2026, 1, 1, 13, 0, 0, 0, time.UTC),
+				StartTime:  time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 1, 1, 13, 0, 0, 0, time.UTC),
 				BackfillID: "bf-paused",
 			},
 		},
