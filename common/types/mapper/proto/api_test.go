@@ -1585,10 +1585,6 @@ func TestFailoverType(t *testing.T) {
 	assert.Nil(t, ToFailoverType(apiv1.FailoverType(999))) // Unknown value
 }
 
-func EncodingTypeFuzzer(e *types.EncodingType, c fuzz.Continue) {
-	*e = types.EncodingType(c.Intn(2)) // 0-1: ThriftRW, JSON
-}
-
 func QueryConsistencyLevelFuzzer(e *types.QueryConsistencyLevel, c fuzz.Continue) {
 	*e = types.QueryConsistencyLevel(c.Intn(2)) // 0-1: Eventual, Strong
 }
@@ -1759,7 +1755,7 @@ func ActiveClusterSelectionPolicyFuzzerNoCustom(p *types.ActiveClusterSelectionP
 
 func TestDataBlobArrayFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromDataBlobArray, ToDataBlobArray,
-		testutils.WithCustomFuncs(EncodingTypeFuzzer),
+		testutils.WithCustomFuncs(testutils.EncodingTypeFuzzer),
 	)
 }
 
@@ -1940,7 +1936,7 @@ func TestFailoverDomainResponseFuzz(t *testing.T) {
 					r.ReplicationConfiguration = &types.DomainReplicationConfiguration{}
 				}
 			},
-			EncodingTypeFuzzer,
+			testutils.EncodingTypeFuzzer,
 			IsolationGroupStateFuzzer,
 			DomainStatusFuzzer,
 			ArchivalStatusFuzzer,
@@ -2344,7 +2340,7 @@ func TestUpdateDomainRequestFuzz(t *testing.T) {
 	// HistoryArchivalStatus, VisibilityArchivalStatus: only included in field mask if corresponding URI is non-nil
 	testutils.RunMapperFuzzTest(t, FromUpdateDomainRequest, ToUpdateDomainRequest,
 		testutils.WithCustomFuncs(
-			EncodingTypeFuzzer,
+			testutils.EncodingTypeFuzzer,
 			IsolationGroupStateFuzzer,
 			DomainStatusFuzzer,
 			ArchivalStatusFuzzer,
@@ -2372,7 +2368,7 @@ func TestGetWorkflowExecutionHistoryResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromGetWorkflowExecutionHistoryResponse, ToGetWorkflowExecutionHistoryResponse,
 		testutils.WithExcludedFields("History"), // History is tested in TestHistoryEventFuzz test
 		testutils.WithCustomFuncs(
-			EncodingTypeFuzzer,
+			testutils.EncodingTypeFuzzer,
 		),
 	)
 }
@@ -2675,7 +2671,7 @@ func TestCountWorkflowExecutionsResponseFuzz(t *testing.T) {
 func TestDataBlobFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromDataBlob, ToDataBlob,
 		testutils.WithCustomFuncs(
-			EncodingTypeFuzzer,
+			testutils.EncodingTypeFuzzer,
 		),
 	)
 }
