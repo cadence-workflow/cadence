@@ -23,7 +23,6 @@ package scheduler
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -37,38 +36,39 @@ import (
 )
 
 func TestGenerateWorkflowID(t *testing.T) {
+	ts := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tests := []struct {
-		name               string
-		prefix             string
-		scheduleID         string
-		scheduledTimeNanos int64
-		want               string
+		name       string
+		prefix     string
+		scheduleID string
+		time       time.Time
+		want       string
 	}{
 		{
-			name:               "uses prefix when provided",
-			prefix:             "my-workflow",
-			scheduleID:         "sched-123",
-			scheduledTimeNanos: 1000000000,
-			want:               "my-workflow-1000000000",
+			name:       "uses prefix when provided",
+			prefix:     "my-workflow",
+			scheduleID: "sched-123",
+			time:       ts,
+			want:       "my-workflow-2026-01-15T10:00:00Z",
 		},
 		{
-			name:               "falls back to scheduleID when prefix is empty",
-			prefix:             "",
-			scheduleID:         "sched-456",
-			scheduledTimeNanos: 2000000000,
-			want:               "sched-456-2000000000",
+			name:       "falls back to scheduleID when prefix is empty",
+			prefix:     "",
+			scheduleID: "sched-456",
+			time:       ts,
+			want:       "sched-456-2026-01-15T10:00:00Z",
 		},
 		{
-			name:               "deterministic for same inputs",
-			prefix:             "wf",
-			scheduleID:         "sched-789",
-			scheduledTimeNanos: 3000000000,
-			want:               "wf-3000000000",
+			name:       "deterministic for same inputs",
+			prefix:     "wf",
+			scheduleID: "sched-789",
+			time:       ts,
+			want:       "wf-2026-01-15T10:00:00Z",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := generateWorkflowID(tc.prefix, tc.scheduleID, tc.scheduledTimeNanos)
+			got := generateWorkflowID(tc.prefix, tc.scheduleID, tc.time)
 			assert.Equal(t, tc.want, got)
 		})
 	}
@@ -158,7 +158,7 @@ func TestStartWorkflowActivity(t *testing.T) {
 				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ context.Context, req *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
 						assert.Equal(t, "test-domain", req.Domain)
-						assert.Equal(t, "my-prefix-"+formatNanos(scheduledTime), req.WorkflowID)
+						assert.Equal(t, "my-prefix-"+formatTime(scheduledTime), req.WorkflowID)
 						assert.Equal(t, "my-workflow", req.WorkflowType.Name)
 						assert.Equal(t, "my-tasklist", req.TaskList.Name)
 						_, uuidErr := uuid.Parse(req.RequestID)
@@ -168,7 +168,7 @@ func TestStartWorkflowActivity(t *testing.T) {
 					})
 			},
 			wantResult: &StartWorkflowResult{
-				WorkflowID: "my-prefix-" + formatNanos(scheduledTime),
+				WorkflowID: "my-prefix-" + formatTime(scheduledTime),
 				RunID:      "run-abc",
 				Started:    true,
 			},
@@ -181,7 +181,7 @@ func TestStartWorkflowActivity(t *testing.T) {
 					Return(nil, &types.WorkflowExecutionAlreadyStartedError{Message: "already started"})
 			},
 			wantResult: &StartWorkflowResult{
-				WorkflowID: "my-prefix-" + formatNanos(scheduledTime),
+				WorkflowID: "my-prefix-" + formatTime(scheduledTime),
 				Skipped:    true,
 			},
 		},
@@ -204,12 +204,12 @@ func TestStartWorkflowActivity(t *testing.T) {
 			setupMock: func(m *frontend.MockClient) {
 				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ context.Context, req *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
-						assert.Equal(t, "sched-1-"+formatNanos(scheduledTime), req.WorkflowID)
+						assert.Equal(t, "sched-1-"+formatTime(scheduledTime), req.WorkflowID)
 						return &types.StartWorkflowExecutionResponse{RunID: "run-def"}, nil
 					})
 			},
 			wantResult: &StartWorkflowResult{
-				WorkflowID: "sched-1-" + formatNanos(scheduledTime),
+				WorkflowID: "sched-1-" + formatTime(scheduledTime),
 				RunID:      "run-def",
 				Started:    true,
 			},
@@ -245,6 +245,6 @@ func TestStartWorkflowActivity_MissingContext(t *testing.T) {
 	assert.Contains(t, err.Error(), "scheduler context not found")
 }
 
-func formatNanos(t time.Time) string {
-	return fmt.Sprintf("%d", t.UnixNano())
+func formatTime(t time.Time) string {
+	return t.UTC().Format(time.RFC3339)
 }

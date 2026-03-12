@@ -722,7 +722,7 @@ func TestGetShardProcess_NonOwnedShard_Fails(t *testing.T) {
 	}{
 		"empty cache local passthrough": {
 			migrationMode:          types.MigrationModeLOCALPASSTHROUGH,
-			expectedError:          fmt.Errorf("shard process not found for shard ID: test-shard-id1"),
+			expectedError:          ErrShardProcessNotFound,
 			shardsInCache:          []string{},
 			heartbeatCallsExpected: 0,
 		},
@@ -748,7 +748,7 @@ func TestGetShardProcess_NonOwnedShard_Fails(t *testing.T) {
 			shardsInCache:             []string{},
 			shardsReturnedOnHeartbeat: map[string]*types.ShardAssignment{},
 			heartbeatCallsExpected:    1,
-			expectedError:             fmt.Errorf("shard process not found for shard ID: test-shard-id1"),
+			expectedError:             ErrShardProcessNotFound,
 		},
 		"heartbeat error": {
 			migrationMode:          types.MigrationModeONBOARDED,

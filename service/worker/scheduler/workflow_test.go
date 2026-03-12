@@ -119,6 +119,229 @@ func TestComputeNextRunTime(t *testing.T) {
 	}
 }
 
+func TestComputeMissedFireTimes(t *testing.T) {
+	tests := []struct {
+		name          string
+		cron          string
+		lastRun       time.Time
+		now           time.Time
+		spec          types.ScheduleSpec
+		wantTimes     []time.Time
+		wantTruncated bool
+	}{
+		{
+			name:      "no missed fires - now is before next fire",
+			cron:      "0 * * * *",
+			lastRun:   time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			now:       time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC),
+			wantTimes: nil,
+		},
+		{
+			name:    "one missed fire",
+			cron:    "0 * * * *",
+			lastRun: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			now:     time.Date(2026, 1, 15, 11, 30, 0, 0, time.UTC),
+			wantTimes: []time.Time{
+				time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+			},
+		},
+		{
+			name:    "multiple missed fires",
+			cron:    "0 * * * *",
+			lastRun: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			now:     time.Date(2026, 1, 15, 13, 30, 0, 0, time.UTC),
+			wantTimes: []time.Time{
+				time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+				time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
+				time.Date(2026, 1, 15, 13, 0, 0, 0, time.UTC),
+			},
+		},
+		{
+			name:    "missed fire exactly at now is included",
+			cron:    "0 * * * *",
+			lastRun: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			now:     time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+			wantTimes: []time.Time{
+				time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+			},
+		},
+		{
+			name:    "respects endTime - no fires past end",
+			cron:    "0 * * * *",
+			lastRun: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			now:     time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC),
+			spec:    types.ScheduleSpec{EndTime: time.Date(2026, 1, 15, 12, 30, 0, 0, time.UTC)},
+			wantTimes: []time.Time{
+				time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+				time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
+			},
+		},
+		{
+			name:      "lastRun equals now - no missed fires",
+			cron:      "0 * * * *",
+			lastRun:   time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			now:       time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			wantTimes: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sched := mustParseCron(t, tt.cron)
+			got := computeMissedFireTimes(sched, tt.lastRun, tt.now, tt.spec)
+			assert.Equal(t, tt.wantTimes, got.times)
+			assert.Equal(t, tt.wantTruncated, got.truncated)
+		})
+	}
+}
+
+func TestCatchUpOrchestration(t *testing.T) {
+	now := time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC)
+	lastProcessed := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	cronExpr := "0 * * * *"
+
+	tests := []struct {
+		name                   string
+		policy                 types.ScheduleCatchUpPolicy
+		window                 time.Duration
+		wantFiredCount         int
+		wantSkipped            int64
+		wantLastProcessedAfter time.Time
+	}{
+		{
+			name:                   "Skip advances watermark past all missed, fires nothing",
+			policy:                 types.ScheduleCatchUpPolicySkip,
+			wantFiredCount:         0,
+			wantSkipped:            4, // 11:00, 12:00, 13:00, 14:00
+			wantLastProcessedAfter: time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC),
+		},
+		{
+			name:                   "One fires most recent, skips rest, advances watermark",
+			policy:                 types.ScheduleCatchUpPolicyOne,
+			wantFiredCount:         1,
+			wantSkipped:            3, // 11:00, 12:00, 13:00 skipped
+			wantLastProcessedAfter: time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC),
+		},
+		{
+			name:                   "All fires everything, skips nothing, advances watermark",
+			policy:                 types.ScheduleCatchUpPolicyAll,
+			wantFiredCount:         4,
+			wantSkipped:            0,
+			wantLastProcessedAfter: time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC),
+		},
+		{
+			name:                   "One with window excludes old fires",
+			policy:                 types.ScheduleCatchUpPolicyOne,
+			window:                 90 * time.Minute,
+			wantFiredCount:         1,
+			wantSkipped:            3, // 11:00, 12:00 out of window + 13:00 skipped eligible
+			wantLastProcessedAfter: time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC),
+		},
+		{
+			name:                   "All with tight window fires only recent",
+			policy:                 types.ScheduleCatchUpPolicyAll,
+			window:                 90 * time.Minute,
+			wantFiredCount:         2, // 13:00 and 14:00 within 90min of 14:00
+			wantSkipped:            2, // 11:00 and 12:00 out of window
+			wantLastProcessedAfter: time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sched := mustParseCron(t, cronExpr)
+			fires := computeMissedFireTimes(sched, lastProcessed, now, types.ScheduleSpec{})
+			require.False(t, fires.truncated)
+			require.Equal(t, 4, len(fires.times)) // 11:00, 12:00, 13:00, 14:00
+
+			result := applyMissedRunPolicy(tt.policy, tt.window, fires.times, now, testLogger)
+			assert.Equal(t, tt.wantFiredCount, len(result.toFire), "fired count")
+			assert.Equal(t, tt.wantSkipped, result.skipped, "skipped count")
+
+			lastMissed := fires.times[len(fires.times)-1]
+			assert.True(t, !lastMissed.Before(tt.wantLastProcessedAfter), "watermark should advance to at least %v", tt.wantLastProcessedAfter)
+		})
+	}
+}
+
+func TestApplyMissedRunPolicy(t *testing.T) {
+	now := time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC)
+	fires := []time.Time{
+		time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC), // 3h ago
+		time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC), // 2h ago
+		time.Date(2026, 1, 15, 13, 0, 0, 0, time.UTC), // 1h ago
+	}
+
+	tests := []struct {
+		name        string
+		policy      types.ScheduleCatchUpPolicy
+		window      time.Duration
+		wantToFire  []time.Time
+		wantSkipped int64
+	}{
+		{
+			name:        "Skip - all missed fires are skipped",
+			policy:      types.ScheduleCatchUpPolicySkip,
+			wantToFire:  nil,
+			wantSkipped: 3,
+		},
+		{
+			name:        "Invalid (zero value) - defaults to skip",
+			policy:      types.ScheduleCatchUpPolicyInvalid,
+			wantToFire:  nil,
+			wantSkipped: 3,
+		},
+		{
+			name:        "One - no window, fires most recent",
+			policy:      types.ScheduleCatchUpPolicyOne,
+			wantToFire:  []time.Time{fires[2]},
+			wantSkipped: 2,
+		},
+		{
+			name:        "One - window excludes two oldest, fires most recent eligible",
+			policy:      types.ScheduleCatchUpPolicyOne,
+			window:      90 * time.Minute,
+			wantToFire:  []time.Time{fires[2]}, // only 13:00 is within 90min of 14:00
+			wantSkipped: 2,                     // 2 out-of-window, 0 skipped eligible
+		},
+		{
+			name:        "One - window excludes all, nothing fired",
+			policy:      types.ScheduleCatchUpPolicyOne,
+			window:      30 * time.Minute,
+			wantToFire:  nil,
+			wantSkipped: 3,
+		},
+		{
+			name:        "All - no window, fires all",
+			policy:      types.ScheduleCatchUpPolicyAll,
+			wantToFire:  fires,
+			wantSkipped: 0,
+		},
+		{
+			name:        "All - window filters two oldest, fires most recent only",
+			policy:      types.ScheduleCatchUpPolicyAll,
+			window:      90 * time.Minute,
+			wantToFire:  fires[2:], // only 13:00 is within 90min of 14:00
+			wantSkipped: 2,
+		},
+		{
+			name:        "All - window excludes all, nothing fired",
+			policy:      types.ScheduleCatchUpPolicyAll,
+			window:      30 * time.Minute,
+			wantToFire:  nil,
+			wantSkipped: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := applyMissedRunPolicy(tt.policy, tt.window, fires, now, testLogger)
+			assert.Equal(t, tt.wantToFire, got.toFire)
+			assert.Equal(t, tt.wantSkipped, got.skipped)
+		})
+	}
+}
+
 func TestBuildScheduleDescription(t *testing.T) {
 	lastRun := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	nextRun := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)

@@ -38,9 +38,8 @@ const (
 
 	QueryTypeDescribe = "scheduler-describe"
 
-	StartWorkflowActivityName = "scheduler-start-workflow"
-
 	maxIterationsBeforeContinueAsNew = 500
+	maxCatchUpFiresPerExecution      = 10
 
 	localActivityScheduleToCloseTimeout = 60 * time.Second
 	localActivityMaxRetries             = 3
@@ -61,17 +60,18 @@ type SchedulerWorkflowInput struct {
 
 // SchedulerWorkflowState is the mutable runtime state that survives ContinueAsNew.
 type SchedulerWorkflowState struct {
-	Paused       bool      `json:"paused"`
-	PauseReason  string    `json:"pauseReason,omitempty"`
-	PausedBy     string    `json:"pausedBy,omitempty"`
-	Deleted      bool      `json:"-"` // transient flag, not persisted across ContinueAsNew
-	LastRunTime  time.Time `json:"lastRunTime,omitempty"`
-	NextRunTime  time.Time `json:"nextRunTime,omitempty"`
-	TotalRuns    int64     `json:"totalRuns"`
-	MissedRuns   int64     `json:"missedRuns"`
-	SkippedRuns  int64     `json:"skippedRuns"`
-	Iterations   int       `json:"iterations"`
-	BufferedRuns int       `json:"bufferedRuns"`
+	Paused            bool      `json:"paused"`
+	PauseReason       string    `json:"pauseReason,omitempty"`
+	PausedBy          string    `json:"pausedBy,omitempty"`
+	Deleted           bool      `json:"-"`                           // transient flag, not persisted across ContinueAsNew
+	LastRunTime       time.Time `json:"lastRunTime,omitempty"`       // last time a workflow was actually started
+	LastProcessedTime time.Time `json:"lastProcessedTime,omitempty"` // catch-up watermark: latest missed fire we've processed (fired or skipped)
+	NextRunTime       time.Time `json:"nextRunTime,omitempty"`
+	TotalRuns         int64     `json:"totalRuns"`
+	MissedRuns        int64     `json:"missedRuns"`
+	SkippedRuns       int64     `json:"skippedRuns"`
+	Iterations        int       `json:"iterations"`
+	BufferedRuns      int       `json:"bufferedRuns"`
 }
 
 // PauseSignal is the payload sent with a pause signal.

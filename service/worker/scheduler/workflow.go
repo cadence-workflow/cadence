@@ -81,6 +81,15 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		return fmt.Errorf("invalid cron expression %q: %w", input.Spec.CronExpression, err)
 	}
 
+	// On the first iteration (after ContinueAsNew or fresh start), check for
+	// fires that were missed during the transition gap or prior pause period.
+	// Subsequent iterations don't need this because the timer handles fire times.
+	// If more missed fires remain beyond the per-execution cap, ContinueAsNew
+	// immediately so each batch runs in its own decision task.
+	if moreMissed := processMissedRuns(ctx, logger, sched, &input, state); moreMissed {
+		return safeContinueAsNew(ctx, logger, chs.delete, input, state)
+	}
+
 	for {
 		state.Iterations++
 
@@ -118,7 +127,7 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		}
 
 		if timerFired && !state.Paused {
-			processScheduleFire(ctx, logger, &input, state)
+			processScheduleFire(ctx, logger, &input, state, state.NextRunTime)
 		}
 
 		if changed || state.Iterations >= maxIterationsBeforeContinueAsNew {
@@ -310,11 +319,10 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 	)
 }
 
-// processScheduleFire executes the configured action for a schedule fire.
+// processScheduleFire executes the configured action for a single schedule fire.
 // It calls the start-workflow activity, updates state counters, and logs the outcome.
 // Activity failures do not terminate the schedule, they are logged and counted as missed runs.
-func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) {
-	scheduledTime := state.NextRunTime
+func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time) {
 	state.LastRunTime = scheduledTime
 	state.TotalRuns++
 
@@ -383,6 +391,141 @@ func computeNextRunTime(sched cron.Schedule, now time.Time, spec types.ScheduleS
 		return time.Time{}
 	}
 	return next
+}
+
+// missedFiresResult holds the output of computeMissedFireTimes.
+type missedFiresResult struct {
+	times     []time.Time
+	truncated bool // true if the result was capped at maxCatchUpFires
+}
+
+// computeMissedFireTimes returns all cron fire times between (lastRun, now].
+// It caps the result at maxCatchUpFires to prevent unbounded iteration
+// for very frequent schedules that were paused for a long time.
+// The truncated flag signals that more fires exist beyond the cap.
+func computeMissedFireTimes(sched cron.Schedule, lastRun, now time.Time, spec types.ScheduleSpec) missedFiresResult {
+	const maxCatchUpFires = 1000
+	var missed []time.Time
+	t := lastRun
+	for len(missed) < maxCatchUpFires {
+		next := computeNextRunTime(sched, t, spec)
+		if next.IsZero() || next.After(now) {
+			return missedFiresResult{times: missed, truncated: false}
+		}
+		missed = append(missed, next)
+		t = next
+	}
+	return missedFiresResult{times: missed, truncated: true}
+}
+
+// missedRunPolicyResult is the output of applyMissedRunPolicy.
+type missedRunPolicyResult struct {
+	toFire  []time.Time // fire times to execute, in order
+	skipped int64       // fires to count as skipped
+}
+
+// applyMissedRunPolicy is a pure function that determines which missed fires
+// to execute and how many to skip, given the catch-up policy and window.
+// It is separated from processMissedRuns to allow direct unit testing.
+func applyMissedRunPolicy(policy types.ScheduleCatchUpPolicy, window time.Duration, missed []time.Time, now time.Time, logger *zap.Logger) missedRunPolicyResult {
+	var eligible []time.Time
+	for _, t := range missed {
+		if window <= 0 || now.Sub(t) <= window {
+			eligible = append(eligible, t)
+		}
+	}
+	outOfWindow := int64(len(missed) - len(eligible))
+
+	switch policy {
+	case types.ScheduleCatchUpPolicyOne:
+		if len(eligible) == 0 {
+			return missedRunPolicyResult{skipped: int64(len(missed))}
+		}
+		return missedRunPolicyResult{
+			toFire:  []time.Time{eligible[len(eligible)-1]},
+			skipped: outOfWindow + int64(len(eligible)-1),
+		}
+	case types.ScheduleCatchUpPolicyAll:
+		return missedRunPolicyResult{
+			toFire:  eligible,
+			skipped: outOfWindow,
+		}
+	case types.ScheduleCatchUpPolicySkip:
+		return missedRunPolicyResult{skipped: int64(len(missed))}
+	default:
+		logger.Warn("unknown catch-up policy, defaulting to skip",
+			zap.Int32("policy", int32(policy)),
+		)
+		return missedRunPolicyResult{skipped: int64(len(missed))}
+	}
+}
+
+// processMissedRuns checks for and processes any cron fires that were missed
+// while the schedule was paused or during ContinueAsNew transitions.
+// The catch-up policy determines how missed fires are handled:
+//   - Skip: all missed fires are counted as skipped
+//   - One: only the most recent eligible fire (within CatchUpWindow) is executed
+//   - All: all eligible fires within the CatchUpWindow are executed
+//
+// To avoid exceeding the decision task timeout, at most maxCatchUpFiresPerExecution
+// fires are executed per workflow execution. Returns true if there are more missed
+// fires remaining, signalling the caller to ContinueAsNew for the next batch.
+func processMissedRuns(ctx workflow.Context, logger *zap.Logger, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
+	// Use LastProcessedTime as the catch-up watermark; fall back to
+	// LastRunTime for schedules created before this field existed.
+	watermark := state.LastProcessedTime
+	if watermark.IsZero() {
+		watermark = state.LastRunTime
+	}
+	if state.Paused || watermark.IsZero() {
+		return false
+	}
+	now := workflow.Now(ctx)
+	fires := computeMissedFireTimes(sched, watermark, now, input.Spec)
+	if len(fires.times) == 0 {
+		return false
+	}
+
+	if fires.truncated {
+		logger.Warn("missed fires truncated, remaining will be caught up after ContinueAsNew",
+			zap.Int("count", len(fires.times)),
+			zap.Time("lastProcessedTime", watermark),
+			zap.Time("now", now),
+		)
+	}
+
+	result := applyMissedRunPolicy(input.Policies.CatchUpPolicy, input.Policies.CatchUpWindow, fires.times, now, logger)
+
+	fired := 0
+	for _, t := range result.toFire {
+		if fired >= maxCatchUpFiresPerExecution {
+			break
+		}
+		processScheduleFire(ctx, logger, input, state, t)
+		fired++
+	}
+	unfired := int64(len(result.toFire) - fired)
+
+	if result.skipped > 0 {
+		state.SkippedRuns += result.skipped
+		logger.Info("catch-up skipped missed fires",
+			zap.Int64("skipped", result.skipped),
+			zap.Int("total_missed", len(fires.times)),
+			zap.String("policy", input.Policies.CatchUpPolicy.String()),
+		)
+	}
+
+	// Advance watermark past all fires we've fully processed (fired or
+	// skipped) to avoid re-discovering them after ContinueAsNew.
+	// If we capped fires via maxCatchUpFiresPerExecution, only advance
+	// to the last one we actually fired so the rest are retried.
+	if unfired > 0 {
+		state.LastProcessedTime = result.toFire[fired-1]
+	} else if last := fires.times[len(fires.times)-1]; last.After(state.LastProcessedTime) {
+		state.LastProcessedTime = last
+	}
+
+	return unfired > 0 || fires.truncated
 }
 
 // buildScheduleDescription creates a snapshot of the current schedule
