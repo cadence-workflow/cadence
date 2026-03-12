@@ -9,7 +9,7 @@ This document contains critical information about working with this codebase.
 ## Development Commands
 
 ```bash
-make bins   # build all binaries (+ lint, unless in Docker; no mock/wrapper regen)
+make bins   # build all binaries
 make build  # compile-check all packages + test files (no codegen, no test execution)
 make pr     # pre-PR: tidy → go-generate → fmt → lint
 make pr GEN_DIR=service/history  # scoped codegen (faster for single package)
@@ -82,4 +82,3 @@ Here's what's in each top-level directory in this repository:
 * **service/** : Contains four sub-folders dedicated to each of the four services (frontend, history, matching, worker)
 * **simulation/** : Black-box simulation tests that spin up a local Docker cluster and validate complex multi-component scenarios
 * **tools/** : CLI tools for Cadence workflows and also schema updates for persistence
-
