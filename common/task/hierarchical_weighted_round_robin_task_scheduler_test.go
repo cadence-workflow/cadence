@@ -54,7 +54,7 @@ func TestHierarchicalWeightedRoundRobinTaskScheduler_SchedulerContract(t *testin
 		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
 		clock.NewMockedTimeSource(),
 		realProcessor,
-		&HierarchicalWeightedRoundRobinTaskPoolOptions[string]{
+		&HierarchicalWeightedRoundRobinTaskPoolOptions[string, PriorityTask]{
 			BufferSize: 1000,
 			TaskToWeightedKeysFn: func(task PriorityTask) []WeightedKey[string] {
 				priority := task.Priority()

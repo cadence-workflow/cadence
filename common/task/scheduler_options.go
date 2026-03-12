@@ -27,21 +27,21 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
-type SchedulerOptions[K comparable] struct {
+type SchedulerOptions[K comparable, T Task] struct {
 	SchedulerType        SchedulerType
 	FIFOSchedulerOptions *FIFOTaskSchedulerOptions
-	WRRSchedulerOptions  *WeightedRoundRobinTaskSchedulerOptions[K]
+	WRRSchedulerOptions  *WeightedRoundRobinTaskSchedulerOptions[K, T]
 }
 
-func NewSchedulerOptions[K comparable](
+func NewSchedulerOptions[K comparable, T Task](
 	schedulerType int,
 	queueSize int,
 	workerCount dynamicproperties.IntPropertyFn,
 	dispatcherCount int,
-	taskToChannelKeyFn func(PriorityTask) K,
+	taskToChannelKeyFn func(T) K,
 	channelKeyToWeightFn func(K) int,
-) (*SchedulerOptions[K], error) {
-	options := &SchedulerOptions[K]{
+) (*SchedulerOptions[K, T], error) {
+	options := &SchedulerOptions[K, T]{
 		SchedulerType: SchedulerType(schedulerType),
 	}
 	switch options.SchedulerType {
@@ -53,7 +53,7 @@ func NewSchedulerOptions[K comparable](
 			RetryPolicy:     common.CreateTaskProcessingRetryPolicy(),
 		}
 	case SchedulerTypeWRR:
-		options.WRRSchedulerOptions = &WeightedRoundRobinTaskSchedulerOptions[K]{
+		options.WRRSchedulerOptions = &WeightedRoundRobinTaskSchedulerOptions[K, T]{
 			QueueSize:            queueSize,
 			DispatcherCount:      dispatcherCount,
 			TaskToChannelKeyFn:   taskToChannelKeyFn,
@@ -65,7 +65,7 @@ func NewSchedulerOptions[K comparable](
 	return options, nil
 }
 
-func (o *SchedulerOptions[K]) String() string {
+func (o *SchedulerOptions[K, T]) String() string {
 	return fmt.Sprintf("{schedulerType:%v, fifoSchedulerOptions:%s, wrrSchedulerOptions:%s}",
 		o.SchedulerType, o.FIFOSchedulerOptions, o.WRRSchedulerOptions)
 }

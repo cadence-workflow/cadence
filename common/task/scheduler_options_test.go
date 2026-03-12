@@ -61,7 +61,7 @@ func TestSchedulerOptionsString(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			o, err := NewSchedulerOptions[int](tc.schedulerType, tc.queueSize, tc.workerCount, tc.dispatcherCount, nil, nil)
+			o, err := NewSchedulerOptions[int, PriorityTask](tc.schedulerType, tc.queueSize, tc.workerCount, tc.dispatcherCount, nil, nil)
 			if (err != nil) != tc.wantErr {
 				t.Errorf("Got error: %v, wantErr: %v", err, tc.wantErr)
 			}

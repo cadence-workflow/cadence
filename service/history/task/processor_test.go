@@ -79,7 +79,7 @@ func (s *queueTaskProcessorSuite) SetupTest() {
 func (s *queueTaskProcessorSuite) TearDownTest() {}
 
 func (s *queueTaskProcessorSuite) TestStartStop() {
-	mockScheduler := task.NewMockScheduler(s.controller)
+	mockScheduler := task.NewMockScheduler[Task](s.controller)
 	mockScheduler.EXPECT().Start().Times(1)
 	mockScheduler.EXPECT().Stop().Times(1)
 	s.processor.scheduler = mockScheduler
@@ -92,7 +92,7 @@ func (s *queueTaskProcessorSuite) TestSubmit() {
 	mockTask := NewMockTask(s.controller)
 	s.mockPriorityAssigner.EXPECT().Assign(NewMockTaskMatcher(mockTask)).Return(nil).Times(1)
 
-	mockScheduler := task.NewMockScheduler(s.controller)
+	mockScheduler := task.NewMockScheduler[Task](s.controller)
 	mockScheduler.EXPECT().Submit(NewMockTaskMatcher(mockTask)).Return(nil).Times(1)
 
 	s.processor.scheduler = mockScheduler
@@ -117,7 +117,7 @@ func (s *queueTaskProcessorSuite) TestTrySubmit_Fail() {
 	s.mockPriorityAssigner.EXPECT().Assign(NewMockTaskMatcher(mockTask)).Return(nil).Times(1)
 
 	errTrySubmit := errors.New("some randome error")
-	mockScheduler := task.NewMockScheduler(s.controller)
+	mockScheduler := task.NewMockScheduler[Task](s.controller)
 	mockScheduler.EXPECT().TrySubmit(NewMockTaskMatcher(mockTask)).Return(false, errTrySubmit).Times(1)
 
 	s.processor.scheduler = mockScheduler
