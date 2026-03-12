@@ -9,12 +9,12 @@ This document contains critical information about working with this codebase.
 ## Development Commands
 
 ```bash
-make bins   # build all binaries (includes codegen + lint)
-make build  # quick compile check only (no codegen, no tests)
+make bins   # build all binaries (+ lint, unless in Docker; no mock/wrapper regen)
+make build  # compile-check all packages + test files (no codegen, no test execution)
 make pr     # pre-PR: tidy → go-generate → fmt → lint
 make pr GEN_DIR=service/history  # scoped codegen (faster for single package)
 make test   # all unit tests (excludes host/ integration tests)
-make test_e2e  # end-to-end integration tests in host/
+make test_e2e  # end-to-end integration tests in host/ (requires Docker dependencies running)
 make lint   # lint only
 make go-generate  # regenerate mocks, enums, wrapper files
 
@@ -31,6 +31,8 @@ go test -race -run TestFoo ./path/to/pkg/...  # run a specific test
 - **Go workspace gotcha**: `go build ./...` and `go test ./...` only cover the root module.
   Use `make bins` and `make test` for full coverage. Use `make tidy` (not `go mod tidy`).
 - **IDL local testing**: To test local IDL changes before pushing, add `replace github.com/uber/cadence-idl => ./idls` to the bottom of `go.mod`. Remove before committing.
+- **Submodule drift**: `git submodule update --init --recursive` fixes not just post-checkout failures but also mid-development build errors after upstream IDL changes.
+- **SQLite for quick local dev**: No Docker required. Run `make install-schema-sqlite` then `./cadence-server --zone sqlite start` for the fastest path to a running local server.
 
 ## Coding Best Practices
 
@@ -49,6 +51,10 @@ go test -race -run TestFoo ./path/to/pkg/...  # run a specific test
 ## Pull Request Guidelines
 
 PRs must follow the template in `.github/pull_request_guidance.md`.
+
+PR titles must use Conventional Commits format: `<type>(<optional scope>): <description>`.
+Valid types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`.
+Example: `feat(history): add retry logic for shard takeover`.
 
 ## Development
 
