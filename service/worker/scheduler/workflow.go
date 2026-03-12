@@ -90,6 +90,11 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		return safeContinueAsNew(ctx, logger, chs.delete, input, state)
 	}
 
+	// Process any pending backfill requests carried over from a previous execution.
+	if moreBackfills := processBackfills(ctx, logger, sched, &input, state); moreBackfills {
+		return safeContinueAsNew(ctx, logger, chs.delete, input, state)
+	}
+
 	for {
 		state.Iterations++
 
@@ -127,7 +132,7 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		}
 
 		if timerFired && !state.Paused {
-			processScheduleFire(ctx, logger, &input, state, state.NextRunTime)
+			processScheduleFire(ctx, logger, &input, state, state.NextRunTime, TriggerSourceSchedule)
 		}
 
 		if changed || state.Iterations >= maxIterationsBeforeContinueAsNew {
@@ -183,7 +188,7 @@ func applyAllInputs(
 	selector.AddReceive(chs.update, func(c workflow.Channel, more bool) {
 		var sig UpdateSignal
 		c.Receive(ctx, &sig)
-		if handleUpdate(logger, sig, input) {
+		if handleUpdate(logger, sig, input, state) {
 			stateChanged = true
 		}
 	})
@@ -191,7 +196,9 @@ func applyAllInputs(
 	selector.AddReceive(chs.backfill, func(c workflow.Channel, more bool) {
 		var sig BackfillSignal
 		c.Receive(ctx, &sig)
-		handleBackfill(logger, sig, state)
+		if handleBackfill(logger, sig, state) {
+			stateChanged = true
+		}
 	})
 
 	selector.AddReceive(chs.delete, func(c workflow.Channel, more bool) {
@@ -246,7 +253,7 @@ func drainBufferedSignals(
 		if !chs.update.ReceiveAsync(&sig) {
 			break
 		}
-		if handleUpdate(logger, sig, input) {
+		if handleUpdate(logger, sig, input, state) {
 			stateChanged = true
 		}
 	}
@@ -255,7 +262,9 @@ func drainBufferedSignals(
 		if !chs.backfill.ReceiveAsync(&sig) {
 			break
 		}
-		handleBackfill(logger, sig, state)
+		if handleBackfill(logger, sig, state) {
+			stateChanged = true
+		}
 	}
 
 	return stateChanged
@@ -281,7 +290,7 @@ func handleUnpause(logger *zap.Logger, sig UnpauseSignal, state *SchedulerWorkfl
 	return true
 }
 
-func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflowInput) bool {
+func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
 	if sig.Spec == nil && sig.Action == nil && sig.Policies == nil {
 		logger.Info("ignoring empty update signal")
 		return false
@@ -294,6 +303,11 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 		} else {
 			input.Spec = *sig.Spec
 			changed = true
+			if len(state.PendingBackfills) > 0 {
+				logger.Warn("spec change cleared pending backfills",
+					zap.Int("clearedCount", len(state.PendingBackfills)))
+				state.PendingBackfills = nil
+			}
 		}
 	}
 	if sig.Action != nil {
@@ -310,19 +324,52 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 	return changed
 }
 
-func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWorkflowState) {
-	logger.Info("backfill signal received",
+func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWorkflowState) bool {
+	if !sig.EndTime.After(sig.StartTime) {
+		logger.Warn("ignoring backfill with invalid time range",
+			zap.Time("startTime", sig.StartTime),
+			zap.Time("endTime", sig.EndTime),
+		)
+		return false
+	}
+	if len(state.PendingBackfills) >= maxPendingBackfills {
+		logger.Warn("ignoring backfill: pending backfill queue is full",
+			zap.String("backfillId", sig.BackfillID),
+			zap.Int("queueSize", len(state.PendingBackfills)),
+			zap.Int("maxPendingBackfills", maxPendingBackfills),
+		)
+		return false
+	}
+	for _, existing := range state.PendingBackfills {
+		if sig.StartTime.Before(existing.EndTime) && sig.EndTime.After(existing.StartTime) {
+			logger.Warn("backfill window overlaps with pending backfill, fires for overlapping times will be deduplicated",
+				zap.String("newBackfillId", sig.BackfillID),
+				zap.String("existingBackfillId", existing.BackfillID),
+				zap.Time("overlapStart", maxTime(sig.StartTime, existing.StartTime)),
+				zap.Time("overlapEnd", minTime(sig.EndTime, existing.EndTime)),
+			)
+		}
+	}
+	state.PendingBackfills = append(state.PendingBackfills, BackfillRequest{
+		StartTime:     sig.StartTime,
+		EndTime:       sig.EndTime,
+		OverlapPolicy: sig.OverlapPolicy,
+		BackfillID:    sig.BackfillID,
+	})
+	logger.Info("backfill queued",
 		zap.Time("startTime", sig.StartTime),
 		zap.Time("endTime", sig.EndTime),
 		zap.String("overlapPolicy", sig.OverlapPolicy.String()),
 		zap.String("backfillId", sig.BackfillID),
+		zap.Int("pendingCount", len(state.PendingBackfills)),
 	)
+	return true
 }
 
 // processScheduleFire executes the configured action for a single schedule fire.
 // It calls the start-workflow activity, updates state counters, and logs the outcome.
 // Activity failures do not terminate the schedule, they are logged and counted as missed runs.
-func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time) {
+func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource) {
 	state.LastRunTime = scheduledTime
 	state.TotalRuns++
 
@@ -353,6 +400,7 @@ func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *Schedu
 		ScheduleID:    input.ScheduleID,
 		Action:        *input.Action.StartWorkflow,
 		ScheduledTime: scheduledTime,
+		TriggerSource: trigger,
 	}
 
 	var result StartWorkflowResult
@@ -501,7 +549,7 @@ func processMissedRuns(ctx workflow.Context, logger *zap.Logger, sched cron.Sche
 		if fired >= maxCatchUpFiresPerExecution {
 			break
 		}
-		processScheduleFire(ctx, logger, input, state, t)
+		processScheduleFire(ctx, logger, input, state, t, TriggerSourceSchedule)
 		fired++
 	}
 	unfired := int64(len(result.toFire) - fired)
@@ -526,6 +574,61 @@ func processMissedRuns(ctx workflow.Context, logger *zap.Logger, sched cron.Sche
 	}
 
 	return unfired > 0 || fires.truncated
+}
+
+// processBackfills drains pending backfill requests from state, computing
+// cron fire times for each request's time range and executing them.
+// Like processMissedRuns, it caps fires per execution and returns true
+// if more work remains (signalling the caller to ContinueAsNew).
+func processBackfills(ctx workflow.Context, logger *zap.Logger, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
+	// Backfills respect the pause state: an explicit user request to replay a time
+	// range should not fire workflows while the schedule is paused. The pending
+	// backfills are preserved in state and will execute once the schedule is unpaused.
+	if state.Paused || len(state.PendingBackfills) == 0 {
+		return false
+	}
+
+	fired := 0
+	for len(state.PendingBackfills) > 0 {
+		bf := &state.PendingBackfills[0]
+
+		fires := computeMissedFireTimes(sched, bf.StartTime.Add(-time.Second), bf.EndTime, input.Spec)
+
+		for _, t := range fires.times {
+			if fired >= maxBackfillFiresPerExecution {
+				bf.StartTime = t
+				logger.Info("backfill batch cap reached, continuing after ContinueAsNew",
+					zap.String("backfillId", bf.BackfillID),
+					zap.Time("resumeFrom", t),
+					zap.Int("firedThisBatch", fired),
+				)
+				return true
+			}
+			processScheduleFire(ctx, logger, input, state, t, TriggerSourceBackfill)
+			fired++
+		}
+
+		if fires.truncated {
+			// More fires exist beyond the 1000-fire scan cap.
+			// Advance start past the last processed fire so it isn't replayed.
+			if len(fires.times) > 0 {
+				bf.StartTime = fires.times[len(fires.times)-1].Add(time.Second)
+			}
+			logger.Info("backfill range has more fires beyond scan cap, continuing after ContinueAsNew",
+				zap.String("backfillId", bf.BackfillID),
+				zap.Int("firedThisBatch", fired),
+			)
+			return true
+		}
+
+		logger.Info("backfill completed",
+			zap.String("backfillId", bf.BackfillID),
+			zap.Int("firedTotal", fired),
+		)
+		state.PendingBackfills = state.PendingBackfills[1:]
+	}
+
+	return false
 }
 
 // buildScheduleDescription creates a snapshot of the current schedule
@@ -559,4 +662,18 @@ func safeContinueAsNew(ctx workflow.Context, logger *zap.Logger, deleteCh workfl
 	state.Iterations = 0
 	input.State = *state
 	return workflow.NewContinueAsNewError(ctx, WorkflowTypeName, input)
+}
+
+func minTime(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
+}
+
+func maxTime(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }

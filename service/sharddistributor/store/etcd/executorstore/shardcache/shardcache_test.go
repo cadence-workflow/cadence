@@ -5,18 +5,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/testhelper"
 )
 
 func TestNewShardToExecutorCache(t *testing.T) {
+	ctrl := gomock.NewController(t)
 	logger := testlogger.New(t)
 
-	client := &clientv3.Client{}
+	client := etcdclient.NewMockClient(ctrl)
 	cache := NewShardToExecutorCache("some-prefix", client, logger, clock.NewRealTimeSource(), metrics.NewNoopMetricsClient())
 
 	assert.NotNil(t, cache)

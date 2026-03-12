@@ -375,6 +375,8 @@ func testSchedulerContract(
 		<-schedulerImpl.ctx.Done()
 	case *weightedRoundRobinTaskSchedulerImpl[int]:
 		<-schedulerImpl.ctx.Done()
+	case *hierarchicalWeightedRoundRobinTaskSchedulerImpl[string]:
+		<-schedulerImpl.ctx.Done()
 	default:
 		s.Fail("unknown task scheduler type")
 	}

@@ -76,23 +76,28 @@ func TestGenerateWorkflowID(t *testing.T) {
 
 func TestGenerateRequestID(t *testing.T) {
 	t.Run("returns valid UUID", func(t *testing.T) {
-		id := generateRequestID("sched-1", 1000000000)
+		id := generateRequestID("sched-1", 1000000000, TriggerSourceSchedule)
 		_, err := uuid.Parse(id)
 		assert.NoError(t, err)
 	})
 	t.Run("deterministic for same inputs", func(t *testing.T) {
-		a := generateRequestID("sched-1", 1000000000)
-		b := generateRequestID("sched-1", 1000000000)
+		a := generateRequestID("sched-1", 1000000000, TriggerSourceSchedule)
+		b := generateRequestID("sched-1", 1000000000, TriggerSourceSchedule)
 		assert.Equal(t, a, b)
 	})
 	t.Run("different for different scheduleID", func(t *testing.T) {
-		a := generateRequestID("sched-1", 1000000000)
-		b := generateRequestID("sched-2", 1000000000)
+		a := generateRequestID("sched-1", 1000000000, TriggerSourceSchedule)
+		b := generateRequestID("sched-2", 1000000000, TriggerSourceSchedule)
 		assert.NotEqual(t, a, b)
 	})
 	t.Run("different for different time", func(t *testing.T) {
-		a := generateRequestID("sched-1", 1000000000)
-		b := generateRequestID("sched-1", 2000000000)
+		a := generateRequestID("sched-1", 1000000000, TriggerSourceSchedule)
+		b := generateRequestID("sched-1", 2000000000, TriggerSourceSchedule)
+		assert.NotEqual(t, a, b)
+	})
+	t.Run("different for different trigger source", func(t *testing.T) {
+		a := generateRequestID("sched-1", 1000000000, TriggerSourceSchedule)
+		b := generateRequestID("sched-1", 1000000000, TriggerSourceBackfill)
 		assert.NotEqual(t, a, b)
 	})
 }
@@ -142,6 +147,7 @@ func TestStartWorkflowActivity(t *testing.T) {
 			TaskStartToCloseTimeoutSeconds:      int32Ptr(60),
 		},
 		ScheduledTime: scheduledTime,
+		TriggerSource: TriggerSourceSchedule,
 	}
 
 	tests := []struct {
@@ -163,7 +169,7 @@ func TestStartWorkflowActivity(t *testing.T) {
 						assert.Equal(t, "my-tasklist", req.TaskList.Name)
 						_, uuidErr := uuid.Parse(req.RequestID)
 						assert.NoError(t, uuidErr, "RequestID must be a valid UUID")
-						assert.Equal(t, generateRequestID("sched-1", scheduledTime.UnixNano()), req.RequestID, "RequestID must be deterministic")
+						assert.Equal(t, generateRequestID("sched-1", scheduledTime.UnixNano(), TriggerSourceSchedule), req.RequestID, "RequestID must be deterministic")
 						return &types.StartWorkflowExecutionResponse{RunID: "run-abc"}, nil
 					})
 			},

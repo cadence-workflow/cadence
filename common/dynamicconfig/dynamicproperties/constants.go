@@ -2294,6 +2294,20 @@ const (
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
 
+	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
+	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableHierarchicalWeightedRoundRobinTaskScheduler
+
+	// EnableTaskListAwareTaskSchedulerByDomain is to enable task list aware task scheduler by domain
+	// KeyName: history.enableTaskListAwareTaskSchedulerByDomain
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableTaskListAwareTaskSchedulerByDomain
+
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
 )
@@ -4984,6 +4998,17 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.excludeShortLivedTaskListsFromShardManager",
 		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
 		DefaultValue: true,
+	},
+	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
+		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",
+		Description:  "EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler",
+		DefaultValue: false,
+	},
+	EnableTaskListAwareTaskSchedulerByDomain: {
+		KeyName:      "history.enableTaskListAwareTaskSchedulerByDomain",
+		Description:  "EnableTaskListAwareTaskSchedulerByDomain is to enable task list aware task scheduler by domain",
+		Filters:      []Filter{DomainName},
+		DefaultValue: false,
 	},
 }
 

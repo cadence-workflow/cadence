@@ -279,6 +279,8 @@ func TestNewConfig(t *testing.T) {
 		"VirtualSliceForceAppendInterval":                      {dynamicproperties.VirtualSliceForceAppendInterval, time.Second},
 		"ReplicationTaskProcessorLatencyLogThreshold":          {dynamicproperties.ReplicationTaskProcessorLatencyLogThreshold, time.Duration(0)},
 		"EnableCleanupOrphanedHistoryBranchOnWorkflowCreation": {dynamicproperties.EnableCleanupOrphanedHistoryBranchOnWorkflowCreation, true},
+		"EnableHierarchicalWeightedRoundRobinTaskScheduler":    {dynamicproperties.EnableHierarchicalWeightedRoundRobinTaskScheduler, true},
+		"EnableTaskListAwareTaskSchedulerByDomain":             {dynamicproperties.EnableTaskListAwareTaskSchedulerByDomain, true},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {
