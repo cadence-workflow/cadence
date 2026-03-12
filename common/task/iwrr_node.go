@@ -230,33 +230,87 @@ func (n *iwrrNode[K, V]) tryChildren() (V, bool) {
 // The method performs a depth-first traversal, cleaning up children before checking itself.
 //
 // Process:
-//  1. Recursively cleanup all children
-//  2. Remove children that return true (indicating they should be removed)
-//  3. Update the IWRR schedule if any children were removed
-//  4. If this node is now a leaf, check if its own channel should be cleaned up
+//  1. Take a snapshot of children with read lock
+//  2. Release lock and recursively cleanup all children (allows concurrent executeAtPath)
+//  3. If any children should be removed, acquire write lock and check if the child still qualifies for deletion
+//     - Child still exists and is the same instance (not replaced)
+//     - Child has no children (no descendants were added since cleanup decision)
+//     - Child's TTL channel still qualifies for cleanup (no tasks in own channel)
+//  4. Update the IWRR schedule if any children were removed
+//  5. If this node is now a leaf, check if its own channel should be cleaned up
 //
 // A leaf node is eligible for removal if its TTL channel has been idle beyond the TTL duration.
 //
+// Performance optimization: The parent lock is released during recursive cleanup of children,
+// reducing lock contention and allowing concurrent operations on the parent node.
+//
 // Returns: true if this node should be removed by its parent, false otherwise
 //
-// Concurrency: Safe for concurrent access. Acquires write lock during execution.
+// Concurrency: Safe for concurrent access. Uses read lock for snapshot, write lock only for modifications.
 func (n *iwrrNode[K, V]) cleanup(now time.Time, ttl time.Duration) bool {
-	n.Lock()
-	defer n.Unlock()
-
-	// Clean up children first and collect keys to remove
-	keysToRemove := make([]K, 0)
+	// Step 1: Take snapshot of children with read lock
+	n.RLock()
+	if len(n.children) == 0 {
+		n.RUnlock()
+		// Fast path: leaf node, check if should be cleaned up
+		shouldRemove := n.c.ShouldCleanup(now, ttl)
+		return shouldRemove
+	}
+	childrenSnapshot := make(map[K]*iwrrNode[K, V], len(n.children))
 	for key, container := range n.children {
-		if container.item.cleanup(now, ttl) {
+		childrenSnapshot[key] = container.item
+	}
+	n.RUnlock()
+
+	// Step 2: Cleanup children WITHOUT holding parent lock
+	// This allows concurrent executeAtPath operations on the parent
+	keysToRemove := make([]K, 0)
+	for key, child := range childrenSnapshot {
+		if child.cleanup(now, ttl) {
 			keysToRemove = append(keysToRemove, key)
 		}
 	}
 
-	// Remove children that should be cleaned up
+	// Step 3: Fast path if no children need removal
+	if len(keysToRemove) == 0 {
+		return false
+	}
+
+	// Step 4: Acquire write lock only when we need to modify
+	n.Lock()
+	defer n.Unlock()
+
 	needsUpdate := false
 	for _, key := range keysToRemove {
-		delete(n.children, key)
-		needsUpdate = true
+		// Verify the child still qualifies for deletion:
+		// 1. Child still exists and is the same instance (not replaced)
+		// 2. Child's TTL channel still qualifies for cleanup (no tasks in own channel, RefCount == 0)
+		//    If RefCount == 0, executeAtPath has fully returned, meaning any grandchildren it
+		//    created are already committed to child.children — making the hasNoChildren check
+		//    below accurate.
+		// 3. Child has no children (no descendants were added since cleanup decision)
+		//    If no descendants exist, childrenItemCount must be 0 by definition
+		// This protects against the race where executeAtPath adds tasks to descendants
+		// between the cleanup decision and the actual deletion.
+		container, exists := n.children[key]
+		if !exists || container.item != childrenSnapshot[key] {
+			continue
+		}
+		// Check ShouldCleanup first: if RefCount > 0, an executeAtPath is still in-flight
+		// for this child and may be creating grandchildren, so skip deletion.
+		if !container.item.c.ShouldCleanup(now, ttl) {
+			continue
+		}
+		// ShouldCleanup passed (RefCount==0, Len==0, TTL expired). Take the read lock only to
+		// guard against a concurrent cleanup goroutine removing grandchildren from this child
+		// and confirm there are truly no descendants before deleting.
+		container.item.RLock()
+		hasNoChildren := len(container.item.children) == 0
+		container.item.RUnlock()
+		if hasNoChildren {
+			delete(n.children, key)
+			needsUpdate = true
+		}
 	}
 
 	// Update schedule if children were removed
@@ -264,7 +318,7 @@ func (n *iwrrNode[K, V]) cleanup(now time.Time, ttl time.Duration) bool {
 		n.updateScheduleLocked()
 	}
 
-	// If the node is a leaf node or becomes a leaf node, check if it should be removed
+	// If the node became a leaf node, check if it should be removed
 	if len(n.children) == 0 {
 		return n.c.ShouldCleanup(now, ttl)
 	}
