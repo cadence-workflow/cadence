@@ -11,9 +11,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/fx/fxtest"
+	"gopkg.in/yaml.v2"
 
+	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
-	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/testflags"
 )
 
@@ -197,7 +199,7 @@ func TestSessionDone(t *testing.T) {
 // testCluster represents a test etcd cluster with its resources
 type testCluster struct {
 	store       store.Elector
-	storeConfig etcdclient.LeaderStoreConfig
+	storeConfig etcdCfg
 	endpoints   []string
 }
 
@@ -209,34 +211,24 @@ func setupETCDCluster(t *testing.T) *testCluster {
 	testflags.RequireEtcd(t)
 
 	endpoints := strings.Split(os.Getenv("ETCD_ENDPOINTS"), ",")
-	if len(endpoints) == 0 || endpoints[0] == "" {
+	if endpoints == nil || len(endpoints) == 0 || endpoints[0] == "" {
 		// default etcd port
 		endpoints = []string{"localhost:2379"}
 	}
 
 	t.Logf("ETCD endpoints: %v", endpoints)
 
-	testConfig := etcdclient.LeaderStoreConfig{
-		BaseConfig: etcdclient.BaseConfig{
-			Endpoints:   endpoints,
-			DialTimeout: 5 * time.Second,
-			Prefix:      fmt.Sprintf("/election/%s", t.Name()),
-		},
+	testConfig := etcdCfg{
+		Endpoints:   endpoints,
+		DialTimeout: 5 * time.Second,
+		Prefix:      fmt.Sprintf("/election/%s", t.Name()),
 		ElectionTTL: 5 * time.Second,
 	}
 
-	// Create etcd client
-	rawClient, err := clientv3.New(clientv3.Config{
-		Endpoints:   endpoints,
-		DialTimeout: 5 * time.Second,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { rawClient.Close() })
-
 	// Create store
 	storeParams := StoreParams{
-		Client: etcdclient.NewClient(rawClient),
-		Cfg:    testConfig,
+		Cfg:       config.ShardDistribution{LeaderStore: config.Store{StorageParams: createConfig(t, testConfig)}},
+		Lifecycle: fxtest.NewLifecycle(t),
 	}
 
 	store, err := NewLeaderStore(storeParams)
@@ -247,4 +239,18 @@ func setupETCDCluster(t *testing.T) *testCluster {
 		storeConfig: testConfig,
 		endpoints:   endpoints,
 	}
+}
+
+func createConfig(t *testing.T, cfg etcdCfg) *config.YamlNode {
+	t.Helper()
+
+	yamlCfg, err := yaml.Marshal(cfg)
+	require.NoError(t, err)
+
+	var res *config.YamlNode
+
+	err = yaml.Unmarshal(yamlCfg, &res)
+	require.NoError(t, err)
+
+	return res
 }

@@ -14,15 +14,14 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/testflags"
 )
 
 type StoreTestCluster struct {
 	EtcdPrefix  string
 	Namespace   string
-	SDConfig    config.ShardDistribution
-	Client      etcdclient.Client
+	LeaderCfg   config.ShardDistribution
+	Client      *clientv3.Client
 	Compression string
 }
 
@@ -54,22 +53,22 @@ func SetupStoreTestCluster(t *testing.T) *StoreTestCluster {
 	err = yaml.Unmarshal(yamlCfg, &yamlNode)
 	require.NoError(t, err)
 
-	sdConfig := config.ShardDistribution{
+	leaderCfg := config.ShardDistribution{
 		Store:       config.Store{StorageParams: yamlNode},
 		LeaderStore: config.Store{StorageParams: yamlNode},
 	}
 
-	rawClient, err := clientv3.New(clientv3.Config{Endpoints: endpoints, DialTimeout: 5 * time.Second})
+	client, err := clientv3.New(clientv3.Config{Endpoints: endpoints, DialTimeout: 5 * time.Second})
 	require.NoError(t, err)
-	t.Cleanup(func() { rawClient.Close() })
+	t.Cleanup(func() { client.Close() })
 
-	_, err = rawClient.Delete(context.Background(), etcdPrefix, clientv3.WithPrefix())
+	_, err = client.Delete(context.Background(), etcdPrefix, clientv3.WithPrefix())
 	require.NoError(t, err)
 
 	return &StoreTestCluster{
 		Namespace:  namespace,
 		EtcdPrefix: etcdPrefix,
-		SDConfig:   sdConfig,
-		Client:     etcdclient.NewClient(rawClient),
+		LeaderCfg:  leaderCfg,
+		Client:     client,
 	}
 }
