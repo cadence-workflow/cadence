@@ -41,7 +41,7 @@ go test -race -run TestFoo ./path/to/pkg/...  # run a specific test
   - Do **not** write new suite-style tests (`testify/suite`) — legacy, maintain only.
   - Do **not** use `github.com/stretchr/testify` mocks — use `github.com/uber-go/mock`.
   - All new tests should be either plain Go tests or table-tests.
-  - Round-trip test all mappers: `ToX(FromX(item)) == item`.
+  - Round-trip test all mappers: `ToX(FromX(item)) == item`. Fuzz-test mappers following the pattern in `common/types/mapper/proto/api_test.go` and `schedule_test.go`.
 
 - **Types**:
   - Never use IDL code (`.gen/go/` or `.gen/proto/`) directly in service logic.
@@ -53,7 +53,7 @@ go test -race -run TestFoo ./path/to/pkg/...  # run a specific test
 PRs must follow the template in `.github/pull_request_guidance.md`.
 
 PR titles must use Conventional Commits format: `<type>(<optional scope>): <description>`.
-Valid types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`.
+Valid types are defined in `.github/workflows/semantic-pr.yml`.
 Example: `feat(history): add retry logic for shard takeover`.
 
 ## Development
