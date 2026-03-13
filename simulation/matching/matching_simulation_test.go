@@ -41,6 +41,7 @@ import (
 	"math/rand"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -53,7 +54,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 
 	"github.com/uber/cadence/client/history"
