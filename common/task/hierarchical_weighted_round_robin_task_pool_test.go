@@ -40,17 +40,16 @@ func TestHierarchicalWRRTaskPool_SingleLevel_IWRROrdering(t *testing.T) {
 		"domain2": 1,
 	}
 
-	pool := newHierarchicalWeightedRoundRobinTaskPool[string](
+	pool := newHierarchicalWeightedRoundRobinTaskPool[string, *testPriorityTask](
 		testlogger.New(t),
 		metrics.NoopClient,
 		clock.NewMockedTimeSource(),
-		&HierarchicalWeightedRoundRobinTaskPoolOptions[string]{
+		&HierarchicalWeightedRoundRobinTaskPoolOptions[string, *testPriorityTask]{
 			BufferSize: 20,
-			TaskToWeightedKeysFn: func(task PriorityTask) []WeightedKey[string] {
+			TaskToWeightedKeysFn: func(task *testPriorityTask) []WeightedKey[string] {
 				// Single-level hierarchy: tasks grouped by domain with different weights
-				testTask := task.(*testPriorityTask)
 				return []WeightedKey[string]{
-					{Key: testTask.domain, Weight: domainWeights[testTask.domain]},
+					{Key: task.domain, Weight: domainWeights[task.domain]},
 				}
 			},
 		},
@@ -62,7 +61,7 @@ func TestHierarchicalWRRTaskPool_SingleLevel_IWRROrdering(t *testing.T) {
 	// Domain0 (weight 5): 5 tasks
 	// Domain1 (weight 3): 3 tasks
 	// Domain2 (weight 1): 1 task
-	var tasks []PriorityTask
+	var tasks []*testPriorityTask
 	for i := 0; i < 5; i++ {
 		tasks = append(tasks, &testPriorityTask{domain: "domain0"})
 	}
@@ -75,7 +74,7 @@ func TestHierarchicalWRRTaskPool_SingleLevel_IWRROrdering(t *testing.T) {
 	var wg sync.WaitGroup
 	for _, task := range tasks {
 		wg.Add(1)
-		go func(t PriorityTask) {
+		go func(t *testPriorityTask) {
 			defer wg.Done()
 			// Randomly choose between Enqueue and TryEnqueue
 			if rand.Intn(2) == 0 {
@@ -97,8 +96,7 @@ func TestHierarchicalWRRTaskPool_SingleLevel_IWRROrdering(t *testing.T) {
 		if !ok {
 			break
 		}
-		testTask := task.(*testPriorityTask)
-		actualDomainSequence = append(actualDomainSequence, testTask.domain)
+		actualDomainSequence = append(actualDomainSequence, task.domain)
 	}
 
 	assert.Equal(t, expectedDomainPattern, actualDomainSequence)
@@ -122,18 +120,17 @@ func TestHierarchicalWRRTaskPool_TwoLevel_IWRROrdering(t *testing.T) {
 		"tasklist3B": 1,
 	}
 
-	pool := newHierarchicalWeightedRoundRobinTaskPool[string](
+	pool := newHierarchicalWeightedRoundRobinTaskPool[string, *testPriorityTask](
 		testlogger.New(t),
 		metrics.NoopClient,
 		clock.NewMockedTimeSource(),
-		&HierarchicalWeightedRoundRobinTaskPoolOptions[string]{
+		&HierarchicalWeightedRoundRobinTaskPoolOptions[string, *testPriorityTask]{
 			BufferSize: 20,
-			TaskToWeightedKeysFn: func(task PriorityTask) []WeightedKey[string] {
+			TaskToWeightedKeysFn: func(task *testPriorityTask) []WeightedKey[string] {
 				// Two-level hierarchy: domain (level 1) -> tasklist (level 2)
-				testTask := task.(*testPriorityTask)
 				return []WeightedKey[string]{
-					{Key: testTask.domain, Weight: domainWeights[testTask.domain]},
-					{Key: testTask.tasklist, Weight: tasklistWeights[testTask.tasklist]},
+					{Key: task.domain, Weight: domainWeights[task.domain]},
+					{Key: task.tasklist, Weight: tasklistWeights[task.tasklist]},
 				}
 			},
 		},
@@ -145,7 +142,7 @@ func TestHierarchicalWRRTaskPool_TwoLevel_IWRROrdering(t *testing.T) {
 	// Domain1 tasklist IWRR [2, 1]: [tasklist1A, tasklist1A, tasklist1B] = 3 tasks
 	// Domain2 tasklist IWRR [3, 1]: [tasklist2A, tasklist2A, tasklist2A, tasklist2B] = 4 tasks
 	// Domain3 tasklist IWRR [2, 1]: [tasklist3A, tasklist3A, tasklist3B] = 3 tasks
-	tasks := []PriorityTask{
+	tasks := []*testPriorityTask{
 		// Domain1 tasks (3 tasks for one complete tasklist IWRR)
 		&testPriorityTask{domain: "domain1", tasklist: "tasklist1A"},
 		&testPriorityTask{domain: "domain1", tasklist: "tasklist1A"},
@@ -165,7 +162,7 @@ func TestHierarchicalWRRTaskPool_TwoLevel_IWRROrdering(t *testing.T) {
 	var wg sync.WaitGroup
 	for _, task := range tasks {
 		wg.Add(1)
-		go func(t PriorityTask) {
+		go func(t *testPriorityTask) {
 			defer wg.Done()
 			// Randomly choose between Enqueue and TryEnqueue
 			if rand.Intn(2) == 0 {
@@ -216,10 +213,9 @@ func TestHierarchicalWRRTaskPool_TwoLevel_IWRROrdering(t *testing.T) {
 		if !ok {
 			break
 		}
-		testTask := task.(*testPriorityTask)
 		actualPattern = append(actualPattern, expectedTask{
-			domain:   testTask.domain,
-			tasklist: testTask.tasklist,
+			domain:   task.domain,
+			tasklist: task.tasklist,
 		})
 	}
 
@@ -250,17 +246,16 @@ func TestHierarchicalWRRTaskPool_TwoLevel_LargeScale_IWRROrdering(t *testing.T) 
 		"tasklist3B": 1,
 	}
 
-	pool := newHierarchicalWeightedRoundRobinTaskPool[string](
+	pool := newHierarchicalWeightedRoundRobinTaskPool[string, *testPriorityTask](
 		testlogger.New(t),
 		metrics.NoopClient,
 		clock.NewMockedTimeSource(),
-		&HierarchicalWeightedRoundRobinTaskPoolOptions[string]{
+		&HierarchicalWeightedRoundRobinTaskPoolOptions[string, *testPriorityTask]{
 			BufferSize: 100,
-			TaskToWeightedKeysFn: func(task PriorityTask) []WeightedKey[string] {
-				testTask := task.(*testPriorityTask)
+			TaskToWeightedKeysFn: func(task *testPriorityTask) []WeightedKey[string] {
 				return []WeightedKey[string]{
-					{Key: testTask.domain, Weight: domainWeights[testTask.domain]},
-					{Key: testTask.tasklist, Weight: tasklistWeights[testTask.tasklist]},
+					{Key: task.domain, Weight: domainWeights[task.domain]},
+					{Key: task.tasklist, Weight: tasklistWeights[task.tasklist]},
 				}
 			},
 		},
@@ -272,7 +267,7 @@ func TestHierarchicalWRRTaskPool_TwoLevel_LargeScale_IWRROrdering(t *testing.T) 
 	// Domain1: 30 tasks (5 cycles of tasklist IWRR: [3,2,1] = 6 tasks per cycle)
 	// Domain2: 30 tasks (5 cycles of tasklist IWRR: [4,2] = 6 tasks per cycle)
 	// Domain3: 20 tasks (5 cycles of tasklist IWRR: [3,1] = 4 tasks per cycle)
-	var tasks []PriorityTask
+	var tasks []*testPriorityTask
 
 	// Domain1: 5 cycles of [tasklist1A(3), tasklist1B(2), tasklist1C(1)]
 	for cycle := 0; cycle < 5; cycle++ {
@@ -307,7 +302,7 @@ func TestHierarchicalWRRTaskPool_TwoLevel_LargeScale_IWRROrdering(t *testing.T) 
 	var wg sync.WaitGroup
 	for _, task := range tasks {
 		wg.Add(1)
-		go func(t PriorityTask) {
+		go func(t *testPriorityTask) {
 			defer wg.Done()
 			if rand.Intn(2) == 0 {
 				_ = pool.Enqueue(t)
@@ -348,11 +343,10 @@ func TestHierarchicalWRRTaskPool_TwoLevel_LargeScale_IWRROrdering(t *testing.T) 
 		if !ok {
 			break
 		}
-		testTask := task.(*testPriorityTask)
-		dequeuedDomains = append(dequeuedDomains, testTask.domain)
-		dequeuedTasklistsByDomain[testTask.domain] = append(
-			dequeuedTasklistsByDomain[testTask.domain],
-			testTask.tasklist,
+		dequeuedDomains = append(dequeuedDomains, task.domain)
+		dequeuedTasklistsByDomain[task.domain] = append(
+			dequeuedTasklistsByDomain[task.domain],
+			task.tasklist,
 		)
 	}
 
@@ -403,18 +397,17 @@ func TestHierarchicalWRRTaskPool_ThreeLevel_LargeScale_IWRROrdering(t *testing.T
 		"tenant3": 1,
 	}
 
-	pool := newHierarchicalWeightedRoundRobinTaskPool[string](
+	pool := newHierarchicalWeightedRoundRobinTaskPool[string, *testPriorityTask](
 		testlogger.New(t),
 		metrics.NoopClient,
 		clock.NewMockedTimeSource(),
-		&HierarchicalWeightedRoundRobinTaskPoolOptions[string]{
+		&HierarchicalWeightedRoundRobinTaskPoolOptions[string, *testPriorityTask]{
 			BufferSize: 200,
-			TaskToWeightedKeysFn: func(task PriorityTask) []WeightedKey[string] {
-				testTask := task.(*testPriorityTask)
+			TaskToWeightedKeysFn: func(task *testPriorityTask) []WeightedKey[string] {
 				return []WeightedKey[string]{
-					{Key: testTask.domain, Weight: domainWeights[testTask.domain]},
-					{Key: testTask.tasklist, Weight: tasklistWeights[testTask.tasklist]},
-					{Key: testTask.tenant, Weight: tenantWeights[testTask.tenant]},
+					{Key: task.domain, Weight: domainWeights[task.domain]},
+					{Key: task.tasklist, Weight: tasklistWeights[task.tasklist]},
+					{Key: task.tenant, Weight: tenantWeights[task.tenant]},
 				}
 			},
 		},
@@ -425,7 +418,7 @@ func TestHierarchicalWRRTaskPool_ThreeLevel_LargeScale_IWRROrdering(t *testing.T
 	// Create a large number of tasks across 3 levels
 	// Each (domain, tasklist) combination gets multiple tenant cycles
 	// Tenant IWRR for weights [3, 2, 1]: 6 tasks per cycle
-	var tasks []PriorityTask
+	var tasks []*testPriorityTask
 
 	// Domain1 - tasklist1A (weight 3) - 3 tenant cycles = 18 tasks
 	for cycle := 0; cycle < 3; cycle++ {
@@ -499,7 +492,7 @@ func TestHierarchicalWRRTaskPool_ThreeLevel_LargeScale_IWRROrdering(t *testing.T
 	var wg sync.WaitGroup
 	for _, task := range tasks {
 		wg.Add(1)
-		go func(t PriorityTask) {
+		go func(t *testPriorityTask) {
 			defer wg.Done()
 			if rand.Intn(2) == 0 {
 				_ = pool.Enqueue(t)
@@ -524,16 +517,15 @@ func TestHierarchicalWRRTaskPool_ThreeLevel_LargeScale_IWRROrdering(t *testing.T
 		if !ok {
 			break
 		}
-		testTask := task.(*testPriorityTask)
-		dequeuedDomains = append(dequeuedDomains, testTask.domain)
-		dequeuedTasklistsByDomain[testTask.domain] = append(
-			dequeuedTasklistsByDomain[testTask.domain],
-			testTask.tasklist,
+		dequeuedDomains = append(dequeuedDomains, task.domain)
+		dequeuedTasklistsByDomain[task.domain] = append(
+			dequeuedTasklistsByDomain[task.domain],
+			task.tasklist,
 		)
-		key := taskKey{domain: testTask.domain, tasklist: testTask.tasklist}
+		key := taskKey{domain: task.domain, tasklist: task.tasklist}
 		dequeuedTenantsByTasklist[key] = append(
 			dequeuedTenantsByTasklist[key],
-			testTask.tenant,
+			task.tenant,
 		)
 	}
 
@@ -694,12 +686,11 @@ func TestHierarchicalWRRTaskPool_TryDequeue_Empty(t *testing.T) {
 		testlogger.New(t),
 		metrics.NoopClient,
 		clock.NewMockedTimeSource(),
-		&HierarchicalWeightedRoundRobinTaskPoolOptions[string]{
+		&HierarchicalWeightedRoundRobinTaskPoolOptions[string, *testPriorityTask]{
 			BufferSize: 10,
-			TaskToWeightedKeysFn: func(task PriorityTask) []WeightedKey[string] {
-				testTask := task.(*testPriorityTask)
+			TaskToWeightedKeysFn: func(task *testPriorityTask) []WeightedKey[string] {
 				return []WeightedKey[string]{
-					{Key: testTask.domain, Weight: domainWeights[testTask.domain]},
+					{Key: task.domain, Weight: domainWeights[task.domain]},
 				}
 			},
 		},
@@ -733,16 +724,15 @@ func TestHierarchicalWRRTaskPool_TryEnqueue_BufferFull(t *testing.T) {
 	}
 
 	// Create pool with small buffer size
-	pool := newHierarchicalWeightedRoundRobinTaskPool[string](
+	pool := newHierarchicalWeightedRoundRobinTaskPool[string, *testPriorityTask](
 		testlogger.New(t),
 		metrics.NoopClient,
 		clock.NewMockedTimeSource(),
-		&HierarchicalWeightedRoundRobinTaskPoolOptions[string]{
+		&HierarchicalWeightedRoundRobinTaskPoolOptions[string, *testPriorityTask]{
 			BufferSize: 2, // Small buffer to easily fill it
-			TaskToWeightedKeysFn: func(task PriorityTask) []WeightedKey[string] {
-				testTask := task.(*testPriorityTask)
+			TaskToWeightedKeysFn: func(task *testPriorityTask) []WeightedKey[string] {
 				return []WeightedKey[string]{
-					{Key: testTask.domain, Weight: domainWeights[testTask.domain]},
+					{Key: task.domain, Weight: domainWeights[task.domain]},
 				}
 			},
 		},
@@ -781,16 +771,15 @@ func TestHierarchicalWRRTaskPool_Enqueue_ContextCancellation(t *testing.T) {
 	}
 
 	// Create pool with small buffer size
-	pool := newHierarchicalWeightedRoundRobinTaskPool[string](
+	pool := newHierarchicalWeightedRoundRobinTaskPool[string, *testPriorityTask](
 		testlogger.New(t),
 		metrics.NoopClient,
 		clock.NewMockedTimeSource(),
-		&HierarchicalWeightedRoundRobinTaskPoolOptions[string]{
+		&HierarchicalWeightedRoundRobinTaskPoolOptions[string, *testPriorityTask]{
 			BufferSize: 1, // Very small buffer
-			TaskToWeightedKeysFn: func(task PriorityTask) []WeightedKey[string] {
-				testTask := task.(*testPriorityTask)
+			TaskToWeightedKeysFn: func(task *testPriorityTask) []WeightedKey[string] {
 				return []WeightedKey[string]{
-					{Key: testTask.domain, Weight: domainWeights[testTask.domain]},
+					{Key: task.domain, Weight: domainWeights[task.domain]},
 				}
 			},
 		},
@@ -827,16 +816,15 @@ func TestHierarchicalWRRTaskPool_CleanupLoop(t *testing.T) {
 	}
 
 	timeSource := clock.NewMockedTimeSource()
-	pool := newHierarchicalWeightedRoundRobinTaskPool[string](
+	pool := newHierarchicalWeightedRoundRobinTaskPool[string, *testPriorityTask](
 		testlogger.New(t),
 		metrics.NoopClient,
 		timeSource,
-		&HierarchicalWeightedRoundRobinTaskPoolOptions[string]{
+		&HierarchicalWeightedRoundRobinTaskPoolOptions[string, *testPriorityTask]{
 			BufferSize: 10,
-			TaskToWeightedKeysFn: func(task PriorityTask) []WeightedKey[string] {
-				testTask := task.(*testPriorityTask)
+			TaskToWeightedKeysFn: func(task *testPriorityTask) []WeightedKey[string] {
 				return []WeightedKey[string]{
-					{Key: testTask.domain, Weight: domainWeights[testTask.domain]},
+					{Key: task.domain, Weight: domainWeights[task.domain]},
 				}
 			},
 		},

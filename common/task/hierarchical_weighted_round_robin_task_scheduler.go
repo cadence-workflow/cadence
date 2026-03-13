@@ -33,33 +33,33 @@ import (
 	"github.com/uber/cadence/common/metrics"
 )
 
-type hierarchicalWeightedRoundRobinTaskSchedulerImpl[K comparable] struct {
+type hierarchicalWeightedRoundRobinTaskSchedulerImpl[K comparable, T Task] struct {
 	sync.RWMutex
 
 	status       int32
-	pool         *hierarchicalWeightedRoundRobinTaskPoolImpl[K]
+	pool         *hierarchicalWeightedRoundRobinTaskPoolImpl[K, T]
 	ctx          context.Context
 	cancel       context.CancelFunc
 	notifyCh     chan struct{}
 	dispatcherWG sync.WaitGroup
 	logger       log.Logger
 	metricsScope metrics.Scope
-	options      *HierarchicalWeightedRoundRobinTaskPoolOptions[K]
+	options      *HierarchicalWeightedRoundRobinTaskPoolOptions[K, T]
 
 	processor Processor
 }
 
 // NewHierarchicalWeightedRoundRobinTaskScheduler creates a new hierarchical WRR task scheduler
-func NewHierarchicalWeightedRoundRobinTaskScheduler[K comparable](
+func NewHierarchicalWeightedRoundRobinTaskScheduler[K comparable, T Task](
 	logger log.Logger,
 	metricsClient metrics.Client,
 	timeSource clock.TimeSource,
 	processor Processor,
-	options *HierarchicalWeightedRoundRobinTaskPoolOptions[K],
-) (Scheduler, error) {
+	options *HierarchicalWeightedRoundRobinTaskPoolOptions[K, T],
+) (Scheduler[T], error) {
 	metricsScope := metricsClient.Scope(metrics.TaskSchedulerScope)
 	ctx, cancel := context.WithCancel(context.Background())
-	scheduler := &hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]{
+	scheduler := &hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]{
 		status: common.DaemonStatusInitialized,
 		pool: newHierarchicalWeightedRoundRobinTaskPool[K](
 			logger,
@@ -79,7 +79,7 @@ func NewHierarchicalWeightedRoundRobinTaskScheduler[K comparable](
 	return scheduler, nil
 }
 
-func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) Start() {
+func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) Start() {
 	if !atomic.CompareAndSwapInt32(&w.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
@@ -90,7 +90,7 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) Start() {
 	w.logger.Info("Hierarchical weighted round robin task scheduler started.")
 }
 
-func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) Stop() {
+func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) Stop() {
 	if !atomic.CompareAndSwapInt32(&w.status, common.DaemonStatusStarted, common.DaemonStatusStopped) {
 		return
 	}
@@ -107,7 +107,7 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) Stop() {
 	w.logger.Info("Hierarchical weighted round robin task scheduler stopped.")
 }
 
-func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) Submit(task PriorityTask) error {
+func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) Submit(task T) error {
 	w.metricsScope.IncCounter(metrics.PriorityTaskSubmitRequest)
 	sw := w.metricsScope.StartTimer(metrics.PriorityTaskSubmitLatency)
 	defer sw.Stop()
@@ -123,8 +123,8 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) Submit(task Priorit
 	return nil
 }
 
-func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) TrySubmit(
-	task PriorityTask,
+func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) TrySubmit(
+	task T,
 ) (bool, error) {
 	w.metricsScope.IncCounter(metrics.PriorityTaskSubmitRequest)
 	sw := w.metricsScope.StartTimer(metrics.PriorityTaskSubmitLatency)
@@ -141,7 +141,7 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) TrySubmit(
 	return ok, err
 }
 
-func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) dispatcher() {
+func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) dispatcher() {
 	defer w.dispatcherWG.Done()
 
 	for {
@@ -154,7 +154,7 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) dispatcher() {
 	}
 }
 
-func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) dispatchTasks() {
+func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) dispatchTasks() {
 	for {
 		if w.isStopped() {
 			return
@@ -170,7 +170,7 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) dispatchTasks() {
 	}
 }
 
-func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) notifyDispatcher() {
+func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) notifyDispatcher() {
 	select {
 	case w.notifyCh <- struct{}{}:
 		// sent a notification to the dispatcher
@@ -179,11 +179,11 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) notifyDispatcher() 
 	}
 }
 
-func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) isStopped() bool {
+func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) isStopped() bool {
 	return atomic.LoadInt32(&w.status) == common.DaemonStatusStopped
 }
 
-func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K]) drainAndNackTasks() {
+func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) drainAndNackTasks() {
 	for {
 		task, ok := w.pool.TryDequeue()
 		if !ok {

@@ -78,55 +78,55 @@ func (mr *MockProcessorMockRecorder) Submit(task any) *gomock.Call {
 }
 
 // MockScheduler is a mock of Scheduler interface.
-type MockScheduler struct {
+type MockScheduler[T Task] struct {
 	ctrl     *gomock.Controller
-	recorder *MockSchedulerMockRecorder
+	recorder *MockSchedulerMockRecorder[T]
 	isgomock struct{}
 }
 
 // MockSchedulerMockRecorder is the mock recorder for MockScheduler.
-type MockSchedulerMockRecorder struct {
-	mock *MockScheduler
+type MockSchedulerMockRecorder[T Task] struct {
+	mock *MockScheduler[T]
 }
 
 // NewMockScheduler creates a new mock instance.
-func NewMockScheduler(ctrl *gomock.Controller) *MockScheduler {
-	mock := &MockScheduler{ctrl: ctrl}
-	mock.recorder = &MockSchedulerMockRecorder{mock}
+func NewMockScheduler[T Task](ctrl *gomock.Controller) *MockScheduler[T] {
+	mock := &MockScheduler[T]{ctrl: ctrl}
+	mock.recorder = &MockSchedulerMockRecorder[T]{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockScheduler) EXPECT() *MockSchedulerMockRecorder {
+func (m *MockScheduler[T]) EXPECT() *MockSchedulerMockRecorder[T] {
 	return m.recorder
 }
 
 // Start mocks base method.
-func (m *MockScheduler) Start() {
+func (m *MockScheduler[T]) Start() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Start")
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockSchedulerMockRecorder) Start() *gomock.Call {
+func (mr *MockSchedulerMockRecorder[T]) Start() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockScheduler)(nil).Start))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockScheduler[T])(nil).Start))
 }
 
 // Stop mocks base method.
-func (m *MockScheduler) Stop() {
+func (m *MockScheduler[T]) Stop() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Stop")
 }
 
 // Stop indicates an expected call of Stop.
-func (mr *MockSchedulerMockRecorder) Stop() *gomock.Call {
+func (mr *MockSchedulerMockRecorder[T]) Stop() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockScheduler)(nil).Stop))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockScheduler[T])(nil).Stop))
 }
 
 // Submit mocks base method.
-func (m *MockScheduler) Submit(task PriorityTask) error {
+func (m *MockScheduler[T]) Submit(task T) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Submit", task)
 	ret0, _ := ret[0].(error)
@@ -134,13 +134,13 @@ func (m *MockScheduler) Submit(task PriorityTask) error {
 }
 
 // Submit indicates an expected call of Submit.
-func (mr *MockSchedulerMockRecorder) Submit(task any) *gomock.Call {
+func (mr *MockSchedulerMockRecorder[T]) Submit(task any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Submit", reflect.TypeOf((*MockScheduler)(nil).Submit), task)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Submit", reflect.TypeOf((*MockScheduler[T])(nil).Submit), task)
 }
 
 // TrySubmit mocks base method.
-func (m *MockScheduler) TrySubmit(task PriorityTask) (bool, error) {
+func (m *MockScheduler[T]) TrySubmit(task T) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TrySubmit", task)
 	ret0, _ := ret[0].(bool)
@@ -149,9 +149,9 @@ func (m *MockScheduler) TrySubmit(task PriorityTask) (bool, error) {
 }
 
 // TrySubmit indicates an expected call of TrySubmit.
-func (mr *MockSchedulerMockRecorder) TrySubmit(task any) *gomock.Call {
+func (mr *MockSchedulerMockRecorder[T]) TrySubmit(task any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TrySubmit", reflect.TypeOf((*MockScheduler)(nil).TrySubmit), task)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TrySubmit", reflect.TypeOf((*MockScheduler[T])(nil).TrySubmit), task)
 }
 
 // MockTask is a mock of Task interface.

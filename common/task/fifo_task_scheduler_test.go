@@ -46,7 +46,7 @@ type (
 
 		queueSize int
 
-		scheduler *fifoTaskSchedulerImpl
+		scheduler *fifoTaskSchedulerImpl[PriorityTask]
 	}
 )
 
@@ -62,7 +62,7 @@ func (s *fifoTaskSchedulerSuite) SetupTest() {
 	s.mockProcessor = NewMockProcessor(s.controller)
 
 	s.queueSize = 2
-	s.scheduler = NewFIFOTaskScheduler(
+	s.scheduler = NewFIFOTaskScheduler[PriorityTask](
 		testlogger.New(s.Suite.T()),
 		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
 		&FIFOTaskSchedulerOptions{
@@ -71,7 +71,7 @@ func (s *fifoTaskSchedulerSuite) SetupTest() {
 			DispatcherCount: 1,
 			RetryPolicy:     backoff.NewExponentialRetryPolicy(time.Millisecond),
 		},
-	).(*fifoTaskSchedulerImpl)
+	).(*fifoTaskSchedulerImpl[PriorityTask])
 }
 
 func (s *fifoTaskSchedulerSuite) TearDownTest() {

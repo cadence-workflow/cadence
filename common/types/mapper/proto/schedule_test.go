@@ -314,3 +314,64 @@ func TestBackfillScheduleRequestFuzz(t *testing.T) {
 		WithScheduleEnumFuzzers(),
 	)
 }
+
+func TestCreateScheduleResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCreateScheduleResponse, ToCreateScheduleResponse,
+		WithScheduleEnumFuzzers(),
+	)
+}
+
+func TestDeleteScheduleResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDeleteScheduleResponse, ToDeleteScheduleResponse,
+		WithScheduleEnumFuzzers(),
+	)
+}
+
+func TestScheduleCatchUpPolicyFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromScheduleCatchUpPolicy, ToScheduleCatchUpPolicy,
+		WithScheduleEnumFuzzers(),
+	)
+}
+
+func TestScheduleOverlapPolicyFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t,
+		FromScheduleOverlapPolicy, ToScheduleOverlapPolicy,
+		WithScheduleEnumFuzzers(),
+	)
+}
+
+func TestScheduleListEntryArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromScheduleListEntryArray, ToScheduleListEntryArray,
+		WithScheduleEnumFuzzers(),
+	)
+}
+
+func TestUpdateScheduleResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromUpdateScheduleResponse, ToUpdateScheduleResponse,
+		WithScheduleEnumFuzzers(),
+	)
+}
+
+func TestBackfillScheduleResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromBackfillScheduleResponse, ToBackfillScheduleResponse,
+		WithScheduleEnumFuzzers(),
+	)
+}
+
+func TestPauseScheduleResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPauseScheduleResponse, ToPauseScheduleResponse,
+		WithScheduleEnumFuzzers(),
+	)
+}
+
+func TestUnpauseScheduleResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromUnpauseScheduleResponse, ToUnpauseScheduleResponse,
+		WithScheduleEnumFuzzers(),
+	)
+}
+
+func TestBackfillInfoArrayFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromBackfillInfoArray, ToBackfillInfoArray,
+		WithScheduleEnumFuzzers(),
+	)
+}
