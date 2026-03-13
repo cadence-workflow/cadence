@@ -987,9 +987,6 @@ func TestAdminUpdateTaskListPartitionConfigResponse(t *testing.T) {
 	}
 }
 
-// Fuzz tests generated for comprehensive mapper coverage
-// Uses testutils.RunMapperFuzzTest for simple, maintainable tests
-
 func TestAdminCloseShardRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminCloseShardRequest, ToAdminCloseShardRequest)
 }
@@ -1001,17 +998,7 @@ func TestAdminResetQueueRequestFuzz(t *testing.T) {
 			// as both shardID and type have the same type signature.
 			c.Fuzz(e)
 
-			// valid values are 0, 2-5, nil
-			// TaskType is valid when:
-			// - nil (will be mapped to invalid and then back to nil)
-			// - 2-5 (valid TaskType values)
-			// - 0 will be mapped back to nil which is assymetric
-			if e.Type != nil {
-				// valid values are 2-5
-				if *e.Type != 0 {
-					e.Type = common.Int32Ptr(int32(2 + c.Intn(4)))
-				}
-			}
+			TaskTypeFuzzer(e.Type, c)
 		}),
 	)
 }
@@ -1052,20 +1039,9 @@ func TestAdminReapplyEventsRequestFuzz(t *testing.T) {
 }
 
 func TestAdminRespondCrossClusterTasksCompletedRequestFuzz(t *testing.T) {
-	// TODO(c-warren): Figure this one out
-	// [BUG] CrossClusterTaskResponse has multiple issues:
-	// 1. TaskType/FailedCause are pointer-to-enum, invalid values map to nil
-	// 2. Response attributes (StartChildExecutionAttributes, etc.) form a oneof based on TaskType
-	//    Invalid TaskType causes all oneof attributes to be cleared
 	testutils.RunMapperFuzzTest(t, FromAdminRespondCrossClusterTasksCompletedRequest, ToAdminRespondCrossClusterTasksCompletedRequest,
 		testutils.WithExcludedFields(
-			"TaskType",
-			"FailedCause",
-			"StartChildExecutionAttributes",
-			"CancelExecutionAttributes",
-			"SignalExecutionAttributes",
-			"RecordChildWorkflowExecutionCompleteAttributes",
-			"ApplyParentClosePolicyAttributes",
+			"TaskResponses", // Excluded and tested in TestFromCrossClusterTaskResponseFuzz in shared
 		),
 	)
 }
@@ -1088,16 +1064,6 @@ func TestAdminDescribeHistoryHostRequestFuzz(t *testing.T) {
 	)
 }
 
-func TestAdminGetReplicationMessagesResponseFuzz(t *testing.T) {
-	// TODO(c-warren): Replication tasks is in shared.go, and we can fuzz test the type there instead
-	// [BUG] ReplicationTask has complex oneof structure with TaskType (pointer-to-enum)
-	// and multiple attribute fields. Fuzzer generates invalid combinations that don't round-trip.
-	// Excluding entire MessagesByShard map which contains ReplicationMessages with ReplicationTasks.
-	testutils.RunMapperFuzzTest(t, FromAdminGetReplicationMessagesResponse, ToAdminGetReplicationMessagesResponse,
-		testutils.WithExcludedFields("MessagesByShard"),
-	)
-}
-
 func TestAdminGetWorkflowExecutionRawHistoryV2ResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminGetWorkflowExecutionRawHistoryV2Response, ToAdminGetWorkflowExecutionRawHistoryV2Response,
 		testutils.WithCustomFuncs(testutils.EncodingTypeFuzzer),
@@ -1105,20 +1071,24 @@ func TestAdminGetWorkflowExecutionRawHistoryV2ResponseFuzz(t *testing.T) {
 }
 
 func TestAdminRemoveTaskRequestFuzz(t *testing.T) {
-	// [BUG] Type field is *int32 (pointer-to-enum TaskType)
-	// TODO(c-warren): TaskType is an int32 so we can't make a generic fuzzer for it
-	// Figure out what to do there
 	testutils.RunMapperFuzzTest(t, FromAdminRemoveTaskRequest, ToAdminRemoveTaskRequest,
-		testutils.WithExcludedFields("Type"),
+		testutils.WithCustomFuncs(func(e *types.RemoveTaskRequest, c fuzz.Continue) {
+			c.Fuzz(e)
+			if e.Type != nil {
+				e.Type = common.Int32Ptr(int32(c.Intn(5)))
+			}
+		}),
 	)
 }
 
 func TestAdminResendReplicationTasksRequestFuzz(t *testing.T) {
-	// [BUG] EventIDVersionPair mapping: if EndEventID is set but EndVersion is nil (or vice versa),
-	// the pair doesn't round-trip correctly. Both must be set or both nil.
-	// Same issue with StartEventID/StartVersion.
+	// [BUG] When ID or Version is nil for a given pair round-trip serialization fails. This is a mapper bug - should handle errors gracefully.
 	testutils.RunMapperFuzzTest(t, FromAdminResendReplicationTasksRequest, ToAdminResendReplicationTasksRequest,
-		testutils.WithCustomFuncs(ResendReplicationTasksRequestFuzzer),
+		testutils.WithCustomFuncs(func(r *types.ResendReplicationTasksRequest, c fuzz.Continue) {
+			c.FuzzNoCustom(r)
+			r.StartEventID, r.StartVersion = EventIDVersionPairFuzzer(c)
+			r.EndEventID, r.EndVersion = EventIDVersionPairFuzzer(c)
+		}),
 	)
 }
 
@@ -1128,16 +1098,6 @@ func TestAdminAddSearchAttributeRequestFuzz(t *testing.T) {
 
 func TestAdminDescribeClusterResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminDescribeClusterResponse, ToAdminDescribeClusterResponse)
-}
-
-func TestAdminGetCrossClusterTasksResponseFuzz(t *testing.T) {
-	// [BUG] CrossClusterTaskRequest has complex oneof structure that causes nil pointer panics
-	// in FromCrossClusterApplyParentClosePolicyRequestAttributes when fuzzer generates invalid data.
-	// Excluding entire TasksByShard map to avoid mapper panics.
-	testutils.RunMapperFuzzTest(t, FromAdminGetCrossClusterTasksResponse, ToAdminGetCrossClusterTasksResponse,
-		testutils.WithExcludedFields("TasksByShard"),
-		testutils.WithCustomFuncs(testutils.GetTaskFailedCauseFuzzer),
-	)
 }
 
 func TestAdminGetDynamicConfigResponseFuzz(t *testing.T) {
@@ -1168,8 +1128,15 @@ func TestAdminDescribeWorkflowExecutionResponseFuzz(t *testing.T) {
 	// which panics on invalid strings. This is a mapper bug - should handle errors gracefully.
 	// Using custom fuzzer to ensure ShardID is a valid int32 string or empty.
 	testutils.RunMapperFuzzTest(t, FromAdminDescribeWorkflowExecutionResponse, ToAdminDescribeWorkflowExecutionResponse,
-		testutils.WithCustomFuncs(DescribeWorkflowExecutionResponseFuzzer),
-		testutils.WithCustomFuncs(testutils.EncodingTypeFuzzer),
+		testutils.WithCustomFuncs(
+			func(r *types.AdminDescribeWorkflowExecutionResponse, c fuzz.Continue) {
+				c.FuzzNoCustom(r)
+
+				// Always generate a valid ShardID (int32 as string) to avoid stringToInt32 panics
+				shardID := c.Int31()
+				r.ShardID = fmt.Sprintf("%d", shardID)
+			},
+			testutils.EncodingTypeFuzzer),
 	)
 }
 
@@ -1183,13 +1150,6 @@ func TestAdminMergeDLQMessagesRequestFuzz(t *testing.T) {
 	)
 }
 
-func TestAdminGetDLQReplicationMessagesResponseFuzz(t *testing.T) {
-	// Same as GetReplicationMessagesResponse - has complex ReplicationTasks
-	testutils.RunMapperFuzzTest(t, FromAdminGetDLQReplicationMessagesResponse, ToAdminGetDLQReplicationMessagesResponse,
-		testutils.WithExcludedFields("ReplicationTasks"),
-	)
-}
-
 func TestAdminGetReplicationMessagesRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminGetReplicationMessagesRequest, ToAdminGetReplicationMessagesRequest)
 }
@@ -1197,14 +1157,6 @@ func TestAdminGetReplicationMessagesRequestFuzz(t *testing.T) {
 func TestAdminListDynamicConfigResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminListDynamicConfigResponse, ToAdminListDynamicConfigResponse,
 		testutils.WithCustomFuncs(testutils.EncodingTypeFuzzer),
-	)
-}
-
-func TestAdminUpdateGlobalIsolationGroupsRequestFuzz(t *testing.T) {
-	// [BUG] IsolationGroups map keys are normalized during round-trip causing map size changes
-	// Excluding IsolationGroups field to avoid non-deterministic map key handling
-	testutils.RunMapperFuzzTest(t, FromAdminUpdateGlobalIsolationGroupsRequest, ToAdminUpdateGlobalIsolationGroupsRequest,
-		testutils.WithExcludedFields("IsolationGroups"),
 	)
 }
 
@@ -1224,20 +1176,14 @@ func TestAdminDescribeHistoryHostResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminDescribeHistoryHostResponse, ToAdminDescribeHistoryHostResponse)
 }
 
-func TestAdminGetDomainReplicationMessagesResponseFuzz(t *testing.T) {
-	// Has ReplicationTasks like GetReplicationMessagesResponse
-	testutils.RunMapperFuzzTest(t, FromAdminGetDomainReplicationMessagesResponse, ToAdminGetDomainReplicationMessagesResponse,
-		testutils.WithExcludedFields("ReplicationTasks"),
-	)
-}
-
 func TestAdminGetWorkflowExecutionRawHistoryV2RequestFuzz(t *testing.T) {
-	// TODO(c-warren): StartEvent/EndEvent should be fuzzable, check this
-	// [BUG] Event ID and Version fields have complex conditional nil handling during round-trip
-	// When some fields are nil, others are also set to nil in a non-deterministic way
-	// Excluding all event-related fields to avoid conditional nil handling
+	// [BUG] When ID or Version is nil for a given pair round-trip serialization fails. This is a mapper bug - should handle errors gracefully.
 	testutils.RunMapperFuzzTest(t, FromAdminGetWorkflowExecutionRawHistoryV2Request, ToAdminGetWorkflowExecutionRawHistoryV2Request,
-		testutils.WithExcludedFields("StartEventID", "StartEventVersion", "EndEventID", "EndEventVersion"),
+		testutils.WithCustomFuncs(func(r *types.GetWorkflowExecutionRawHistoryV2Request, c fuzz.Continue) {
+			c.FuzzNoCustom(r)
+			r.StartEventID, r.StartEventVersion = EventIDVersionPairFuzzer(c)
+			r.EndEventID, r.EndEventVersion = EventIDVersionPairFuzzer(c)
+		}),
 	)
 }
 
@@ -1254,13 +1200,6 @@ func TestAdminDeleteWorkflowRequestFuzz(t *testing.T) {
 	)
 }
 
-func TestAdminRespondCrossClusterTasksCompletedResponseFuzz(t *testing.T) {
-	// Same issue as Request - CrossClusterTaskRequest has complex oneof that causes panics
-	testutils.RunMapperFuzzTest(t, FromAdminRespondCrossClusterTasksCompletedResponse, ToAdminRespondCrossClusterTasksCompletedResponse,
-		testutils.WithExcludedFields("Tasks"),
-	)
-}
-
 func TestDynamicConfigEntryFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromDynamicConfigEntry, ToDynamicConfigEntry, testutils.WithCustomFuncs(testutils.EncodingTypeFuzzer))
 }
@@ -1274,9 +1213,8 @@ func TestAdminDescribeQueueResponseFuzz(t *testing.T) {
 }
 
 func TestAdminReadDLQMessagesResponseFuzz(t *testing.T) {
-	// Has ReplicationTasks like other DLQ responses
 	testutils.RunMapperFuzzTest(t, FromAdminReadDLQMessagesResponse, ToAdminReadDLQMessagesResponse,
-		testutils.WithExcludedFields("ReplicationTasks"),
+		testutils.WithExcludedFields("ReplicationTasks"), // TODO(c-warren): Test ReplicationTasks in shared_test.go
 		testutils.WithCustomFuncs(DLQTypeFuzzer),
 	)
 }
@@ -1295,11 +1233,6 @@ func TestAdminCountDLQMessagesRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminCountDLQMessagesRequest, ToAdminCountDLQMessagesRequest)
 }
 
-func TestIsolationGroupConfigFuzz(t *testing.T) {
-	t.Skip("TODO(c-warren): This is a map so fuzzing is going to be tricky")
-	testutils.RunMapperFuzzTest(t, FromIsolationGroupConfig, ToIsolationGroupConfig)
-}
-
 func TestAdminUpdateDomainAsyncWorkflowConfiguratonRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminUpdateDomainAsyncWorkflowConfiguratonRequest, ToAdminUpdateDomainAsyncWorkflowConfiguratonRequest,
 		testutils.WithCustomFuncs(testutils.EncodingTypeFuzzer),
@@ -1307,11 +1240,11 @@ func TestAdminUpdateDomainAsyncWorkflowConfiguratonRequestFuzz(t *testing.T) {
 }
 
 func TestAdminDescribeQueueRequestFuzz(t *testing.T) {
-	// TODO(c-warren): TaskType is an int32, figure out how to fuzz this
-	// [BUG] Type field (pointer-to-int32 for TaskType enum) maps invalid values to nil
-	// Excluding Type field to avoid pointer-to-enum mapping issue
 	testutils.RunMapperFuzzTest(t, FromAdminDescribeQueueRequest, ToAdminDescribeQueueRequest,
-		testutils.WithExcludedFields("Type"),
+		testutils.WithCustomFuncs(func(r *types.DescribeQueueRequest, c fuzz.Continue) {
+			c.FuzzNoCustom(r)
+			TaskTypeFuzzer(r.Type, c)
+		}),
 	)
 }
 
@@ -1359,7 +1292,7 @@ func TestAdminUpdateDomainIsolationGroupsRequestFuzz(t *testing.T) {
 	// [BUG] IsolationGroups map keys are normalized during round-trip causing map size changes
 	// Excluding IsolationGroups field to avoid non-deterministic map key handling
 	testutils.RunMapperFuzzTest(t, FromAdminUpdateDomainIsolationGroupsRequest, ToAdminUpdateDomainIsolationGroupsRequest,
-		testutils.WithExcludedFields("IsolationGroups"),
+		testutils.WithExcludedFields("IsolationGroups"), // IsolationGroups rely on testdata testing
 	)
 }
 
@@ -1367,7 +1300,7 @@ func TestAdminGetDomainIsolationGroupsResponseFuzz(t *testing.T) {
 	// [BUG] IsolationGroups map keys are normalized during round-trip causing map size changes
 	// Excluding IsolationGroups field to avoid non-deterministic map key handling
 	testutils.RunMapperFuzzTest(t, FromAdminGetDomainIsolationGroupsResponse, ToAdminGetDomainIsolationGroupsResponse,
-		testutils.WithExcludedFields("IsolationGroups"),
+		testutils.WithExcludedFields("IsolationGroups"), // IsolationGroups rely on testdata testing
 	)
 }
 
@@ -1475,4 +1408,23 @@ func DescribeWorkflowExecutionResponseFuzzer(r *types.AdminDescribeWorkflowExecu
 
 func DLQTypeFuzzer(e *types.DLQType, c fuzz.Continue) {
 	*e = types.DLQType(c.Intn(2)) // 0-1: Replication, Domain
+}
+
+func EventIDVersionPairFuzzer(c fuzz.Continue) (*int64, *int64) {
+	id := c.Int63()
+	ver := c.Int63()
+	return &id, &ver
+}
+
+func TaskTypeFuzzer(e *int32, c fuzz.Continue) {
+	// TaskType internal constant values (from common/constants/constants.go):
+	// 2: TaskTypeTransfer
+	// 3: TaskTypeTimer
+	// 4: TaskTypeReplication
+	// 6: TaskTypeCrossCluster (deprecated but still valid)
+	if e != nil && *e != 0 {
+		// Generate one of the valid constant values: 2, 3, 4, or 6
+		validValues := []int32{2, 3, 4, 6}
+		*e = validValues[c.Intn(len(validValues))]
+	}
 }

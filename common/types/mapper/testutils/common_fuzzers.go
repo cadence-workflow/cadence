@@ -69,3 +69,11 @@ func IsolationGroupStateFuzzer(e *types.IsolationGroupState, c fuzz.Continue) {
 func GetTaskFailedCauseFuzzer(e *types.GetTaskFailedCause, c fuzz.Continue) {
 	*e = types.GetTaskFailedCause(c.Intn(4)) // 0-3: ServiceBusy, Timeout, ShardOwnershipLost, Uncategorized
 }
+
+func CrossClusterTaskFailedCauseFuzzer(e *types.CrossClusterTaskFailedCause, c fuzz.Continue) {
+	*e = types.CrossClusterTaskFailedCause(c.Intn(6)) // 0-5: DomainNotActive, DomainNotExists, WorkflowAlreadyRunning, WorkflowNotExists, WorkflowAlreadyCompleted, Uncategorized
+}
+
+func CrossClusterTaskTypeFuzzer(e *types.CrossClusterTaskType, c fuzz.Continue) {
+	*e = types.CrossClusterTaskType(c.Intn(5)) // 0-4: StartChildExecution, CancelExecution, SignalExecution, RecordChildWorkflowExecutionComplete, ApplyParentClosePolicy
+}
