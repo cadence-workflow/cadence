@@ -30,7 +30,6 @@ import (
 	adminv1 "github.com/uber/cadence-idl/go/proto/admin/v1"
 	v1 "github.com/uber/cadence-idl/go/proto/api/v1"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
@@ -1074,9 +1073,7 @@ func TestAdminRemoveTaskRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminRemoveTaskRequest, ToAdminRemoveTaskRequest,
 		testutils.WithCustomFuncs(func(e *types.RemoveTaskRequest, c fuzz.Continue) {
 			c.Fuzz(e)
-			if e.Type != nil {
-				e.Type = common.Int32Ptr(int32(c.Intn(5)))
-			}
+			TaskTypeFuzzer(e.Type, c)
 		}),
 	)
 }
@@ -1354,23 +1351,6 @@ func DescribeHistoryHostRequestFuzzer(r *types.DescribeHistoryHostRequest, c fuz
 		r.HostAddress = nil
 		r.ShardIDForHost = nil
 	}
-}
-
-// ResendReplicationTasksRequestFuzzer ensures EventID/Version pairs are both set or both nil
-func ResendReplicationTasksRequestFuzzer(r *types.ResendReplicationTasksRequest, c fuzz.Continue) {
-	c.FuzzNoCustom(r)
-
-	r.StartEventID, r.StartVersion = EventIDVersionPairFuzzer(c)
-	r.EndEventID, r.EndVersion = EventIDVersionPairFuzzer(c)
-}
-
-// DescribeWorkflowExecutionResponseFuzzer ensures ShardID is a valid int32 string
-func DescribeWorkflowExecutionResponseFuzzer(r *types.AdminDescribeWorkflowExecutionResponse, c fuzz.Continue) {
-	c.FuzzNoCustom(r)
-
-	// Always generate a valid ShardID (int32 as string) to avoid stringToInt32 panics
-	shardID := c.Int31()
-	r.ShardID = fmt.Sprintf("%d", shardID)
 }
 
 func DLQTypeFuzzer(e *types.DLQType, c fuzz.Continue) {

@@ -58,10 +58,6 @@ func EncodingTypeFuzzer(e *types.EncodingType, c fuzz.Continue) {
 	*e = types.EncodingType(c.Intn(2)) // 0-1: ThriftRW, JSON
 }
 
-func DLQTypeFuzzer(e *types.DLQType, c fuzz.Continue) {
-	*e = types.DLQType(c.Intn(2)) // 0-1: Replication, Domain
-}
-
 func IsolationGroupStateFuzzer(e *types.IsolationGroupState, c fuzz.Continue) {
 	*e = types.IsolationGroupState(c.Intn(3)) // 0-2: Invalid, Healthy, Drained
 }
