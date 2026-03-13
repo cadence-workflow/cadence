@@ -25,13 +25,13 @@ import (
 )
 
 // WeightedRoundRobinTaskSchedulerOptions configs WRR task scheduler
-type WeightedRoundRobinTaskSchedulerOptions[K comparable] struct {
+type WeightedRoundRobinTaskSchedulerOptions[K comparable, T Task] struct {
 	QueueSize            int
 	DispatcherCount      int
-	TaskToChannelKeyFn   func(PriorityTask) K
+	TaskToChannelKeyFn   func(T) K
 	ChannelKeyToWeightFn func(K) int
 }
 
-func (o *WeightedRoundRobinTaskSchedulerOptions[K]) String() string {
+func (o *WeightedRoundRobinTaskSchedulerOptions[K, T]) String() string {
 	return fmt.Sprintf("{QueueSize: %v, DispatcherCount: %v}", o.QueueSize, o.DispatcherCount)
 }

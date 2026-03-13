@@ -47,7 +47,7 @@ type processorImpl struct {
 
 	priorityAssigner PriorityAssigner
 	taskProcessor    task.Processor
-	scheduler        task.Scheduler
+	scheduler        task.Scheduler[Task]
 
 	status        int32
 	logger        log.Logger
@@ -81,20 +81,15 @@ func NewProcessor(
 			RetryPolicy: common.CreateTaskProcessingRetryPolicy(),
 		},
 	)
-	var scheduler task.Scheduler
+	var scheduler task.Scheduler[Task]
 	var err error
 	if config.EnableHierarchicalWeightedRoundRobinTaskScheduler() {
-		taskToWeightedKeysFn := func(t task.PriorityTask) []task.WeightedKey[any] {
+		taskToWeightedKeysFn := func(t Task) []task.WeightedKey[any] {
 			var domainID, taskList string
-			tt, ok := t.(Task)
-			if ok {
-				domainID = tt.GetDomainID()
-				taskList = tt.GetOriginalTaskList()
-				if tt.GetOriginalTaskListKind() == types.TaskListKindEphemeral {
-					taskList = ephemeralTaskListGroupKey
-				}
-			} else {
-				logger.Error("incorrect task type for task scheduler, this should not happen, there must be a bug in our code")
+			domainID = t.GetDomainID()
+			taskList = t.GetOriginalTaskList()
+			if t.GetOriginalTaskListKind() == types.TaskListKindEphemeral {
+				taskList = ephemeralTaskListGroupKey
 			}
 			key := DomainPriorityKey{
 				DomainID: domainID,
@@ -129,7 +124,7 @@ func NewProcessor(
 			metricsClient,
 			timeSource,
 			taskProcessor,
-			&task.HierarchicalWeightedRoundRobinTaskPoolOptions[any]{
+			&task.HierarchicalWeightedRoundRobinTaskPoolOptions[any, Task]{
 				BufferSize:           config.TaskSchedulerQueueSize(),
 				TaskToWeightedKeysFn: taskToWeightedKeysFn,
 			},
@@ -138,14 +133,9 @@ func NewProcessor(
 			return nil, err
 		}
 	} else {
-		taskToChannelKeyFn := func(t task.PriorityTask) DomainPriorityKey {
+		taskToChannelKeyFn := func(t Task) DomainPriorityKey {
 			var domainID string
-			tt, ok := t.(Task)
-			if ok {
-				domainID = tt.GetDomainID()
-			} else {
-				logger.Error("incorrect task type for task scheduler, this should not happen, there must be a bug in our code")
-			}
+			domainID = t.GetDomainID()
 			return DomainPriorityKey{
 				DomainID: domainID,
 				Priority: t.Priority(),
@@ -159,7 +149,7 @@ func NewProcessor(
 			metricsClient,
 			timeSource,
 			taskProcessor,
-			&task.WeightedRoundRobinTaskSchedulerOptions[DomainPriorityKey]{
+			&task.WeightedRoundRobinTaskSchedulerOptions[DomainPriorityKey, Task]{
 				QueueSize:            config.TaskSchedulerQueueSize(),
 				DispatcherCount:      config.TaskSchedulerDispatcherCount(),
 				TaskToChannelKeyFn:   taskToChannelKeyFn,
