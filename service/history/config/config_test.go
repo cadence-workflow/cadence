@@ -137,6 +137,7 @@ func TestNewConfig(t *testing.T) {
 		"TimerProcessorSplitQueueIntervalJitterCoefficient":    {dynamicproperties.TimerProcessorSplitQueueIntervalJitterCoefficient, 4.0},
 		"TimerProcessorMaxRedispatchQueueSize":                 {dynamicproperties.TimerProcessorMaxRedispatchQueueSize, 45},
 		"TimerProcessorMaxTimeShift":                           {dynamicproperties.TimerProcessorMaxTimeShift, time.Second},
+		"TimerProcessorInMemoryQueueMaxTimeShift":              {dynamicproperties.TimerProcessorInMemoryQueueMaxTimeShift, time.Duration(0)},
 		"TimerProcessorHistoryArchivalSizeLimit":               {dynamicproperties.TimerProcessorHistoryArchivalSizeLimit, 46},
 		"TimerProcessorArchivalTimeLimit":                      {dynamicproperties.TimerProcessorArchivalTimeLimit, time.Second},
 		"TransferTaskBatchSize":                                {dynamicproperties.TransferTaskBatchSize, 47},
