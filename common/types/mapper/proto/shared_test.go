@@ -441,3 +441,61 @@ func TestAny(t *testing.T) {
 		assert.Equal(t, orig, &outOrig, "final round-tripped Any-contained data should be identical to the original object")
 	})
 }
+
+func TestFromCrossClusterTaskResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCrossClusterTaskResponse, ToCrossClusterTaskResponse,
+		testutils.WithCustomFuncs(
+			CrossClusterTaskResponseFuzzer,
+			testutils.CrossClusterTaskTypeFuzzer,
+			testutils.CrossClusterTaskFailedCauseFuzzer,
+		),
+	)
+}
+
+// CrossClusterTaskResponseFuzzer ensures only one attribute field is set based on TaskType (oneof constraint)
+func CrossClusterTaskResponseFuzzer(r *types.CrossClusterTaskResponse, c fuzz.Continue) {
+	c.FuzzNoCustom(r)
+
+	// Ensure TaskType is set to a valid value (0-4) using the enum fuzzer
+	if r.TaskType == nil {
+		var taskType types.CrossClusterTaskType
+		testutils.CrossClusterTaskTypeFuzzer(&taskType, c)
+		r.TaskType = &taskType
+	} else {
+		testutils.CrossClusterTaskTypeFuzzer(r.TaskType, c)
+	}
+
+	// Ensure FailedCause is valid if set (0-5) using the enum fuzzer
+	if r.FailedCause != nil {
+		testutils.CrossClusterTaskFailedCauseFuzzer(r.FailedCause, c)
+	}
+
+	// Based on TaskType, clear all attributes except the matching one
+	switch *r.TaskType {
+	case 0: // StartChildExecution
+		r.CancelExecutionAttributes = nil
+		r.SignalExecutionAttributes = nil
+		r.RecordChildWorkflowExecutionCompleteAttributes = nil
+		r.ApplyParentClosePolicyAttributes = nil
+	case 1: // CancelExecution
+		r.StartChildExecutionAttributes = nil
+		r.SignalExecutionAttributes = nil
+		r.RecordChildWorkflowExecutionCompleteAttributes = nil
+		r.ApplyParentClosePolicyAttributes = nil
+	case 2: // SignalExecution
+		r.StartChildExecutionAttributes = nil
+		r.CancelExecutionAttributes = nil
+		r.RecordChildWorkflowExecutionCompleteAttributes = nil
+		r.ApplyParentClosePolicyAttributes = nil
+	case 3: // RecordChildWorkflowExecutionComplete
+		r.StartChildExecutionAttributes = nil
+		r.CancelExecutionAttributes = nil
+		r.SignalExecutionAttributes = nil
+		r.ApplyParentClosePolicyAttributes = nil
+	case 4: // ApplyParentClosePolicy
+		r.StartChildExecutionAttributes = nil
+		r.CancelExecutionAttributes = nil
+		r.SignalExecutionAttributes = nil
+		r.RecordChildWorkflowExecutionCompleteAttributes = nil
+	}
+}
