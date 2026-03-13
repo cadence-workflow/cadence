@@ -128,6 +128,7 @@ FRESH_ALL_SRC = $(shell \
 		-o -path './.build/*' \
 		-o -path './.bin/*' \
 		-o -path './.git/*' \
+		-o -path './.worktrees/*' \
 	\) \
 	-prune \
 	-o -name '*.go' \
@@ -225,10 +226,10 @@ $(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
 
 # https://docs.buf.build/
 # changing BUF_VERSION will automatically download and use the specified version.
-BUF_VERSION = 0.36.0
+BUF_VERSION = 1.47.2
 OS = $(shell uname -s)
 ARCH = $(shell $(EMULATE_X86) uname -m)
-BUF_URL = https://github.com/bufbuild/buf/releases/download/v$(BUF_VERSION)/buf-$(OS)-$(ARCH)
+BUF_URL = https://github.com/bufbuild/buf/releases/download/v$(BUF_VERSION)/buf-$(OS)-$(shell uname -m)
 # use BUF_VERSION_BIN as a bin prerequisite, not "buf", so the correct version will be used.
 # otherwise this must be a .PHONY rule, or the buf bin / symlink could become out of date.
 BUF_VERSION_BIN = buf-$(BUF_VERSION)
@@ -379,7 +380,7 @@ $(BUILD)/gomod-lint: go.mod internal/tools/go.mod common/archiver/gcloud/go.mod 
 	$Q echo "checking for direct submodule dependencies in root go.mod..."
 	$Q ( \
 		MAIN_MODULE=$$(grep "^module " go.mod | awk '{print $$2}'); \
-		SUBMODULES=$$(find . -type f -name "go.mod" -not -path "./go.mod" -not -path "./idls/*" -exec dirname {} \; | sed 's|^\./||'); \
+		SUBMODULES=$$(find . -type f -name "go.mod" -not -path "./go.mod" -not -path "./idls/*" -not -path "./.worktrees/*" -exec dirname {} \; | sed 's|^\./||'); \
 		for submodule in $$SUBMODULES; do \
 			submodule_path="$$MAIN_MODULE/$$submodule"; \
 			if grep -q "$$submodule_path" go.mod; then \
@@ -399,7 +400,7 @@ $(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive $(BIN)/nilaway | $(BUILD)
 	$Q go vet -copylocks ./... ./common/archiver/gcloud/...
 	$Q $(BIN)/revive -config revive.toml -exclude './vendor/...' -exclude './.gen/...' -formatter stylish ./...
 	$Q # look for go files with "//comments", and ignore "//go:build"-style directives ("grep -n" shows "file:line: //go:build" so the regex is a bit complex)
-	$Q bad="$$(find . -type f -name '*.go' -not -path './idls/*' | xargs grep -n -E '^\s*//\S' | grep -E -v '^[^:]+:[^:]+:\s*//[a-z]+:[a-z]+' || true)"; \
+	$Q bad="$$(find . -type f -name '*.go' -not -path './idls/*' -not -path './.worktrees/*' | xargs grep -n -E '^\s*//\S' | grep -E -v '^[^:]+:[^:]+:\s*//[a-z]+:[a-z]+' || true)"; \
 		if [ -n "$$bad" ]; then \
 		  echo "$$bad" >&2; \
 		  echo 'non-directive comments must have a space after the "//"' >&2; \
@@ -432,9 +433,9 @@ MAYBE_TOUCH_COPYRIGHT=
 $(BUILD)/fmt: $(ALL_SRC) $(BIN)/goimports $(BIN)/gci | $(BUILD)
 	$Q echo "removing unused imports..."
 	$Q # goimports thrashes on internal/tools, sadly.  just hide it.
-	$Q $(BIN)/goimports -w $(filter-out ./internal/tools/tools.go,$(FRESH_ALL_SRC))
+	$Q echo $(filter-out ./internal/tools/tools.go,$(FRESH_ALL_SRC)) | xargs $(BIN)/goimports -w
 	$Q echo "grouping imports..."
-	$Q $(BIN)/gci write --section standard --section 'Prefix(github.com/uber/cadence/)' --section default --section blank $(FRESH_ALL_SRC)
+	$Q echo $(FRESH_ALL_SRC) | xargs $(BIN)/gci write --section standard --section 'Prefix(github.com/uber/cadence/)' --section default --section blank
 	$Q touch $@
 # 	$Q $(MAYBE_TOUCH_COPYRIGHT)
 
@@ -478,10 +479,14 @@ $Q echo "make $1..."
 $Q output=$$(mktemp); $(MAKE) $1 > $$output 2>&1 || ( cat $$output; echo -e '\nfailed `make $1`, check output above' >&2; exit 1)
 endef
 
+override GEN_DIR := $(patsubst %/,%,$(strip $(GEN_DIR)))
+GO_GENERATE_SCOPE ?= $(if $(GEN_DIR),./$(GEN_DIR)/...,./...)
+GO_GENERATE_MAKE_ARG = $(if $(GEN_DIR),GEN_DIR=$(GEN_DIR),)
+
 # pre-PR target to build and refresh everything
-pr: ## Redo all codegen and basic checks, to ensure your PR will be able to run tests.  Recommended before opening a github PR
+pr: ## Redo all codegen and basic checks, to ensure your PR will be able to run tests. Optional: GEN_DIR=path/to/package to scope go-generate
 	$Q $(if $(verbose),$(MAKE) tidy,$(call make_quietly,tidy))
-	$Q $(if $(verbose),$(MAKE) go-generate,$(call make_quietly,go-generate))
+	$Q $(if $(verbose),$(MAKE) go-generate $(GO_GENERATE_MAKE_ARG),$(call make_quietly,go-generate $(GO_GENERATE_MAKE_ARG)))
 	$Q $(if $(verbose),$(MAKE) fmt,$(call make_quietly,fmt))
 	$Q $(if $(verbose),$(MAKE) lint,$(call make_quietly,lint))
 # 	$Q $(if $(verbose),$(MAKE) copyright,$(call make_quietly,copyright))
@@ -555,9 +560,9 @@ bins: $(BINS) ## Build all binaries, and any fast codegen needed (does not refre
 tools: $(TOOLS)
 
 go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `go generate` to regen mocks, enums, etc
-	$Q echo "running go generate ./..., this takes a minute or more..."
+	$Q echo "running go generate $(GO_GENERATE_SCOPE), this takes a minute or more..."
 	$Q # add our bins to PATH so `go generate` can find them
-	$Q $(BIN_PATH) go generate $(if $(verbose),-v) ./...
+	$Q $(BIN_PATH) go generate $(if $(verbose),-v) $(GO_GENERATE_SCOPE)
 	$Q $(MAKE) --no-print-directory fmt
 # 	$Q echo "updating copyright headers"
 # 	$Q $(MAKE) --no-print-directory copyright

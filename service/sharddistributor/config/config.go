@@ -37,6 +37,7 @@ type (
 	Config struct {
 		LoadBalancingMode dynamicproperties.StringPropertyFnWithNamespaceFilters
 		MigrationMode     dynamicproperties.StringPropertyFnWithNamespaceFilters
+		MaxEtcdTxnOps     dynamicproperties.IntPropertyFn
 
 		LoadBalancingNaive LoadBalancingNaiveConfig
 	}
@@ -83,6 +84,10 @@ type (
 		// Default: 1 second
 		Period time.Duration `yaml:"period"`
 
+		// RebalanceCooldown is the minimum duration between shard rebalance operations
+		// Default: 250ms
+		RebalanceCooldown time.Duration `yaml:"rebalanceCooldown"`
+
 		// Timeout is the maximum duration of a single shard rebalance operation
 		// Default: 1 second
 		Timeout time.Duration `yaml:"timeout"`
@@ -127,6 +132,7 @@ func NewConfig(dc *dynamicconfig.Collection) *Config {
 	return &Config{
 		LoadBalancingMode: dc.GetStringPropertyFilteredByNamespace(dynamicproperties.ShardDistributorLoadBalancingMode),
 		MigrationMode:     dc.GetStringPropertyFilteredByNamespace(dynamicproperties.ShardDistributorMigrationMode),
+		MaxEtcdTxnOps:     dc.GetIntProperty(dynamicproperties.ShardDistributorMaxEtcdTxnOps),
 
 		LoadBalancingNaive: LoadBalancingNaiveConfig{
 			MaxDeviation: dc.GetFloat64PropertyFilteredByNamespace(dynamicproperties.ShardDistributorLoadBalancingNaiveMaxDeviation),

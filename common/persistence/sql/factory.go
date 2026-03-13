@@ -112,7 +112,11 @@ func (f *Factory) NewDomainStore() (p.DomainStore, error) {
 
 // NewDomainAuditStore returns a domain audit store
 func (f *Factory) NewDomainAuditStore() (p.DomainAuditStore, error) {
-	return nil, nil
+	conn, err := f.dbConn.get()
+	if err != nil {
+		return nil, err
+	}
+	return newSQLDomainAuditStore(conn, f.logger, f.parser)
 }
 
 // NewExecutionStore returns an ExecutionStore for a given shardID
@@ -131,7 +135,7 @@ func (f *Factory) NewVisibilityStore(sortByCloseTime bool) (p.VisibilityStore, e
 }
 
 // NewQueue returns a new queue backed by sql
-func (f *Factory) NewQueue(queueType p.QueueType) (p.Queue, error) {
+func (f *Factory) NewQueue(queueType p.QueueType) (p.QueueStore, error) {
 	conn, err := f.dbConn.get()
 	if err != nil {
 		return nil, err

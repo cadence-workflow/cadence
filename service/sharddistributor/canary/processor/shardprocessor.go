@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -21,13 +22,15 @@ const (
 
 // NewShardProcessor creates a new ShardProcessor.
 func NewShardProcessor(shardID string, timeSource clock.TimeSource, logger *zap.Logger) *ShardProcessor {
-	return &ShardProcessor{
+	p := &ShardProcessor{
 		shardID:    shardID,
 		shardLoad:  shardLoadFromID(shardID),
 		timeSource: timeSource,
 		logger:     logger,
 		stopChan:   make(chan struct{}),
 	}
+	p.status.Store(int32(types.ShardStatusREADY))
+	return p
 }
 
 // ShardProcessor is a processor for a shard.
@@ -39,6 +42,8 @@ type ShardProcessor struct {
 	stopChan     chan struct{}
 	goRoutineWg  sync.WaitGroup
 	processSteps int
+
+	status atomic.Int32
 }
 
 var _ executorclient.ShardProcessor = (*ShardProcessor)(nil)
@@ -46,8 +51,8 @@ var _ executorclient.ShardProcessor = (*ShardProcessor)(nil)
 // GetShardReport implements executorclient.ShardProcessor.
 func (p *ShardProcessor) GetShardReport() executorclient.ShardReport {
 	return executorclient.ShardReport{
-		ShardLoad: p.shardLoad,            // We return a load from shardID
-		Status:    types.ShardStatusREADY, // Report the shard as ready since it's actively processing
+		ShardLoad: p.shardLoad,                        // We return a load from shardID
+		Status:    types.ShardStatus(p.status.Load()), // Report the shard as ready since it's actively processing
 	}
 }
 
@@ -64,6 +69,10 @@ func (p *ShardProcessor) Stop() {
 	p.logger.Info("Stopping shard processor", zap.String("shardID", p.shardID))
 	close(p.stopChan)
 	p.goRoutineWg.Wait()
+}
+
+func (p *ShardProcessor) SetShardStatus(status types.ShardStatus) {
+	p.status.Store(int32(status))
 }
 
 func (p *ShardProcessor) process() {

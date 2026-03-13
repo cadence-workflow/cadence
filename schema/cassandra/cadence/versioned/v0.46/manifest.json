@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.46",
+  "MinCompatibleVersion": "0.46",
+  "Description": "Adding original_task_list_kind to transfer task",
+  "SchemaUpdateCqlFiles": [
+    "transfer_task.cql"
+  ]
+}

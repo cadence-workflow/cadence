@@ -29,12 +29,24 @@ func TestHistogramMode(t *testing.T) {
 	})
 
 	HistogramMigrationMetrics = map[string]struct{}{
-		findName(CadenceLatency):                    {},
-		findName(ExponentialReplicationTaskLatency): {},
-		findName(PersistenceLatencyPerShard):        {},
-		findName(ExponentialTaskProcessingLatency):  {},
-		findName(PersistenceLatency):                {},
-		findName(PersistenceLatencyHistogram):       {},
+		findName(CadenceLatency):                            {},
+		findName(ExponentialReplicationTaskLatency):         {},
+		findName(PersistenceLatencyPerShard):                {},
+		findName(ExponentialTaskProcessingLatency):          {},
+		findName(PersistenceLatency):                        {},
+		findName(PersistenceLatencyHistogram):               {},
+		findName(TaskAttemptTimer):                          {},
+		findName(ExponentialTaskAttemptCounts):              {},
+		findName(TaskQueueLatency):                          {},
+		findName(ExponentialTaskQueueLatency):               {},
+		findName(TaskLatencyPerDomain):                      {},
+		findName(ExponentialTaskLatencyPerDomain):           {},
+		findName(TaskAttemptTimerPerDomain):                 {},
+		findName(ExponentialTaskAttemptCountsPerDomain):     {},
+		findName(TaskProcessingLatencyPerDomain):            {},
+		findName(ExponentialTaskProcessingLatencyPerDomain): {},
+		findName(TaskQueueLatencyPerDomain):                 {},
+		findName(ExponentialTaskQueueLatencyPerDomain):      {},
 	}
 
 	c := NewClient(ts, History, HistogramMigration{

@@ -71,6 +71,7 @@ func executeCreateWorkflowBatchTransaction(
 	actualRangeID := int64(0)
 	currentExecutionAlreadyExists := false
 	var actualExecution map[string]interface{}
+	var actualExecutionFullRecord map[string]interface{}
 	runIDMismatch := false
 	actualCurrRunID := ""
 	lastWriteVersionMismatch := false
@@ -98,6 +99,7 @@ func executeCreateWorkflowBatchTransaction(
 		} else if rowType == rowTypeExecution && runID == permanentRunID {
 			if currentWorkflowRequest.WriteMode == nosqlplugin.CurrentWorkflowWriteModeInsert {
 				currentExecutionAlreadyExists = true
+				actualExecutionFullRecord = previous
 				actualExecution, _ = previous["execution"].(map[string]interface{})
 				if actualExecution != nil {
 					if previous["workflow_last_write_version"] != nil {
@@ -177,7 +179,10 @@ func executeCreateWorkflowBatchTransaction(
 	// CreateWorkflowExecution failed because there is already a current execution record for this workflow
 	if currentExecutionAlreadyExists {
 		if actualExecution != nil {
-			executionInfo := parseWorkflowExecutionInfo(actualExecution)
+			executionInfo, err := parseWorkflowExecutionInfo(actualExecutionFullRecord)
+			if err != nil {
+				return err
+			}
 			msg := fmt.Sprintf("Workflow execution already running. WorkflowId: %v, RunId: %v", currentWorkflowRequest.Row.WorkflowID, executionInfo.RunID)
 			return &nosqlplugin.WorkflowOperationConditionFailure{
 				WorkflowExecutionAlreadyExists: &nosqlplugin.WorkflowExecutionAlreadyExists{
@@ -473,6 +478,7 @@ func createTimerTasks(
 			task.EventID,
 			task.ScheduleAttempt,
 			task.Version,
+			task.TaskList,
 			taskBlob,
 			taskEncoding,
 			ts,
@@ -556,6 +562,8 @@ func createTransferTasks(
 			task.ScheduleID,
 			task.RecordVisibility,
 			task.Version,
+			task.OriginalTaskList,
+			int32(task.OriginalTaskListKind),
 			taskBlob,
 			taskEncoding,
 			// NOTE: use a constant here instead of task.VisibilityTimestamp so that we can query tasks with the same visibilityTimestamp

@@ -630,19 +630,28 @@ func (t *timerActiveTaskExecutor) executeWorkflowBackoffTimerTask(
 	isFirstDecision := executionInfo.DecisionScheduleID == constants.EmptyEventID
 
 	if isCronBackoff && isFirstDecision {
-		// Add UpsertWorkflowSearchAttributes task to trigger visibility update
-		// This will update ExecutionStatus from PENDING to STARTED in visibility
-		// The status is calculated dynamically in the upsert handler based on decision task state
-		mutableState.AddTransferTasks(&persistence.UpsertWorkflowSearchAttributesTask{
-			WorkflowIdentifier: persistence.WorkflowIdentifier{
-				DomainID:   executionInfo.DomainID,
-				WorkflowID: executionInfo.WorkflowID,
-				RunID:      executionInfo.RunID,
-			},
-			TaskData: persistence.TaskData{
-				Version: mutableState.GetCurrentVersion(),
-			},
-		})
+		// Only create upsert task if advanced visibility is enabled
+		// For basic DB visibility, the ExecutionStatus is already set to STARTED at workflow start
+		// to avoid showing misleading PENDING status for running workflows.
+		// With advanced visibility, we can update PENDING -> STARTED via upsert.
+		if common.IsAdvancedVisibilityWritingEnabled(
+			t.config.WriteVisibilityStoreName(),
+			t.config.IsAdvancedVisConfigExist,
+		) {
+			// Add UpsertWorkflowSearchAttributes task to trigger visibility update
+			// This will update ExecutionStatus from PENDING to STARTED in visibility
+			// The status is calculated dynamically in the upsert handler based on decision task state
+			mutableState.AddTransferTasks(&persistence.UpsertWorkflowSearchAttributesTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   executionInfo.DomainID,
+					WorkflowID: executionInfo.WorkflowID,
+					RunID:      executionInfo.RunID,
+				},
+				TaskData: persistence.TaskData{
+					Version: mutableState.GetCurrentVersion(),
+				},
+			})
+		}
 	}
 
 	// schedule first decision task

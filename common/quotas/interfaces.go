@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 //go:generate mockgen -package=$GOPACKAGE -destination=limiter_mock.go github.com/uber/cadence/common/quotas Limiter
+//go:generate mockgen -package=$GOPACKAGE -destination=policy_mock.go github.com/uber/cadence/common/quotas Policy
 
 package quotas
 

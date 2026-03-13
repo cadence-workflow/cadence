@@ -134,6 +134,43 @@ func DiagnoseWorkflow(c *cli.Context) error {
 	return nil
 }
 
+// RefreshWorkflowTasks refreshes all the tasks of a workflow
+func RefreshWorkflowTasks(c *cli.Context) error {
+	wfClient, err := getWorkflowClient(c)
+	if err != nil {
+		return err
+	}
+
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	wid, err := getRequiredOption(c, FlagWorkflowID)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	rid := c.String(FlagRunID)
+
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return commoncli.Problem("Error creating context: ", err)
+	}
+	defer cancel()
+
+	err = wfClient.RefreshWorkflowTasks(ctx, &types.RefreshWorkflowTasksRequest{
+		Domain: domain,
+		Execution: &types.WorkflowExecution{
+			WorkflowID: wid,
+			RunID:      rid,
+		},
+	})
+	if err != nil {
+		return commoncli.Problem("Refresh workflow tasks failed.", err)
+	}
+	fmt.Println("Refresh workflow tasks succeeded.")
+	return nil
+}
+
 // ShowHistory shows the history of given workflow execution based on workflowID and runID.
 func ShowHistory(c *cli.Context) error {
 	wid, err := getRequiredOption(c, FlagWorkflowID)

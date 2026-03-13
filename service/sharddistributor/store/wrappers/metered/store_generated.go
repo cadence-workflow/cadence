@@ -139,16 +139,6 @@ func (c *meteredStore) RecordHeartbeat(ctx context.Context, namespace string, ex
 	return
 }
 
-func (c *meteredStore) Subscribe(ctx context.Context, namespace string) (ch1 <-chan int64, err error) {
-	op := func() error {
-		ch1, err = c.wrapped.Subscribe(ctx, namespace)
-		return err
-	}
-
-	err = c.call(metrics.ShardDistributorStoreSubscribeScope, op, metrics.NamespaceTag(namespace))
-	return
-}
-
 func (c *meteredStore) SubscribeToAssignmentChanges(ctx context.Context, namespace string) (ch1 <-chan map[*store.ShardOwner][]string, f1 func(), err error) {
 	op := func() error {
 		ch1, f1, err = c.wrapped.SubscribeToAssignmentChanges(ctx, namespace)
@@ -156,5 +146,15 @@ func (c *meteredStore) SubscribeToAssignmentChanges(ctx context.Context, namespa
 	}
 
 	err = c.call(metrics.ShardDistributorStoreSubscribeToAssignmentChangesScope, op, metrics.NamespaceTag(namespace))
+	return
+}
+
+func (c *meteredStore) SubscribeToExecutorStatusChanges(ctx context.Context, namespace string) (ch1 <-chan int64, err error) {
+	op := func() error {
+		ch1, err = c.wrapped.SubscribeToExecutorStatusChanges(ctx, namespace)
+		return err
+	}
+
+	err = c.call(metrics.ShardDistributorStoreSubscribeToExecutorStatusChangesScope, op, metrics.NamespaceTag(namespace))
 	return
 }

@@ -104,7 +104,9 @@ const (
 		`type: ?, ` +
 		`schedule_id: ?, ` +
 		`record_visibility: ?, ` +
-		`version: ?` +
+		`version: ?, ` +
+		`original_task_list: ?, ` +
+		`original_task_list_kind: ?` +
 		`}`
 
 	templateCrossClusterTaskType = templateTransferTaskType
@@ -136,7 +138,8 @@ const (
 		`timeout_type: ?, ` +
 		`event_id: ?, ` +
 		`schedule_attempt: ?, ` +
-		`version: ?` +
+		`version: ?, ` +
+		`task_list: ?` +
 		`}`
 
 	templateActivityInfoType = `{` +
@@ -310,7 +313,8 @@ const (
 	// TODO: remove replication_state after all 2DC workflows complete
 	templateGetWorkflowExecutionQuery = `SELECT execution, replication_state, activity_map, timer_map, ` +
 		`workflow_timer_tasks, workflow_timer_tasks_encoding, child_executions_map, request_cancel_map, signal_map, signal_requested, buffered_events_list, ` +
-		`buffered_replication_tasks_map, version_histories, version_histories_encoding, checksum ` +
+		`buffered_replication_tasks_map, version_histories, version_histories_encoding, checksum, ` +
+		`next_event_id ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +

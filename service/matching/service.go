@@ -45,6 +45,7 @@ type Service struct {
 	stopC                          chan struct{}
 	config                         *config.Config
 	ShardDistributorMatchingConfig clientcommon.Config
+	drainObserver                  clientcommon.DrainSignalObserver
 }
 
 // NewService builds a new cadence-matching service
@@ -84,6 +85,7 @@ func NewService(
 		config:                         serviceConfig,
 		stopC:                          make(chan struct{}),
 		ShardDistributorMatchingConfig: params.ShardDistributorMatchingConfig,
+		drainObserver:                  params.DrainObserver,
 	}, nil
 }
 
@@ -111,6 +113,7 @@ func (s *Service) Start() {
 		s.GetTimeSource(),
 		s.GetShardDistributorExecutorClient(),
 		s.ShardDistributorMatchingConfig,
+		s.drainObserver,
 	)
 
 	s.handler = handler.NewHandler(engine, s.config, s.GetDomainCache(), s.GetMetricsClient(), s.GetLogger(), s.GetThrottledLogger())

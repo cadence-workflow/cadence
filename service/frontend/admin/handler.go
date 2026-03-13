@@ -281,7 +281,7 @@ func (adh *adminHandlerImpl) DescribeWorkflowExecution(
 		Execution:  request.Execution,
 	})
 	if err != nil {
-		return &types.AdminDescribeWorkflowExecutionResponse{}, err
+		return nil, err
 	}
 	return &types.AdminDescribeWorkflowExecutionResponse{
 		ShardID:                shardIDForOutput,

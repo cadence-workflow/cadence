@@ -98,6 +98,8 @@ func (s *taskSerializerImpl) serializeTransferTask(task persistence.Task) (persi
 		info.TargetDomainID = MustParseUUID(t.TargetDomainID)
 		info.TaskList = t.TaskList
 		info.ScheduleID = t.ScheduleID
+		info.OriginalTaskList = t.OriginalTaskList
+		info.OriginalTaskListKind = t.OriginalTaskListKind
 	case *persistence.CancelExecutionTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
@@ -109,6 +111,7 @@ func (s *taskSerializerImpl) serializeTransferTask(task persistence.Task) (persi
 		}
 		info.TargetChildWorkflowOnly = t.TargetChildWorkflowOnly
 		info.ScheduleID = t.InitiatedID
+		info.TaskList = t.TaskList
 	case *persistence.SignalExecutionTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
@@ -120,6 +123,7 @@ func (s *taskSerializerImpl) serializeTransferTask(task persistence.Task) (persi
 		}
 		info.TargetChildWorkflowOnly = t.TargetChildWorkflowOnly
 		info.ScheduleID = t.InitiatedID
+		info.TaskList = t.TaskList
 	case *persistence.StartChildExecutionTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
@@ -127,6 +131,7 @@ func (s *taskSerializerImpl) serializeTransferTask(task persistence.Task) (persi
 		info.TargetDomainID = MustParseUUID(t.TargetDomainID)
 		info.TargetWorkflowID = t.TargetWorkflowID
 		info.ScheduleID = t.InitiatedID
+		info.TaskList = t.TaskList
 	case *persistence.RecordChildExecutionCompletedTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
@@ -136,26 +141,32 @@ func (s *taskSerializerImpl) serializeTransferTask(task persistence.Task) (persi
 		if t.TargetRunID != "" {
 			info.TargetRunID = MustParseUUID(t.TargetRunID)
 		}
+		info.TaskList = t.TaskList
 	case *persistence.CloseExecutionTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
 		info.RunID = MustParseUUID(t.RunID)
+		info.TaskList = t.TaskList
 	case *persistence.RecordWorkflowStartedTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
 		info.RunID = MustParseUUID(t.RunID)
+		info.TaskList = t.TaskList
 	case *persistence.RecordWorkflowClosedTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
 		info.RunID = MustParseUUID(t.RunID)
+		info.TaskList = t.TaskList
 	case *persistence.ResetWorkflowTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
 		info.RunID = MustParseUUID(t.RunID)
+		info.TaskList = t.TaskList
 	case *persistence.UpsertWorkflowSearchAttributesTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
 		info.RunID = MustParseUUID(t.RunID)
+		info.TaskList = t.TaskList
 	default:
 		return persistence.DataBlob{}, &types.InternalServiceError{
 			Message: fmt.Sprintf("Unknown transfer type: %v", task.GetTaskType()),
@@ -182,11 +193,13 @@ func (s *taskSerializerImpl) deserializeTransferTask(blob *persistence.DataBlob)
 	switch info.GetTaskType() {
 	case persistence.TransferTaskTypeDecisionTask:
 		task = &persistence.DecisionTask{
-			WorkflowIdentifier: workflowIdentifier,
-			TaskData:           taskData,
-			TargetDomainID:     info.TargetDomainID.String(),
-			TaskList:           info.GetTaskList(),
-			ScheduleID:         info.GetScheduleID(),
+			WorkflowIdentifier:   workflowIdentifier,
+			TaskData:             taskData,
+			TargetDomainID:       info.TargetDomainID.String(),
+			TaskList:             info.GetTaskList(),
+			ScheduleID:           info.GetScheduleID(),
+			OriginalTaskList:     info.GetOriginalTaskList(),
+			OriginalTaskListKind: info.GetOriginalTaskListKind(),
 		}
 	case persistence.TransferTaskTypeActivityTask:
 		task = &persistence.ActivityTask{
@@ -200,6 +213,7 @@ func (s *taskSerializerImpl) deserializeTransferTask(blob *persistence.DataBlob)
 		task = &persistence.CloseExecutionTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           info.GetTaskList(),
 		}
 	case persistence.TransferTaskTypeCancelExecution:
 		task = &persistence.CancelExecutionTask{
@@ -210,6 +224,7 @@ func (s *taskSerializerImpl) deserializeTransferTask(blob *persistence.DataBlob)
 			TargetRunID:             info.TargetRunID.String(),
 			TargetChildWorkflowOnly: info.GetTargetChildWorkflowOnly(),
 			InitiatedID:             info.GetScheduleID(),
+			TaskList:                info.GetTaskList(),
 		}
 	case persistence.TransferTaskTypeStartChildExecution:
 		task = &persistence.StartChildExecutionTask{
@@ -218,6 +233,7 @@ func (s *taskSerializerImpl) deserializeTransferTask(blob *persistence.DataBlob)
 			TargetDomainID:     info.TargetDomainID.String(),
 			TargetWorkflowID:   info.GetTargetWorkflowID(),
 			InitiatedID:        info.GetScheduleID(),
+			TaskList:           info.GetTaskList(),
 		}
 	case persistence.TransferTaskTypeSignalExecution:
 		task = &persistence.SignalExecutionTask{
@@ -228,26 +244,31 @@ func (s *taskSerializerImpl) deserializeTransferTask(blob *persistence.DataBlob)
 			TargetRunID:             info.TargetRunID.String(),
 			TargetChildWorkflowOnly: info.GetTargetChildWorkflowOnly(),
 			InitiatedID:             info.GetScheduleID(),
+			TaskList:                info.GetTaskList(),
 		}
 	case persistence.TransferTaskTypeRecordWorkflowStarted:
 		task = &persistence.RecordWorkflowStartedTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           info.GetTaskList(),
 		}
 	case persistence.TransferTaskTypeResetWorkflow:
 		task = &persistence.ResetWorkflowTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           info.GetTaskList(),
 		}
 	case persistence.TransferTaskTypeUpsertWorkflowSearchAttributes:
 		task = &persistence.UpsertWorkflowSearchAttributesTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           info.GetTaskList(),
 		}
 	case persistence.TransferTaskTypeRecordWorkflowClosed:
 		task = &persistence.RecordWorkflowClosedTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           info.GetTaskList(),
 		}
 	case persistence.TransferTaskTypeRecordChildExecutionCompleted:
 		task = &persistence.RecordChildExecutionCompletedTask{
@@ -256,6 +277,7 @@ func (s *taskSerializerImpl) deserializeTransferTask(blob *persistence.DataBlob)
 			TargetDomainID:     info.TargetDomainID.String(),
 			TargetWorkflowID:   info.GetTargetWorkflowID(),
 			TargetRunID:        info.TargetRunID.String(),
+			TaskList:           info.GetTaskList(),
 		}
 	default:
 		return nil, fmt.Errorf("unknown transfer task type: %v", info.GetTaskType())
@@ -277,6 +299,7 @@ func (s *taskSerializerImpl) serializeTimerTask(task persistence.Task) (persiste
 		info.EventID = t.EventID
 		info.TimeoutType = common.Int16Ptr(int16(t.TimeoutType))
 		info.ScheduleAttempt = t.ScheduleAttempt
+		info.TaskList = t.TaskList
 	case *persistence.ActivityTimeoutTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
@@ -284,30 +307,36 @@ func (s *taskSerializerImpl) serializeTimerTask(task persistence.Task) (persiste
 		info.EventID = t.EventID
 		info.TimeoutType = common.Int16Ptr(int16(t.TimeoutType))
 		info.ScheduleAttempt = t.Attempt
+		info.TaskList = t.TaskList
 	case *persistence.UserTimerTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
 		info.RunID = MustParseUUID(t.RunID)
 		info.EventID = t.EventID
+		info.TaskList = t.TaskList
 	case *persistence.ActivityRetryTimerTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
 		info.RunID = MustParseUUID(t.RunID)
 		info.EventID = t.EventID
 		info.ScheduleAttempt = int64(t.Attempt)
+		info.TaskList = t.TaskList
 	case *persistence.WorkflowBackoffTimerTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
 		info.RunID = MustParseUUID(t.RunID)
 		info.TimeoutType = common.Int16Ptr(int16(t.TimeoutType))
+		info.TaskList = t.TaskList
 	case *persistence.WorkflowTimeoutTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
 		info.RunID = MustParseUUID(t.RunID)
+		info.TaskList = t.TaskList
 	case *persistence.DeleteHistoryEventTask:
 		info.DomainID = MustParseUUID(t.DomainID)
 		info.WorkflowID = t.WorkflowID
 		info.RunID = MustParseUUID(t.RunID)
+		info.TaskList = t.TaskList
 	default:
 		return persistence.DataBlob{}, &types.InternalServiceError{
 			Message: fmt.Sprintf("Unknown timer task: %v", task.GetTaskType()),
@@ -338,6 +367,7 @@ func (s *taskSerializerImpl) deserializeTimerTask(blob *persistence.DataBlob) (p
 			EventID:            info.GetEventID(),
 			ScheduleAttempt:    info.GetScheduleAttempt(),
 			TimeoutType:        int(info.GetTimeoutType()),
+			TaskList:           info.GetTaskList(),
 		}
 	case persistence.TaskTypeActivityTimeout:
 		task = &persistence.ActivityTimeoutTask{
@@ -346,22 +376,26 @@ func (s *taskSerializerImpl) deserializeTimerTask(blob *persistence.DataBlob) (p
 			EventID:            info.GetEventID(),
 			Attempt:            info.GetScheduleAttempt(),
 			TimeoutType:        int(info.GetTimeoutType()),
+			TaskList:           info.GetTaskList(),
 		}
 	case persistence.TaskTypeUserTimer:
 		task = &persistence.UserTimerTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			EventID:            info.GetEventID(),
+			TaskList:           info.GetTaskList(),
 		}
 	case persistence.TaskTypeWorkflowTimeout:
 		task = &persistence.WorkflowTimeoutTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           info.GetTaskList(),
 		}
 	case persistence.TaskTypeDeleteHistoryEvent:
 		task = &persistence.DeleteHistoryEventTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           info.GetTaskList(),
 		}
 	case persistence.TaskTypeActivityRetryTimer:
 		task = &persistence.ActivityRetryTimerTask{
@@ -369,12 +403,14 @@ func (s *taskSerializerImpl) deserializeTimerTask(blob *persistence.DataBlob) (p
 			TaskData:           taskData,
 			EventID:            info.GetEventID(),
 			Attempt:            info.GetScheduleAttempt(),
+			TaskList:           info.GetTaskList(),
 		}
 	case persistence.TaskTypeWorkflowBackoffTimer:
 		task = &persistence.WorkflowBackoffTimerTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			TimeoutType:        int(info.GetTimeoutType()),
+			TaskList:           info.GetTaskList(),
 		}
 	default:
 		return nil, fmt.Errorf("unknown timer task type: %v", info.GetTaskType())

@@ -10,12 +10,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
@@ -37,7 +39,7 @@ func TestNamespaceShardToExecutor_Lifecycle(t *testing.T) {
 	})
 
 	// Start the cache
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource())
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource(), metrics.NewNoopMetricsClient())
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
 	time.Sleep(50 * time.Millisecond)
@@ -89,7 +91,7 @@ func TestNamespaceShardToExecutor_Subscribe(t *testing.T) {
 	})
 
 	// Start the cache
-	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource())
+	namespaceShardToExecutor, err := newNamespaceShardToExecutor(testCluster.EtcdPrefix, testCluster.Namespace, testCluster.Client, stopCh, logger, clock.NewRealTimeSource(), metrics.NewNoopMetricsClient())
 	assert.NoError(t, err)
 	namespaceShardToExecutor.Start(&sync.WaitGroup{})
 
@@ -156,8 +158,10 @@ func TestNamespaceShardToExecutor_watch_watchChanErrors(t *testing.T) {
 		Return(watchChan).
 		AnyTimes()
 
-	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, clock.NewRealTimeSource())
+	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, clock.NewRealTimeSource(), metrics.NewNoopMetricsClient())
 	require.NoError(t, err)
+
+	triggerChan := make(chan struct{}, 1)
 
 	// Test Case #1
 	// Test received compact revision error from watch channel
@@ -168,7 +172,7 @@ func TestNamespaceShardToExecutor_watch_watchChanErrors(t *testing.T) {
 			}
 		}()
 
-		err = e.watch()
+		err = e.watch(triggerChan)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "etcdserver: mvcc: required revision has been compacted")
 	}
@@ -177,10 +181,222 @@ func TestNamespaceShardToExecutor_watch_watchChanErrors(t *testing.T) {
 	// Test closed watch channel
 	{
 		close(watchChan)
-		err = e.watch()
+		err = e.watch(triggerChan)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "watch channel closed")
 	}
+}
+
+func TestNamespaceShardToExecutor_watch_triggerChBlocking(t *testing.T) {
+	tc := setupNamespaceShardToExecutorTestCase(t)
+	defer tc.ctrl.Finish()
+	defer goleak.VerifyNone(t)
+
+	// Create a triggerCh with buffer size 1, but never read from it
+	triggerChan := make(chan struct{}, 1)
+
+	executorKey := etcdkeys.BuildExecutorKey(tc.prefix, tc.namespace, tc.executorID, etcdkeys.ExecutorAssignedStateKey)
+
+	// Start watch in a goroutine
+	watchDone := make(chan error, 1)
+	go func() {
+		watchDone <- tc.e.watch(triggerChan)
+	}()
+
+	// Send many events - the loop should not block even though triggerCh is full
+	for i := 0; i < 100; i++ {
+		select {
+		case tc.watchChan <- clientv3.WatchResponse{
+			Events: []*clientv3.Event{
+				{
+					Type: clientv3.EventTypePut,
+					Kv: &mvccpb.KeyValue{
+						Key: []byte(executorKey),
+					},
+				},
+			},
+		}:
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("watch loop is stuck - could not send event to watchChan")
+		}
+	}
+
+	// Close stopCh to exit the watch loop
+	close(tc.stopCh)
+
+	select {
+	case err := <-watchDone:
+		assert.NoError(t, err)
+	case <-time.After(1 * time.Second):
+		t.Fatal("watch loop did not exit after stopCh was closed")
+	}
+}
+
+func TestNamespaceShardToExecutor_namespaceRefreshLoop_notTriggersRefresh_reportedShards(t *testing.T) {
+	tc := setupNamespaceShardToExecutorTestCase(t)
+	defer tc.ctrl.Finish()
+	defer goleak.VerifyNone(t)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		tc.e.namespaceRefreshLoop()
+	}()
+
+	key := etcdkeys.BuildExecutorKey(
+		tc.prefix,
+		tc.namespace,
+		tc.executorID,
+		etcdkeys.ExecutorReportedShardsKey,
+	)
+
+	tc.watchChan <- clientv3.WatchResponse{
+		Events: []*clientv3.Event{
+			{
+				Type: clientv3.EventTypePut,
+				Kv: &mvccpb.KeyValue{
+					Key: []byte(key),
+				},
+			},
+		},
+	}
+
+	// mock for refresh should not be called, so no need to set expectation on etcdClient.EXPECT().Get()
+	// use Never with condition that checks shardOwners is still empty to verify that refresh is not triggered
+	require.Neverf(t, func() bool {
+		tc.e.RLock()
+		defer tc.e.RUnlock()
+
+		return len(tc.e.shardOwners) > 0
+	}, 100*time.Millisecond, 1*time.Millisecond, "expected no refresh to be triggered for reported shards change")
+
+	// Close stopCh to exit the loop
+	close(tc.stopCh)
+	wg.Wait()
+}
+
+func TestNamespaceShardToExecutor_namespaceRefreshLoop_notTriggersRefresh_noUpdates(t *testing.T) {
+	tc := setupNamespaceShardToExecutorTestCase(t)
+	defer tc.ctrl.Finish()
+	defer goleak.VerifyNone(t)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		tc.e.namespaceRefreshLoop()
+	}()
+
+	metadataValue := "metadata-value"
+	metadataKey := "metadata-key"
+	key := etcdkeys.BuildMetadataKey(
+		tc.prefix,
+		tc.namespace,
+		tc.executorID,
+		metadataKey,
+	)
+
+	tc.watchChan <- clientv3.WatchResponse{
+		Events: []*clientv3.Event{
+			{
+				Type: clientv3.EventTypePut,
+				Kv: &mvccpb.KeyValue{
+					Key:   []byte(key),
+					Value: []byte(metadataValue),
+				},
+				PrevKv: &mvccpb.KeyValue{
+					Key:   []byte(key),
+					Value: []byte(metadataValue),
+				},
+			},
+		},
+	}
+
+	// mock for refresh should not be called, so no need to set expectation on etcdClient.EXPECT().Get()
+	// use Never with condition that checks shardOwners is still empty to verify that refresh is not triggered
+	require.Neverf(t, func() bool {
+		tc.e.RLock()
+		defer tc.e.RUnlock()
+
+		return len(tc.e.shardOwners) > 0
+	}, 100*time.Millisecond, 1*time.Millisecond, "expected no refresh to be triggered for the same metadata value")
+
+	// Close stopCh to exit the loop
+	close(tc.stopCh)
+	wg.Wait()
+}
+
+func TestNamespaceShardToExecutor_namespaceRefreshLoop_triggersRefresh(t *testing.T) {
+	tc := setupNamespaceShardToExecutorTestCase(t)
+	defer tc.ctrl.Finish()
+	defer goleak.VerifyNone(t)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		tc.e.namespaceRefreshLoop()
+	}()
+
+	metadataValue := "metadata-value"
+	metadataKey := "metadata-key"
+	key := etcdkeys.BuildMetadataKey(
+		tc.prefix,
+		tc.namespace,
+		tc.executorID,
+		metadataKey,
+	)
+
+	// Mock Get call for refresh
+	tc.etcdClient.EXPECT().
+		Get(gomock.Any(), tc.executorPrefix, gomock.Any()).
+		Return(
+			&clientv3.GetResponse{Kvs: []*mvccpb.KeyValue{
+				{
+					Key:   []byte(key),
+					Value: []byte(metadataValue),
+				},
+			}},
+			nil,
+		)
+
+	// Send a watch event for metadata change which should trigger the refresh
+	tc.watchChan <- clientv3.WatchResponse{
+		Events: []*clientv3.Event{
+			{
+				Type: clientv3.EventTypePut,
+				Kv: &mvccpb.KeyValue{
+					Key:   []byte(key),
+					Value: []byte(metadataValue),
+				},
+				PrevKv: &mvccpb.KeyValue{
+					Key:   []byte(key),
+					Value: []byte("previous value"),
+				},
+			},
+		},
+	}
+
+	// Wait for the refresh to be triggered and the shard owner to be updated with the new metadata value
+	require.Eventually(t, func() bool {
+		tc.e.RLock()
+		defer tc.e.RUnlock()
+
+		shardOwner, ok := tc.e.shardOwners[tc.executorID]
+		if !ok {
+			return false
+		}
+
+		return shardOwner.Metadata[metadataKey] == metadataValue
+	}, time.Second, 1*time.Millisecond, "expected metadata value to be updated in shard owner after refresh")
+
+	// Close stopCh to exit the loop
+	close(tc.stopCh)
+	wg.Wait()
 }
 
 func TestNamespaceShardToExecutor_namespaceRefreshLoop_watchError(t *testing.T) {
@@ -209,11 +425,14 @@ func TestNamespaceShardToExecutor_namespaceRefreshLoop_watchError(t *testing.T) 
 		Return(watchChanClosed)
 
 	// mock for third watch call that will be used when stopCh is closed
+	// maybe called or not if stopCh is closed before retry interval
 	mockClient.EXPECT().
 		Watch(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(make(chan clientv3.WatchResponse))
+		Return(make(chan clientv3.WatchResponse)).
+		MinTimes(0).
+		MaxTimes(1)
 
-	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, timeSource)
+	e, err := newNamespaceShardToExecutor(testPrefix, testNamespace, mockClient, stopCh, logger, timeSource, metrics.NewNoopMetricsClient())
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
@@ -316,4 +535,46 @@ func verifyShardOwner(t *testing.T, cache *namespaceShardToExecutor, shardID, ex
 	for key, expectedValue := range expectedMetadata {
 		assert.Equal(t, expectedValue, executor.Metadata[key])
 	}
+}
+
+type namespaceShardToExecutorTestCase struct {
+	ctrl       *gomock.Controller
+	e          *namespaceShardToExecutor
+	etcdClient *etcdclient.MockClient
+	timeSource clock.TimeSource
+
+	watchChan chan clientv3.WatchResponse
+	stopCh    chan struct{}
+
+	executorID string
+	prefix     string
+	namespace  string
+
+	executorPrefix string
+}
+
+func setupNamespaceShardToExecutorTestCase(t *testing.T) *namespaceShardToExecutorTestCase {
+	var tc = new(namespaceShardToExecutorTestCase)
+
+	tc.ctrl = gomock.NewController(t)
+	logger := testlogger.New(t)
+
+	tc.etcdClient = etcdclient.NewMockClient(tc.ctrl)
+	tc.stopCh = make(chan struct{})
+	tc.prefix = "/test-prefix"
+	tc.namespace = "test-namespace"
+	tc.executorID = "executor-1"
+	tc.executorPrefix = etcdkeys.BuildExecutorsPrefix(tc.prefix, tc.namespace)
+
+	// Mock the Watch call to return our watch channel
+	tc.watchChan = make(chan clientv3.WatchResponse)
+	tc.etcdClient.EXPECT().
+		Watch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(tc.watchChan).
+		AnyTimes()
+
+	e, err := newNamespaceShardToExecutor(tc.prefix, tc.namespace, tc.etcdClient, tc.stopCh, logger, clock.NewRealTimeSource(), metrics.NewNoopMetricsClient())
+	require.NoError(t, err)
+	tc.e = e
+	return tc
 }

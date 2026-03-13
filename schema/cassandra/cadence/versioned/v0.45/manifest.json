@@ -1,8 +1,9 @@
 {
   "CurrVersion": "0.45",
   "MinCompatibleVersion": "0.45",
-  "Description": "Adding workflow_timer_task_info type and workflow_timer_task_map column to track workflow-level timer tasks for cleanup during workflow deletion, and add timer_task_id to timer_info type for user timer cleanup",
+  "Description": "Adding original_task_list and task_list to transfer and timer tasks",
   "SchemaUpdateCqlFiles": [
-    "workflow_timer_task_info.cql"
+    "transfer_task.cql",
+    "timer_task.cql"
   ]
 }

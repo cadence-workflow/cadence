@@ -2236,7 +2236,7 @@ func createRecordWorkflowExecutionStartedRequest(
 			"Header_context_key": contextValueJSONString,
 		}
 	}
-	executionStatus, scheduledExecutionTimestamp := determineExecutionStatus(startEvent, mutableState)
+	executionStatus, scheduledExecutionTimestamp := determineExecutionStatusForVisibility(startEvent, mutableState, false)
 
 	return &persistence.RecordWorkflowExecutionStartedRequest{
 		Domain:                      domainName,

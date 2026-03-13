@@ -23,7 +23,6 @@
 package task
 
 import (
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,15 +37,6 @@ import (
 const defaultIdleChannelTTLInSeconds = 3600
 
 type (
-	weightedChannels[V any] []*weightedChannel[V]
-
-	weightedChannel[V any] struct {
-		weight        int
-		c             chan V
-		refCount      atomic.Int32
-		lastWriteTime atomic.Int64
-	}
-
 	WeightedRoundRobinChannelPoolOptions struct {
 		BufferSize              int
 		IdleChannelTTLInSeconds int64
@@ -62,18 +52,10 @@ type (
 		logger                  log.Logger
 		metricsScope            metrics.Scope
 		timeSource              clock.TimeSource
-		channelMap              map[K]*weightedChannel[V]
-		// precalculated / flattened task chan schedule according to weight
-		// e.g. if
-		// ChannelKeyToWeight has the following mapping
-		//  0 -> 5
-		//  1 -> 3
-		//  2 -> 2
-		//  3 -> 1
-		// then iwrrChannels will contain chan [0, 0, 0, 1, 0, 1, 2, 0, 1, 2, 3] (ID-ed by channel key)
-		// This implementation uses interleaved weighted round robin schedule instead of classic weighted round robin schedule
-		// ref: https://en.wikipedia.org/wiki/Weighted_round_robin#Interleaved_WRR
-		iwrrSchedule atomic.Value // []*weightedChannel[V]
+		channelMap              map[K]weightedContainer[*TTLChannel[V]]
+
+		// a snapshot of the channels to be used for the IWRR schedule
+		iwrrSchedule atomic.Pointer[iwrrSchedule[*TTLChannel[V]]]
 	}
 )
 
@@ -83,15 +65,19 @@ func NewWeightedRoundRobinChannelPool[K comparable, V any](
 	timeSource clock.TimeSource,
 	options WeightedRoundRobinChannelPoolOptions,
 ) *WeightedRoundRobinChannelPool[K, V] {
-	return &WeightedRoundRobinChannelPool[K, V]{
+	wrr := &WeightedRoundRobinChannelPool[K, V]{
 		bufferSize:              options.BufferSize,
 		idleChannelTTLInSeconds: options.IdleChannelTTLInSeconds,
 		logger:                  logger,
 		metricsScope:            metricsScope,
 		timeSource:              timeSource,
-		channelMap:              make(map[K]*weightedChannel[V]),
+		channelMap:              make(map[K]weightedContainer[*TTLChannel[V]]),
 		shutdownCh:              make(chan struct{}),
 	}
+	// Initialize with empty schedule
+	schedule := newIWRRSchedule[K, *TTLChannel[V]](nil)
+	wrr.iwrrSchedule.Store(schedule)
+	return wrr
 }
 
 func (p *WeightedRoundRobinChannelPool[K, V]) Start() {
@@ -135,9 +121,10 @@ func (p *WeightedRoundRobinChannelPool[K, V]) doCleanup() {
 	p.Lock()
 	defer p.Unlock()
 	var channelsToCleanup []K
-	now := p.timeSource.Now().Unix()
-	for k, v := range p.channelMap {
-		if now-v.lastWriteTime.Load() > p.idleChannelTTLInSeconds && len(v.c) == 0 && v.refCount.Load() == 0 {
+	now := p.timeSource.Now()
+	ttl := time.Duration(p.idleChannelTTLInSeconds) * time.Second
+	for k, container := range p.channelMap {
+		if container.item.ShouldCleanup(now, ttl) {
 			channelsToCleanup = append(channelsToCleanup, k)
 		}
 	}
@@ -154,91 +141,58 @@ func (p *WeightedRoundRobinChannelPool[K, V]) doCleanup() {
 
 func (p *WeightedRoundRobinChannelPool[K, V]) GetOrCreateChannel(key K, weight int) (chan V, func()) {
 	p.RLock()
-	if v := p.channelMap[key]; v != nil && v.weight == weight {
-		v.refCount.Add(1)
-		v.lastWriteTime.Store(p.timeSource.Now().Unix())
+	if container, exists := p.channelMap[key]; exists && container.weight == weight {
+		container.item.IncRef()
+		container.item.UpdateLastWriteTime(p.timeSource.Now())
 		p.RUnlock()
-		return v.c, func() {
-			v.refCount.Add(-1)
-		}
+		return container.item.Chan(), container.item.DecRef
 	}
 	p.RUnlock()
 
 	p.Lock()
 	defer p.Unlock()
-	if v := p.channelMap[key]; v != nil {
-		v.refCount.Add(1)
-		v.lastWriteTime.Store(p.timeSource.Now().Unix())
-		if v.weight != weight {
-			v.weight = weight
+	if container, exists := p.channelMap[key]; exists {
+		container.item.IncRef()
+		container.item.UpdateLastWriteTime(p.timeSource.Now())
+		if container.weight != weight {
+			p.channelMap[key] = weightedContainer[*TTLChannel[V]]{
+				item:   container.item,
+				weight: weight,
+			}
 			p.updateScheduleLocked()
 		}
-		return v.c, func() {
-			v.refCount.Add(-1)
-		}
+		return container.item.Chan(), container.item.DecRef
 	}
 
-	v := &weightedChannel[V]{
+	c := NewTTLChannel[V](p.bufferSize)
+	p.channelMap[key] = weightedContainer[*TTLChannel[V]]{
+		item:   c,
 		weight: weight,
-		c:      make(chan V, p.bufferSize),
 	}
-	p.channelMap[key] = v
-	v.refCount.Add(1)
-	v.lastWriteTime.Store(p.timeSource.Now().Unix())
+	c.IncRef()
+	c.UpdateLastWriteTime(p.timeSource.Now())
 	p.updateScheduleLocked()
-	return v.c, func() {
-		v.refCount.Add(-1)
-	}
+	return c.Chan(), c.DecRef
 }
 
 func (p *WeightedRoundRobinChannelPool[K, V]) GetAllChannels() []chan V {
 	p.RLock()
 	defer p.RUnlock()
 	allChannels := make([]chan V, 0, len(p.channelMap))
-	for _, v := range p.channelMap {
-		allChannels = append(allChannels, v.c)
+	for _, container := range p.channelMap {
+		allChannels = append(allChannels, container.item.Chan())
 	}
 	return allChannels
 }
 
-func (p *WeightedRoundRobinChannelPool[K, V]) GetSchedule() []chan V {
-	return p.iwrrSchedule.Load().([]chan V)
+func (p *WeightedRoundRobinChannelPool[K, V]) GetSchedule() Schedule[*TTLChannel[V]] {
+	return p.iwrrSchedule.Load()
 }
 
 func (p *WeightedRoundRobinChannelPool[K, V]) updateScheduleLocked() {
-	totalWeight := 0
-	orderedChannels := make(weightedChannels[V], 0, len(p.channelMap))
-	for _, v := range p.channelMap {
-		totalWeight += v.weight
-		orderedChannels = append(orderedChannels, v)
-	}
-	sort.Sort(orderedChannels)
+	p.iwrrSchedule.Store(newIWRRSchedule(p.channelMap))
 
-	iwrrSchedule := make([]chan V, 0, totalWeight)
-	if totalWeight == 0 {
-		p.iwrrSchedule.Store(iwrrSchedule)
-		return
-	}
-
-	maxWeight := orderedChannels[len(orderedChannels)-1].weight
-	for round := maxWeight - 1; round >= 0; round-- {
-		for i := len(orderedChannels) - 1; i >= 0 && orderedChannels[i].weight > round; i-- {
-			iwrrSchedule = append(iwrrSchedule, orderedChannels[i].c)
-		}
-	}
-	p.iwrrSchedule.Store(iwrrSchedule)
-
-	p.metricsScope.UpdateGauge(metrics.WeightedChannelPoolSizeGauge, float64((len(p.channelMap)+len(iwrrSchedule))*28)) // 28 bytes per weighted channel struct
-}
-
-func (w weightedChannels[V]) Len() int {
-	return len(w)
-}
-
-func (w weightedChannels[V]) Less(i, j int) bool {
-	return w[i].weight < w[j].weight
-}
-
-func (w weightedChannels[V]) Swap(i, j int) {
-	w[i], w[j] = w[j], w[i]
+	// Update memory gauge - now only stores channel references once, not weight times
+	memoryBytes := len(p.channelMap) * 16 // channel map entries
+	p.metricsScope.UpdateGauge(metrics.WeightedChannelPoolSizeGauge, float64(memoryBytes))
 }

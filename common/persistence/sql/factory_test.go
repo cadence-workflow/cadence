@@ -221,3 +221,25 @@ func TestFactoryNewConfigStore(t *testing.T) {
 	assert.NoError(t, err)
 	factory.Close()
 }
+
+func TestFactoryNewDomainAuditStore(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	cfg := config.SQL{}
+	clusterName := "test"
+	logger := testlogger.New(t)
+	mockParser := serialization.NewMockParser(ctrl)
+	dc := &persistence.DynamicConfiguration{}
+	factory := NewFactory(cfg, clusterName, logger, mockParser, dc)
+	domainAuditStore, err := factory.NewDomainAuditStore()
+	assert.Nil(t, domainAuditStore)
+	assert.Error(t, err)
+	factory.Close()
+
+	cfg.PluginName = "shared"
+	factory = NewFactory(cfg, clusterName, logger, mockParser, dc)
+	domainAuditStore, err = factory.NewDomainAuditStore()
+	assert.NotNil(t, domainAuditStore)
+	assert.NoError(t, err)
+	factory.Close()
+}

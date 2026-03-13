@@ -1386,3 +1386,89 @@ func TestAdminGetDomainIDOrName(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminDeleteWorkflow(t *testing.T) {
+	tests := []struct {
+		name        string
+		testSetup   func(td *cliTestData) *cli.Context
+		errContains string // empty if no error is expected
+	}{
+		{
+			name: "no domain argument",
+			testSetup: func(td *cliTestData) *cli.Context {
+				return clitest.NewCLIContext(t, td.app /* arguments are missing */)
+			},
+			errContains: "Required flag not found",
+		},
+		{
+			name: "no workflow ID argument",
+			testSetup: func(td *cliTestData) *cli.Context {
+				return clitest.NewCLIContext(
+					t,
+					td.app,
+					clitest.StringArgument(FlagDomain, testDomain),
+				)
+			},
+			errContains: "Required flag not found",
+		},
+		{
+			name: "remote delete success",
+			testSetup: func(td *cliTestData) *cli.Context {
+				cliCtx := clitest.NewCLIContext(
+					t,
+					td.app,
+					clitest.StringArgument(FlagDomain, testDomain),
+					clitest.StringArgument(FlagWorkflowID, testWorkflowID),
+					clitest.StringArgument(FlagRunID, testRunID),
+					clitest.BoolArgument(FlagRemote, true),
+					clitest.BoolArgument(FlagSkipErrorMode, false),
+				)
+
+				td.mockAdminClient.EXPECT().DeleteWorkflow(gomock.Any(), &types.AdminDeleteWorkflowRequest{
+					Domain: testDomain,
+					Execution: &types.WorkflowExecution{
+						WorkflowID: testWorkflowID,
+						RunID:      testRunID,
+					},
+					SkipErrors: false,
+				}).Return(&types.AdminDeleteWorkflowResponse{}, nil)
+
+				return cliCtx
+			},
+			errContains: "",
+		},
+		{
+			name: "remote delete returns error",
+			testSetup: func(td *cliTestData) *cli.Context {
+				cliCtx := clitest.NewCLIContext(
+					t,
+					td.app,
+					clitest.StringArgument(FlagDomain, testDomain),
+					clitest.StringArgument(FlagWorkflowID, testWorkflowID),
+					clitest.StringArgument(FlagRunID, testRunID),
+					clitest.BoolArgument(FlagRemote, true),
+				)
+
+				td.mockAdminClient.EXPECT().DeleteWorkflow(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("delete failed"))
+
+				return cliCtx
+			},
+			errContains: "Operation AdminMaintainCorruptWorkflow failed.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := newCLITestData(t)
+			cliCtx := tt.testSetup(td)
+
+			err := AdminDeleteWorkflow(cliCtx)
+			if tt.errContains == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tt.errContains)
+			}
+		})
+	}
+}

@@ -38,7 +38,7 @@ import (
 func TestShardDistributorResolver_Lookup_modeHashRing(t *testing.T) {
 	resolver, ring, _ := newShardDistributorResolver(t)
 	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
-		return string(modeKeyHashRing)
+		return string(ModeKeyHashRing)
 	}
 
 	ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "test-addr"}, nil)
@@ -51,7 +51,7 @@ func TestShardDistributorResolver_Lookup_modeHashRing(t *testing.T) {
 func TestShardDistributorResolver_Lookup_modeShardDistributor(t *testing.T) {
 	resolver, _, shardDistributorMock := newShardDistributorResolver(t)
 	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
-		return string(modeKeyShardDistributor)
+		return string(ModeKeyShardDistributor)
 	}
 
 	shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), "test-key").
@@ -72,7 +72,7 @@ func TestShardDistributorResolver_Lookup_modeShardDistributor(t *testing.T) {
 func TestShardDistributorResolver_Lookup_modeHashRingShadowShardDistributor(t *testing.T) {
 	resolver, ring, shardDistributorMock := newShardDistributorResolver(t)
 	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
-		return string(modeKeyHashRingShadowShardDistributor)
+		return string(ModeKeyHashRingShadowShardDistributor)
 	}
 
 	cases := []struct {
@@ -158,7 +158,7 @@ func TestShardDistributorResolver_Lookup_modeHashRingShadowShardDistributor(t *t
 func TestShardDistributorResolver_Lookup_modeShardDistributorShadowHashRing(t *testing.T) {
 	resolver, ring, shardDistributorMock := newShardDistributorResolver(t)
 	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
-		return string(modeKeyShardDistributorShadowHashRing)
+		return string(ModeKeyShardDistributorShadowHashRing)
 	}
 
 	cases := []struct {
@@ -305,14 +305,96 @@ func TestShardDistributorResolver_AddressToHost(t *testing.T) {
 	resolver.AddressToHost("test")
 }
 
+func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T) {
+	cases := []struct {
+		name                       string
+		excludeShortLivedTaskLists bool
+		taskListName               string
+		mode                       ModeKey
+		expectHashRing             bool
+	}{
+		{
+			name:                       "exclude enabled with UUID tasklist uses hash ring",
+			excludeShortLivedTaskLists: true,
+			taskListName:               "tasklist-550e8400-e29b-41d4-a716-446655440000",
+			mode:                       ModeKeyShardDistributor,
+			expectHashRing:             true,
+		},
+		{
+			name:                       "exclude enabled without UUID tasklist uses shard distributor",
+			excludeShortLivedTaskLists: true,
+			taskListName:               "my-regular-tasklist",
+			mode:                       ModeKeyShardDistributor,
+			expectHashRing:             false,
+		},
+		{
+			name:                       "exclude disabled with UUID tasklist uses shard distributor",
+			excludeShortLivedTaskLists: false,
+			taskListName:               "tasklist-550e8400-e29b-41d4-a716-446655440000",
+			mode:                       ModeKeyShardDistributor,
+			expectHashRing:             false,
+		},
+		{
+			name:                       "exclude enabled with UUID tasklist in hash ring mode still uses hash ring",
+			excludeShortLivedTaskLists: true,
+			taskListName:               "tasklist-550e8400-e29b-41d4-a716-446655440000",
+			mode:                       ModeKeyHashRing,
+			expectHashRing:             true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			spectator := spectatorclient.NewMockSpectator(ctrl)
+			ring := NewMockSingleProvider(ctrl)
+			logger := log.NewNoop()
+
+			resolver := NewShardDistributorResolver(
+				spectator,
+				dynamicproperties.GetStringPropertyFn(string(tc.mode)),
+				dynamicproperties.GetBoolPropertyFn(tc.excludeShortLivedTaskLists),
+				dynamicproperties.GetIntPropertyFn(100),
+				ring,
+				logger,
+			).(*shardDistributorResolver)
+
+			if tc.expectHashRing {
+				ring.EXPECT().Lookup(tc.taskListName).Return(HostInfo{addr: "hash-ring-addr"}, nil)
+			} else {
+				spectator.EXPECT().GetShardOwner(gomock.Any(), tc.taskListName).
+					Return(&spectatorclient.ShardOwner{
+						ExecutorID: "test-owner",
+						Metadata: map[string]string{
+							"hostIP":   "127.0.0.1",
+							"tchannel": "7933",
+							"grpc":     "7833",
+						},
+					}, nil)
+			}
+
+			host, err := resolver.Lookup(tc.taskListName)
+			assert.NoError(t, err)
+
+			if tc.expectHashRing {
+				assert.Equal(t, "hash-ring-addr", host.addr)
+			} else {
+				assert.Equal(t, "127.0.0.1:7933", host.addr)
+			}
+		})
+	}
+}
+
 func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *MockSingleProvider, *spectatorclient.MockSpectator) {
 	ctrl := gomock.NewController(t)
 	spectator := spectatorclient.NewMockSpectator(ctrl)
 	shardDistributionMode := dynamicproperties.GetStringPropertyFn("")
+	excludeShortLivedTaskLists := dynamicproperties.GetBoolPropertyFn(false)
+	percentageOnboarded := dynamicproperties.GetIntPropertyFn(100)
 	ring := NewMockSingleProvider(ctrl)
 	logger := log.NewNoop()
 
-	resolver := NewShardDistributorResolver(spectator, shardDistributionMode, ring, logger).(*shardDistributorResolver)
+	resolver := NewShardDistributorResolver(spectator, shardDistributionMode, excludeShortLivedTaskLists, percentageOnboarded, ring, logger).(*shardDistributorResolver)
 
 	return resolver, ring, spectator
 }

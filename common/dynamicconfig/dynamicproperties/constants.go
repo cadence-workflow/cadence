@@ -850,6 +850,12 @@ const (
 	// Default value: 2
 	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingIsolationGroupsPerPartition
+	// MatchingPercentageOnboardedToShardManager is the percentage of task lists that will be onboarded to the shard manager.
+	// KeyName: matching.percentageOnboardedToShardManager
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
+	MatchingPercentageOnboardedToShardManager
 
 	// key for history
 
@@ -1558,6 +1564,15 @@ const (
 	// Allowed filters: N/A
 	QueueMaxVirtualQueueCount
 
+	// ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction.
+	// etcd enforces a server-side limit (--max-txn-ops, default 128).
+	// This value must not exceed the etcd cluster's configured limit.
+	// KeyName: shardDistributor.maxEtcdTxnOps
+	// Value type: Int
+	// Default value: 128
+	// Allowed filters: N/A
+	ShardDistributorMaxEtcdTxnOps
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -2007,6 +2022,12 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableBatcher
+	// EnableScheduler decides whether to start the scheduler worker for cron-based scheduling
+	// KeyName: worker.enableScheduler
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableScheduler
 	// EnableParentClosePolicyWorker decides whether or not enable system workers for processing parent close policy task
 	// KeyName: system.enableParentClosePolicyWorker
 	// Value type: Bool
@@ -2272,6 +2293,28 @@ const (
 	// Default value: false
 	// Allowed filters: DomainName
 	EnforceDecisionTaskAttempts
+
+	// MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists)
+	// from using the shard manager to handle these shards. These short-lived task lists are assigned using hash_ring.
+	// KeyName: matching.excludeShortLivedTaskListsFromShardManager
+	// Value type: Bool
+	// Default value: true
+	// Allowed filters: N/A
+	MatchingExcludeShortLivedTaskListsFromShardManager
+
+	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
+	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableHierarchicalWeightedRoundRobinTaskScheduler
+
+	// EnableTaskListAwareTaskSchedulerByDomain is to enable task list aware task scheduler by domain
+	// KeyName: history.enableTaskListAwareTaskSchedulerByDomain
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableTaskListAwareTaskSchedulerByDomain
 
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
@@ -3074,7 +3117,7 @@ const (
 	// ReplicationTaskProcessorStartWait is the wait time before each task processing batch
 	// KeyName: history.ReplicationTaskProcessorStartWait
 	// Value type: Duration
-	// Default value: 5s (5* time.Second)
+	// Default value: 0
 	// Allowed filters: ShardID
 	ReplicationTaskProcessorStartWait
 	// ReplicationTaskProcessorLatencyLogThreshold is the threshold of whether history will log history replication latency
@@ -3133,6 +3176,13 @@ const (
 	// Default value: 3 seconds
 	// Allowed filters: domainName, taskListName, taskListType
 	AsyncTaskDispatchTimeout
+
+	// AppendTaskTimeout is the timeout of appending tasks to persistence.
+	// KeyName: matching.appendTaskTimeout
+	// Value type: Duration
+	// Default value: 5 seconds
+	// Allowed filters: domainName, taskListName, taskListType
+	AppendTaskTimeout
 
 	// HistoryGlobalRatelimiterDecayAfter defines how long to wait for an update before considering a host's data "possibly gone", causing its weight to gradually decline.
 	// KeyName: history.globalRatelimiterDecayAfter
@@ -3263,6 +3313,13 @@ const (
 	// Default value: N/A
 	// Allowed filters: N/A
 	AllIsolationGroups
+
+	// RateLimiterBypassCallerTypes defines which caller types bypass rate limiters (both frontend and persistence)
+	// KeyName: system.rateLimiterBypassCallerTypes
+	// Value type: []string
+	// Default value: empty list
+	// Allowed filters: N/A
+	RateLimiterBypassCallerTypes
 
 	// HeaderForwardingRules defines which headers are forwarded from inbound calls to outbound.
 	// This value is only loaded at startup.
@@ -3716,6 +3773,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingIsolationGroupsPerPartition is the target number of isolation groups to assign to each partition",
 		DefaultValue: 2,
+	},
+	MatchingPercentageOnboardedToShardManager: {
+		KeyName:      "matching.percentageOnboardedToShardManager",
+		Description:  "MatchingPercentageOnboardedToShardManager is the percentage of task lists that will be onboarded to the shard manager",
+		DefaultValue: 0,
 	},
 	HistoryRPS: {
 		KeyName:      "history.rps",
@@ -4310,6 +4372,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
 		DefaultValue: 2,
 	},
+	ShardDistributorMaxEtcdTxnOps: {
+		KeyName:      "shardDistributor.maxEtcdTxnOps",
+		Description:  "ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction, must not exceed the etcd cluster's configured --max-txn-ops limit",
+		DefaultValue: 128,
+	},
 }
 
 var BoolKeys = map[BoolKey]DynamicBool{
@@ -4376,7 +4443,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableCleanupOrphanedHistoryBranchOnWorkflowCreation: {
 		KeyName:      "history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation",
 		Description:  "EnableCleanupOrphanedHistoryBranchOnWorkflowCreation enables cleanup of orphaned history branches when CreateWorkflowExecution fails",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	DisableListVisibilityByFilter: {
 		KeyName:      "frontend.disableListVisibilityByFilter",
@@ -4717,6 +4784,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableBatcher is decides whether start batcher in our worker",
 		DefaultValue: true,
 	},
+	EnableScheduler: {
+		KeyName:      "worker.enableScheduler",
+		Description:  "EnableScheduler decides whether to start the scheduler worker for cron-based scheduling",
+		DefaultValue: false,
+	},
 	EnableParentClosePolicyWorker: {
 		KeyName:      "system.enableParentClosePolicyWorker",
 		Description:  "EnableParentClosePolicyWorker decides whether or not enable system workers for processing parent close policy task",
@@ -4941,6 +5013,22 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.enforceDecisionTaskAttempts",
 		Filters:      []Filter{DomainName},
 		Description:  "EnforceDecisionTaskAttempts is the key for enforcing decision retry attempts limit in case of timeouts",
+		DefaultValue: false,
+	},
+	MatchingExcludeShortLivedTaskListsFromShardManager: {
+		KeyName:      "matching.excludeShortLivedTaskListsFromShardManager",
+		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
+		DefaultValue: true,
+	},
+	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
+		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",
+		Description:  "EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler",
+		DefaultValue: false,
+	},
+	EnableTaskListAwareTaskSchedulerByDomain: {
+		KeyName:      "history.enableTaskListAwareTaskSchedulerByDomain",
+		Description:  "EnableTaskListAwareTaskSchedulerByDomain is to enable task list aware task scheduler by domain",
+		Filters:      []Filter{DomainName},
 		DefaultValue: false,
 	},
 }
@@ -5630,7 +5718,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.ReplicationTaskProcessorStartWait",
 		Filters:      []Filter{ShardID},
 		Description:  "ReplicationTaskProcessorStartWait is the wait time before each task processing batch",
-		DefaultValue: time.Second * 5,
+		DefaultValue: 0,
 	},
 	ReplicationTaskProcessorLatencyLogThreshold: {
 		KeyName:      "history.ReplicationTaskProcessorLatencyLogThreshold",
@@ -5682,6 +5770,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "AsyncTaskDispatchTimeout is the timeout of dispatching tasks for async match",
 		DefaultValue: time.Second * 3,
+	},
+	AppendTaskTimeout: {
+		KeyName:      "matching.appendTaskTimeout",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "AppendTaskTimeout is the timeout of appending tasks to persistence.",
+		DefaultValue: time.Second * 5,
 	},
 	HistoryGlobalRatelimiterDecayAfter: {
 		KeyName:      "history.globalRatelimiterDecayAfter",
@@ -5778,6 +5872,11 @@ var ListKeys = map[ListKey]DynamicList{
 	AllIsolationGroups: {
 		KeyName:     "system.allIsolationGroups",
 		Description: "A list of all the isolation groups in a system",
+	},
+	RateLimiterBypassCallerTypes: {
+		KeyName:      "system.rateLimiterBypassCallerTypes",
+		Description:  "List of caller types that bypass rate limiters (both frontend and persistence)",
+		DefaultValue: []interface{}{},
 	},
 	DefaultIsolationGroupConfigStoreManagerGlobalMapping: {
 		KeyName: "system.defaultIsolationGroupConfigStoreManagerGlobalMapping",

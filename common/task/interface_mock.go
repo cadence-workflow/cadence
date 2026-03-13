@@ -503,3 +503,94 @@ func (mr *MockSequentialTaskQueueMockRecorder) Remove() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockSequentialTaskQueue)(nil).Remove))
 }
+
+// MockSchedule is a mock of Schedule interface.
+type MockSchedule[V any] struct {
+	ctrl     *gomock.Controller
+	recorder *MockScheduleMockRecorder[V]
+	isgomock struct{}
+}
+
+// MockScheduleMockRecorder is the mock recorder for MockSchedule.
+type MockScheduleMockRecorder[V any] struct {
+	mock *MockSchedule[V]
+}
+
+// NewMockSchedule creates a new mock instance.
+func NewMockSchedule[V any](ctrl *gomock.Controller) *MockSchedule[V] {
+	mock := &MockSchedule[V]{ctrl: ctrl}
+	mock.recorder = &MockScheduleMockRecorder[V]{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockSchedule[V]) EXPECT() *MockScheduleMockRecorder[V] {
+	return m.recorder
+}
+
+// Len mocks base method.
+func (m *MockSchedule[V]) Len() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Len")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Len indicates an expected call of Len.
+func (mr *MockScheduleMockRecorder[V]) Len() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Len", reflect.TypeOf((*MockSchedule[V])(nil).Len))
+}
+
+// NewIterator mocks base method.
+func (m *MockSchedule[V]) NewIterator() Iterator[V] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewIterator")
+	ret0, _ := ret[0].(Iterator[V])
+	return ret0
+}
+
+// NewIterator indicates an expected call of NewIterator.
+func (mr *MockScheduleMockRecorder[V]) NewIterator() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewIterator", reflect.TypeOf((*MockSchedule[V])(nil).NewIterator))
+}
+
+// MockIterator is a mock of Iterator interface.
+type MockIterator[V any] struct {
+	ctrl     *gomock.Controller
+	recorder *MockIteratorMockRecorder[V]
+	isgomock struct{}
+}
+
+// MockIteratorMockRecorder is the mock recorder for MockIterator.
+type MockIteratorMockRecorder[V any] struct {
+	mock *MockIterator[V]
+}
+
+// NewMockIterator creates a new mock instance.
+func NewMockIterator[V any](ctrl *gomock.Controller) *MockIterator[V] {
+	mock := &MockIterator[V]{ctrl: ctrl}
+	mock.recorder = &MockIteratorMockRecorder[V]{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockIterator[V]) EXPECT() *MockIteratorMockRecorder[V] {
+	return m.recorder
+}
+
+// TryNext mocks base method.
+func (m *MockIterator[V]) TryNext() (V, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TryNext")
+	ret0, _ := ret[0].(V)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// TryNext indicates an expected call of TryNext.
+func (mr *MockIteratorMockRecorder[V]) TryNext() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryNext", reflect.TypeOf((*MockIterator[V])(nil).TryNext))
+}

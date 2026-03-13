@@ -18,6 +18,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/canary"
+	canaryConfig "github.com/uber/cadence/service/sharddistributor/canary/config"
 	"github.com/uber/cadence/service/sharddistributor/canary/executors"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
@@ -32,6 +33,7 @@ const (
 	defaultFixedNamespace           = "shard-distributor-canary"
 	defaultEphemeralNamespace       = "shard-distributor-canary-ephemeral"
 	defaultCanaryGRPCPort           = 7953 // Port for canary to receive ping requests
+	defaultNumExecutors             = 1
 
 	shardDistributorServiceName = "cadence-shard-distributor"
 )
@@ -42,10 +44,20 @@ func runApp(c *cli.Context) {
 	ephemeralNamespace := c.String("ephemeral-namespace")
 	canaryGRPCPort := c.Int("canary-grpc-port")
 
-	fx.New(opts(fixedNamespace, ephemeralNamespace, endpoint, canaryGRPCPort)).Run()
+	numFixedExecutors := c.Int("num-fixed-executors")
+	numEphemeralExecutors := c.Int("num-ephemeral-executors")
+
+	if c.IsSet("num-executors") {
+		numExecutors := c.Int("num-executors")
+		numFixedExecutors = numExecutors
+		numEphemeralExecutors = numExecutors
+
+	}
+
+	fx.New(opts(fixedNamespace, ephemeralNamespace, endpoint, canaryGRPCPort, numFixedExecutors, numEphemeralExecutors)).Run()
 }
 
-func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort int) fx.Option {
+func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort int, numFixedExecutors, numEphemeral int) fx.Option {
 	configuration := clientcommon.Config{
 		Namespaces: []clientcommon.NamespaceConfig{
 			{Namespace: fixedNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
@@ -130,7 +142,18 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort in
 		}),
 
 		// Include the canary module - it will set up spectator peer choosers and canary client
-		canary.Module(canary.NamespacesNames{FixedNamespace: fixedNamespace, EphemeralNamespace: ephemeralNamespace, ExternalAssignmentNamespace: executors.ExternalAssignmentNamespace, SharddistributorServiceName: shardDistributorServiceName}),
+		canary.Module(canary.NamespacesNames{
+			FixedNamespace:              fixedNamespace,
+			EphemeralNamespace:          ephemeralNamespace,
+			ExternalAssignmentNamespace: executors.ExternalAssignmentNamespace,
+			SharddistributorServiceName: shardDistributorServiceName,
+			Config: canaryConfig.Config{
+				Canary: canaryConfig.CanaryConfig{
+					NumFixedExecutors:     numFixedExecutors,
+					NumEphemeralExecutors: numEphemeral,
+				},
+			},
+		}),
 	)
 }
 
@@ -165,6 +188,21 @@ func buildCLI() *cli.App {
 					Name:  "canary-grpc-port",
 					Value: defaultCanaryGRPCPort,
 					Usage: "port for canary to receive ping requests",
+				},
+				&cli.IntFlag{
+					Name:  "num-executors",
+					Value: defaultNumExecutors,
+					Usage: "number of executors for fixed and ephemeral to start. Overrides num-fixed-executors and num-ephemeral-executors flags",
+				},
+				&cli.IntFlag{
+					Name:  "num-fixed-executors",
+					Value: defaultNumExecutors,
+					Usage: "number of executors of fixed namespace to start. Don't use with num-executors",
+				},
+				&cli.IntFlag{
+					Name:  "num-ephemeral-executors",
+					Value: defaultNumExecutors,
+					Usage: "number of executors of ephemeral namespace to start. Don't use with num-executors",
 				},
 			},
 			Action: func(c *cli.Context) error {

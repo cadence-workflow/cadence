@@ -624,3 +624,21 @@ func determineExecutionStatus(
 
 	return executionStatus, scheduledExecutionTimestamp
 }
+
+func determineExecutionStatusForVisibility(
+	startEvent *types.HistoryEvent,
+	mutableState execution.MutableState,
+	isAdvancedVisibilityEnabled bool,
+) (executionStatus types.WorkflowExecutionStatus, scheduledExecutionTimestamp int64) {
+	executionStatus, scheduledExecutionTimestamp = determineExecutionStatus(startEvent, mutableState)
+
+	// For basic DB visibility, always use STARTED status
+	// Basic visibility cannot be updated mid-execution, so showing PENDING would be
+	// misleading as the workflow would appear to be waiting even when it's running.
+	// With advanced visibility, we can update PENDING -> STARTED via upsert.
+	if !isAdvancedVisibilityEnabled && executionStatus == types.WorkflowExecutionStatusPending {
+		executionStatus = types.WorkflowExecutionStatusStarted
+	}
+
+	return executionStatus, scheduledExecutionTimestamp
+}

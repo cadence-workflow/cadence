@@ -26,18 +26,36 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"sync"
+	"time"
 
+	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
+const (
+	// ephemeralBatchInterval is the time window over which GetShardOwner calls for
+	// ephemeral namespaces are collected before being processed as a single batch.
+	ephemeralBatchInterval = 100 * time.Millisecond
+
+	// versionConflictRetryInitialInterval is the starting backoff for retries
+	// triggered when a concurrent shard assignment causes a version conflict.
+	versionConflictRetryInitialInterval = 50 * time.Millisecond
+	// versionConflictRetryMaxInterval caps the per-attempt sleep.
+	versionConflictRetryMaxInterval = 1 * time.Second
+	// versionConflictRetryMaxAttempts is the maximum number of retry attempts
+	// before the error is surfaced to the caller.
+	versionConflictRetryMaxAttempts = 3
+)
+
 func NewHandler(
 	logger log.Logger,
+	timeSource clock.TimeSource,
 	shardDistributionCfg config.ShardDistribution,
 	storage store.Store,
 ) Handler {
@@ -46,6 +64,8 @@ func NewHandler(
 		shardDistributionCfg: shardDistributionCfg,
 		storage:              storage,
 	}
+
+	handler.batcher = newShardBatcher(timeSource, ephemeralBatchInterval, handler.assignEphemeralBatch)
 
 	// prevent us from trying to serve requests before shard distributor is started and ready
 	handler.startWG.Add(1)
@@ -59,13 +79,17 @@ type handlerImpl struct {
 
 	storage              store.Store
 	shardDistributionCfg config.ShardDistribution
+
+	batcher *shardBatcher
 }
 
 func (h *handlerImpl) Start() {
+	h.batcher.Start()
 	h.startWG.Done()
 }
 
 func (h *handlerImpl) Stop() {
+	h.batcher.Stop()
 }
 
 func (h *handlerImpl) Health(ctx context.Context) (*types.HealthStatus, error) {
@@ -90,7 +114,7 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 	shardOwner, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
 	if errors.Is(err, store.ErrShardNotFound) {
 		if h.shardDistributionCfg.Namespaces[namespaceIdx].Type == config.NamespaceTypeEphemeral {
-			return h.assignEphemeralShard(ctx, request.Namespace, request.ShardKey)
+			return h.getOrAssignEphemeralShard(ctx, request)
 		}
 
 		return nil, &types.ShardNotFoundError{
@@ -102,54 +126,62 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to get shard owner: %v", err)}
 	}
 
-	resp = &types.GetShardOwnerResponse{
+	return &types.GetShardOwnerResponse{
 		Owner:     shardOwner.ExecutorID,
 		Metadata:  shardOwner.Metadata,
 		Namespace: request.Namespace,
-	}
-
-	return resp, nil
+	}, nil
 }
 
-func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string, shardID string) (*types.GetShardOwnerResponse, error) {
+// getOrAssignEphemeralShard assigns an ephemeral shard that does not yet exist
+// in storage. It submits the request to the batcher and, on a version conflict
+// (concurrent assignment by another goroutine), retries with exponential backoff.
+// Each retry re-reads storage first: if the concurrent writer already committed
+// the assignment we return it immediately without re-submitting to the batcher.
+func (h *handlerImpl) getOrAssignEphemeralShard(ctx context.Context, request *types.GetShardOwnerRequest) (*types.GetShardOwnerResponse, error) {
+	retryPolicy := backoff.NewExponentialRetryPolicy(versionConflictRetryInitialInterval)
+	retryPolicy.SetMaximumInterval(versionConflictRetryMaxInterval)
+	retryPolicy.SetMaximumAttempts(versionConflictRetryMaxAttempts)
 
-	// Get the current state of the namespace and find the executor with the least assigned shards
-	state, err := h.storage.GetState(ctx, namespace)
-	if err != nil {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
-	}
+	throttleRetry := backoff.NewThrottleRetry(
+		backoff.WithRetryPolicy(retryPolicy),
+		backoff.WithRetryableError(func(err error) bool {
+			return errors.Is(err, store.ErrVersionConflict)
+		}),
+	)
 
-	var executorID string
-	minAssignedShards := math.MaxInt
-
-	for assignedExecutor, assignment := range state.ShardAssignments {
-		executorState, ok := state.Executors[assignedExecutor]
-		if !ok || executorState.Status != types.ExecutorStatusACTIVE {
-			continue
+	var resp *types.GetShardOwnerResponse
+	isRetry := false
+	err := throttleRetry.Do(ctx, func(ctx context.Context) error {
+		if isRetry {
+			// A concurrent batch won the race. Re-read storage first: if the
+			// winner already committed our shard's assignment we can return
+			// immediately without re-submitting to the batcher.
+			owner, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
+			if err != nil && !errors.Is(err, store.ErrShardNotFound) {
+				return &types.InternalServiceError{Message: fmt.Sprintf("failed to get shard owner: %v", err)}
+			}
+			if err == nil {
+				resp = &types.GetShardOwnerResponse{
+					Owner:     owner.ExecutorID,
+					Metadata:  owner.Metadata,
+					Namespace: request.Namespace,
+				}
+				return nil
+			}
 		}
+		isRetry = true
 
-		if len(assignment.AssignedShards) < minAssignedShards {
-			minAssignedShards = len(assignment.AssignedShards)
-			executorID = assignedExecutor
-		}
-	}
+		// Submit to the batcher to assign the shard.
+		var err error
+		resp, err = h.batcher.Submit(ctx, request)
+		return err
+	})
 
-	// Assign the shard to the executor with the least assigned shards
-	err = h.storage.AssignShard(ctx, namespace, shardID, executorID)
 	if err != nil {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("assign ephemeral shard: %v", err)}
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to assign ephemeral shard: %v", err)}
 	}
-
-	executor, err := h.storage.GetExecutor(ctx, namespace, executorID)
-	if err != nil {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get executor: %v", err)}
-	}
-
-	return &types.GetShardOwnerResponse{
-		Owner:     executor.ExecutorID,
-		Namespace: namespace,
-		Metadata:  executor.Metadata,
-	}, nil
+	return resp, nil
 }
 
 func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequest, server WatchNamespaceStateServer) error {

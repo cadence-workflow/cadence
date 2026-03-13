@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -558,7 +559,11 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 	searchAttr := copySearchAttributes(executionInfo.SearchAttributes)
 	headers := getWorkflowHeaders(startEvent)
 
-	executionStatus, scheduledExecutionTimestamp := determineExecutionStatus(startEvent, mutableState)
+	isAdvancedVisibilityEnabled := common.IsAdvancedVisibilityWritingEnabled(
+		t.config.WriteVisibilityStoreName(),
+		t.config.IsAdvancedVisConfigExist,
+	)
+	executionStatus, scheduledExecutionTimestamp := determineExecutionStatusForVisibility(startEvent, mutableState, isAdvancedVisibilityEnabled)
 
 	if isRecordStart {
 		workflowStartedScope.IncCounter(metrics.WorkflowStartedCount)

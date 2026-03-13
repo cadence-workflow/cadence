@@ -22,8 +22,6 @@ package types
 
 import (
 	"context"
-
-	"go.uber.org/yarpc"
 )
 
 const (
@@ -62,15 +60,12 @@ type CallerInfo struct {
 }
 
 // NewCallerInfo creates a new CallerInfo
-func NewCallerInfo(callerType CallerType) *CallerInfo {
-	return &CallerInfo{callerType: callerType}
+func NewCallerInfo(callerType CallerType) CallerInfo {
+	return CallerInfo{callerType: callerType}
 }
 
-// GetCallerType returns the CallerType, or CallerTypeUnknown if CallerInfo is nil
-func (c *CallerInfo) GetCallerType() CallerType {
-	if c == nil {
-		return CallerTypeUnknown
-	}
+// GetCallerType returns the CallerType
+func (c CallerInfo) GetCallerType() CallerType {
 	return c.callerType
 }
 
@@ -92,43 +87,35 @@ func ParseCallerType(s string) CallerType {
 }
 
 // ContextWithCallerInfo adds CallerInfo to context
-func ContextWithCallerInfo(ctx context.Context, callerInfo *CallerInfo) context.Context {
-	if callerInfo == nil {
-		return ctx
-	}
+func ContextWithCallerInfo(ctx context.Context, callerInfo CallerInfo) context.Context {
 	return context.WithValue(ctx, callerInfoKey, callerInfo)
 }
 
-// GetCallerInfoFromContext retrieves CallerInfo from context, returns nil if not set
-func GetCallerInfoFromContext(ctx context.Context) *CallerInfo {
+// GetCallerInfoFromContext retrieves CallerInfo from context
+// Returns CallerInfo with CallerTypeUnknown if not set in context
+func GetCallerInfoFromContext(ctx context.Context) CallerInfo {
 	if ctx == nil {
-		return nil
+		return NewCallerInfo(CallerTypeUnknown)
 	}
-	callerInfo, _ := ctx.Value(callerInfoKey).(*CallerInfo)
-	return callerInfo
+	if callerInfo, ok := ctx.Value(callerInfoKey).(CallerInfo); ok {
+		return callerInfo
+	}
+	return NewCallerInfo(CallerTypeUnknown)
 }
 
-// GetCallerInfoFromHeaders extracts CallerInfo from YARPC headers in the context
-func GetCallerInfoFromHeaders(ctx context.Context) *CallerInfo {
-	if ctx == nil {
-		return nil
-	}
+// NewCallerInfoFromTransportHeaders extracts CallerInfo from transport headers
+// This is used by middleware to extract caller information from incoming requests
+func NewCallerInfoFromTransportHeaders(headers interface{ Get(string) (string, bool) }) CallerInfo {
+	callerTypeStr, _ := headers.Get(CallerTypeHeaderName)
 
-	call := yarpc.CallFromContext(ctx)
-	if call == nil {
-		return nil
-	}
+	// Future: add more header extractions here
+	// version, _ := headers.Get("cadence-client-version")
+	// identity, _ := headers.Get("cadence-client-identity")
 
-	callerTypeStr := call.Header(CallerTypeHeaderName)
 	return NewCallerInfo(ParseCallerType(callerTypeStr))
 }
 
-// GetContextWithCallerInfoFromHeaders extracts CallerInfo from YARPC headers and adds it to the context
-// Returns the original context if no caller info is found in headers
-func GetContextWithCallerInfoFromHeaders(ctx context.Context) context.Context {
-	callerInfo := GetCallerInfoFromHeaders(ctx)
-	if callerInfo == nil {
-		return ctx
-	}
-	return ContextWithCallerInfo(ctx, callerInfo)
+// GetContextWithCallerInfoFromHeaders extracts CallerInfo from transport headers and adds it to the context
+func GetContextWithCallerInfoFromHeaders(ctx context.Context, headers interface{ Get(string) (string, bool) }) context.Context {
+	return ContextWithCallerInfo(ctx, NewCallerInfoFromTransportHeaders(headers))
 }

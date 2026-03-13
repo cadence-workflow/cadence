@@ -209,21 +209,6 @@ func (mr *MockStoreMockRecorder) RecordHeartbeat(ctx, namespace, executorID, sta
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordHeartbeat", reflect.TypeOf((*MockStore)(nil).RecordHeartbeat), ctx, namespace, executorID, state)
 }
 
-// Subscribe mocks base method.
-func (m *MockStore) Subscribe(ctx context.Context, namespace string) (<-chan int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Subscribe", ctx, namespace)
-	ret0, _ := ret[0].(<-chan int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Subscribe indicates an expected call of Subscribe.
-func (mr *MockStoreMockRecorder) Subscribe(ctx, namespace any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockStore)(nil).Subscribe), ctx, namespace)
-}
-
 // SubscribeToAssignmentChanges mocks base method.
 func (m *MockStore) SubscribeToAssignmentChanges(ctx context.Context, namespace string) (<-chan map[*ShardOwner][]string, func(), error) {
 	m.ctrl.T.Helper()
@@ -238,4 +223,19 @@ func (m *MockStore) SubscribeToAssignmentChanges(ctx context.Context, namespace 
 func (mr *MockStoreMockRecorder) SubscribeToAssignmentChanges(ctx, namespace any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubscribeToAssignmentChanges", reflect.TypeOf((*MockStore)(nil).SubscribeToAssignmentChanges), ctx, namespace)
+}
+
+// SubscribeToExecutorStatusChanges mocks base method.
+func (m *MockStore) SubscribeToExecutorStatusChanges(ctx context.Context, namespace string) (<-chan int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SubscribeToExecutorStatusChanges", ctx, namespace)
+	ret0, _ := ret[0].(<-chan int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SubscribeToExecutorStatusChanges indicates an expected call of SubscribeToExecutorStatusChanges.
+func (mr *MockStoreMockRecorder) SubscribeToExecutorStatusChanges(ctx, namespace any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubscribeToExecutorStatusChanges", reflect.TypeOf((*MockStore)(nil).SubscribeToExecutorStatusChanges), ctx, namespace)
 }

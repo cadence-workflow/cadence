@@ -30,7 +30,7 @@ import (
 
 type (
 	queueManager struct {
-		persistence Queue
+		persistence QueueStore
 		timeSrc     clock.TimeSource
 	}
 )
@@ -39,7 +39,7 @@ var _ QueueManager = (*queueManager)(nil)
 
 // NewQueueManager returns a new QueueManager
 func NewQueueManager(
-	persistence Queue,
+	persistence QueueStore,
 ) QueueManager {
 	return &queueManager{
 		persistence: persistence,
@@ -51,72 +51,116 @@ func (q *queueManager) Close() {
 	q.persistence.Close()
 }
 
-func (q *queueManager) EnqueueMessage(ctx context.Context, messagePayload []byte) error {
+func (q *queueManager) EnqueueMessage(ctx context.Context, request *EnqueueMessageRequest) error {
 	currentTimestamp := q.timeSrc.Now()
-	return q.persistence.EnqueueMessage(ctx, messagePayload, currentTimestamp)
+	return q.persistence.EnqueueMessage(ctx, &InternalEnqueueMessageRequest{
+		MessagePayload:   request.MessagePayload,
+		CurrentTimeStamp: currentTimestamp,
+	})
 }
 
-func (q *queueManager) ReadMessages(ctx context.Context, lastMessageID int64, maxCount int) (QueueMessageList, error) {
-	resp, err := q.persistence.ReadMessages(ctx, lastMessageID, maxCount)
+func (q *queueManager) ReadMessages(ctx context.Context, request *ReadMessagesRequest) (*ReadMessagesResponse, error) {
+	resp, err := q.persistence.ReadMessages(ctx, &InternalReadMessagesRequest{
+		LastMessageID: request.LastMessageID,
+		MaxCount:      request.MaxCount,
+	})
 	if err != nil {
 		return nil, err
 	}
-	var output []*QueueMessage
-	for _, message := range resp {
+	output := make(QueueMessageList, 0, len(resp.Messages))
+	for _, message := range resp.Messages {
 		output = append(output, q.fromInternalQueueMessage(message))
 	}
-	return output, nil
+	return &ReadMessagesResponse{Messages: output}, nil
 }
 
-func (q *queueManager) DeleteMessagesBefore(ctx context.Context, messageID int64) error {
-	return q.persistence.DeleteMessagesBefore(ctx, messageID)
+func (q *queueManager) DeleteMessagesBefore(ctx context.Context, request *DeleteMessagesBeforeRequest) error {
+	return q.persistence.DeleteMessagesBefore(ctx, &InternalDeleteMessagesBeforeRequest{
+		MessageID: request.MessageID,
+	})
 }
 
-func (q *queueManager) UpdateAckLevel(ctx context.Context, messageID int64, clusterName string) error {
+func (q *queueManager) UpdateAckLevel(ctx context.Context, request *UpdateAckLevelRequest) error {
 	currentTimestamp := q.timeSrc.Now()
-	return q.persistence.UpdateAckLevel(ctx, messageID, clusterName, currentTimestamp)
+	return q.persistence.UpdateAckLevel(ctx, &InternalUpdateAckLevelRequest{
+		MessageID:        request.MessageID,
+		ClusterName:      request.ClusterName,
+		CurrentTimeStamp: currentTimestamp,
+	})
 }
 
-func (q *queueManager) GetAckLevels(ctx context.Context) (map[string]int64, error) {
-	return q.persistence.GetAckLevels(ctx)
+func (q *queueManager) GetAckLevels(ctx context.Context, request *GetAckLevelsRequest) (*GetAckLevelsResponse, error) {
+	resp, err := q.persistence.GetAckLevels(ctx, &InternalGetAckLevelsRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return &GetAckLevelsResponse{AckLevels: resp.AckLevels}, nil
 }
 
-func (q *queueManager) EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte) error {
+func (q *queueManager) EnqueueMessageToDLQ(ctx context.Context, request *EnqueueMessageToDLQRequest) error {
 	currentTimestamp := q.timeSrc.Now()
-	return q.persistence.EnqueueMessageToDLQ(ctx, messagePayload, currentTimestamp)
+	return q.persistence.EnqueueMessageToDLQ(ctx, &InternalEnqueueMessageToDLQRequest{
+		MessagePayload:   request.MessagePayload,
+		CurrentTimeStamp: currentTimestamp,
+	})
 }
 
-func (q *queueManager) ReadMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64, pageSize int, pageToken []byte) ([]*QueueMessage, []byte, error) {
-	resp, data, err := q.persistence.ReadMessagesFromDLQ(ctx, firstMessageID, lastMessageID, pageSize, pageToken)
+func (q *queueManager) ReadMessagesFromDLQ(ctx context.Context, request *ReadMessagesFromDLQRequest) (*ReadMessagesFromDLQResponse, error) {
+	resp, err := q.persistence.ReadMessagesFromDLQ(ctx, &InternalReadMessagesFromDLQRequest{
+		FirstMessageID: request.FirstMessageID,
+		LastMessageID:  request.LastMessageID,
+		PageSize:       request.PageSize,
+		PageToken:      request.PageToken,
+	})
 	if resp == nil {
-		return nil, data, err
+		return nil, err
 	}
-	var output []*QueueMessage
-	for _, message := range resp {
+	output := make([]*QueueMessage, 0, len(resp.Messages))
+	for _, message := range resp.Messages {
 		output = append(output, q.fromInternalQueueMessage(message))
 	}
-	return output, data, err
+	return &ReadMessagesFromDLQResponse{
+		Messages:      output,
+		NextPageToken: resp.NextPageToken,
+	}, err
 }
 
-func (q *queueManager) DeleteMessageFromDLQ(ctx context.Context, messageID int64) error {
-	return q.persistence.DeleteMessageFromDLQ(ctx, messageID)
+func (q *queueManager) DeleteMessageFromDLQ(ctx context.Context, request *DeleteMessageFromDLQRequest) error {
+	return q.persistence.DeleteMessageFromDLQ(ctx, &InternalDeleteMessageFromDLQRequest{
+		MessageID: request.MessageID,
+	})
 }
 
-func (q *queueManager) RangeDeleteMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64) error {
-	return q.persistence.RangeDeleteMessagesFromDLQ(ctx, firstMessageID, lastMessageID)
+func (q *queueManager) RangeDeleteMessagesFromDLQ(ctx context.Context, request *RangeDeleteMessagesFromDLQRequest) error {
+	return q.persistence.RangeDeleteMessagesFromDLQ(ctx, &InternalRangeDeleteMessagesFromDLQRequest{
+		FirstMessageID: request.FirstMessageID,
+		LastMessageID:  request.LastMessageID,
+	})
 }
 
-func (q *queueManager) UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string) error {
+func (q *queueManager) UpdateDLQAckLevel(ctx context.Context, request *UpdateDLQAckLevelRequest) error {
 	currentTimestamp := q.timeSrc.Now()
-	return q.persistence.UpdateDLQAckLevel(ctx, messageID, clusterName, currentTimestamp)
+	return q.persistence.UpdateDLQAckLevel(ctx, &InternalUpdateDLQAckLevelRequest{
+		MessageID:        request.MessageID,
+		ClusterName:      request.ClusterName,
+		CurrentTimeStamp: currentTimestamp,
+	})
 }
 
-func (q *queueManager) GetDLQAckLevels(ctx context.Context) (map[string]int64, error) {
-	return q.persistence.GetDLQAckLevels(ctx)
+func (q *queueManager) GetDLQAckLevels(ctx context.Context, request *GetDLQAckLevelsRequest) (*GetDLQAckLevelsResponse, error) {
+	resp, err := q.persistence.GetDLQAckLevels(ctx, &InternalGetDLQAckLevelsRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return &GetDLQAckLevelsResponse{AckLevels: resp.AckLevels}, nil
 }
 
-func (q *queueManager) GetDLQSize(ctx context.Context) (int64, error) {
-	return q.persistence.GetDLQSize(ctx)
+func (q *queueManager) GetDLQSize(ctx context.Context, request *GetDLQSizeRequest) (*GetDLQSizeResponse, error) {
+	resp, err := q.persistence.GetDLQSize(ctx, &InternalGetDLQSizeRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return &GetDLQSizeResponse{Size: resp.Size}, nil
 }
 
 func (q *queueManager) fromInternalQueueMessage(message *InternalQueueMessage) *QueueMessage {

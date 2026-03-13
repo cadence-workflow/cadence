@@ -23,6 +23,7 @@
 package engineimpl
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -72,7 +73,7 @@ func TestDescribeMutableState_Success(t *testing.T) {
 		executionCache: cacheMock,
 	}
 
-	resp, err := engine.DescribeMutableState(nil, &types.DescribeMutableStateRequest{
+	resp, err := engine.DescribeMutableState(context.TODO(), &types.DescribeMutableStateRequest{
 		DomainUUID: constants.TestDomainID,
 		Execution:  getExpectedWFExecution(),
 	})
@@ -94,7 +95,7 @@ func TestDescribeMutableState_Success(t *testing.T) {
 func TestDescribeMutableState_Error_UnknownDomain(t *testing.T) {
 	engine := &historyEngineImpl{}
 
-	_, err := engine.DescribeMutableState(nil, &types.DescribeMutableStateRequest{
+	_, err := engine.DescribeMutableState(context.TODO(), &types.DescribeMutableStateRequest{
 		DomainUUID: "This is not a uuid",
 	})
 	assert.Error(t, err)
@@ -114,7 +115,7 @@ func TestDescribeMutableState_Error_GetAndCreateError(t *testing.T) {
 		executionCache: cacheMock,
 	}
 
-	_, err := engine.DescribeMutableState(nil, &types.DescribeMutableStateRequest{
+	_, err := engine.DescribeMutableState(context.TODO(), &types.DescribeMutableStateRequest{
 		DomainUUID: constants.TestDomainID,
 		Execution:  getExpectedWFExecution(),
 	})
@@ -142,7 +143,7 @@ func TestDescribeMutableState_Error_LoadFromDBError(t *testing.T) {
 		executionCache: cacheMock,
 	}
 
-	_, err := engine.DescribeMutableState(nil, &types.DescribeMutableStateRequest{
+	_, err := engine.DescribeMutableState(context.TODO(), &types.DescribeMutableStateRequest{
 		DomainUUID: constants.TestDomainID,
 		Execution:  getExpectedWFExecution(),
 	})

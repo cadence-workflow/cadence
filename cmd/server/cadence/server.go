@@ -179,12 +179,17 @@ func (s *server) startService() common.Daemon {
 		if len(s.cfg.ShardDistributorMatchingConfig.Namespaces) > 1 {
 			s.logger.Fatal("spectator does not support multiple namespaces", tag.Value(s.cfg.ShardDistributorMatchingConfig.Namespaces))
 		}
+		matchingShardDistributionMode := dc.GetStringProperty(dynamicproperties.MatchingShardDistributionMode)
+
 		spectatorParams := spectatorclient.Params{
 			Client:       shardDistributorClient,
 			MetricsScope: params.MetricScope,
 			Logger:       params.Logger,
 			Config:       s.cfg.ShardDistributorMatchingConfig,
 			TimeSource:   clock.NewRealTimeSource(),
+			Enabled: func() bool {
+				return membership.ModeKey(matchingShardDistributionMode()) != membership.ModeKeyHashRing
+			},
 		}
 		namespace := s.cfg.ShardDistributorMatchingConfig.Namespaces[0].Namespace
 		spectator, err = spectatorclient.NewSpectatorWithNamespace(
@@ -322,6 +327,8 @@ func (*server) wrapHashRingsWithShardDistributor(
 		hashRings[service.Matching] = membership.NewShardDistributorResolver(
 			spectator,
 			dc.GetStringProperty(dynamicproperties.MatchingShardDistributionMode),
+			dc.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
+			dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
 			hashRings[service.Matching],
 			logger,
 		)

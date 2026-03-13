@@ -91,6 +91,22 @@ type (
 		// Len return the size of the queue
 		Len() int
 	}
+
+	// Schedule represents a stateless schedule definition
+	Schedule[V any] interface {
+		// NewIterator creates a new stateful iterator for this schedule
+		NewIterator() Iterator[V]
+
+		// Len returns the length of the schedule
+		Len() int
+	}
+
+	// Iterator represents a stateful iteration through a schedule
+	Iterator[V any] interface {
+		// Next returns the next value in the iteration
+		// Returns (value, true) if available, (zero value, false) if exhausted
+		TryNext() (V, bool)
+	}
 )
 
 const (
