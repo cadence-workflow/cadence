@@ -1360,41 +1360,8 @@ func DescribeHistoryHostRequestFuzzer(r *types.DescribeHistoryHostRequest, c fuz
 func ResendReplicationTasksRequestFuzzer(r *types.ResendReplicationTasksRequest, c fuzz.Continue) {
 	c.FuzzNoCustom(r)
 
-	// Fix StartEventID/StartVersion pair: both set or both nil
-	if (r.StartEventID == nil) != (r.StartVersion == nil) {
-		// Mismatched - make both nil or both non-nil
-		if c.Intn(2) == 0 {
-			r.StartEventID = nil
-			r.StartVersion = nil
-		} else {
-			if r.StartEventID == nil {
-				id := c.Int63()
-				r.StartEventID = &id
-			}
-			if r.StartVersion == nil {
-				ver := c.Int63()
-				r.StartVersion = &ver
-			}
-		}
-	}
-
-	// Fix EndEventID/EndVersion pair: both set or both nil
-	if (r.EndEventID == nil) != (r.EndVersion == nil) {
-		// Mismatched - make both nil or both non-nil
-		if c.Intn(2) == 0 {
-			r.EndEventID = nil
-			r.EndVersion = nil
-		} else {
-			if r.EndEventID == nil {
-				id := c.Int63()
-				r.EndEventID = &id
-			}
-			if r.EndVersion == nil {
-				ver := c.Int63()
-				r.EndVersion = &ver
-			}
-		}
-	}
+	r.StartEventID, r.StartVersion = EventIDVersionPairFuzzer(c)
+	r.EndEventID, r.EndVersion = EventIDVersionPairFuzzer(c)
 }
 
 // DescribeWorkflowExecutionResponseFuzzer ensures ShardID is a valid int32 string
