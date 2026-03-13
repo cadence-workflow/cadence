@@ -22,6 +22,7 @@ package task
 
 import (
 	"context"
+	"errors"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
@@ -85,7 +86,6 @@ func (t *timerTaskExecutorBase) executeDeleteHistoryEventTask(
 	ctx context.Context,
 	task *persistence.DeleteHistoryEventTask,
 ) (retError error) {
-
 	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
 		task.DomainID,
 		getWorkflowExecution(task),
@@ -152,7 +152,6 @@ func (t *timerTaskExecutorBase) deleteWorkflow(
 	context execution.Context,
 	msBuilder execution.MutableState,
 ) error {
-
 	if err := t.deleteWorkflowHistory(ctx, task, msBuilder); err != nil {
 		return err
 	}
@@ -168,6 +167,8 @@ func (t *timerTaskExecutorBase) deleteWorkflow(
 	if err := t.deleteActiveClusterSelectionPolicy(ctx, task); err != nil {
 		return err
 	}
+
+	t.deleteWorkflowTimerTasksBestEffort(ctx, task, msBuilder)
 
 	// it must be the last one due to the nature of workflow execution deletion
 	if err := t.deleteWorkflowExecution(ctx, task); err != nil {
@@ -244,9 +245,13 @@ func (t *timerTaskExecutorBase) archiveWorkflow(
 	if err := t.deleteCurrentWorkflowExecution(ctx, task); err != nil {
 		return err
 	}
+
+	t.deleteWorkflowTimerTasksBestEffort(ctx, task, msBuilder)
+
 	if err := t.deleteWorkflowExecution(ctx, task); err != nil {
 		return err
 	}
+
 	// calling clear here to force accesses of mutable state to read database
 	// if this is not called then callers will get mutable state even though its been removed from database
 	workflowContext.Clear()
@@ -321,7 +326,6 @@ func (t *timerTaskExecutorBase) deleteWorkflowHistory(
 			ShardID:     common.IntPtr(t.shard.GetShardID()),
 			DomainName:  domainName,
 		})
-
 	}
 	return t.throttleRetry.Do(ctx, op)
 }
@@ -347,6 +351,44 @@ func (t *timerTaskExecutorBase) deleteWorkflowVisibility(
 		return t.shard.GetService().GetVisibilityManager().DeleteWorkflowExecution(ctx, request) // delete from db
 	}
 	return t.throttleRetry.Do(ctx, op)
+}
+
+func (t *timerTaskExecutorBase) deleteWorkflowTimerTasksBestEffort(
+	ctx context.Context,
+	task *persistence.DeleteHistoryEventTask,
+	msBuilder execution.MutableState,
+) {
+
+	if !t.shard.GetConfig().EnableExecutionInfoTracking() {
+		// feature-flag: to remove once this is defaulted to true
+		// there's nothing to run if the data's not tracked, but just out of caution, bail out if not enabled
+		return
+	}
+	workflowTimerTasks := msBuilder.GetPendingWorkflowTimerTaskInfos()
+
+	for _, taskInfo := range workflowTimerTasks {
+		op := func(ctx context.Context) error {
+
+			return t.shard.GetExecutionManager().DeleteTimerTask(ctx, &persistence.DeleteTimerTaskRequest{
+				TaskID:              taskInfo.TaskID,
+				VisibilityTimestamp: taskInfo.VisibilityTimestamp,
+			})
+		}
+		if err := t.throttleRetry.Do(ctx, op); err != nil {
+			if errors.As(err, new(*types.EntityNotExistsError)) {
+				// in perhaps a significant minority of cases, it's likely the timer's already fired
+				continue
+			}
+			t.logger.Error("Failed to delete workflow timer task during workflow deletion",
+				tag.ShardID(t.shard.GetShardID()),
+				tag.WorkflowDomainID(task.DomainID),
+				tag.WorkflowID(task.WorkflowID),
+				tag.WorkflowRunID(task.RunID),
+				tag.TaskID(taskInfo.TaskID),
+				tag.Error(err),
+			)
+		}
+	}
 }
 
 func (t *timerTaskExecutorBase) Stop() {
