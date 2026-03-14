@@ -39,6 +39,7 @@ func NewExecutionManager(
 			enableLatencyHistogramMetrics: cfg.EnablePersistenceLatencyHistogramMetrics,
 			sampleLoggingRate:             sampleLoggingRate,
 			enableShardIDMetrics:          enableShardIDMetrics,
+			hostName:                      cfg.HostName,
 		},
 	}
 }

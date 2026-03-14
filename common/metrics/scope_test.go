@@ -35,6 +35,7 @@ func TestHistogramMode(t *testing.T) {
 		findName(ExponentialTaskProcessingLatency):          {},
 		findName(PersistenceLatency):                        {},
 		findName(PersistenceLatencyHistogram):               {},
+		findName(PersistenceLatencyHistogramPerHost):        {},
 		findName(TaskAttemptTimer):                          {},
 		findName(ExponentialTaskAttemptCounts):              {},
 		findName(TaskQueueLatency):                          {},
