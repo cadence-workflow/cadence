@@ -1,0 +1,24 @@
+---
+description: Respect global agent configuration and generic rules
+alwaysApply: true
+---
+
+# Agent Configuration and Generic Rules
+
+Always consult these locations for development guidelines:
+
+1. Primary Configuration
+  - **`AGENTS.md`** (root) - Main source of truth for all development rules and agent configuration
+  - Contains core development rules, architecture overview, and workflow guidelines
+2. Generic Rules (Tool-Agnostic)
+  - **`.agents/`** directory contains generic rules applicable across all AI tools
+
+## Precedence
+
+When multiple rules apply:
+1. User's explicit instructions (highest priority)
+2. `AGENTS.md` and `.agents/` rules
+3. `.cursor/rules/` specific rules
+4. Default behavior (lowest priority)
+
+**IMPORTANT:** Always check `AGENTS.md` at the start of any task for project-specific guidelines, architecture, and conventions.
