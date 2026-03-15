@@ -3,9 +3,9 @@ CREATE TABLE domain_audit_log
     domain_id             VARCHAR(255) NOT NULL,
     event_id              VARCHAR(255) NOT NULL,
     --
-    state_before          BLOB         NOT NULL,
+    state_before          BLOB,
     state_before_encoding VARCHAR(16)  NOT NULL,
-    state_after           BLOB         NOT NULL,
+    state_after           BLOB,
     state_after_encoding  VARCHAR(16)  NOT NULL,
     operation_type        INT          NOT NULL,
     created_time          DATETIME(6)  NOT NULL,

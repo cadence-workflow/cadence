@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.8",
+  "MinCompatibleVersion": "0.8",
+  "Description": "make domain_audit_log state_before and state_after nullable",
+  "SchemaUpdateCqlFiles": [
+    "domain_audit_log.sql"
+  ]
+}
