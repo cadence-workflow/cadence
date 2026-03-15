@@ -278,9 +278,9 @@ CREATE TABLE domain_audit_log (
   domain_id               TEXT NOT NULL,
   event_id                TEXT NOT NULL,
   --
-  state_before            BYTEA NOT NULL,
+  state_before            BYTEA,
   state_before_encoding   TEXT NOT NULL,
-  state_after             BYTEA NOT NULL,
+  state_after             BYTEA,
   state_after_encoding    TEXT NOT NULL,
   operation_type          INTEGER NOT NULL,
   created_time            TIMESTAMP NOT NULL,
