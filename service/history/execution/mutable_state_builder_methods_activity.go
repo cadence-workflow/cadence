@@ -314,6 +314,13 @@ func (e *mutableStateBuilder) tryDispatchActivityTask(
 		taggedScope.IncCounter(metrics.DecisionTypeScheduleActivityDispatchSucceedCounter)
 		return true
 	}
+	e.logger.Error("Failed to dispatch activity task bypassing transfer task generation",
+		tag.WorkflowDomainName(e.GetDomainEntry().GetInfo().Name),
+		tag.WorkflowID(e.executionInfo.WorkflowID),
+		tag.WorkflowRunID(e.executionInfo.RunID),
+		tag.WorkflowActivityID(ai.ActivityID),
+		tag.Error(err),
+	)
 	return false
 }
 
