@@ -2,6 +2,7 @@ package testutils
 
 import (
 	fuzz "github.com/google/gofuzz"
+
 	"github.com/uber/cadence/common/types"
 )
 
