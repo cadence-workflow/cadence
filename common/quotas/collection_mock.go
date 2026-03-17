@@ -16,31 +16,31 @@ import (
 )
 
 // MockICollection is a mock of ICollection interface.
-type MockICollection struct {
+type MockICollection[K comparable] struct {
 	ctrl     *gomock.Controller
-	recorder *MockICollectionMockRecorder
+	recorder *MockICollectionMockRecorder[K]
 	isgomock struct{}
 }
 
 // MockICollectionMockRecorder is the mock recorder for MockICollection.
-type MockICollectionMockRecorder struct {
-	mock *MockICollection
+type MockICollectionMockRecorder[K comparable] struct {
+	mock *MockICollection[K]
 }
 
 // NewMockICollection creates a new mock instance.
-func NewMockICollection(ctrl *gomock.Controller) *MockICollection {
-	mock := &MockICollection{ctrl: ctrl}
-	mock.recorder = &MockICollectionMockRecorder{mock}
+func NewMockICollection[K comparable](ctrl *gomock.Controller) *MockICollection[K] {
+	mock := &MockICollection[K]{ctrl: ctrl}
+	mock.recorder = &MockICollectionMockRecorder[K]{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockICollection) EXPECT() *MockICollectionMockRecorder {
+func (m *MockICollection[K]) EXPECT() *MockICollectionMockRecorder[K] {
 	return m.recorder
 }
 
 // For mocks base method.
-func (m *MockICollection) For(key string) Limiter {
+func (m *MockICollection[K]) For(key K) Limiter {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "For", key)
 	ret0, _ := ret[0].(Limiter)
@@ -48,7 +48,7 @@ func (m *MockICollection) For(key string) Limiter {
 }
 
 // For indicates an expected call of For.
-func (mr *MockICollectionMockRecorder) For(key any) *gomock.Call {
+func (mr *MockICollectionMockRecorder[K]) For(key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "For", reflect.TypeOf((*MockICollection)(nil).For), key)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "For", reflect.TypeOf((*MockICollection[K])(nil).For), key)
 }

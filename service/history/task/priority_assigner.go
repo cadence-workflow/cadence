@@ -50,7 +50,7 @@ type priorityAssignerImpl struct {
 	config             *config.Config
 	logger             log.Logger
 	scope              metrics.Scope
-	rateLimiters       *quotas.Collection
+	rateLimiters       *quotas.Collection[string]
 	activeClusterMgr   activecluster.Manager
 }
 

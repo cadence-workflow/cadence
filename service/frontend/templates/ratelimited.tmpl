@@ -64,6 +64,7 @@ import (
 {{$domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
 {{$nonBlockingAPIs := list "RecordActivityTaskHeartbeat" "RecordActivityTaskHeartbeatByID" "RespondActivityTaskCompleted" "RespondActivityTaskCompletedByID" "RespondActivityTaskFailed" "RespondActivityTaskFailedByID" "RespondActivityTaskCanceled" "RespondActivityTaskCanceledByID" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted" "ResetStickyTaskList"}}
+{{$taskListAPIs := list }}
 
 {{$interfaceName := .Interface.Name}}
 {{$handlerName := (index .Vars "handler")}}
@@ -147,9 +148,9 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
         {{- if has $method.Name $nonBlockingAPIs}}
             // Count the request in the host RPS,
             // but we still accept it even if RPS is exceeded
-            h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, {{$domain}})
+            h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, quotas.Info{Domain: {{$domain}}})
         {{- else}}
-            if limitErr := h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, {{$domain}}); limitErr != nil {
+            if limitErr := h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, quotas.Info{Domain: {{$domain}}{{if has $method.Name $taskListAPIs}}, TaskList: {{(index $method.Params 1).Name}}.GetTaskList().GetName(){{end}}}); limitErr != nil {
                 err = limitErr
                 return
             }
