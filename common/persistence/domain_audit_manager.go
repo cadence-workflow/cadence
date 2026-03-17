@@ -109,7 +109,9 @@ func (m *domainAuditManagerImpl) CreateDomainAuditLog(
 	// To support non-nullable columns in SQL databases we serialize an empty GetDomainResponse{} if nil
 	stateAfter := request.StateAfter
 	if stateAfter == nil {
-		m.logger.Warn("Domain has been updated to an empty state, this could be a bug", tag.WorkflowDomainID(request.DomainID), tag.DomainAuditOperationType(request.OperationType))
+		if request.OperationType != DomainAuditOperationTypeDelete {
+			m.logger.Warn("Domain has been updated to an empty state, this could be a bug", tag.WorkflowDomainID(request.DomainID), tag.DomainAuditOperationType(request.OperationType))
+		}
 		stateAfter = &GetDomainResponse{}
 	}
 	stateAfterBlob, err := serializeGetDomainResponse(stateAfter, encodingType)
