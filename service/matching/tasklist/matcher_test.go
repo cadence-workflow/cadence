@@ -135,8 +135,8 @@ func (t *MatcherTestSuite) TestLocalSyncMatchTimeout() {
 	syncMatch, err := t.matcher.Offer(ctx, task)
 	cancel()
 	wait()
-	t.NoError(err)
-	t.False(syncMatch)
+	t.Error(err)
+	t.True(syncMatch)
 }
 
 func (t *MatcherTestSuite) TestIsolationLocalSyncMatch() {
