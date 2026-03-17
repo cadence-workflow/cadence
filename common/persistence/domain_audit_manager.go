@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/codec"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/thrift"
 )
@@ -94,7 +95,7 @@ func (m *domainAuditManagerImpl) CreateDomainAuditLog(
 	encodingType := constants.EncodingTypeThriftRWSnappy
 
 	// Serialize StateBefore using thrift+snappy
-	// Use empty GetDomainResponse{} if nil to maintain NOT NULL database columns
+	// To support non-nullable columns in SQL databases we serialize an empty GetDomainResponse{} if nil
 	stateBefore := request.StateBefore
 	if stateBefore == nil {
 		stateBefore = &GetDomainResponse{}
@@ -105,9 +106,10 @@ func (m *domainAuditManagerImpl) CreateDomainAuditLog(
 	}
 
 	// Serialize StateAfter using thrift+snappy
-	// Use empty GetDomainResponse{} if nil to maintain NOT NULL database columns
+	// To support non-nullable columns in SQL databases we serialize an empty GetDomainResponse{} if nil
 	stateAfter := request.StateAfter
 	if stateAfter == nil {
+		m.logger.Warn("Domain has been updated to an empty state, this could be a bug", tag.WorkflowDomainID(request.DomainID), tag.DomainAuditOperationType(request.OperationType))
 		stateAfter = &GetDomainResponse{}
 	}
 	stateAfterBlob, err := serializeGetDomainResponse(stateAfter, encodingType)

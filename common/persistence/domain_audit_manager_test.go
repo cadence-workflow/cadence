@@ -191,139 +191,243 @@ func TestGetDomainAuditLogs_MutateDefaultTimeOnRetry(t *testing.T) {
 	_, _ = m.GetDomainAuditLogs(context.Background(), request)
 }
 
-func TestCreateDomainAuditLog_NilStateBeforeSerializesToEmptyBlob(t *testing.T) {
-	// RED: This test verifies that when StateBefore is nil (e.g., CREATE operation),
-	// the manager serializes an empty GetDomainResponse instead of leaving it as nil.
-	// This allows us to keep NOT NULL database columns.
+func TestCreateDomainAuditLog_SerializeStates(t *testing.T) {
+	// This test verifies that nil StateBefore/StateAfter are serialized as empty GetDomainResponse{}
+	// instead of being left as nil, allowing us to maintain NOT NULL database columns.
 
-	m, mockStore := setUpMocksForDomainAuditManager(t)
-	ctx := context.Background()
-
-	eventID := uuid.Must(uuid.NewV7()).String()
-	createdTime := time.Now()
-
-	stateAfter := &GetDomainResponse{
+	domainResponse := &GetDomainResponse{
 		Info: &DomainInfo{
 			ID:   "domain-123",
 			Name: "test-domain",
 		},
 	}
 
-	// Mock expectation: StateBefore should NOT be nil, it should be a serialized empty response
-	mockStore.EXPECT().CreateDomainAuditLog(ctx, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, req *InternalCreateDomainAuditLogRequest) (*CreateDomainAuditLogResponse, error) {
-			// StateBefore should be a non-nil DataBlob with serialized empty GetDomainResponse
-			assert.NotNil(t, req.StateBefore, "StateBefore should be serialized, not nil")
-			assert.NotNil(t, req.StateBefore.Data, "StateBefore.Data should contain serialized bytes")
-			assert.NotEmpty(t, req.StateBefore.Data, "StateBefore.Data should not be empty")
+	tests := []struct {
+		name              string
+		stateBefore       *GetDomainResponse
+		stateAfter        *GetDomainResponse
+		operationType     DomainAuditOperationType
+		expectEmptyBefore bool
+		expectEmptyAfter  bool
+	}{
+		{
+			name:              "correctly serializes nil StateBefore as an empty GetDomainResponse{}",
+			stateBefore:       nil,
+			stateAfter:        domainResponse,
+			operationType:     DomainAuditOperationTypeCreate,
+			expectEmptyBefore: true,
+			expectEmptyAfter:  false,
+		},
+		{
+			name:              "correctly serializes nil StateAfter as an empty GetDomainResponse{}",
+			stateBefore:       domainResponse,
+			stateAfter:        nil,
+			operationType:     DomainAuditOperationTypeDelete,
+			expectEmptyBefore: false,
+			expectEmptyAfter:  true,
+		},
+		{
+			name:              "correctly serializes both StateBefore and StateAfter as is",
+			stateBefore:       domainResponse,
+			stateAfter:        domainResponse,
+			operationType:     DomainAuditOperationTypeUpdate,
+			expectEmptyBefore: false,
+			expectEmptyAfter:  false,
+		},
+		{
+			name:              "correctly serializes both StateBefore and StateAfter as empty GetDomainResponse{}",
+			stateBefore:       nil,
+			stateAfter:        nil,
+			operationType:     DomainAuditOperationTypeUpdate,
+			expectEmptyBefore: true,
+			expectEmptyAfter:  true,
+		},
+	}
 
-			// StateAfter should be properly serialized
-			assert.NotNil(t, req.StateAfter, "StateAfter should be serialized")
-			assert.NotNil(t, req.StateAfter.Data, "StateAfter.Data should contain serialized bytes")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, mockStore := setUpMocksForDomainAuditManager(t)
+			ctx := context.Background()
 
-			return &CreateDomainAuditLogResponse{EventID: eventID}, nil
-		}).Times(1)
+			eventID := uuid.Must(uuid.NewV7()).String()
+			createdTime := time.Now()
 
-	// Call with nil StateBefore (typical for CREATE operations)
-	resp, err := m.CreateDomainAuditLog(ctx, &CreateDomainAuditLogRequest{
-		DomainID:      "domain-123",
-		EventID:       eventID,
-		CreatedTime:   createdTime,
-		StateBefore:   nil, // nil for CREATE
-		StateAfter:    stateAfter,
-		OperationType: DomainAuditOperationTypeCreate,
-		Identity:      "test-user",
-		IdentityType:  "user",
-		Comment:       "domain created",
-	})
+			mockStore.EXPECT().CreateDomainAuditLog(ctx, gomock.Any()).
+				DoAndReturn(func(ctx context.Context, req *InternalCreateDomainAuditLogRequest) (*CreateDomainAuditLogResponse, error) {
+					// Both blobs should ALWAYS be non-nil with non-empty data
+					assert.NotNil(t, req.StateBefore, "StateBefore blob should never be nil")
+					assert.NotNil(t, req.StateBefore.Data, "StateBefore.Data should not be nil")
+					assert.NotEmpty(t, req.StateBefore.Data, "StateBefore.Data should contain serialized bytes")
 
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
+					assert.NotNil(t, req.StateAfter, "StateAfter blob should never be nil")
+					assert.NotNil(t, req.StateAfter.Data, "StateAfter.Data should not be nil")
+					assert.NotEmpty(t, req.StateAfter.Data, "StateAfter.Data should contain serialized bytes")
+
+					// Verify whether they're empty or populated
+					deserializedBefore, err := deserializeGetDomainResponse(req.StateBefore)
+					assert.NoError(t, err)
+					assert.Equal(t, tt.expectEmptyBefore, isEmptyGetDomainResponse(deserializedBefore),
+						"StateBefore empty state mismatch")
+
+					deserializedAfter, err := deserializeGetDomainResponse(req.StateAfter)
+					assert.NoError(t, err)
+					assert.Equal(t, tt.expectEmptyAfter, isEmptyGetDomainResponse(deserializedAfter),
+						"StateAfter empty state mismatch")
+
+					return &CreateDomainAuditLogResponse{EventID: eventID}, nil
+				}).Times(1)
+
+			resp, err := m.CreateDomainAuditLog(ctx, &CreateDomainAuditLogRequest{
+				DomainID:      "domain-123",
+				EventID:       eventID,
+				CreatedTime:   createdTime,
+				StateBefore:   tt.stateBefore,
+				StateAfter:    tt.stateAfter,
+				OperationType: tt.operationType,
+				Identity:      "test-user",
+				IdentityType:  "user",
+				Comment:       "test operation",
+			})
+
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Equal(t, eventID, resp.EventID)
+		})
+	}
 }
 
-func TestCreateDomainAuditLog_NilStateAfterSerializesToEmptyBlob(t *testing.T) {
-	// RED: This test verifies that when StateAfter is nil (e.g., DELETE operation),
-	// the manager serializes an empty GetDomainResponse instead of leaving it as nil.
-
-	m, mockStore := setUpMocksForDomainAuditManager(t)
-	ctx := context.Background()
-
-	eventID := uuid.Must(uuid.NewV7()).String()
-	createdTime := time.Now()
-
-	stateBefore := &GetDomainResponse{
+func TestGetDomainAuditLogs_DeserializesEmptyResponsesToNil(t *testing.T) {
+	domainResponse := &GetDomainResponse{
 		Info: &DomainInfo{
 			ID:   "domain-123",
 			Name: "test-domain",
 		},
 	}
-
-	// Mock expectation: StateAfter should NOT be nil, it should be a serialized empty response
-	mockStore.EXPECT().CreateDomainAuditLog(ctx, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, req *InternalCreateDomainAuditLogRequest) (*CreateDomainAuditLogResponse, error) {
-			// StateBefore should be properly serialized
-			assert.NotNil(t, req.StateBefore, "StateBefore should be serialized")
-			assert.NotNil(t, req.StateBefore.Data, "StateBefore.Data should contain serialized bytes")
-
-			// StateAfter should be a non-nil DataBlob with serialized empty GetDomainResponse
-			assert.NotNil(t, req.StateAfter, "StateAfter should be serialized, not nil")
-			assert.NotNil(t, req.StateAfter.Data, "StateAfter.Data should contain serialized bytes")
-			assert.NotEmpty(t, req.StateAfter.Data, "StateAfter.Data should not be empty")
-
-			return &CreateDomainAuditLogResponse{EventID: eventID}, nil
-		}).Times(1)
-
-	// Call with nil StateAfter (typical for DELETE operations)
-	resp, err := m.CreateDomainAuditLog(ctx, &CreateDomainAuditLogRequest{
-		DomainID:      "domain-123",
-		EventID:       eventID,
-		CreatedTime:   createdTime,
-		StateBefore:   stateBefore,
-		StateAfter:    nil, // nil for DELETE
-		OperationType: DomainAuditOperationTypeDelete,
-		Identity:      "test-user",
-		IdentityType:  "user",
-		Comment:       "domain deleted",
-	})
-
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-}
-
-func TestGetDomainAuditLogs_EmptySerializedResponseReturnsNil(t *testing.T) {
-	// RED: This test verifies that when retrieving audit logs, an empty serialized
-	// GetDomainResponse is converted back to nil for the API layer.
-	// This maintains the API contract while allowing NOT NULL database columns.
-
-	m, mockStore := setUpMocksForDomainAuditManager(t)
-	ctx := context.Background()
-
-	// Serialize an empty GetDomainResponse (what we store for nil states)
 	emptyResponse := &GetDomainResponse{}
-	emptyBlob, err := serializeGetDomainResponse(emptyResponse, constants.EncodingTypeThriftRWSnappy)
-	assert.NoError(t, err)
-	assert.NotNil(t, emptyBlob)
 
-	// Serialize a real domain state for StateAfter
-	realResponse := &GetDomainResponse{
+	tests := []struct {
+		name                string
+		stateBefore         *GetDomainResponse
+		stateAfter          *GetDomainResponse
+		expectNilBefore     bool
+		expectNilAfter      bool
+		expectDomainIDAfter bool
+	}{
+		{
+			name:                "when StateBefore is nil, it should be deserialized as an empty GetDomainResponse{}",
+			stateBefore:         emptyResponse,
+			stateAfter:          domainResponse,
+			expectNilBefore:     true,
+			expectNilAfter:      false,
+			expectDomainIDAfter: true,
+		},
+		{
+			name:                "when StateAfter is nil, it should be deserialized as an empty GetDomainResponse{}",
+			stateBefore:         domainResponse,
+			stateAfter:          emptyResponse,
+			expectNilBefore:     false,
+			expectNilAfter:      true,
+			expectDomainIDAfter: false,
+		},
+		{
+			name:                "when both StateBefore and StateAfter are populated, they should be deserialized as is",
+			stateBefore:         domainResponse,
+			stateAfter:          domainResponse,
+			expectNilBefore:     false,
+			expectNilAfter:      false,
+			expectDomainIDAfter: true,
+		},
+		{
+			name:                "when both StateBefore and StateAfter are empty, they should be deserialized as empty GetDomainResponse{}",
+			stateBefore:         emptyResponse,
+			stateAfter:          emptyResponse,
+			expectNilBefore:     true,
+			expectNilAfter:      true,
+			expectDomainIDAfter: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, mockStore := setUpMocksForDomainAuditManager(t)
+			ctx := context.Background()
+
+			// Serialize the test data
+			var stateBeforeBlob, stateAfterBlob *DataBlob
+			var err error
+
+			stateBeforeBlob, err = serializeGetDomainResponse(tt.stateBefore, constants.EncodingTypeThriftRWSnappy)
+			assert.NoError(t, err)
+
+			stateAfterBlob, err = serializeGetDomainResponse(tt.stateAfter, constants.EncodingTypeThriftRWSnappy)
+			assert.NoError(t, err)
+
+			mockStore.EXPECT().GetDomainAuditLogs(ctx, gomock.Any()).
+				Return(&InternalGetDomainAuditLogsResponse{
+					AuditLogs: []*InternalDomainAuditLog{
+						{
+							EventID:       "event-1",
+							DomainID:      "domain-123",
+							StateBefore:   stateBeforeBlob,
+							StateAfter:    stateAfterBlob,
+							OperationType: DomainAuditOperationTypeCreate,
+							CreatedTime:   time.Now(),
+						},
+					},
+				}, nil).Times(1)
+
+			resp, err := m.GetDomainAuditLogs(ctx, &GetDomainAuditLogsRequest{
+				DomainID: "domain-123",
+			})
+
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Len(t, resp.AuditLogs, 1)
+
+			// Verify empty serialized responses are converted to nil
+			if tt.expectNilBefore {
+				assert.Nil(t, resp.AuditLogs[0].StateBefore, "Empty serialized StateBefore should return nil")
+			} else {
+				assert.NotNil(t, resp.AuditLogs[0].StateBefore, "Populated StateBefore should be deserialized")
+			}
+
+			if tt.expectNilAfter {
+				assert.Nil(t, resp.AuditLogs[0].StateAfter, "Empty serialized StateAfter should return nil")
+			} else {
+				assert.NotNil(t, resp.AuditLogs[0].StateAfter, "Populated StateAfter should be deserialized")
+				if tt.expectDomainIDAfter {
+					assert.Equal(t, "domain-123", resp.AuditLogs[0].StateAfter.Info.ID)
+				}
+			}
+		})
+	}
+}
+
+func TestGetDomainAuditLogs_BackwardCompatibilityWithOldCassandraData(t *testing.T) {
+	// Verifies that old Cassandra data with nil blobs returns nil without a deserialization error.
+
+	m, mockStore := setUpMocksForDomainAuditManager(t)
+	ctx := context.Background()
+
+	// Serialize a real StateAfter to simulate existing Cassandra data
+	stateAfterResponse := &GetDomainResponse{
 		Info: &DomainInfo{
 			ID:   "domain-123",
 			Name: "test-domain",
 		},
 	}
-	realBlob, err := serializeGetDomainResponse(realResponse, constants.EncodingTypeThriftRWSnappy)
+	stateAfterBlob, err := serializeGetDomainResponse(stateAfterResponse, constants.EncodingTypeThriftRWSnappy)
 	assert.NoError(t, err)
-	assert.NotNil(t, realBlob)
 
-	// Mock store returns logs with serialized empty responses
+	// OLD Cassandra data: StateBefore is nil (NoSQL store returns nil when len(row.StateBefore) == 0)
 	mockStore.EXPECT().GetDomainAuditLogs(ctx, gomock.Any()).
 		Return(&InternalGetDomainAuditLogsResponse{
 			AuditLogs: []*InternalDomainAuditLog{
 				{
-					EventID:       "event-1",
+					EventID:       "old-event-1",
 					DomainID:      "domain-123",
-					StateBefore:   emptyBlob,  // Empty serialized response
-					StateAfter:    realBlob,   // Real serialized response
+					StateBefore:   nil, // Old data - NULL in Cassandra, nil from NoSQL store
+					StateAfter:    stateAfterBlob,
 					OperationType: DomainAuditOperationTypeCreate,
 					CreatedTime:   time.Now(),
 				},
@@ -338,92 +442,8 @@ func TestGetDomainAuditLogs_EmptySerializedResponseReturnsNil(t *testing.T) {
 	assert.NotNil(t, resp)
 	assert.Len(t, resp.AuditLogs, 1)
 
-	// The empty serialized response should be converted back to nil for the API
-	assert.Nil(t, resp.AuditLogs[0].StateBefore, "Empty serialized response should be returned as nil")
-	assert.NotNil(t, resp.AuditLogs[0].StateAfter, "Real state should be deserialized")
-}
-
-func TestSerializeDeserializeEmptyGetDomainResponse(t *testing.T) {
-	// RED: This test verifies the round-trip serialization of an empty GetDomainResponse
-
-	// Serialize an empty response
-	emptyResponse := &GetDomainResponse{}
-	blob, err := serializeGetDomainResponse(emptyResponse, constants.EncodingTypeThriftRWSnappy)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, blob, "Serialized blob should not be nil")
-	assert.NotNil(t, blob.Data, "Serialized data should not be nil")
-	assert.NotEmpty(t, blob.Data, "Serialized data should contain bytes")
-
-	// Deserialize it back
-	deserialized, err := deserializeGetDomainResponse(blob)
-	assert.NoError(t, err)
-	assert.NotNil(t, deserialized, "Deserialized response should not be nil")
-
-	// Verify it's empty (all fields nil)
-	assert.Nil(t, deserialized.Info)
-	assert.Nil(t, deserialized.Config)
-	assert.Nil(t, deserialized.ReplicationConfig)
-}
-
-func TestCreateDomainAuditLog_EndToEnd_WithNOTNULLColumns(t *testing.T) {
-	// This test demonstrates the end-to-end flow that would fail with NOT NULL columns
-	// BEFORE our fix, but works correctly AFTER the fix.
-	// It simulates a CREATE operation (nil StateBefore) -> manager serializes empty response
-	// -> store receives non-nil blob -> INSERT succeeds with NOT NULL columns
-
-	m, mockStore := setUpMocksForDomainAuditManager(t)
-	ctx := context.Background()
-
-	eventID := uuid.Must(uuid.NewV7()).String()
-	createdTime := time.Now()
-
-	// Verify the manager sends non-nil, non-empty DataBlobs to the store
-	mockStore.EXPECT().CreateDomainAuditLog(ctx, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, req *InternalCreateDomainAuditLogRequest) (*CreateDomainAuditLogResponse, error) {
-			// With our fix, these are NEVER nil, even for CREATE operations
-			assert.NotNil(t, req.StateBefore)
-			assert.NotNil(t, req.StateBefore.Data)
-			assert.NotEmpty(t, req.StateBefore.Data)
-			assert.Equal(t, constants.EncodingTypeThriftRWSnappy, req.StateBefore.Encoding)
-
-			assert.NotNil(t, req.StateAfter)
-			assert.NotNil(t, req.StateAfter.Data)
-			assert.NotEmpty(t, req.StateAfter.Data)
-			assert.Equal(t, constants.EncodingTypeThriftRWSnappy, req.StateAfter.Encoding)
-
-			// Verify they're serialized empty responses, not nil
-			deserializedBefore, err := deserializeGetDomainResponse(req.StateBefore)
-			assert.NoError(t, err)
-			assert.True(t, isEmptyGetDomainResponse(deserializedBefore))
-
-			deserializedAfter, err := deserializeGetDomainResponse(req.StateAfter)
-			assert.NoError(t, err)
-			assert.NotNil(t, deserializedAfter.Info)
-			assert.Equal(t, "domain-123", deserializedAfter.Info.ID)
-
-			return &CreateDomainAuditLogResponse{EventID: eventID}, nil
-		}).Times(1)
-
-	// Simulate CREATE operation with nil StateBefore
-	resp, err := m.CreateDomainAuditLog(ctx, &CreateDomainAuditLogRequest{
-		DomainID:    "domain-123",
-		EventID:     eventID,
-		CreatedTime: createdTime,
-		StateBefore: nil, // This is what handler.go passes for CREATE
-		StateAfter: &GetDomainResponse{
-			Info: &DomainInfo{
-				ID:   "domain-123",
-				Name: "test-domain",
-			},
-		},
-		OperationType: DomainAuditOperationTypeCreate,
-		Identity:      "test-user",
-		IdentityType:  "user",
-		Comment:       "domain created",
-	})
-
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Equal(t, eventID, resp.EventID)
+	// Old data with nil should still return nil to API (backward compatible)
+	assert.Nil(t, resp.AuditLogs[0].StateBefore, "Old Cassandra data with nil should return nil")
+	assert.NotNil(t, resp.AuditLogs[0].StateAfter, "StateAfter should be deserialized")
+	assert.Equal(t, "domain-123", resp.AuditLogs[0].StateAfter.Info.ID)
 }
