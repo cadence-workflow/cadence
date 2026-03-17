@@ -183,7 +183,7 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 					return true, err
 				// If the context expires while waiting for the poller's response
 				case <-ctx.Done():
-					return true, fmt.Errorf("expected response from the channel but time limit exceeded, couldn't confirm the result")
+					return true, fmt.Errorf("waiting for sync match response: %w", ctx.Err())
 				}
 			}
 			return false, nil
@@ -202,7 +202,7 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 				return true, err
 			// If the context expires while waiting for the poller's response
 			case <-ctx.Done():
-				return true, fmt.Errorf("expected response from the channel but time limit exceeded, couldn't confirm the result")
+				return true, fmt.Errorf("waiting for sync match response: %w", ctx.Err())
 			}
 		}
 		return false, nil
