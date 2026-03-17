@@ -117,12 +117,6 @@ func WithTimeFuzzers() FuzzOption {
 // to ensure only valid enum values are generated
 func WithCommonEnumFuzzers() FuzzOption {
 	return WithCustomFuncs(
-		func(e *types.ArchivalStatus, c fuzz.Continue) {
-			*e = types.ArchivalStatus(c.Intn(2)) // 0-1: Disabled, Enabled
-		},
-		func(e *types.DomainStatus, c fuzz.Continue) {
-			*e = types.DomainStatus(c.Intn(3)) // 0-2: Registered, Deprecated, Deleted
-		},
 		func(e *types.WorkflowExecutionCloseStatus, c fuzz.Continue) {
 			*e = types.WorkflowExecutionCloseStatus(c.Intn(6)) // 0-5
 		},
@@ -135,17 +129,11 @@ func WithCommonEnumFuzzers() FuzzOption {
 		func(e *types.TimeoutType, c fuzz.Continue) {
 			*e = types.TimeoutType(c.Intn(4)) // 0-3: StartToClose, ScheduleToStart, ScheduleToClose, Heartbeat
 		},
-		func(e *types.DecisionType, c fuzz.Continue) {
-			*e = types.DecisionType(c.Intn(17)) // 0-16: various decision types
-		},
 		func(e *types.EventType, c fuzz.Continue) {
 			*e = types.EventType(c.Intn(50)) // 0-49: various event types
 		},
-		func(e *types.ContinueAsNewInitiator, c fuzz.Continue) {
-			*e = types.ContinueAsNewInitiator(c.Intn(4)) // 0-3
-		},
 		func(e *types.ParentClosePolicy, c fuzz.Continue) {
-			*e = types.ParentClosePolicy(c.Intn(4)) // 0-3
+			*e = types.ParentClosePolicy(c.Intn(3)) // 0-2
 		},
 		func(e *types.PendingActivityState, c fuzz.Continue) {
 			*e = types.PendingActivityState(c.Intn(3)) // 0-2
@@ -157,7 +145,19 @@ func WithCommonEnumFuzzers() FuzzOption {
 			*e = types.QueryTaskCompletedType(c.Intn(3)) // 0-2
 		},
 		func(e *types.QueryResultType, c fuzz.Continue) {
-			*e = types.QueryResultType(c.Intn(3)) // 0-2
+			*e = types.QueryResultType(c.Intn(2)) // 0-1: Answered, Failed
+		},
+		func(e *types.IndexedValueType, c fuzz.Continue) {
+			*e = types.IndexedValueType(c.Intn(6)) // 0-5: String, Keyword, Int, Double, Bool, Datetime
+		},
+		func(e *types.CronOverlapPolicy, c fuzz.Continue) {
+			*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
+		},
+		func(e *types.WorkflowExecutionStatus, c fuzz.Continue) {
+			*e = types.WorkflowExecutionStatus(c.Intn(8)) // 0-7: Pending, Started, Completed, Failed, Canceled, Terminated, ContinuedAsNew, TimedOut
+		},
+		func(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
+			*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
 		},
 	)
 }
@@ -249,6 +249,21 @@ func clearFieldsIf(obj interface{}, shouldClear func(fieldName string) bool) {
 			return
 		}
 		v = v.Elem()
+	}
+
+	// Handle slices at top level (e.g., when TInternal is []*SomeType)
+	if v.Kind() == reflect.Slice {
+		for j := 0; j < v.Len(); j++ {
+			elem := v.Index(j)
+			if elem.CanInterface() {
+				if elem.Kind() == reflect.Struct && elem.CanAddr() {
+					clearFieldsIf(elem.Addr().Interface(), shouldClear)
+				} else {
+					clearFieldsIf(elem.Interface(), shouldClear)
+				}
+			}
+		}
+		return
 	}
 
 	if v.Kind() != reflect.Struct {

@@ -24,6 +24,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 
@@ -62,6 +63,11 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 	mergeAssignments(state, chosenExecutors)
 
 	if err := h.storage.AssignShards(ctx, namespace, store.AssignShardsRequest{NewState: state}, store.NopGuard()); err != nil {
+		if errors.Is(err, store.ErrVersionConflict) {
+			// Return the version-conflict sentinel unwrapped so callers can
+			// detect it with errors.Is and decide whether to retry.
+			return nil, fmt.Errorf("assign ephemeral shards: %w", err)
+		}
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("assign ephemeral shards: %v", err)}
 	}
 

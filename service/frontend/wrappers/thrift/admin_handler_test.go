@@ -73,9 +73,9 @@ func TestAdminThriftHandler(t *testing.T) {
 		assert.Equal(t, expectedErr, err)
 	})
 	t.Run("DescribeWorkflowExecution", func(t *testing.T) {
-		h.EXPECT().DescribeWorkflowExecution(ctx, &types.AdminDescribeWorkflowExecutionRequest{}).Return(&types.AdminDescribeWorkflowExecutionResponse{}, internalErr).Times(1)
+		h.EXPECT().DescribeWorkflowExecution(ctx, &types.AdminDescribeWorkflowExecutionRequest{}).Return(nil, internalErr).Times(1)
 		resp, err := th.DescribeWorkflowExecution(ctx, &admin.DescribeWorkflowExecutionRequest{})
-		assert.Equal(t, admin.DescribeWorkflowExecutionResponse{ShardId: common.StringPtr(""), HistoryAddr: common.StringPtr(""), MutableStateInCache: common.StringPtr(""), MutableStateInDatabase: common.StringPtr("")}, *resp)
+		assert.Nil(t, resp)
 		assert.Equal(t, expectedErr, err)
 	})
 	t.Run("GetDLQReplicationMessages", func(t *testing.T) {

@@ -346,8 +346,9 @@ func (s *Service) startBatcher() {
 
 func (s *Service) startScheduler() {
 	params := &scheduler.BootstrapParams{
-		ServiceClient: s.params.PublicClient,
-		Logger:        s.GetLogger(),
+		ServiceClient:  s.params.PublicClient,
+		FrontendClient: s.GetClientBean().GetFrontendClient(),
+		Logger:         s.GetLogger(),
 	}
 	if err := scheduler.New(params).Start(); err != nil {
 		s.GetLogger().Fatal("error starting scheduler", tag.Error(err))

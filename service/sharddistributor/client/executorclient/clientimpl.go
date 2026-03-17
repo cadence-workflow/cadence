@@ -148,7 +148,7 @@ func (e *executorImpl[SP]) GetShardProcess(ctx context.Context, shardID string) 
 		if e.getMigrationMode() == types.MigrationModeLOCALPASSTHROUGH {
 			// Fail immediately if we are in LOCAL_PASSTHROUGH mode
 			var zero SP
-			return zero, fmt.Errorf("shard process not found for shard ID: %s", shardID)
+			return zero, fmt.Errorf("%w for shard ID: %s", ErrShardProcessNotFound, shardID)
 		}
 
 		// Do a heartbeat and check again
@@ -162,7 +162,7 @@ func (e *executorImpl[SP]) GetShardProcess(ctx context.Context, shardID string) 
 		shardProcess, ok = e.managedProcessors.Load(shardID)
 		if !ok {
 			var zero SP
-			return zero, fmt.Errorf("shard process not found for shard ID: %s", shardID)
+			return zero, fmt.Errorf("%w for shard ID: %s", ErrShardProcessNotFound, shardID)
 		}
 	}
 

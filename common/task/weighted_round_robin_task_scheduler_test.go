@@ -52,7 +52,7 @@ type (
 
 		queueSize int
 
-		scheduler *weightedRoundRobinTaskSchedulerImpl[int]
+		scheduler *weightedRoundRobinTaskSchedulerImpl[int, PriorityTask]
 	}
 
 	mockPriorityTaskMatcher struct {
@@ -92,7 +92,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) SetupTest() {
 		},
 	)
 	s.scheduler = s.newTestWeightedRoundRobinTaskScheduler(
-		&WeightedRoundRobinTaskSchedulerOptions[int]{
+		&WeightedRoundRobinTaskSchedulerOptions[int, PriorityTask]{
 			QueueSize:       s.queueSize,
 			DispatcherCount: 3,
 			TaskToChannelKeyFn: func(task PriorityTask) int {
@@ -131,7 +131,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestSubmit_Success() {
 func (s *weightedRoundRobinTaskSchedulerSuite) TestSubmit_Fail_SchedulerShutDown() {
 	// create a new scheduler here with queue size 0, otherwise test is non-deterministic
 	scheduler := s.newTestWeightedRoundRobinTaskScheduler(
-		&WeightedRoundRobinTaskSchedulerOptions[int]{
+		&WeightedRoundRobinTaskSchedulerOptions[int, PriorityTask]{
 			QueueSize:       0,
 			DispatcherCount: 3,
 		},
@@ -290,8 +290,8 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestSchedulerContract() {
 }
 
 func (s *weightedRoundRobinTaskSchedulerSuite) newTestWeightedRoundRobinTaskScheduler(
-	options *WeightedRoundRobinTaskSchedulerOptions[int],
-) *weightedRoundRobinTaskSchedulerImpl[int] {
+	options *WeightedRoundRobinTaskSchedulerOptions[int, PriorityTask],
+) *weightedRoundRobinTaskSchedulerImpl[int, PriorityTask] {
 	scheduler, err := NewWeightedRoundRobinTaskScheduler(
 		testlogger.New(s.Suite.T()),
 		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
@@ -300,13 +300,13 @@ func (s *weightedRoundRobinTaskSchedulerSuite) newTestWeightedRoundRobinTaskSche
 		options,
 	)
 	s.NoError(err)
-	return scheduler.(*weightedRoundRobinTaskSchedulerImpl[int])
+	return scheduler.(*weightedRoundRobinTaskSchedulerImpl[int, PriorityTask])
 }
 
 func testSchedulerContract(
 	s *require.Assertions,
 	controller *gomock.Controller,
-	scheduler Scheduler,
+	scheduler Scheduler[PriorityTask],
 	processor Processor,
 ) {
 	numTasks := 10000
@@ -371,9 +371,11 @@ func testSchedulerContract(
 	}
 	s.True(common.AwaitWaitGroup(&taskWG, 10*time.Second))
 	switch schedulerImpl := scheduler.(type) {
-	case *fifoTaskSchedulerImpl:
+	case *fifoTaskSchedulerImpl[PriorityTask]:
 		<-schedulerImpl.ctx.Done()
-	case *weightedRoundRobinTaskSchedulerImpl[int]:
+	case *weightedRoundRobinTaskSchedulerImpl[int, PriorityTask]:
+		<-schedulerImpl.ctx.Done()
+	case *hierarchicalWeightedRoundRobinTaskSchedulerImpl[string, PriorityTask]:
 		<-schedulerImpl.ctx.Done()
 	default:
 		s.Fail("unknown task scheduler type")

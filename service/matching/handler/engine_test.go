@@ -457,6 +457,14 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		assert.ErrorContains(t, err, "failed to lookup ownership in SD")
 	})
 
+	t.Run("not excluded from sd with shard process not found returns ownership error", func(t *testing.T) {
+		engine, executor, _ := newEngine(t)
+		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, executorclient.ErrShardProcessNotFound)
+
+		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
+		assertTypedOwnershipErr(t, err, "not known", "self")
+	})
+
 	t.Run("not excluded from sd and shard no longer owned", func(t *testing.T) {
 		engine, executor, _ := newEngine(t)
 		executor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil)

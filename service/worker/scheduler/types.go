@@ -36,9 +36,17 @@ const (
 	SignalNameBackfill = "scheduler-backfill"
 	SignalNameDelete   = "scheduler-delete"
 
-	StartWorkflowActivityName = "scheduler-start-workflow"
+	QueryTypeDescribe = "scheduler-describe"
 
 	maxIterationsBeforeContinueAsNew = 500
+	maxCatchUpFiresPerExecution      = 10
+	maxBackfillFiresPerExecution     = 10
+	maxPendingBackfills              = 10
+
+	localActivityScheduleToCloseTimeout = 60 * time.Second
+	localActivityMaxRetries             = 3
+	localActivityRetryInitialInterval   = time.Second
+	localActivityRetryMaxInterval       = 10 * time.Second
 )
 
 // SchedulerWorkflowInput is the input to the scheduler workflow.
@@ -54,17 +62,27 @@ type SchedulerWorkflowInput struct {
 
 // SchedulerWorkflowState is the mutable runtime state that survives ContinueAsNew.
 type SchedulerWorkflowState struct {
-	Paused       bool      `json:"paused"`
-	PauseReason  string    `json:"pauseReason,omitempty"`
-	PausedBy     string    `json:"pausedBy,omitempty"`
-	Deleted      bool      `json:"-"` // transient flag, not persisted across ContinueAsNew
-	LastRunTime  time.Time `json:"lastRunTime,omitempty"`
-	NextRunTime  time.Time `json:"nextRunTime,omitempty"`
-	TotalRuns    int64     `json:"totalRuns"`
-	MissedRuns   int64     `json:"missedRuns"`
-	SkippedRuns  int64     `json:"skippedRuns"`
-	Iterations   int       `json:"iterations"`
-	BufferedRuns int       `json:"bufferedRuns"`
+	Paused            bool              `json:"paused"`
+	PauseReason       string            `json:"pauseReason,omitempty"`
+	PausedBy          string            `json:"pausedBy,omitempty"`
+	Deleted           bool              `json:"-"`                           // transient flag, not persisted across ContinueAsNew
+	LastRunTime       time.Time         `json:"lastRunTime,omitempty"`       // last time a workflow was actually started
+	LastProcessedTime time.Time         `json:"lastProcessedTime,omitempty"` // catch-up watermark: latest missed fire we've processed (fired or skipped)
+	NextRunTime       time.Time         `json:"nextRunTime,omitempty"`
+	TotalRuns         int64             `json:"totalRuns"`
+	MissedRuns        int64             `json:"missedRuns"`
+	SkippedRuns       int64             `json:"skippedRuns"`
+	Iterations        int               `json:"iterations"`
+	BufferedRuns      int               `json:"bufferedRuns"`
+	PendingBackfills  []BackfillRequest `json:"pendingBackfills,omitempty"`
+}
+
+// BackfillRequest is a queued backfill that persists across ContinueAsNew.
+type BackfillRequest struct {
+	StartTime     time.Time                   `json:"startTime"`
+	EndTime       time.Time                   `json:"endTime"`
+	OverlapPolicy types.ScheduleOverlapPolicy `json:"overlapPolicy"`
+	BackfillID    string                      `json:"backfillId,omitempty"`
 }
 
 // PauseSignal is the payload sent with a pause signal.
@@ -94,12 +112,41 @@ type BackfillSignal struct {
 	BackfillID    string                      `json:"backfillId,omitempty"`
 }
 
+// ScheduleDescription is the query result returned by the describe query handler.
+// It provides a snapshot of the schedule's current configuration and runtime state.
+type ScheduleDescription struct {
+	ScheduleID  string                 `json:"scheduleId"`
+	Domain      string                 `json:"domain"`
+	Spec        types.ScheduleSpec     `json:"spec"`
+	Action      types.ScheduleAction   `json:"action"`
+	Policies    types.SchedulePolicies `json:"policies"`
+	Paused      bool                   `json:"paused"`
+	PauseReason string                 `json:"pauseReason,omitempty"`
+	PausedBy    string                 `json:"pausedBy,omitempty"`
+	LastRunTime time.Time              `json:"lastRunTime,omitempty"`
+	NextRunTime time.Time              `json:"nextRunTime,omitempty"`
+	TotalRuns   int64                  `json:"totalRuns"`
+	MissedRuns  int64                  `json:"missedRuns"`
+	SkippedRuns int64                  `json:"skippedRuns"`
+}
+
+// TriggerSource identifies what caused a schedule fire, used to differentiate
+// RequestIDs so that e.g. a backfill for the same timestamp as a normal fire
+// does not collide in server-side deduplication.
+type TriggerSource string
+
+const (
+	TriggerSourceSchedule TriggerSource = "schedule"
+	TriggerSourceBackfill TriggerSource = "backfill"
+)
+
 // StartWorkflowRequest is the input to the start-workflow activity.
 type StartWorkflowRequest struct {
 	Domain        string                    `json:"domain"`
 	ScheduleID    string                    `json:"scheduleId"`
 	Action        types.StartWorkflowAction `json:"action"`
 	ScheduledTime time.Time                 `json:"scheduledTime"`
+	TriggerSource TriggerSource             `json:"triggerSource"`
 }
 
 // StartWorkflowResult is the output of the start-workflow activity.

@@ -21,10 +21,13 @@
 package scheduler
 
 import (
+	"context"
+
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/cadence/worker"
 	"go.uber.org/cadence/workflow"
 
+	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -33,8 +36,9 @@ import (
 type (
 	// BootstrapParams contains the parameters needed to create a scheduler worker.
 	BootstrapParams struct {
-		ServiceClient workflowserviceclient.Interface
-		Logger        log.Logger
+		ServiceClient  workflowserviceclient.Interface
+		FrontendClient frontend.Client
+		Logger         log.Logger
 	}
 
 	// Scheduler is the background worker that polls the scheduler task list
@@ -51,7 +55,12 @@ type (
 func New(params *BootstrapParams) *Scheduler {
 	logger := params.Logger.WithTags(tag.ComponentScheduler)
 
-	wo := worker.Options{}
+	actCtx := context.WithValue(context.Background(), schedulerContextKey, schedulerContext{
+		FrontendClient: params.FrontendClient,
+	})
+	wo := worker.Options{
+		BackgroundActivityContext: actCtx,
+	}
 	w := worker.New(params.ServiceClient, constants.SystemLocalDomainName, TaskListName, wo)
 	w.RegisterWorkflowWithOptions(SchedulerWorkflow, workflow.RegisterOptions{Name: WorkflowTypeName})
 

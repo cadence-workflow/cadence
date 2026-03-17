@@ -34,10 +34,10 @@ type (
 
 	// Scheduler is the generic interface for scheduling tasks with priority
 	// and processing them
-	Scheduler interface {
+	Scheduler[T Task] interface {
 		common.Daemon
-		Submit(task PriorityTask) error
-		TrySubmit(task PriorityTask) (bool, error)
+		Submit(task T) error
+		TrySubmit(task T) (bool, error)
 	}
 
 	// SchedulerType respresents the type of the task scheduler implementation

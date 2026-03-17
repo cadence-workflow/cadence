@@ -1395,10 +1395,11 @@ func (s *ExecutionManagerSuite) TestPersistenceStartWorkflow() {
 						TaskData: p.TaskData{
 							TaskID: s.GetNextSequenceNumber(),
 						},
-						TargetDomainID:   domainID,
-						TaskList:         "queue1",
-						ScheduleID:       int64(2),
-						OriginalTaskList: "queue1",
+						TargetDomainID:       domainID,
+						TaskList:             "queue1",
+						ScheduleID:           int64(2),
+						OriginalTaskList:     "queue1",
+						OriginalTaskListKind: types.TaskListKindEphemeral,
 					},
 				},
 			},
@@ -2364,6 +2365,7 @@ func (s *ExecutionManagerSuite) TestCancelTransferTaskTasks() {
 	s.Equal(false, task1.TargetChildWorkflowOnly)
 	s.Equal("queue1", task1.GetTaskList())
 	s.Equal("queue1", task1.GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, task1.GetOriginalTaskListKind())
 
 	err = s.CompleteTransferTask(ctx, task1.TaskID)
 	s.NoError(err)
@@ -2414,6 +2416,7 @@ func (s *ExecutionManagerSuite) TestCancelTransferTaskTasks() {
 	s.Equal(targetRunID, task2.TargetRunID)
 	s.Equal(targetChildWorkflowOnly, task2.TargetChildWorkflowOnly)
 	s.Equal("queue2", task2.GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, task2.GetOriginalTaskListKind())
 
 	err = s.CompleteTransferTask(ctx, task2.TaskID)
 	s.NoError(err)
@@ -2493,6 +2496,7 @@ func (s *ExecutionManagerSuite) TestSignalTransferTaskTasks() {
 	s.Equal(false, task1.TargetChildWorkflowOnly)
 	s.Equal("queue1", task1.GetTaskList())
 	s.Equal("queue1", task1.GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, task1.GetOriginalTaskListKind())
 
 	err = s.CompleteTransferTask(ctx, task1.TaskID)
 	s.NoError(err)
@@ -2543,6 +2547,7 @@ func (s *ExecutionManagerSuite) TestSignalTransferTaskTasks() {
 	s.Equal(targetRunID, task2.TargetRunID)
 	s.Equal(targetChildWorkflowOnly, task2.TargetChildWorkflowOnly)
 	s.Equal("queue2", task2.GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, task2.GetOriginalTaskListKind())
 
 	err = s.CompleteTransferTask(ctx, task2.TaskID)
 	s.NoError(err)
@@ -2710,9 +2715,11 @@ func (s *ExecutionManagerSuite) TestTransferTasksComplete() {
 				TaskID:              currentTransferID + 10002,
 				Version:             222,
 			},
-			TargetDomainID: domainID,
-			TaskList:       tasklist,
-			ScheduleID:     scheduleID,
+			TargetDomainID:       domainID,
+			TaskList:             tasklist,
+			ScheduleID:           scheduleID,
+			OriginalTaskList:     "original_tasklist",
+			OriginalTaskListKind: types.TaskListKindEphemeral,
 		},
 		&p.CloseExecutionTask{
 			WorkflowIdentifier: p.WorkflowIdentifier{
@@ -2826,13 +2833,37 @@ func (s *ExecutionManagerSuite) TestTransferTasksComplete() {
 		s.True(timeComparator(tasks[index].GetVisibilityTimestamp(), txTasks[index].GetVisibilityTimestamp(), TimePrecision))
 	}
 	s.Equal(p.TransferTaskTypeActivityTask, txTasks[0].GetTaskType())
+	s.Equal(tasklist, txTasks[0].GetTaskList())
+	s.Equal(tasklist, txTasks[0].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[0].GetOriginalTaskListKind())
 	s.Equal(p.TransferTaskTypeDecisionTask, txTasks[1].GetTaskType())
+	s.Equal(tasklist, txTasks[1].GetTaskList())
+	s.Equal("original_tasklist", txTasks[1].GetOriginalTaskList())
+	s.Equal(types.TaskListKindEphemeral, txTasks[1].GetOriginalTaskListKind())
 	s.Equal(p.TransferTaskTypeCloseExecution, txTasks[2].GetTaskType())
+	s.Equal(tasklist, txTasks[2].GetTaskList())
+	s.Equal(tasklist, txTasks[2].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[2].GetOriginalTaskListKind())
 	s.Equal(p.TransferTaskTypeCancelExecution, txTasks[3].GetTaskType())
+	s.Equal(tasklist, txTasks[3].GetTaskList())
+	s.Equal(tasklist, txTasks[3].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[3].GetOriginalTaskListKind())
 	s.Equal(p.TransferTaskTypeSignalExecution, txTasks[4].GetTaskType())
+	s.Equal(tasklist, txTasks[4].GetTaskList())
+	s.Equal(tasklist, txTasks[4].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[4].GetOriginalTaskListKind())
 	s.Equal(p.TransferTaskTypeStartChildExecution, txTasks[5].GetTaskType())
+	s.Equal(tasklist, txTasks[5].GetTaskList())
+	s.Equal(tasklist, txTasks[5].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[5].GetOriginalTaskListKind())
 	s.Equal(p.TransferTaskTypeRecordWorkflowClosed, txTasks[6].GetTaskType())
+	s.Equal(tasklist, txTasks[6].GetTaskList())
+	s.Equal(tasklist, txTasks[6].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[6].GetOriginalTaskListKind())
 	s.Equal(p.TransferTaskTypeRecordChildExecutionCompleted, txTasks[7].GetTaskType())
+	s.Equal(tasklist, txTasks[7].GetTaskList())
+	s.Equal(tasklist, txTasks[7].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[7].GetOriginalTaskListKind())
 
 	for idx := range txTasks {
 		// TODO: add a check similar to validateCrossClusterTasks
@@ -2919,9 +2950,11 @@ func (s *ExecutionManagerSuite) TestTransferTasksRangeComplete() {
 				TaskID:              currentTransferID + 10002,
 				Version:             222,
 			},
-			TargetDomainID: domainID,
-			TaskList:       tasklist,
-			ScheduleID:     scheduleID,
+			TargetDomainID:       domainID,
+			TaskList:             tasklist,
+			ScheduleID:           scheduleID,
+			OriginalTaskList:     "original_tasklist",
+			OriginalTaskListKind: types.TaskListKindEphemeral,
 		},
 		&p.CloseExecutionTask{
 			WorkflowIdentifier: p.WorkflowIdentifier{
@@ -3024,6 +3057,24 @@ func (s *ExecutionManagerSuite) TestTransferTasksRangeComplete() {
 	s.Equal(currentTransferID+10004, txTasks[3].GetTaskID())
 	s.Equal(currentTransferID+10005, txTasks[4].GetTaskID())
 	s.Equal(currentTransferID+10006, txTasks[5].GetTaskID())
+	s.Equal(tasklist, txTasks[0].GetTaskList())
+	s.Equal(tasklist, txTasks[1].GetTaskList())
+	s.Equal(tasklist, txTasks[2].GetTaskList())
+	s.Equal(tasklist, txTasks[3].GetTaskList())
+	s.Equal(tasklist, txTasks[4].GetTaskList())
+	s.Equal(tasklist, txTasks[5].GetTaskList())
+	s.Equal(tasklist, txTasks[0].GetOriginalTaskList())
+	s.Equal("original_tasklist", txTasks[1].GetOriginalTaskList())
+	s.Equal(tasklist, txTasks[2].GetOriginalTaskList())
+	s.Equal(tasklist, txTasks[3].GetOriginalTaskList())
+	s.Equal(tasklist, txTasks[4].GetOriginalTaskList())
+	s.Equal(tasklist, txTasks[5].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[0].GetOriginalTaskListKind())
+	s.Equal(types.TaskListKindEphemeral, txTasks[1].GetOriginalTaskListKind())
+	s.Equal(types.TaskListKindNormal, txTasks[2].GetOriginalTaskListKind())
+	s.Equal(types.TaskListKindNormal, txTasks[3].GetOriginalTaskListKind())
+	s.Equal(types.TaskListKindNormal, txTasks[4].GetOriginalTaskListKind())
+	s.Equal(types.TaskListKindNormal, txTasks[5].GetOriginalTaskListKind())
 
 	err2 = s.RangeCompleteTransferTask(ctx, txTasks[0].GetTaskID(), txTasks[5].GetTaskID()+1)
 	s.NoError(err2)

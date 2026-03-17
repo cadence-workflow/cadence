@@ -976,19 +976,9 @@ func IntersectionStringSlice(a, b []string) []string {
 	return result
 }
 
-// NewPerTaskListScope creates a tasklist metrics scope
-func NewPerTaskListScope(
-	domainName string,
-	taskListName string,
-	taskListKind types.TaskListKind,
-	client metrics.Client,
-	scopeIdx metrics.ScopeIdx,
-) metrics.Scope {
-	domainTag := metrics.DomainUnknownTag()
+// GetTaskListTag returns the task list tag for the given task list name and kind
+func GetTaskListTag(taskListName string, taskListKind types.TaskListKind) metrics.Tag {
 	taskListTag := metrics.TaskListUnknownTag()
-	if domainName != "" {
-		domainTag = metrics.DomainTag(domainName)
-	}
 	if taskListName != "" && taskListKind == types.TaskListKindNormal {
 		taskListTag = metrics.TaskListTag(taskListName)
 	}
@@ -998,5 +988,21 @@ func NewPerTaskListScope(
 	if taskListKind == types.TaskListKindEphemeral {
 		taskListTag = ephemeralTaskListMetricTag
 	}
+	return taskListTag
+}
+
+// NewPerTaskListScope creates a tasklist metrics scope
+func NewPerTaskListScope(
+	domainName string,
+	taskListName string,
+	taskListKind types.TaskListKind,
+	client metrics.Client,
+	scopeIdx metrics.ScopeIdx,
+) metrics.Scope {
+	domainTag := metrics.DomainUnknownTag()
+	if domainName != "" {
+		domainTag = metrics.DomainTag(domainName)
+	}
+	taskListTag := GetTaskListTag(taskListName, taskListKind)
 	return client.Scope(scopeIdx, domainTag, taskListTag)
 }

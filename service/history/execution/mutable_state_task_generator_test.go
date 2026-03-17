@@ -564,10 +564,11 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionScheduleTasks() {
 	decisionScheduleID := int64(123)
 
 	executionInfo := &persistence.WorkflowExecutionInfo{
-		DomainID:   constants.TestDomainID,
-		WorkflowID: constants.TestWorkflowID,
-		RunID:      constants.TestRunID,
-		TaskList:   "task-list",
+		DomainID:     constants.TestDomainID,
+		WorkflowID:   constants.TestWorkflowID,
+		RunID:        constants.TestRunID,
+		TaskList:     "task-list",
+		TaskListKind: types.TaskListKindEphemeral,
 	}
 
 	decision := &DecisionInfo{
@@ -596,10 +597,11 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionScheduleTasks() {
 					TaskData: persistence.TaskData{
 						Version: decision.Version,
 					},
-					TargetDomainID:   executionInfo.DomainID,
-					TaskList:         decision.TaskList,
-					ScheduleID:       decision.ScheduleID,
-					OriginalTaskList: "task-list",
+					TargetDomainID:       executionInfo.DomainID,
+					TaskList:             decision.TaskList,
+					ScheduleID:           decision.ScheduleID,
+					OriginalTaskList:     "task-list",
+					OriginalTaskListKind: types.TaskListKindEphemeral,
 				}).Times(1)
 				s.mockMutableState.EXPECT().GetDecisionScheduleToStartTimeout().Return(time.Duration(0)).Times(1)
 			},
@@ -617,10 +619,11 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionScheduleTasks() {
 					TaskData: persistence.TaskData{
 						Version: decision.Version,
 					},
-					TargetDomainID:   executionInfo.DomainID,
-					TaskList:         decision.TaskList,
-					ScheduleID:       decision.ScheduleID,
-					OriginalTaskList: "task-list",
+					TargetDomainID:       executionInfo.DomainID,
+					TaskList:             decision.TaskList,
+					ScheduleID:           decision.ScheduleID,
+					OriginalTaskList:     "task-list",
+					OriginalTaskListKind: types.TaskListKindEphemeral,
 				}).Times(1)
 				scheduleToStartTimeout := time.Duration(1)
 				s.mockMutableState.EXPECT().GetDecisionScheduleToStartTimeout().Return(scheduleToStartTimeout).Times(1)

@@ -166,7 +166,6 @@ func (s *parallelTaskProcessorSuite) TestExecuteTask_WorkerStopped() {
 		close(done)
 	}()
 
-	time.Sleep(100 * time.Millisecond)
 	close(workerShutdownCh)
 	<-done
 }
@@ -322,7 +321,6 @@ func (s *parallelTaskProcessorSuite) TestExecuteTask_PanicHandling() {
 		s.processor.executeTask(mockTask, workerShutdownCh)
 		close(done)
 	}()
-	time.Sleep(100 * time.Millisecond)
 	close(workerShutdownCh)
 	<-done
 }

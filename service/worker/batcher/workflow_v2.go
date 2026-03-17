@@ -152,6 +152,10 @@ func BatchWorkflowV2(ctx workflow.Context, batchParams BatchParams) (HeartBeatDe
 						v2Params.Progress = &hbd
 					}
 				}
+			} else {
+				// Non-cancellation error (e.g. transient RPC failure) — surface it
+				// rather than silently retrying a potentially broken activity.
+				return HeartBeatDetails{}, err
 			}
 		}
 	}
@@ -247,6 +251,8 @@ func batchActivityV2(ctx context.Context, params batchParamsV2) (HeartBeatDetail
 					if succCount+errCount == batchCount {
 						break Loop
 					}
+				case <-ctx.Done():
+					return hbd, cadence.NewCanceledError(hbd)
 				}
 			}
 			hbd.SuccessCount += succCount
@@ -313,7 +319,7 @@ func startTaskProcessorV2(
 								RunID:      runID,
 							},
 							Reason:   batchParams.Reason,
-							Identity: BatchWFTypeName,
+							Identity: BatchWFV2TypeName,
 						})
 					})
 			case BatchTypeCancel:
@@ -326,7 +332,7 @@ func startTaskProcessorV2(
 								WorkflowID: workflowID,
 								RunID:      runID,
 							},
-							Identity:  BatchWFTypeName,
+							Identity:  BatchWFV2TypeName,
 							RequestID: requestID,
 						})
 					})
@@ -339,7 +345,7 @@ func startTaskProcessorV2(
 								WorkflowID: workflowID,
 								RunID:      runID,
 							},
-							Identity:   BatchWFTypeName,
+							Identity:   BatchWFV2TypeName,
 							RequestID:  requestID,
 							SignalName: batchParams.SignalParams.SignalName,
 							Input:      []byte(batchParams.SignalParams.Input),

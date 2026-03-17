@@ -154,6 +154,20 @@ func (mr *MockTaskMockRecorder) GetOriginalTaskList() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOriginalTaskList", reflect.TypeOf((*MockTask)(nil).GetOriginalTaskList))
 }
 
+// GetOriginalTaskListKind mocks base method.
+func (m *MockTask) GetOriginalTaskListKind() types.TaskListKind {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOriginalTaskListKind")
+	ret0, _ := ret[0].(types.TaskListKind)
+	return ret0
+}
+
+// GetOriginalTaskListKind indicates an expected call of GetOriginalTaskListKind.
+func (mr *MockTaskMockRecorder) GetOriginalTaskListKind() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOriginalTaskListKind", reflect.TypeOf((*MockTask)(nil).GetOriginalTaskListKind))
+}
+
 // GetQueueType mocks base method.
 func (m *MockTask) GetQueueType() QueueType {
 	m.ctrl.T.Helper()
@@ -626,6 +640,20 @@ func (m *MockCrossClusterTask) GetOriginalTaskList() string {
 func (mr *MockCrossClusterTaskMockRecorder) GetOriginalTaskList() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOriginalTaskList", reflect.TypeOf((*MockCrossClusterTask)(nil).GetOriginalTaskList))
+}
+
+// GetOriginalTaskListKind mocks base method.
+func (m *MockCrossClusterTask) GetOriginalTaskListKind() types.TaskListKind {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOriginalTaskListKind")
+	ret0, _ := ret[0].(types.TaskListKind)
+	return ret0
+}
+
+// GetOriginalTaskListKind indicates an expected call of GetOriginalTaskListKind.
+func (mr *MockCrossClusterTaskMockRecorder) GetOriginalTaskListKind() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOriginalTaskListKind", reflect.TypeOf((*MockCrossClusterTask)(nil).GetOriginalTaskListKind))
 }
 
 // GetQueueType mocks base method.
