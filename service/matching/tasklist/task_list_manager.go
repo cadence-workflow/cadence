@@ -836,19 +836,27 @@ func (c *taskListManagerImpl) TaskListID() *Identifier {
 	return c.taskListID
 }
 
+// trySyncMatch performs to match the domain synchronously.
 func (c *taskListManagerImpl) trySyncMatch(ctx context.Context, params AddTaskParams, isolationGroup string) (bool, error) {
+	// Create a new InternalTask struct using paramters to make the task processable in the matcher.
 	task := newInternalTask(params.TaskInfo, nil, params.Source, params.ForwardedFrom, true, params.ActivityTaskDispatchInfo, isolationGroup)
 	childCtx := ctx
 	cancel := func() {}
+
+	// Decide how long to spend the time to sync match
 	waitTime := maxSyncMatchWaitTime
 	if params.ActivityTaskDispatchInfo != nil {
 		waitTime = c.config.ActivityTaskSyncMatchWaitTime(params.ActivityTaskDispatchInfo.WorkflowDomain)
 	}
+
+	// Cap the context deadline
 	if !task.IsForwarded() {
 		// when task is forwarded from another matching host, we trust the context as is
 		// otherwise, we override to limit the amount of time we can block on sync match
 		childCtx, cancel = c.newChildContext(ctx, waitTime, time.Second)
 	}
+
+	// Route to the right matcher method
 	var matched bool
 	var err error
 	if params.ActivityTaskDispatchInfo != nil {

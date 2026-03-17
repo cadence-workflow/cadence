@@ -117,6 +117,28 @@ func (t *MatcherTestSuite) TestLocalSyncMatch() {
 	t.True(syncMatch)
 }
 
+func (t *MatcherTestSuite) TestLocalSyncMatchTimeout() {
+	t.disableRemoteForwarding()
+
+	wait := ensureAsyncReady(5*time.Second, func(ctx context.Context) {
+		task, err := t.matcher.Poll(ctx, "")
+		if err == nil {
+			time.Sleep(500 * time.Millisecond) // Slowly poll the task
+			task.Finish(nil)
+		}
+	})
+
+	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", true, nil, "")
+
+	// Set context timeout smaller than poller waiting time
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	syncMatch, err := t.matcher.Offer(ctx, task)
+	cancel()
+	wait()
+	t.NoError(err)
+	t.False(syncMatch)
+}
+
 func (t *MatcherTestSuite) TestIsolationLocalSyncMatch() {
 	const isolationGroup = "dca1"
 
