@@ -59,14 +59,6 @@ func EncodingTypeFuzzer(e *types.EncodingType, c fuzz.Continue) {
 	*e = types.EncodingType(c.Intn(2)) // 0-1: ThriftRW, JSON
 }
 
-func IsolationGroupStateFuzzer(e *types.IsolationGroupState, c fuzz.Continue) {
-	*e = types.IsolationGroupState(c.Intn(3)) // 0-2: Invalid, Healthy, Drained
-}
-
-func GetTaskFailedCauseFuzzer(e *types.GetTaskFailedCause, c fuzz.Continue) {
-	*e = types.GetTaskFailedCause(c.Intn(4)) // 0-3: ServiceBusy, Timeout, ShardOwnershipLost, Uncategorized
-}
-
 func CrossClusterTaskFailedCauseFuzzer(e *types.CrossClusterTaskFailedCause, c fuzz.Continue) {
 	*e = types.CrossClusterTaskFailedCause(c.Intn(6)) // 0-5: DomainNotActive, DomainNotExists, WorkflowAlreadyRunning, WorkflowNotExists, WorkflowAlreadyCompleted, Uncategorized
 }
