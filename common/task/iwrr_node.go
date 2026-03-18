@@ -58,6 +58,9 @@ func newiwrrNode[K comparable, V any](bufferSize int) *iwrrNode[K, V] {
 // After executing the callback, the drainSelfFirst flag is set to indicate children should
 // be drained first, and the childrenItemCount is updated with the delta from the callback.
 //
+// Note: The parent node is responsible for incrementing the reference count of the child node's channel,
+// so that the subtree is not cleaned up while the parent is trying to change the subtree structure.
+//
 // Parameters:
 //   - path: slice of WeightedKey representing the hierarchical path to the target node
 //   - bufferSize: buffer size for any newly created nodes

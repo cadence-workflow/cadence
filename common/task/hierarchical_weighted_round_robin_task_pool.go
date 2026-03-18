@@ -111,9 +111,9 @@ func (p *hierarchicalWeightedRoundRobinTaskPoolImpl[K, T]) Enqueue(task T) error
 		return err
 	}
 	var err error
+	p.root.c.IncRef()
+	defer p.root.c.DecRef()
 	p.root.executeAtPath(weightedKeys, p.bufferSize, func(c *TTLChannel[T]) int64 {
-		c.IncRef()
-		defer c.DecRef()
 		select {
 		case c.Chan() <- task:
 			c.UpdateLastWriteTime(p.timeSource.Now())
@@ -132,9 +132,9 @@ func (p *hierarchicalWeightedRoundRobinTaskPoolImpl[K, T]) TryEnqueue(task T) (b
 		return false, err
 	}
 	var err error
+	p.root.c.IncRef()
+	defer p.root.c.DecRef()
 	delta := p.root.executeAtPath(weightedKeys, p.bufferSize, func(c *TTLChannel[T]) int64 {
-		c.IncRef()
-		defer c.DecRef()
 		select {
 		case c.Chan() <- task:
 			c.UpdateLastWriteTime(p.timeSource.Now())
