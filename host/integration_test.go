@@ -53,9 +53,9 @@ func TestIntegrationSuite(t *testing.T) {
 	// TODO: remove this logic once we deprecate history queue v1
 	if os.Getenv("ENABLE_QUEUE_V2") == "true" {
 		configPath = "testdata/integration_queuev2_cluster.yaml"
-		if os.Getenv("ENABLE_QUEUE_V2_ALERT") == "true" {
-			configPath = "testdata/integration_queuev2_with_alert_cluster.yaml"
-		}
+	}
+	if os.Getenv("ENABLE_NEW_FEATURES") == "true" {
+		configPath = "testdata/integration_new_features_cluster.yaml"
 	}
 	clusterConfig, err := GetTestClusterConfig(configPath)
 	if err != nil {

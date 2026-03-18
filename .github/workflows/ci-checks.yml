@@ -1,5 +1,5 @@
 name: CI Checks
-on: 
+on:
   push:
   pull_request:
 
@@ -7,7 +7,7 @@ jobs:
   idl-submodule-points-to-master:
     name: IDL submodule points to master
     runs-on: ubuntu-latest # uses ubuntu as runner
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
   golang-unit-test:
     name: Golang unit test
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,7 +33,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.4'
-      
+
       - name: Run unit test
         uses: nick-fields/retry@v3
         with:
@@ -133,8 +133,8 @@ jobs:
           name: go-cassandra-running-history-queue-v2-integration-coverage
           path: .build/coverage/*.out
 
-  golang-integration-test-with-cassandra-running-history-queue-v2-alert:
-    name: Golang integration test with running history queue v2 with alert
+  golang-integration-test-with-cassandra-new-features:
+    name: Golang integration test for new features with cassandra
     runs-on: ubuntu-latest
     continue-on-error: true
 
@@ -149,19 +149,19 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run integration profile for cassandra running history queue v2 with alert
+      - name: Run integration profile for new features with cassandra
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2-alert bash -c "make .just-build && make cover_integration_profile"
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-new-features bash -c "make .just-build && make cover_integration_profile"
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: go-cassandra-running-history-queue-v2-alert-integration-coverage
+          name: go-cassandra-new-features-integration-coverage
           path: .build/coverage/*.out
 
 
@@ -323,7 +323,7 @@ jobs:
         with:
           name: go-mysql-integration-coverage
           path: .build/coverage/*.out
-          
+
 
   golang-integration-ndc-test-with-mysql:
     name: Golang integration ndc test with mysql
@@ -348,7 +348,7 @@ jobs:
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql bash -c "make .just-build && make cover_ndc_profile"
-      
+
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -387,7 +387,7 @@ jobs:
         with:
           name: go-postgres-integration-coverage
           path: .build/coverage/*.out
-             
+
 
   golang-integration-test-with-sqlite:
     name: Golang integration test with sqlite

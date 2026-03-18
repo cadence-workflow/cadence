@@ -159,7 +159,7 @@ services:
         aliases:
           - integration-test
 
-  integration-test-cassandra-queue-v2-alert:
+  integration-test-cassandra-new-features:
     build:
       context: ../../
       dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
@@ -169,8 +169,7 @@ services:
       - "ES_SEEDS=elasticsearch"
       - "KAFKA_SEEDS=kafka"
       - "TEST_TAG=esintegration"
-      - "ENABLE_QUEUE_V2=true"
-      - "ENABLE_QUEUE_V2_ALERT=true"
+      - "ENABLE_NEW_FEATURES=true"
     depends_on:
       cassandra:
         condition: service_healthy

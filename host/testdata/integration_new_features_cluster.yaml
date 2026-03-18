@@ -12,5 +12,5 @@ workerconfig:
   enablereplicator: true
   enableindexer: false
 dynamicclientconfig:
-  filepath: "testdata/dynamicconfig/integration_queuev2_with_alert_test.yaml"
+  filepath: "testdata/dynamicconfig/integration_new_features_test.yaml"
   pollInterval: "10s"
