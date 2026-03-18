@@ -173,17 +173,18 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 				select {
 				case err := <-task.ResponseC:
 					tm.scope.RecordTimer(metrics.SyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
-					if err == nil {
-						e.EventName = "Offer task due to local wait"
-						e.Payload = map[string]any{
-							"TaskIsForwarded": task.IsForwarded(),
-						}
-						event.Log(e)
+					if err != nil {
+						return false, err
 					}
-					return true, err
+					e.EventName = "Offer task due to local wait"
+					e.Payload = map[string]any{
+						"TaskIsForwarded": task.IsForwarded(),
+					}
+					event.Log(e)
+					return true, nil
 				// If the context expires while waiting for the poller's response
 				case <-ctx.Done():
-					return true, fmt.Errorf("waiting for sync match response: %w", ctx.Err())
+					return false, fmt.Errorf("waiting for sync match response: %w", ctx.Err())
 				}
 			}
 			return false, nil
@@ -199,10 +200,13 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 			select {
 			case err := <-task.ResponseC:
 				tm.scope.RecordTimer(metrics.SyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
-				return true, err
+				if err != nil {
+					return false, err
+				}
+				return true, nil
 			// If the context expires while waiting for the poller's response
 			case <-ctx.Done():
-				return true, fmt.Errorf("waiting for sync match response: %w", ctx.Err())
+				return false, fmt.Errorf("waiting for sync match response: %w", ctx.Err())
 			}
 		}
 		return false, nil
