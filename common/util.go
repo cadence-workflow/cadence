@@ -55,6 +55,10 @@ const (
 	historyServiceOperationMaxInterval        = 10 * time.Second
 	historyServiceOperationExpirationInterval = 30 * time.Second
 
+	recordTaskStartedInitialInterval    = 50 * time.Millisecond
+	recordTaskStartedMaxInterval        = 1 * time.Second
+	recordTaskStartedExpirationInterval = 3 * time.Second
+
 	matchingServiceOperationInitialInterval    = 1000 * time.Millisecond
 	matchingServiceOperationMaxInterval        = 10 * time.Second
 	matchingServiceOperationExpirationInterval = 30 * time.Second
@@ -159,6 +163,14 @@ func CreateHistoryServiceRetryPolicy() backoff.RetryPolicy {
 	policy := backoff.NewExponentialRetryPolicy(historyServiceOperationInitialInterval)
 	policy.SetMaximumInterval(historyServiceOperationMaxInterval)
 	policy.SetExpirationInterval(historyServiceOperationExpirationInterval)
+
+	return policy
+}
+
+func CreateRecordTaskStartedRetryPolicy() backoff.RetryPolicy {
+	policy := backoff.NewExponentialRetryPolicy(recordTaskStartedInitialInterval)
+	policy.SetMaximumInterval(recordTaskStartedMaxInterval)
+	policy.SetExpirationInterval(recordTaskStartedExpirationInterval)
 
 	return policy
 }
@@ -976,19 +988,9 @@ func IntersectionStringSlice(a, b []string) []string {
 	return result
 }
 
-// NewPerTaskListScope creates a tasklist metrics scope
-func NewPerTaskListScope(
-	domainName string,
-	taskListName string,
-	taskListKind types.TaskListKind,
-	client metrics.Client,
-	scopeIdx metrics.ScopeIdx,
-) metrics.Scope {
-	domainTag := metrics.DomainUnknownTag()
+// GetTaskListTag returns the task list tag for the given task list name and kind
+func GetTaskListTag(taskListName string, taskListKind types.TaskListKind) metrics.Tag {
 	taskListTag := metrics.TaskListUnknownTag()
-	if domainName != "" {
-		domainTag = metrics.DomainTag(domainName)
-	}
 	if taskListName != "" && taskListKind == types.TaskListKindNormal {
 		taskListTag = metrics.TaskListTag(taskListName)
 	}
@@ -998,5 +1000,21 @@ func NewPerTaskListScope(
 	if taskListKind == types.TaskListKindEphemeral {
 		taskListTag = ephemeralTaskListMetricTag
 	}
+	return taskListTag
+}
+
+// NewPerTaskListScope creates a tasklist metrics scope
+func NewPerTaskListScope(
+	domainName string,
+	taskListName string,
+	taskListKind types.TaskListKind,
+	client metrics.Client,
+	scopeIdx metrics.ScopeIdx,
+) metrics.Scope {
+	domainTag := metrics.DomainUnknownTag()
+	if domainName != "" {
+		domainTag = metrics.DomainTag(domainName)
+	}
+	taskListTag := GetTaskListTag(taskListName, taskListKind)
 	return client.Scope(scopeIdx, domainTag, taskListTag)
 }

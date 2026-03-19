@@ -2809,6 +2809,12 @@ const (
 	VirtualQueuePausedGauge
 	VirtualQueueRunningGauge
 
+	TaskRequestsPerTaskList
+	ExponentialTaskLatencyPerTaskList
+	ExponentialTaskProcessingLatencyPerTaskList
+	ExponentialTaskQueueLatencyPerTaskList
+	ExponentialTaskScheduleLatencyPerTaskList
+
 	NumHistoryMetrics
 )
 
@@ -3378,6 +3384,14 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		WorkflowTerminateCounterPerDomain:         {metricName: "workflow_terminate_counter_per_domain", metricRollupName: "workflow_terminate_counter", metricType: Counter},
 		TaskSchedulerAllowedCounterPerDomain:      {metricName: "task_scheduler_allowed_counter_per_domain", metricRollupName: "task_scheduler_allowed_counter", metricType: Counter},
 		TaskSchedulerThrottledCounterPerDomain:    {metricName: "task_scheduler_throttled_counter_per_domain", metricRollupName: "task_scheduler_throttled_counter", metricType: Counter},
+
+		// per task list task metrics
+
+		TaskRequestsPerTaskList:                     {metricName: "task_requests_per_task_list", metricType: Counter},
+		ExponentialTaskLatencyPerTaskList:           {metricName: "task_latency_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
+		ExponentialTaskProcessingLatencyPerTaskList: {metricName: "task_latency_processing_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
+		ExponentialTaskQueueLatencyPerTaskList:      {metricName: "task_latency_queue_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
+		ExponentialTaskScheduleLatencyPerTaskList:   {metricName: "task_latency_schedule_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
 
 		TaskBatchCompleteCounter:                                     {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                     {metricName: "task_batch_complete_error", metricType: Counter},

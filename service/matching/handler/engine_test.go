@@ -47,6 +47,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/tasklist"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
@@ -1886,4 +1887,27 @@ func TestRefreshWorkflowTasks(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSetupExecutorWithEmptyConfig(t *testing.T) {
+	// When no shard-distributor namespaces are configured, setupExecutor must
+	// succeed and install a no-op executor so the matching service falls back
+	// to local hash-ring assignment.
+	registry := tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient())
+	engine := &matchingEngineImpl{
+		taskListRegistry:               registry,
+		logger:                         log.NewNoop(),
+		timeSource:                     clock.NewRealTimeSource(),
+		ShardDistributorMatchingConfig: clientcommon.Config{}, // empty – no namespaces
+		config:                         &config.Config{},
+	}
+
+	// Must not panic or fatal; executor must be set afterward.
+	engine.setupExecutor(nil)
+
+	require.NotNil(t, engine.executor)
+	require.NotNil(t, engine.taskListsFactory)
+
+	// The no-op executor reports itself as not onboarded to SD.
+	assert.False(t, engine.executor.IsOnboardedToSD())
 }

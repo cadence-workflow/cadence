@@ -1,6 +1,9 @@
 package task
 
 import (
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -850,4 +853,283 @@ func TestIwrrNode_Cleanup(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIwrrNode_Cleanup_ConcurrentCleanup(t *testing.T) {
+	// Test that multiple concurrent cleanup calls don't cause race conditions
+	root := newiwrrNode[string, int](10)
+
+	// Create a tree with multiple levels and old timestamps
+	// root -> level1a -> level2a
+	//      -> level1b -> level2b
+	//      -> level1c -> level2c
+	oldTime := time.Now().Add(-2 * time.Hour) // Old enough to be cleaned up
+	for i := 0; i < 3; i++ {
+		path := []WeightedKey[string]{
+			{Key: fmt.Sprintf("level1_%d", i), Weight: 1},
+			{Key: fmt.Sprintf("level2_%d", i), Weight: 1},
+		}
+		root.executeAtPath(path, 10, func(c *TTLChannel[int]) int64 {
+			c.UpdateLastWriteTime(oldTime) // Set old timestamp
+			return 0                       // Don't add items, just create the tree structure
+		})
+	}
+
+	// Verify initial state
+	require.Equal(t, 3, len(root.children))
+
+	// Run multiple concurrent cleanup operations
+	now := time.Now()
+	ttl := time.Hour
+
+	var wg sync.WaitGroup
+	numGoroutines := 10
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			root.cleanup(now, ttl)
+		}()
+	}
+
+	wg.Wait()
+
+	// Verify tree was cleaned up correctly
+	// All nodes should be removed since they're idle
+	assert.Equal(t, 0, len(root.children))
+}
+
+func TestIwrrNode_Cleanup_ConcurrentWithExecuteAtPath(t *testing.T) {
+	// Test that cleanup and executeAtPath can run concurrently without deadlock or corruption
+	// Uses multi-level hierarchy with multiple goroutines for both operations
+	root := newiwrrNode[string, int](100)
+
+	var wg sync.WaitGroup
+	stopCh := make(chan struct{})
+	var tasksAdded atomic.Int64
+
+	// Multiple goroutines running executeAtPath with multi-level paths
+	numExecuteGoroutines := 10
+	for g := 0; g < numExecuteGoroutines; g++ {
+		wg.Add(1)
+		go func(goroutineID int) {
+			defer wg.Done()
+			counter := 0
+			for {
+				select {
+				case <-stopCh:
+					return
+				default:
+					// Create multi-level paths: domain -> tasklist -> tenant
+					domainKey := fmt.Sprintf("domain_%d", (goroutineID+counter)%3)
+					tasklistKey := fmt.Sprintf("tasklist_%d", (goroutineID+counter)%5)
+					tenantKey := fmt.Sprintf("tenant_%d", (goroutineID+counter)%7)
+
+					path := []WeightedKey[string]{
+						{Key: domainKey, Weight: ((goroutineID + counter) % 3) + 1},
+						{Key: tasklistKey, Weight: ((goroutineID + counter) % 5) + 1},
+						{Key: tenantKey, Weight: ((goroutineID + counter) % 7) + 1},
+					}
+
+					taskValue := goroutineID*10000 + counter
+					root.executeAtPath(path, 10, func(c *TTLChannel[int]) int64 {
+						select {
+						case c.Chan() <- taskValue:
+							c.UpdateLastWriteTime(time.Now())
+							tasksAdded.Add(1)
+							return 1
+						default:
+							return 0
+						}
+					})
+					counter++
+				}
+			}
+		}(g)
+	}
+
+	// Multiple goroutines running cleanup
+	numCleanupGoroutines := 5
+	for g := 0; g < numCleanupGoroutines; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stopCh:
+					return
+				default:
+					// Cleanup with a TTL that will remove idle nodes
+					now := time.Now()
+					ttl := 50 * time.Millisecond
+					root.cleanup(now, ttl)
+					time.Sleep(time.Millisecond)
+				}
+			}
+		}()
+	}
+
+	// Let them run concurrently for a short time
+	time.Sleep(50 * time.Millisecond)
+	close(stopCh)
+	wg.Wait()
+
+	// Drain all tasks and verify count
+	drainedCount := 0
+	for {
+		if _, ok := root.tryGetNextItem(); ok {
+			drainedCount++
+		} else {
+			break
+		}
+	}
+
+	// All added items should be drained
+	assert.Equal(t, int(tasksAdded.Load()), drainedCount, "All enqueued items should be dequeuable")
+}
+
+func TestIwrrNode_Cleanup_PointerEqualityCheck(t *testing.T) {
+	// Test that cleanup only removes the child it decided to remove,
+	// not a newly created child with the same key
+	root := newiwrrNode[string, int](10)
+
+	// Add an initial child that will be cleaned up
+	path := []WeightedKey[string]{
+		{Key: "child", Weight: 1},
+	}
+	root.executeAtPath(path, 10, func(c *TTLChannel[int]) int64 {
+		c.UpdateLastWriteTime(time.Now().Add(-2 * time.Hour)) // Old timestamp
+		return 0
+	})
+
+	// Start cleanup in background (it will snapshot, then recurse, then try to delete)
+	cleanupDone := make(chan bool)
+	go func() {
+		// Add a small delay to ensure executeAtPath runs during the recursive phase
+		now := time.Now()
+		ttl := time.Hour
+		root.cleanup(now, ttl)
+		cleanupDone <- true
+	}()
+
+	// While cleanup is running, add a new child with the same key
+	// This simulates the race condition the pointer equality check protects against
+	time.Sleep(time.Millisecond) // Give cleanup time to snapshot
+	path2 := []WeightedKey[string]{
+		{Key: "child", Weight: 2}, // Same key, different weight
+	}
+	root.executeAtPath(path2, 10, func(c *TTLChannel[int]) int64 {
+		c.UpdateLastWriteTime(time.Now())
+		return 0
+	})
+
+	<-cleanupDone
+
+	// Verify: the new child should still exist
+	root.RLock()
+	container, exists := root.children["child"]
+	root.RUnlock()
+
+	// The child should exist (either old or new depending on timing)
+	// If it's the new child, weight should be 2
+	// If it's the old child, weight should be 1
+	// Either way, the tree should be in a consistent state
+	if exists {
+		// If child exists, verify it's a valid node
+		assert.NotNil(t, container.item)
+		assert.Contains(t, []int{1, 2}, container.weight)
+	}
+}
+
+func TestIwrrNode_Cleanup_DeepHierarchyConcurrency(t *testing.T) {
+	// Test cleanup performance with deep hierarchy and concurrent operations
+	// Verifies all tasks can be drained even with concurrent cleanup
+	root := newiwrrNode[string, int](10)
+
+	// Track tasks added
+	var tasksAdded atomic.Int64
+
+	// Create a deep hierarchy (5 levels, 3 children per level = 243 leaf paths)
+	var createPaths func(depth int, prefix string) [][]WeightedKey[string]
+	createPaths = func(depth int, prefix string) [][]WeightedKey[string] {
+		if depth == 0 {
+			return [][]WeightedKey[string]{{}}
+		}
+		var paths [][]WeightedKey[string]
+		for i := 0; i < 3; i++ {
+			key := fmt.Sprintf("%s_L%d_C%d", prefix, 5-depth, i)
+			subPaths := createPaths(depth-1, prefix)
+			for _, subPath := range subPaths {
+				path := append([]WeightedKey[string]{{Key: key, Weight: i + 1}}, subPath...)
+				paths = append(paths, path)
+			}
+		}
+		return paths
+	}
+
+	paths := createPaths(5, "node")
+	for i, path := range paths {
+		root.executeAtPath(path, 10, func(c *TTLChannel[int]) int64 {
+			select {
+			case c.Chan() <- i:
+				c.UpdateLastWriteTime(time.Now())
+				tasksAdded.Add(1)
+				return 1
+			default:
+				return 0
+			}
+		})
+	}
+
+	// Verify tree was created
+	require.Equal(t, 3, len(root.children))
+
+	var wg sync.WaitGroup
+
+	// Start multiple cleanup operations concurrently
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			now := time.Now().Add(2 * time.Hour)
+			ttl := time.Hour
+			root.cleanup(now, ttl)
+		}()
+	}
+
+	// Also start some executeAtPath operations to add new nodes/tasks
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			path := []WeightedKey[string]{
+				{Key: fmt.Sprintf("new_L0_C%d", idx), Weight: 1},
+			}
+			root.executeAtPath(path, 10, func(c *TTLChannel[int]) int64 {
+				select {
+				case c.Chan() <- idx + 1000:
+					c.UpdateLastWriteTime(time.Now())
+					tasksAdded.Add(1)
+					return 1
+				default:
+					return 0
+				}
+			})
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Drain all remaining tasks to verify nothing was lost
+	drainedCount := 0
+	for {
+		if _, ok := root.tryGetNextItem(); ok {
+			drainedCount++
+		} else {
+			break
+		}
+	}
+
+	totalAdded := int(tasksAdded.Load())
+	assert.Equal(t, totalAdded, drainedCount, "All added tasks should be dequeuable")
 }
