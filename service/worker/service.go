@@ -248,8 +248,10 @@ func (s *Service) Start() {
 		s.ensureDomainExists(constants.BatcherLocalDomainName)
 		s.startBatcher()
 	}
-	sm := s.startSchedulerWorkerManager()
-	defer sm.Stop()
+	if s.config.EnableScheduler() {
+		sm := s.startSchedulerWorkerManager()
+		defer sm.Stop()
+	}
 	if s.config.EnableParentClosePolicyWorker() {
 		s.startParentClosePolicyProcessor()
 	}

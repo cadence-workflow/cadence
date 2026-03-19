@@ -178,6 +178,10 @@ func (m *WorkerManager) refreshWorkers() {
 		default:
 		}
 
+		if domainEntry.IsDeprecatedOrDeleted() {
+			continue
+		}
+
 		domainName := domainEntry.GetInfo().Name
 
 		owner, err := m.membershipResolver.Lookup(service.Worker, domainName)
