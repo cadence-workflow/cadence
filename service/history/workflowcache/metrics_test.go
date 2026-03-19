@@ -85,7 +85,7 @@ func TestUpdatePerDomainMaxWFRequestCount(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testScope := tally.NewTestScope("", make(map[string]string))
 			timeSource := clock.NewMockedTimeSourceAt(time.Unix(123, 456))
-			metricsClient := metrics.NewClient(testScope, metrics.History, metrics.HistogramMigration{})
+			metricsClient := metrics.NewClient(testScope, metrics.History, metrics.MigrationConfig{})
 
 			tc.updatePerDomainMaxWFRequestCount(metricsClient, timeSource)
 

@@ -88,7 +88,7 @@ func (s *timerQueueProcessorBaseSuite) SetupTest() {
 
 	s.clusterName = cluster.TestCurrentClusterName
 	s.logger = testlogger.New(s.Suite.T())
-	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
+	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	s.metricsScope = s.metricsClient.Scope(metrics.TimerQueueProcessorScope)
 }
 

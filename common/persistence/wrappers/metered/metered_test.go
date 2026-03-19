@@ -143,7 +143,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 
 				zapLogger, logs := setupLogsCapture()
 				metricScope := tally.NewTestScope("", nil)
-				metricsClient := metrics.NewClient(metricScope, metrics.ServiceIdx(0), metrics.HistogramMigration{})
+				metricsClient := metrics.NewClient(metricScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
 				logger := log.NewLogger(zapLogger)
 
 				wrapper, mocked := tc.prepareMock(t, ctrl, metricsClient, logger)
@@ -172,7 +172,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 
 						zapLogger, logs := setupLogsCapture()
 						metricScope := tally.NewTestScope("", nil)
-						metricsClient := metrics.NewClient(metricScope, metrics.ServiceIdx(0), metrics.HistogramMigration{})
+						metricsClient := metrics.NewClient(metricScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
 						logger := log.NewLogger(zapLogger)
 
 						newObj, mocked := tc.prepareMock(t, ctrl, metricsClient, logger)

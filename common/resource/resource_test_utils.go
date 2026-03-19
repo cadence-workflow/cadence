@@ -191,7 +191,7 @@ func NewTest(
 		ActiveClusterMgr:        activeClusterMgr,
 		TimeSource:              clock.NewRealTimeSource(),
 		PayloadSerializer:       persistence.NewPayloadSerializer(),
-		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex, metrics.HistogramMigration{}),
+		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex, metrics.MigrationConfig{}),
 		ArchivalMetadata:        &archiver.MockArchivalMetadata{},
 		ArchiverProvider:        provider.NewMockArchiverProvider(controller),
 		BlobstoreClient:         blobstore.NewMockClient(controller),

@@ -850,7 +850,7 @@ func TestWorkflowSizeChecker_failWorkflowIfBlobSizeExceedsLimit(t *testing.T) {
 				completedID:        testEventID,
 				mutableState:       mutableState,
 				logger:             logger,
-				metricsScope:       metrics.NewClient(metricsScope, metrics.History, metrics.HistogramMigration{}).Scope(metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DomainTag(testDomainName)),
+				metricsScope:       metrics.NewClient(metricsScope, metrics.History, metrics.MigrationConfig{}).Scope(metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DomainTag(testDomainName)),
 			}
 			mutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
 				DomainID:   testDomainID,
@@ -1011,7 +1011,7 @@ func TestWorkflowSizeChecker_failWorkflowSizeExceedsLimit(t *testing.T) {
 					HistorySize: int64(tc.historySize),
 				},
 				logger:       logger,
-				metricsScope: metrics.NewClient(metricsScope, metrics.History, metrics.HistogramMigration{}).Scope(metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DomainTag(testDomainName)),
+				metricsScope: metrics.NewClient(metricsScope, metrics.History, metrics.MigrationConfig{}).Scope(metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DomainTag(testDomainName)),
 			}
 			failed, err := checker.failWorkflowSizeExceedsLimit()
 			require.NoError(t, err)
