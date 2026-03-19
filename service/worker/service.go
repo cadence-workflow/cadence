@@ -248,9 +248,8 @@ func (s *Service) Start() {
 		s.ensureDomainExists(constants.BatcherLocalDomainName)
 		s.startBatcher()
 	}
-	if s.config.EnableScheduler() {
-		s.startScheduler()
-	}
+	sm := s.startSchedulerWorkerManager()
+	defer sm.Stop()
 	if s.config.EnableParentClosePolicyWorker() {
 		s.startParentClosePolicyProcessor()
 	}
@@ -344,15 +343,18 @@ func (s *Service) startBatcher() {
 	}
 }
 
-func (s *Service) startScheduler() {
+func (s *Service) startSchedulerWorkerManager() *scheduler.WorkerManager {
 	params := &scheduler.BootstrapParams{
-		ServiceClient:  s.params.PublicClient,
-		FrontendClient: s.GetClientBean().GetFrontendClient(),
-		Logger:         s.GetLogger(),
+		ServiceClient:      s.params.PublicClient,
+		FrontendClient:     s.GetClientBean().GetFrontendClient(),
+		Logger:             s.GetLogger(),
+		DomainCache:        s.GetDomainCache(),
+		MembershipResolver: s.GetMembershipResolver(),
+		HostInfo:           s.GetHostInfo(),
 	}
-	if err := scheduler.New(params).Start(); err != nil {
-		s.GetLogger().Fatal("error starting scheduler", tag.Error(err))
-	}
+	wm := scheduler.NewWorkerManager(params, s.config.EnableScheduler)
+	wm.Start()
+	return wm
 }
 
 func (s *Service) startScanner() {
