@@ -1,8 +1,8 @@
 module github.com/uber/cadence
 
-go 1.23.0
+go 1.24.0
 
-toolchain go1.23.4
+toolchain go1.24.5
 
 require (
 	github.com/MicahParks/keyfunc/v2 v2.1.0
@@ -20,7 +20,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang-jwt/jwt/v5 v5.2.0
 	github.com/golang/mock v1.6.0
-	github.com/google/go-cmp v0.6.0
+	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-version v1.2.0
 	github.com/iancoleman/strcase v0.2.0
@@ -57,12 +57,12 @@ require (
 	go.uber.org/yarpc v1.70.3
 	go.uber.org/zap v1.26.0
 	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b
-	golang.org/x/net v0.40.0
-	golang.org/x/sync v0.14.0
+	golang.org/x/net v0.48.0
+	golang.org/x/sync v0.19.0
 	golang.org/x/time v0.5.0
-	golang.org/x/tools v0.22.0
-	gonum.org/v1/gonum v0.7.0
-	google.golang.org/grpc v1.59.0
+	golang.org/x/tools v0.39.0
+	gonum.org/v1/gonum v0.16.0
+	google.golang.org/grpc v1.79.3
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -92,7 +92,7 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
 	google.golang.org/genproto v0.0.0-20231016165738-49dd2c1f3d0b // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20231012201019-e917dd12ba7a // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 // indirect
 )
 
 require (
@@ -101,7 +101,7 @@ require (
 	github.com/apache/thrift v0.17.0 // indirect
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
 	github.com/cristalhq/jwt/v3 v3.1.0 // indirect
 	github.com/eapache/go-resiliency v1.7.0 // indirect
@@ -156,14 +156,14 @@ require (
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/goleak v1.2.0
 	go.uber.org/net/metrics v1.3.0 // indirect
-	golang.org/x/crypto v0.38.0 // indirect
+	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20220218215828-6cf2b201936e // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/mod v0.18.0
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20231030173426-d783a09b4405 // indirect
-	google.golang.org/protobuf v1.33.0 // indirect
+	golang.org/x/mod v0.30.0
+	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/text v0.32.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
+	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.3.2 // indirect
