@@ -22,9 +22,6 @@ func WithCommonEnumFuzzers() FuzzOption {
 		func(e *types.TimeoutType, c fuzz.Continue) {
 			*e = types.TimeoutType(c.Intn(4)) // 0-3: StartToClose, ScheduleToStart, ScheduleToClose, Heartbeat
 		},
-		func(e *types.EventType, c fuzz.Continue) {
-			*e = types.EventType(c.Intn(50)) // 0-49: various event types
-		},
 		func(e *types.ParentClosePolicy, c fuzz.Continue) {
 			*e = types.ParentClosePolicy(c.Intn(3)) // 0-2
 		},
