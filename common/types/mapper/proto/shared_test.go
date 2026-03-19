@@ -541,26 +541,14 @@ func TestPersistenceInfoFuzz(t *testing.T) {
 }
 
 func TestCrossClusterTaskTypeFuzz(t *testing.T) {
-	// No corresponding test in enum_test.go - unique to shared_test.go
 	testutils.RunMapperFuzzTest(t, FromCrossClusterTaskType, ToCrossClusterTaskType,
 		testutils.WithCustomFuncs(testutils.CrossClusterTaskTypeFuzzer),
 	)
 }
 
 func TestGetTaskFailedCauseFuzz(t *testing.T) {
-	// No corresponding test in enum_test.go - unique to shared_test.go
 	testutils.RunMapperFuzzTest(t, FromGetTaskFailedCause, ToGetTaskFailedCause,
 		testutils.WithCustomFuncs(testutils.GetTaskFailedCauseFuzzer),
-	)
-}
-
-func TestTaskSourceFuzz(t *testing.T) {
-	// Also tested in enum_test.go with table-driven approach
-	testutils.RunMapperFuzzTest(t, FromTaskSource, ToTaskSource,
-		testutils.WithCustomFuncs(func(e *types.TaskSource, c fuzz.Continue) {
-			// 0-1: History, DbBacklog
-			*e = types.TaskSource(c.Intn(2))
-		}),
 	)
 }
 
