@@ -136,7 +136,7 @@ func (t *MatcherTestSuite) TestLocalSyncMatchTimeout() {
 	cancel()
 	wait()
 	t.Error(err)
-	t.True(syncMatch)
+	t.False(syncMatch)
 }
 
 func (t *MatcherTestSuite) TestIsolationLocalSyncMatch() {
