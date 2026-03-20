@@ -116,9 +116,7 @@ func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolP
 		ctx:                ctx,
 		cancelFn:           cancel,
 		activeWorkers:      make(map[string]workerHandle),
-		// Buffered so that the ring's notification goroutine is never blocked
-		// if we are slow to consume (e.g. during a long refresh cycle).
-		membershipChangeCh: make(chan *membership.ChangedEvent, 1),
+		membershipChangeCh: make(chan *membership.ChangedEvent, 10),
 	}
 	wm.createWorker = wm.defaultCreateWorker
 	return wm
