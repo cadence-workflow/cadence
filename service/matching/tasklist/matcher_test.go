@@ -761,6 +761,7 @@ func (t *MatcherTestSuite) TestOffer_NoTimeoutSyncMatchedError() {
 	cancel()
 	wait()
 
+	// If there is an error in ResponseC, Offer should return an error with syncMatch failed
 	t.Error(err)
 	t.False(syncMatched)
 }
