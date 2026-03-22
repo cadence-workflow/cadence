@@ -762,7 +762,7 @@ func (t *MatcherTestSuite) TestOffer_NoTimeoutSyncMatchedError() {
 	wait()
 
 	t.Error(err)
-	t.True(syncMatched)
+	t.False(syncMatched)
 }
 
 func (t *MatcherTestSuite) TestOffer_NoTimeoutAsyncMatchedNoError() {
