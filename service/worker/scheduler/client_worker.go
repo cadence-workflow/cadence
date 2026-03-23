@@ -179,6 +179,7 @@ func (m *WorkerManager) run() {
 
 		case <-m.membershipChangeCh:
 			drainMembershipCh(m.membershipChangeCh)
+			enabled = m.enabledFn()
 			if enabled {
 				m.logger.Debug("membership ring changed, refreshing scheduler workers")
 				m.refreshWorkers()
