@@ -178,14 +178,12 @@ func (m *WorkerManager) run() {
 			}
 
 		case <-m.membershipChangeCh:
-			// Drain any additional pending notifications to avoid redundant
-			// refreshes when multiple changes arrive in quick succession.
-			for len(m.membershipChangeCh) > 0 {
-				<-m.membershipChangeCh
-			}
+			drainMembershipCh(m.membershipChangeCh)
 			if enabled {
 				m.logger.Debug("membership ring changed, refreshing scheduler workers")
 				m.refreshWorkers()
+			} else {
+				m.stopAllWorkers()
 			}
 
 		case <-m.ctx.Done():
@@ -298,6 +296,18 @@ func (m *WorkerManager) stopAllWorkers() {
 			tag.WorkflowDomainName(domainName),
 		)
 		delete(m.activeWorkers, domainName)
+	}
+}
+
+// drainMembershipCh consumes all pending events from the channel without
+// blocking, so that a single refreshWorkers call covers all queued changes.
+func drainMembershipCh(ch <-chan *membership.ChangedEvent) {
+	for {
+		select {
+		case <-ch:
+		default:
+			return
+		}
 	}
 }
 

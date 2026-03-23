@@ -199,13 +199,9 @@ func (r *Ring) LookupN(key string, n int) ([]HostInfo, error) {
 	for _, addr := range addrs {
 		host, err := r.AddressToHost(addr)
 		if err != nil {
-			r.logger.Warn("skipping address not found in hashring during LookupN", tag.Address(addr))
-			continue
+			return nil, fmt.Errorf("LookupN: address %q returned by ring but not found in members: %w", addr, err)
 		}
 		hosts = append(hosts, host)
-	}
-	if len(hosts) == 0 {
-		return nil, ErrInsufficientHosts
 	}
 	return hosts, nil
 }
