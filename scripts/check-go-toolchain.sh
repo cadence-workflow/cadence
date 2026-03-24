@@ -29,7 +29,7 @@ while read file; do
   if [[ "$version" != "$target" ]]; then
     bad "Wrong Go version in file $file:\n\t$line"
   fi
-done < <( find "$root" -name Dockerfile )
+done < <( find "$root" -name Dockerfile -not -path '*/.worktrees/*' )
 
 declare -a codecov_files=( "$root/.github/workflows/codecov-on-pr.yml" "$root/.github/workflows/codecov-on-master.yml" );
 

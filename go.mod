@@ -13,13 +13,13 @@ require (
 	github.com/dave/dst v0.26.2
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da
-	github.com/emirpasic/gods v0.0.0-20190624094223-e689965507ab
+	github.com/emirpasic/gods v1.18.1
 	github.com/fatih/color v1.13.0
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/gocql/gocql v0.0.0-20211015133455-b225f9b53fa1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang-jwt/jwt/v5 v5.2.0
-	github.com/golang/mock v1.6.0
+	github.com/golang/mock v1.7.0-rc.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-version v1.2.0
@@ -28,7 +28,7 @@ require (
 	github.com/jmoiron/sqlx v1.2.1-0.20200615141059-0794cb1f47ee
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/lib/pq v1.2.0
-	github.com/m3db/prometheus_client_golang v0.8.1
+	github.com/m3db/prometheus_client_golang v1.12.8
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/olivere/elastic/v7 v7.0.21
@@ -38,24 +38,24 @@ require (
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/startreedata/pinot-client-go v0.2.0 // latest release supports pinot v0.12.0 which is also internal version
 	github.com/stretchr/testify v1.10.0
-	github.com/uber-go/tally v3.3.15+incompatible
+	github.com/uber-go/tally v3.5.8+incompatible
 	github.com/uber/cadence-idl v0.0.0-20260313102523-57782092adb4
 	github.com/uber/ringpop-go v0.8.5
-	github.com/uber/tchannel-go v1.22.2
+	github.com/uber/tchannel-go v1.34.4
 	github.com/urfave/cli/v2 v2.27.4
 	github.com/valyala/fastjson v1.4.1
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
 	go.etcd.io/etcd/client/v3 v3.5.5
 	go.mongodb.org/mongo-driver v1.7.3
-	go.uber.org/atomic v1.10.0
+	go.uber.org/atomic v1.11.0
 	go.uber.org/cadence v0.19.0
 	go.uber.org/config v1.4.0
 	go.uber.org/fx v1.23.0
-	go.uber.org/multierr v1.10.0
-	go.uber.org/thriftrw v1.29.2
-	go.uber.org/yarpc v1.70.3
-	go.uber.org/zap v1.26.0
+	go.uber.org/multierr v1.11.0
+	go.uber.org/thriftrw v1.32.0
+	go.uber.org/yarpc v1.88.0
+	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b
 	golang.org/x/net v0.48.0
 	golang.org/x/sync v0.19.0
@@ -86,18 +86,18 @@ require (
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
-	github.com/rogpeppe/go-internal v1.6.1 // indirect
 	github.com/tetratelabs/wazero v1.8.2 // indirect
+	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
-	google.golang.org/genproto v0.0.0-20231016165738-49dd2c1f3d0b // indirect
+	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 // indirect
 )
 
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
-	github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239 // indirect
+	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/apache/thrift v0.17.0 // indirect
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -111,7 +111,7 @@ require (
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/go-zookeeper/zk v1.0.3 // indirect
-	github.com/gogo/googleapis v1.3.2 // indirect
+	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/gogo/status v1.1.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4
@@ -124,13 +124,12 @@ require (
 	github.com/jcmturner/gofork v1.7.6 // indirect
 	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
-	github.com/jessevdk/go-flags v1.4.0 // indirect
+	github.com/jessevdk/go-flags v1.5.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/kisielk/errcheck v1.5.0 // indirect
+	github.com/kisielk/errcheck v1.7.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
-	github.com/m3db/prometheus_client_model v0.1.0 // indirect
-	github.com/m3db/prometheus_common v0.1.0 // indirect
-	github.com/m3db/prometheus_procfs v0.8.1 // indirect
+	github.com/m3db/prometheus_client_model v0.2.1 // indirect
+	github.com/m3db/prometheus_common v0.34.6 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.9 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
@@ -139,10 +138,10 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_golang v1.11.1 // indirect
+	github.com/prometheus/client_golang v1.12.1 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
-	github.com/prometheus/common v0.26.0 // indirect
-	github.com/prometheus/procfs v0.6.0 // indirect
+	github.com/prometheus/common v0.34.0 // indirect
+	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
@@ -154,10 +153,10 @@ require (
 	github.com/xdg/stringprep v1.0.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	go.uber.org/dig v1.18.0 // indirect
-	go.uber.org/goleak v1.2.0
-	go.uber.org/net/metrics v1.3.0 // indirect
+	go.uber.org/goleak v1.3.0
+	go.uber.org/net/metrics v1.4.0 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
-	golang.org/x/exp/typeparams v0.0.0-20220218215828-6cf2b201936e // indirect
+	golang.org/x/exp/typeparams v0.0.0-20221208152030-732eee02a75a // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/mod v0.30.0
 	golang.org/x/sys v0.39.0 // indirect
@@ -166,7 +165,7 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	honnef.co/go/tools v0.3.2 // indirect
+	honnef.co/go/tools v0.4.3 // indirect
 )
 
 // ringpop-go and tchannel-go depends on older version of thrift, yarpc brings up newer version
