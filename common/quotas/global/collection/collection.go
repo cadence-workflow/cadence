@@ -169,7 +169,7 @@ func New(
 	// events on the fallback.
 	globalFallback quotas.ICollection[string],
 	updateInterval dynamicproperties.DurationPropertyFn,
-	targetRPS dynamicproperties.IntPropertyFnWithDomainFilter,
+	targetRPS func(key string) int,
 	keyModes dynamicproperties.StringPropertyWithRatelimitKeyFilter,
 	aggs rpc.Client,
 	logger log.Logger,

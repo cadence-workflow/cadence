@@ -64,7 +64,7 @@ import (
 {{$domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
 {{$nonBlockingAPIs := list "RecordActivityTaskHeartbeat" "RecordActivityTaskHeartbeatByID" "RespondActivityTaskCompleted" "RespondActivityTaskCompletedByID" "RespondActivityTaskFailed" "RespondActivityTaskFailedByID" "RespondActivityTaskCanceled" "RespondActivityTaskCanceledByID" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted" "ResetStickyTaskList"}}
-{{$taskListAPIs := list }}
+{{$taskListAPIs := list "PollForActivityTask" "PollForDecisionTask" "StartWorkflowExecution" "StartWorkflowExecutionAsync" "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync"}}
 
 {{$interfaceName := .Interface.Name}}
 {{$handlerName := (index .Vars "handler")}}

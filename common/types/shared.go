@@ -7435,6 +7435,14 @@ func (v *StartWorkflowExecutionRequest) GetDomain() (o string) {
 	return
 }
 
+// GetTaskList is an internal getter (TBD...)
+func (v *StartWorkflowExecutionRequest) GetTaskList() (o *TaskList) {
+	if v != nil && v.TaskList != nil {
+		return v.TaskList
+	}
+	return
+}
+
 // GetWorkflowID is an internal getter (TBD...)
 func (v *StartWorkflowExecutionRequest) GetWorkflowID() (o string) {
 	if v != nil {
