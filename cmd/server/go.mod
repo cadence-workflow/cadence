@@ -27,7 +27,7 @@ require (
 	github.com/golang/mock v1.7.0-rc.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.2.0 // indirect
-	github.com/iancoleman/strcase v0.2.0 // indirect
+	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/jmoiron/sqlx v1.2.1-0.20200615141059-0794cb1f47ee // indirect
 	github.com/lib/pq v1.2.0 // indirect
 	github.com/m3db/prometheus_client_golang v1.12.8 // indirect
@@ -77,13 +77,13 @@ require (
 	github.com/IBM/sarama v1.45.2 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
-	github.com/fatih/color v1.13.0 // indirect
+	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/gofuzz v1.0.0 // indirect
-	github.com/mattn/go-colorable v0.1.9 // indirect
-	github.com/mattn/go-isatty v0.0.14 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/ncruces/go-sqlite3 v0.22.0 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/opensearch-project/opensearch-go/v4 v4.1.0 // indirect
@@ -154,7 +154,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.12.1 // indirect
-	github.com/prometheus/client_model v0.4.0 // indirect
+	github.com/prometheus/client_model v0.6.0 // indirect
 	github.com/prometheus/common v0.34.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect

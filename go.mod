@@ -14,7 +14,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da
 	github.com/emirpasic/gods v1.18.1
-	github.com/fatih/color v1.13.0
+	github.com/fatih/color v1.15.0
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/gocql/gocql v0.0.0-20211015133455-b225f9b53fa1
 	github.com/gogo/protobuf v1.3.2
@@ -23,7 +23,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-version v1.2.0
-	github.com/iancoleman/strcase v0.2.0
+	github.com/iancoleman/strcase v0.3.0
 	github.com/jmespath/go-jmespath v0.4.0
 	github.com/jmoiron/sqlx v1.2.1-0.20200615141059-0794cb1f47ee
 	github.com/jonboulle/clockwork v0.5.0
@@ -131,15 +131,14 @@ require (
 	github.com/m3db/prometheus_client_model v0.2.1 // indirect
 	github.com/m3db/prometheus_common v0.34.6 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mattn/go-colorable v0.1.9 // indirect
-	github.com/mattn/go-isatty v0.0.14 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mattn/go-runewidth v0.0.7 // indirect
-	github.com/mattn/go-sqlite3 v1.11.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.12.1 // indirect
-	github.com/prometheus/client_model v0.4.0 // indirect
+	github.com/prometheus/client_model v0.6.0 // indirect
 	github.com/prometheus/common v0.34.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
@@ -170,6 +169,8 @@ require (
 
 // ringpop-go and tchannel-go depends on older version of thrift, yarpc brings up newer version
 replace github.com/apache/thrift => github.com/apache/thrift v0.0.0-20161221203622-b2a4d4ae21c7
+
+replace github.com/uber/cadence-idl => github.com/c-warren/cadence-idl v0.0.0-20260323215515-a0ee866806ae
 
 // DO NOT USE as it misses mysql/config store fix
 retract v1.2.3
