@@ -5,34 +5,34 @@ package shared
 
 import yarpcerrors "go.uber.org/yarpc/yarpcerrors"
 
-// YARPCErrorCode returns a yarpcerrors.CodePermissionDenied for AccessDeniedError.
+// YARPCErrorCode returns nil for AccessDeniedError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *AccessDeniedError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodePermissionDenied
-	return &code
+
+	return nil
 }
 
 // Name is the error name for AccessDeniedError.
 func (e *AccessDeniedError) YARPCErrorName() string { return "AccessDeniedError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeInvalidArgument for BadRequestError.
+// YARPCErrorCode returns nil for BadRequestError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *BadRequestError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeInvalidArgument
-	return &code
+
+	return nil
 }
 
 // Name is the error name for BadRequestError.
 func (e *BadRequestError) YARPCErrorName() string { return "BadRequestError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeAlreadyExists for CancellationAlreadyRequestedError.
+// YARPCErrorCode returns nil for CancellationAlreadyRequestedError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *CancellationAlreadyRequestedError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeAlreadyExists
-	return &code
+
+	return nil
 }
 
 // Name is the error name for CancellationAlreadyRequestedError.
@@ -40,12 +40,12 @@ func (e *CancellationAlreadyRequestedError) YARPCErrorName() string {
 	return "CancellationAlreadyRequestedError"
 }
 
-// YARPCErrorCode returns a yarpcerrors.CodeFailedPrecondition for ClientVersionNotSupportedError.
+// YARPCErrorCode returns nil for ClientVersionNotSupportedError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *ClientVersionNotSupportedError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeFailedPrecondition
-	return &code
+
+	return nil
 }
 
 // Name is the error name for ClientVersionNotSupportedError.
@@ -53,67 +53,67 @@ func (e *ClientVersionNotSupportedError) YARPCErrorName() string {
 	return "ClientVersionNotSupportedError"
 }
 
-// YARPCErrorCode returns a yarpcerrors.CodeAborted for CurrentBranchChangedError.
+// YARPCErrorCode returns nil for CurrentBranchChangedError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *CurrentBranchChangedError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeAborted
-	return &code
+
+	return nil
 }
 
 // Name is the error name for CurrentBranchChangedError.
 func (e *CurrentBranchChangedError) YARPCErrorName() string { return "CurrentBranchChangedError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeAlreadyExists for DomainAlreadyExistsError.
+// YARPCErrorCode returns nil for DomainAlreadyExistsError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *DomainAlreadyExistsError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeAlreadyExists
-	return &code
+
+	return nil
 }
 
 // Name is the error name for DomainAlreadyExistsError.
 func (e *DomainAlreadyExistsError) YARPCErrorName() string { return "DomainAlreadyExistsError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeFailedPrecondition for DomainNotActiveError.
+// YARPCErrorCode returns nil for DomainNotActiveError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *DomainNotActiveError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeFailedPrecondition
-	return &code
+
+	return nil
 }
 
 // Name is the error name for DomainNotActiveError.
 func (e *DomainNotActiveError) YARPCErrorName() string { return "DomainNotActiveError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeNotFound for EntityNotExistsError.
+// YARPCErrorCode returns nil for EntityNotExistsError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *EntityNotExistsError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeNotFound
-	return &code
+
+	return nil
 }
 
 // Name is the error name for EntityNotExistsError.
 func (e *EntityNotExistsError) YARPCErrorName() string { return "EntityNotExistsError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeFailedPrecondition for FeatureNotEnabledError.
+// YARPCErrorCode returns nil for FeatureNotEnabledError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *FeatureNotEnabledError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeFailedPrecondition
-	return &code
+
+	return nil
 }
 
 // Name is the error name for FeatureNotEnabledError.
 func (e *FeatureNotEnabledError) YARPCErrorName() string { return "FeatureNotEnabledError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeDataLoss for InternalDataInconsistencyError.
+// YARPCErrorCode returns nil for InternalDataInconsistencyError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *InternalDataInconsistencyError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeDataLoss
-	return &code
+
+	return nil
 }
 
 // Name is the error name for InternalDataInconsistencyError.
@@ -121,100 +121,100 @@ func (e *InternalDataInconsistencyError) YARPCErrorName() string {
 	return "InternalDataInconsistencyError"
 }
 
-// YARPCErrorCode returns a yarpcerrors.CodeInternal for InternalServiceError.
+// YARPCErrorCode returns nil for InternalServiceError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *InternalServiceError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeInternal
-	return &code
+
+	return nil
 }
 
 // Name is the error name for InternalServiceError.
 func (e *InternalServiceError) YARPCErrorName() string { return "InternalServiceError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeResourceExhausted for LimitExceededError.
+// YARPCErrorCode returns nil for LimitExceededError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *LimitExceededError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeResourceExhausted
-	return &code
+
+	return nil
 }
 
 // Name is the error name for LimitExceededError.
 func (e *LimitExceededError) YARPCErrorName() string { return "LimitExceededError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeInvalidArgument for QueryFailedError.
+// YARPCErrorCode returns nil for QueryFailedError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *QueryFailedError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeInvalidArgument
-	return &code
+
+	return nil
 }
 
 // Name is the error name for QueryFailedError.
 func (e *QueryFailedError) YARPCErrorName() string { return "QueryFailedError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeUnavailable for RemoteSyncMatchedError.
+// YARPCErrorCode returns nil for RemoteSyncMatchedError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *RemoteSyncMatchedError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeUnavailable
-	return &code
+
+	return nil
 }
 
 // Name is the error name for RemoteSyncMatchedError.
 func (e *RemoteSyncMatchedError) YARPCErrorName() string { return "RemoteSyncMatchedError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeAborted for RetryTaskV2Error.
+// YARPCErrorCode returns nil for RetryTaskV2Error.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *RetryTaskV2Error) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeAborted
-	return &code
+
+	return nil
 }
 
 // Name is the error name for RetryTaskV2Error.
 func (e *RetryTaskV2Error) YARPCErrorName() string { return "RetryTaskV2Error" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeResourceExhausted for ServiceBusyError.
+// YARPCErrorCode returns nil for ServiceBusyError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *ServiceBusyError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeResourceExhausted
-	return &code
+
+	return nil
 }
 
 // Name is the error name for ServiceBusyError.
 func (e *ServiceBusyError) YARPCErrorName() string { return "ServiceBusyError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeUnavailable for StickyWorkerUnavailableError.
+// YARPCErrorCode returns nil for StickyWorkerUnavailableError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *StickyWorkerUnavailableError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeUnavailable
-	return &code
+
+	return nil
 }
 
 // Name is the error name for StickyWorkerUnavailableError.
 func (e *StickyWorkerUnavailableError) YARPCErrorName() string { return "StickyWorkerUnavailableError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeAborted for TaskListNotOwnedByHostError.
+// YARPCErrorCode returns nil for TaskListNotOwnedByHostError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *TaskListNotOwnedByHostError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeAborted
-	return &code
+
+	return nil
 }
 
 // Name is the error name for TaskListNotOwnedByHostError.
 func (e *TaskListNotOwnedByHostError) YARPCErrorName() string { return "TaskListNotOwnedByHostError" }
 
-// YARPCErrorCode returns a yarpcerrors.CodeNotFound for WorkflowExecutionAlreadyCompletedError.
+// YARPCErrorCode returns nil for WorkflowExecutionAlreadyCompletedError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *WorkflowExecutionAlreadyCompletedError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeNotFound
-	return &code
+
+	return nil
 }
 
 // Name is the error name for WorkflowExecutionAlreadyCompletedError.
@@ -222,12 +222,12 @@ func (e *WorkflowExecutionAlreadyCompletedError) YARPCErrorName() string {
 	return "WorkflowExecutionAlreadyCompletedError"
 }
 
-// YARPCErrorCode returns a yarpcerrors.CodeAlreadyExists for WorkflowExecutionAlreadyStartedError.
+// YARPCErrorCode returns nil for WorkflowExecutionAlreadyStartedError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *WorkflowExecutionAlreadyStartedError) YARPCErrorCode() *yarpcerrors.Code {
-	code := yarpcerrors.CodeAlreadyExists
-	return &code
+
+	return nil
 }
 
 // Name is the error name for WorkflowExecutionAlreadyStartedError.
