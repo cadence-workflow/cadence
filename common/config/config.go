@@ -217,6 +217,8 @@ type (
 		// TODO: move dynamic config out of static config
 		// ErrorInjectionRate is the the rate for injecting random error
 		ErrorInjectionRate dynamicproperties.FloatPropertyFn `yaml:"-" json:"-"`
+		// HostName for emitting per-host metrics
+		HostName string `yaml:"-" json:"-"`
 	}
 
 	// DataStore is the configuration for a single datastore

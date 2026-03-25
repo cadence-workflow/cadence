@@ -33,7 +33,7 @@ import (
 func NewFallbackDynamicRateLimiterFactory(
 	primary dynamicproperties.IntPropertyFnWithDomainFilter,
 	secondary dynamicproperties.IntPropertyFn,
-) quotas.LimiterFactory {
+) quotas.LimiterFactory[string] {
 	return fallbackDynamicRateLimiterFactory{
 		primary:   primary,
 		secondary: secondary,

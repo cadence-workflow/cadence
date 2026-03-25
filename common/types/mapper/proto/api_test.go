@@ -1629,14 +1629,6 @@ func ArchivalStatusFuzzer(e *types.ArchivalStatus, c fuzz.Continue) {
 	*e = types.ArchivalStatus(c.Intn(2)) // 0-1: Disabled, Enabled
 }
 
-func DomainStatusFuzzer(e *types.DomainStatus, c fuzz.Continue) {
-	*e = types.DomainStatus(c.Intn(3)) // 0-2: Registered, Deprecated, Deleted
-}
-
-func IsolationGroupStateFuzzer(e *types.IsolationGroupState, c fuzz.Continue) {
-	*e = types.IsolationGroupState(c.Intn(3)) // 0-2: Invalid, Healthy, Drained
-}
-
 func ContinueAsNewInitiatorFuzzer(e *types.ContinueAsNewInitiator, c fuzz.Continue) {
 	*e = types.ContinueAsNewInitiator(c.Intn(3)) // 0-2: Decider, RetryPolicy, CronSchedule
 }
@@ -1937,8 +1929,8 @@ func TestFailoverDomainResponseFuzz(t *testing.T) {
 				}
 			},
 			testutils.EncodingTypeFuzzer,
-			IsolationGroupStateFuzzer,
-			DomainStatusFuzzer,
+			testutils.IsolationGroupStateFuzzer,
+			testutils.DomainStatusFuzzer,
 			ArchivalStatusFuzzer,
 		),
 		testutils.WithExcludedFields("EmitMetric", "WorkflowExecutionRetentionPeriodInDays"),
@@ -2341,8 +2333,8 @@ func TestUpdateDomainRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromUpdateDomainRequest, ToUpdateDomainRequest,
 		testutils.WithCustomFuncs(
 			testutils.EncodingTypeFuzzer,
-			IsolationGroupStateFuzzer,
-			DomainStatusFuzzer,
+			testutils.IsolationGroupStateFuzzer,
+			testutils.DomainStatusFuzzer,
 			ArchivalStatusFuzzer,
 		),
 		testutils.WithExcludedFields("EmitMetric", "FailoverReason", "WorkflowExecutionRetentionPeriodInDays", "HistoryArchivalStatus", "VisibilityArchivalStatus"),
@@ -2808,7 +2800,7 @@ func TestDescribeDomainResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromDescribeDomainResponse, ToDescribeDomainResponse,
 		testutils.WithCustomFuncs(
 			ActiveClusterSelectionPolicyFuzzerNoCustom,
-			DomainStatusFuzzer,
+			testutils.DomainStatusFuzzer,
 			ArchivalStatusFuzzer,
 			func(r *types.DescribeDomainResponse, c fuzz.Continue) {
 				c.Fuzz(r)
@@ -2969,11 +2961,11 @@ func TestClusterFailoverFuzz(t *testing.T) {
 func TestDescribeDomainResponseDomainFuzz(t *testing.T) {
 	// ActiveClusterSelectionPolicy has mutually exclusive fields based on Strategy
 	// WorkflowExecutionRetentionPeriodInDays: nil→0 conversion
-	// DomainInfo, Configuration, ReplicationConfiguration must be non-nil
+	// [BUG] DomainInfo, Configuration, ReplicationConfiguration must be non-nil
 	testutils.RunMapperFuzzTest(t, FromDescribeDomainResponseDomain, ToDescribeDomainResponseDomain,
 		testutils.WithCustomFuncs(
 			ActiveClusterSelectionPolicyFuzzerNoCustom,
-			DomainStatusFuzzer,
+			testutils.DomainStatusFuzzer,
 			ArchivalStatusFuzzer,
 			func(r *types.DescribeDomainResponse, c fuzz.Continue) {
 				c.Fuzz(r)
@@ -3046,7 +3038,7 @@ func TestUpdateDomainResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromUpdateDomainResponse, ToUpdateDomainResponse,
 		testutils.WithCustomFuncs(
 			ActiveClusterSelectionPolicyFuzzerNoCustom,
-			DomainStatusFuzzer,
+			testutils.DomainStatusFuzzer,
 			ArchivalStatusFuzzer,
 			func(r *types.UpdateDomainResponse, c fuzz.Continue) {
 				c.Fuzz(r)

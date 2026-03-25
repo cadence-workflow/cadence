@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	WorkflowTypeName = "cadence-sys-scheduler-workflow"
-	TaskListName     = "cadence-sys-scheduler-tasklist"
+	WorkflowTypeName = "cadence-scheduler"
+	TaskListName     = "cadence-scheduler"
 
 	SignalNamePause    = "scheduler-pause"
 	SignalNameUnpause  = "scheduler-unpause"

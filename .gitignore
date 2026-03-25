@@ -43,3 +43,8 @@ dockerize
 # SQLite databases
 cadence.db*
 cadence_visibility.db*
+
+# Local settings
+settings.local.json
+.mcp.json
+*.bak

@@ -63,6 +63,8 @@ const (
 	returnEmptyTaskTimeBudget = time.Second
 	noIsolationTimeout        = time.Duration(0)
 	minimumIsolationDuration  = time.Millisecond * 50
+
+	notifyPartitionConfigTimeout = 5 * time.Second
 )
 
 var (
@@ -295,7 +297,9 @@ func (c *taskListManagerImpl) Start(ctx context.Context) error {
 			c.stopWG.Add(1)
 			go func() {
 				defer c.stopWG.Done()
-				c.notifyPartitionConfig(context.Background(), nil, startConfig)
+				ctx, cancel := context.WithTimeout(context.Background(), notifyPartitionConfigTimeout)
+				defer cancel()
+				c.notifyPartitionConfig(ctx, nil, startConfig)
 			}()
 		}
 	}

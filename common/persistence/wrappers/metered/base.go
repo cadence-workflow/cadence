@@ -45,6 +45,7 @@ type base struct {
 	enableLatencyHistogramMetrics bool
 	sampleLoggingRate             dynamicproperties.IntPropertyFn
 	enableShardIDMetrics          dynamicproperties.BoolPropertyFn
+	hostName                      string
 }
 
 func (p *base) updateErrorMetricPerDomain(scope metrics.ScopeIdx, err error, scopeWithDomainTag metrics.Scope, logger log.Logger) {
@@ -123,6 +124,18 @@ func (p *base) updateErrorMetric(scope metrics.ScopeIdx, err error, metricsScope
 	}
 }
 
+func (p *base) recordLatencyHistogram(scope metrics.ScopeIdx, duration time.Duration) {
+	// this is a new metrics that we want to emit alongside with the current ongoing histogram migration
+	if p.hostName != "" {
+		p.metricClient.Scope(metrics.PersistencePerHostScope, metrics.HostTag(p.hostName)).RecordHistogramDuration(metrics.PersistenceLatencyHistogramPerHost, duration)
+	}
+	if !p.enableLatencyHistogramMetrics {
+		return
+	}
+	p.metricClient.Scope(scope).RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+
+}
+
 func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag) error {
 	metricsScope := p.metricClient.Scope(scope, tags...)
 	if len(tags) > 0 {
@@ -138,10 +151,7 @@ func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag
 	} else {
 		metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
 	}
-
-	if p.enableLatencyHistogramMetrics {
-		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
-	}
+	p.recordLatencyHistogram(scope, duration)
 
 	logger := p.logger.Helper()
 	if err != nil {
@@ -161,10 +171,8 @@ func (p *base) callWithoutDomainTag(scope metrics.ScopeIdx, op func() error, tag
 	err := op()
 	duration := time.Since(before)
 	metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
+	p.recordLatencyHistogram(scope, duration)
 
-	if p.enableLatencyHistogramMetrics {
-		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
-	}
 	if err != nil {
 		p.updateErrorMetric(scope, err, metricsScope, p.logger.Helper())
 	}
@@ -187,10 +195,8 @@ func (p *base) callWithDomainAndShardScope(scope metrics.ScopeIdx, op func() err
 	domainMetricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration)
 	shardOperationsMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
 	shardOverallMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
+	p.recordLatencyHistogram(scope, duration)
 
-	if p.enableLatencyHistogramMetrics {
-		domainMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
-	}
 	if err != nil {
 		p.updateErrorMetricPerDomain(scope, err, domainMetricsScope, p.logger.Helper())
 	}

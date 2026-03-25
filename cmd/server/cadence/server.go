@@ -23,6 +23,7 @@ package cadence
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/startreedata/pinot-client-go/pinot"
@@ -129,8 +130,14 @@ func (s *server) startService() common.Daemon {
 		s.logger.Fatal(err.Error())
 	}
 
+	hostName, err := os.Hostname()
+	if err != nil {
+		s.logger.Fatal("failed to get hostname", tag.Error(err))
+	}
+
 	params := resource.Params{
 		Name:              service.FullName(s.name),
+		HostName:          hostName,
 		Logger:            s.logger.WithTags(tag.Service(service.FullName(s.name))),
 		PersistenceConfig: s.cfg.Persistence,
 		DynamicConfig:     s.dynamicCfgClient,

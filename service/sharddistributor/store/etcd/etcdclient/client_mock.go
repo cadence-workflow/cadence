@@ -15,6 +15,7 @@ import (
 	reflect "reflect"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
+	concurrency "go.etcd.io/etcd/client/v3/concurrency"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -414,6 +415,25 @@ func (m *MockClient) MoveLeader(ctx context.Context, transfereeID uint64) (*clie
 func (mr *MockClientMockRecorder) MoveLeader(ctx, transfereeID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MoveLeader", reflect.TypeOf((*MockClient)(nil).MoveLeader), ctx, transfereeID)
+}
+
+// NewSession mocks base method.
+func (m *MockClient) NewSession(opts ...concurrency.SessionOption) (*concurrency.Session, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "NewSession", varargs...)
+	ret0, _ := ret[0].(*concurrency.Session)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewSession indicates an expected call of NewSession.
+func (mr *MockClientMockRecorder) NewSession(opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSession", reflect.TypeOf((*MockClient)(nil).NewSession), opts...)
 }
 
 // Put mocks base method.

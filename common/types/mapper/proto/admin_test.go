@@ -997,7 +997,7 @@ func TestAdminResetQueueRequestFuzz(t *testing.T) {
 			// as both shardID and type have the same type signature.
 			c.Fuzz(e)
 
-			TaskTypeFuzzer(e.Type, c)
+			testutils.TaskTypeFuzzer(e.Type, c)
 		}),
 	)
 }
@@ -1073,7 +1073,7 @@ func TestAdminRemoveTaskRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminRemoveTaskRequest, ToAdminRemoveTaskRequest,
 		testutils.WithCustomFuncs(func(e *types.RemoveTaskRequest, c fuzz.Continue) {
 			c.Fuzz(e)
-			TaskTypeFuzzer(e.Type, c)
+			testutils.TaskTypeFuzzer(e.Type, c)
 		}),
 	)
 }
@@ -1143,7 +1143,7 @@ func TestAdminDescribeShardDistributionResponseFuzz(t *testing.T) {
 
 func TestAdminMergeDLQMessagesRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminMergeDLQMessagesRequest, ToAdminMergeDLQMessagesRequest,
-		testutils.WithCustomFuncs(DLQTypeFuzzer),
+		testutils.WithCustomFuncs(testutils.DLQTypeFuzzer),
 	)
 }
 
@@ -1212,7 +1212,7 @@ func TestAdminDescribeQueueResponseFuzz(t *testing.T) {
 func TestAdminReadDLQMessagesResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminReadDLQMessagesResponse, ToAdminReadDLQMessagesResponse,
 		testutils.WithExcludedFields("ReplicationTasks"), // TODO(c-warren): Test ReplicationTasks in shared_test.go
-		testutils.WithCustomFuncs(DLQTypeFuzzer),
+		testutils.WithCustomFuncs(testutils.DLQTypeFuzzer),
 	)
 }
 
@@ -1240,7 +1240,7 @@ func TestAdminDescribeQueueRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminDescribeQueueRequest, ToAdminDescribeQueueRequest,
 		testutils.WithCustomFuncs(func(r *types.DescribeQueueRequest, c fuzz.Continue) {
 			c.FuzzNoCustom(r)
-			TaskTypeFuzzer(r.Type, c)
+			testutils.TaskTypeFuzzer(r.Type, c)
 		}),
 	)
 }
@@ -1263,13 +1263,13 @@ func TestAdminDescribeShardDistributionRequestFuzz(t *testing.T) {
 
 func TestAdminPurgeDLQMessagesRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminPurgeDLQMessagesRequest, ToAdminPurgeDLQMessagesRequest,
-		testutils.WithCustomFuncs(DLQTypeFuzzer),
+		testutils.WithCustomFuncs(testutils.DLQTypeFuzzer),
 	)
 }
 
 func TestAdminReadDLQMessagesRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminReadDLQMessagesRequest, ToAdminReadDLQMessagesRequest,
-		testutils.WithCustomFuncs(DLQTypeFuzzer),
+		testutils.WithCustomFuncs(testutils.DLQTypeFuzzer),
 	)
 }
 
@@ -1353,25 +1353,8 @@ func DescribeHistoryHostRequestFuzzer(r *types.DescribeHistoryHostRequest, c fuz
 	}
 }
 
-func DLQTypeFuzzer(e *types.DLQType, c fuzz.Continue) {
-	*e = types.DLQType(c.Intn(2)) // 0-1: Replication, Domain
-}
-
 func EventIDVersionPairFuzzer(c fuzz.Continue) (*int64, *int64) {
 	id := c.Int63()
 	ver := c.Int63()
 	return &id, &ver
-}
-
-func TaskTypeFuzzer(e *int32, c fuzz.Continue) {
-	// TaskType internal constant values (from common/constants/constants.go):
-	// 2: TaskTypeTransfer
-	// 3: TaskTypeTimer
-	// 4: TaskTypeReplication
-	// 6: TaskTypeCrossCluster (deprecated but still valid)
-	if e != nil && *e != 0 {
-		// Generate one of the valid constant values: 2, 3, 4, or 6
-		validValues := []int32{2, 3, 4, 6}
-		*e = validValues[c.Intn(len(validValues))]
-	}
 }

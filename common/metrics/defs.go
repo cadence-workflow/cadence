@@ -319,6 +319,8 @@ const (
 	PersistenceUpdateDynamicConfigScope
 	// PersistenceShardRequestCountScope tracks number of persistence calls made to each shard
 	PersistenceShardRequestCountScope
+	// PersistencePerHostScope is a constant scope for per-host persistence latency metrics
+	PersistencePerHostScope
 	// PersistenceGetActiveClusterSelectionPolicyScope tracks GetActiveClusterSelectionPolicy calls made by service to persistence layer
 	PersistenceGetActiveClusterSelectionPolicyScope
 	// PersistenceDeleteActiveClusterSelectionPolicyScope tracks DeleteActiveClusterSelectionPolicy calls made by service to persistence layer
@@ -1597,6 +1599,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistenceFetchDynamicConfigScope:                       {operation: "FetchDynamicConfig"},
 		PersistenceUpdateDynamicConfigScope:                      {operation: "UpdateDynamicConfig"},
 		PersistenceShardRequestCountScope:                        {operation: "ShardIdPersistenceRequest"},
+		PersistencePerHostScope:                                  {operation: "persistence_operations"},
 		PersistenceGetActiveClusterSelectionPolicyScope:          {operation: "GetActiveClusterSelectionPolicy"},
 		PersistenceDeleteActiveClusterSelectionPolicyScope:       {operation: "DeleteActiveClusterSelectionPolicy"},
 		ResolverHostNotFoundScope:                                {operation: "ResolverHostNotFound"},
@@ -2230,6 +2233,7 @@ const (
 	PersistenceFailures
 	PersistenceLatency
 	PersistenceLatencyHistogram
+	PersistenceLatencyHistogramPerHost
 	PersistenceErrShardExistsCounter
 	PersistenceErrShardOwnershipLostCounter
 	PersistenceErrConditionFailedCounter
@@ -3073,6 +3077,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		PersistenceFailures:                                          {metricName: "persistence_errors", metricType: Counter},
 		PersistenceLatency:                                           {metricName: "persistence_latency", metricType: Timer},
 		PersistenceLatencyHistogram:                                  {metricName: "persistence_latency_histogram", metricType: Histogram, buckets: PersistenceLatencyBuckets},
+		PersistenceLatencyHistogramPerHost:                           {metricName: "persistence_latency_histogram_per_host", metricType: Histogram, buckets: PersistenceLatencyBuckets},
 		PersistenceErrShardExistsCounter:                             {metricName: "persistence_errors_shard_exists", metricType: Counter},
 		PersistenceErrShardOwnershipLostCounter:                      {metricName: "persistence_errors_shard_ownership_lost", metricType: Counter},
 		PersistenceErrConditionFailedCounter:                         {metricName: "persistence_errors_condition_failed", metricType: Counter},

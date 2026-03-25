@@ -107,7 +107,7 @@ func TestRecordHeartbeat_NoCompression(t *testing.T) {
 		Prefix      string        `yaml:"prefix"`
 		Compression string        `yaml:"compression"`
 	}
-	require.NoError(t, tc.LeaderCfg.Store.StorageParams.Decode(&etcdCfg))
+	require.NoError(t, tc.SDConfig.Store.StorageParams.Decode(&etcdCfg))
 	etcdCfg.Compression = "none"
 
 	encodedCfg, err := yaml.Marshal(etcdCfg)
@@ -115,8 +115,8 @@ func TestRecordHeartbeat_NoCompression(t *testing.T) {
 
 	var yamlNode *config.YamlNode
 	require.NoError(t, yaml.Unmarshal(encodedCfg, &yamlNode))
-	tc.LeaderCfg.Store.StorageParams = yamlNode
-	tc.LeaderCfg.LeaderStore.StorageParams = yamlNode
+	tc.SDConfig.Store.StorageParams = yamlNode
+	tc.SDConfig.LeaderStore.StorageParams = yamlNode
 	tc.Compression = "none"
 
 	executorStore := createStore(t, tc)
@@ -370,8 +370,9 @@ func TestGuardedOperations(t *testing.T) {
 	executorID := "exec-to-delete"
 
 	// 1. Create two potential leaders
-	// FIX: Use the correct constructor for the leader elector.
-	elector, err := leaderstore.NewLeaderStore(leaderstore.StoreParams{Client: tc.Client, Cfg: tc.LeaderCfg, Lifecycle: fxtest.NewLifecycle(t)})
+	leaderCfg, err := etcdclient.NewLeaderStoreConfig(tc.SDConfig)
+	require.NoError(t, err)
+	elector, err := leaderstore.NewLeaderStore(leaderstore.StoreParams{Client: tc.Client, Cfg: leaderCfg})
 	require.NoError(t, err)
 	election1, err := elector.CreateElection(ctx, namespace)
 	defer election1.Cleanup(ctx)
@@ -974,7 +975,7 @@ func TestCommitGuardedOps_GuardError(t *testing.T) {
 func createStore(t *testing.T, tc *testhelper.StoreTestCluster) store.Store {
 	t.Helper()
 
-	etcdConfig, err := NewETCDConfig(tc.LeaderCfg)
+	etcdConfig, err := etcdclient.NewExecutorStoreConfig(tc.SDConfig)
 	require.NoError(t, err)
 
 	store, err := NewStore(ExecutorStoreParams{

@@ -47,7 +47,7 @@ func newErrRateLimited() error {
 	return &errRateLimited
 }
 
-func (h *apiHandler) allowDomain(ctx context.Context, requestType ratelimitType, domain string) error {
+func (h *apiHandler) allowDomain(ctx context.Context, requestType ratelimitType, info quotas.Info) error {
 	var policy quotas.Policy
 	switch requestType {
 	case ratelimitTypeUser:
@@ -65,21 +65,21 @@ func (h *apiHandler) allowDomain(ctx context.Context, requestType ratelimitType,
 	// If it is a poll request and there is a maxWorkerPollDelay configured, use Wait()
 	// to potentially wait for a token. Otherwise, use Allow() for an immediate check
 	if requestType == ratelimitTypeWorkerPoll {
-		waitTime := h.maxWorkerPollDelay(domain)
+		waitTime := h.maxWorkerPollDelay(info.Domain)
 		if waitTime > 0 {
-			return h.waitForPolicy(ctx, waitTime, policy, domain)
+			return h.waitForPolicy(ctx, waitTime, policy, info)
 		}
 	}
-	if !h.callerBypass.AllowPolicy(ctx, policy, quotas.Info{Domain: domain}) {
+	if !h.callerBypass.AllowPolicy(ctx, policy, info) {
 		return newErrRateLimited()
 	}
 	return nil
 }
 
-func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, policy quotas.Policy, domain string) error {
+func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, policy quotas.Policy, info quotas.Info) error {
 	waitCtx, cancel := context.WithTimeout(ctx, waitTime)
 	defer cancel()
-	err := policy.Wait(waitCtx, quotas.Info{Domain: domain})
+	err := policy.Wait(waitCtx, info)
 	if err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -93,7 +93,7 @@ func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, 
 			return newErrRateLimited()
 		case context.DeadlineExceeded:
 			// Race condition: context deadline hit right around wait completion
-			if !h.callerBypass.AllowPolicy(ctx, policy, quotas.Info{Domain: domain}) {
+			if !h.callerBypass.AllowPolicy(ctx, policy, info) {
 				return newErrRateLimited()
 			}
 			return nil
