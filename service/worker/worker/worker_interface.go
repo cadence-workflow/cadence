@@ -32,8 +32,10 @@ import (
 type Worker interface {
 	RegisterActivity(activity interface{})
 	RegisterActivityWithOptions(activity interface{}, options activity.RegisterOptions)
+	GetRegisteredActivities() []activity.RegistryInfo
 	RegisterWorkflow(workflow interface{})
 	RegisterWorkflowWithOptions(workflow interface{}, options workflow.RegisterOptions)
+	GetRegisteredWorkflows() []workflow.RegistryInfo
 	Start() error
 	Stop()
 	Run() error

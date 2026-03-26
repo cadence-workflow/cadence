@@ -41,6 +41,34 @@ func (m *MockWorker) EXPECT() *MockWorkerMockRecorder {
 	return m.recorder
 }
 
+// GetRegisteredActivities mocks base method.
+func (m *MockWorker) GetRegisteredActivities() []activity.RegistryInfo {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRegisteredActivities")
+	ret0, _ := ret[0].([]activity.RegistryInfo)
+	return ret0
+}
+
+// GetRegisteredActivities indicates an expected call of GetRegisteredActivities.
+func (mr *MockWorkerMockRecorder) GetRegisteredActivities() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRegisteredActivities", reflect.TypeOf((*MockWorker)(nil).GetRegisteredActivities))
+}
+
+// GetRegisteredWorkflows mocks base method.
+func (m *MockWorker) GetRegisteredWorkflows() []workflow.RegistryInfo {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRegisteredWorkflows")
+	ret0, _ := ret[0].([]workflow.RegistryInfo)
+	return ret0
+}
+
+// GetRegisteredWorkflows indicates an expected call of GetRegisteredWorkflows.
+func (mr *MockWorkerMockRecorder) GetRegisteredWorkflows() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRegisteredWorkflows", reflect.TypeOf((*MockWorker)(nil).GetRegisteredWorkflows))
+}
+
 // RegisterActivity mocks base method.
 func (m *MockWorker) RegisterActivity(activity any) {
 	m.ctrl.T.Helper()

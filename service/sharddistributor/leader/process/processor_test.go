@@ -1247,7 +1247,7 @@ func TestRebalanceByShardLoad(t *testing.T) {
 			defer mocks.ctrl.Finish()
 			processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
-			distributionChanged := processor.rebalanceByShardLoad(tc.shardLoad, tc.currentAssignments)
+			distributionChanged := processor.rebalanceByShardLoad(tc.shardLoad, tc.currentAssignments, metrics.NoopScope)
 
 			assert.Equal(t, tc.expectedDistributionChange, distributionChanged, "distribution change mismatch")
 			assert.Equal(t, tc.expectedAssignments, tc.currentAssignments, "final assignments mismatch")
