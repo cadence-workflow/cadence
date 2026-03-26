@@ -25,6 +25,11 @@ import (
 	"strings"
 )
 
+const (
+	// since a domain name doesn't contain a slash, it is safe to use it as a separator for task list keys
+	taskListKeySeparator = "/"
+)
+
 // MultiStageRateLimiter indicates a domain specific rate limit policy
 type MultiStageRateLimiter struct {
 	domainLimiters   ICollection[string]
@@ -38,11 +43,11 @@ type TaskListKey struct {
 }
 
 func (k TaskListKey) String() string {
-	return k.Domain + "/" + k.TaskList
+	return k.Domain + taskListKeySeparator + k.TaskList
 }
 
 func ParseTaskListKey(key string) TaskListKey {
-	parts := strings.SplitN(key, "/", 2)
+	parts := strings.SplitN(key, taskListKeySeparator, 2)
 	if len(parts) != 2 {
 		return TaskListKey{}
 	}
@@ -52,7 +57,7 @@ func ParseTaskListKey(key string) TaskListKey {
 	}
 }
 
-// NewMultiStageRateLimiter returns a new domain quota rate limiter. This is about
+// NewMultiStageRateLimiter returns a new quota rate limiter. This is about
 // an order of magnitude slower than
 func NewMultiStageRateLimiter(global Limiter, domainLimiters ICollection[string], taskListLimiters ICollection[string]) *MultiStageRateLimiter {
 	return &MultiStageRateLimiter{
@@ -84,7 +89,7 @@ func (d *MultiStageRateLimiter) Allow(info Info) (allowed bool) {
 		}
 	}
 
-	if domain != "" {
+	if domain != "" && d.domainLimiters != nil {
 		// take a reservation with the domain limiter first
 		rsv := d.domainLimiters.For(domain).Reserve()
 		defer func() {
@@ -110,13 +115,19 @@ func (d *MultiStageRateLimiter) Wait(ctx context.Context, info Info) error {
 	domain := info.Domain
 	taskList := info.TaskList
 
+	// A limitation: if the task-list limiter allows but the domain
+	// limiter denies, the task-list token is consumed.
 	if taskList != "" && d.taskListLimiters != nil {
-		if err := d.taskListLimiters.For(taskList).Wait(ctx); err != nil {
+		taskListKey := TaskListKey{
+			Domain:   domain,
+			TaskList: taskList,
+		}
+		if err := d.taskListLimiters.For(taskListKey.String()).Wait(ctx); err != nil {
 			return err
 		}
 	}
 
-	if domain != "" {
+	if domain != "" && d.domainLimiters != nil {
 		if err := d.domainLimiters.For(domain).Wait(ctx); err != nil {
 			return err
 		}

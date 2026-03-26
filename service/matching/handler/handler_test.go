@@ -90,10 +90,12 @@ func (s *handlerSuite) SetupTest() {
 		userRateLimiter: quotas.NewMultiStageRateLimiter(
 			s.mockLimiter,
 			quotas.NewCollection(dynamicquotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int { return 10 })),
+			nil,
 		),
 		workerRateLimiter: quotas.NewMultiStageRateLimiter(
 			s.mockLimiter,
 			quotas.NewCollection(dynamicquotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int { return 10 })),
+			nil,
 		),
 		logger:          s.mockResource.GetLogger(),
 		throttledLogger: s.mockResource.GetThrottledLogger(),

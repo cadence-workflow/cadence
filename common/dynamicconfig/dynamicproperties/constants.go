@@ -588,7 +588,7 @@ const (
 	//
 	// This limit applies along-side FrontendGlobalTaskListUserRPS: both must be allowed to allow a request.
 	//
-	// KeyName: frontend.taskListrps
+	// KeyName: frontend.tasklistrps
 	// Value type: Int
 	// Default value: 1200
 	// Allowed filters: DomainName,TaskListName
@@ -608,7 +608,7 @@ const (
 	//
 	// This limit applies along-side FrontendGlobalTaskListWorkerRPS: both must be allowed to allow a request.
 	//
-	// KeyName: frontend.taskListworkerrps
+	// KeyName: frontend.tasklistworkerrps
 	// Value type: Int
 	// Default value: UnlimitedRPS
 	// Allowed filters: DomainName,TaskListName
@@ -638,7 +638,7 @@ const (
 	//
 	// This limit applies along-side FrontendGlobalTaskListAsyncRPS: both must be allowed to allow a request.
 	//
-	// KeyName: frontend.taskListasyncrps
+	// KeyName: frontend.tasklistasyncrps
 	// Value type: Int
 	// Default value: 10000
 	// Allowed filters: DomainName,TaskListName
@@ -3621,7 +3621,7 @@ var IntKeys = map[IntKey]DynamicInt{
 		DefaultValue: 1200,
 	},
 	FrontendMaxTaskListUserRPSPerInstance: {
-		KeyName:      "frontend.taskListrps",
+		KeyName:      "frontend.tasklistrps",
 		Filters:      []Filter{DomainName, TaskListName},
 		Description:  "FrontendMaxTaskListUserRPSPerInstance is workflow task list rate limit per second",
 		DefaultValue: 1200,
@@ -3633,7 +3633,7 @@ var IntKeys = map[IntKey]DynamicInt{
 		DefaultValue: UnlimitedRPS,
 	},
 	FrontendMaxTaskListWorkerRPSPerInstance: {
-		KeyName:      "frontend.taskListworkerrps",
+		KeyName:      "frontend.tasklistworkerrps",
 		Filters:      []Filter{DomainName, TaskListName},
 		Description:  "FrontendMaxTaskListWorkerRPSPerInstance is background-processing workflow task list rate limit per second",
 		DefaultValue: UnlimitedRPS,
@@ -3651,7 +3651,7 @@ var IntKeys = map[IntKey]DynamicInt{
 		DefaultValue: 10000,
 	},
 	FrontendMaxTaskListAsyncRPSPerInstance: {
-		KeyName:      "frontend.taskListasyncrps",
+		KeyName:      "frontend.tasklistasyncrps",
 		Filters:      []Filter{DomainName, TaskListName},
 		Description:  "FrontendMaxTaskListAsyncRPSPerInstance is the per-instance async workflow task list rate limit per second",
 		DefaultValue: 10000,

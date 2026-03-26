@@ -151,9 +151,9 @@ func (s *Service) Start() {
 		logger.Fatal("constructing ratelimiter collections", tag.Error(err))
 	}
 	userRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.UserRPS.AsFloat64()), collections.user, collections.userTaskList)
-	workerRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.WorkerRPS.AsFloat64()), collections.worker, nil)
+	workerRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.WorkerRPS.AsFloat64()), collections.worker, collections.workerTaskList)
 	visibilityRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.VisibilityRPS.AsFloat64()), collections.visibility, nil)
-	asyncRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.AsyncRPS.AsFloat64()), collections.async, nil)
+	asyncRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.AsyncRPS.AsFloat64()), collections.async, collections.asyncTaskList)
 
 	// Additional decorations
 	var handler api.Handler = s.handler
@@ -199,6 +199,15 @@ func (s *Service) Start() {
 	if err := collections.async.OnStart(startCtx); err != nil {
 		logger.Fatal("failed to start async global ratelimiter collection", tag.Error(err))
 	}
+	if err := collections.userTaskList.OnStart(startCtx); err != nil {
+		logger.Fatal("failed to start user task list global ratelimiter collection", tag.Error(err))
+	}
+	if err := collections.workerTaskList.OnStart(startCtx); err != nil {
+		logger.Fatal("failed to start worker task list global ratelimiter collection", tag.Error(err))
+	}
+	if err := collections.asyncTaskList.OnStart(startCtx); err != nil {
+		logger.Fatal("failed to start async task list global ratelimiter collection", tag.Error(err))
+	}
 	cancel()
 	s.ratelimiterCollections = collections // save so they can be stopped later
 
@@ -230,7 +239,7 @@ type ratelimiterCollections struct {
 func taskListRPS(fn dynamicproperties.IntPropertyFnWithTaskListInfoFilters) dynamicproperties.IntPropertyFnWithDomainFilter {
 	return func(key string) int {
 		k := quotas.ParseTaskListKey(key)
-		return fn(k.Domain, k.TaskList, 0)
+		return fn(k.Domain, k.TaskList, 0) // ignore the task list type filter
 	}
 }
 
