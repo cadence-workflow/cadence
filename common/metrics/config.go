@@ -111,6 +111,7 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"elasticsearch_latency":               {},
 	"elasticsearch_latency_ns":            {},
 }
+
 func (h HistogramMigration) EmitTimer(name string) bool {
 	if _, ok := HistogramMigrationMetrics[name]; !ok {
 		return true

@@ -43,9 +43,9 @@ func TestHistogramMode(t *testing.T) {
 		findName(TaskLatencyPerDomain):                      {},
 		findName(ExponentialTaskLatencyPerDomain):           {},
 		findName(TaskAttemptTimerPerDomain):                 {},
-		findName(ExponentialTaskAttemptCountsPerDomain):     {},
+		findName(TaskAttemptPerDomainCountsHistogram):     {},
 		findName(TaskProcessingLatencyPerDomain):            {},
-		findName(ExponentialTaskProcessingLatencyPerDomain): {},
+		findName(TaskProcessingLatencyPerDomainHistogram): {},
 		findName(TaskQueueLatencyPerDomain):                 {},
 		findName(ExponentialTaskQueueLatencyPerDomain):      {},
 	}

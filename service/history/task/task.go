@@ -205,7 +205,7 @@ func (t *taskImpl) Execute() error {
 		t.scope.IncCounter(metrics.TaskRequestsPerDomain)
 		processingLatency := time.Since(executionStartTime)
 		t.scope.RecordTimer(metrics.TaskProcessingLatencyPerDomain, processingLatency)
-		t.scope.ExponentialHistogram(metrics.ExponentialTaskProcessingLatencyPerDomain, processingLatency)
+		t.scope.ExponentialHistogram(metrics.TaskProcessingLatencyPerDomainHistogram, processingLatency)
 
 		taskListTaggedScope.IncCounter(metrics.TaskRequestsPerTaskList)
 		taskListTaggedScope.ExponentialHistogram(metrics.ExponentialTaskProcessingLatencyPerTaskList, processingLatency)
@@ -245,7 +245,7 @@ func (t *taskImpl) HandleErr(err error) (retErr error) {
 			t.attempt++
 			if t.attempt > t.criticalRetryCount() {
 				t.scope.RecordTimer(metrics.TaskAttemptTimerPerDomain, time.Duration(t.attempt))
-				t.scope.IntExponentialHistogram(metrics.ExponentialTaskAttemptCountsPerDomain, t.attempt)
+				t.scope.IntExponentialHistogram(metrics.TaskAttemptPerDomainCountsHistogram, t.attempt)
 				logger.Error("Critical error processing task, retrying.",
 					tag.Error(err),
 					tag.OperationCritical,
@@ -387,7 +387,7 @@ func (t *taskImpl) Ack() {
 		latency := time.Since(t.initialSubmitTime)
 		queueLatency := time.Since(t.GetVisibilityTimestamp())
 		// Use IntExponentialHistogram with Mid1To16k buckets (1–64k) for attempt counts
-		t.scope.IntExponentialHistogram(metrics.ExponentialTaskAttemptCountsPerDomain, t.attempt)
+		t.scope.IntExponentialHistogram(metrics.TaskAttemptPerDomainCountsHistogram, t.attempt)
 		t.scope.RecordTimer(metrics.TaskLatencyPerDomain, latency)
 		t.scope.ExponentialHistogram(metrics.ExponentialTaskLatencyPerDomain, latency)
 		t.scope.RecordTimer(metrics.TaskQueueLatencyPerDomain, queueLatency)

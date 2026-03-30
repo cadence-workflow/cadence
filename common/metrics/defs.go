@@ -2232,8 +2232,9 @@ const (
 	PersistenceRequests
 	PersistenceFailures
 	PersistenceLatency
-	ExponentialPersistenceLatency
 	PersistenceLatencyHistogram
+	// Deprecated: replaced with PersistenceLatencyHistogram, kept for backwards compatibility.
+	PersistenceLatencyManualHistogram
 	PersistenceLatencyHistogramPerHost
 	PersistenceErrShardExistsCounter
 	PersistenceErrShardOwnershipLostCounter
@@ -2256,7 +2257,7 @@ const (
 	PersistenceRequestsPerShard
 	PersistenceFailuresPerDomain
 	PersistenceLatencyPerDomain
-	ExponentialPersistenceLatencyPerDomain
+	PersistenceLatencyPerDomainHistogram
 	PersistenceLatencyPerShard
 	PersistenceErrShardExistsCounterPerDomain
 	PersistenceErrShardOwnershipLostCounterPerDomain
@@ -2306,13 +2307,13 @@ const (
 	ElasticsearchRequests
 	ElasticsearchFailures
 	ElasticsearchLatency
-	ExponentialElasticsearchLatency
+	ElasticsearchLatencyHistogram
 	ElasticsearchErrBadRequestCounter
 	ElasticsearchErrBusyCounter
 	ElasticsearchRequestsPerDomain
 	ElasticsearchFailuresPerDomain
 	ElasticsearchLatencyPerDomain
-	ExponentialElasticsearchLatencyPerDomain
+	ElasticsearchLatencyPerDomainHistogram
 	ElasticsearchErrBadRequestCounterPerDomain
 	ElasticsearchErrBusyCounterPerDomain
 
@@ -2507,7 +2508,7 @@ const (
 	TaskQueueLatency
 	ExponentialTaskQueueLatency
 	ScheduleToStartHistoryQueueLatencyPerTaskList
-	ExponentialScheduleToStartHistoryQueueLatencyPerTaskList
+	ScheduleToStartHistoryQueueLatencyPerTaskListHistogram
 	TaskRequestsOldScheduler
 	TaskRequestsNewScheduler
 	PendingTaskGauge
@@ -2522,7 +2523,7 @@ const (
 	TaskDiscardedPerDomain
 	TaskUnsupportedPerDomain
 	TaskAttemptTimerPerDomain
-	ExponentialTaskAttemptCountsPerDomain
+	TaskAttemptPerDomainCountsHistogram
 	TaskStandbyRetryCounterPerDomain
 	TaskListNotOwnedByHostCounterPerDomain
 	TaskPendingActiveCounterPerDomain
@@ -2530,7 +2531,7 @@ const (
 	TaskTargetNotActiveCounterPerDomain
 	TaskLimitExceededCounterPerDomain
 	TaskProcessingLatencyPerDomain
-	ExponentialTaskProcessingLatencyPerDomain
+	TaskProcessingLatencyPerDomainHistogram
 	TaskQueueLatencyPerDomain
 	ExponentialTaskQueueLatencyPerDomain
 	TaskScheduleLatencyPerDomain
@@ -2583,7 +2584,7 @@ const (
 	ClusterMetadataResolvingMinFailoverVersionCounter
 
 	ActivityE2ELatency
-	ExponentialActivityE2ELatency
+	ActivityE2ELatencyHistogram
 	ActivityLostCounter
 	AckLevelUpdateCounter
 	AckLevelUpdateFailedCounter
@@ -3091,8 +3092,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		PersistenceRequests:                                          {metricName: "persistence_requests", metricType: Counter},
 		PersistenceFailures:                                          {metricName: "persistence_errors", metricType: Counter},
 		PersistenceLatency:                                           {metricName: "persistence_latency", metricType: Timer},
-		ExponentialPersistenceLatency:                                {metricName: "persistence_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
-		PersistenceLatencyHistogram:                                  {metricName: "persistence_latency_histogram", metricType: Histogram, buckets: PersistenceLatencyBuckets},
+		PersistenceLatencyHistogram:                                  {metricName: "persistence_latency_ns", metricType: Histogram, exponentialBuckets: Default1ms100s},
+		PersistenceLatencyManualHistogram:                            {metricName: "persistence_latency_histogram", metricType: Histogram, buckets: PersistenceLatencyBuckets},
 		PersistenceLatencyHistogramPerHost:                           {metricName: "persistence_latency_histogram_per_host", metricType: Histogram, buckets: PersistenceLatencyBuckets},
 		PersistenceErrShardExistsCounter:                             {metricName: "persistence_errors_shard_exists", metricType: Counter},
 		PersistenceErrShardOwnershipLostCounter:                      {metricName: "persistence_errors_shard_ownership_lost", metricType: Counter},
@@ -3114,7 +3115,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		PersistenceRequestsPerShard:                                  {metricName: "persistence_requests_per_shard", metricType: Counter},
 		PersistenceFailuresPerDomain:                                 {metricName: "persistence_errors_per_domain", metricRollupName: "persistence_errors", metricType: Counter},
 		PersistenceLatencyPerDomain:                                  {metricName: "persistence_latency_per_domain", metricRollupName: "persistence_latency", metricType: Timer},
-		ExponentialPersistenceLatencyPerDomain:                       {metricName: "persistence_latency_per_domain_ns", metricRollupName: "persistence_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
+		PersistenceLatencyPerDomainHistogram:                       {metricName: "persistence_latency_per_domain_ns", metricRollupName: "persistence_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		PersistenceLatencyPerShard:                                   {metricName: "persistence_latency_per_shard", metricType: Timer},
 		PersistenceErrShardExistsCounterPerDomain:                    {metricName: "persistence_errors_shard_exists_per_domain", metricRollupName: "persistence_errors_shard_exists", metricType: Counter},
 		PersistenceErrShardOwnershipLostCounterPerDomain:             {metricName: "persistence_errors_shard_ownership_lost_per_domain", metricRollupName: "persistence_errors_shard_ownership_lost", metricType: Counter},
@@ -3153,13 +3154,13 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ElasticsearchRequests:                                        {metricName: "elasticsearch_requests", metricType: Counter},
 		ElasticsearchFailures:                                        {metricName: "elasticsearch_errors", metricType: Counter},
 		ElasticsearchLatency:                                         {metricName: "elasticsearch_latency", metricType: Timer},
-		ExponentialElasticsearchLatency:                              {metricName: "elasticsearch_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
+		ElasticsearchLatencyHistogram:                              {metricName: "elasticsearch_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		ElasticsearchErrBadRequestCounter:                            {metricName: "elasticsearch_errors_bad_request", metricType: Counter},
 		ElasticsearchErrBusyCounter:                                  {metricName: "elasticsearch_errors_busy", metricType: Counter},
 		ElasticsearchRequestsPerDomain:                               {metricName: "elasticsearch_requests_per_domain", metricRollupName: "elasticsearch_requests", metricType: Counter},
 		ElasticsearchFailuresPerDomain:                               {metricName: "elasticsearch_errors_per_domain", metricRollupName: "elasticsearch_errors", metricType: Counter},
 		ElasticsearchLatencyPerDomain:                                {metricName: "elasticsearch_latency_per_domain", metricRollupName: "elasticsearch_latency", metricType: Timer},
-		ExponentialElasticsearchLatencyPerDomain:                     {metricName: "elasticsearch_latency_per_domain_ns", metricRollupName: "elasticsearch_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
+		ElasticsearchLatencyPerDomainHistogram:                     {metricName: "elasticsearch_latency_per_domain_ns", metricRollupName: "elasticsearch_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		ElasticsearchErrBadRequestCounterPerDomain:                   {metricName: "elasticsearch_errors_bad_request_per_domain", metricRollupName: "elasticsearch_errors_bad_request", metricType: Counter},
 		ElasticsearchErrBusyCounterPerDomain:                         {metricName: "elasticsearch_errors_busy_per_domain", metricRollupName: "elasticsearch_errors_busy", metricType: Counter},
 		PinotRequests:                                                {metricName: "pinot_requests", metricType: Counter},
@@ -3373,13 +3374,13 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ExponentialTaskProcessingLatency:              {metricName: "task_latency_processing_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		TaskQueueLatency:                              {metricName: "task_latency_queue", metricType: Timer},
 		ExponentialTaskQueueLatency:                   {metricName: "task_latency_queue_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
-		ScheduleToStartHistoryQueueLatencyPerTaskList:                {metricName: "schedule_to_start_history_queue_latency_per_tl", metricType: Timer},
-		ExponentialScheduleToStartHistoryQueueLatencyPerTaskList:     {metricName: "schedule_to_start_history_queue_latency_per_tl_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
-		TaskRequestsOldScheduler:                      {metricName: "task_requests_old_scheduler", metricType: Counter},
-		TaskRequestsNewScheduler:                      {metricName: "task_requests_new_scheduler", metricType: Counter},
-		PendingTaskGauge:                              {metricName: "pending_task_gauge", metricType: Gauge},
-		ReschedulerTaskCountGauge:                     {metricName: "rescheduler_task_count", metricType: Gauge},
-		NewHistoryTaskCounter:                         {metricName: "new_history_task_counter", metricType: Counter},
+		ScheduleToStartHistoryQueueLatencyPerTaskList: {metricName: "schedule_to_start_history_queue_latency_per_tl", metricType: Timer},
+		ScheduleToStartHistoryQueueLatencyPerTaskListHistogram: {metricName: "schedule_to_start_history_queue_latency_per_tl_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
+		TaskRequestsOldScheduler:                                 {metricName: "task_requests_old_scheduler", metricType: Counter},
+		TaskRequestsNewScheduler:                                 {metricName: "task_requests_new_scheduler", metricType: Counter},
+		PendingTaskGauge:                                         {metricName: "pending_task_gauge", metricType: Gauge},
+		ReschedulerTaskCountGauge:                                {metricName: "rescheduler_task_count", metricType: Gauge},
+		NewHistoryTaskCounter:                                    {metricName: "new_history_task_counter", metricType: Counter},
 
 		// per domain task metrics
 
@@ -3387,7 +3388,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskLatencyPerDomain:                      {metricName: "task_latency_per_domain", metricRollupName: "task_latency", metricType: Timer},
 		ExponentialTaskLatencyPerDomain:           {metricName: "task_latency_per_domain_ns", metricRollupName: "task_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		TaskAttemptTimerPerDomain:                 {metricName: "task_attempt_per_domain", metricRollupName: "task_attempt", metricType: Timer},
-		ExponentialTaskAttemptCountsPerDomain:     {metricName: "task_attempt_per_domain_counts", metricRollupName: "task_attempt_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
+		TaskAttemptPerDomainCountsHistogram:     {metricName: "task_attempt_per_domain_counts", metricRollupName: "task_attempt_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		TaskFailuresPerDomain:                     {metricName: "task_errors_per_domain", metricRollupName: "task_errors", metricType: Counter},
 		TaskWorkflowBusyPerDomain:                 {metricName: "task_errors_workflow_busy_per_domain", metricRollupName: "task_errors_workflow_busy", metricType: Counter},
 		TaskDiscardedPerDomain:                    {metricName: "task_errors_discarded_per_domain", metricRollupName: "task_errors_discarded", metricType: Counter},
@@ -3399,7 +3400,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskTargetNotActiveCounterPerDomain:       {metricName: "task_errors_target_not_active_counter_per_domain", metricRollupName: "task_errors_target_not_active_counter", metricType: Counter},
 		TaskLimitExceededCounterPerDomain:         {metricName: "task_errors_limit_exceeded_counter_per_domain", metricRollupName: "task_errors_limit_exceeded_counter", metricType: Counter},
 		TaskProcessingLatencyPerDomain:            {metricName: "task_latency_processing_per_domain", metricRollupName: "task_latency_processing", metricType: Timer},
-		ExponentialTaskProcessingLatencyPerDomain: {metricName: "task_latency_processing_per_domain_ns", metricRollupName: "task_latency_processing_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		TaskProcessingLatencyPerDomainHistogram: {metricName: "task_latency_processing_per_domain_ns", metricRollupName: "task_latency_processing_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		TaskQueueLatencyPerDomain:                 {metricName: "task_latency_queue_per_domain", metricRollupName: "task_latency_queue", metricType: Timer},
 		ExponentialTaskQueueLatencyPerDomain:      {metricName: "task_latency_queue_per_domain_ns", metricRollupName: "task_latency_queue_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		TaskScheduleLatencyPerDomain:              {metricName: "task_latency_schedule_per_domain", metricRollupName: "task_latency_schedule", metricType: Histogram, buckets: HistoryTaskLatencyBuckets},
@@ -3426,9 +3427,9 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CrossClusterTaskThrottledCounter:                             {metricName: "cross_cluster_task_throttled_counter", metricType: Counter},
 		TransferTaskMissingEventCounter:                              {metricName: "transfer_task_missing_event_counter", metricType: Counter},
 		ProcessingQueueNumTimer:                                      {metricName: "processing_queue_num", metricType: Timer},
-		ProcessingQueueNumHistogram:                                   {metricName: "processing_queue_num_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
-		ProcessingQueueMaxLevelTimer:                                  {metricName: "processing_queue_max_level", metricType: Timer},
-		ProcessingQueueMaxLevelHistogram:                              {metricName: "processing_queue_max_level_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
+		ProcessingQueueNumHistogram:                                  {metricName: "processing_queue_num_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
+		ProcessingQueueMaxLevelTimer:                                 {metricName: "processing_queue_max_level", metricType: Timer},
+		ProcessingQueueMaxLevelHistogram:                             {metricName: "processing_queue_max_level_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		ProcessingQueuePendingTaskSplitCounter:                       {metricName: "processing_queue_pending_task_split_counter", metricType: Counter},
 		ProcessingQueueStuckTaskSplitCounter:                         {metricName: "processing_queue_stuck_task_split_counter", metricType: Counter},
 		ProcessingQueueSelectedDomainSplitCounter:                    {metricName: "processing_queue_selected_domain_split_counter", metricType: Counter},
@@ -3455,7 +3456,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ClusterMetadataResolvingFailoverVersionCounter:               {metricName: "resolving_failover_version_counter", metricType: Counter},
 		ClusterMetadataResolvingMinFailoverVersionCounter:            {metricName: "resolving_min_failover_version_counter", metricType: Counter},
 		ActivityE2ELatency:                                           {metricName: "activity_end_to_end_latency", metricType: Timer},
-		ExponentialActivityE2ELatency:                                {metricName: "activity_end_to_end_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
+		ActivityE2ELatencyHistogram:                                {metricName: "activity_end_to_end_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		ActivityLostCounter:                                          {metricName: "activity_lost", metricType: Counter},
 		AckLevelUpdateCounter:                                        {metricName: "ack_level_update", metricType: Counter},
 		AckLevelUpdateFailedCounter:                                  {metricName: "ack_level_update_failed", metricType: Counter},

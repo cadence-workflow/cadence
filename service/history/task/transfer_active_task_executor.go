@@ -230,7 +230,7 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 		scope := common.NewPerTaskListScope(domainName, taskList.Name, taskList.GetKind(), t.metricsClient, metrics.TransferActiveTaskActivityScope)
 		scheduleToStartLatency := time.Since(task.GetVisibilityTimestamp())
 		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, scheduleToStartLatency)
-		scope.ExponentialHistogram(metrics.ExponentialScheduleToStartHistoryQueueLatencyPerTaskList, scheduleToStartLatency)
+		scope.ExponentialHistogram(metrics.ScheduleToStartHistoryQueueLatencyPerTaskListHistogram, scheduleToStartLatency)
 	}
 	return err
 }
@@ -335,7 +335,7 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 		scope := common.NewPerTaskListScope(domainName, taskList.Name, taskList.GetKind(), t.metricsClient, metrics.TransferActiveTaskDecisionScope)
 		scheduleToStartLatency := time.Since(task.GetVisibilityTimestamp())
 		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, scheduleToStartLatency)
-		scope.ExponentialHistogram(metrics.ExponentialScheduleToStartHistoryQueueLatencyPerTaskList, scheduleToStartLatency)
+		scope.ExponentialHistogram(metrics.ScheduleToStartHistoryQueueLatencyPerTaskListHistogram, scheduleToStartLatency)
 	}
 	return err
 }
