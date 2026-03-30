@@ -2663,6 +2663,7 @@ const (
 	CompleteTaskFailedCounter
 	CacheSize
 	CacheSizeHistogram
+	CacheSizeGauge
 	CacheRequests
 	CacheFailures
 	CacheLatency
@@ -2743,15 +2744,20 @@ const (
 	ReplicationTasksFailed
 	ReplicationTasksLag
 	ReplicationTasksLagHistogram
+	ReplicationTasksLagGauge
 	ReplicationTasksLagRaw
 	ReplicationTasksLagRawHistogram
+	ReplicationTasksLagRawGauge
 	ReplicationTasksDelay
 	ReplicationTasksFetched
 	ReplicationTasksFetchedHistogram
+	ReplicationTasksFetchedGauge
 	ReplicationTasksReturned
 	ReplicationTasksReturnedHistogram
+	ReplicationTasksReturnedGauge
 	ReplicationTasksReturnedDiff
 	ReplicationTasksReturnedDiffHistogram
+	ReplicationTasksReturnedDiffGauge
 	ReplicationTasksAppliedLatency
 	ReplicationTasksAppliedLatencyHistogram
 	ReplicationTasksBatchSize
@@ -3527,6 +3533,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CompleteTaskFailedCounter:                                    {metricName: "complete_task_fail_count", metricType: Counter},
 		CacheSize:                                                    {metricName: "cache_size", metricType: Timer},
 		CacheSizeHistogram:                                           {metricName: "cache_size_counts", metricType: Histogram, buckets: TaskCountBuckets},
+		CacheSizeGauge:                                               {metricName: "cache_size_gauge", metricType: Gauge},
 		CacheRequests:                                                {metricName: "cache_requests", metricType: Counter},
 		CacheFailures:                                                {metricName: "cache_errors", metricType: Counter},
 		CacheLatency:                                                 {metricName: "cache_latency", metricType: Timer},
@@ -3599,15 +3606,20 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ReplicationTasksFailed:                                       {metricName: "replication_tasks_failed", metricType: Counter},
 		ReplicationTasksLag:                                          {metricName: "replication_tasks_lag", metricType: Timer},
 		ReplicationTasksLagHistogram:                                 {metricName: "replication_tasks_lag_counts", metricType: Histogram, buckets: TaskCountBuckets},
+		ReplicationTasksLagGauge:                                     {metricName: "replication_tasks_lag_gauge", metricType: Gauge},
 		ReplicationTasksLagRaw:                                       {metricName: "replication_tasks_lag_raw", metricType: Timer},
 		ReplicationTasksLagRawHistogram:                              {metricName: "replication_tasks_lag_raw_counts", metricType: Histogram, buckets: TaskCountBuckets},
+		ReplicationTasksLagRawGauge:                                  {metricName: "replication_tasks_lag_raw_gauge", metricType: Gauge},
 		ReplicationTasksDelay:                                        {metricName: "replication_tasks_delay", metricType: Histogram, buckets: ReplicationTaskDelayBucket},
 		ReplicationTasksFetched:                                      {metricName: "replication_tasks_fetched", metricType: Timer},
 		ReplicationTasksFetchedHistogram:                             {metricName: "replication_tasks_fetched_counts", metricType: Histogram, buckets: ResponseRowSizeBuckets},
+		ReplicationTasksFetchedGauge:                                 {metricName: "replication_tasks_fetched_gauge", metricType: Gauge},
 		ReplicationTasksReturned:                                     {metricName: "replication_tasks_returned", metricType: Timer},
 		ReplicationTasksReturnedHistogram:                            {metricName: "replication_tasks_returned_counts", metricType: Histogram, buckets: ResponseRowSizeBuckets},
+		ReplicationTasksReturnedGauge:                                {metricName: "replication_tasks_returned_gauge", metricType: Gauge},
 		ReplicationTasksReturnedDiff:                                 {metricName: "replication_tasks_returned_diff", metricType: Timer},
 		ReplicationTasksReturnedDiffHistogram:                        {metricName: "replication_tasks_returned_diff_counts", metricType: Histogram, buckets: ResponseRowSizeBuckets},
+		ReplicationTasksReturnedDiffGauge:                            {metricName: "replication_tasks_returned_diff_gauge", metricType: Gauge},
 		ReplicationTasksAppliedLatency:                               {metricName: "replication_tasks_applied_latency", metricType: Timer},
 		ReplicationTasksAppliedLatencyHistogram:                      {metricName: "replication_tasks_applied_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		ReplicationTasksBatchSize:                                    {metricName: "replication_tasks_batch_size", metricType: Gauge},

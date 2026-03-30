@@ -190,7 +190,14 @@ func (g *GaugeMigration) UnmarshalYAML(read func(any) error) error {
 //
 // It is public to allow Cadence operators to add to the collection before
 // loading config, in case they have any custom migrations to perform.
-var GaugeMigrationMetrics = map[string]struct{}{}
+var GaugeMigrationMetrics = map[string]struct{}{
+	"cache_size_gauge":                      {},
+	"replication_tasks_lag_gauge":           {},
+	"replication_tasks_lag_raw_gauge":       {},
+	"replication_tasks_fetched_gauge":       {},
+	"replication_tasks_returned_gauge":      {},
+	"replication_tasks_returned_diff_gauge": {},
+}
 
 // EmitGauge returns true if the given metric name should emit a gauge.
 func (g GaugeMigration) EmitGauge(name string) bool {

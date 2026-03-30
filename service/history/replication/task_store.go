@@ -216,6 +216,7 @@ func (m *TaskStore) Put(task *types.ReplicationTask) {
 		count := cacheByCluster.Count()
 		scope.RecordTimer(metrics.CacheSize, time.Duration(count))
 		scope.RecordHistogramValue(metrics.CacheSizeHistogram, float64(count))
+		scope.UpdateGauge(metrics.CacheSizeGauge, float64(count))
 	}
 }
 
@@ -233,6 +234,7 @@ func (m *TaskStore) Ack(cluster string, lastTaskID int64) error {
 	count := cache.Count()
 	scope.RecordTimer(metrics.CacheSize, time.Duration(count))
 	scope.RecordHistogramValue(metrics.CacheSizeHistogram, float64(count))
+	scope.UpdateGauge(metrics.CacheSizeGauge, float64(count))
 
 	return nil
 }

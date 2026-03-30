@@ -392,6 +392,7 @@ func (t *taskImpl) Ack() {
 		t.scope.ExponentialHistogram(metrics.ExponentialTaskLatencyPerDomain, latency)
 		t.scope.RecordTimer(metrics.TaskQueueLatencyPerDomain, queueLatency)
 		t.scope.ExponentialHistogram(metrics.ExponentialTaskQueueLatencyPerDomain, queueLatency)
+		t.scope.ExponentialHistogram(metrics.ExponentialTaskQueueLatency, queueLatency)
 
 		taskListTaggedScope := t.scope.Tagged(common.GetTaskListTag(t.GetOriginalTaskList(), t.GetOriginalTaskListKind()))
 		taskListTaggedScope.ExponentialHistogram(metrics.ExponentialTaskLatencyPerTaskList, latency)
