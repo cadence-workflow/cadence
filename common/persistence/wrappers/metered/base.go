@@ -148,8 +148,10 @@ func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag
 	duration := time.Since(before)
 	if len(tags) > 0 {
 		metricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration)
+		metricsScope.ExponentialHistogram(metrics.ExponentialPersistenceLatencyPerDomain, duration)
 	} else {
 		metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
+		metricsScope.ExponentialHistogram(metrics.ExponentialPersistenceLatency, duration)
 	}
 	p.recordLatencyHistogram(scope, duration)
 
@@ -171,6 +173,7 @@ func (p *base) callWithoutDomainTag(scope metrics.ScopeIdx, op func() error, tag
 	err := op()
 	duration := time.Since(before)
 	metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
+	metricsScope.ExponentialHistogram(metrics.ExponentialPersistenceLatency, duration)
 	p.recordLatencyHistogram(scope, duration)
 
 	if err != nil {
@@ -193,6 +196,7 @@ func (p *base) callWithDomainAndShardScope(scope metrics.ScopeIdx, op func() err
 	duration := time.Since(before)
 
 	domainMetricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration)
+	domainMetricsScope.ExponentialHistogram(metrics.ExponentialPersistenceLatencyPerDomain, duration)
 	shardOperationsMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
 	shardOverallMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
 	p.recordLatencyHistogram(scope, duration)
