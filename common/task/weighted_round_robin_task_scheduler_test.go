@@ -84,7 +84,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) SetupTest() {
 	s.queueSize = 1000
 	s.realProcessor = NewParallelTaskProcessor(
 		testlogger.New(s.Suite.T()),
-		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		&ParallelTaskProcessorOptions{
 			QueueSize:   1,
 			WorkerCount: dynamicproperties.GetIntPropertyFn(1),
@@ -294,7 +294,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) newTestWeightedRoundRobinTaskSche
 ) *weightedRoundRobinTaskSchedulerImpl[int, PriorityTask] {
 	scheduler, err := NewWeightedRoundRobinTaskScheduler(
 		testlogger.New(s.Suite.T()),
-		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		clock.NewMockedTimeSource(),
 		s.realProcessor,
 		options,

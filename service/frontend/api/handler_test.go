@@ -4834,7 +4834,7 @@ func TestWorkflowDescribeEmitStatusMetrics(t *testing.T) {
 			scope := tally.NewTestScope("", nil)
 			mockR := resource.Test{
 				MetricsScope:  scope,
-				MetricsClient: metrics.NewClient(scope, 1, metrics.HistogramMigration{}),
+				MetricsClient: metrics.NewClient(scope, 1, metrics.MigrationConfig{}),
 			}
 
 			wh := WorkflowHandler{

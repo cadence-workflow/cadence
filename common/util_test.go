@@ -1675,7 +1675,7 @@ func TestCheckEventBlobSizeLimit(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			testScope := tally.NewTestScope("test", nil)
-			metricsClient := metrics.NewClient(testScope, metrics.History, metrics.HistogramMigration{})
+			metricsClient := metrics.NewClient(testScope, metrics.History, metrics.MigrationConfig{})
 			logger := log.NewMockLogger(gomock.NewController(t))
 
 			if c.prepareLogger != nil {

@@ -110,7 +110,7 @@ func (s *taskExecutorSuite) SetupTest() {
 		s.mockDomainCache,
 		s.nDCHistoryResender,
 		s.mockEngine,
-		metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}),
 		s.mockShard.GetLogger(),
 	).(*taskExecutorImpl)
 }

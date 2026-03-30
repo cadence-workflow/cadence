@@ -161,7 +161,7 @@ func (s *matchingEngineSuite) SetupTest() {
 		context.Background(),
 		matchingTestDomainName,
 		&types.TaskList{Name: matchingTestTaskList, Kind: &tlKindNormal},
-		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
 		metrics.MatchingTaskListMgrScope,
 		testlogger.New(s.Suite.T()),
 	)
@@ -188,7 +188,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		s.mockMatchingClient,
 		config,
 		s.logger,
-		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
 		tally.NoopScope,
 		s.mockDomainCache,
 		s.mockMembershipResolver,
@@ -699,7 +699,7 @@ func (s *matchingEngineSuite) SyncMatchTasks(taskType int, enableIsolation bool)
 	s.matchingEngine.config.MinTaskThrottlingBurstSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(_minBurst)
 	// So we can get snapshots
 	scope := tally.NewTestScope("test", nil)
-	s.matchingEngine.metricsClient = metrics.NewClient(scope, metrics.Matching, metrics.HistogramMigration{})
+	s.matchingEngine.metricsClient = metrics.NewClient(scope, metrics.Matching, metrics.MigrationConfig{})
 
 	testParam := newTestParam(s.T(), taskType)
 	s.taskManager.SetRangeID(testParam.TaskListID, initialRangeID)
@@ -858,7 +858,7 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 		}
 	}
 	scope := tally.NewTestScope("test", nil)
-	s.matchingEngine.metricsClient = metrics.NewClient(scope, metrics.Matching, metrics.HistogramMigration{})
+	s.matchingEngine.metricsClient = metrics.NewClient(scope, metrics.Matching, metrics.MigrationConfig{})
 
 	const initialRangeID = 0
 	const rangeSize = 3

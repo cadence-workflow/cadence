@@ -40,7 +40,7 @@ func TestHierarchicalWeightedRoundRobinTaskScheduler_SchedulerContract(t *testin
 
 	realProcessor := NewParallelTaskProcessor(
 		testlogger.New(t),
-		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		&ParallelTaskProcessorOptions{
 			QueueSize:   1,
 			WorkerCount: dynamicproperties.GetIntPropertyFn(1),
@@ -51,7 +51,7 @@ func TestHierarchicalWeightedRoundRobinTaskScheduler_SchedulerContract(t *testin
 	// Create hierarchical scheduler with string keys based on priority
 	scheduler, err := NewHierarchicalWeightedRoundRobinTaskScheduler(
 		testlogger.New(t),
-		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		clock.NewMockedTimeSource(),
 		realProcessor,
 		&HierarchicalWeightedRoundRobinTaskPoolOptions[string, PriorityTask]{

@@ -2,6 +2,14 @@ package metrics
 
 import "fmt"
 
+// MigrationConfig groups all metric migration configurations.
+// Future migration types can be added here without changing NewClient's signature.
+type MigrationConfig struct {
+	Histogram HistogramMigration
+	Gauge     GaugeMigration
+	Counter   CounterMigration
+}
+
 type HistogramMigration struct {
 	Default HistogramMigrationMode `yaml:"default"`
 	// Names maps "metric name" -> "should it be emitted".
@@ -139,6 +147,164 @@ func (h HistogramMigrationMode) EmitTimer() bool {
 func (h HistogramMigrationMode) EmitHistogram() bool {
 	switch h {
 	case "histogram", "both": // default == not specified == both
+		return true
+	default:
+		return false
+	}
+}
+
+// GaugeMigration controls emission of gauge metrics during migration.
+// Metrics listed in GaugeMigrationMetrics can be individually toggled via YAML config.
+type GaugeMigration struct {
+	Default GaugeMigrationMode `yaml:"default"`
+	// Names maps "metric name" -> "should it be emitted".
+	//
+	// If a name/key does not exist, the default mode will be checked to determine
+	// if a gauge should be emitted.
+	//
+	// This is only checked for gauges that are in GaugeMigrationMetrics.
+	Names map[string]bool `yaml:"names"`
+}
+
+func (g *GaugeMigration) UnmarshalYAML(read func(any) error) error {
+	type tmpType GaugeMigration
+	var tmp tmpType
+	if err := read(&tmp); err != nil {
+		return err
+	}
+	for k := range tmp.Names {
+		if _, ok := GaugeMigrationMetrics[k]; !ok {
+			return fmt.Errorf(
+				"unknown gauge-migration metric name %q.  "+
+					"if this is a valid name, add it to common/metrics.GaugeMigrationMetrics before starting the service",
+				k,
+			)
+		}
+	}
+	*g = GaugeMigration(tmp)
+	return nil
+}
+
+// GaugeMigrationMetrics contains all metric names being migrated, to prevent affecting
+// non-migration-related gauges, and to catch metric name config mistakes early on.
+//
+// It is public to allow Cadence operators to add to the collection before
+// loading config, in case they have any custom migrations to perform.
+var GaugeMigrationMetrics = map[string]struct{}{}
+
+// EmitGauge returns true if the given metric name should emit a gauge.
+func (g GaugeMigration) EmitGauge(name string) bool {
+	if _, ok := GaugeMigrationMetrics[name]; !ok {
+		return true
+	}
+	emit, ok := g.Names[name]
+	if ok {
+		return emit
+	}
+	return g.Default.EmitGauge()
+}
+
+// GaugeMigrationMode is a pseudo-enum to provide unmarshalling config and helper methods.
+// By default / when not specified / when an empty string, it means "gauge" (emit gauges).
+type GaugeMigrationMode string
+
+func (g *GaugeMigrationMode) UnmarshalYAML(read func(any) error) error {
+	var value string
+	if err := read(&value); err != nil {
+		return fmt.Errorf("cannot read gauge migration mode as a string: %w", err)
+	}
+	switch value {
+	case "gauge", "none":
+		*g = GaugeMigrationMode(value)
+	default:
+		return fmt.Errorf(`unsupported gauge migration mode %q, must be "gauge" or "none"`, value)
+	}
+	return nil
+}
+
+// EmitGauge returns true if this mode allows gauge emission.
+func (g GaugeMigrationMode) EmitGauge() bool {
+	switch g {
+	case "gauge", "":
+		return true
+	default:
+		return false
+	}
+}
+
+// CounterMigration controls emission of counter metrics during migration.
+// Metrics listed in CounterMigrationMetrics can be individually toggled via YAML config.
+type CounterMigration struct {
+	Default CounterMigrationMode `yaml:"default"`
+	// Names maps "metric name" -> "should it be emitted".
+	//
+	// If a name/key does not exist, the default mode will be checked to determine
+	// if a counter should be emitted.
+	//
+	// This is only checked for counters that are in CounterMigrationMetrics.
+	Names map[string]bool `yaml:"names"`
+}
+
+func (c *CounterMigration) UnmarshalYAML(read func(any) error) error {
+	type tmpType CounterMigration
+	var tmp tmpType
+	if err := read(&tmp); err != nil {
+		return err
+	}
+	for k := range tmp.Names {
+		if _, ok := CounterMigrationMetrics[k]; !ok {
+			return fmt.Errorf(
+				"unknown counter-migration metric name %q.  "+
+					"if this is a valid name, add it to common/metrics.CounterMigrationMetrics before starting the service",
+				k,
+			)
+		}
+	}
+	*c = CounterMigration(tmp)
+	return nil
+}
+
+// CounterMigrationMetrics contains all metric names being migrated, to prevent affecting
+// non-migration-related counters, and to catch metric name config mistakes early on.
+//
+// It is public to allow Cadence operators to add to the collection before
+// loading config, in case they have any custom migrations to perform.
+var CounterMigrationMetrics = map[string]struct{}{}
+
+// EmitCounter returns true if the given metric name should emit a counter.
+func (c CounterMigration) EmitCounter(name string) bool {
+	if _, ok := CounterMigrationMetrics[name]; !ok {
+		return true
+	}
+	emit, ok := c.Names[name]
+	if ok {
+		return emit
+	}
+	return c.Default.EmitCounter()
+}
+
+// CounterMigrationMode is a pseudo-enum to provide unmarshalling config and helper methods.
+// By default / when not specified / when an empty string, it means "counter" (emit counters).
+type CounterMigrationMode string
+
+func (c *CounterMigrationMode) UnmarshalYAML(read func(any) error) error {
+	var value string
+	if err := read(&value); err != nil {
+		return fmt.Errorf("cannot read counter migration mode as a string: %w", err)
+	}
+	switch value {
+	case "counter", "none":
+		*c = CounterMigrationMode(value)
+	default:
+		return fmt.Errorf(`unsupported counter migration mode %q, must be "counter" or "none"`, value)
+	}
+	return nil
+}
+
+// EmitCounter returns true if this mode allows counter emission.
+func (c CounterMigrationMode) EmitCounter() bool {
+	switch c {
+	case "counter", "":
 		return true
 	default:
 		return false

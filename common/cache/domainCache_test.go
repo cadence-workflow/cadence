@@ -76,7 +76,7 @@ func (s *domainCacheSuite) SetupTest() {
 	s.logger = testlogger.New(s.Suite.T())
 
 	s.metadataMgr = &mocks.MetadataManager{}
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	s.domainCache = NewDomainCache(s.metadataMgr, cluster.GetTestClusterMetadata(true), metricsClient, s.logger)
 
 	s.domainCache.timeSource = clock.NewMockedTimeSource()
@@ -1141,7 +1141,7 @@ func Test_WithTimeSource(t *testing.T) {
 	metadataMgr := &mocks.MetadataManager{}
 
 	timeSource := clock.NewRealTimeSource()
-	domainCache := NewDomainCache(metadataMgr, cluster.GetTestClusterMetadata(true), metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}), log.NewNoop(), WithTimeSource(timeSource))
+	domainCache := NewDomainCache(metadataMgr, cluster.GetTestClusterMetadata(true), metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}), log.NewNoop(), WithTimeSource(timeSource))
 
 	assert.Equal(t, timeSource, domainCache.timeSource)
 }

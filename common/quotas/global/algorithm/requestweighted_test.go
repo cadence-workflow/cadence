@@ -137,6 +137,9 @@ func TestEmitsMetrics(t *testing.T) {
 	}
 
 	agg, _ := newValid(t, defaultConfig(time.Second))
+	ts := tally.NewTestScope("test", nil)
+	agg.scope = metrics.NewClient(ts, metrics.History, metrics.MigrationConfig{}).Scope(metrics.GlobalRatelimiterAggregator)
+
 	h1, h2 := Identity("host 1"), Identity("host 2")
 	key := Limit("key")
 
@@ -212,7 +215,7 @@ func TestEmitsMetrics(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a fresh test scope for each test case
 			ts := tally.NewTestScope("test", nil)
-			agg.scope = metrics.NewClient(ts, metrics.History, metrics.HistogramMigration{}).Scope(metrics.GlobalRatelimiterAggregator)
+			agg.scope = metrics.NewClient(ts, metrics.History, metrics.MigrationConfig{}).Scope(metrics.GlobalRatelimiterAggregator)
 
 			err := tc.setup()
 			require.NoError(t, err)

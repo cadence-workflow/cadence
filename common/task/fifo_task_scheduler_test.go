@@ -64,7 +64,7 @@ func (s *fifoTaskSchedulerSuite) SetupTest() {
 	s.queueSize = 2
 	s.scheduler = NewFIFOTaskScheduler[PriorityTask](
 		testlogger.New(s.Suite.T()),
-		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		&FIFOTaskSchedulerOptions{
 			QueueSize:       s.queueSize,
 			WorkerCount:     dynamicproperties.GetIntPropertyFn(1),
