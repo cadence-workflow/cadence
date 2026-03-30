@@ -208,13 +208,13 @@ func (t *taskImpl) Execute() error {
 		t.scope.ExponentialHistogram(metrics.TaskProcessingLatencyPerDomainHistogram, processingLatency)
 
 		taskListTaggedScope.IncCounter(metrics.TaskRequestsPerTaskList)
-		taskListTaggedScope.ExponentialHistogram(metrics.ExponentialTaskProcessingLatencyPerTaskList, processingLatency)
+		taskListTaggedScope.ExponentialHistogram(metrics.TaskProcessingLatencyPerTaskListHistogram, processingLatency)
 	}()
 	executeResponse, err := t.taskExecutor.Execute(t)
 	t.scope = executeResponse.Scope
 	taskListTaggedScope = t.scope.Tagged(common.GetTaskListTag(t.GetOriginalTaskList(), t.GetOriginalTaskListKind()))
 	if t.GetAttempt() == 0 {
-		taskListTaggedScope.ExponentialHistogram(metrics.ExponentialTaskScheduleLatencyPerTaskList, scheduleLatency)
+		taskListTaggedScope.ExponentialHistogram(metrics.TaskScheduleLatencyPerTaskListHistogram, scheduleLatency)
 		// TODO: replace with ExponentialHistogram
 		// domain level metrics for the duration between task being submitted to task scheduler and being executed
 		t.scope.RecordHistogramDuration(metrics.TaskScheduleLatencyPerDomain, scheduleLatency)
@@ -389,13 +389,13 @@ func (t *taskImpl) Ack() {
 		// Use IntExponentialHistogram with Mid1To16k buckets (1–64k) for attempt counts
 		t.scope.IntExponentialHistogram(metrics.TaskAttemptPerDomainCountsHistogram, t.attempt)
 		t.scope.RecordTimer(metrics.TaskLatencyPerDomain, latency)
-		t.scope.ExponentialHistogram(metrics.ExponentialTaskLatencyPerDomain, latency)
+		t.scope.ExponentialHistogram(metrics.TaskLatencyPerDomainHistogram, latency)
 		t.scope.RecordTimer(metrics.TaskQueueLatencyPerDomain, queueLatency)
-		t.scope.ExponentialHistogram(metrics.ExponentialTaskQueueLatencyPerDomain, queueLatency)
+		t.scope.ExponentialHistogram(metrics.TaskQueueLatencyPerDomainHistogram, queueLatency)
 
 		taskListTaggedScope := t.scope.Tagged(common.GetTaskListTag(t.GetOriginalTaskList(), t.GetOriginalTaskListKind()))
-		taskListTaggedScope.ExponentialHistogram(metrics.ExponentialTaskLatencyPerTaskList, latency)
-		taskListTaggedScope.ExponentialHistogram(metrics.ExponentialTaskQueueLatencyPerTaskList, queueLatency)
+		taskListTaggedScope.ExponentialHistogram(metrics.TaskLatencyPerTaskListHistogram, latency)
+		taskListTaggedScope.ExponentialHistogram(metrics.TaskQueueLatencyPerTaskListHistogram, queueLatency)
 	}
 
 	if t.eventLogger != nil && t.shouldProcessTask && t.attempt != 0 {

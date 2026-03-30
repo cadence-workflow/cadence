@@ -494,7 +494,7 @@ func (p *taskProcessorImpl) processTaskOnce(replicationTask *types.ReplicationTa
 		mScope = mScope.Tagged(metrics.DomainTag(domainName)) // use consistent tags so Prometheus does not break
 
 		// emit single task processing latency
-		mScope.ExponentialHistogram(metrics.ExponentialTaskProcessingLatency, now.Sub(startTime))
+		mScope.ExponentialHistogram(metrics.TaskProcessingLatencyHistogram, now.Sub(startTime))
 		// emit latency from task generated to task received
 		mScope.ExponentialHistogram(
 			metrics.ExponentialReplicationTaskLatency,

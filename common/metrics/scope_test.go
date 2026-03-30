@@ -32,22 +32,22 @@ func TestHistogramMode(t *testing.T) {
 		findName(CadenceLatency):                            {},
 		findName(ExponentialReplicationTaskLatency):         {},
 		findName(PersistenceLatencyPerShard):                {},
-		findName(ExponentialTaskProcessingLatency):          {},
+		findName(TaskProcessingLatencyHistogram):          {},
 		findName(PersistenceLatency):                        {},
 		findName(PersistenceLatencyHistogram):               {},
 		findName(PersistenceLatencyHistogramPerHost):        {},
 		findName(TaskAttemptTimer):                          {},
-		findName(ExponentialTaskAttemptCounts):              {},
+		findName(TaskAttemptCountsHistogram):              {},
 		findName(TaskQueueLatency):                          {},
-		findName(ExponentialTaskQueueLatency):               {},
+		findName(TaskQueueLatencyHistogram):               {},
 		findName(TaskLatencyPerDomain):                      {},
-		findName(ExponentialTaskLatencyPerDomain):           {},
+		findName(TaskLatencyPerDomainHistogram):           {},
 		findName(TaskAttemptTimerPerDomain):                 {},
 		findName(TaskAttemptPerDomainCountsHistogram):     {},
 		findName(TaskProcessingLatencyPerDomain):            {},
 		findName(TaskProcessingLatencyPerDomainHistogram): {},
 		findName(TaskQueueLatencyPerDomain):                 {},
-		findName(ExponentialTaskQueueLatencyPerDomain):      {},
+		findName(TaskQueueLatencyPerDomainHistogram):      {},
 	}
 
 	c := NewClient(ts, History, MigrationConfig{
@@ -58,7 +58,7 @@ func TestHistogramMode(t *testing.T) {
 				findName(ExponentialReplicationTaskLatency): false, // histogram type
 
 				findName(PersistenceLatencyPerShard):       false, // timer type
-				findName(ExponentialTaskProcessingLatency): true,  // histogram type
+				findName(TaskProcessingLatencyHistogram): true,  // histogram type
 			},
 		},
 	})
@@ -68,7 +68,7 @@ func TestHistogramMode(t *testing.T) {
 	scope.ExponentialHistogram(ExponentialReplicationTaskLatency, 2*time.Second)
 
 	scope.RecordTimer(PersistenceLatencyPerShard, 3*time.Second)
-	scope.ExponentialHistogram(ExponentialTaskProcessingLatency, 4*time.Second)
+	scope.ExponentialHistogram(TaskProcessingLatencyHistogram, 4*time.Second)
 
 	// unspecified -> default config
 	scope.RecordTimer(PersistenceLatency, 5*time.Second)
@@ -121,7 +121,7 @@ func TestHistogramMode(t *testing.T) {
 	assertFound(ExponentialReplicationTaskLatency, false, false)
 	// only the histogram
 	assertFound(PersistenceLatencyPerShard, false, false)
-	assertFound(ExponentialTaskProcessingLatency, false, true)
+	assertFound(TaskProcessingLatencyHistogram, false, true)
 	// timers only (via default)
 	assertFound(PersistenceLatency, true, false)
 	assertFound(PersistenceLatencyHistogram, false, false)
