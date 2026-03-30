@@ -284,6 +284,7 @@ func (p *taskProcessorImpl) cleanupAckedReplicationTasks() error {
 	)
 	scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(lagCount))
 	scope.RecordHistogramValue(metrics.ReplicationTasksLagHistogram, float64(lagCount))
+	scope.UpdateGauge(metrics.ReplicationTasksLagGauge, float64(lagCount))
 	for {
 		pageSize := p.config.ReplicatorTaskDeleteBatchSize()
 		resp, err := p.shard.GetExecutionManager().RangeCompleteHistoryTask(
