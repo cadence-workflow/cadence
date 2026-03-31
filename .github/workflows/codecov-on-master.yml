@@ -1,7 +1,13 @@
 name: Workflow for Codecov integration
-on: push
-branches:
-  - master
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  issues: write
+  contents: read
+
 
 jobs:
   codecov:
@@ -22,12 +28,10 @@ jobs:
       - name: Test and generate coverage report
         run: make cover_profile 2>&1 | tee test.log
       - name: Collect failing test names
-        if: always()
         shell: bash
         run: |
           ./scripts/extract_failed_tests.sh test.log | tee failed-tests.txt
       - name: Create or update issues for failed tests
-        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/create_failed_test_issues.sh failed-tests.txt
