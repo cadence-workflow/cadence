@@ -202,20 +202,6 @@ func (m *MockExecutor[SP]) EXPECT() *MockExecutorMockRecorder[SP] {
 	return m.recorder
 }
 
-// AssignShardsFromLocalLogic mocks base method.
-func (m *MockExecutor[SP]) AssignShardsFromLocalLogic(ctx context.Context, shardAssignment map[string]*types.ShardAssignment) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AssignShardsFromLocalLogic", ctx, shardAssignment)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// AssignShardsFromLocalLogic indicates an expected call of AssignShardsFromLocalLogic.
-func (mr *MockExecutorMockRecorder[SP]) AssignShardsFromLocalLogic(ctx, shardAssignment any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardsFromLocalLogic", reflect.TypeOf((*MockExecutor[SP])(nil).AssignShardsFromLocalLogic), ctx, shardAssignment)
-}
-
 // GetMetadata mocks base method.
 func (m *MockExecutor[SP]) GetMetadata() map[string]string {
 	m.ctrl.T.Helper()
@@ -271,20 +257,6 @@ func (m *MockExecutor[SP]) IsOnboardedToSD() bool {
 func (mr *MockExecutorMockRecorder[SP]) IsOnboardedToSD() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOnboardedToSD", reflect.TypeOf((*MockExecutor[SP])(nil).IsOnboardedToSD))
-}
-
-// RemoveShardsFromLocalLogic mocks base method.
-func (m *MockExecutor[SP]) RemoveShardsFromLocalLogic(shardIDs []string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RemoveShardsFromLocalLogic", shardIDs)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RemoveShardsFromLocalLogic indicates an expected call of RemoveShardsFromLocalLogic.
-func (mr *MockExecutorMockRecorder[SP]) RemoveShardsFromLocalLogic(shardIDs any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveShardsFromLocalLogic", reflect.TypeOf((*MockExecutor[SP])(nil).RemoveShardsFromLocalLogic), shardIDs)
 }
 
 // SetMetadata mocks base method.

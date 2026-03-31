@@ -25,8 +25,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/uber/cadence/common/types"
 )
 
 func TestNoopExecutor(t *testing.T) {
@@ -55,17 +53,5 @@ func TestNoopExecutor(t *testing.T) {
 		sp, err := exec.GetShardProcess(context.Background(), "any-shard")
 		assert.Nil(t, sp)
 		assert.ErrorIs(t, err, ErrShardProcessNotFound)
-	})
-
-	t.Run("AssignShardsFromLocalLogic is a no-op", func(t *testing.T) {
-		err := exec.AssignShardsFromLocalLogic(context.Background(), map[string]*types.ShardAssignment{
-			"shard-1": {},
-		})
-		assert.NoError(t, err)
-	})
-
-	t.Run("RemoveShardsFromLocalLogic is a no-op", func(t *testing.T) {
-		err := exec.RemoveShardsFromLocalLogic([]string{"shard-1"})
-		assert.NoError(t, err)
 	})
 }

@@ -22,8 +22,6 @@ package executorclient
 
 import (
 	"context"
-
-	"github.com/uber/cadence/common/types"
 )
 
 // noopExecutor is an Executor implementation used when no shard-distributor
@@ -51,16 +49,4 @@ func (e *noopExecutor[SP]) GetMetadata() map[string]string  { return nil }
 func (e *noopExecutor[SP]) GetShardProcess(_ context.Context, _ string) (SP, error) {
 	var zero SP
 	return zero, ErrShardProcessNotFound
-}
-
-// AssignShardsFromLocalLogic is a no-op: without SD there is no shard
-// assignment to manage.
-func (e *noopExecutor[SP]) AssignShardsFromLocalLogic(_ context.Context, _ map[string]*types.ShardAssignment) error {
-	return nil
-}
-
-// RemoveShardsFromLocalLogic is a no-op: without SD there is no shard
-// assignment to manage.
-func (e *noopExecutor[SP]) RemoveShardsFromLocalLogic(_ []string) error {
-	return nil
 }

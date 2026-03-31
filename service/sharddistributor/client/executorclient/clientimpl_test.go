@@ -256,190 +256,6 @@ func TestHeartBeatLoop_ShardAssignmentChange(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestAssignShardsFromLocalLogic(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	tests := []struct {
-		name   string
-		params map[string]*types.ShardAssignment
-		setup  func() *executorImpl[*MockShardProcessor]
-		assert func(err error, executor *executorImpl[*MockShardProcessor])
-	}{
-		{
-			name:   "AssignShardsFromLocalLogic fails if the namespace is onboarded",
-			params: map[string]*types.ShardAssignment{},
-			setup: func() *executorImpl[*MockShardProcessor] {
-				executor := newTestExecutor(nil, nil, nil)
-				executor.setMigrationMode(types.MigrationModeONBOARDED)
-				return executor
-			},
-			assert: func(err error, executor *executorImpl[*MockShardProcessor]) {},
-		},
-		{
-			name: "AssignShardsFromLocalLogic succeed with only logs if it is not possible to create a new shard processor",
-			params: map[string]*types.ShardAssignment{
-				"test-shard-id2": {Status: types.AssignmentStatusREADY},
-				"test-shard-id3": {Status: types.AssignmentStatusREADY}},
-			setup: func() *executorImpl[*MockShardProcessor] {
-				shardProcessorMock1 := NewMockShardProcessor(ctrl)
-				shardProcessorMock2 := NewMockShardProcessor(ctrl)
-
-				shardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
-
-				// Setup mocks
-				shardProcessorFactory.EXPECT().NewShardProcessor(gomock.Any()).Return(nil, assert.AnError)
-
-				executor := newTestExecutor(nil, shardProcessorFactory, nil)
-				executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
-				executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
-
-				return executor
-			},
-			assert: func(err error, executor *executorImpl[*MockShardProcessor]) {
-				assert.NoError(t, err)
-			},
-		},
-		{
-			name: "AssignShardsFromLocalLogic succeed ",
-			params: map[string]*types.ShardAssignment{
-				"test-shard-id2": {Status: types.AssignmentStatusREADY},
-				"test-shard-id3": {Status: types.AssignmentStatusREADY}},
-			setup: func() *executorImpl[*MockShardProcessor] {
-				shardProcessorMock1 := NewMockShardProcessor(ctrl)
-				shardProcessorMock2 := NewMockShardProcessor(ctrl)
-				shardProcessorMock3 := NewMockShardProcessor(ctrl)
-
-				shardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
-
-				shardProcessorFactory.EXPECT().NewShardProcessor(gomock.Any()).Return(shardProcessorMock3, nil)
-
-				executor := newTestExecutor(nil, shardProcessorFactory, nil)
-
-				executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
-				executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
-
-				// With the new assignment, shardProcessorMock3 should be started
-				shardProcessorMock3.EXPECT().Start(gomock.Any()).Return(nil)
-				shardProcessorMock1.EXPECT().GetShardReport().Return(ShardReport{Status: types.ShardStatusREADY})
-				shardProcessorMock2.EXPECT().GetShardReport().Return(ShardReport{Status: types.ShardStatusREADY})
-				shardProcessorMock3.EXPECT().GetShardReport().Return(ShardReport{Status: types.ShardStatusREADY})
-				return executor
-			},
-			assert: func(_ error, executor *executorImpl[*MockShardProcessor]) {
-				// Assert that we now have the 3 shards in the assignment
-				processor1, err := executor.GetShardProcess(context.Background(), "test-shard-id1")
-				assert.NoError(t, err)
-				assert.Equal(t, types.ShardStatusREADY, processor1.GetShardReport().Status)
-
-				processor2, err := executor.GetShardProcess(context.Background(), "test-shard-id2")
-				assert.NoError(t, err)
-				assert.Equal(t, types.ShardStatusREADY, processor2.GetShardReport().Status)
-
-				processor3, err := executor.GetShardProcess(context.Background(), "test-shard-id3")
-				assert.NoError(t, err)
-				assert.Equal(t, types.ShardStatusREADY, processor3.GetShardReport().Status)
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			executor := test.setup()
-			err := executor.AssignShardsFromLocalLogic(context.Background(), test.params)
-			time.Sleep(10 * time.Millisecond) // Force the updateShardAssignment goroutines to run
-			test.assert(err, executor)
-		})
-	}
-}
-
-func TestRemoveShardsFromLocalLogic(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	tests := []struct {
-		name   string
-		params []string
-		setup  func() *executorImpl[*MockShardProcessor]
-		assert func(err error, executor *executorImpl[*MockShardProcessor])
-	}{
-		{
-			name:   "RemoveShardsFromLocalLogic fails if the namespace is onboarded",
-			params: []string{},
-			setup: func() *executorImpl[*MockShardProcessor] {
-				executor := newTestExecutor(nil, nil, nil)
-				executor.setMigrationMode(types.MigrationModeONBOARDED)
-				return executor
-			},
-			assert: func(err error, executor *executorImpl[*MockShardProcessor]) {},
-		},
-		{
-			name: "RemoveShardsFromLocalLogic succeed ",
-			params: []string{
-				"test-shard-id2",
-				"test-shard-id3"},
-			setup: func() *executorImpl[*MockShardProcessor] {
-				shardProcessorMock1 := NewMockShardProcessor(ctrl)
-				shardProcessorMock2 := NewMockShardProcessor(ctrl)
-				executor := newTestExecutor(nil, nil, nil)
-
-				executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
-				executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
-
-				// With the new assignment, shardProcessorMock2 should be stopped
-				shardProcessorMock2.EXPECT().Stop()
-				shardProcessorMock1.EXPECT().GetShardReport().Return(ShardReport{Status: types.ShardStatusREADY})
-				return executor
-			},
-			assert: func(_ error, executor *executorImpl[*MockShardProcessor]) {
-				// Assert that we now have the 1 shard in the assignment
-				processor1, err := executor.GetShardProcess(context.Background(), "test-shard-id1")
-				assert.NoError(t, err)
-				assert.Equal(t, types.ShardStatusREADY, processor1.GetShardReport().Status)
-
-				// Check that we do not have shard "test-shard-id2" in the local cache
-				// we lookup directly since we don't want to trigger a heartbeat
-				_, ok := executor.managedProcessors.Load("test-shard-id2")
-				assert.False(t, ok)
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			executor := test.setup()
-			err := executor.RemoveShardsFromLocalLogic(test.params)
-			time.Sleep(10 * time.Millisecond) // Force the updateShardAssignment goroutines to run
-			test.assert(err, executor)
-		})
-	}
-}
-
-func TestHeartbeat_WithMigrationMode(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	// Test that heartbeat returns migration mode correctly
-	shardDistributorClient := sharddistributorexecutor.NewMockClient(ctrl)
-	shardDistributorClient.EXPECT().Heartbeat(gomock.Any(),
-		&types.ExecutorHeartbeatRequest{
-			Namespace:          "test-namespace",
-			ExecutorID:         "test-executor-id",
-			Status:             types.ExecutorStatusACTIVE,
-			ShardStatusReports: map[string]*types.ShardStatusReport{},
-			Metadata:           make(map[string]string),
-		}, gomock.Any()).Return(&types.ExecutorHeartbeatResponse{
-		ShardAssignments: map[string]*types.ShardAssignment{
-			"test-shard-id1": {Status: types.AssignmentStatusREADY},
-		},
-		MigrationMode: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
-	}, nil)
-
-	executor := newTestExecutor(shardDistributorClient, nil, nil)
-	executor.setMigrationMode(types.MigrationModeINVALID)
-
-	shardAssignments, migrationMode, err := executor.heartbeat(context.Background())
-
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(shardAssignments))
-	assert.Equal(t, types.MigrationModeDISTRIBUTEDPASSTHROUGH, migrationMode)
-	assert.Equal(t, types.MigrationModeDISTRIBUTEDPASSTHROUGH, executor.getMigrationMode())
-}
-
 func TestHeartbeat_MigrationModeTransition(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
@@ -450,7 +266,7 @@ func TestHeartbeat_MigrationModeTransition(t *testing.T) {
 	}, nil)
 
 	executor := newTestExecutor(shardDistributorClient, nil, nil)
-	executor.setMigrationMode(types.MigrationModeDISTRIBUTEDPASSTHROUGH)
+	executor.setMigrationMode(types.MigrationModeLOCALPASSTHROUGH)
 
 	_, migrationMode, err := executor.heartbeat(context.Background())
 
@@ -478,86 +294,6 @@ func TestHeartbeatLoop_LocalPassthrough_SkipsHeartbeat(t *testing.T) {
 
 	// Give some time for the heartbeat loop to potentially run (it shouldn't)
 	time.Sleep(10 * time.Millisecond)
-}
-
-func TestHeartbeatLoop_LocalPassthroughShadow_SkipsAssignment(t *testing.T) {
-	defer goleak.VerifyNone(t)
-
-	ctrl := gomock.NewController(t)
-	mockShardDistributorClient := sharddistributorexecutor.NewMockClient(ctrl)
-
-	// Heartbeat should be called but assignment should not be applied
-	mockShardDistributorClient.EXPECT().Heartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(&types.ExecutorHeartbeatResponse{
-			ShardAssignments: map[string]*types.ShardAssignment{
-				"test-shard-id1": {Status: types.AssignmentStatusREADY},
-			},
-			MigrationMode: types.MigrationModeLOCALPASSTHROUGHSHADOW,
-		}, nil)
-	expectDrainingHeartbeat(t, mockShardDistributorClient)
-
-	mockShardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
-	// No shard processor should be created
-	mockShardProcessorFactory.EXPECT().NewShardProcessor(gomock.Any()).Times(0)
-
-	mockTimeSource := clock.NewMockedTimeSource()
-
-	executor := newTestExecutor(mockShardDistributorClient, mockShardProcessorFactory, mockTimeSource)
-	executor.setMigrationMode(types.MigrationModeONBOARDED)
-
-	executor.Start(context.Background())
-	defer executor.Stop()
-
-	mockTimeSource.BlockUntil(1)
-	mockTimeSource.Advance(15 * time.Second)
-	time.Sleep(10 * time.Millisecond)
-	mockTimeSource.BlockUntil(1)
-
-	// Assert that no shards were assigned, we check directly since we don't want to trigger a heartbeat
-	_, ok := executor.managedProcessors.Load("test-shard-id1")
-	assert.False(t, ok)
-}
-
-func TestHeartbeatLoop_DistributedPassthrough_AppliesAssignment(t *testing.T) {
-	defer goleak.VerifyNone(t)
-
-	ctrl := gomock.NewController(t)
-	mockShardDistributorClient := sharddistributorexecutor.NewMockClient(ctrl)
-
-	mockShardProcessor := NewMockShardProcessor(ctrl)
-	mockShardProcessor.EXPECT().GetShardReport().Return(ShardReport{Status: types.ShardStatusREADY}).AnyTimes()
-	mockShardProcessor.EXPECT().Stop()
-
-	mockShardDistributorClient.EXPECT().Heartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(&types.ExecutorHeartbeatResponse{
-			ShardAssignments: map[string]*types.ShardAssignment{
-				"test-shard-id1": {Status: types.AssignmentStatusREADY},
-			},
-			MigrationMode: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
-		}, nil)
-	expectDrainingHeartbeat(t, mockShardDistributorClient)
-
-	mockShardProcessorFactory := NewMockShardProcessorFactory[*MockShardProcessor](ctrl)
-
-	mockTimeSource := clock.NewMockedTimeSource()
-
-	executor := newTestExecutor(mockShardDistributorClient, mockShardProcessorFactory, mockTimeSource)
-	executor.setMigrationMode(types.MigrationModeONBOARDED)
-	// Pre-populate the executor with the shard to ensure convergence
-	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(mockShardProcessor, processorStateStarted))
-
-	executor.Start(context.Background())
-	defer executor.Stop()
-
-	mockTimeSource.BlockUntil(1)
-	mockTimeSource.Advance(15 * time.Second)
-	time.Sleep(10 * time.Millisecond)
-	mockTimeSource.BlockUntil(1)
-
-	// Assert that the shard was assigned
-	processor, err := executor.GetShardProcess(context.Background(), "test-shard-id1")
-	assert.NoError(t, err)
-	assert.Equal(t, mockShardProcessor, processor)
 }
 
 func TestHeartbeatLoop_StopSignalSendsDrainingHeartbeat(t *testing.T) {
@@ -599,115 +335,6 @@ func TestHeartbeatLoop_ContextCancelSendsDrainingHeartbeat(t *testing.T) {
 	cancel() // cancelling the context
 
 	executor.heartbeatloop(ctx)
-}
-
-func TestCompareAssignments_Converged(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	shardProcessorMock1 := NewMockShardProcessor(ctrl)
-	shardProcessorMock2 := NewMockShardProcessor(ctrl)
-
-	testScope := tally.NewTestScope("test", nil)
-	executor := newTestExecutor(nil, nil, nil)
-	executor.metrics = testScope
-
-	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
-	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
-
-	heartbeatAssignments := map[string]*types.ShardAssignment{
-		"test-shard-id1": {Status: types.AssignmentStatusREADY},
-		"test-shard-id2": {Status: types.AssignmentStatusREADY},
-	}
-
-	err := executor.compareAssignments(heartbeatAssignments)
-
-	// Verify no error is returned when assignments converge
-	assert.NoError(t, err)
-
-	// Verify convergence metric was emitted
-	snapshot := testScope.Snapshot()
-	assert.Equal(t, int64(1), snapshot.Counters()["test.shard_distributor_executor_assignment_convergence+"].Value())
-}
-
-func TestCompareAssignments_Diverged_MissingShard(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	shardProcessorMock1 := NewMockShardProcessor(ctrl)
-	shardProcessorMock2 := NewMockShardProcessor(ctrl)
-
-	testScope := tally.NewTestScope("test", nil)
-	executor := newTestExecutor(nil, nil, nil)
-	executor.metrics = testScope
-
-	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
-	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
-
-	// Heartbeat only has shard 1, local has both 1 and 2
-	heartbeatAssignments := map[string]*types.ShardAssignment{
-		"test-shard-id1": {Status: types.AssignmentStatusREADY},
-	}
-
-	err := executor.compareAssignments(heartbeatAssignments)
-
-	// Verify error is returned when local shard is missing from heartbeat
-	assert.ErrorIs(t, err, ErrAssignmentDivergenceLocalShard)
-
-	// Verify divergence metric was emitted
-	snapshot := testScope.Snapshot()
-	assert.Equal(t, int64(1), snapshot.Counters()["test.shard_distributor_executor_assignment_divergence+"].Value())
-}
-
-func TestCompareAssignments_Diverged_ExtraShard(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	shardProcessorMock1 := NewMockShardProcessor(ctrl)
-
-	testScope := tally.NewTestScope("test", nil)
-	executor := newTestExecutor(nil, nil, nil)
-	executor.metrics = testScope
-
-	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
-
-	// Heartbeat has shards 1 and 2, local only has 1
-	heartbeatAssignments := map[string]*types.ShardAssignment{
-		"test-shard-id1": {Status: types.AssignmentStatusREADY},
-		"test-shard-id2": {Status: types.AssignmentStatusREADY},
-	}
-
-	err := executor.compareAssignments(heartbeatAssignments)
-
-	// Verify error is returned when heartbeat has extra shard not in local
-	assert.ErrorIs(t, err, ErrAssignmentDivergenceHeartbeatShard)
-
-	// Verify divergence metric was emitted
-	snapshot := testScope.Snapshot()
-	assert.Equal(t, int64(1), snapshot.Counters()["test.shard_distributor_executor_assignment_divergence+"].Value())
-}
-
-func TestCompareAssignments_Diverged_WrongStatus(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	shardProcessorMock1 := NewMockShardProcessor(ctrl)
-
-	testScope := tally.NewTestScope("test", nil)
-	executor := newTestExecutor(nil, nil, nil)
-	executor.metrics = testScope
-
-	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
-
-	// Heartbeat has shard 1 but with INVALID status
-	heartbeatAssignments := map[string]*types.ShardAssignment{
-		"test-shard-id1": {Status: types.AssignmentStatusINVALID},
-	}
-
-	err := executor.compareAssignments(heartbeatAssignments)
-
-	// Verify error is returned when local shard has wrong status in heartbeat
-	assert.ErrorIs(t, err, ErrAssignmentDivergenceLocalShard)
-
-	// Verify divergence metric was emitted
-	snapshot := testScope.Snapshot()
-	assert.Equal(t, int64(1), snapshot.Counters()["test.shard_distributor_executor_assignment_divergence+"].Value())
 }
 
 func TestGetShardProcess_NonOwnedShard_Fails(t *testing.T) {
@@ -1036,6 +663,7 @@ func TestShardCleanupLoop(t *testing.T) {
 		name                  string
 		ttlShard              time.Duration
 		migrationMode         types.MigrationMode
+		setMigrationMode      bool
 		setupProcessors       func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor
 		advanceTime           time.Duration
 		expectedShardsDeleted []string
@@ -1068,9 +696,10 @@ func TestShardCleanupLoop(t *testing.T) {
 			expectedShardsKept:    []string{"shard-1"},
 		},
 		{
-			name:          "cleanup removes expired shard in non-onboarded mode",
-			ttlShard:      5 * time.Second,
-			migrationMode: types.MigrationModeLOCALPASSTHROUGH,
+			name:             "cleanup removes expired shard in non-onboarded mode",
+			ttlShard:         5 * time.Second,
+			migrationMode:    types.MigrationModeLOCALPASSTHROUGH,
+			setMigrationMode: true,
 			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
 				processor := NewMockShardProcessor(ctrl)
 				processor.EXPECT().Stop()
@@ -1083,9 +712,10 @@ func TestShardCleanupLoop(t *testing.T) {
 			expectedShardsKept:    []string{},
 		},
 		{
-			name:          "cleanup does not remove non-expired shard",
-			ttlShard:      10 * time.Second,
-			migrationMode: types.MigrationModeLOCALPASSTHROUGH,
+			name:             "cleanup does not remove non-expired shard",
+			ttlShard:         10 * time.Second,
+			migrationMode:    types.MigrationModeLOCALPASSTHROUGH,
+			setMigrationMode: true,
 			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
 				processor := NewMockShardProcessor(ctrl)
 				executor.managedProcessors.Store("shard-1", newManagedProcessor(processor, processorStateStarted))
@@ -1097,9 +727,10 @@ func TestShardCleanupLoop(t *testing.T) {
 			expectedShardsKept:    []string{"shard-1"},
 		},
 		{
-			name:          "cleanup sets shard status to DONE and removes from processorsToLastUse in onboarded mode",
-			ttlShard:      5 * time.Second,
-			migrationMode: types.MigrationModeONBOARDED,
+			name:             "cleanup sets shard status to DONE and removes from processorsToLastUse in onboarded mode",
+			ttlShard:         5 * time.Second,
+			migrationMode:    types.MigrationModeONBOARDED,
+			setMigrationMode: true,
 			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
 				processor := NewMockShardProcessor(ctrl)
 				processor.EXPECT().SetShardStatus(types.ShardStatusDONE)
@@ -1112,9 +743,10 @@ func TestShardCleanupLoop(t *testing.T) {
 			expectedShardsKept:    []string{"shard-1"},
 		},
 		{
-			name:          "cleanup removes multiple expired shards in non-onboarded mode",
-			ttlShard:      5 * time.Second,
-			migrationMode: types.MigrationModeLOCALPASSTHROUGH,
+			name:             "cleanup removes multiple expired shards in non-onboarded mode",
+			ttlShard:         5 * time.Second,
+			migrationMode:    types.MigrationModeLOCALPASSTHROUGH,
+			setMigrationMode: true,
 			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
 				processor1 := NewMockShardProcessor(ctrl)
 				processor1.EXPECT().Stop()
@@ -1138,24 +770,10 @@ func TestShardCleanupLoop(t *testing.T) {
 			expectedShardsKept:    []string{"shard-3"},
 		},
 		{
-			name:          "cleanup in distributed passthrough mode removes expired shards",
-			ttlShard:      5 * time.Second,
-			migrationMode: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
-			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
-				processor := NewMockShardProcessor(ctrl)
-				processor.EXPECT().Stop()
-				executor.managedProcessors.Store("shard-1", newManagedProcessor(processor, processorStateStarted))
-				executor.processorsToLastUse.Store("shard-1", executor.timeSource.Now())
-				return []*MockShardProcessor{processor}
-			},
-			advanceTime:           6 * time.Second,
-			expectedShardsDeleted: []string{"shard-1"},
-			expectedShardsKept:    []string{},
-		},
-		{
-			name:          "cleanup removes shard from processorsToLastUse map even if not in managedProcessors",
-			ttlShard:      5 * time.Second,
-			migrationMode: types.MigrationModeLOCALPASSTHROUGH,
+			name:             "cleanup removes shard from processorsToLastUse map even if not in managedProcessors",
+			ttlShard:         5 * time.Second,
+			migrationMode:    types.MigrationModeLOCALPASSTHROUGH,
+			setMigrationMode: true,
 			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
 				// Add to processorsToLastUse but not to managedProcessors
 				executor.processorsToLastUse.Store("shard-orphan", executor.timeSource.Now())
@@ -1176,7 +794,7 @@ func TestShardCleanupLoop(t *testing.T) {
 			mockTimeSource := clock.NewMockedTimeSource()
 			executor := newTestExecutor(nil, nil, mockTimeSource)
 			executor.ttlShard = tt.ttlShard
-			if tt.migrationMode != types.MigrationModeINVALID {
+			if tt.setMigrationMode {
 				executor.setMigrationMode(tt.migrationMode)
 			}
 
