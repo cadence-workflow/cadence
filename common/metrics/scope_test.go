@@ -29,24 +29,24 @@ func TestHistogramMode(t *testing.T) {
 	})
 
 	HistogramMigrationMetrics = map[string]struct{}{
-		findName(CadenceLatency):                            {},
-		findName(ExponentialReplicationTaskLatency):         {},
-		findName(PersistenceLatencyPerShard):                {},
+		findName(CadenceLatency):                          {},
+		findName(ExponentialReplicationTaskLatency):       {},
+		findName(PersistenceLatencyPerShard):              {},
 		findName(TaskProcessingLatencyHistogram):          {},
-		findName(PersistenceLatency):                        {},
-		findName(PersistenceLatencyHistogram):               {},
-		findName(PersistenceLatencyHistogramPerHost):        {},
-		findName(TaskAttemptTimer):                          {},
+		findName(PersistenceLatency):                      {},
+		findName(PersistenceLatencyHistogram):             {},
+		findName(PersistenceLatencyHistogramPerHost):      {},
+		findName(TaskAttemptTimer):                        {},
 		findName(TaskAttemptCountsHistogram):              {},
-		findName(TaskQueueLatency):                          {},
+		findName(TaskQueueLatency):                        {},
 		findName(TaskQueueLatencyHistogram):               {},
-		findName(TaskLatencyPerDomain):                      {},
+		findName(TaskLatencyPerDomain):                    {},
 		findName(TaskLatencyPerDomainHistogram):           {},
-		findName(TaskAttemptTimerPerDomain):                 {},
+		findName(TaskAttemptTimerPerDomain):               {},
 		findName(TaskAttemptPerDomainCountsHistogram):     {},
-		findName(TaskProcessingLatencyPerDomain):            {},
+		findName(TaskProcessingLatencyPerDomain):          {},
 		findName(TaskProcessingLatencyPerDomainHistogram): {},
-		findName(TaskQueueLatencyPerDomain):                 {},
+		findName(TaskQueueLatencyPerDomain):               {},
 		findName(TaskQueueLatencyPerDomainHistogram):      {},
 	}
 
@@ -57,7 +57,7 @@ func TestHistogramMode(t *testing.T) {
 				findName(CadenceLatency):                    true,  // timer type
 				findName(ExponentialReplicationTaskLatency): false, // histogram type
 
-				findName(PersistenceLatencyPerShard):       false, // timer type
+				findName(PersistenceLatencyPerShard):     false, // timer type
 				findName(TaskProcessingLatencyHistogram): true,  // histogram type
 			},
 		},
