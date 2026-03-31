@@ -1,5 +1,7 @@
 name: Workflow for Codecov integration
 on: push
+branches:
+  - master
 
 jobs:
   codecov:
@@ -18,7 +20,17 @@ jobs:
       - name: Download dependencies
         run: go mod download
       - name: Test and generate coverage report
-        run: make cover_profile
+        run: make cover_profile 2>&1 | tee test.log
+      - name: Collect failing test names
+        if: always()
+        shell: bash
+        run: |
+          ./scripts/extract_failed_tests.sh test.log | tee failed-tests.txt
+      - name: Create or update issues for failed tests
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/create_failed_test_issues.sh failed-tests.txt
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.5.0 # https://github.com/codecov/codecov-action
         with:
