@@ -1,7 +1,12 @@
 name: Workflow for Codecov integration
 on: push
-branches:
-  - master
+  branches:
+    - master
+
+permissions:
+  issues: write
+  contents: read
+
 
 jobs:
   codecov:
