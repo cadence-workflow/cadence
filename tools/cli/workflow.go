@@ -548,6 +548,10 @@ func newBatchCommands() []*cli.Command {
 					Value: batcher.DefaultMaxActivityRetries,
 					Usage: "Max retries of batch activity, before retrying the whole workflow (0 means unlimited)",
 				},
+				&cli.BoolFlag{
+					Name:  FlagBatchV2,
+					Usage: "Use V2 batch workflow with runtime signal-based tuning support",
+				},
 			},
 			Action: StartBatchJob,
 		},

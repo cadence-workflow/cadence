@@ -249,7 +249,7 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 	params := ManagerParams{
 		DomainCache:     mockDomainCache,
 		Logger:          logger,
-		MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
+		MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
 		TaskManager:     tm,
 		ClusterMetadata: cluster.GetTestClusterMetadata(true),
 		IsolationState:  mockIsolationState,
@@ -969,7 +969,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	params := ManagerParams{
 		DomainCache:     mockDomainCache,
 		Logger:          logger,
-		MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
+		MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
 		TaskManager:     tm,
 		ClusterMetadata: cluster.GetTestClusterMetadata(true),
 		IsolationState:  mockIsolationState,
@@ -1041,7 +1041,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	newParams := ManagerParams{
 		DomainCache:     mockDomainCache,
 		Logger:          logger,
-		MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
+		MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
 		TaskManager:     tm,
 		ClusterMetadata: cluster.GetTestClusterMetadata(true),
 		IsolationState:  mockIsolationState,
@@ -1103,7 +1103,7 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 	params := ManagerParams{
 		DomainCache:     mockDomainCache,
 		Logger:          logger,
-		MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
+		MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
 		TaskManager:     tm,
 		ClusterMetadata: cluster.GetTestClusterMetadata(true),
 		IsolationState:  mockIsolationState,
@@ -1253,7 +1253,7 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 			params := ManagerParams{
 				DomainCache:     mockDomainCache,
 				Logger:          logger,
-				MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
+				MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
 				TaskManager:     tm,
 				ClusterMetadata: cluster.GetTestClusterMetadata(true),
 				IsolationState:  mockIsolationState,

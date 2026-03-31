@@ -29,7 +29,7 @@ import (
 
 // NewSimpleDynamicRateLimiterFactory creates a new LimiterFactory which creates
 // a new DynamicRateLimiter for each domain, the RPS for the DynamicRateLimiter is given by the dynamic config
-func NewSimpleDynamicRateLimiterFactory(rps dynamicproperties.IntPropertyFnWithDomainFilter) quotas.LimiterFactory {
+func NewSimpleDynamicRateLimiterFactory(rps dynamicproperties.IntPropertyFnWithDomainFilter) quotas.LimiterFactory[string] {
 	return dynamicRateLimiterFactory{
 		rps: rps,
 	}

@@ -63,7 +63,7 @@ func (h *historyArchiverSuite) SetupTest() {
 	h.Assertions = require.New(h.T())
 	h.container = &archiver.HistoryBootstrapContainer{
 		Logger:        testlogger.New(h.T()),
-		MetricsClient: metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
+		MetricsClient: metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}),
 	}
 	h.testArchivalURI, _ = archiver.NewURI("gs://my-bucket-cad/cadence_archival/development")
 }

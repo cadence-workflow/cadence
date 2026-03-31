@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/task"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 )
 
@@ -46,7 +47,7 @@ type processorImpl struct {
 
 	priorityAssigner PriorityAssigner
 	taskProcessor    task.Processor
-	scheduler        task.Scheduler
+	scheduler        task.Scheduler[Task]
 
 	status        int32
 	logger        log.Logger
@@ -56,6 +57,10 @@ type processorImpl struct {
 
 var (
 	errTaskProcessorNotRunning = errors.New("queue task processor is not running")
+)
+
+const (
+	ephemeralTaskListGroupKey = "__ephemeral__"
 )
 
 // NewProcessor creates a new task processor
@@ -76,36 +81,84 @@ func NewProcessor(
 			RetryPolicy: common.CreateTaskProcessingRetryPolicy(),
 		},
 	)
-	taskToChannelKeyFn := func(t task.PriorityTask) DomainPriorityKey {
-		var domainID string
-		tt, ok := t.(Task)
-		if ok {
-			domainID = tt.GetDomainID()
-		} else {
-			logger.Error("incorrect task type for task scheduler, this should not happen, there must be a bug in our code")
+	var scheduler task.Scheduler[Task]
+	var err error
+	if config.EnableHierarchicalWeightedRoundRobinTaskScheduler() {
+		taskToWeightedKeysFn := func(t Task) []task.WeightedKey[any] {
+			var domainID, taskList string
+			domainID = t.GetDomainID()
+			taskList = t.GetOriginalTaskList()
+			if t.GetOriginalTaskListKind() == types.TaskListKindEphemeral {
+				taskList = ephemeralTaskListGroupKey
+			}
+			key := DomainPriorityKey{
+				DomainID: domainID,
+				Priority: t.Priority(),
+			}
+			domainName, err := domainCache.GetDomainName(domainID)
+			if err != nil {
+				logger.Error("failed to get domain name from cache", tag.Error(err))
+				domainName = ""
+			}
+			if !config.EnableTaskListAwareTaskSchedulerByDomain(domainName) || t.Priority() != highTaskPriority {
+				return []task.WeightedKey[any]{
+					{
+						Key:    key,
+						Weight: getDomainPriorityWeight(logger, config, domainCache, key),
+					},
+				}
+			}
+			return []task.WeightedKey[any]{
+				{
+					Key:    key,
+					Weight: getDomainPriorityWeight(logger, config, domainCache, key),
+				},
+				{
+					Key:    taskList,
+					Weight: 1,
+				},
+			}
 		}
-		return DomainPriorityKey{
-			DomainID: domainID,
-			Priority: t.Priority(),
+		scheduler, err = task.NewHierarchicalWeightedRoundRobinTaskScheduler(
+			logger,
+			metricsClient,
+			timeSource,
+			taskProcessor,
+			&task.HierarchicalWeightedRoundRobinTaskPoolOptions[any, Task]{
+				BufferSize:           config.TaskSchedulerQueueSize(),
+				TaskToWeightedKeysFn: taskToWeightedKeysFn,
+			},
+		)
+		if err != nil {
+			return nil, err
 		}
-	}
-	channelKeyToWeightFn := func(k DomainPriorityKey) int {
-		return getDomainPriorityWeight(logger, config, domainCache, k)
-	}
-	scheduler, err := task.NewWeightedRoundRobinTaskScheduler(
-		logger,
-		metricsClient,
-		timeSource,
-		taskProcessor,
-		&task.WeightedRoundRobinTaskSchedulerOptions[DomainPriorityKey]{
-			QueueSize:            config.TaskSchedulerQueueSize(),
-			DispatcherCount:      config.TaskSchedulerDispatcherCount(),
-			TaskToChannelKeyFn:   taskToChannelKeyFn,
-			ChannelKeyToWeightFn: channelKeyToWeightFn,
-		},
-	)
-	if err != nil {
-		return nil, err
+	} else {
+		taskToChannelKeyFn := func(t Task) DomainPriorityKey {
+			var domainID string
+			domainID = t.GetDomainID()
+			return DomainPriorityKey{
+				DomainID: domainID,
+				Priority: t.Priority(),
+			}
+		}
+		channelKeyToWeightFn := func(k DomainPriorityKey) int {
+			return getDomainPriorityWeight(logger, config, domainCache, k)
+		}
+		scheduler, err = task.NewWeightedRoundRobinTaskScheduler(
+			logger,
+			metricsClient,
+			timeSource,
+			taskProcessor,
+			&task.WeightedRoundRobinTaskSchedulerOptions[DomainPriorityKey, Task]{
+				QueueSize:            config.TaskSchedulerQueueSize(),
+				DispatcherCount:      config.TaskSchedulerDispatcherCount(),
+				TaskToChannelKeyFn:   taskToChannelKeyFn,
+				ChannelKeyToWeightFn: channelKeyToWeightFn,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &processorImpl{
 		priorityAssigner: priorityAssigner,

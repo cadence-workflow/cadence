@@ -12,12 +12,11 @@ toolchain go1.23.4
 replace github.com/uber/cadence => ../../..
 
 // ringpop-go and tchannel-go depends on older version of thrift, yarpc brings up newer version
-replace github.com/apache/thrift => github.com/apache/thrift v0.0.0-20161221203622-b2a4d4ae21c7
+replace github.com/apache/thrift => github.com/apache/thrift v0.16.0
 
 require (
 	github.com/aws/aws-sdk-go v1.54.12 // indirect
 	github.com/cactus/go-statsd-client/statsd v0.0.0-20191106001114-12b4e2b38748 // indirect
-	github.com/cristalhq/jwt/v3 v3.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -29,11 +28,11 @@ require (
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/stretchr/testify v1.10.0
 	github.com/uber-go/tally v3.3.15+incompatible
-	github.com/uber/ringpop-go v0.8.5 // indirect
-	github.com/uber/tchannel-go v1.22.2 // indirect
+	github.com/uber/ringpop-go v0.10.0 // indirect
+	github.com/uber/tchannel-go v1.32.1 // indirect
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
-	go.uber.org/atomic v1.10.0 // indirect
-	go.uber.org/cadence v0.19.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
+	go.uber.org/cadence v1.3.0 // indirect
 	go.uber.org/config v1.4.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/thriftrw v1.29.2 // indirect
@@ -82,6 +81,7 @@ require (
 	github.com/m3db/prometheus_client_model v0.1.0 // indirect
 	github.com/m3db/prometheus_common v0.1.0 // indirect
 	github.com/m3db/prometheus_procfs v0.8.1 // indirect
+	github.com/marusama/semaphore/v2 v2.5.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

@@ -2,6 +2,7 @@ package executorclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -20,6 +21,11 @@ import (
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go . ShardProcessorFactory,ShardProcessor,Executor,Client
+
+// ErrShardProcessNotFound is returned by GetShardProcess when this host is not
+// assigned the requested shard. Callers that interpret shard ownership should
+// treat this as an ownership-loss signal rather than an internal error.
+var ErrShardProcessNotFound = errors.New("shard process not found")
 
 type Client interface {
 	Heartbeat(context.Context, *types.ExecutorHeartbeatRequest, ...yarpc.CallOption) (*types.ExecutorHeartbeatResponse, error)

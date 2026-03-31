@@ -121,7 +121,11 @@ func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, w
 		m.logger.Warn(fmt.Sprintf("Cache data for key %s is of type %T, not a *types.ActiveClusterSelectionPolicy", key, cacheData))
 	}
 
-	plcy, err := executionManager.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
+	plcy, err := executionManager.GetActiveClusterSelectionPolicy(ctx, &persistence.GetActiveClusterSelectionPolicyRequest{
+		DomainID:   domainID,
+		WorkflowID: wfID,
+		RunID:      rID,
+	})
 	if err != nil {
 		return nil, err
 	}

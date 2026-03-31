@@ -32,13 +32,13 @@ import (
 	"github.com/uber/cadence/common/metrics"
 )
 
-type fifoTaskSchedulerImpl struct {
+type fifoTaskSchedulerImpl[T Task] struct {
 	status       int32
 	logger       log.Logger
 	metricsScope metrics.Scope
 	options      *FIFOTaskSchedulerOptions
 	dispatcherWG sync.WaitGroup
-	taskCh       chan PriorityTask
+	taskCh       chan T
 	ctx          context.Context
 	cancel       context.CancelFunc
 
@@ -49,18 +49,18 @@ type fifoTaskSchedulerImpl struct {
 // it's an no-op implementation as it simply copy tasks from
 // one task channel to another task channel.
 // This scheduler is only for development purpose.
-func NewFIFOTaskScheduler(
+func NewFIFOTaskScheduler[T Task](
 	logger log.Logger,
 	metricsClient metrics.Client,
 	options *FIFOTaskSchedulerOptions,
-) Scheduler {
+) Scheduler[T] {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &fifoTaskSchedulerImpl{
+	return &fifoTaskSchedulerImpl[T]{
 		status:       common.DaemonStatusInitialized,
 		logger:       logger,
 		metricsScope: metricsClient.Scope(metrics.TaskSchedulerScope),
 		options:      options,
-		taskCh:       make(chan PriorityTask, options.QueueSize),
+		taskCh:       make(chan T, options.QueueSize),
 		ctx:          ctx,
 		cancel:       cancel,
 		processor: NewParallelTaskProcessor(
@@ -75,7 +75,7 @@ func NewFIFOTaskScheduler(
 	}
 }
 
-func (f *fifoTaskSchedulerImpl) Start() {
+func (f *fifoTaskSchedulerImpl[T]) Start() {
 	if !atomic.CompareAndSwapInt32(&f.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
@@ -90,7 +90,7 @@ func (f *fifoTaskSchedulerImpl) Start() {
 	f.logger.Info("FIFO task scheduler started.")
 }
 
-func (f *fifoTaskSchedulerImpl) Stop() {
+func (f *fifoTaskSchedulerImpl[T]) Stop() {
 	if !atomic.CompareAndSwapInt32(&f.status, common.DaemonStatusStarted, common.DaemonStatusStopped) {
 		return
 	}
@@ -108,7 +108,7 @@ func (f *fifoTaskSchedulerImpl) Stop() {
 	f.logger.Info("FIFO task scheduler shutdown.")
 }
 
-func (f *fifoTaskSchedulerImpl) Submit(task PriorityTask) error {
+func (f *fifoTaskSchedulerImpl[T]) Submit(task T) error {
 	f.metricsScope.IncCounter(metrics.ParallelTaskSubmitRequest)
 	sw := f.metricsScope.StartTimer(metrics.ParallelTaskSubmitLatency)
 	defer sw.Stop()
@@ -128,7 +128,7 @@ func (f *fifoTaskSchedulerImpl) Submit(task PriorityTask) error {
 	}
 }
 
-func (f *fifoTaskSchedulerImpl) TrySubmit(task PriorityTask) (bool, error) {
+func (f *fifoTaskSchedulerImpl[T]) TrySubmit(task T) (bool, error) {
 	if f.isStopped() {
 		return false, ErrTaskSchedulerClosed
 	}
@@ -147,7 +147,7 @@ func (f *fifoTaskSchedulerImpl) TrySubmit(task PriorityTask) (bool, error) {
 	}
 }
 
-func (f *fifoTaskSchedulerImpl) dispatcher() {
+func (f *fifoTaskSchedulerImpl[T]) dispatcher() {
 	defer f.dispatcherWG.Done()
 
 	for {
@@ -163,11 +163,11 @@ func (f *fifoTaskSchedulerImpl) dispatcher() {
 	}
 }
 
-func (f *fifoTaskSchedulerImpl) isStopped() bool {
+func (f *fifoTaskSchedulerImpl[T]) isStopped() bool {
 	return atomic.LoadInt32(&f.status) == common.DaemonStatusStopped
 }
 
-func (f *fifoTaskSchedulerImpl) drainAndNackTasks() {
+func (f *fifoTaskSchedulerImpl[T]) drainAndNackTasks() {
 	for {
 		select {
 		case task := <-f.taskCh:

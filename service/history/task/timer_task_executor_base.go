@@ -296,7 +296,11 @@ func (t *timerTaskExecutorBase) deleteActiveClusterSelectionPolicy(
 	task *persistence.DeleteHistoryEventTask,
 ) error {
 	op := func(ctx context.Context) error {
-		return t.shard.GetExecutionManager().DeleteActiveClusterSelectionPolicy(ctx, task.DomainID, task.WorkflowID, task.RunID)
+		return t.shard.GetExecutionManager().DeleteActiveClusterSelectionPolicy(ctx, &persistence.DeleteActiveClusterSelectionPolicyRequest{
+			DomainID:   task.DomainID,
+			WorkflowID: task.WorkflowID,
+			RunID:      task.RunID,
+		})
 	}
 	return t.throttleRetry.Do(ctx, op)
 }

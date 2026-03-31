@@ -92,22 +92,24 @@ type Config struct {
 	StandbyTaskMissingEventsDiscardDelay dynamicproperties.DurationPropertyFn
 
 	// Task process settings
-	TaskProcessRPS                           dynamicproperties.IntPropertyFnWithDomainFilter
-	TaskSchedulerType                        dynamicproperties.IntPropertyFn
-	TaskSchedulerWorkerCount                 dynamicproperties.IntPropertyFn
-	TaskSchedulerQueueSize                   dynamicproperties.IntPropertyFn
-	TaskSchedulerDispatcherCount             dynamicproperties.IntPropertyFn
-	TaskSchedulerRoundRobinWeights           dynamicproperties.MapPropertyFn
-	TaskSchedulerDomainRoundRobinWeights     dynamicproperties.MapPropertyFnWithDomainFilter
-	TaskSchedulerGlobalDomainRPS             dynamicproperties.IntPropertyFnWithDomainFilter
-	TaskSchedulerEnableRateLimiter           dynamicproperties.BoolPropertyFn
-	TaskSchedulerEnableRateLimiterShadowMode dynamicproperties.BoolPropertyFnWithDomainFilter
-	TaskCriticalRetryCount                   dynamicproperties.IntPropertyFn
-	ActiveTaskRedispatchInterval             dynamicproperties.DurationPropertyFn
-	StandbyTaskRedispatchInterval            dynamicproperties.DurationPropertyFn
-	StandbyTaskReReplicationContextTimeout   dynamicproperties.DurationPropertyFnWithDomainIDFilter
-	EnableDropStuckTaskByDomainID            dynamicproperties.BoolPropertyFnWithDomainIDFilter
-	ResurrectionCheckMinDelay                dynamicproperties.DurationPropertyFnWithDomainFilter
+	TaskProcessRPS                                    dynamicproperties.IntPropertyFnWithDomainFilter
+	TaskSchedulerType                                 dynamicproperties.IntPropertyFn
+	TaskSchedulerWorkerCount                          dynamicproperties.IntPropertyFn
+	TaskSchedulerQueueSize                            dynamicproperties.IntPropertyFn
+	TaskSchedulerDispatcherCount                      dynamicproperties.IntPropertyFn
+	TaskSchedulerRoundRobinWeights                    dynamicproperties.MapPropertyFn
+	TaskSchedulerDomainRoundRobinWeights              dynamicproperties.MapPropertyFnWithDomainFilter
+	TaskSchedulerGlobalDomainRPS                      dynamicproperties.IntPropertyFnWithDomainFilter
+	TaskSchedulerEnableRateLimiter                    dynamicproperties.BoolPropertyFn
+	TaskSchedulerEnableRateLimiterShadowMode          dynamicproperties.BoolPropertyFnWithDomainFilter
+	TaskCriticalRetryCount                            dynamicproperties.IntPropertyFn
+	ActiveTaskRedispatchInterval                      dynamicproperties.DurationPropertyFn
+	StandbyTaskRedispatchInterval                     dynamicproperties.DurationPropertyFn
+	StandbyTaskReReplicationContextTimeout            dynamicproperties.DurationPropertyFnWithDomainIDFilter
+	EnableDropStuckTaskByDomainID                     dynamicproperties.BoolPropertyFnWithDomainIDFilter
+	ResurrectionCheckMinDelay                         dynamicproperties.DurationPropertyFnWithDomainFilter
+	EnableHierarchicalWeightedRoundRobinTaskScheduler dynamicproperties.BoolPropertyFn
+	EnableTaskListAwareTaskSchedulerByDomain          dynamicproperties.BoolPropertyFnWithDomainFilter
 
 	// History Queue (v2) settings
 	EnableTimerQueueV2                         dynamicproperties.BoolPropertyFnWithShardIDFilter
@@ -397,22 +399,24 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		DeleteHistoryEventContextTimeout:     dc.GetIntProperty(dynamicproperties.DeleteHistoryEventContextTimeout),
 		MaxResponseSize:                      maxMessageSize,
 
-		TaskProcessRPS:                           dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskProcessRPS),
-		TaskSchedulerType:                        dc.GetIntProperty(dynamicproperties.TaskSchedulerType),
-		TaskSchedulerWorkerCount:                 dc.GetIntProperty(dynamicproperties.TaskSchedulerWorkerCount),
-		TaskSchedulerQueueSize:                   dc.GetIntProperty(dynamicproperties.TaskSchedulerQueueSize),
-		TaskSchedulerDispatcherCount:             dc.GetIntProperty(dynamicproperties.TaskSchedulerDispatcherCount),
-		TaskSchedulerRoundRobinWeights:           dc.GetMapProperty(dynamicproperties.TaskSchedulerRoundRobinWeights),
-		TaskSchedulerDomainRoundRobinWeights:     dc.GetMapPropertyFilteredByDomain(dynamicproperties.TaskSchedulerDomainRoundRobinWeights),
-		TaskSchedulerGlobalDomainRPS:             dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskSchedulerGlobalDomainRPS),
-		TaskSchedulerEnableRateLimiter:           dc.GetBoolProperty(dynamicproperties.TaskSchedulerEnableRateLimiter),
-		TaskSchedulerEnableRateLimiterShadowMode: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.TaskSchedulerEnableRateLimiterShadowMode),
-		TaskCriticalRetryCount:                   dc.GetIntProperty(dynamicproperties.TaskCriticalRetryCount),
-		ActiveTaskRedispatchInterval:             dc.GetDurationProperty(dynamicproperties.ActiveTaskRedispatchInterval),
-		StandbyTaskRedispatchInterval:            dc.GetDurationProperty(dynamicproperties.StandbyTaskRedispatchInterval),
-		StandbyTaskReReplicationContextTimeout:   dc.GetDurationPropertyFilteredByDomainID(dynamicproperties.StandbyTaskReReplicationContextTimeout),
-		EnableDropStuckTaskByDomainID:            dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.EnableDropStuckTaskByDomainID),
-		ResurrectionCheckMinDelay:                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.ResurrectionCheckMinDelay),
+		TaskProcessRPS:                                    dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskProcessRPS),
+		TaskSchedulerType:                                 dc.GetIntProperty(dynamicproperties.TaskSchedulerType),
+		TaskSchedulerWorkerCount:                          dc.GetIntProperty(dynamicproperties.TaskSchedulerWorkerCount),
+		TaskSchedulerQueueSize:                            dc.GetIntProperty(dynamicproperties.TaskSchedulerQueueSize),
+		TaskSchedulerDispatcherCount:                      dc.GetIntProperty(dynamicproperties.TaskSchedulerDispatcherCount),
+		TaskSchedulerRoundRobinWeights:                    dc.GetMapProperty(dynamicproperties.TaskSchedulerRoundRobinWeights),
+		TaskSchedulerDomainRoundRobinWeights:              dc.GetMapPropertyFilteredByDomain(dynamicproperties.TaskSchedulerDomainRoundRobinWeights),
+		TaskSchedulerGlobalDomainRPS:                      dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskSchedulerGlobalDomainRPS),
+		TaskSchedulerEnableRateLimiter:                    dc.GetBoolProperty(dynamicproperties.TaskSchedulerEnableRateLimiter),
+		TaskSchedulerEnableRateLimiterShadowMode:          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.TaskSchedulerEnableRateLimiterShadowMode),
+		TaskCriticalRetryCount:                            dc.GetIntProperty(dynamicproperties.TaskCriticalRetryCount),
+		ActiveTaskRedispatchInterval:                      dc.GetDurationProperty(dynamicproperties.ActiveTaskRedispatchInterval),
+		StandbyTaskRedispatchInterval:                     dc.GetDurationProperty(dynamicproperties.StandbyTaskRedispatchInterval),
+		StandbyTaskReReplicationContextTimeout:            dc.GetDurationPropertyFilteredByDomainID(dynamicproperties.StandbyTaskReReplicationContextTimeout),
+		EnableDropStuckTaskByDomainID:                     dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.EnableDropStuckTaskByDomainID),
+		ResurrectionCheckMinDelay:                         dc.GetDurationPropertyFilteredByDomain(dynamicproperties.ResurrectionCheckMinDelay),
+		EnableHierarchicalWeightedRoundRobinTaskScheduler: dc.GetBoolProperty(dynamicproperties.EnableHierarchicalWeightedRoundRobinTaskScheduler),
+		EnableTaskListAwareTaskSchedulerByDomain:          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTaskListAwareTaskSchedulerByDomain),
 
 		EnableTimerQueueV2:                         dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTimerQueueV2),
 		EnableTransferQueueV2:                      dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTransferQueueV2),

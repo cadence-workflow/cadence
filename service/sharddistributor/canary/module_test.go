@@ -51,10 +51,6 @@ func TestModule(t *testing.T) {
 		Namespaces: []clientcommon.NamespaceConfig{
 			{Namespace: "shard-distributor-canary", HeartBeatInterval: 5 * time.Second, MigrationMode: "onboarded"},
 			{Namespace: "shard-distributor-canary-ephemeral", HeartBeatInterval: 5 * time.Second, MigrationMode: "onboarded"},
-			{Namespace: "test-local-passthrough", HeartBeatInterval: 1 * time.Second, MigrationMode: "local_pass"},
-			{Namespace: "test-local-passthrough-shadow", HeartBeatInterval: 1 * time.Second, MigrationMode: "local_pass_shadow"},
-			{Namespace: "test-distributed-passthrough", HeartBeatInterval: 1 * time.Second, MigrationMode: "distributed_pass"},
-			{Namespace: "test-external-assignment", HeartBeatInterval: 1 * time.Second, MigrationMode: "distributed_pass"},
 		},
 	}
 
@@ -87,7 +83,6 @@ func TestModule(t *testing.T) {
 		Module(NamespacesNames{
 			FixedNamespace:              "shard-distributor-canary",
 			EphemeralNamespace:          "shard-distributor-canary-ephemeral",
-			ExternalAssignmentNamespace: "test-external-assignment",
 			SharddistributorServiceName: "cadence-shard-distributor",
 		}),
 	).RequireStart().RequireStop()

@@ -77,7 +77,7 @@ func (s *SequentialTaskProcessorSuite) SetupTest() {
 				taskQueue: taskQueue,
 			}
 		},
-		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		logger,
 	)
 }

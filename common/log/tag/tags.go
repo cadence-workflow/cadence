@@ -1245,3 +1245,7 @@ func AlertType(alertType int) Tag {
 func CacheID(cacheID string) Tag {
 	return newStringTag("cache-id", cacheID)
 }
+
+func DomainAuditOperationType(operationType fmt.Stringer) Tag {
+	return newStringTag("domain-audit-operation-type", operationType.String())
+}

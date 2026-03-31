@@ -6278,7 +6278,7 @@ func TestRecordChildExecutionCompleted(t *testing.T) {
 				shard:           mockShard,
 				clusterMetadata: mockShard.GetClusterMetadata(),
 				timeSource:      mockShard.GetTimeSource(),
-				metricsClient:   metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
+				metricsClient:   metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}),
 				logger:          mockShard.GetLogger(),
 				updateWithActionFn: func(_ context.Context, _ log.Logger, _ execution.Cache, _ string, _ types.WorkflowExecution, _ bool, _ time.Time, actionFn func(wfContext execution.Context, mutableState execution.MutableState) error) error {
 					return actionFn(nil, ms)

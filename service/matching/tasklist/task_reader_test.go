@@ -26,6 +26,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -435,6 +436,27 @@ func requireCallbackInvocation(t *testing.T, msg string) func() {
 	return func() {
 		called = true
 	}
+}
+
+func TestGetTasksPumpHandleErrStopNoDeadlock(t *testing.T) {
+	controller := gomock.NewController(t)
+	c := defaultConfig()
+	c.UpdateAckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
+
+	tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), controller, c, clock.NewRealTimeSource())
+
+	err := tlm.taskWriter.Start()
+	require.NoError(t, err)
+
+	// Force ConditionFailedError on the next persistAckLevel -> handleErr -> Stop() path
+	tm := tlm.db.store.(*TestTaskManager)
+	tm.SetRangeID(tlm.taskListID, 999)
+
+	tlm.taskReader.Start()
+
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt32(&tlm.stopped) == 1
+	}, 5*time.Second, 10*time.Millisecond)
 }
 
 func TestTaskReaderBatchSizeValidation(t *testing.T) {

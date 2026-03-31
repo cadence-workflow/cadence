@@ -1652,7 +1652,7 @@ func newTaskHandlerForTest(t *testing.T) *taskHandlerImpl {
 		testTaskCompletedID,
 		mockMutableState,
 		&persistence.ExecutionStats{},
-		metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}).Scope(metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DomainTag(constants.TestDomainName)),
+		metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}).Scope(metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DomainTag(constants.TestDomainName)),
 		testLogger,
 	)
 	mockMutableState.EXPECT().HasBufferedEvents().Return(false)
@@ -1661,12 +1661,12 @@ func newTaskHandlerForTest(t *testing.T) *taskHandlerImpl {
 		testTaskCompletedID,
 		constants.TestLocalDomainEntry,
 		mockMutableState,
-		newAttrValidator(mockDomainCache, metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}), testConfig, testlogger.New(t)),
+		newAttrValidator(mockDomainCache, metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}), testConfig, testlogger.New(t)),
 		workflowSizeChecker,
 		common.NewMockTaskTokenSerializer(ctrl),
 		testLogger,
 		mockDomainCache,
-		metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}),
 		testConfig,
 	)
 	return taskHandler

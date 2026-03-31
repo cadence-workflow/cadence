@@ -67,6 +67,10 @@ const (
 	// _defaultSDReportTTL is the default TTL for shard status reports from matching executor to shard distributor.
 	// This controls how frequently the executor reports its shard load/status to the distributor.
 	_defaultSDReportTTL = 1 * time.Minute
+	// _recordTaskStartedTimeout is the maximum time allowed for RecordDecisionTaskStarted or RecordActivityTaskStarted
+	// Any time we spend attempting to start an individual task is blocking that poller from starting a different task.
+	// If a task is taking too long we'd rather try other tasks to maintain higher throughput.
+	_recordTaskStartedTimeout = time.Second
 )
 
 // Implements matching.Engine
@@ -116,7 +120,7 @@ type (
 )
 
 var (
-	historyServiceOperationRetryPolicy = common.CreateHistoryServiceRetryPolicy()
+	recordTaskStartedRetryPolicy = common.CreateRecordTaskStartedRetryPolicy()
 
 	errPumpClosed = errors.New("task list pump closed its channel")
 
@@ -190,6 +194,21 @@ func (e *matchingEngineImpl) Stop() {
 }
 
 func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient executorclient.Client) {
+	// If no shard-distributor namespaces are configured, use a no-op executor so that
+	// the matching service falls back to local hash-ring assignment entirely.
+	if len(e.ShardDistributorMatchingConfig.Namespaces) == 0 {
+		e.logger.Info("No shard-distributor-matching namespaces configured, using no-op executor")
+		e.executor = executorclient.NewNoopExecutor[tasklist.ShardProcessor]()
+
+		taskListFactory := &tasklist.ShardProcessorFactory{
+			TaskListsRegistry: e.taskListRegistry,
+			ReportTTL:         _defaultSDReportTTL,
+			TimeSource:        e.timeSource,
+		}
+		e.taskListsFactory = taskListFactory
+		return
+	}
+
 	cfg, reportTTL := e.getValidatedShardDistributorConfig()
 
 	taskListFactory := &tasklist.ShardProcessorFactory{
@@ -1367,8 +1386,10 @@ func (e *matchingEngineImpl) recordDecisionTaskStarted(
 		return err
 	}
 	throttleRetry := backoff.NewThrottleRetry(
-		backoff.WithRetryPolicy(historyServiceOperationRetryPolicy),
+		backoff.WithRetryPolicy(recordTaskStartedRetryPolicy),
 		backoff.WithRetryableError(isMatchingRetryableError),
+		backoff.WithOperationTimeout(_recordTaskStartedTimeout),
+		backoff.WithContextExpiration(),
 	)
 	err := throttleRetry.Do(ctx, op)
 	return resp, err
@@ -1394,8 +1415,10 @@ func (e *matchingEngineImpl) recordActivityTaskStarted(
 		return err
 	}
 	throttleRetry := backoff.NewThrottleRetry(
-		backoff.WithRetryPolicy(historyServiceOperationRetryPolicy),
+		backoff.WithRetryPolicy(recordTaskStartedRetryPolicy),
 		backoff.WithRetryableError(isMatchingRetryableError),
+		backoff.WithOperationTimeout(_recordTaskStartedTimeout),
+		backoff.WithContextExpiration(),
 	)
 	err := throttleRetry.Do(ctx, op)
 	return resp, err
@@ -1505,6 +1528,11 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
 		sp, err := e.executor.GetShardProcess(ctx, taskList.GetName())
 		if err != nil {
+			if errors.Is(err, executorclient.ErrShardProcessNotFound) {
+				// The shard is not assigned to this host – treat it as an ownership loss,
+				// not an internal error.
+				return newNotOwnedByHostError("not known")
+			}
 			return fmt.Errorf("failed to lookup ownership in SD: %w", err)
 		}
 		if sp == nil {
@@ -1521,7 +1549,6 @@ func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskLi
 	if err != nil {
 		return fmt.Errorf("failed to lookup task list owner: %w", err)
 	}
-
 	if taskListOwner.Identity() != self.Identity() {
 		e.logger.Warn("Request to get tasklist is being rejected because engine does not own this shard",
 			tag.WorkflowDomainID(taskList.GetDomainID()),

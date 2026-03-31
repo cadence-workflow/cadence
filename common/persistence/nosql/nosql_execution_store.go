@@ -542,9 +542,9 @@ func (d *nosqlExecutionStore) DeleteCurrentWorkflowExecution(
 
 func (d *nosqlExecutionStore) DeleteActiveClusterSelectionPolicy(
 	ctx context.Context,
-	domainID, workflowID, runID string,
+	request *persistence.DeleteActiveClusterSelectionPolicyRequest,
 ) error {
-	err := d.db.DeleteActiveClusterSelectionPolicy(ctx, d.shardID, domainID, workflowID, runID)
+	err := d.db.DeleteActiveClusterSelectionPolicy(ctx, d.shardID, request.DomainID, request.WorkflowID, request.RunID)
 	if err != nil {
 		return convertCommonErrors(d.db, "DeleteActiveClusterSelectionPolicy", err)
 	}
@@ -951,13 +951,13 @@ func (d *nosqlExecutionStore) rangeCompleteImmediateHistoryTask(
 
 func (d *nosqlExecutionStore) GetActiveClusterSelectionPolicy(
 	ctx context.Context,
-	domainID, wfID, rID string,
+	request *persistence.GetActiveClusterSelectionPolicyRequest,
 ) (*persistence.DataBlob, error) {
-	row, err := d.db.SelectActiveClusterSelectionPolicy(ctx, d.shardID, domainID, wfID, rID)
+	row, err := d.db.SelectActiveClusterSelectionPolicy(ctx, d.shardID, request.DomainID, request.WorkflowID, request.RunID)
 	if err != nil {
 		if d.db.IsNotFoundError(err) {
 			return nil, &types.EntityNotExistsError{
-				Message: fmt.Sprintf("Active cluster selection policy not found.  DomainId: %v, WorkflowId: %v, RunId: %v", domainID, wfID, rID),
+				Message: fmt.Sprintf("Active cluster selection policy not found.  DomainId: %v, WorkflowId: %v, RunId: %v", request.DomainID, request.WorkflowID, request.RunID),
 			}
 		}
 

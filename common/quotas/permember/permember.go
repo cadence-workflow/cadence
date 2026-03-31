@@ -53,7 +53,7 @@ func NewPerMemberDynamicRateLimiterFactory(
 	globalRPS dynamicproperties.IntPropertyFnWithDomainFilter,
 	instanceRPS dynamicproperties.IntPropertyFnWithDomainFilter,
 	resolver membership.Resolver,
-) quotas.LimiterFactory {
+) quotas.LimiterFactory[string] {
 	return perMemberFactory{
 		service:     service,
 		globalRPS:   globalRPS,

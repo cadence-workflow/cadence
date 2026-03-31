@@ -220,11 +220,11 @@ type globalRatelimiterCollections struct {
 // - "local" limits, which do not use global-load-balancing to adjust to request load
 // - fallbacks within "global" limits, for when the global-load information cannot be retrieved (startup, errors, etc)
 type ratelimiterCollections struct {
-	user, worker, visibility, async *quotas.Collection
+	user, worker, visibility, async *quotas.Collection[string]
 }
 
 func (s *Service) createGlobalQuotaCollections() (globalRatelimiterCollections, error) {
-	create := func(name string, local, global *quotas.Collection, targetRPS dynamicproperties.IntPropertyFnWithDomainFilter) (*collection.Collection, error) {
+	create := func(name string, local, global *quotas.Collection[string], targetRPS dynamicproperties.IntPropertyFnWithDomainFilter) (*collection.Collection, error) {
 		c, err := collection.New(
 			name,
 			local,
@@ -268,7 +268,7 @@ func (s *Service) createGlobalQuotaCollections() (globalRatelimiterCollections, 
 	}, combinedErr
 }
 func (s *Service) createBaseLimiters() ratelimiterCollections {
-	create := func(shared, perInstance dynamicproperties.IntPropertyFnWithDomainFilter) *quotas.Collection {
+	create := func(shared, perInstance dynamicproperties.IntPropertyFnWithDomainFilter) *quotas.Collection[string] {
 		return quotas.NewCollection(permember.NewPerMemberDynamicRateLimiterFactory(
 			service.Frontend,
 			shared,

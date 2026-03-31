@@ -23,6 +23,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/golang/snappy"
 	"github.com/google/uuid"
@@ -32,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/codec"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/thrift"
 )
@@ -93,23 +95,28 @@ func (m *domainAuditManagerImpl) CreateDomainAuditLog(
 	encodingType := constants.EncodingTypeThriftRWSnappy
 
 	// Serialize StateBefore using thrift+snappy
-	var stateBeforeBlob *DataBlob
-	if request.StateBefore != nil {
-		blob, err := serializeGetDomainResponse(request.StateBefore, encodingType)
-		if err != nil {
-			return nil, err
-		}
-		stateBeforeBlob = blob
+	// To support non-nullable columns in SQL databases we serialize an empty GetDomainResponse{} if nil
+	stateBefore := request.StateBefore
+	if stateBefore == nil {
+		stateBefore = &GetDomainResponse{}
+	}
+	stateBeforeBlob, err := serializeGetDomainResponse(stateBefore, encodingType)
+	if err != nil {
+		return nil, err
 	}
 
 	// Serialize StateAfter using thrift+snappy
-	var stateAfterBlob *DataBlob
-	if request.StateAfter != nil {
-		blob, err := serializeGetDomainResponse(request.StateAfter, encodingType)
-		if err != nil {
-			return nil, err
+	// To support non-nullable columns in SQL databases we serialize an empty GetDomainResponse{} if nil
+	stateAfter := request.StateAfter
+	if stateAfter == nil {
+		if request.OperationType != DomainAuditOperationTypeDelete {
+			m.logger.Warn("Domain has been updated to an empty state, this could be a bug", tag.WorkflowDomainID(request.DomainID), tag.DomainAuditOperationType(request.OperationType))
 		}
-		stateAfterBlob = blob
+		stateAfter = &GetDomainResponse{}
+	}
+	stateAfterBlob, err := serializeGetDomainResponse(stateAfter, encodingType)
+	if err != nil {
+		return nil, err
 	}
 
 	// Get TTL from dynamic config using domain ID
@@ -134,7 +141,17 @@ func (m *domainAuditManagerImpl) GetDomainAuditLogs(
 	ctx context.Context,
 	request *GetDomainAuditLogsRequest,
 ) (*GetDomainAuditLogsResponse, error) {
-	internalResp, err := m.persistence.GetDomainAuditLogs(ctx, request)
+	req := *request
+	if req.MinCreatedTime == nil {
+		start := time.Unix(0, 0)
+		req.MinCreatedTime = &start
+	}
+	if req.MaxCreatedTime == nil {
+		end := m.timeSrc.Now()
+		req.MaxCreatedTime = &end
+	}
+
+	internalResp, err := m.persistence.GetDomainAuditLogs(ctx, &req)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +176,10 @@ func (m *domainAuditManagerImpl) GetDomainAuditLogs(
 			if err != nil {
 				return nil, err
 			}
-			log.StateBefore = stateBefore
+			// Only set if not an empty sentinel value
+			if !isEmptyGetDomainResponse(stateBefore) {
+				log.StateBefore = stateBefore
+			}
 		}
 
 		// Deserialize StateAfter
@@ -168,7 +188,10 @@ func (m *domainAuditManagerImpl) GetDomainAuditLogs(
 			if err != nil {
 				return nil, err
 			}
-			log.StateAfter = stateAfter
+			// Only set if not an empty sentinel value
+			if !isEmptyGetDomainResponse(stateAfter) {
+				log.StateAfter = stateAfter
+			}
 		}
 
 		auditLogs[i] = log
@@ -268,4 +291,12 @@ func deserializeGetDomainResponse(blob *DataBlob) (*GetDomainResponse, error) {
 
 	// Convert types.DescribeDomainResponse to persistence.GetDomainResponse
 	return FromDescribeDomainResponse(typesResp), nil
+}
+
+// isEmptyGetDomainResponse checks if a GetDomainResponse is empty (sentinel value for nil)
+func isEmptyGetDomainResponse(resp *GetDomainResponse) bool {
+	if resp == nil {
+		return true
+	}
+	return resp.Info == nil && resp.Config == nil && resp.ReplicationConfig == nil
 }

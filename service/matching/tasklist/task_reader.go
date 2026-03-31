@@ -153,11 +153,7 @@ func (tr *taskReader) Start() {
 			tr.dispatchBufferedTasks(g)
 		}()
 	}
-	tr.stopWg.Add(1)
-	go func() {
-		defer tr.stopWg.Done()
-		tr.getTasksPump()
-	}()
+	go tr.getTasksPump()
 }
 
 func (tr *taskReader) Stop() {

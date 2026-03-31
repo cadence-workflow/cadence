@@ -39,6 +39,7 @@ func NewExecutionManager(
 			enableLatencyHistogramMetrics: cfg.EnablePersistenceLatencyHistogramMetrics,
 			sampleLoggingRate:             sampleLoggingRate,
 			enableShardIDMetrics:          enableShardIDMetrics,
+			hostName:                      cfg.HostName,
 		},
 	}
 }
@@ -146,15 +147,15 @@ func (c *meteredExecutionManager) CreateWorkflowExecution(ctx context.Context, r
 	return
 }
 
-func (c *meteredExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID string, workflowID string, runID string) (err error) {
+func (c *meteredExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, request *persistence.DeleteActiveClusterSelectionPolicyRequest) (err error) {
 	op := func() error {
-		err = c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
+		err = c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, request)
 		return err
 	}
 
 	retryCount := getRetryCountFromContext(ctx)
-	if domainName, hasDomainName := getDomainNameFromRequest(domainID); hasDomainName {
-		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(domainID)...)
+	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
 		c.logger.SampleInfo("Persistence DeleteActiveClusterSelectionPolicy called", c.sampleLoggingRate(), logTags...)
 		if c.enableShardIDMetrics() {
 			err = c.callWithDomainAndShardScope(metrics.PersistenceDeleteActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName),
@@ -165,7 +166,7 @@ func (c *meteredExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceDeleteActiveClusterSelectionPolicyScope, op, append(getCustomMetricTags(domainID), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceDeleteActiveClusterSelectionPolicyScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 
 	return
 }
@@ -242,16 +243,16 @@ func (c *meteredExecutionManager) DeleteWorkflowExecution(ctx context.Context, r
 	return
 }
 
-func (c *meteredExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, domainID string, wfID string, rID string) (ap1 *types.ActiveClusterSelectionPolicy, err error) {
+func (c *meteredExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, request *persistence.GetActiveClusterSelectionPolicyRequest) (ap1 *types.ActiveClusterSelectionPolicy, err error) {
 	op := func() error {
-		ap1, err = c.wrapped.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
-		c.emptyMetric("ExecutionManager.GetActiveClusterSelectionPolicy", domainID, ap1, err)
+		ap1, err = c.wrapped.GetActiveClusterSelectionPolicy(ctx, request)
+		c.emptyMetric("ExecutionManager.GetActiveClusterSelectionPolicy", request, ap1, err)
 		return err
 	}
 
 	retryCount := getRetryCountFromContext(ctx)
-	if domainName, hasDomainName := getDomainNameFromRequest(domainID); hasDomainName {
-		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(domainID)...)
+	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
 		c.logger.SampleInfo("Persistence GetActiveClusterSelectionPolicy called", c.sampleLoggingRate(), logTags...)
 		if c.enableShardIDMetrics() {
 			err = c.callWithDomainAndShardScope(metrics.PersistenceGetActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName),
@@ -262,7 +263,7 @@ func (c *meteredExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Co
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceGetActiveClusterSelectionPolicyScope, op, append(getCustomMetricTags(domainID), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceGetActiveClusterSelectionPolicyScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 
 	return
 }

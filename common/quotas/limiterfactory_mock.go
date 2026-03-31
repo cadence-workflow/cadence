@@ -16,39 +16,39 @@ import (
 )
 
 // MockLimiterFactory is a mock of LimiterFactory interface.
-type MockLimiterFactory struct {
+type MockLimiterFactory[K comparable] struct {
 	ctrl     *gomock.Controller
-	recorder *MockLimiterFactoryMockRecorder
+	recorder *MockLimiterFactoryMockRecorder[K]
 	isgomock struct{}
 }
 
 // MockLimiterFactoryMockRecorder is the mock recorder for MockLimiterFactory.
-type MockLimiterFactoryMockRecorder struct {
-	mock *MockLimiterFactory
+type MockLimiterFactoryMockRecorder[K comparable] struct {
+	mock *MockLimiterFactory[K]
 }
 
 // NewMockLimiterFactory creates a new mock instance.
-func NewMockLimiterFactory(ctrl *gomock.Controller) *MockLimiterFactory {
-	mock := &MockLimiterFactory{ctrl: ctrl}
-	mock.recorder = &MockLimiterFactoryMockRecorder{mock}
+func NewMockLimiterFactory[K comparable](ctrl *gomock.Controller) *MockLimiterFactory[K] {
+	mock := &MockLimiterFactory[K]{ctrl: ctrl}
+	mock.recorder = &MockLimiterFactoryMockRecorder[K]{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockLimiterFactory) EXPECT() *MockLimiterFactoryMockRecorder {
+func (m *MockLimiterFactory[K]) EXPECT() *MockLimiterFactoryMockRecorder[K] {
 	return m.recorder
 }
 
 // GetLimiter mocks base method.
-func (m *MockLimiterFactory) GetLimiter(domain string) Limiter {
+func (m *MockLimiterFactory[K]) GetLimiter(key K) Limiter {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLimiter", domain)
+	ret := m.ctrl.Call(m, "GetLimiter", key)
 	ret0, _ := ret[0].(Limiter)
 	return ret0
 }
 
 // GetLimiter indicates an expected call of GetLimiter.
-func (mr *MockLimiterFactoryMockRecorder) GetLimiter(domain any) *gomock.Call {
+func (mr *MockLimiterFactoryMockRecorder[K]) GetLimiter(key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLimiter", reflect.TypeOf((*MockLimiterFactory)(nil).GetLimiter), domain)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLimiter", reflect.TypeOf((*MockLimiterFactory[K])(nil).GetLimiter), key)
 }

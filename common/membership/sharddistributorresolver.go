@@ -147,6 +147,12 @@ func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
 	return s.ring.Lookup(key)
 }
 
+// LookupN delegates to the underlying hash ring; the shard distributor does
+// not yet support multi-host lookup.
+func (s shardDistributorResolver) LookupN(key string, n int) ([]HostInfo, error) {
+	return s.ring.LookupN(key, n)
+}
+
 func (s shardDistributorResolver) Subscribe(name string, channel chan<- *ChangedEvent) error {
 	// Shard distributor does not support subscription yet, so use the ring
 	return s.ring.Subscribe(name, channel)

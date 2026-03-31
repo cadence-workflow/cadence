@@ -133,6 +133,7 @@ services:
       - "CADENCE_GRPC_PEERS=cadence:7833,cadence-secondary:7833"
       - "CADENCE_GRPC_SERVICES_NAMES=cadence-frontend,cadence-frontend"
       - "CADENCE_CLUSTERS_NAMES=cluster0,cluster1"
+      - "CADENCE_HISTORY_PAGE_V2_ENABLED=OPT_OUT"
     ports:
       - "8088:8088"
     depends_on:
