@@ -366,33 +366,85 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 	return true
 }
 
-// processScheduleFire executes the configured action for a single schedule fire.
-// It calls the start-workflow activity, updates state counters, and logs the outcome.
-// Activity failures do not terminate the schedule, they are logged and counted as missed runs.
+// processScheduleFire executes the configured action for a single schedule fire,
+// enforcing the overlap policy when a previous target workflow is still running.
+// Activity failures do not terminate the schedule; they are logged and counted as missed runs.
 func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource) {
 	state.LastRunTime = scheduledTime
-	state.TotalRuns++
 
 	logger.Info("schedule fired",
 		zap.Time("scheduledTime", scheduledTime),
-		zap.Int64("totalRuns", state.TotalRuns),
 	)
 
-	activityOpts := workflow.LocalActivityOptions{
-		ScheduleToCloseTimeout: localActivityScheduleToCloseTimeout,
-		RetryPolicy: &workflow.RetryPolicy{
-			InitialInterval:    localActivityRetryInitialInterval,
-			MaximumInterval:    localActivityRetryMaxInterval,
-			MaximumAttempts:    localActivityMaxRetries,
-			BackoffCoefficient: 2,
-		},
-	}
-	actCtx := workflow.WithLocalActivityOptions(ctx, activityOpts)
+	actCtx := workflow.WithLocalActivityOptions(ctx, defaultActivityOptions())
 
 	if input.Action.StartWorkflow == nil {
 		state.MissedRuns++
 		logger.Error("schedule action has no StartWorkflow configuration")
 		return
+	}
+
+	policy := input.Policies.OverlapPolicy
+	if policy == types.ScheduleOverlapPolicyInvalid {
+		policy = types.ScheduleOverlapPolicySkipNew
+	}
+
+	if policy != types.ScheduleOverlapPolicyConcurrent && state.LastStartedWorkflow != nil {
+		running := isPreviousRunning(ctx, actCtx, logger, input.Domain, state)
+		if running {
+			switch policy {
+			case types.ScheduleOverlapPolicySkipNew:
+				state.SkippedRuns++
+				logger.Info("skipping fire due to overlap policy SKIP_NEW",
+					zap.Time("scheduledTime", scheduledTime),
+					zap.String("runningWorkflowId", state.LastStartedWorkflow.WorkflowID),
+				)
+				return
+			case types.ScheduleOverlapPolicyBuffer:
+				state.BufferedRuns++
+				state.SkippedRuns++
+				logger.Info("skipping fire due to overlap policy BUFFER (sequential execution not yet implemented)",
+					zap.Time("scheduledTime", scheduledTime),
+					zap.String("runningWorkflowId", state.LastStartedWorkflow.WorkflowID),
+				)
+				// TODO(overlap-buffer): implement sequential buffered execution
+				return
+			case types.ScheduleOverlapPolicyCancelPrevious:
+				logger.Info("cancelling previous workflow due to overlap policy",
+					zap.String("workflowId", state.LastStartedWorkflow.WorkflowID),
+				)
+				if err := workflow.ExecuteLocalActivity(actCtx, cancelWorkflowActivity, TerminateWorkflowRequest{
+					Domain:     input.Domain,
+					WorkflowID: state.LastStartedWorkflow.WorkflowID,
+					RunID:      state.LastStartedWorkflow.RunID,
+					Reason:     "schedule overlap policy: CANCEL_PREVIOUS",
+				}).Get(ctx, nil); err != nil {
+					logger.Error("failed to cancel previous workflow, skipping new fire",
+						zap.String("workflowId", state.LastStartedWorkflow.WorkflowID),
+						zap.Error(err),
+					)
+					state.MissedRuns++
+					return
+				}
+			case types.ScheduleOverlapPolicyTerminatePrevious:
+				logger.Info("terminating previous workflow due to overlap policy",
+					zap.String("workflowId", state.LastStartedWorkflow.WorkflowID),
+				)
+				if err := workflow.ExecuteLocalActivity(actCtx, terminateWorkflowActivity, TerminateWorkflowRequest{
+					Domain:     input.Domain,
+					WorkflowID: state.LastStartedWorkflow.WorkflowID,
+					RunID:      state.LastStartedWorkflow.RunID,
+					Reason:     "schedule overlap policy: TERMINATE_PREVIOUS",
+				}).Get(ctx, nil); err != nil {
+					logger.Error("failed to terminate previous workflow, skipping new fire",
+						zap.String("workflowId", state.LastStartedWorkflow.WorkflowID),
+						zap.Error(err),
+					)
+					state.MissedRuns++
+					return
+				}
+			}
+		}
 	}
 
 	req := StartWorkflowRequest{
@@ -416,16 +468,63 @@ func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *Schedu
 
 	if result.Skipped {
 		state.SkippedRuns++
-		logger.Info("scheduled action skipped (already running)",
+		// The workflow exists and is running (AlreadyStartedError), so update
+		// tracking to point at it for future overlap checks.
+		state.LastStartedWorkflow = &RunningWorkflowInfo{
+			WorkflowID: result.WorkflowID,
+		}
+		logger.Info("scheduled action skipped (already started error)",
 			zap.String("workflowId", result.WorkflowID),
 		)
 		return
 	}
 
+	state.TotalRuns++
+	state.LastStartedWorkflow = &RunningWorkflowInfo{
+		WorkflowID: result.WorkflowID,
+		RunID:      result.RunID,
+	}
+
 	logger.Info("scheduled workflow started",
 		zap.String("workflowId", result.WorkflowID),
 		zap.String("runId", result.RunID),
+		zap.Int64("totalRuns", state.TotalRuns),
 	)
+}
+
+// isPreviousRunning checks if the last started target workflow is still running.
+func isPreviousRunning(ctx workflow.Context, actCtx workflow.Context, logger *zap.Logger, domain string, state *SchedulerWorkflowState) bool {
+	if state.LastStartedWorkflow == nil {
+		return false
+	}
+	var descResult DescribeWorkflowResult
+	err := workflow.ExecuteLocalActivity(actCtx, describeWorkflowActivity, DescribeWorkflowRequest{
+		Domain:     domain,
+		WorkflowID: state.LastStartedWorkflow.WorkflowID,
+		RunID:      state.LastStartedWorkflow.RunID,
+	}).Get(ctx, &descResult)
+	if err != nil {
+		logger.Warn("failed to check previous workflow status, assuming not running",
+			zap.String("workflowId", state.LastStartedWorkflow.WorkflowID),
+			zap.Error(err),
+		)
+		return false
+	}
+	return descResult.IsRunning
+}
+
+// defaultActivityOptions returns the standard local activity options used by
+// all scheduler activities.
+func defaultActivityOptions() workflow.LocalActivityOptions {
+	return workflow.LocalActivityOptions{
+		ScheduleToCloseTimeout: localActivityScheduleToCloseTimeout,
+		RetryPolicy: &workflow.RetryPolicy{
+			InitialInterval:    localActivityRetryInitialInterval,
+			MaximumInterval:    localActivityRetryMaxInterval,
+			MaximumAttempts:    localActivityMaxRetries,
+			BackoffCoefficient: 2,
+		},
+	}
 }
 
 // computeNextRunTime determines the next fire time for the cron schedule,

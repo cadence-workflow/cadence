@@ -75,6 +75,17 @@ type SchedulerWorkflowState struct {
 	Iterations        int               `json:"iterations"`
 	BufferedRuns      int               `json:"bufferedRuns"`
 	PendingBackfills  []BackfillRequest `json:"pendingBackfills,omitempty"`
+	// LastStartedWorkflow tracks the most recently started target workflow so
+	// the overlap policy can check whether it is still running before starting
+	// the next one. Nil when no workflow has been started yet.
+	LastStartedWorkflow *RunningWorkflowInfo `json:"lastStartedWorkflow,omitempty"`
+}
+
+// RunningWorkflowInfo identifies a target workflow started by the scheduler,
+// used for overlap policy checks.
+type RunningWorkflowInfo struct {
+	WorkflowID string `json:"workflowId"`
+	RunID      string `json:"runId"`
 }
 
 // BackfillRequest is a queued backfill that persists across ContinueAsNew.
@@ -155,4 +166,24 @@ type StartWorkflowResult struct {
 	RunID      string `json:"runId"`
 	Started    bool   `json:"started"`
 	Skipped    bool   `json:"skipped"`
+}
+
+// DescribeWorkflowRequest is the input to the describe-workflow activity.
+type DescribeWorkflowRequest struct {
+	Domain     string `json:"domain"`
+	WorkflowID string `json:"workflowId"`
+	RunID      string `json:"runId"`
+}
+
+// DescribeWorkflowResult is the output of the describe-workflow activity.
+type DescribeWorkflowResult struct {
+	IsRunning bool `json:"isRunning"`
+}
+
+// TerminateWorkflowRequest is the input to the terminate/cancel workflow activity.
+type TerminateWorkflowRequest struct {
+	Domain     string `json:"domain"`
+	WorkflowID string `json:"workflowId"`
+	RunID      string `json:"runId"`
+	Reason     string `json:"reason"`
 }

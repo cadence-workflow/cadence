@@ -251,6 +251,195 @@ func TestStartWorkflowActivity_MissingContext(t *testing.T) {
 	assert.Contains(t, err.Error(), "scheduler context not found")
 }
 
+func TestDescribeWorkflowActivity(t *testing.T) {
+	tests := []struct {
+		name       string
+		setupMock  func(m *frontend.MockClient)
+		wantResult *DescribeWorkflowResult
+		wantErr    bool
+	}{
+		{
+			name: "running workflow",
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+							CloseStatus: nil,
+						},
+					}, nil)
+			},
+			wantResult: &DescribeWorkflowResult{IsRunning: true},
+		},
+		{
+			name: "closed workflow",
+			setupMock: func(m *frontend.MockClient) {
+				status := types.WorkflowExecutionCloseStatusCompleted
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{
+							CloseStatus: &status,
+						},
+					}, nil)
+			},
+			wantResult: &DescribeWorkflowResult{IsRunning: false},
+		},
+		{
+			name: "entity not found",
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(nil, &types.EntityNotExistsError{Message: "not found"})
+			},
+			wantResult: &DescribeWorkflowResult{IsRunning: false},
+		},
+		{
+			name: "transient error propagated",
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("connection refused"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockClient := frontend.NewMockClient(ctrl)
+			tc.setupMock(mockClient)
+
+			ctx := context.WithValue(context.Background(), schedulerContextKey, schedulerContext{
+				FrontendClient: mockClient,
+			})
+
+			result, err := describeWorkflowActivity(ctx, DescribeWorkflowRequest{
+				Domain:     "test-domain",
+				WorkflowID: "wf-1",
+				RunID:      "run-1",
+			})
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantResult, result)
+		})
+	}
+}
+
+func TestCancelWorkflowActivity(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupMock func(m *frontend.MockClient)
+		wantErr   bool
+	}{
+		{
+			name: "successful cancel",
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().RequestCancelWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil)
+			},
+		},
+		{
+			name: "entity not found is not an error",
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().RequestCancelWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.EntityNotExistsError{Message: "not found"})
+			},
+		},
+		{
+			name: "transient error propagated",
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().RequestCancelWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(errors.New("connection refused"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockClient := frontend.NewMockClient(ctrl)
+			tc.setupMock(mockClient)
+
+			ctx := context.WithValue(context.Background(), schedulerContextKey, schedulerContext{
+				FrontendClient: mockClient,
+			})
+
+			err := cancelWorkflowActivity(ctx, TerminateWorkflowRequest{
+				Domain:     "test-domain",
+				WorkflowID: "wf-1",
+				RunID:      "run-1",
+				Reason:     "overlap",
+			})
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestTerminateWorkflowActivity(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupMock func(m *frontend.MockClient)
+		wantErr   bool
+	}{
+		{
+			name: "successful terminate",
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil)
+			},
+		},
+		{
+			name: "entity not found is not an error",
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.EntityNotExistsError{Message: "not found"})
+			},
+		},
+		{
+			name: "transient error propagated",
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(errors.New("connection refused"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockClient := frontend.NewMockClient(ctrl)
+			tc.setupMock(mockClient)
+
+			ctx := context.WithValue(context.Background(), schedulerContextKey, schedulerContext{
+				FrontendClient: mockClient,
+			})
+
+			err := terminateWorkflowActivity(ctx, TerminateWorkflowRequest{
+				Domain:     "test-domain",
+				WorkflowID: "wf-1",
+				RunID:      "run-1",
+				Reason:     "overlap",
+			})
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestIsEntityNotExistsError(t *testing.T) {
+	assert.True(t, isEntityNotExistsError(&types.EntityNotExistsError{Message: "not found"}))
+	assert.False(t, isEntityNotExistsError(errors.New("other")))
+	assert.False(t, isEntityNotExistsError(nil))
+}
+
 func formatTime(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
