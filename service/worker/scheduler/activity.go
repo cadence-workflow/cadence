@@ -184,3 +184,75 @@ func isEntityNotExistsError(err error) bool {
 	var notExists *types.EntityNotExistsError
 	return errors.As(err, &notExists)
 }
+
+// describeWorkflowActivity checks if a target workflow is still running.
+func describeWorkflowActivity(ctx context.Context, req DescribeWorkflowRequest) (*DescribeWorkflowResult, error) {
+	sc, ok := ctx.Value(schedulerContextKey).(schedulerContext)
+	if !ok {
+		return nil, fmt.Errorf("scheduler context not found in activity context")
+	}
+
+	resp, err := sc.FrontendClient.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
+		Domain: req.Domain,
+		Execution: &types.WorkflowExecution{
+			WorkflowID: req.WorkflowID,
+			RunID:      req.RunID,
+		},
+	})
+	if err != nil {
+		if isEntityNotExistsError(err) {
+			return &DescribeWorkflowResult{IsRunning: false}, nil
+		}
+		return nil, fmt.Errorf("failed to describe workflow: %w", err)
+	}
+
+	running := resp.WorkflowExecutionInfo != nil &&
+		resp.WorkflowExecutionInfo.CloseStatus == nil
+	return &DescribeWorkflowResult{IsRunning: running}, nil
+}
+
+// cancelWorkflowActivity sends a cancellation request to a running workflow.
+func cancelWorkflowActivity(ctx context.Context, req TerminateWorkflowRequest) error {
+	sc, ok := ctx.Value(schedulerContextKey).(schedulerContext)
+	if !ok {
+		return fmt.Errorf("scheduler context not found in activity context")
+	}
+
+	err := sc.FrontendClient.RequestCancelWorkflowExecution(ctx, &types.RequestCancelWorkflowExecutionRequest{
+		Domain: req.Domain,
+		WorkflowExecution: &types.WorkflowExecution{
+			WorkflowID: req.WorkflowID,
+			RunID:      req.RunID,
+		},
+	})
+	if err != nil && !isEntityNotExistsError(err) {
+		return fmt.Errorf("failed to cancel workflow: %w", err)
+	}
+	return nil
+}
+
+// terminateWorkflowActivity forcefully terminates a running workflow.
+func terminateWorkflowActivity(ctx context.Context, req TerminateWorkflowRequest) error {
+	sc, ok := ctx.Value(schedulerContextKey).(schedulerContext)
+	if !ok {
+		return fmt.Errorf("scheduler context not found in activity context")
+	}
+
+	err := sc.FrontendClient.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
+		Domain: req.Domain,
+		WorkflowExecution: &types.WorkflowExecution{
+			WorkflowID: req.WorkflowID,
+			RunID:      req.RunID,
+		},
+		Reason: req.Reason,
+	})
+	if err != nil && !isEntityNotExistsError(err) {
+		return fmt.Errorf("failed to terminate workflow: %w", err)
+	}
+	return nil
+}
+
+func isEntityNotExistsError(err error) bool {
+	_, ok := err.(*types.EntityNotExistsError)
+	return ok
+}
