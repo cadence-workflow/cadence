@@ -4,6 +4,9 @@ on: pull_request
 jobs:
   codecov:
     runs-on: ubuntu-latest
+    outputs:
+      failed_tests: ${{ steps.collect.outputs.failed_tests }}
+      job_url: ${{ steps.job.outputs.job_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,13 +25,23 @@ jobs:
       - name: Test and generate coverage report
         run: make cover_profile 2>&1 | tee test.log
       - name: Collect failing test names
+        id: collect
         shell: bash
         run: |
           ./scripts/extract_failed_tests.sh test.log | tee failed-tests.txt
-      - name: Create or update issues for failed tests
+
+          tests_json="$(jq -Rcs 'split("\n") | map(select(length > 0))' failed-tests.txt)"
+          echo "failed_tests=$tests_json" >> "$GITHUB_OUTPUT"
+      - name: Get job id
+        id: job
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/create_failed_test_issues.sh failed-tests.txt
+        run: |
+          job_id=$(gh api \
+            repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs \
+            --jq '.jobs[] | select(.name=="${{ github.job }}") | .id')
+
+          echo "job_id=$job_id" >> "$GITHUB_OUTPUT"
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.5.0 # https://github.com/codecov/codecov-action
@@ -37,3 +50,27 @@ jobs:
           exclude: ./
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: cadence-workflow/cadence
+  create-issues:
+    needs: codecov
+    if: ${{ needs.codecov.outputs.failed_tests != '[]' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJson(needs.codecov.outputs.failed_tests) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create issue for failed test
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TEST_NAME: ${{ matrix.test }}
+          JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/${{ steps.job.outputs.job_id }}
+        with:
+          filename: .github/ISSUE_TEMPLATE/test_failure.md
+          update_existing: true
+          search_existing: all

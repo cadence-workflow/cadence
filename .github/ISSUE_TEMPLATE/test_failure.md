@@ -1,8 +1,13 @@
+---
+title: Failed test: {{ env.TEST_NAME }}
+labels: test-failure
+---
+
 ## ❌ Test Failure
 
-**Test:** {{TEST_NAME}}
+**Test:** `{{ env.TEST_NAME }}`
 
-**Run:** {{RUN_URL}}
+**Run:** {{ env.RUN_URL }}
 
 ---
 
