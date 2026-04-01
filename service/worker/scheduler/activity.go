@@ -74,9 +74,10 @@ func startWorkflowActivity(ctx context.Context, req StartWorkflowRequest) (*Star
 
 	resp, err := sc.FrontendClient.StartWorkflowExecution(ctx, startReq)
 	if err != nil {
-		if isAlreadyStartedError(err) {
+		if alreadyStarted, ok := err.(*types.WorkflowExecutionAlreadyStartedError); ok {
 			return &StartWorkflowResult{
 				WorkflowID: workflowID,
+				RunID:      alreadyStarted.RunID,
 				Skipped:    true,
 			}, nil
 		}

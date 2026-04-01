@@ -401,9 +401,8 @@ func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *Schedu
 				)
 				return
 			case types.ScheduleOverlapPolicyBuffer:
-				state.BufferedRuns++
 				state.SkippedRuns++
-				logger.Info("skipping fire due to overlap policy BUFFER (sequential execution not yet implemented)",
+				logger.Info("skipping fire: BUFFER policy not yet implemented, treating as SKIP_NEW",
 					zap.Time("scheduledTime", scheduledTime),
 					zap.String("runningWorkflowId", state.LastStartedWorkflow.WorkflowID),
 				)
@@ -472,9 +471,11 @@ func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *Schedu
 		// tracking to point at it for future overlap checks.
 		state.LastStartedWorkflow = &RunningWorkflowInfo{
 			WorkflowID: result.WorkflowID,
+			RunID:      result.RunID,
 		}
 		logger.Info("scheduled action skipped (already started error)",
 			zap.String("workflowId", result.WorkflowID),
+			zap.String("runId", result.RunID),
 		)
 		return
 	}

@@ -180,14 +180,18 @@ func TestStartWorkflowActivity(t *testing.T) {
 			},
 		},
 		{
-			name: "already started returns skipped",
+			name: "already started returns skipped with RunID",
 			req:  baseReq,
 			setupMock: func(m *frontend.MockClient) {
 				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
-					Return(nil, &types.WorkflowExecutionAlreadyStartedError{Message: "already started"})
+					Return(nil, &types.WorkflowExecutionAlreadyStartedError{
+						Message: "already started",
+						RunID:   "existing-run-id",
+					})
 			},
 			wantResult: &StartWorkflowResult{
 				WorkflowID: "my-prefix-" + formatTime(scheduledTime),
+				RunID:      "existing-run-id",
 				Skipped:    true,
 			},
 		},
