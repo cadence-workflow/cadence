@@ -22,6 +22,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -74,7 +75,8 @@ func startWorkflowActivity(ctx context.Context, req StartWorkflowRequest) (*Star
 
 	resp, err := sc.FrontendClient.StartWorkflowExecution(ctx, startReq)
 	if err != nil {
-		if alreadyStarted, ok := err.(*types.WorkflowExecutionAlreadyStartedError); ok {
+		var alreadyStarted *types.WorkflowExecutionAlreadyStartedError
+		if errors.As(err, &alreadyStarted) {
 			return &StartWorkflowResult{
 				WorkflowID: workflowID,
 				RunID:      alreadyStarted.RunID,
@@ -108,11 +110,6 @@ func generateWorkflowID(prefix, scheduleID string, scheduledTime time.Time) stri
 func generateRequestID(scheduleID string, scheduledTimeNanos int64, source TriggerSource) string {
 	name := fmt.Sprintf("%s-%d-%s", scheduleID, scheduledTimeNanos, source)
 	return uuid.NewSHA1(schedulerRequestIDNamespace, []byte(name)).String()
-}
-
-func isAlreadyStartedError(err error) bool {
-	_, ok := err.(*types.WorkflowExecutionAlreadyStartedError)
-	return ok
 }
 
 // describeWorkflowActivity checks if a target workflow is still running.
@@ -183,6 +180,6 @@ func terminateWorkflowActivity(ctx context.Context, req TerminateWorkflowRequest
 }
 
 func isEntityNotExistsError(err error) bool {
-	_, ok := err.(*types.EntityNotExistsError)
-	return ok
+	var notExists *types.EntityNotExistsError
+	return errors.As(err, &notExists)
 }

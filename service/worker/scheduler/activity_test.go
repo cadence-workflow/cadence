@@ -102,36 +102,6 @@ func TestGenerateRequestID(t *testing.T) {
 	})
 }
 
-func TestIsAlreadyStartedError(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{
-			name: "WorkflowExecutionAlreadyStartedError returns true",
-			err:  &types.WorkflowExecutionAlreadyStartedError{Message: "already started"},
-			want: true,
-		},
-		{
-			name: "other error returns false",
-			err:  errors.New("some other error"),
-			want: false,
-		},
-		{
-			name: "nil error returns false",
-			err:  nil,
-			want: false,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := isAlreadyStartedError(tc.err)
-			assert.Equal(t, tc.want, got)
-		})
-	}
-}
-
 func TestStartWorkflowActivity(t *testing.T) {
 	scheduledTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	int32Ptr := func(v int32) *int32 { return &v }
