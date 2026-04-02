@@ -519,10 +519,9 @@ func (e *matchingEngineImpl) AddActivityTask(
 	}
 
 	syncMatched, err := tlMgr.AddTask(hCtx.Context, tasklist.AddTaskParams{
-		TaskInfo:                 taskInfo,
-		Source:                   request.GetSource(),
-		ForwardedFrom:            request.GetForwardedFrom(),
-		ActivityTaskDispatchInfo: request.ActivityTaskDispatchInfo,
+		TaskInfo:      taskInfo,
+		Source:        request.GetSource(),
+		ForwardedFrom: request.GetForwardedFrom(),
 	})
 	if err != nil {
 		return nil, err
@@ -826,10 +825,6 @@ pollLoop:
 		}
 		e.emitForwardedFromStats(hCtx.scope, task.IsForwarded(), req.GetForwardedFrom())
 		e.emitTaskIsolationMetrics(hCtx.scope, task.Event.PartitionConfig, req.GetIsolationGroup())
-		if task.ActivityTaskDispatchInfo != nil {
-			task.Finish(nil)
-			return e.createSyncMatchPollForActivityTaskResponse(task, task.ActivityTaskDispatchInfo, tlMgr.TaskListPartitionConfig(), tlMgr.LoadBalancerHints()), nil
-		}
 
 		resp, err := e.recordActivityTaskStarted(hCtx.Context, request, task)
 		if err != nil {
@@ -880,50 +875,6 @@ pollLoop:
 		task.Finish(nil)
 		return e.createPollForActivityTaskResponse(task, resp, hCtx.scope, tlMgr.TaskListPartitionConfig(), tlMgr.LoadBalancerHints()), nil
 	}
-}
-
-func (e *matchingEngineImpl) createSyncMatchPollForActivityTaskResponse(
-	task *tasklist.InternalTask,
-	activityTaskDispatchInfo *types.ActivityTaskDispatchInfo,
-	partitionConfig *types.TaskListPartitionConfig,
-	loadBalancerHints *types.LoadBalancerHints,
-) *types.MatchingPollForActivityTaskResponse {
-
-	scheduledEvent := activityTaskDispatchInfo.ScheduledEvent
-	attributes := scheduledEvent.ActivityTaskScheduledEventAttributes
-	response := &types.MatchingPollForActivityTaskResponse{}
-	response.ActivityID = attributes.ActivityID
-	response.ActivityType = attributes.ActivityType
-	response.Header = attributes.Header
-	response.Input = attributes.Input
-	response.WorkflowExecution = task.WorkflowExecution()
-	response.ScheduledTimestampOfThisAttempt = activityTaskDispatchInfo.ScheduledTimestampOfThisAttempt
-	response.ScheduledTimestamp = scheduledEvent.Timestamp
-	response.ScheduleToCloseTimeoutSeconds = attributes.ScheduleToCloseTimeoutSeconds
-	response.StartedTimestamp = activityTaskDispatchInfo.StartedTimestamp
-	response.StartToCloseTimeoutSeconds = attributes.StartToCloseTimeoutSeconds
-	response.HeartbeatTimeoutSeconds = attributes.HeartbeatTimeoutSeconds
-
-	token := &common.TaskToken{
-		DomainID:        task.Event.DomainID,
-		WorkflowID:      task.Event.WorkflowID,
-		WorkflowType:    activityTaskDispatchInfo.WorkflowType.GetName(),
-		RunID:           task.Event.RunID,
-		ScheduleID:      task.Event.ScheduleID,
-		ScheduleAttempt: common.Int64Default(activityTaskDispatchInfo.Attempt),
-		ActivityID:      attributes.GetActivityID(),
-		ActivityType:    attributes.GetActivityType().GetName(),
-	}
-
-	response.TaskToken, _ = e.tokenSerializer.Serialize(token)
-	response.Attempt = int32(token.ScheduleAttempt)
-	response.HeartbeatDetails = activityTaskDispatchInfo.HeartbeatDetails
-	response.WorkflowType = activityTaskDispatchInfo.WorkflowType
-	response.WorkflowDomain = activityTaskDispatchInfo.WorkflowDomain
-	response.PartitionConfig = partitionConfig
-	response.LoadBalancerHints = loadBalancerHints
-	response.AutoConfigHint = task.AutoConfigHint
-	return response
 }
 
 // QueryWorkflow creates a DecisionTask with query data, send it through sync match channel, wait for that DecisionTask

@@ -265,7 +265,7 @@ func (tm *taskMatcherImpl) OfferOrTimeout(ctx context.Context, startT time.Time,
 				return false, nil
 			}
 		}
-		return task.ActivityTaskDispatchInfo != nil, nil
+		return false, nil
 	case <-ctx.Done():
 		return false, nil
 	}

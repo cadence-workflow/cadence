@@ -106,10 +106,9 @@ type (
 	}
 
 	AddTaskParams struct {
-		TaskInfo                 *persistence.TaskInfo
-		Source                   types.TaskSource
-		ForwardedFrom            string
-		ActivityTaskDispatchInfo *types.ActivityTaskDispatchInfo
+		TaskInfo      *persistence.TaskInfo
+		Source        types.TaskSource
+		ForwardedFrom string
 	}
 
 	// Single task list in memory state
@@ -598,9 +597,6 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 		event.Log(e)
 		return syncMatch, err
 	}
-	if params.ActivityTaskDispatchInfo != nil {
-		return syncMatch, errRemoteSyncMatchFailed
-	}
 
 	if isForwarded {
 		// forwarded from child partition - only do sync match
@@ -838,34 +834,19 @@ func (c *taskListManagerImpl) TaskListID() *Identifier {
 
 // trySyncMatch performs to match the domain synchronously.
 func (c *taskListManagerImpl) trySyncMatch(ctx context.Context, params AddTaskParams, isolationGroup string) (bool, error) {
-	// Create a new InternalTask struct using paramters to make the task processable in the matcher.
-	task := newInternalTask(params.TaskInfo, nil, params.Source, params.ForwardedFrom, true, params.ActivityTaskDispatchInfo, isolationGroup)
+	task := newInternalTask(params.TaskInfo, nil, params.Source, params.ForwardedFrom, true, isolationGroup)
 	childCtx := ctx
 	cancel := func() {}
 
 	// Decide how long to spend the time to sync match
 	waitTime := maxSyncMatchWaitTime
-	if params.ActivityTaskDispatchInfo != nil {
-		waitTime = c.config.ActivityTaskSyncMatchWaitTime(params.ActivityTaskDispatchInfo.WorkflowDomain)
-	}
-
-	// Cap the context deadline
 	if !task.IsForwarded() {
 		// when task is forwarded from another matching host, we trust the context as is
 		// otherwise, we override to limit the amount of time we can block on sync match
 		childCtx, cancel = c.newChildContext(ctx, waitTime, time.Second)
 	}
-
-	// Route to the right matcher method
-	var matched bool
-	var err error
-	if params.ActivityTaskDispatchInfo != nil {
-		matched, err = c.matcher.OfferOrTimeout(childCtx, c.timeSource.Now(), task)
-	} else {
-		matched, err = c.matcher.Offer(childCtx, task)
-	}
-	cancel()
-	return matched, err
+	defer cancel()
+	return c.matcher.Offer(childCtx, task)
 }
 
 // newChildContext creates a child context with desired timeout.
