@@ -253,6 +253,6 @@ func terminateWorkflowActivity(ctx context.Context, req TerminateWorkflowRequest
 }
 
 func isEntityNotExistsError(err error) bool {
-	_, ok := err.(*types.EntityNotExistsError)
-	return ok
+	var notExists *types.EntityNotExistsError
+	return errors.As(err, &notExists)
 }
