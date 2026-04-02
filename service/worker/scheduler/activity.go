@@ -139,7 +139,7 @@ func describeWorkflowActivity(ctx context.Context, req DescribeWorkflowRequest) 
 }
 
 // cancelWorkflowActivity sends a cancellation request to a running workflow.
-func cancelWorkflowActivity(ctx context.Context, req TerminateWorkflowRequest) error {
+func cancelWorkflowActivity(ctx context.Context, req CancelWorkflowRequest) error {
 	sc, ok := ctx.Value(schedulerContextKey).(schedulerContext)
 	if !ok {
 		return fmt.Errorf("scheduler context not found in activity context")
@@ -151,6 +151,7 @@ func cancelWorkflowActivity(ctx context.Context, req TerminateWorkflowRequest) e
 			WorkflowID: req.WorkflowID,
 			RunID:      req.RunID,
 		},
+		Cause: req.Cause,
 	})
 	if err != nil && !isEntityNotExistsError(err) {
 		return fmt.Errorf("failed to cancel workflow: %w", err)

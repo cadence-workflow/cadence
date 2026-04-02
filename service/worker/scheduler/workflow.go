@@ -409,14 +409,18 @@ func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *Schedu
 				// TODO(overlap-buffer): implement sequential buffered execution
 				return
 			case types.ScheduleOverlapPolicyCancelPrevious:
+				// Cancel is cooperative: the previous workflow receives a cancellation
+				// signal but may continue running while it handles cleanup. A brief
+				// overlap with the new run is expected. Use TERMINATE_PREVIOUS for a
+				// hard guarantee of no concurrent execution.
 				logger.Info("cancelling previous workflow due to overlap policy",
 					zap.String("workflowId", state.LastStartedWorkflow.WorkflowID),
 				)
-				if err := workflow.ExecuteLocalActivity(actCtx, cancelWorkflowActivity, TerminateWorkflowRequest{
+				if err := workflow.ExecuteLocalActivity(actCtx, cancelWorkflowActivity, CancelWorkflowRequest{
 					Domain:     input.Domain,
 					WorkflowID: state.LastStartedWorkflow.WorkflowID,
 					RunID:      state.LastStartedWorkflow.RunID,
-					Reason:     "schedule overlap policy: CANCEL_PREVIOUS",
+					Cause:      "schedule overlap policy: CANCEL_PREVIOUS",
 				}).Get(ctx, nil); err != nil {
 					logger.Error("failed to cancel previous workflow, skipping new fire",
 						zap.String("workflowId", state.LastStartedWorkflow.WorkflowID),

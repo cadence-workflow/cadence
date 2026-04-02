@@ -307,9 +307,14 @@ func TestCancelWorkflowActivity(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name: "successful cancel",
+			name: "successful cancel with cause",
 			setupMock: func(m *frontend.MockClient) {
-				m.EXPECT().RequestCancelWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil)
+				m.EXPECT().RequestCancelWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.RequestCancelWorkflowExecutionRequest, _ ...interface{}) error {
+						assert.Equal(t, "schedule overlap policy: CANCEL_PREVIOUS", req.Cause)
+						assert.Equal(t, "wf-1", req.WorkflowExecution.WorkflowID)
+						return nil
+					})
 			},
 		},
 		{
@@ -339,11 +344,11 @@ func TestCancelWorkflowActivity(t *testing.T) {
 				FrontendClient: mockClient,
 			})
 
-			err := cancelWorkflowActivity(ctx, TerminateWorkflowRequest{
+			err := cancelWorkflowActivity(ctx, CancelWorkflowRequest{
 				Domain:     "test-domain",
 				WorkflowID: "wf-1",
 				RunID:      "run-1",
-				Reason:     "overlap",
+				Cause:      "schedule overlap policy: CANCEL_PREVIOUS",
 			})
 			if tc.wantErr {
 				require.Error(t, err)

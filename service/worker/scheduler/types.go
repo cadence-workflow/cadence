@@ -180,7 +180,15 @@ type DescribeWorkflowResult struct {
 	IsRunning bool `json:"isRunning"`
 }
 
-// TerminateWorkflowRequest is the input to the terminate/cancel workflow activity.
+// CancelWorkflowRequest is the input to the cancel workflow activity.
+type CancelWorkflowRequest struct {
+	Domain     string `json:"domain"`
+	WorkflowID string `json:"workflowId"`
+	RunID      string `json:"runId"`
+	Cause      string `json:"cause"`
+}
+
+// TerminateWorkflowRequest is the input to the terminate workflow activity.
 type TerminateWorkflowRequest struct {
 	Domain     string `json:"domain"`
 	WorkflowID string `json:"workflowId"`
