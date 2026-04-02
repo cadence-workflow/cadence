@@ -224,6 +224,7 @@ func cancelWorkflowActivity(ctx context.Context, req TerminateWorkflowRequest) e
 			WorkflowID: req.WorkflowID,
 			RunID:      req.RunID,
 		},
+		Cause: req.Cause,
 	})
 	if err != nil && !isEntityNotExistsError(err) {
 		return fmt.Errorf("failed to cancel workflow: %w", err)
