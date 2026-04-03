@@ -46,17 +46,54 @@ type schedulerContext struct {
 	FrontendClient frontend.Client
 }
 
-// startWorkflowActivity starts a workflow execution as specified by the schedule's action.
-// It generates a deterministic workflow ID from the schedule ID and scheduled time
-// to ensure idempotent execution.
-func startWorkflowActivity(ctx context.Context, req StartWorkflowRequest) (*StartWorkflowResult, error) {
+// processScheduleFireActivity is the single activity that handles a schedule fire.
+// It encapsulates all side effects, checking if the previous workflow is running,
+// enforcing the overlap policy (cancel/terminate), and starting the new workflow.
+// Keeping all of this in one activity means the workflow history records a single
+// activity call per fire, so the internal logic can evolve freely without
+// introducing nondeterminism.
+func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (*ProcessFireResult, error) {
 	sc, ok := ctx.Value(schedulerContextKey).(schedulerContext)
 	if !ok {
 		return nil, fmt.Errorf("scheduler context not found in activity context")
 	}
 
-	workflowID := generateWorkflowID(req.Action.WorkflowIDPrefix, req.ScheduleID, req.ScheduledTime)
+	result := &ProcessFireResult{}
 
+	policy := req.OverlapPolicy
+	if policy == types.ScheduleOverlapPolicyInvalid {
+		policy = types.ScheduleOverlapPolicySkipNew
+	}
+
+	if policy != types.ScheduleOverlapPolicyConcurrent && req.LastStartedWorkflow != nil {
+		running, err := isWorkflowRunning(ctx, sc.FrontendClient, req.Domain, req.LastStartedWorkflow)
+		if err != nil {
+			return nil, err
+		}
+		if running {
+			switch policy {
+			case types.ScheduleOverlapPolicySkipNew:
+				result.SkippedDelta = 1
+				result.StartedWorkflow = req.LastStartedWorkflow
+				return result, nil
+			case types.ScheduleOverlapPolicyBuffer:
+				// TODO(overlap-buffer): implement sequential buffered execution
+				result.SkippedDelta = 1
+				result.StartedWorkflow = req.LastStartedWorkflow
+				return result, nil
+			case types.ScheduleOverlapPolicyCancelPrevious:
+				if err := cancelWorkflow(ctx, sc.FrontendClient, req.Domain, req.LastStartedWorkflow); err != nil {
+					return nil, err
+				}
+			case types.ScheduleOverlapPolicyTerminatePrevious:
+				if err := terminateWorkflow(ctx, sc.FrontendClient, req.Domain, req.LastStartedWorkflow); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+
+	workflowID := generateWorkflowID(req.Action.WorkflowIDPrefix, req.ScheduleID, req.ScheduledTime)
 	reusePolicy := types.WorkflowIDReusePolicyAllowDuplicate
 	startReq := &types.StartWorkflowExecutionRequest{
 		Domain:                              req.Domain,
@@ -77,20 +114,22 @@ func startWorkflowActivity(ctx context.Context, req StartWorkflowRequest) (*Star
 	if err != nil {
 		var alreadyStarted *types.WorkflowExecutionAlreadyStartedError
 		if errors.As(err, &alreadyStarted) {
-			return &StartWorkflowResult{
+			result.SkippedDelta = 1
+			result.StartedWorkflow = &RunningWorkflowInfo{
 				WorkflowID: workflowID,
 				RunID:      alreadyStarted.RunID,
-				Skipped:    true,
-			}, nil
+			}
+			return result, nil
 		}
 		return nil, fmt.Errorf("failed to start workflow: %w", err)
 	}
 
-	return &StartWorkflowResult{
+	result.TotalDelta = 1
+	result.StartedWorkflow = &RunningWorkflowInfo{
 		WorkflowID: workflowID,
 		RunID:      resp.GetRunID(),
-		Started:    true,
-	}, nil
+	}
+	return result, nil
 }
 
 // generateWorkflowID creates a deterministic workflow ID from the
@@ -112,46 +151,38 @@ func generateRequestID(scheduleID string, scheduledTimeNanos int64, source Trigg
 	return uuid.NewSHA1(schedulerRequestIDNamespace, []byte(name)).String()
 }
 
-// describeWorkflowActivity checks if a target workflow is still running.
-func describeWorkflowActivity(ctx context.Context, req DescribeWorkflowRequest) (*DescribeWorkflowResult, error) {
-	sc, ok := ctx.Value(schedulerContextKey).(schedulerContext)
-	if !ok {
-		return nil, fmt.Errorf("scheduler context not found in activity context")
-	}
-
-	resp, err := sc.FrontendClient.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
-		Domain: req.Domain,
+func isWorkflowRunning(ctx context.Context, client frontend.Client, domain string, wf *RunningWorkflowInfo) (bool, error) {
+	resp, err := client.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
+		Domain: domain,
 		Execution: &types.WorkflowExecution{
-			WorkflowID: req.WorkflowID,
-			RunID:      req.RunID,
+			WorkflowID: wf.WorkflowID,
+			RunID:      wf.RunID,
 		},
 	})
 	if err != nil {
 		if isEntityNotExistsError(err) {
-			return &DescribeWorkflowResult{IsRunning: false}, nil
+			return false, nil
 		}
-		return nil, fmt.Errorf("failed to describe workflow: %w", err)
+		return false, fmt.Errorf("failed to describe workflow: %w", err)
 	}
 
 	running := resp.WorkflowExecutionInfo != nil &&
 		resp.WorkflowExecutionInfo.CloseStatus == nil
-	return &DescribeWorkflowResult{IsRunning: running}, nil
+	return running, nil
 }
 
-// cancelWorkflowActivity sends a cancellation request to a running workflow.
-func cancelWorkflowActivity(ctx context.Context, req CancelWorkflowRequest) error {
-	sc, ok := ctx.Value(schedulerContextKey).(schedulerContext)
-	if !ok {
-		return fmt.Errorf("scheduler context not found in activity context")
-	}
-
-	err := sc.FrontendClient.RequestCancelWorkflowExecution(ctx, &types.RequestCancelWorkflowExecutionRequest{
-		Domain: req.Domain,
+// Cancel is cooperative: the previous workflow receives a cancellation signal
+// but may continue running while it handles cleanup. A brief overlap with the
+// new run is expected. Use TERMINATE_PREVIOUS for a hard guarantee of no
+// concurrent execution.
+func cancelWorkflow(ctx context.Context, client frontend.Client, domain string, wf *RunningWorkflowInfo) error {
+	err := client.RequestCancelWorkflowExecution(ctx, &types.RequestCancelWorkflowExecutionRequest{
+		Domain: domain,
 		WorkflowExecution: &types.WorkflowExecution{
-			WorkflowID: req.WorkflowID,
-			RunID:      req.RunID,
+			WorkflowID: wf.WorkflowID,
+			RunID:      wf.RunID,
 		},
-		Cause: req.Cause,
+		Cause: "schedule overlap policy: CANCEL_PREVIOUS",
 	})
 	if err != nil && !isEntityNotExistsError(err) {
 		return fmt.Errorf("failed to cancel workflow: %w", err)
@@ -159,20 +190,14 @@ func cancelWorkflowActivity(ctx context.Context, req CancelWorkflowRequest) erro
 	return nil
 }
 
-// terminateWorkflowActivity forcefully terminates a running workflow.
-func terminateWorkflowActivity(ctx context.Context, req TerminateWorkflowRequest) error {
-	sc, ok := ctx.Value(schedulerContextKey).(schedulerContext)
-	if !ok {
-		return fmt.Errorf("scheduler context not found in activity context")
-	}
-
-	err := sc.FrontendClient.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
-		Domain: req.Domain,
+func terminateWorkflow(ctx context.Context, client frontend.Client, domain string, wf *RunningWorkflowInfo) error {
+	err := client.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
+		Domain: domain,
 		WorkflowExecution: &types.WorkflowExecution{
-			WorkflowID: req.WorkflowID,
-			RunID:      req.RunID,
+			WorkflowID: wf.WorkflowID,
+			RunID:      wf.RunID,
 		},
-		Reason: req.Reason,
+		Reason: "schedule overlap policy: TERMINATE_PREVIOUS",
 	})
 	if err != nil && !isEntityNotExistsError(err) {
 		return fmt.Errorf("failed to terminate workflow: %w", err)
