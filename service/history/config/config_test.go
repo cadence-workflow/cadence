@@ -244,7 +244,6 @@ func TestNewConfig(t *testing.T) {
 		"NotifyFailoverMarkerTimerJitterCoefficient":           {dynamicproperties.NotifyFailoverMarkerTimerJitterCoefficient, 16.0},
 		"EnableGracefulFailover":                               {dynamicproperties.EnableGracefulFailover, true},
 		"EnableActivityLocalDispatchByDomain":                  {dynamicproperties.EnableActivityLocalDispatchByDomain, true},
-		"MaxActivityCountDispatchByDomain":                     {dynamicproperties.MaxActivityCountDispatchByDomain, 92},
 		"ActivityMaxScheduleToStartTimeoutForRetry":            {dynamicproperties.ActivityMaxScheduleToStartTimeoutForRetry, time.Second},
 		"EnableDebugMode":                                      {dynamicproperties.EnableDebugMode, true},
 		"EnableTaskInfoLogByDomainID":                          {dynamicproperties.HistoryEnableTaskInfoLogByDomainID, true},

@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -98,6 +99,7 @@ func TestRefreshWorkflowTasks(t *testing.T) {
 
 			// GetWorkflowExecution prep
 			getExecReq := &persistence.GetWorkflowExecutionRequest{
+				ShardID:    common.Ptr(0),
 				DomainID:   constants.TestDomainID,
 				Execution:  tc.execution,
 				DomainName: constants.TestDomainName,

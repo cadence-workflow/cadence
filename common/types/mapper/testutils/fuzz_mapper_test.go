@@ -196,6 +196,123 @@ func TestClearFieldsIf_TriplePointer(t *testing.T) {
 	assert.Equal(t, "", level1.XXX_ClearMe, "Should clear through triple pointer")
 }
 
+func TestClearFieldsIf_MapWithStructValues(t *testing.T) {
+	type innerStruct struct {
+		KeepMe      string
+		XXX_ClearMe string // revive:disable-line:var-naming Protobuf internal field pattern (XXX_ prefix)
+		AlsoClearMe string
+	}
+	type outerStruct struct {
+		StructMap map[string]innerStruct
+	}
+
+	obj := &outerStruct{
+		StructMap: map[string]innerStruct{
+			"a": {KeepMe: "keep1", XXX_ClearMe: "clear1", AlsoClearMe: "clear1"},
+			"b": {KeepMe: "keep2", XXX_ClearMe: "clear2", AlsoClearMe: "clear2"},
+		},
+	}
+
+	clearExcludedFields(obj, []string{"AlsoClearMe"})
+
+	// Map values should have their excluded fields cleared via map rebuild
+	assert.Equal(t, "keep1", obj.StructMap["a"].KeepMe, "KeepMe should not be cleared in map value")
+	assert.Equal(t, "", obj.StructMap["a"].XXX_ClearMe, "XXX_ClearMe should be cleared in map struct value")
+	assert.Equal(t, "", obj.StructMap["a"].AlsoClearMe, "AlsoClearMe should be cleared in map struct value")
+
+	assert.Equal(t, "keep2", obj.StructMap["b"].KeepMe, "KeepMe should not be cleared in map value")
+	assert.Equal(t, "", obj.StructMap["b"].XXX_ClearMe, "XXX_ClearMe should be cleared in map struct value")
+	assert.Equal(t, "", obj.StructMap["b"].AlsoClearMe, "AlsoClearMe should be cleared in map struct value")
+}
+
+func TestClearFieldsIf_MapWithPointerValues(t *testing.T) {
+	type innerStruct struct {
+		KeepMe      string
+		XXX_ClearMe string // revive:disable-line:var-naming Protobuf internal field pattern (XXX_ prefix)
+		AlsoClearMe string
+	}
+	type outerStruct struct {
+		PtrMap map[string]*innerStruct
+	}
+
+	obj := &outerStruct{
+		PtrMap: map[string]*innerStruct{
+			"a": {KeepMe: "keep1", XXX_ClearMe: "clear1", AlsoClearMe: "clear1"},
+			"b": {KeepMe: "keep2", XXX_ClearMe: "clear2", AlsoClearMe: "clear2"},
+		},
+	}
+
+	clearExcludedFields(obj, []string{"AlsoClearMe"})
+
+	// Pointer map values should have their excluded fields cleared
+	assert.Equal(t, "keep1", obj.PtrMap["a"].KeepMe, "KeepMe should not be cleared in map pointer value")
+	assert.Equal(t, "", obj.PtrMap["a"].XXX_ClearMe, "XXX_ClearMe should be cleared in map pointer value")
+	assert.Equal(t, "", obj.PtrMap["a"].AlsoClearMe, "AlsoClearMe should be cleared in map pointer value")
+
+	assert.Equal(t, "keep2", obj.PtrMap["b"].KeepMe, "KeepMe should not be cleared in map pointer value")
+	assert.Equal(t, "", obj.PtrMap["b"].XXX_ClearMe, "XXX_ClearMe should be cleared in map pointer value")
+	assert.Equal(t, "", obj.PtrMap["b"].AlsoClearMe, "AlsoClearMe should be cleared in map pointer value")
+}
+
+func TestClearFieldsIf_MapWithNilPointerValues(t *testing.T) {
+	type innerStruct struct {
+		XXX_ClearMe string // revive:disable-line:var-naming Protobuf internal field pattern (XXX_ prefix)
+	}
+	type outerStruct struct {
+		PtrMap map[string]*innerStruct
+	}
+
+	obj := &outerStruct{
+		PtrMap: map[string]*innerStruct{
+			"a": {XXX_ClearMe: "clear"},
+			"b": nil,
+		},
+	}
+
+	clearExcludedFields(obj, nil)
+
+	assert.Equal(t, "", obj.PtrMap["a"].XXX_ClearMe, "XXX_ClearMe should be cleared")
+	assert.Nil(t, obj.PtrMap["b"], "nil pointer value should remain nil")
+}
+
+func TestClearFieldsIf_NilMap(t *testing.T) {
+	type innerStruct struct {
+		XXX_ClearMe string // revive:disable-line:var-naming Protobuf internal field pattern (XXX_ prefix)
+	}
+	type outerStruct struct {
+		StructMap map[string]innerStruct
+	}
+
+	obj := &outerStruct{
+		StructMap: nil,
+	}
+
+	// Should not panic on nil map
+	clearExcludedFields(obj, nil)
+
+	assert.Nil(t, obj.StructMap, "nil map should remain nil")
+}
+
+func TestClearFieldsIf_MapWithPrimitiveValues(t *testing.T) {
+	type outerStruct struct {
+		StringMap map[string]string
+		IntMap    map[string]int
+	}
+
+	obj := &outerStruct{
+		StringMap: map[string]string{"a": "val1", "b": "val2"},
+		IntMap:    map[string]int{"x": 1, "y": 2},
+	}
+
+	clearExcludedFields(obj, nil)
+
+	// Primitive map values should not be modified
+	assert.Equal(t, "val1", obj.StringMap["a"], "string map value should not be modified")
+	assert.Equal(t, "val2", obj.StringMap["b"], "string map value should not be modified")
+	assert.Equal(t, 1, obj.IntMap["x"], "int map value should not be modified")
+	assert.Equal(t, 2, obj.IntMap["y"], "int map value should not be modified")
+}
+
 func TestClearFieldsIf_WithExcludedFields(t *testing.T) {
 	// This test verifies that WithExcludedFields works correctly with pointer types
 	// Previously, this would silently do nothing due to the double-pointer bug

@@ -149,6 +149,16 @@ func TestBatchWorkflowV2_TuneSignal(t *testing.T) {
 	// Track params received by each activity invocation.
 	var mu sync.Mutex
 	var capturedParams []BatchParams
+
+	// firstActivityDone is kept open while the test runs, which prevents the
+	// first activity mock goroutine from returning before the workflow has had
+	// a chance to process the tune signal. The Cadence test framework delivers
+	// CanceledError to the activity future independently of the goroutine, so
+	// blocking here does not prevent the workflow from completing. The channel
+	// is closed by t.Cleanup once the assertions are done.
+	firstActivityDone := make(chan struct{})
+	t.Cleanup(func() { close(firstActivityDone) })
+
 	env.OnActivity(batchActivityV2Name, mock.Anything, mock.Anything).
 		Return(func(_ context.Context, p BatchParams) (HeartBeatDetails, error) {
 			mu.Lock()
@@ -156,9 +166,10 @@ func TestBatchWorkflowV2_TuneSignal(t *testing.T) {
 			n := len(capturedParams)
 			mu.Unlock()
 			if n == 1 {
-				// First invocation: the test framework will cancel this activity when
-				// the tune signal fires. Return value is discarded on cancellation;
-				// the framework delivers an empty CanceledError to the workflow.
+				// Block until the test is done. This prevents the future from
+				// resolving with nil before the workflow processes the tune signal,
+				// which would cause the workflow to take the early-exit path.
+				<-firstActivityDone
 				return HeartBeatDetails{}, nil
 			}
 			// Second invocation: completes normally.
@@ -182,10 +193,15 @@ func TestBatchWorkflowV2_TuneSignal(t *testing.T) {
 	assert.Equal(t, 8, result.SuccessCount)
 	assert.Equal(t, 3, result.CurrentPage)
 
-	require.Len(t, capturedParams, 2, "activity must be invoked twice (cancelled then restarted)")
+	mu.Lock()
+	captured := make([]BatchParams, len(capturedParams))
+	copy(captured, capturedParams)
+	mu.Unlock()
+
+	require.Len(t, captured, 2, "activity must be invoked twice (cancelled then restarted)")
 	// Second invocation must carry the updated RPS and Concurrency from the signal.
-	assert.Equal(t, 20, capturedParams[1].RPS, "RPS must be updated by tune signal")
-	assert.Equal(t, 5, capturedParams[1].Concurrency, "Concurrency must be updated by tune signal")
+	assert.Equal(t, 20, captured[1].RPS, "RPS must be updated by tune signal")
+	assert.Equal(t, 5, captured[1].Concurrency, "Concurrency must be updated by tune signal")
 }
 
 func TestBatchActivityV2_UsesProgress(t *testing.T) {

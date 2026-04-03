@@ -1308,28 +1308,13 @@ func TestHandleDecisionScheduleActivity(t *testing.T) {
 			},
 		},
 		{
-			name:       "success - activity started",
-			attributes: validAttr,
-			expectMockCalls: func(taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes) {
-				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetExecutionInfo().Return(executionInfo).Times(2)
-				taskHandler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomain(attr.GetDomain()).Return(domainEntry, nil)
-				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(context.Background(), taskHandler.decisionTaskCompletedID, attr, taskHandler.activityCountToDispatch > 0).
-					Return(&types.HistoryEvent{}, &persistence.ActivityInfo{}, &types.ActivityLocalDispatchInfo{}, true, true, nil)
-				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskStartedEvent(&persistence.ActivityInfo{}, int64(0), gomock.Any(), taskHandler.identity)
-			},
-			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes, res *decisionResult, err error) {
-				assert.Nil(t, err)
-				assert.Nil(t, res)
-			},
-		},
-		{
 			name:       "token serialization failure",
 			attributes: validAttr,
 			expectMockCalls: func(taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes) {
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetExecutionInfo().Return(executionInfo).Times(2)
 				taskHandler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomain(attr.GetDomain()).Return(domainEntry, nil)
-				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(context.Background(), taskHandler.decisionTaskCompletedID, attr, taskHandler.activityCountToDispatch > 0).
-					Return(&types.HistoryEvent{}, &persistence.ActivityInfo{}, &types.ActivityLocalDispatchInfo{}, true, false, nil)
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(taskHandler.decisionTaskCompletedID, attr).
+					Return(&types.HistoryEvent{}, &persistence.ActivityInfo{}, &types.ActivityLocalDispatchInfo{}, nil)
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskStartedEvent(&persistence.ActivityInfo{}, int64(0), gomock.Any(), taskHandler.identity)
 				taskHandler.tokenSerializer.(*common.MockTaskTokenSerializer).EXPECT().Serialize(&common.TaskToken{
 					DomainID:     testdata.DomainID,
@@ -1348,8 +1333,8 @@ func TestHandleDecisionScheduleActivity(t *testing.T) {
 			expectMockCalls: func(taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes) {
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetExecutionInfo().Return(executionInfo).Times(2)
 				taskHandler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomain(attr.GetDomain()).Return(domainEntry, nil)
-				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(context.Background(), taskHandler.decisionTaskCompletedID, attr, taskHandler.activityCountToDispatch > 0).
-					Return(&types.HistoryEvent{}, &persistence.ActivityInfo{}, &types.ActivityLocalDispatchInfo{}, true, false, nil)
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(taskHandler.decisionTaskCompletedID, attr).
+					Return(&types.HistoryEvent{}, &persistence.ActivityInfo{}, &types.ActivityLocalDispatchInfo{}, nil)
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskStartedEvent(&persistence.ActivityInfo{}, int64(0), gomock.Any(), taskHandler.identity)
 				taskHandler.tokenSerializer.(*common.MockTaskTokenSerializer).EXPECT().Serialize(&common.TaskToken{
 					DomainID:     testdata.DomainID,
@@ -1369,8 +1354,8 @@ func TestHandleDecisionScheduleActivity(t *testing.T) {
 			expectMockCalls: func(taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes) {
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetExecutionInfo().Return(executionInfo).Times(2)
 				taskHandler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomain(attr.GetDomain()).Return(domainEntry, nil)
-				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(context.Background(), taskHandler.decisionTaskCompletedID, attr, taskHandler.activityCountToDispatch > 0).
-					Return(&types.HistoryEvent{}, &persistence.ActivityInfo{}, &types.ActivityLocalDispatchInfo{}, true, true, nil)
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(taskHandler.decisionTaskCompletedID, attr).
+					Return(&types.HistoryEvent{}, &persistence.ActivityInfo{}, &types.ActivityLocalDispatchInfo{}, nil)
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskStartedEvent(&persistence.ActivityInfo{}, int64(0), gomock.Any(), taskHandler.identity).Return(nil, errors.New("some error"))
 			},
 			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes, res *decisionResult, err error) {
@@ -1385,8 +1370,8 @@ func TestHandleDecisionScheduleActivity(t *testing.T) {
 			expectMockCalls: func(taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes) {
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetExecutionInfo().Return(executionInfo).Times(2)
 				taskHandler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomain(attr.GetDomain()).Return(domainEntry, nil)
-				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(context.Background(), taskHandler.decisionTaskCompletedID, attr, taskHandler.activityCountToDispatch > 0).
-					Return(&types.HistoryEvent{}, &persistence.ActivityInfo{}, nil, true, false, nil)
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(taskHandler.decisionTaskCompletedID, attr).
+					Return(&types.HistoryEvent{}, &persistence.ActivityInfo{}, nil, nil)
 			},
 			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes, res *decisionResult, err error) {
 				assert.Nil(t, err)
@@ -1399,8 +1384,8 @@ func TestHandleDecisionScheduleActivity(t *testing.T) {
 			expectMockCalls: func(taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes) {
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetExecutionInfo().Return(executionInfo).Times(2)
 				taskHandler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomain(attr.GetDomain()).Return(domainEntry, nil)
-				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(context.Background(), taskHandler.decisionTaskCompletedID, attr, taskHandler.activityCountToDispatch > 0).
-					Return(nil, nil, nil, false, false, &types.BadRequestError{
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(taskHandler.decisionTaskCompletedID, attr).
+					Return(nil, nil, nil, &types.BadRequestError{
 						Message: "some bad request error",
 					})
 			},
@@ -1415,8 +1400,8 @@ func TestHandleDecisionScheduleActivity(t *testing.T) {
 			expectMockCalls: func(taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes) {
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetExecutionInfo().Return(executionInfo).Times(2)
 				taskHandler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomain(attr.GetDomain()).Return(domainEntry, nil)
-				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(context.Background(), taskHandler.decisionTaskCompletedID, attr, taskHandler.activityCountToDispatch > 0).
-					Return(nil, nil, nil, false, false, errors.New("some default error"))
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(taskHandler.decisionTaskCompletedID, attr).
+					Return(nil, nil, nil, errors.New("some default error"))
 			},
 			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes, res *decisionResult, err error) {
 				assert.NotNil(t, err)
@@ -1759,11 +1744,9 @@ func TestHandleDecisionScheduleActivityWithTooManyPendingActivities(t *testing.T
 
 				// Mock AddActivityTaskScheduledEvent to return ErrTooManyPendingActivities
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(
-					context.Background(),
 					taskHandler.decisionTaskCompletedID,
 					attr,
-					taskHandler.activityCountToDispatch > 0,
-				).Return(nil, nil, nil, false, false, execution.ErrTooManyPendingActivities)
+				).Return(nil, nil, nil, execution.ErrTooManyPendingActivities)
 
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddFailWorkflowEvent(
 					taskHandler.decisionTaskCompletedID,
@@ -1785,11 +1768,9 @@ func TestHandleDecisionScheduleActivityWithTooManyPendingActivities(t *testing.T
 
 				// Mock AddActivityTaskScheduledEvent to return different InternalServiceError
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(
-					context.Background(),
 					taskHandler.decisionTaskCompletedID,
 					attr,
-					taskHandler.activityCountToDispatch > 0,
-				).Return(nil, nil, nil, false, false, &types.InternalServiceError{Message: "Some other internal service error"})
+				).Return(nil, nil, nil, &types.InternalServiceError{Message: "Some other internal service error"})
 			},
 			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes, res *decisionResult, err error) {
 				assert.NotNil(t, err)

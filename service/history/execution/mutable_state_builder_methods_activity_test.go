@@ -91,8 +91,6 @@ func Test__AddActivityTaskScheduledEvent(t *testing.T) {
 		expectedAttributes *types.ActivityTaskScheduledEventAttributes
 		expectedInfo       *persistence.ActivityInfo
 		expectedDispatch   *types.ActivityLocalDispatchInfo
-		expectedDispatched bool
-		expectedStarted    bool
 		expectedError      error
 	}{
 		{
@@ -218,9 +216,7 @@ func Test__AddActivityTaskScheduledEvent(t *testing.T) {
 				mb.executionInfo.TaskListKind = tc.workflowTaskList.GetKind()
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-			defer cancel()
-			event, activityInfo, dispatchInfo, dispatched, started, err := mb.AddActivityTaskScheduledEvent(ctx, 0, tc.attr, tc.dispatch)
+			event, activityInfo, dispatchInfo, err := mb.AddActivityTaskScheduledEvent(0, tc.attr)
 			if tc.expectedError != nil {
 				assert.ErrorIs(t, err, tc.expectedError)
 				assert.Nil(t, event)
@@ -233,8 +229,6 @@ func Test__AddActivityTaskScheduledEvent(t *testing.T) {
 				assert.Equal(t, tc.expectedInfo, activityInfo)
 				assert.Equal(t, tc.expectedDispatch, dispatchInfo)
 			}
-			assert.Equal(t, tc.expectedDispatched, dispatched)
-			assert.Equal(t, tc.expectedStarted, started)
 		})
 	}
 }
@@ -372,14 +366,6 @@ func Test__AddActivityTaskCompletedEvent(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, int64(1), event.ActivityTaskCompletedEventAttributes.ScheduledEventID)
 	})
-}
-
-func Test__tryDispatchActivityTask(t *testing.T) {
-	mb := testMutableStateBuilder(t)
-	event := &types.HistoryEvent{}
-	ai := &persistence.ActivityInfo{}
-	result := mb.tryDispatchActivityTask(context.Background(), event, ai)
-	assert.True(t, result)
 }
 
 func Test__ReplicateActivityTaskCanceledEvent(t *testing.T) {

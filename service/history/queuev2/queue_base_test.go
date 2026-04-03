@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -203,12 +204,14 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 				mockMitigator := NewMockMitigator(ctrl)
 
 				mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(100).Times(1)
+				mockShard.EXPECT().GetShardID().Return(0)
 				mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).AnyTimes()
 				mockExecutionManager.EXPECT().RangeCompleteHistoryTask(gomock.Any(), &persistence.RangeCompleteHistoryTaskRequest{
 					TaskCategory:        persistence.HistoryTaskCategoryTransfer,
 					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
 					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 					PageSize:            100,
+					ShardID:             common.Ptr(0),
 				}).Return(&persistence.RangeCompleteHistoryTaskResponse{
 					TasksCompleted: 10,
 				}, nil)
@@ -255,12 +258,14 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 				mockMitigator := NewMockMitigator(ctrl)
 
 				mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(100).Times(1)
+				mockShard.EXPECT().GetShardID().Return(0)
 				mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).AnyTimes()
 				mockExecutionManager.EXPECT().RangeCompleteHistoryTask(gomock.Any(), &persistence.RangeCompleteHistoryTaskRequest{
 					TaskCategory:        persistence.HistoryTaskCategoryTransfer,
 					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
 					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 					PageSize:            100,
+					ShardID:             common.Ptr(0),
 				}).Return(nil, assert.AnError)
 
 				mockVirtualQueueManager.EXPECT().UpdateAndGetState().Return(map[int64][]VirtualSliceState{

@@ -174,3 +174,31 @@ type ProcessFireResult struct {
 	SkippedDelta    int64                `json:"skippedDelta"`
 	MissedDelta     int64                `json:"missedDelta"`
 }
+
+// DescribeWorkflowRequest is the input to the describe-workflow activity.
+type DescribeWorkflowRequest struct {
+	Domain     string `json:"domain"`
+	WorkflowID string `json:"workflowId"`
+	RunID      string `json:"runId"`
+}
+
+// DescribeWorkflowResult is the output of the describe-workflow activity.
+type DescribeWorkflowResult struct {
+	IsRunning bool `json:"isRunning"`
+}
+
+// CancelWorkflowRequest is the input to the cancel workflow activity.
+type CancelWorkflowRequest struct {
+	Domain     string `json:"domain"`
+	WorkflowID string `json:"workflowId"`
+	RunID      string `json:"runId"`
+	Cause      string `json:"cause"`
+}
+
+// TerminateWorkflowRequest is the input to the terminate workflow activity.
+type TerminateWorkflowRequest struct {
+	Domain     string `json:"domain"`
+	WorkflowID string `json:"workflowId"`
+	RunID      string `json:"runId"`
+	Reason     string `json:"reason"`
+}

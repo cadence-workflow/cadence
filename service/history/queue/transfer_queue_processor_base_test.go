@@ -30,6 +30,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -143,6 +144,7 @@ func (s *transferQueueProcessorBaseSuite) TestProcessQueueCollections_NoNextPage
 		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(ackLevel.(transferTaskKey).taskID + 1),
 		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxLevel.(transferTaskKey).taskID + 1),
 		PageSize:            s.mockShard.GetConfig().TransferTaskBatchSize(),
+		ShardID:             common.Ptr(10),
 	}).Return(&persistence.GetHistoryTasksResponse{
 		Tasks:         taskInfos,
 		NextPageToken: nil,
@@ -220,6 +222,7 @@ func (s *transferQueueProcessorBaseSuite) TestProcessQueueCollections_NoNextPage
 		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(ackLevel.(transferTaskKey).taskID + 1),
 		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(shardMaxLevel.(transferTaskKey).taskID + 1),
 		PageSize:            s.mockShard.GetConfig().TransferTaskBatchSize(),
+		ShardID:             common.Ptr(10),
 	}).Return(&persistence.GetHistoryTasksResponse{
 		Tasks:         taskInfos,
 		NextPageToken: nil,
@@ -307,6 +310,7 @@ func (s *transferQueueProcessorBaseSuite) TestProcessQueueCollections_WithNextPa
 		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(ackLevel.(transferTaskKey).taskID + 1),
 		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxLevel.(transferTaskKey).taskID + 1),
 		PageSize:            s.mockShard.GetConfig().TransferTaskBatchSize(),
+		ShardID:             common.Ptr(10),
 	}).Return(&persistence.GetHistoryTasksResponse{
 		Tasks:         taskInfos,
 		NextPageToken: []byte{1, 2, 3},
@@ -369,6 +373,7 @@ func (s *transferQueueProcessorBaseSuite) TestProcessQueueCollections_WithNextPa
 		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(ackLevel.(transferTaskKey).taskID + 1),
 		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxLevel.(transferTaskKey).taskID + 1),
 		PageSize:            s.mockShard.GetConfig().TransferTaskBatchSize(),
+		ShardID:             common.Ptr(10),
 	}).Return(&persistence.GetHistoryTasksResponse{
 		Tasks:         taskInfos,
 		NextPageToken: []byte{1, 2, 3},
@@ -431,6 +436,7 @@ func (s *transferQueueProcessorBaseSuite) TestReadTasks_NoNextPage() {
 		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(readLevel.(transferTaskKey).taskID + 1),
 		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxReadLevel.(transferTaskKey).taskID + 1),
 		PageSize:            s.mockShard.GetConfig().TransferTaskBatchSize(),
+		ShardID:             common.Ptr(10),
 	}).Return(getTransferTaskResponse, nil).Once()
 
 	processorBase := s.newTestTransferQueueProcessorBase(
@@ -461,6 +467,7 @@ func (s *transferQueueProcessorBaseSuite) TestReadTasks_WithNextPage() {
 		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(readLevel.(transferTaskKey).taskID + 1),
 		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxReadLevel.(transferTaskKey).taskID + 1),
 		PageSize:            s.mockShard.GetConfig().TransferTaskBatchSize(),
+		ShardID:             common.Ptr(10),
 	}).Return(getTransferTaskResponse, nil).Once()
 
 	processorBase := s.newTestTransferQueueProcessorBase(

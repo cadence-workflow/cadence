@@ -890,12 +890,19 @@ func (s *domainCacheSuite) Test_refreshLoop_domainCacheRefreshedError() {
 
 	s.domainCache.timeSource = mockedTimeSource
 
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(nil, assert.AnError).Once()
+	// Send the shutdown signal from inside the GetMetadata mock callback to
+	// guarantee the timer branch is selected before shutdown. Previously,
+	// both channels could be ready simultaneously, letting Go's select
+	// randomly pick shutdown first and skip the timer entirely.
+	s.metadataMgr.On("GetMetadata", mock.Anything).Return(nil, assert.AnError).Once().Run(func(mock.Arguments) {
+		// Use a goroutine because shutdownChan is unbuffered and refreshLoop
+		// is blocked inside the timer case until refreshDomains returns.
+		go func() { s.domainCache.shutdownChan <- struct{}{} }()
+	})
 
 	go func() {
 		mockedTimeSource.BlockUntil(1)
 		mockedTimeSource.Advance(DomainCacheRefreshInterval)
-		s.domainCache.shutdownChan <- struct{}{}
 	}()
 
 	s.domainCache.refreshLoop()

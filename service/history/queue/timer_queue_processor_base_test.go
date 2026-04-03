@@ -33,6 +33,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -125,6 +126,7 @@ func (s *timerQueueProcessorBaseSuite) TestGetTimerTasks_More() {
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            batchSize,
 		NextPageToken:       []byte("some random input next page token"),
+		ShardID:             common.Ptr(10),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -168,6 +170,7 @@ func (s *timerQueueProcessorBaseSuite) TestGetTimerTasks_NoMore() {
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            batchSize,
 		NextPageToken:       nil,
+		ShardID:             common.Ptr(10),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -211,6 +214,7 @@ func (s *timerQueueProcessorBaseSuite) TestReadLookAheadTask() {
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            1,
 		NextPageToken:       nil,
+		ShardID:             common.Ptr(10),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -252,6 +256,7 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_NoLookAhead_NoNext
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
 		NextPageToken:       []byte("some random input next page token"),
+		ShardID:             common.Ptr(10),
 	}
 
 	lookAheadRequest := &persistence.GetHistoryTasksRequest{
@@ -260,6 +265,7 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_NoLookAhead_NoNext
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            1,
 		NextPageToken:       nil,
+		ShardID:             common.Ptr(10),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -304,6 +310,7 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_NoLookAhead_HasNex
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
 		NextPageToken:       []byte("some random input next page token"),
+		ShardID:             common.Ptr(10),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -347,6 +354,7 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_HasLookAhead_NoNex
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
 		NextPageToken:       []byte("some random input next page token"),
+		ShardID:             common.Ptr(10),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -399,6 +407,7 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_HasLookAhead_HasNe
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
 		NextPageToken:       []byte("some random input next page token"),
+		ShardID:             common.Ptr(10),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -451,6 +460,7 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_LookAheadFailed_No
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
 		NextPageToken:       []byte("some random input next page token"),
+		ShardID:             common.Ptr(10),
 	}
 
 	lookAheadRequest := &persistence.GetHistoryTasksRequest{
@@ -459,6 +469,7 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_LookAheadFailed_No
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            1,
 		NextPageToken:       nil,
+		ShardID:             common.Ptr(10),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -624,6 +635,7 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_HasNextPage() {
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(shardMaxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
 		NextPageToken:       nil,
+		ShardID:             common.Ptr(10),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -719,6 +731,7 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_NoNextPage_HasLookAhead(
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(shardMaxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
 		NextPageToken:       requestNextPageToken,
+		ShardID:             common.Ptr(10),
 	}
 
 	lookAheadTaskTimestamp := now.Add(50 * time.Millisecond)
@@ -815,6 +828,7 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_NoNextPage_NoLookAhead()
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(shardMaxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
 		NextPageToken:       requestNextPageToken,
+		ShardID:             common.Ptr(10),
 	}
 
 	lookAheadRequest := &persistence.GetHistoryTasksRequest{
@@ -823,6 +837,7 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_NoNextPage_NoLookAhead()
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp, 0),
 		PageSize:            1,
 		NextPageToken:       nil,
+		ShardID:             common.Ptr(10),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{

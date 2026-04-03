@@ -130,7 +130,7 @@ func (s *mutableStateSuite) TestErrorReturnedWhenSchedulingTooManyPendingActivit
 		s.msBuilder.pendingActivityInfoIDs[int64(i)] = &persistence.ActivityInfo{}
 	}
 
-	_, _, _, _, _, err := s.msBuilder.AddActivityTaskScheduledEvent(nil, 1, &types.ScheduleActivityTaskDecisionAttributes{}, false)
+	_, _, _, err := s.msBuilder.AddActivityTaskScheduledEvent(1, &types.ScheduleActivityTaskDecisionAttributes{})
 	assert.Equal(s.T(), "Too many pending activities", err.Error())
 }
 

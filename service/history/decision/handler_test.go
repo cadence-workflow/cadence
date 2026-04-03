@@ -1170,7 +1170,6 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 			shard := shard.NewMockContext(ctrl)
 			domainCache := cache.NewMockDomainCache(ctrl)
 			handlerConfig := config.NewForTest()
-			handlerConfig.MaxActivityCountDispatchByDomain = func(domain string) int { return 1 } // some value > 0
 			handlerConfig.EnableActivityLocalDispatchByDomain = func(domain string) bool { return true }
 			handlerConfig.DecisionRetryMaxAttempts = func(domain string) int { return 1 }
 			decisionHandler := &handlerImpl{

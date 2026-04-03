@@ -26,6 +26,7 @@ package queuev2
 import (
 	"context"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/shard"
 )
@@ -76,6 +77,7 @@ func (r *simpleQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 		ExclusiveMaxTaskKey: req.Progress.ExclusiveMaxTaskKey,
 		PageSize:            req.PageSize,
 		NextPageToken:       req.Progress.NextPageToken,
+		ShardID:             common.Ptr(r.shard.GetShardID()),
 	})
 	if err != nil {
 		return nil, err

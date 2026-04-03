@@ -303,7 +303,7 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessActivityTask_Pending_TaskL
 	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
 	s.NoError(err)
 
-	event, ai, _, _, _, _ := mutableState.AddActivityTaskScheduledEvent(nil, decisionCompletionID, &types.ScheduleActivityTaskDecisionAttributes{
+	event, ai, _, _ := mutableState.AddActivityTaskScheduledEvent(decisionCompletionID, &types.ScheduleActivityTaskDecisionAttributes{
 		ActivityID:                    "activity-1",
 		ActivityType:                  &types.ActivityType{Name: "some random activity type"},
 		TaskList:                      &types.TaskList{Name: mutableState.GetExecutionInfo().TaskList, Kind: types.TaskListKindEphemeral.Ptr()},
@@ -312,8 +312,7 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessActivityTask_Pending_TaskL
 		ScheduleToStartTimeoutSeconds: common.Int32Ptr(1),
 		StartToCloseTimeoutSeconds:    common.Int32Ptr(1),
 		HeartbeatTimeoutSeconds:       common.Int32Ptr(1),
-	}, false,
-	)
+	})
 
 	now := time.Now()
 	s.mockShard.SetCurrentTime(s.clusterName, now.Add(s.fetchHistoryDuration))

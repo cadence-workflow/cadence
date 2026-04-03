@@ -134,6 +134,7 @@ func (s *activityReplicatorSuite) TestSyncActivity_WorkflowNotFound() {
 	}
 	s.mockDomainCache.EXPECT().GetDomainName(domainID).Return(domainName, nil).AnyTimes()
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, &persistence.GetWorkflowExecutionRequest{
+		ShardID:  common.Ptr(0),
 		DomainID: domainID,
 		Execution: types.WorkflowExecution{
 			WorkflowID: workflowID,

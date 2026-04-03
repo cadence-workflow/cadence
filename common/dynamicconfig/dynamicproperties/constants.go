@@ -4139,7 +4139,7 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	MaxActivityCountDispatchByDomain: {
 		KeyName:      "history.maxActivityCountDispatchByDomain",
-		Description:  "MaxActivityCountDispatchByDomain max # of activity tasks to dispatch to matching before creating transfer tasks. This is an performance optimization to skip activity scheduling efforts.",
+		Description:  "DEPRECATED: MaxActivityCountDispatchByDomain max # of activity tasks to dispatch to matching before creating transfer tasks. This is an performance optimization to skip activity scheduling efforts.",
 		DefaultValue: 0,
 	},
 	ReplicationTaskFetcherParallelism: {

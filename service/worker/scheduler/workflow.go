@@ -442,6 +442,41 @@ func defaultActivityOptions() workflow.LocalActivityOptions {
 	}
 }
 
+// isPreviousRunning checks if the last started target workflow is still running.
+func isPreviousRunning(ctx workflow.Context, actCtx workflow.Context, logger *zap.Logger, domain string, state *SchedulerWorkflowState) bool {
+	if state.LastStartedWorkflow == nil {
+		return false
+	}
+	var descResult DescribeWorkflowResult
+	err := workflow.ExecuteLocalActivity(actCtx, describeWorkflowActivity, DescribeWorkflowRequest{
+		Domain:     domain,
+		WorkflowID: state.LastStartedWorkflow.WorkflowID,
+		RunID:      state.LastStartedWorkflow.RunID,
+	}).Get(ctx, &descResult)
+	if err != nil {
+		logger.Warn("failed to check previous workflow status, assuming not running",
+			zap.String("workflowId", state.LastStartedWorkflow.WorkflowID),
+			zap.Error(err),
+		)
+		return false
+	}
+	return descResult.IsRunning
+}
+
+// defaultActivityOptions returns the standard local activity options used by
+// all scheduler activities.
+func defaultActivityOptions() workflow.LocalActivityOptions {
+	return workflow.LocalActivityOptions{
+		ScheduleToCloseTimeout: localActivityScheduleToCloseTimeout,
+		RetryPolicy: &workflow.RetryPolicy{
+			InitialInterval:    localActivityRetryInitialInterval,
+			MaximumInterval:    localActivityRetryMaxInterval,
+			MaximumAttempts:    localActivityMaxRetries,
+			BackoffCoefficient: 2,
+		},
+	}
+}
+
 // computeNextRunTime determines the next fire time for the cron schedule,
 // respecting the spec's StartTime and EndTime boundaries.
 func computeNextRunTime(sched cron.Schedule, now time.Time, spec types.ScheduleSpec) time.Time {
