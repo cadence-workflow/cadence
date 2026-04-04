@@ -497,7 +497,11 @@ func TestQueriesPerSecond(t *testing.T) {
 func TestCheckIdleTaskList(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
-	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
+	// Use 100ms instead of 10ms to give sufficient margin for real-time
+	// scheduling jitter. With 10ms the liveness check (at TTL/2 = 5ms
+	// intervals) races against operations like AddTask.MarkAlive() that
+	// must execute within a 2ms window, causing flakes under load.
+	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
 
 	t.Run("Idle task-list", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -505,7 +509,7 @@ func TestCheckIdleTaskList(t *testing.T) {
 		require.NoError(t, tlm.Start(context.Background()))
 
 		require.EqualValues(t, 0, atomic.LoadInt32(&tlm.stopped), "idle check interval had not passed yet")
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 		require.EqualValues(t, 1, atomic.LoadInt32(&tlm.stopped), "idle check interval should have pass")
 	})
 
@@ -520,10 +524,10 @@ func TestCheckIdleTaskList(t *testing.T) {
 
 		// task list manager should have been stopped,
 		// but GetTask extends auto-stop until the next check-idle-task-list-interval
-		time.Sleep(6 * time.Millisecond)
+		time.Sleep(60 * time.Millisecond)
 		require.EqualValues(t, 0, atomic.LoadInt32(&tlm.stopped))
 
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 		require.EqualValues(t, 1, atomic.LoadInt32(&tlm.stopped), "idle check interval should have pass")
 	})
 
@@ -547,7 +551,7 @@ func TestCheckIdleTaskList(t *testing.T) {
 		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, clock.NewRealTimeSource())
 		require.NoError(t, tlm.Start(context.Background()))
 
-		time.Sleep(8 * time.Millisecond)
+		time.Sleep(80 * time.Millisecond)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		_, err := tlm.AddTask(ctx, addTaskParam)
 		require.NoError(t, err)
@@ -555,10 +559,10 @@ func TestCheckIdleTaskList(t *testing.T) {
 
 		// task list manager should have been stopped,
 		// but AddTask extends auto-stop until the next check-idle-task-list-interval
-		time.Sleep(6 * time.Millisecond)
+		time.Sleep(60 * time.Millisecond)
 		require.EqualValues(t, 0, atomic.LoadInt32(&tlm.stopped))
 
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 		require.EqualValues(t, 1, atomic.LoadInt32(&tlm.stopped), "idle check interval should have pass")
 	})
 }
