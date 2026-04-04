@@ -510,7 +510,7 @@ func TestCheckIdleTaskList(t *testing.T) {
 
 		require.EqualValues(t, 0, atomic.LoadInt32(&tlm.stopped), "idle check interval had not passed yet")
 		time.Sleep(200 * time.Millisecond)
-		require.EqualValues(t, 1, atomic.LoadInt32(&tlm.stopped), "idle check interval should have pass")
+		require.EqualValues(t, 1, atomic.LoadInt32(&tlm.stopped), "idle check interval should have passed")
 	})
 
 	t.Run("Active poll-er", func(t *testing.T) {
@@ -528,7 +528,7 @@ func TestCheckIdleTaskList(t *testing.T) {
 		require.EqualValues(t, 0, atomic.LoadInt32(&tlm.stopped))
 
 		time.Sleep(200 * time.Millisecond)
-		require.EqualValues(t, 1, atomic.LoadInt32(&tlm.stopped), "idle check interval should have pass")
+		require.EqualValues(t, 1, atomic.LoadInt32(&tlm.stopped), "idle check interval should have passed")
 	})
 
 	t.Run("Active adding task", func(t *testing.T) {
@@ -563,7 +563,7 @@ func TestCheckIdleTaskList(t *testing.T) {
 		require.EqualValues(t, 0, atomic.LoadInt32(&tlm.stopped))
 
 		time.Sleep(200 * time.Millisecond)
-		require.EqualValues(t, 1, atomic.LoadInt32(&tlm.stopped), "idle check interval should have pass")
+		require.EqualValues(t, 1, atomic.LoadInt32(&tlm.stopped), "idle check interval should have passed")
 	})
 }
 
