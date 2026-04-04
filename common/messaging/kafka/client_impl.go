@@ -95,13 +95,8 @@ func NewKafkaClient(
 // NewConsumer is used to create a Kafka consumer
 func (c *clientImpl) NewConsumer(app, consumerName string) (messaging.Consumer, error) {
 	topics := c.config.GetTopicsForApplication(app)
-	// All default values are copied from uber/kafka-clientImpl to keep the same behavior
-	kafkaVersion := c.config.Version
-	if kafkaVersion == "" {
-		kafkaVersion = defaultKafkaVersion
-	}
-
-	version, err := sarama.ParseKafkaVersion(kafkaVersion)
+	// All default values are copied from uber-go/kafka-client to keep the same behavior
+	version, err := c.resolveKafkaVersion()
 	if err != nil {
 		return nil, err
 	}
@@ -139,12 +134,7 @@ func (c *clientImpl) newProducerByTopic(topic string) (messaging.Producer, error
 	kafkaClusterName := c.config.GetKafkaClusterForTopic(topic)
 	brokers := c.config.GetBrokersForKafkaCluster(kafkaClusterName)
 
-	kafkaVersion := c.config.Version
-	if kafkaVersion == "" {
-		kafkaVersion = defaultKafkaVersion
-	}
-
-	version, err := sarama.ParseKafkaVersion(kafkaVersion)
+	version, err := c.resolveKafkaVersion()
 	if err != nil {
 		return nil, err
 	}
@@ -168,6 +158,16 @@ func (c *clientImpl) newProducerByTopic(topic string) (messaging.Producer, error
 		return messaging.NewMetricProducer(NewKafkaProducer(topic, producer, c.logger), c.metricsClient, withMetricsOpt), nil
 	}
 	return NewKafkaProducer(topic, producer, c.logger), nil
+}
+
+// resolveKafkaVersion returns the parsed Kafka version from config,
+// falling back to defaultKafkaVersion when none is configured.
+func (c *clientImpl) resolveKafkaVersion() (sarama.KafkaVersion, error) {
+	v := c.config.Version
+	if v == "" {
+		v = defaultKafkaVersion
+	}
+	return sarama.ParseKafkaVersion(v)
 }
 
 func (c *clientImpl) initAuth(saramaConfig *sarama.Config) error {
