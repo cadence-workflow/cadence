@@ -35,6 +35,18 @@ import (
 	"github.com/uber/cadence/common/metrics"
 )
 
+const (
+	// defaultKafkaVersion is the Kafka protocol version used when the user does not
+	// specify one in the configuration. The previous default ("0.10.2.0") is too low
+	// for Sarama ≥ v1.45 which performs API-version negotiation: modern brokers
+	// (Kafka ≥ 1.0) may refuse the handshake when the client advertises such an
+	// old version, causing "client has run out of available brokers" errors.
+	// Version 2.1.0 (released Nov 2018) is old enough to be universally supported
+	// by any Kafka cluster still in production, yet new enough for Sarama's API
+	// negotiation to succeed.
+	defaultKafkaVersion = "2.1.0"
+)
+
 type (
 	// This is a default implementation of Client interface which makes use of uber-go/kafka-client as consumer
 	clientImpl struct {
@@ -83,10 +95,10 @@ func NewKafkaClient(
 // NewConsumer is used to create a Kafka consumer
 func (c *clientImpl) NewConsumer(app, consumerName string) (messaging.Consumer, error) {
 	topics := c.config.GetTopicsForApplication(app)
-	// All defaut values are copied from uber/kafka-clientImpl bo keep the same behavior
+	// All default values are copied from uber/kafka-clientImpl to keep the same behavior
 	kafkaVersion := c.config.Version
 	if kafkaVersion == "" {
-		kafkaVersion = "0.10.2.0"
+		kafkaVersion = defaultKafkaVersion
 	}
 
 	version, err := sarama.ParseKafkaVersion(kafkaVersion)
@@ -127,9 +139,20 @@ func (c *clientImpl) newProducerByTopic(topic string) (messaging.Producer, error
 	kafkaClusterName := c.config.GetKafkaClusterForTopic(topic)
 	brokers := c.config.GetBrokersForKafkaCluster(kafkaClusterName)
 
+	kafkaVersion := c.config.Version
+	if kafkaVersion == "" {
+		kafkaVersion = defaultKafkaVersion
+	}
+
+	version, err := sarama.ParseKafkaVersion(kafkaVersion)
+	if err != nil {
+		return nil, err
+	}
+
 	config := sarama.NewConfig()
+	config.Version = version
 	config.Producer.Return.Successes = true
-	err := c.initAuth(config)
+	err = c.initAuth(config)
 	if err != nil {
 		return nil, err
 	}
