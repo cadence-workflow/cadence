@@ -68,7 +68,7 @@ func (c *meteredExecutionManager) CompleteHistoryTask(ctx context.Context, reque
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceCompleteHistoryTaskScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceCompleteHistoryTaskScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -93,7 +93,7 @@ func (c *meteredExecutionManager) ConflictResolveWorkflowExecution(ctx context.C
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceConflictResolveWorkflowExecutionScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceConflictResolveWorkflowExecutionScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -117,7 +117,7 @@ func (c *meteredExecutionManager) CreateFailoverMarkerTasks(ctx context.Context,
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceCreateFailoverMarkerTasksScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceCreateFailoverMarkerTasksScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -142,7 +142,7 @@ func (c *meteredExecutionManager) CreateWorkflowExecution(ctx context.Context, r
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceCreateWorkflowExecutionScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceCreateWorkflowExecutionScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -166,7 +166,7 @@ func (c *meteredExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceDeleteActiveClusterSelectionPolicyScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceDeleteActiveClusterSelectionPolicyScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -190,7 +190,7 @@ func (c *meteredExecutionManager) DeleteCurrentWorkflowExecution(ctx context.Con
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceDeleteCurrentWorkflowExecutionScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceDeleteCurrentWorkflowExecutionScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -214,7 +214,7 @@ func (c *meteredExecutionManager) DeleteReplicationTaskFromDLQ(ctx context.Conte
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceDeleteReplicationTaskFromDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceDeleteReplicationTaskFromDLQScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -238,7 +238,7 @@ func (c *meteredExecutionManager) DeleteWorkflowExecution(ctx context.Context, r
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceDeleteWorkflowExecutionScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceDeleteWorkflowExecutionScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -263,7 +263,7 @@ func (c *meteredExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Co
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceGetActiveClusterSelectionPolicyScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceGetActiveClusterSelectionPolicyScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -288,7 +288,7 @@ func (c *meteredExecutionManager) GetCurrentExecution(ctx context.Context, reque
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceGetCurrentExecutionScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceGetCurrentExecutionScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -313,7 +313,7 @@ func (c *meteredExecutionManager) GetHistoryTasks(ctx context.Context, request *
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceGetHistoryTasksScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceGetHistoryTasksScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -342,7 +342,7 @@ func (c *meteredExecutionManager) GetReplicationDLQSize(ctx context.Context, req
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceGetReplicationDLQSizeScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceGetReplicationDLQSizeScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -367,7 +367,7 @@ func (c *meteredExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceGetReplicationTasksFromDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceGetReplicationTasksFromDLQScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -396,7 +396,7 @@ func (c *meteredExecutionManager) GetWorkflowExecution(ctx context.Context, requ
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceGetWorkflowExecutionScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceGetWorkflowExecutionScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -421,7 +421,7 @@ func (c *meteredExecutionManager) IsWorkflowExecutionExists(ctx context.Context,
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceIsWorkflowExecutionExistsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceIsWorkflowExecutionExistsScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -446,7 +446,7 @@ func (c *meteredExecutionManager) ListConcreteExecutions(ctx context.Context, re
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceListConcreteExecutionsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceListConcreteExecutionsScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -471,7 +471,7 @@ func (c *meteredExecutionManager) ListCurrentExecutions(ctx context.Context, req
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceListCurrentExecutionsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceListCurrentExecutionsScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -495,7 +495,7 @@ func (c *meteredExecutionManager) PutReplicationTaskToDLQ(ctx context.Context, r
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistencePutReplicationTaskToDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistencePutReplicationTaskToDLQScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -520,7 +520,7 @@ func (c *meteredExecutionManager) RangeCompleteHistoryTask(ctx context.Context, 
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceRangeCompleteHistoryTaskScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceRangeCompleteHistoryTaskScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -545,7 +545,7 @@ func (c *meteredExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context.
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceRangeDeleteReplicationTaskFromDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceRangeDeleteReplicationTaskFromDLQScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }
@@ -570,7 +570,7 @@ func (c *meteredExecutionManager) UpdateWorkflowExecution(ctx context.Context, r
 		return
 	}
 
-	err = c.callWithoutDomainTag(metrics.PersistenceUpdateWorkflowExecutionScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+	err = c.callWithoutDomainTag(metrics.PersistenceUpdateWorkflowExecutionScope, op, metrics.IsRetryTag(retryCount > 0))
 
 	return
 }

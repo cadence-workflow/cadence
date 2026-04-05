@@ -70,8 +70,7 @@ func New{{.Interface.Name}}(
 
              {{$extraTags := ""}}
              {{ if gt (len $method.Params) 1 -}}
-                  {{ $reqName := (index $method.Params 1).Name }}
-                  {{ $extraTags = printf ", append(getCustomMetricTags(%s), metrics.IsRetryTag(retryCount > 0))..." $reqName }}
+                  {{ $extraTags = ", metrics.IsRetryTag(retryCount > 0)" }}
              {{ end -}}
 
 	        err = c.callWithoutDomainTag({{$scopeName}}, op{{$extraTags}})
