@@ -73,7 +73,7 @@ func NewLinearIterator[T Integer](min, max T, stepCount int) *LinearIterator[T] 
 	}
 
 	// Calculate step size as a float to ensure even distribution
-	stepSize := float64(totalRange / (stepCount - 1))
+	stepSize := float64(totalRange) / float64(stepCount-1)
 
 	// Generate steps
 	steps := make([]T, stepCount)
