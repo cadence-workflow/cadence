@@ -150,23 +150,28 @@ func TestBatchWorkflowV2_TuneSignal(t *testing.T) {
 	var mu sync.Mutex
 	var capturedParams []BatchParams
 
-	// firstActivityDone is kept open while the test runs, which prevents the
-	// first activity mock goroutine from returning before the workflow has had
-	// a chance to process the tune signal. The Cadence test framework delivers
-	// CanceledError to the activity future independently of the goroutine, so
-	// blocking here does not prevent the workflow from completing. The channel
-	// is closed by t.Cleanup once the assertions are done.
+	// firstActivityDone gates the first activity mock goroutine so it does not
+	// return before the workflow has had a chance to process the tune signal.
+	// The Cadence test framework delivers CanceledError to the activity future
+	// independently of the goroutine, so blocking here does not prevent the
+	// workflow from completing.
 	firstActivityDone := make(chan struct{})
-	t.Cleanup(func() { close(firstActivityDone) })
+
+	// activityWG tracks running activity mock goroutines so we can wait for
+	// them to finish before reading capturedParams, avoiding a data race.
+	var activityWG sync.WaitGroup
 
 	env.OnActivity(batchActivityV2Name, mock.Anything, mock.Anything).
 		Return(func(_ context.Context, p BatchParams) (HeartBeatDetails, error) {
+			activityWG.Add(1)
+			defer activityWG.Done()
+
 			mu.Lock()
 			capturedParams = append(capturedParams, p)
 			n := len(capturedParams)
 			mu.Unlock()
 			if n == 1 {
-				// Block until the test is done. This prevents the future from
+				// Block until the workflow is done. This prevents the future from
 				// resolving with nil before the workflow processes the tune signal,
 				// which would cause the workflow to take the early-exit path.
 				<-firstActivityDone
@@ -192,6 +197,11 @@ func TestBatchWorkflowV2_TuneSignal(t *testing.T) {
 	require.NoError(t, env.GetWorkflowResult(&result))
 	assert.Equal(t, 8, result.SuccessCount)
 	assert.Equal(t, 3, result.CurrentPage)
+
+	// Release the first activity goroutine and wait for all activity goroutines
+	// to finish before reading capturedParams.
+	close(firstActivityDone)
+	activityWG.Wait()
 
 	mu.Lock()
 	captured := make([]BatchParams, len(capturedParams))
