@@ -3154,7 +3154,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ElasticsearchRequests:                                        {metricName: "elasticsearch_requests", metricType: Counter},
 		ElasticsearchFailures:                                        {metricName: "elasticsearch_errors", metricType: Counter},
 		ElasticsearchLatency:                                         {metricName: "elasticsearch_latency", metricType: Timer},
-		ElasticsearchLatencyHistogram:                                {metricName: "elasticsearch_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
+		ElasticsearchLatencyHistogram:                                {metricName: "elasticsearch_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		ElasticsearchErrBadRequestCounter:                            {metricName: "elasticsearch_errors_bad_request", metricType: Counter},
 		ElasticsearchErrBusyCounter:                                  {metricName: "elasticsearch_errors_busy", metricType: Counter},
 		ElasticsearchRequestsPerDomain:                               {metricName: "elasticsearch_requests_per_domain", metricRollupName: "elasticsearch_requests", metricType: Counter},
@@ -3362,7 +3362,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 	History: {
 		TaskRequests:                                  {metricName: "task_requests", metricType: Counter},
 		TaskLatency:                                   {metricName: "task_latency", metricType: Timer},
-		TaskLatencyHistogram:                          {metricName: "task_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
+		TaskLatencyHistogram:                          {metricName: "task_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		TaskAttemptTimer:                              {metricName: "task_attempt", metricType: Timer},
 		TaskAttemptCountsHistogram:                    {metricName: "task_attempt_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		TaskFailures:                                  {metricName: "task_errors", metricType: Counter},
