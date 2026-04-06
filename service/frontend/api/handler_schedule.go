@@ -36,6 +36,9 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
+	if request == nil {
+		return nil, validate.ErrRequestNotSet
+	}
 	return nil, errScheduleNotImplemented
 }
 
@@ -45,6 +48,9 @@ func (wh *WorkflowHandler) DescribeSchedule(
 ) (*types.DescribeScheduleResponse, error) {
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
+	}
+	if request == nil {
+		return nil, validate.ErrRequestNotSet
 	}
 	return nil, errScheduleNotImplemented
 }
@@ -56,6 +62,9 @@ func (wh *WorkflowHandler) UpdateSchedule(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
+	if request == nil {
+		return nil, validate.ErrRequestNotSet
+	}
 	return nil, errScheduleNotImplemented
 }
 
@@ -65,6 +74,9 @@ func (wh *WorkflowHandler) DeleteSchedule(
 ) (*types.DeleteScheduleResponse, error) {
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
+	}
+	if request == nil {
+		return nil, validate.ErrRequestNotSet
 	}
 	return nil, errScheduleNotImplemented
 }
@@ -76,6 +88,9 @@ func (wh *WorkflowHandler) PauseSchedule(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
+	if request == nil {
+		return nil, validate.ErrRequestNotSet
+	}
 	return nil, errScheduleNotImplemented
 }
 
@@ -85,6 +100,9 @@ func (wh *WorkflowHandler) UnpauseSchedule(
 ) (*types.UnpauseScheduleResponse, error) {
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
+	}
+	if request == nil {
+		return nil, validate.ErrRequestNotSet
 	}
 	return nil, errScheduleNotImplemented
 }
@@ -96,6 +114,9 @@ func (wh *WorkflowHandler) BackfillSchedule(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
+	if request == nil {
+		return nil, validate.ErrRequestNotSet
+	}
 	return nil, errScheduleNotImplemented
 }
 
@@ -105,6 +126,9 @@ func (wh *WorkflowHandler) ListSchedules(
 ) (*types.ListSchedulesResponse, error) {
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
+	}
+	if request == nil {
+		return nil, validate.ErrRequestNotSet
 	}
 	return nil, errScheduleNotImplemented
 }
