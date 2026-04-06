@@ -534,6 +534,22 @@ const (
 	FrontendClientFailoverDomainScope
 	// FrontendClientListFailoverHistoryScope tracks RPC calls to frontend service
 	FrontendClientListFailoverHistoryScope
+	// FrontendClientCreateScheduleScope tracks RPC calls to frontend service
+	FrontendClientCreateScheduleScope
+	// FrontendClientDescribeScheduleScope tracks RPC calls to frontend service
+	FrontendClientDescribeScheduleScope
+	// FrontendClientUpdateScheduleScope tracks RPC calls to frontend service
+	FrontendClientUpdateScheduleScope
+	// FrontendClientDeleteScheduleScope tracks RPC calls to frontend service
+	FrontendClientDeleteScheduleScope
+	// FrontendClientPauseScheduleScope tracks RPC calls to frontend service
+	FrontendClientPauseScheduleScope
+	// FrontendClientUnpauseScheduleScope tracks RPC calls to frontend service
+	FrontendClientUnpauseScheduleScope
+	// FrontendClientBackfillScheduleScope tracks RPC calls to frontend service
+	FrontendClientBackfillScheduleScope
+	// FrontendClientListSchedulesScope tracks RPC calls to frontend service
+	FrontendClientListSchedulesScope
 	// FrontendClientListWorkflowExecutionsScope tracks RPC calls to frontend service
 	FrontendClientListWorkflowExecutionsScope
 	// FrontendClientScanWorkflowExecutionsScope tracks RPC calls to frontend service
@@ -726,6 +742,22 @@ const (
 	DCRedirectionRefreshWorkflowTasksScope
 	// DCRedirectionRestartWorkflowExecutionScope tracks RPC calls for dc redirection
 	DCRedirectionRestartWorkflowExecutionScope
+	// DCRedirectionCreateScheduleScope tracks RPC calls for dc redirection
+	DCRedirectionCreateScheduleScope
+	// DCRedirectionDescribeScheduleScope tracks RPC calls for dc redirection
+	DCRedirectionDescribeScheduleScope
+	// DCRedirectionUpdateScheduleScope tracks RPC calls for dc redirection
+	DCRedirectionUpdateScheduleScope
+	// DCRedirectionDeleteScheduleScope tracks RPC calls for dc redirection
+	DCRedirectionDeleteScheduleScope
+	// DCRedirectionPauseScheduleScope tracks RPC calls for dc redirection
+	DCRedirectionPauseScheduleScope
+	// DCRedirectionUnpauseScheduleScope tracks RPC calls for dc redirection
+	DCRedirectionUnpauseScheduleScope
+	// DCRedirectionBackfillScheduleScope tracks RPC calls for dc redirection
+	DCRedirectionBackfillScheduleScope
+	// DCRedirectionListSchedulesScope tracks RPC calls for dc redirection
+	DCRedirectionListSchedulesScope
 	// DCRedirectionForwardingPolicyScope tracks cluster redirection decisions
 	DCRedirectionForwardingPolicyScope
 
@@ -1095,6 +1127,22 @@ const (
 	FrontendGetSearchAttributesScope
 	// FrontendGetClusterInfoScope is the metric scope for frontend.GetClusterInfo
 	FrontendGetClusterInfoScope
+	// FrontendCreateScheduleScope is the metric scope for frontend.CreateSchedule
+	FrontendCreateScheduleScope
+	// FrontendDescribeScheduleScope is the metric scope for frontend.DescribeSchedule
+	FrontendDescribeScheduleScope
+	// FrontendUpdateScheduleScope is the metric scope for frontend.UpdateSchedule
+	FrontendUpdateScheduleScope
+	// FrontendDeleteScheduleScope is the metric scope for frontend.DeleteSchedule
+	FrontendDeleteScheduleScope
+	// FrontendPauseScheduleScope is the metric scope for frontend.PauseSchedule
+	FrontendPauseScheduleScope
+	// FrontendUnpauseScheduleScope is the metric scope for frontend.UnpauseSchedule
+	FrontendUnpauseScheduleScope
+	// FrontendBackfillScheduleScope is the metric scope for frontend.BackfillSchedule
+	FrontendBackfillScheduleScope
+	// FrontendListSchedulesScope is the metric scope for frontend.ListSchedules
+	FrontendListSchedulesScope
 
 	NumFrontendScopes
 )
@@ -1722,6 +1770,14 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendClientListTaskListPartitionsScope:                {operation: "FrontendClientListTaskListPartitions", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientGetTaskListsByDomainScope:                  {operation: "FrontendClientGetTaskListsByDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientRestartWorkflowExecutionScope:              {operation: "FrontendClientRestartWorkflowExecution", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientCreateScheduleScope:                        {operation: "FrontendClientCreateSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientDescribeScheduleScope:                      {operation: "FrontendClientDescribeSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientUpdateScheduleScope:                        {operation: "FrontendClientUpdateSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientDeleteScheduleScope:                        {operation: "FrontendClientDeleteSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientPauseScheduleScope:                         {operation: "FrontendClientPauseSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientUnpauseScheduleScope:                       {operation: "FrontendClientUnpauseSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientBackfillScheduleScope:                      {operation: "FrontendClientBackfillSchedule", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientListSchedulesScope:                         {operation: "FrontendClientListSchedules", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 
 		AdminClientGetReplicationTasksScope:                   {operation: "AdminClientGetReplicationTasks", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientAddSearchAttributeScope:                    {operation: "AdminClientAddSearchAttribute", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
@@ -1808,6 +1864,14 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		DCRedirectionGetTaskListsByDomainScope:                  {operation: "DCRedirectionGetTaskListsByDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionRefreshWorkflowTasksScope:                  {operation: "DCRedirectionRefreshWorkflowTasks", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionRestartWorkflowExecutionScope:              {operation: "DCRedirectionRestartWorkflowExecution", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionCreateScheduleScope:                        {operation: "DCRedirectionCreateSchedule", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionDescribeScheduleScope:                      {operation: "DCRedirectionDescribeSchedule", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionUpdateScheduleScope:                        {operation: "DCRedirectionUpdateSchedule", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionDeleteScheduleScope:                        {operation: "DCRedirectionDeleteSchedule", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionPauseScheduleScope:                         {operation: "DCRedirectionPauseSchedule", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionUnpauseScheduleScope:                       {operation: "DCRedirectionUnpauseSchedule", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionBackfillScheduleScope:                      {operation: "DCRedirectionBackfillSchedule", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionListSchedulesScope:                         {operation: "DCRedirectionListSchedules", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionForwardingPolicyScope:                      {operation: "DCRedirectionForwardingPolicy", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 
 		MessagingClientPublishScope:      {operation: "MessagingClientPublish"},
@@ -1982,6 +2046,14 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendRefreshWorkflowTasksScope:                  {operation: "FrontendRefreshWorkflowTasks"},
 		FrontendDescribeTaskListScope:                      {operation: "DescribeTaskList"},
 		FrontendResetStickyTaskListScope:                   {operation: "ResetStickyTaskList"},
+		FrontendCreateScheduleScope:                        {operation: "CreateSchedule"},
+		FrontendDescribeScheduleScope:                      {operation: "DescribeSchedule"},
+		FrontendUpdateScheduleScope:                        {operation: "UpdateSchedule"},
+		FrontendDeleteScheduleScope:                        {operation: "DeleteSchedule"},
+		FrontendPauseScheduleScope:                         {operation: "PauseSchedule"},
+		FrontendUnpauseScheduleScope:                       {operation: "UnpauseSchedule"},
+		FrontendBackfillScheduleScope:                      {operation: "BackfillSchedule"},
+		FrontendListSchedulesScope:                         {operation: "ListSchedules"},
 		FrontendGetSearchAttributesScope:                   {operation: "GetSearchAttributes"},
 		FrontendGetClusterInfoScope:                        {operation: "GetClusterInfo"},
 	},

@@ -42,6 +42,21 @@ func (m *MockHandler) EXPECT() *MockHandlerMockRecorder {
 	return m.recorder
 }
 
+// BackfillSchedule mocks base method.
+func (m *MockHandler) BackfillSchedule(arg0 context.Context, arg1 *types.BackfillScheduleRequest) (*types.BackfillScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackfillSchedule", arg0, arg1)
+	ret0, _ := ret[0].(*types.BackfillScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BackfillSchedule indicates an expected call of BackfillSchedule.
+func (mr *MockHandlerMockRecorder) BackfillSchedule(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackfillSchedule", reflect.TypeOf((*MockHandler)(nil).BackfillSchedule), arg0, arg1)
+}
+
 // CountWorkflowExecutions mocks base method.
 func (m *MockHandler) CountWorkflowExecutions(arg0 context.Context, arg1 *types.CountWorkflowExecutionsRequest) (*types.CountWorkflowExecutionsResponse, error) {
 	m.ctrl.T.Helper()
@@ -57,6 +72,21 @@ func (mr *MockHandlerMockRecorder) CountWorkflowExecutions(arg0, arg1 any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountWorkflowExecutions", reflect.TypeOf((*MockHandler)(nil).CountWorkflowExecutions), arg0, arg1)
 }
 
+// CreateSchedule mocks base method.
+func (m *MockHandler) CreateSchedule(arg0 context.Context, arg1 *types.CreateScheduleRequest) (*types.CreateScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateSchedule", arg0, arg1)
+	ret0, _ := ret[0].(*types.CreateScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateSchedule indicates an expected call of CreateSchedule.
+func (mr *MockHandlerMockRecorder) CreateSchedule(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSchedule", reflect.TypeOf((*MockHandler)(nil).CreateSchedule), arg0, arg1)
+}
+
 // DeleteDomain mocks base method.
 func (m *MockHandler) DeleteDomain(arg0 context.Context, arg1 *types.DeleteDomainRequest) error {
 	m.ctrl.T.Helper()
@@ -69,6 +99,21 @@ func (m *MockHandler) DeleteDomain(arg0 context.Context, arg1 *types.DeleteDomai
 func (mr *MockHandlerMockRecorder) DeleteDomain(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDomain", reflect.TypeOf((*MockHandler)(nil).DeleteDomain), arg0, arg1)
+}
+
+// DeleteSchedule mocks base method.
+func (m *MockHandler) DeleteSchedule(arg0 context.Context, arg1 *types.DeleteScheduleRequest) (*types.DeleteScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteSchedule", arg0, arg1)
+	ret0, _ := ret[0].(*types.DeleteScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteSchedule indicates an expected call of DeleteSchedule.
+func (mr *MockHandlerMockRecorder) DeleteSchedule(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSchedule", reflect.TypeOf((*MockHandler)(nil).DeleteSchedule), arg0, arg1)
 }
 
 // DeprecateDomain mocks base method.
@@ -98,6 +143,21 @@ func (m *MockHandler) DescribeDomain(arg0 context.Context, arg1 *types.DescribeD
 func (mr *MockHandlerMockRecorder) DescribeDomain(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDomain", reflect.TypeOf((*MockHandler)(nil).DescribeDomain), arg0, arg1)
+}
+
+// DescribeSchedule mocks base method.
+func (m *MockHandler) DescribeSchedule(arg0 context.Context, arg1 *types.DescribeScheduleRequest) (*types.DescribeScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeSchedule", arg0, arg1)
+	ret0, _ := ret[0].(*types.DescribeScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeSchedule indicates an expected call of DescribeSchedule.
+func (mr *MockHandlerMockRecorder) DescribeSchedule(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeSchedule", reflect.TypeOf((*MockHandler)(nil).DescribeSchedule), arg0, arg1)
 }
 
 // DescribeTaskList mocks base method.
@@ -310,6 +370,21 @@ func (mr *MockHandlerMockRecorder) ListOpenWorkflowExecutions(arg0, arg1 any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOpenWorkflowExecutions", reflect.TypeOf((*MockHandler)(nil).ListOpenWorkflowExecutions), arg0, arg1)
 }
 
+// ListSchedules mocks base method.
+func (m *MockHandler) ListSchedules(arg0 context.Context, arg1 *types.ListSchedulesRequest) (*types.ListSchedulesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListSchedules", arg0, arg1)
+	ret0, _ := ret[0].(*types.ListSchedulesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListSchedules indicates an expected call of ListSchedules.
+func (mr *MockHandlerMockRecorder) ListSchedules(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSchedules", reflect.TypeOf((*MockHandler)(nil).ListSchedules), arg0, arg1)
+}
+
 // ListTaskListPartitions mocks base method.
 func (m *MockHandler) ListTaskListPartitions(arg0 context.Context, arg1 *types.ListTaskListPartitionsRequest) (*types.ListTaskListPartitionsResponse, error) {
 	m.ctrl.T.Helper()
@@ -338,6 +413,21 @@ func (m *MockHandler) ListWorkflowExecutions(arg0 context.Context, arg1 *types.L
 func (mr *MockHandlerMockRecorder) ListWorkflowExecutions(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkflowExecutions", reflect.TypeOf((*MockHandler)(nil).ListWorkflowExecutions), arg0, arg1)
+}
+
+// PauseSchedule mocks base method.
+func (m *MockHandler) PauseSchedule(arg0 context.Context, arg1 *types.PauseScheduleRequest) (*types.PauseScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PauseSchedule", arg0, arg1)
+	ret0, _ := ret[0].(*types.PauseScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PauseSchedule indicates an expected call of PauseSchedule.
+func (mr *MockHandlerMockRecorder) PauseSchedule(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PauseSchedule", reflect.TypeOf((*MockHandler)(nil).PauseSchedule), arg0, arg1)
 }
 
 // PollForActivityTask mocks base method.
@@ -732,6 +822,21 @@ func (mr *MockHandlerMockRecorder) TerminateWorkflowExecution(arg0, arg1 any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TerminateWorkflowExecution", reflect.TypeOf((*MockHandler)(nil).TerminateWorkflowExecution), arg0, arg1)
 }
 
+// UnpauseSchedule mocks base method.
+func (m *MockHandler) UnpauseSchedule(arg0 context.Context, arg1 *types.UnpauseScheduleRequest) (*types.UnpauseScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnpauseSchedule", arg0, arg1)
+	ret0, _ := ret[0].(*types.UnpauseScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UnpauseSchedule indicates an expected call of UnpauseSchedule.
+func (mr *MockHandlerMockRecorder) UnpauseSchedule(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnpauseSchedule", reflect.TypeOf((*MockHandler)(nil).UnpauseSchedule), arg0, arg1)
+}
+
 // UpdateDomain mocks base method.
 func (m *MockHandler) UpdateDomain(arg0 context.Context, arg1 *types.UpdateDomainRequest) (*types.UpdateDomainResponse, error) {
 	m.ctrl.T.Helper()
@@ -745,4 +850,19 @@ func (m *MockHandler) UpdateDomain(arg0 context.Context, arg1 *types.UpdateDomai
 func (mr *MockHandlerMockRecorder) UpdateDomain(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDomain", reflect.TypeOf((*MockHandler)(nil).UpdateDomain), arg0, arg1)
+}
+
+// UpdateSchedule mocks base method.
+func (m *MockHandler) UpdateSchedule(arg0 context.Context, arg1 *types.UpdateScheduleRequest) (*types.UpdateScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSchedule", arg0, arg1)
+	ret0, _ := ret[0].(*types.UpdateScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateSchedule indicates an expected call of UpdateSchedule.
+func (mr *MockHandlerMockRecorder) UpdateSchedule(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSchedule", reflect.TypeOf((*MockHandler)(nil).UpdateSchedule), arg0, arg1)
 }

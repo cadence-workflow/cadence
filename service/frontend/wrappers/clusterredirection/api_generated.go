@@ -62,6 +62,45 @@ func NewAPIHandler(
 	}
 }
 
+func (handler *clusterRedirectionHandler) BackfillSchedule(ctx context.Context, bp1 *types.BackfillScheduleRequest) (bp2 *types.BackfillScheduleResponse, err error) {
+	var (
+		apiName                   = "BackfillSchedule"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
+	)
+
+	var domainEntry *cache.DomainCacheEntry
+	scope, startTime := handler.beforeCall(metrics.DCRedirectionBackfillScheduleScope)
+	defer func() {
+		handler.afterCall(recover(), scope, startTime, domainEntry, cluster, &err)
+	}()
+
+	domainEntry, err = handler.domainCache.GetDomain(bp1.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
+	var workflowExecution *types.WorkflowExecution
+
+	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
+		cluster = targetDC
+		switch {
+		case targetDC == handler.currentClusterName:
+			bp2, err = handler.frontendHandler.BackfillSchedule(ctx, bp1)
+		default:
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
+			}
+			bp2, err = remoteClient.BackfillSchedule(ctx, bp1, handler.callOptions...)
+		}
+		return err
+	})
+
+	return bp2, err
+}
+
 func (handler *clusterRedirectionHandler) CountWorkflowExecutions(ctx context.Context, cp1 *types.CountWorkflowExecutionsRequest) (cp2 *types.CountWorkflowExecutionsResponse, err error) {
 	var (
 		apiName                   = "CountWorkflowExecutions"
@@ -101,8 +140,86 @@ func (handler *clusterRedirectionHandler) CountWorkflowExecutions(ctx context.Co
 	return cp2, err
 }
 
+func (handler *clusterRedirectionHandler) CreateSchedule(ctx context.Context, cp1 *types.CreateScheduleRequest) (cp2 *types.CreateScheduleResponse, err error) {
+	var (
+		apiName                   = "CreateSchedule"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
+	)
+
+	var domainEntry *cache.DomainCacheEntry
+	scope, startTime := handler.beforeCall(metrics.DCRedirectionCreateScheduleScope)
+	defer func() {
+		handler.afterCall(recover(), scope, startTime, domainEntry, cluster, &err)
+	}()
+
+	domainEntry, err = handler.domainCache.GetDomain(cp1.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
+	var workflowExecution *types.WorkflowExecution
+
+	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
+		cluster = targetDC
+		switch {
+		case targetDC == handler.currentClusterName:
+			cp2, err = handler.frontendHandler.CreateSchedule(ctx, cp1)
+		default:
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
+			}
+			cp2, err = remoteClient.CreateSchedule(ctx, cp1, handler.callOptions...)
+		}
+		return err
+	})
+
+	return cp2, err
+}
+
 func (handler *clusterRedirectionHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest) (err error) {
 	return handler.frontendHandler.DeleteDomain(ctx, dp1)
+}
+
+func (handler *clusterRedirectionHandler) DeleteSchedule(ctx context.Context, dp1 *types.DeleteScheduleRequest) (dp2 *types.DeleteScheduleResponse, err error) {
+	var (
+		apiName                   = "DeleteSchedule"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
+	)
+
+	var domainEntry *cache.DomainCacheEntry
+	scope, startTime := handler.beforeCall(metrics.DCRedirectionDeleteScheduleScope)
+	defer func() {
+		handler.afterCall(recover(), scope, startTime, domainEntry, cluster, &err)
+	}()
+
+	domainEntry, err = handler.domainCache.GetDomain(dp1.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
+	var workflowExecution *types.WorkflowExecution
+
+	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
+		cluster = targetDC
+		switch {
+		case targetDC == handler.currentClusterName:
+			dp2, err = handler.frontendHandler.DeleteSchedule(ctx, dp1)
+		default:
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
+			}
+			dp2, err = remoteClient.DeleteSchedule(ctx, dp1, handler.callOptions...)
+		}
+		return err
+	})
+
+	return dp2, err
 }
 
 func (handler *clusterRedirectionHandler) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDomainRequest) (err error) {
@@ -111,6 +228,45 @@ func (handler *clusterRedirectionHandler) DeprecateDomain(ctx context.Context, d
 
 func (handler *clusterRedirectionHandler) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest) (dp2 *types.DescribeDomainResponse, err error) {
 	return handler.frontendHandler.DescribeDomain(ctx, dp1)
+}
+
+func (handler *clusterRedirectionHandler) DescribeSchedule(ctx context.Context, dp1 *types.DescribeScheduleRequest) (dp2 *types.DescribeScheduleResponse, err error) {
+	var (
+		apiName                   = "DescribeSchedule"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
+	)
+
+	var domainEntry *cache.DomainCacheEntry
+	scope, startTime := handler.beforeCall(metrics.DCRedirectionDescribeScheduleScope)
+	defer func() {
+		handler.afterCall(recover(), scope, startTime, domainEntry, cluster, &err)
+	}()
+
+	domainEntry, err = handler.domainCache.GetDomain(dp1.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
+	var workflowExecution *types.WorkflowExecution
+
+	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
+		cluster = targetDC
+		switch {
+		case targetDC == handler.currentClusterName:
+			dp2, err = handler.frontendHandler.DescribeSchedule(ctx, dp1)
+		default:
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
+			}
+			dp2, err = remoteClient.DescribeSchedule(ctx, dp1, handler.callOptions...)
+		}
+		return err
+	})
+
+	return dp2, err
 }
 
 func (handler *clusterRedirectionHandler) DescribeTaskList(ctx context.Context, dp1 *types.DescribeTaskListRequest) (dp2 *types.DescribeTaskListResponse, err error) {
@@ -427,6 +583,45 @@ func (handler *clusterRedirectionHandler) ListOpenWorkflowExecutions(ctx context
 	return lp2, err
 }
 
+func (handler *clusterRedirectionHandler) ListSchedules(ctx context.Context, lp1 *types.ListSchedulesRequest) (lp2 *types.ListSchedulesResponse, err error) {
+	var (
+		apiName                   = "ListSchedules"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
+	)
+
+	var domainEntry *cache.DomainCacheEntry
+	scope, startTime := handler.beforeCall(metrics.DCRedirectionListSchedulesScope)
+	defer func() {
+		handler.afterCall(recover(), scope, startTime, domainEntry, cluster, &err)
+	}()
+
+	domainEntry, err = handler.domainCache.GetDomain(lp1.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
+	var workflowExecution *types.WorkflowExecution
+
+	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
+		cluster = targetDC
+		switch {
+		case targetDC == handler.currentClusterName:
+			lp2, err = handler.frontendHandler.ListSchedules(ctx, lp1)
+		default:
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
+			}
+			lp2, err = remoteClient.ListSchedules(ctx, lp1, handler.callOptions...)
+		}
+		return err
+	})
+
+	return lp2, err
+}
+
 func (handler *clusterRedirectionHandler) ListTaskListPartitions(ctx context.Context, lp1 *types.ListTaskListPartitionsRequest) (lp2 *types.ListTaskListPartitionsResponse, err error) {
 	var (
 		apiName                   = "ListTaskListPartitions"
@@ -503,6 +698,45 @@ func (handler *clusterRedirectionHandler) ListWorkflowExecutions(ctx context.Con
 	})
 
 	return lp2, err
+}
+
+func (handler *clusterRedirectionHandler) PauseSchedule(ctx context.Context, pp1 *types.PauseScheduleRequest) (pp2 *types.PauseScheduleResponse, err error) {
+	var (
+		apiName                   = "PauseSchedule"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
+	)
+
+	var domainEntry *cache.DomainCacheEntry
+	scope, startTime := handler.beforeCall(metrics.DCRedirectionPauseScheduleScope)
+	defer func() {
+		handler.afterCall(recover(), scope, startTime, domainEntry, cluster, &err)
+	}()
+
+	domainEntry, err = handler.domainCache.GetDomain(pp1.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
+	var workflowExecution *types.WorkflowExecution
+
+	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
+		cluster = targetDC
+		switch {
+		case targetDC == handler.currentClusterName:
+			pp2, err = handler.frontendHandler.PauseSchedule(ctx, pp1)
+		default:
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
+			}
+			pp2, err = remoteClient.PauseSchedule(ctx, pp1, handler.callOptions...)
+		}
+		return err
+	})
+
+	return pp2, err
 }
 
 func (handler *clusterRedirectionHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollForActivityTaskRequest) (pp2 *types.PollForActivityTaskResponse, err error) {
@@ -1588,6 +1822,84 @@ func (handler *clusterRedirectionHandler) TerminateWorkflowExecution(ctx context
 	return err
 }
 
+func (handler *clusterRedirectionHandler) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseScheduleRequest) (up2 *types.UnpauseScheduleResponse, err error) {
+	var (
+		apiName                   = "UnpauseSchedule"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
+	)
+
+	var domainEntry *cache.DomainCacheEntry
+	scope, startTime := handler.beforeCall(metrics.DCRedirectionUnpauseScheduleScope)
+	defer func() {
+		handler.afterCall(recover(), scope, startTime, domainEntry, cluster, &err)
+	}()
+
+	domainEntry, err = handler.domainCache.GetDomain(up1.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
+	var workflowExecution *types.WorkflowExecution
+
+	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
+		cluster = targetDC
+		switch {
+		case targetDC == handler.currentClusterName:
+			up2, err = handler.frontendHandler.UnpauseSchedule(ctx, up1)
+		default:
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
+			}
+			up2, err = remoteClient.UnpauseSchedule(ctx, up1, handler.callOptions...)
+		}
+		return err
+	})
+
+	return up2, err
+}
+
 func (handler *clusterRedirectionHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest) (up2 *types.UpdateDomainResponse, err error) {
 	return handler.frontendHandler.UpdateDomain(ctx, up1)
+}
+
+func (handler *clusterRedirectionHandler) UpdateSchedule(ctx context.Context, up1 *types.UpdateScheduleRequest) (up2 *types.UpdateScheduleResponse, err error) {
+	var (
+		apiName                   = "UpdateSchedule"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
+	)
+
+	var domainEntry *cache.DomainCacheEntry
+	scope, startTime := handler.beforeCall(metrics.DCRedirectionUpdateScheduleScope)
+	defer func() {
+		handler.afterCall(recover(), scope, startTime, domainEntry, cluster, &err)
+	}()
+
+	domainEntry, err = handler.domainCache.GetDomain(up1.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
+	var workflowExecution *types.WorkflowExecution
+
+	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
+		cluster = targetDC
+		switch {
+		case targetDC == handler.currentClusterName:
+			up2, err = handler.frontendHandler.UpdateSchedule(ctx, up1)
+		default:
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
+			}
+			up2, err = remoteClient.UpdateSchedule(ctx, up1, handler.callOptions...)
+		}
+		return err
+	})
+
+	return up2, err
 }

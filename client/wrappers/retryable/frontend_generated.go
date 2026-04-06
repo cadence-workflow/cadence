@@ -31,6 +31,17 @@ func NewFrontendClient(client frontend.Client, policy backoff.RetryPolicy, isRet
 	}
 }
 
+func (c *frontendClient) BackfillSchedule(ctx context.Context, bp1 *types.BackfillScheduleRequest, p1 ...yarpc.CallOption) (bp2 *types.BackfillScheduleResponse, err error) {
+	var resp *types.BackfillScheduleResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.BackfillSchedule(ctx, bp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *frontendClient) CountWorkflowExecutions(ctx context.Context, cp1 *types.CountWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (cp2 *types.CountWorkflowExecutionsResponse, err error) {
 	var resp *types.CountWorkflowExecutionsResponse
 	op := func(ctx context.Context) error {
@@ -42,11 +53,33 @@ func (c *frontendClient) CountWorkflowExecutions(ctx context.Context, cp1 *types
 	return resp, err
 }
 
+func (c *frontendClient) CreateSchedule(ctx context.Context, cp1 *types.CreateScheduleRequest, p1 ...yarpc.CallOption) (cp2 *types.CreateScheduleResponse, err error) {
+	var resp *types.CreateScheduleResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.CreateSchedule(ctx, cp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *frontendClient) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest, p1 ...yarpc.CallOption) (err error) {
 	op := func(ctx context.Context) error {
 		return c.client.DeleteDomain(ctx, dp1, p1...)
 	}
 	return c.throttleRetry.Do(ctx, op)
+}
+
+func (c *frontendClient) DeleteSchedule(ctx context.Context, dp1 *types.DeleteScheduleRequest, p1 ...yarpc.CallOption) (dp2 *types.DeleteScheduleResponse, err error) {
+	var resp *types.DeleteScheduleResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.DeleteSchedule(ctx, dp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
 }
 
 func (c *frontendClient) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDomainRequest, p1 ...yarpc.CallOption) (err error) {
@@ -61,6 +94,17 @@ func (c *frontendClient) DescribeDomain(ctx context.Context, dp1 *types.Describe
 	op := func(ctx context.Context) error {
 		var err error
 		resp, err = c.client.DescribeDomain(ctx, dp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
+func (c *frontendClient) DescribeSchedule(ctx context.Context, dp1 *types.DescribeScheduleRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeScheduleResponse, err error) {
+	var resp *types.DescribeScheduleResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.DescribeSchedule(ctx, dp1, p1...)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
@@ -210,6 +254,17 @@ func (c *frontendClient) ListOpenWorkflowExecutions(ctx context.Context, lp1 *ty
 	return resp, err
 }
 
+func (c *frontendClient) ListSchedules(ctx context.Context, lp1 *types.ListSchedulesRequest, p1 ...yarpc.CallOption) (lp2 *types.ListSchedulesResponse, err error) {
+	var resp *types.ListSchedulesResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.ListSchedules(ctx, lp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *frontendClient) ListTaskListPartitions(ctx context.Context, lp1 *types.ListTaskListPartitionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListTaskListPartitionsResponse, err error) {
 	var resp *types.ListTaskListPartitionsResponse
 	op := func(ctx context.Context) error {
@@ -226,6 +281,17 @@ func (c *frontendClient) ListWorkflowExecutions(ctx context.Context, lp1 *types.
 	op := func(ctx context.Context) error {
 		var err error
 		resp, err = c.client.ListWorkflowExecutions(ctx, lp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
+func (c *frontendClient) PauseSchedule(ctx context.Context, pp1 *types.PauseScheduleRequest, p1 ...yarpc.CallOption) (pp2 *types.PauseScheduleResponse, err error) {
+	var resp *types.PauseScheduleResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.PauseSchedule(ctx, pp1, p1...)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
@@ -477,11 +543,33 @@ func (c *frontendClient) TerminateWorkflowExecution(ctx context.Context, tp1 *ty
 	return c.throttleRetry.Do(ctx, op)
 }
 
+func (c *frontendClient) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseScheduleRequest, p1 ...yarpc.CallOption) (up2 *types.UnpauseScheduleResponse, err error) {
+	var resp *types.UnpauseScheduleResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.UnpauseSchedule(ctx, up1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainResponse, err error) {
 	var resp *types.UpdateDomainResponse
 	op := func(ctx context.Context) error {
 		var err error
 		resp, err = c.client.UpdateDomain(ctx, up1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
+func (c *frontendClient) UpdateSchedule(ctx context.Context, up1 *types.UpdateScheduleRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateScheduleResponse, err error) {
+	var resp *types.UpdateScheduleResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.UpdateSchedule(ctx, up1, p1...)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)

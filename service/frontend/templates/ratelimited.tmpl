@@ -50,6 +50,15 @@ import (
 {{$ratelimitTypeMap = set $ratelimitTypeMap "StartWorkflowExecutionAsync" "ratelimitTypeAsync"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "SignalWithStartWorkflowExecutionAsync" "ratelimitTypeAsync"}}
 
+{{$ratelimitTypeMap = set $ratelimitTypeMap "CreateSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "DescribeSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "UpdateSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "DeleteSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "PauseSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "UnpauseSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "BackfillSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "ListSchedules" "ratelimitTypeUser"}}
+
 {{$ratelimitTypeMap = set $ratelimitTypeMap "Health" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "DeleteDomain" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "DeprecateDomain" "ratelimitTypeNoop"}}

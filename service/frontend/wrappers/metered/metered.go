@@ -361,3 +361,51 @@ func toFailoverDomainRequestTags(req *types.FailoverDomainRequest) []tag.Tag {
 		tag.WorkflowDomainName(req.GetDomain()),
 	}
 }
+
+func toCreateScheduleRequestTags(req *types.CreateScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toDescribeScheduleRequestTags(req *types.DescribeScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toUpdateScheduleRequestTags(req *types.UpdateScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toDeleteScheduleRequestTags(req *types.DeleteScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toPauseScheduleRequestTags(req *types.PauseScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toUnpauseScheduleRequestTags(req *types.UnpauseScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toBackfillScheduleRequestTags(req *types.BackfillScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toListSchedulesRequestTags(req *types.ListSchedulesRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
