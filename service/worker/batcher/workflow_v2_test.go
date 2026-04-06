@@ -203,10 +203,8 @@ func TestBatchWorkflowV2_TuneSignal(t *testing.T) {
 	close(firstActivityDone)
 	activityWG.Wait()
 
-	mu.Lock()
 	captured := make([]BatchParams, len(capturedParams))
 	copy(captured, capturedParams)
-	mu.Unlock()
 
 	require.Len(t, captured, 2, "activity must be invoked twice (cancelled then restarted)")
 	// Second invocation must carry the updated RPS and Concurrency from the signal.
