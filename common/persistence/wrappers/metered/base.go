@@ -25,6 +25,7 @@ package metered
 import (
 	"context"
 	"errors"
+	"reflect"
 	"time"
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -352,7 +353,7 @@ type domainTaggedRequest interface {
 
 func getDomainNameFromRequest(req any) (res string, check bool) {
 	d, check := req.(domainTaggedRequest)
-	if check {
+	if check && !isNilRequest(d) {
 		res = d.GetDomainName()
 	}
 	return res, check
@@ -360,7 +361,7 @@ func getDomainNameFromRequest(req any) (res string, check bool) {
 
 func getCustomLogTags(req any) (res []tag.Tag) {
 	d, check := req.(extraLogRequest)
-	if check {
+	if check && !isNilRequest(d) {
 		res = d.GetExtraLogTags()
 	}
 	return res
@@ -368,7 +369,7 @@ func getCustomLogTags(req any) (res []tag.Tag) {
 
 func getCustomMetricTags(req any) (res []metrics.Tag) {
 	d, check := req.(taggedRequest)
-	if check {
+	if check && !isNilRequest(d) {
 		res = d.MetricTags()
 	}
 	return res
@@ -379,4 +380,18 @@ func getRetryCountFromContext(ctx context.Context) int {
 		return retryCount
 	}
 	return 0
+}
+
+func isNilRequest(v any) bool {
+	if v == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(v)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }

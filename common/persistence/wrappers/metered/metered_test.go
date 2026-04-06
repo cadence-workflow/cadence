@@ -399,6 +399,31 @@ func TestExecutionManagerSharedMetricsStayTagStable(t *testing.T) {
 	})
 }
 
+func TestExecutionManagerNilRequestDoesNotPanic(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	wrapped := persistence.NewMockExecutionManager(ctrl)
+	wrapped.EXPECT().GetShardID().Return(17).AnyTimes()
+	wrapped.EXPECT().GetReplicationTasksFromDLQ(gomock.Any(), (*persistence.GetReplicationTasksFromDLQRequest)(nil)).
+		Return(&persistence.GetHistoryTasksResponse{}, nil).
+		Times(1)
+
+	metricScope := tally.NewTestScope("", nil)
+	metricsClient := metrics.NewClient(metricScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
+	logger := log.NewNoop()
+
+	wrapper := NewExecutionManager(
+		wrapped,
+		metricsClient,
+		logger,
+		&config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
+		dynamicproperties.GetIntPropertyFn(1),
+		dynamicproperties.GetBoolPropertyFn(true),
+	)
+
+	_, err := wrapper.GetReplicationTasksFromDLQ(context.Background(), nil)
+	assert.NoError(t, err)
+}
+
 func assertCounterSnapshotTags(t *testing.T, snapshot tally.Snapshot, metricName string, predicate func(tags map[string]string) bool) {
 	t.Helper()
 	for _, counter := range snapshot.Counters() {
