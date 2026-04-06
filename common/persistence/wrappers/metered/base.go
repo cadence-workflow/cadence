@@ -179,8 +179,32 @@ func (p *base) callWithoutDomainTag(scope metrics.ScopeIdx, op func() error, tag
 	return err
 }
 
+func (p *base) callWithShardScope(scope metrics.ScopeIdx, op func() error, shardIDTag metrics.Tag, shardTags ...metrics.Tag) error {
+	metricsScope := p.metricClient.Scope(scope)
+	shardOperationsMetricsScope := p.metricClient.Scope(scope, append([]metrics.Tag{shardIDTag}, shardTags...)...)
+	shardOverallMetricsScope := p.metricClient.Scope(metrics.PersistenceShardRequestCountScope, append([]metrics.Tag{shardIDTag}, shardTags...)...)
+
+	metricsScope.IncCounter(metrics.PersistenceRequests)
+	shardOperationsMetricsScope.IncCounter(metrics.PersistenceRequestsPerShard)
+	shardOverallMetricsScope.IncCounter(metrics.PersistenceRequestsPerShard)
+
+	before := time.Now()
+	err := op()
+	duration := time.Since(before)
+
+	metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
+	shardOperationsMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
+	shardOverallMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
+	p.recordLatencyHistogram(scope, duration)
+
+	if err != nil {
+		p.updateErrorMetric(scope, err, metricsScope, p.logger.Helper())
+	}
+	return err
+}
+
 func (p *base) callWithDomainAndShardScope(scope metrics.ScopeIdx, op func() error, domainTag metrics.Tag, shardIDTag metrics.Tag, additionalTags ...metrics.Tag) error {
-	domainMetricsScope := p.metricClient.Scope(scope, append([]metrics.Tag{domainTag}, additionalTags...)...)
+	domainMetricsScope := p.metricClient.Scope(scope, domainTag)
 	shardOperationsMetricsScope := p.metricClient.Scope(scope, append([]metrics.Tag{shardIDTag}, additionalTags...)...)
 	shardOverallMetricsScope := p.metricClient.Scope(metrics.PersistenceShardRequestCountScope, append([]metrics.Tag{shardIDTag}, additionalTags...)...)
 
