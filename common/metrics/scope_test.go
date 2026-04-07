@@ -323,3 +323,67 @@ func TestHistogramMode(t *testing.T) {
 
 	// when fixing: check logs!  you should see metrics with values for: 1, 4, 7, 8
 }
+
+func TestExponentialHistogramRollup(t *testing.T) {
+	ts := tally.NewTestScope("", nil)
+	findName := func(m MetricIdx) string {
+		def, ok := MetricDefs[History][m]
+		if ok {
+			return def.metricName.String()
+		}
+		t.Fatalf("MetricDef not found in history: %v", m)
+		return "unknown"
+	}
+	findRollupName := func(m MetricIdx) string {
+		def, ok := MetricDefs[History][m]
+		if ok {
+			return def.metricRollupName.String()
+		}
+		t.Fatalf("MetricDef not found in history: %v", m)
+		return "unknown"
+	}
+
+	orig := HistogramMigrationMetrics
+	t.Cleanup(func() {
+		HistogramMigrationMetrics = orig
+	})
+
+	HistogramMigrationMetrics = map[string]struct{}{
+		findName(ExponentialTaskProcessingLatencyPerDomain):       {},
+		findRollupName(ExponentialTaskProcessingLatencyPerDomain): {},
+		findName(ExponentialTaskAttemptCountsPerDomain):           {},
+		findRollupName(ExponentialTaskAttemptCountsPerDomain):     {},
+	}
+
+	c := NewClient(ts, History, MigrationConfig{
+		Histogram: HistogramMigration{
+			Names: map[string]bool{
+				findName(ExponentialTaskProcessingLatencyPerDomain):       true,
+				findRollupName(ExponentialTaskProcessingLatencyPerDomain): true,
+				findName(ExponentialTaskAttemptCountsPerDomain):           true,
+				findRollupName(ExponentialTaskAttemptCountsPerDomain):     true,
+			},
+		},
+	})
+
+	scope := c.Scope(HistoryDescribeQueueScope, DomainTag("test-domain"))
+
+	scope.ExponentialHistogram(ExponentialTaskProcessingLatencyPerDomain, time.Second)
+	scope.IntExponentialHistogram(ExponentialTaskAttemptCountsPerDomain, 42)
+
+	s := ts.Snapshot()
+	histNames := make(map[string]bool)
+	for _, h := range s.Histograms() {
+		histNames[h.Name()] = true
+	}
+
+	assert.True(t, histNames[findName(ExponentialTaskProcessingLatencyPerDomain)],
+		"per-domain ExponentialHistogram metric should be emitted")
+	assert.True(t, histNames[findRollupName(ExponentialTaskProcessingLatencyPerDomain)],
+		"rollup ExponentialHistogram metric should be emitted on rootScope")
+
+	assert.True(t, histNames[findName(ExponentialTaskAttemptCountsPerDomain)],
+		"per-domain IntExponentialHistogram metric should be emitted")
+	assert.True(t, histNames[findRollupName(ExponentialTaskAttemptCountsPerDomain)],
+		"rollup IntExponentialHistogram metric should be emitted on rootScope")
+}
