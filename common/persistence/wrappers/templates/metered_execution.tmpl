@@ -55,26 +55,25 @@ func New{{.Interface.Name}}(
             {{ if gt (len $method.Params) 1 -}}
                 {{ $reqName := (index $method.Params 1).Name }}
                 retryCount := getRetryCountFromContext(ctx)
+                shardMetricTags := []metrics.Tag{metrics.IsRetryTag(retryCount > 0)}
                 if domainName, hasDomainName := getDomainNameFromRequest({{$reqName}}); hasDomainName {
                     logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags({{$reqName}})...)
                     c.logger.SampleInfo("Persistence {{$methodName}} called", c.sampleLoggingRate(), logTags...)
                 	if c.enableShardIDMetrics() {
                 	    err = c.callWithDomainAndShardScope({{$scopeName}}, op, metrics.DomainTag(domainName),
-                	    metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+                	    metrics.ShardIDTag(c.GetShardID()), shardMetricTags...)
                 	} else {
-                		err = c.call({{$scopeName}}, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+                		err = c.call({{$scopeName}}, op, metrics.DomainTag(domainName))
                 	}
                 	return
                 }
+                if c.enableShardIDMetrics() {
+                    err = c.callWithShardScope({{$scopeName}}, op, metrics.ShardIDTag(c.GetShardID()), shardMetricTags...)
+                    return
+                }
             {{ end -}}
 
-             {{$extraTags := ""}}
-             {{ if gt (len $method.Params) 1 -}}
-                  {{ $reqName := (index $method.Params 1).Name }}
-                  {{ $extraTags = printf ", append(getCustomMetricTags(%s), metrics.IsRetryTag(retryCount > 0))..." $reqName }}
-             {{ end -}}
-
-	        err = c.callWithoutDomainTag({{$scopeName}}, op{{$extraTags}})
+	        err = c.callWithoutDomainTag({{$scopeName}}, op)
 
 	        return
         }

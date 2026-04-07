@@ -322,3 +322,137 @@ func runScenario(t *testing.T, newObj any, newLogs *observer.ObservedLogs, newMe
 		})
 	}
 }
+
+func TestExecutionManagerSharedMetricsStayTagStable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	wrapped := persistence.NewMockExecutionManager(ctrl)
+	wrapped.EXPECT().GetShardID().Return(17).AnyTimes()
+	wrapped.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{}, nil).Times(1)
+	wrapped.EXPECT().CreateWorkflowExecution(gomock.Any(), gomock.Any()).Return(&persistence.CreateWorkflowExecutionResponse{}, nil).Times(1)
+
+	metricScope := tally.NewTestScope("", nil)
+	metricsClient := metrics.NewClient(metricScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
+	logger := log.NewNoop()
+
+	wrapper := NewExecutionManager(
+		wrapped,
+		metricsClient,
+		logger,
+		&config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
+		dynamicproperties.GetIntPropertyFn(1),
+		dynamicproperties.GetBoolPropertyFn(true),
+	)
+
+	retryCtx := context.WithValue(context.Background(), retryCountKey, 1)
+	_, err := wrapper.GetHistoryTasks(retryCtx, &persistence.GetHistoryTasksRequest{
+		TaskCategory: persistence.HistoryTaskCategoryTransfer,
+	})
+	assert.NoError(t, err)
+
+	_, err = wrapper.CreateWorkflowExecution(retryCtx, &persistence.CreateWorkflowExecutionRequest{
+		DomainName: "test-domain",
+	})
+	assert.NoError(t, err)
+
+	snapshot := metricScope.Snapshot()
+	const (
+		persistenceRequestsName         = "persistence_requests"
+		persistenceLatencyName          = "persistence_latency"
+		persistenceRequestsPerShardName = "persistence_requests_per_shard"
+		persistenceLatencyPerShardName  = "persistence_latency_per_shard"
+	)
+
+	assertCounterSnapshotTags(t, snapshot, persistenceRequestsName, func(tags map[string]string) bool {
+		return tags["operation"] == "GetHistoryTasks" && !hasAnyMetricTag(tags, "task_category", "is_retry", "shard_id")
+	})
+	assertTimerSnapshotTags(t, snapshot, persistenceLatencyName, func(tags map[string]string) bool {
+		return tags["operation"] == "GetHistoryTasks" && !hasAnyMetricTag(tags, "task_category", "is_retry", "shard_id")
+	})
+	assertCounterSnapshotTags(t, snapshot, persistenceRequestsName, func(tags map[string]string) bool {
+		return tags["operation"] == "CreateWorkflowExecution" && !hasAnyMetricTag(tags, "is_retry", "shard_id")
+	})
+	assertTimerSnapshotTags(t, snapshot, persistenceLatencyName, func(tags map[string]string) bool {
+		return tags["operation"] == "CreateWorkflowExecution" && !hasAnyMetricTag(tags, "is_retry", "shard_id")
+	})
+
+	assertCounterSnapshotTags(t, snapshot, persistenceRequestsPerShardName, func(tags map[string]string) bool {
+		return tags["operation"] == "GetHistoryTasks" &&
+			tags["is_retry"] == "true" && tags["shard_id"] == "17" &&
+			!hasAnyMetricTag(tags, "task_category", "domain")
+	})
+	assertTimerSnapshotTags(t, snapshot, persistenceLatencyPerShardName, func(tags map[string]string) bool {
+		return tags["operation"] == "GetHistoryTasks" &&
+			tags["is_retry"] == "true" && tags["shard_id"] == "17" &&
+			!hasAnyMetricTag(tags, "task_category", "domain")
+	})
+	assertCounterSnapshotTags(t, snapshot, persistenceRequestsPerShardName, func(tags map[string]string) bool {
+		return tags["operation"] == "ShardIdPersistenceRequest" &&
+			tags["is_retry"] == "true" && tags["shard_id"] == "17" &&
+			!hasAnyMetricTag(tags, "task_category", "domain")
+	})
+	assertTimerSnapshotTags(t, snapshot, persistenceLatencyPerShardName, func(tags map[string]string) bool {
+		return tags["operation"] == "ShardIdPersistenceRequest" &&
+			tags["is_retry"] == "true" && tags["shard_id"] == "17" &&
+			!hasAnyMetricTag(tags, "task_category", "domain")
+	})
+	assertCounterSnapshotTags(t, snapshot, persistenceRequestsPerShardName, func(tags map[string]string) bool {
+		return tags["operation"] == "CreateWorkflowExecution" && tags["is_retry"] == "true" && tags["shard_id"] == "17"
+	})
+	assertTimerSnapshotTags(t, snapshot, persistenceLatencyPerShardName, func(tags map[string]string) bool {
+		return tags["operation"] == "CreateWorkflowExecution" && tags["is_retry"] == "true" && tags["shard_id"] == "17"
+	})
+}
+
+func TestExecutionManagerNilRequestDoesNotPanic(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	wrapped := persistence.NewMockExecutionManager(ctrl)
+	wrapped.EXPECT().GetShardID().Return(17).AnyTimes()
+	wrapped.EXPECT().GetReplicationTasksFromDLQ(gomock.Any(), (*persistence.GetReplicationTasksFromDLQRequest)(nil)).
+		Return(&persistence.GetHistoryTasksResponse{}, nil).
+		Times(1)
+
+	metricScope := tally.NewTestScope("", nil)
+	metricsClient := metrics.NewClient(metricScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
+	logger := log.NewNoop()
+
+	wrapper := NewExecutionManager(
+		wrapped,
+		metricsClient,
+		logger,
+		&config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
+		dynamicproperties.GetIntPropertyFn(1),
+		dynamicproperties.GetBoolPropertyFn(true),
+	)
+
+	_, err := wrapper.GetReplicationTasksFromDLQ(context.Background(), nil)
+	assert.NoError(t, err)
+}
+
+func assertCounterSnapshotTags(t *testing.T, snapshot tally.Snapshot, metricName string, predicate func(tags map[string]string) bool) {
+	t.Helper()
+	for _, counter := range snapshot.Counters() {
+		if counter.Name() == metricName && predicate(counter.Tags()) {
+			return
+		}
+	}
+	t.Fatalf("counter %q with expected tags not found", metricName)
+}
+
+func assertTimerSnapshotTags(t *testing.T, snapshot tally.Snapshot, metricName string, predicate func(tags map[string]string) bool) {
+	t.Helper()
+	for _, timer := range snapshot.Timers() {
+		if timer.Name() == metricName && predicate(timer.Tags()) {
+			return
+		}
+	}
+	t.Fatalf("timer %q with expected tags not found", metricName)
+}
+
+func hasAnyMetricTag(tags map[string]string, keys ...string) bool {
+	for _, key := range keys {
+		if _, ok := tags[key]; ok {
+			return true
+		}
+	}
+	return false
+}
