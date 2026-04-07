@@ -73,7 +73,7 @@ func (m *metricsScope) UpdateGauge(id MetricIdx, value float64) {
 	}
 	if !def.metricRollupName.Empty() {
 		if m.migrationConfig.Gauge.EmitGauge(def.metricRollupName.String()) {
-			m.scope.Gauge(def.metricRollupName.String()).Update(value)
+			m.rootScope.Gauge(def.metricRollupName.String()).Update(value)
 		}
 	}
 }
