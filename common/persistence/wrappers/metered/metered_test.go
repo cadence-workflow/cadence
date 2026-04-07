@@ -376,20 +376,24 @@ func TestExecutionManagerSharedMetricsStayTagStable(t *testing.T) {
 	})
 
 	assertCounterSnapshotTags(t, snapshot, persistenceRequestsPerShardName, func(tags map[string]string) bool {
-		return tags["operation"] == "GetHistoryTasks" && tags["task_category"] == persistence.HistoryTaskCategoryTransfer.Name() &&
-			tags["is_retry"] == "true" && tags["shard_id"] == "17"
+		return tags["operation"] == "GetHistoryTasks" &&
+			tags["is_retry"] == "true" && tags["shard_id"] == "17" &&
+			!hasAnyMetricTag(tags, "task_category", "domain")
 	})
 	assertTimerSnapshotTags(t, snapshot, persistenceLatencyPerShardName, func(tags map[string]string) bool {
-		return tags["operation"] == "GetHistoryTasks" && tags["task_category"] == persistence.HistoryTaskCategoryTransfer.Name() &&
-			tags["is_retry"] == "true" && tags["shard_id"] == "17"
+		return tags["operation"] == "GetHistoryTasks" &&
+			tags["is_retry"] == "true" && tags["shard_id"] == "17" &&
+			!hasAnyMetricTag(tags, "task_category", "domain")
 	})
 	assertCounterSnapshotTags(t, snapshot, persistenceRequestsPerShardName, func(tags map[string]string) bool {
-		return tags["operation"] == "ShardIdPersistenceRequest" && tags["task_category"] == persistence.HistoryTaskCategoryTransfer.Name() &&
-			tags["is_retry"] == "true" && tags["shard_id"] == "17"
+		return tags["operation"] == "ShardIdPersistenceRequest" &&
+			tags["is_retry"] == "true" && tags["shard_id"] == "17" &&
+			!hasAnyMetricTag(tags, "task_category", "domain")
 	})
 	assertTimerSnapshotTags(t, snapshot, persistenceLatencyPerShardName, func(tags map[string]string) bool {
-		return tags["operation"] == "ShardIdPersistenceRequest" && tags["task_category"] == persistence.HistoryTaskCategoryTransfer.Name() &&
-			tags["is_retry"] == "true" && tags["shard_id"] == "17"
+		return tags["operation"] == "ShardIdPersistenceRequest" &&
+			tags["is_retry"] == "true" && tags["shard_id"] == "17" &&
+			!hasAnyMetricTag(tags, "task_category", "domain")
 	})
 	assertCounterSnapshotTags(t, snapshot, persistenceRequestsPerShardName, func(tags map[string]string) bool {
 		return tags["operation"] == "CreateWorkflowExecution" && tags["is_retry"] == "true" && tags["shard_id"] == "17"

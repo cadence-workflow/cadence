@@ -55,7 +55,7 @@ func New{{.Interface.Name}}(
             {{ if gt (len $method.Params) 1 -}}
                 {{ $reqName := (index $method.Params 1).Name }}
                 retryCount := getRetryCountFromContext(ctx)
-                shardMetricTags := append(getCustomMetricTags({{$reqName}}), metrics.IsRetryTag(retryCount > 0))
+                shardMetricTags := []metrics.Tag{metrics.IsRetryTag(retryCount > 0)}
                 if domainName, hasDomainName := getDomainNameFromRequest({{$reqName}}); hasDomainName {
                     logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags({{$reqName}})...)
                     c.logger.SampleInfo("Persistence {{$methodName}} called", c.sampleLoggingRate(), logTags...)
