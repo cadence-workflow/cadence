@@ -351,7 +351,8 @@ func TestExponentialHistogramRollup(t *testing.T) {
 	HistogramMigrationMetrics = map[string]struct{}{
 		findName(TaskProcessingLatencyPerDomainHistogram):       {},
 		findRollupName(TaskProcessingLatencyPerDomainHistogram): {},
-		findName(TaskAttemptCountsHistogram):                    {},
+		findName(TaskAttemptPerDomainCountsHistogram):                    {},
+		findRollupName(TaskAttemptPerDomainCountsHistogram):              {},
 	}
 
 	c := NewClient(ts, History, MigrationConfig{
@@ -359,7 +360,8 @@ func TestExponentialHistogramRollup(t *testing.T) {
 			Names: map[string]bool{
 				findName(TaskProcessingLatencyPerDomainHistogram):       true,
 				findRollupName(TaskProcessingLatencyPerDomainHistogram): true,
-				findName(TaskAttemptCountsHistogram):                    true,
+				findName(TaskAttemptPerDomainCountsHistogram):           true,
+				findRollupName(TaskAttemptPerDomainCountsHistogram):     true,
 			},
 		},
 	})
@@ -367,7 +369,7 @@ func TestExponentialHistogramRollup(t *testing.T) {
 	scope := c.Scope(HistoryDescribeQueueScope, DomainTag("test-domain"))
 
 	scope.ExponentialHistogram(TaskProcessingLatencyPerDomainHistogram, time.Second)
-	scope.IntExponentialHistogram(TaskAttemptCountsHistogram, 42)
+	scope.IntExponentialHistogram(TaskAttemptPerDomainCountsHistogram, 42)
 
 	s := ts.Snapshot()
 	histNames := make(map[string]bool)
@@ -380,6 +382,8 @@ func TestExponentialHistogramRollup(t *testing.T) {
 	assert.True(t, histNames[findRollupName(TaskProcessingLatencyPerDomainHistogram)],
 		"rollup ExponentialHistogram metric should be emitted on rootScope")
 
-	assert.True(t, histNames[findName(TaskAttemptCountsHistogram)],
+	assert.True(t, histNames[findName(TaskAttemptPerDomainCountsHistogram)],
 		"per-domain IntExponentialHistogram metric should be emitted")
+	assert.True(t, histNames[findRollupName(TaskAttemptPerDomainCountsHistogram)],
+		"rollup IntExponentialHistogram metric should be emitted on rootScope")
 }
