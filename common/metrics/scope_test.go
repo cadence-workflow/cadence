@@ -351,8 +351,8 @@ func TestExponentialHistogramRollup(t *testing.T) {
 	HistogramMigrationMetrics = map[string]struct{}{
 		findName(TaskProcessingLatencyPerDomainHistogram):       {},
 		findRollupName(TaskProcessingLatencyPerDomainHistogram): {},
-		findName(TaskAttemptPerDomainCountsHistogram):                    {},
-		findRollupName(TaskAttemptPerDomainCountsHistogram):              {},
+		findName(TaskAttemptPerDomainCountsHistogram):           {},
+		findRollupName(TaskAttemptPerDomainCountsHistogram):     {},
 	}
 
 	c := NewClient(ts, History, MigrationConfig{
