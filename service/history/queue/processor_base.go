@@ -293,7 +293,9 @@ func (p *processorBase) emitProcessingQueueMetrics() {
 		}
 	}
 	p.metricsScope.RecordTimer(metrics.ProcessingQueueNumTimer, time.Duration(numProcessingQueues))
+	p.metricsScope.IntExponentialHistogram(metrics.ProcessingQueueNumHistogram, numProcessingQueues)
 	p.metricsScope.RecordTimer(metrics.ProcessingQueueMaxLevelTimer, time.Duration(maxProcessingQueueLevel))
+	p.metricsScope.IntExponentialHistogram(metrics.ProcessingQueueMaxLevelHistogram, maxProcessingQueueLevel)
 }
 
 func (p *processorBase) addAction(ctx context.Context, action *Action) (chan actionResultNotification, bool) {

@@ -50,13 +50,19 @@ type Config struct {
 	VisibilityRPS                     dynamicproperties.IntPropertyFn
 	AsyncRPS                          dynamicproperties.IntPropertyFn
 	MaxDomainUserRPSPerInstance       dynamicproperties.IntPropertyFnWithDomainFilter
+	MaxTaskListUserRPSPerInstance     dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 	MaxDomainWorkerRPSPerInstance     dynamicproperties.IntPropertyFnWithDomainFilter
+	MaxTaskListWorkerRPSPerInstance   dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 	MaxDomainVisibilityRPSPerInstance dynamicproperties.IntPropertyFnWithDomainFilter
 	MaxDomainAsyncRPSPerInstance      dynamicproperties.IntPropertyFnWithDomainFilter
+	MaxTaskListAsyncRPSPerInstance    dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 	GlobalDomainUserRPS               dynamicproperties.IntPropertyFnWithDomainFilter
+	GlobalTaskListUserRPS             dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 	GlobalDomainWorkerRPS             dynamicproperties.IntPropertyFnWithDomainFilter
+	GlobalTaskListWorkerRPS           dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 	GlobalDomainVisibilityRPS         dynamicproperties.IntPropertyFnWithDomainFilter
 	GlobalDomainAsyncRPS              dynamicproperties.IntPropertyFnWithDomainFilter
+	GlobalTaskListAsyncRPS            dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 	MaxWorkerPollDelay                dynamicproperties.DurationPropertyFnWithDomainFilter
 	RateLimiterBypassCallerTypes      dynamicproperties.ListPropertyFn
 	EnableClientVersionCheck          dynamicproperties.BoolPropertyFn
@@ -147,13 +153,19 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		VisibilityRPS:                                     dc.GetIntProperty(dynamicproperties.FrontendVisibilityRPS),
 		AsyncRPS:                                          dc.GetIntProperty(dynamicproperties.FrontendAsyncRPS),
 		MaxDomainUserRPSPerInstance:                       dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxDomainUserRPSPerInstance),
+		MaxTaskListUserRPSPerInstance:                     dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.FrontendMaxTaskListUserRPSPerInstance),
 		MaxDomainWorkerRPSPerInstance:                     dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxDomainWorkerRPSPerInstance),
+		MaxTaskListWorkerRPSPerInstance:                   dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.FrontendMaxTaskListWorkerRPSPerInstance),
 		MaxDomainVisibilityRPSPerInstance:                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxDomainVisibilityRPSPerInstance),
 		MaxDomainAsyncRPSPerInstance:                      dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxDomainAsyncRPSPerInstance),
+		MaxTaskListAsyncRPSPerInstance:                    dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.FrontendMaxTaskListAsyncRPSPerInstance),
 		GlobalDomainUserRPS:                               dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainUserRPS),
+		GlobalTaskListUserRPS:                             dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.FrontendGlobalTaskListUserRPS),
 		GlobalDomainWorkerRPS:                             dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainWorkerRPS),
+		GlobalTaskListWorkerRPS:                           dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.FrontendGlobalTaskListWorkerRPS),
 		GlobalDomainVisibilityRPS:                         dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainVisibilityRPS),
 		GlobalDomainAsyncRPS:                              dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainAsyncRPS),
+		GlobalTaskListAsyncRPS:                            dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.FrontendGlobalTaskListAsyncRPS),
 		MaxWorkerPollDelay:                                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.FrontendMaxWorkerPollDelay),
 		RateLimiterBypassCallerTypes:                      dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes),
 		GlobalRatelimiterKeyMode:                          dc.GetStringPropertyFilteredByRatelimitKey(dynamicproperties.FrontendGlobalRatelimiterMode),

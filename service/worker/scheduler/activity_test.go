@@ -102,40 +102,11 @@ func TestGenerateRequestID(t *testing.T) {
 	})
 }
 
-func TestIsAlreadyStartedError(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{
-			name: "WorkflowExecutionAlreadyStartedError returns true",
-			err:  &types.WorkflowExecutionAlreadyStartedError{Message: "already started"},
-			want: true,
-		},
-		{
-			name: "other error returns false",
-			err:  errors.New("some other error"),
-			want: false,
-		},
-		{
-			name: "nil error returns false",
-			err:  nil,
-			want: false,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := isAlreadyStartedError(tc.err)
-			assert.Equal(t, tc.want, got)
-		})
-	}
-}
-
-func TestStartWorkflowActivity(t *testing.T) {
+func TestProcessScheduleFireActivity(t *testing.T) {
 	scheduledTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	int32Ptr := func(v int32) *int32 { return &v }
-	baseReq := StartWorkflowRequest{
+
+	baseReq := ProcessFireRequest{
 		Domain:     "test-domain",
 		ScheduleID: "sched-1",
 		Action: types.StartWorkflowAction{
@@ -148,51 +119,193 @@ func TestStartWorkflowActivity(t *testing.T) {
 		},
 		ScheduledTime: scheduledTime,
 		TriggerSource: TriggerSourceSchedule,
+		OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
 	}
+
+	expectedWfID := "my-prefix-" + formatTime(scheduledTime)
 
 	tests := []struct {
 		name       string
-		req        StartWorkflowRequest
+		req        ProcessFireRequest
 		setupMock  func(m *frontend.MockClient)
-		wantResult *StartWorkflowResult
+		wantResult *ProcessFireResult
 		wantErr    bool
+		noContext  bool
 	}{
 		{
-			name: "successful start",
+			name: "successful start with no previous workflow",
 			req:  baseReq,
 			setupMock: func(m *frontend.MockClient) {
 				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ context.Context, req *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
 						assert.Equal(t, "test-domain", req.Domain)
-						assert.Equal(t, "my-prefix-"+formatTime(scheduledTime), req.WorkflowID)
-						assert.Equal(t, "my-workflow", req.WorkflowType.Name)
-						assert.Equal(t, "my-tasklist", req.TaskList.Name)
+						assert.Equal(t, expectedWfID, req.WorkflowID)
+						assert.Equal(t, types.WorkflowIDReusePolicyAllowDuplicate, *req.WorkflowIDReusePolicy)
 						_, uuidErr := uuid.Parse(req.RequestID)
-						assert.NoError(t, uuidErr, "RequestID must be a valid UUID")
-						assert.Equal(t, generateRequestID("sched-1", scheduledTime.UnixNano(), TriggerSourceSchedule), req.RequestID, "RequestID must be deterministic")
+						assert.NoError(t, uuidErr)
 						return &types.StartWorkflowExecutionResponse{RunID: "run-abc"}, nil
 					})
 			},
-			wantResult: &StartWorkflowResult{
-				WorkflowID: "my-prefix-" + formatTime(scheduledTime),
-				RunID:      "run-abc",
-				Started:    true,
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "run-abc"},
 			},
 		},
 		{
-			name: "already started returns skipped",
+			name: "SKIP_NEW skips when previous is running",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicySkipNew
+				r.LastStartedWorkflow = &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: nil},
+					}, nil)
+			},
+			wantResult: &ProcessFireResult{
+				SkippedDelta:    1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"},
+			},
+		},
+		{
+			name: "SKIP_NEW starts when previous is closed",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicySkipNew
+				r.LastStartedWorkflow = &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				status := types.WorkflowExecutionCloseStatusCompleted
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: &status},
+					}, nil)
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.StartWorkflowExecutionResponse{RunID: "new-run"}, nil)
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "new-run"},
+			},
+		},
+		{
+			name: "TERMINATE_PREVIOUS terminates then starts",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyTerminatePrevious
+				r.LastStartedWorkflow = &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: nil},
+					}, nil)
+				m.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil)
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.StartWorkflowExecutionResponse{RunID: "new-run"}, nil)
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "new-run"},
+			},
+		},
+		{
+			name: "CANCEL_PREVIOUS cancels then starts",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyCancelPrevious
+				r.LastStartedWorkflow = &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: nil},
+					}, nil)
+				m.EXPECT().RequestCancelWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil)
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.StartWorkflowExecutionResponse{RunID: "new-run"}, nil)
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "new-run"},
+			},
+		},
+		{
+			name: "TERMINATE_PREVIOUS failure returns error for retry",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyTerminatePrevious
+				r.LastStartedWorkflow = &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: nil},
+					}, nil)
+				m.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(errors.New("connection refused"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "CANCEL_PREVIOUS failure returns error for retry",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyCancelPrevious
+				r.LastStartedWorkflow = &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: nil},
+					}, nil)
+				m.EXPECT().RequestCancelWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(errors.New("connection refused"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "CONCURRENT skips overlap check and starts",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
+				r.LastStartedWorkflow = &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.StartWorkflowExecutionResponse{RunID: "new-run"}, nil)
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "new-run"},
+			},
+		},
+		{
+			name: "AlreadyStartedError returns skipped with RunID",
 			req:  baseReq,
 			setupMock: func(m *frontend.MockClient) {
 				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
-					Return(nil, &types.WorkflowExecutionAlreadyStartedError{Message: "already started"})
+					Return(nil, &types.WorkflowExecutionAlreadyStartedError{
+						Message: "already started",
+						RunID:   "existing-run",
+					})
 			},
-			wantResult: &StartWorkflowResult{
-				WorkflowID: "my-prefix-" + formatTime(scheduledTime),
-				Skipped:    true,
+			wantResult: &ProcessFireResult{
+				SkippedDelta:    1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "existing-run"},
 			},
 		},
 		{
-			name: "transient error propagated",
+			name: "start failure returns error for retry",
 			req:  baseReq,
 			setupMock: func(m *frontend.MockClient) {
 				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
@@ -201,39 +314,44 @@ func TestStartWorkflowActivity(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "empty prefix falls back to scheduleID",
-			req: func() StartWorkflowRequest {
+			name: "describe failure returns error for retry",
+			req: func() ProcessFireRequest {
 				r := baseReq
-				r.Action.WorkflowIDPrefix = ""
+				r.OverlapPolicy = types.ScheduleOverlapPolicySkipNew
+				r.LastStartedWorkflow = &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"}
 				return r
 			}(),
 			setupMock: func(m *frontend.MockClient) {
-				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, req *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
-						assert.Equal(t, "sched-1-"+formatTime(scheduledTime), req.WorkflowID)
-						return &types.StartWorkflowExecutionResponse{RunID: "run-def"}, nil
-					})
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("connection refused"))
 			},
-			wantResult: &StartWorkflowResult{
-				WorkflowID: "sched-1-" + formatTime(scheduledTime),
-				RunID:      "run-def",
-				Started:    true,
-			},
+			wantErr: true,
+		},
+		{
+			name:      "missing context returns error",
+			req:       baseReq,
+			noContext: true,
+			setupMock: func(m *frontend.MockClient) {},
+			wantErr:   true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-
 			mockClient := frontend.NewMockClient(ctrl)
 			tc.setupMock(mockClient)
 
-			ctx := context.WithValue(context.Background(), schedulerContextKey, schedulerContext{
-				FrontendClient: mockClient,
-			})
+			var ctx context.Context
+			if tc.noContext {
+				ctx = context.Background()
+			} else {
+				ctx = context.WithValue(context.Background(), schedulerContextKey, schedulerContext{
+					FrontendClient: mockClient,
+				})
+			}
 
-			result, err := startWorkflowActivity(ctx, tc.req)
+			result, err := processScheduleFireActivity(ctx, tc.req)
 			if tc.wantErr {
 				require.Error(t, err)
 				return
@@ -244,11 +362,10 @@ func TestStartWorkflowActivity(t *testing.T) {
 	}
 }
 
-func TestStartWorkflowActivity_MissingContext(t *testing.T) {
-	ctx := context.Background()
-	_, err := startWorkflowActivity(ctx, StartWorkflowRequest{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "scheduler context not found")
+func TestIsEntityNotExistsError(t *testing.T) {
+	assert.True(t, isEntityNotExistsError(&types.EntityNotExistsError{Message: "not found"}))
+	assert.False(t, isEntityNotExistsError(errors.New("other")))
+	assert.False(t, isEntityNotExistsError(nil))
 }
 
 func formatTime(t time.Time) string {

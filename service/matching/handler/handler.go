@@ -69,6 +69,7 @@ func NewHandler(
 				config.DomainUserRPS,
 				config.UserRPS,
 			)),
+			nil,
 		),
 		workerRateLimiter: quotas.NewMultiStageRateLimiter(
 			quotas.NewDynamicRateLimiter(config.WorkerRPS.AsFloat64()),
@@ -76,6 +77,7 @@ func NewHandler(
 				config.DomainWorkerRPS,
 				config.WorkerRPS,
 			)),
+			nil,
 		),
 		engine:          engine,
 		logger:          logger,

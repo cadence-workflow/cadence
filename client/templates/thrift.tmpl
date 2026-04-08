@@ -8,7 +8,7 @@ import (
 	"github.com/uber/cadence/common/types/mapper/thrift"
 )
 
-{{$unsupportedMethods := list "CountDLQMessages" "UpdateTaskListPartitionConfig" "RefreshTaskListPartitionConfig"}}
+{{$unsupportedMethods := list "CountDLQMessages" "UpdateTaskListPartitionConfig" "RefreshTaskListPartitionConfig" "CreateSchedule" "DescribeSchedule" "UpdateSchedule" "DeleteSchedule" "PauseSchedule" "UnpauseSchedule" "BackfillSchedule" "ListSchedules"}}
 
 {{$interfaceName := .Interface.Name}}
 {{$clientName := (index .Vars "client")}}

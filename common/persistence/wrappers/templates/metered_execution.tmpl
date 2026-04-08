@@ -23,7 +23,6 @@ func New{{.Interface.Name}}(
 	metricClient metrics.Client,
 	logger       log.Logger,
 	cfg          *config.Persistence,
-    sampleLoggingRate dynamicproperties.IntPropertyFn,
     enableShardIDMetrics dynamicproperties.BoolPropertyFn,
 ) persistence.{{.Interface.Name}} {
     return &{{$decorator}}{
@@ -32,7 +31,6 @@ func New{{.Interface.Name}}(
 			metricClient:                  metricClient,
 			logger:                        logger.WithTags(tag.ShardID(wrapped.GetShardID())),
 			enableLatencyHistogramMetrics: cfg.EnablePersistenceLatencyHistogramMetrics,
-			sampleLoggingRate:             sampleLoggingRate,
 			enableShardIDMetrics:          enableShardIDMetrics,
 			hostName:                      cfg.HostName,
         },
@@ -57,7 +55,7 @@ func New{{.Interface.Name}}(
                 retryCount := getRetryCountFromContext(ctx)
                 if domainName, hasDomainName := getDomainNameFromRequest({{$reqName}}); hasDomainName {
                     logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags({{$reqName}})...)
-                    c.logger.SampleInfo("Persistence {{$methodName}} called", c.sampleLoggingRate(), logTags...)
+                    c.logger.Debug("Persistence {{$methodName}} called", logTags...)
                 	if c.enableShardIDMetrics() {
                 	    err = c.callWithDomainAndShardScope({{$scopeName}}, op, metrics.DomainTag(domainName),
                 	    metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))

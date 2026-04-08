@@ -1068,21 +1068,6 @@ func TestShardCleanupLoop(t *testing.T) {
 			expectedShardsKept:    []string{"shard-1"},
 		},
 		{
-			name:          "cleanup removes expired shard in non-onboarded mode",
-			ttlShard:      5 * time.Second,
-			migrationMode: types.MigrationModeLOCALPASSTHROUGH,
-			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
-				processor := NewMockShardProcessor(ctrl)
-				processor.EXPECT().Stop()
-				executor.managedProcessors.Store("shard-1", newManagedProcessor(processor, processorStateStarted))
-				executor.processorsToLastUse.Store("shard-1", executor.timeSource.Now())
-				return []*MockShardProcessor{processor}
-			},
-			advanceTime:           6 * time.Second,
-			expectedShardsDeleted: []string{"shard-1"},
-			expectedShardsKept:    []string{},
-		},
-		{
 			name:          "cleanup does not remove non-expired shard",
 			ttlShard:      10 * time.Second,
 			migrationMode: types.MigrationModeLOCALPASSTHROUGH,
@@ -1110,60 +1095,6 @@ func TestShardCleanupLoop(t *testing.T) {
 			advanceTime:           6 * time.Second,
 			expectedShardsDeleted: []string{}, // Shard is removed from processorsToLastUse but kept in managedProcessors
 			expectedShardsKept:    []string{"shard-1"},
-		},
-		{
-			name:          "cleanup removes multiple expired shards in non-onboarded mode",
-			ttlShard:      5 * time.Second,
-			migrationMode: types.MigrationModeLOCALPASSTHROUGH,
-			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
-				processor1 := NewMockShardProcessor(ctrl)
-				processor1.EXPECT().Stop()
-				processor2 := NewMockShardProcessor(ctrl)
-				processor2.EXPECT().Stop()
-				processor3 := NewMockShardProcessor(ctrl)
-
-				executor.managedProcessors.Store("shard-1", newManagedProcessor(processor1, processorStateStarted))
-				executor.processorsToLastUse.Store("shard-1", executor.timeSource.Now())
-
-				executor.managedProcessors.Store("shard-2", newManagedProcessor(processor2, processorStateStarted))
-				executor.processorsToLastUse.Store("shard-2", executor.timeSource.Now())
-
-				executor.managedProcessors.Store("shard-3", newManagedProcessor(processor3, processorStateStarted))
-				executor.processorsToLastUse.Store("shard-3", executor.timeSource.Now().Add(3*time.Second))
-
-				return []*MockShardProcessor{processor1, processor2, processor3}
-			},
-			advanceTime:           6 * time.Second,
-			expectedShardsDeleted: []string{"shard-1", "shard-2"},
-			expectedShardsKept:    []string{"shard-3"},
-		},
-		{
-			name:          "cleanup in distributed passthrough mode removes expired shards",
-			ttlShard:      5 * time.Second,
-			migrationMode: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
-			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
-				processor := NewMockShardProcessor(ctrl)
-				processor.EXPECT().Stop()
-				executor.managedProcessors.Store("shard-1", newManagedProcessor(processor, processorStateStarted))
-				executor.processorsToLastUse.Store("shard-1", executor.timeSource.Now())
-				return []*MockShardProcessor{processor}
-			},
-			advanceTime:           6 * time.Second,
-			expectedShardsDeleted: []string{"shard-1"},
-			expectedShardsKept:    []string{},
-		},
-		{
-			name:          "cleanup removes shard from processorsToLastUse map even if not in managedProcessors",
-			ttlShard:      5 * time.Second,
-			migrationMode: types.MigrationModeLOCALPASSTHROUGH,
-			setupProcessors: func(executor *executorImpl[*MockShardProcessor], ctrl *gomock.Controller) []*MockShardProcessor {
-				// Add to processorsToLastUse but not to managedProcessors
-				executor.processorsToLastUse.Store("shard-orphan", executor.timeSource.Now())
-				return []*MockShardProcessor{}
-			},
-			advanceTime:           6 * time.Second,
-			expectedShardsDeleted: []string{},
-			expectedShardsKept:    []string{},
 		},
 	}
 

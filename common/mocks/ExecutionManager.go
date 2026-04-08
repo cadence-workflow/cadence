@@ -494,24 +494,24 @@ func (_m *ExecutionManager) UpdateWorkflowExecution(ctx context.Context, request
 }
 
 // GetActiveClusterSelectionPolicy provides a mock function with given fields: ctx, domainID, wfID, rID
-func (_m *ExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
-	ret := _m.Called(ctx, domainID, wfID, rID)
+func (_m *ExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, request *persistence.GetActiveClusterSelectionPolicyRequest) (*types.ActiveClusterSelectionPolicy, error) {
+	ret := _m.Called(ctx, request)
 
 	var r0 *types.ActiveClusterSelectionPolicy
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (*types.ActiveClusterSelectionPolicy, error)); ok {
-		return rf(ctx, domainID, wfID, rID)
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetActiveClusterSelectionPolicyRequest) (*types.ActiveClusterSelectionPolicy, error)); ok {
+		return rf(ctx, request)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) *types.ActiveClusterSelectionPolicy); ok {
-		r0 = rf(ctx, domainID, wfID, rID)
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetActiveClusterSelectionPolicyRequest) *types.ActiveClusterSelectionPolicy); ok {
+		r0 = rf(ctx, request)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*types.ActiveClusterSelectionPolicy)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
-		r1 = rf(ctx, domainID, wfID, rID)
+	if rf, ok := ret.Get(1).(func(context.Context, *persistence.GetActiveClusterSelectionPolicyRequest) error); ok {
+		r1 = rf(ctx, request)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -519,13 +519,13 @@ func (_m *ExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context,
 	return r0, r1
 }
 
-// DeleteActiveClusterSelectionPolicy provides a mock function with given fields: ctx, domainID, wfID, rID
-func (_m *ExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) error {
-	ret := _m.Called(ctx, domainID, wfID, rID)
+// DeleteActiveClusterSelectionPolicy provides a mock function with given fields: ctx, request
+func (_m *ExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, request *persistence.DeleteActiveClusterSelectionPolicyRequest) error {
+	ret := _m.Called(ctx, request)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
-		r0 = rf(ctx, domainID, wfID, rID)
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.DeleteActiveClusterSelectionPolicyRequest) error); ok {
+		r0 = rf(ctx, request)
 	} else {
 		r0 = ret.Error(0)
 	}

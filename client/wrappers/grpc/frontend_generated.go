@@ -14,14 +14,29 @@ import (
 	"github.com/uber/cadence/common/types/mapper/proto"
 )
 
+func (g frontendClient) BackfillSchedule(ctx context.Context, bp1 *types.BackfillScheduleRequest, p1 ...yarpc.CallOption) (bp2 *types.BackfillScheduleResponse, err error) {
+	response, err := g.c.BackfillSchedule(ctx, proto.FromBackfillScheduleRequest(bp1), p1...)
+	return proto.ToBackfillScheduleResponse(response), proto.ToError(err)
+}
+
 func (g frontendClient) CountWorkflowExecutions(ctx context.Context, cp1 *types.CountWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (cp2 *types.CountWorkflowExecutionsResponse, err error) {
 	response, err := g.c.CountWorkflowExecutions(ctx, proto.FromCountWorkflowExecutionsRequest(cp1), p1...)
 	return proto.ToCountWorkflowExecutionsResponse(response), proto.ToError(err)
 }
 
+func (g frontendClient) CreateSchedule(ctx context.Context, cp1 *types.CreateScheduleRequest, p1 ...yarpc.CallOption) (cp2 *types.CreateScheduleResponse, err error) {
+	response, err := g.c.CreateSchedule(ctx, proto.FromCreateScheduleRequest(cp1), p1...)
+	return proto.ToCreateScheduleResponse(response), proto.ToError(err)
+}
+
 func (g frontendClient) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest, p1 ...yarpc.CallOption) (err error) {
 	_, err = g.c.DeleteDomain(ctx, proto.FromDeleteDomainRequest(dp1), p1...)
 	return proto.ToError(err)
+}
+
+func (g frontendClient) DeleteSchedule(ctx context.Context, dp1 *types.DeleteScheduleRequest, p1 ...yarpc.CallOption) (dp2 *types.DeleteScheduleResponse, err error) {
+	response, err := g.c.DeleteSchedule(ctx, proto.FromDeleteScheduleRequest(dp1), p1...)
+	return proto.ToDeleteScheduleResponse(response), proto.ToError(err)
 }
 
 func (g frontendClient) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDomainRequest, p1 ...yarpc.CallOption) (err error) {
@@ -32,6 +47,11 @@ func (g frontendClient) DeprecateDomain(ctx context.Context, dp1 *types.Deprecat
 func (g frontendClient) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeDomainResponse, err error) {
 	response, err := g.c.DescribeDomain(ctx, proto.FromDescribeDomainRequest(dp1), p1...)
 	return proto.ToDescribeDomainResponse(response), proto.ToError(err)
+}
+
+func (g frontendClient) DescribeSchedule(ctx context.Context, dp1 *types.DescribeScheduleRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeScheduleResponse, err error) {
+	response, err := g.c.DescribeSchedule(ctx, proto.FromDescribeScheduleRequest(dp1), p1...)
+	return proto.ToDescribeScheduleResponse(response), proto.ToError(err)
 }
 
 func (g frontendClient) DescribeTaskList(ctx context.Context, dp1 *types.DescribeTaskListRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeTaskListResponse, err error) {
@@ -99,6 +119,11 @@ func (g frontendClient) ListOpenWorkflowExecutions(ctx context.Context, lp1 *typ
 	return proto.ToListOpenWorkflowExecutionsResponse(response), proto.ToError(err)
 }
 
+func (g frontendClient) ListSchedules(ctx context.Context, lp1 *types.ListSchedulesRequest, p1 ...yarpc.CallOption) (lp2 *types.ListSchedulesResponse, err error) {
+	response, err := g.c.ListSchedules(ctx, proto.FromListSchedulesRequest(lp1), p1...)
+	return proto.ToListSchedulesResponse(response), proto.ToError(err)
+}
+
 func (g frontendClient) ListTaskListPartitions(ctx context.Context, lp1 *types.ListTaskListPartitionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListTaskListPartitionsResponse, err error) {
 	response, err := g.c.ListTaskListPartitions(ctx, proto.FromListTaskListPartitionsRequest(lp1), p1...)
 	return proto.ToListTaskListPartitionsResponse(response), proto.ToError(err)
@@ -107,6 +132,11 @@ func (g frontendClient) ListTaskListPartitions(ctx context.Context, lp1 *types.L
 func (g frontendClient) ListWorkflowExecutions(ctx context.Context, lp1 *types.ListWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListWorkflowExecutionsResponse, err error) {
 	response, err := g.c.ListWorkflowExecutions(ctx, proto.FromListWorkflowExecutionsRequest(lp1), p1...)
 	return proto.ToListWorkflowExecutionsResponse(response), proto.ToError(err)
+}
+
+func (g frontendClient) PauseSchedule(ctx context.Context, pp1 *types.PauseScheduleRequest, p1 ...yarpc.CallOption) (pp2 *types.PauseScheduleResponse, err error) {
+	response, err := g.c.PauseSchedule(ctx, proto.FromPauseScheduleRequest(pp1), p1...)
+	return proto.ToPauseScheduleResponse(response), proto.ToError(err)
 }
 
 func (g frontendClient) PollForActivityTask(ctx context.Context, pp1 *types.PollForActivityTaskRequest, p1 ...yarpc.CallOption) (pp2 *types.PollForActivityTaskResponse, err error) {
@@ -244,7 +274,17 @@ func (g frontendClient) TerminateWorkflowExecution(ctx context.Context, tp1 *typ
 	return proto.ToError(err)
 }
 
+func (g frontendClient) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseScheduleRequest, p1 ...yarpc.CallOption) (up2 *types.UnpauseScheduleResponse, err error) {
+	response, err := g.c.UnpauseSchedule(ctx, proto.FromUnpauseScheduleRequest(up1), p1...)
+	return proto.ToUnpauseScheduleResponse(response), proto.ToError(err)
+}
+
 func (g frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainResponse, err error) {
 	response, err := g.c.UpdateDomain(ctx, proto.FromUpdateDomainRequest(up1), p1...)
 	return proto.ToUpdateDomainResponse(response), proto.ToError(err)
+}
+
+func (g frontendClient) UpdateSchedule(ctx context.Context, up1 *types.UpdateScheduleRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateScheduleResponse, err error) {
+	response, err := g.c.UpdateSchedule(ctx, proto.FromUpdateScheduleRequest(up1), p1...)
+	return proto.ToUpdateScheduleResponse(response), proto.ToError(err)
 }

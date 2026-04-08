@@ -122,6 +122,18 @@ func (r *workflowResetterImpl) ResetWorkflow(
 	resetWorkflowVersion := activeClusterInfo.FailoverVersion
 
 	currentMutableState := currentWorkflow.GetMutableState()
+
+	// Capture the current run's info before any in-memory mutations (e.g. termination
+	// adds events that haven't been persisted yet). These pre-mutation values are needed
+	// to read already-persisted history for signal reapplication without re-acquiring
+	// the execution context lock (which the caller already holds).
+	currentRunID := currentMutableState.GetExecutionInfo().RunID
+	currentNextEventID := currentMutableState.GetNextEventID()
+	currentBranchToken, err := currentMutableState.GetCurrentBranchToken()
+	if err != nil {
+		return err
+	}
+
 	currentWorkflowTerminated := false
 	if currentMutableState.IsWorkflowExecutionRunning() {
 		if err := r.terminateWorkflow(
@@ -149,6 +161,9 @@ func (r *workflowResetterImpl) ResetWorkflow(
 		resetReason,
 		additionalReapplyEvents,
 		skipSignalReapply,
+		currentRunID,
+		currentNextEventID,
+		currentBranchToken,
 	)
 	if err != nil {
 		return err
@@ -178,6 +193,9 @@ func (r *workflowResetterImpl) prepareResetWorkflow(
 	resetReason string,
 	additionalReapplyEvents []*types.HistoryEvent,
 	skipSignalReapply bool,
+	currentRunID string,
+	currentNextEventID int64,
+	currentBranchToken []byte,
 ) (execution.Workflow, error) {
 
 	resetWorkflow, err := r.replayResetWorkflow(
@@ -239,6 +257,9 @@ func (r *workflowResetterImpl) prepareResetWorkflow(
 			baseBranchToken,
 			baseRebuildLastEventID+1,
 			baseNextEventID,
+			currentRunID,
+			currentNextEventID,
+			currentBranchToken,
 		); err != nil {
 			return nil, err
 		}
@@ -472,6 +493,9 @@ func (r *workflowResetterImpl) reapplyResetAndContinueAsNewWorkflowEvents(
 	baseBranchToken []byte,
 	baseRebuildNextEventID int64,
 	baseNextEventID int64,
+	currentRunID string,
+	currentNextEventID int64,
+	currentBranchToken []byte,
 ) error {
 
 	// TODO change this logic to fetching all workflow [baseWorkflow, currentWorkflow]
@@ -492,6 +516,14 @@ func (r *workflowResetterImpl) reapplyResetAndContinueAsNewWorkflowEvents(
 	}
 
 	getNextEventIDBranchToken := func(runID string) (nextEventID int64, branchToken []byte, retError error) {
+		// The caller (processResetWorkflow) already holds the execution context lock for
+		// currentRunID. Attempting to acquire it again via the cache would deadlock
+		// (Go mutexes are not reentrant) and time out after resetWorkflowTimeout.
+		// Use the pre-mutation values captured before any in-memory termination.
+		if runID == currentRunID {
+			return currentNextEventID, currentBranchToken, nil
+		}
+
 		context, release, err := r.executionCache.GetOrCreateWorkflowExecution(
 			ctx,
 			domainID,

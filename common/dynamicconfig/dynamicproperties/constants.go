@@ -583,6 +583,16 @@ const (
 	// Default value: 1200
 	// Allowed filters: DomainName
 	FrontendMaxDomainUserRPSPerInstance
+	// FrontendMaxTaskListUserRPSPerInstance is used to limit "user" requests (StartWorkflow, Signal, etc)
+	// per task list per frontend instance, and is mostly intended to protect against excessive single-host load.
+	//
+	// This limit applies along-side FrontendGlobalTaskListUserRPS: both must be allowed to allow a request.
+	//
+	// KeyName: frontend.tasklistrps
+	// Value type: Int
+	// Default value: 1200
+	// Allowed filters: DomainName,TaskListName
+	FrontendMaxTaskListUserRPSPerInstance
 	// FrontendMaxDomainWorkerRPSPerInstance is used to limit "worker" requests (PollFor...Task, RespondTask..., etc)
 	// per domain per frontend instance, and is mostly intended to protect against excessive single-host load.
 	//
@@ -593,6 +603,16 @@ const (
 	// Default value: UnlimitedRPS
 	// Allowed filters: DomainName
 	FrontendMaxDomainWorkerRPSPerInstance
+	// FrontendMaxTaskListWorkerRPSPerInstance is used to limit "worker" requests (PollFor...Task, RespondTask..., etc)
+	// per task list per frontend instance, and is mostly intended to protect against excessive single-host load.
+	//
+	// This limit applies along-side FrontendGlobalTaskListWorkerRPS: both must be allowed to allow a request.
+	//
+	// KeyName: frontend.tasklistworkerrps
+	// Value type: Int
+	// Default value: UnlimitedRPS
+	// Allowed filters: DomainName,TaskListName
+	FrontendMaxTaskListWorkerRPSPerInstance
 	// FrontendMaxDomainVisibilityRPSPerInstance is used to limit "visibility" requests (ListWorkflow* and similar)
 	// per domain per frontend instance, and is mostly intended to protect against excessive single-host load.
 	//
@@ -613,6 +633,16 @@ const (
 	// Default value: 10000
 	// Allowed filters: DomainName
 	FrontendMaxDomainAsyncRPSPerInstance
+	// FrontendMaxTaskListAsyncRPSPerInstance is used to limit "async" requests (StartWorkflowAsync, etc for many "user" APIs)
+	// per task list per frontend instance, and is mostly intended to protect against excessive single-host load.
+	//
+	// This limit applies along-side FrontendGlobalTaskListAsyncRPS: both must be allowed to allow a request.
+	//
+	// KeyName: frontend.tasklistasyncrps
+	// Value type: Int
+	// Default value: 10000
+	// Allowed filters: DomainName,TaskListName
+	FrontendMaxTaskListAsyncRPSPerInstance
 	// FrontendGlobalDomainUserRPS is used to limit "user" requests (StartWorkflow, Signal, etc)
 	// per domain to a target RPS that is shared across the entire cluster.
 	//
@@ -628,6 +658,14 @@ const (
 	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
 	// Allowed filters: DomainName
 	FrontendGlobalDomainUserRPS
+	// FrontendGlobalTaskListUserRPS is used to limit "user" requests (StartWorkflow, Signal, etc)
+	// per task list to a target RPS that is shared across the entire cluster.
+	//
+	// KeyName: frontend.globalTaskListrps
+	// Value type: Int
+	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
+	// Allowed filters: DomainName,TaskListName
+	FrontendGlobalTaskListUserRPS
 	// FrontendGlobalDomainWorkerRPS is used to limit "worker" requests (PollFor...Task, RespondTask..., etc)
 	// per domain to a target RPS that is shared across the entire cluster.
 	//
@@ -643,6 +681,14 @@ const (
 	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
 	// Allowed filters: DomainName
 	FrontendGlobalDomainWorkerRPS
+	// FrontendGlobalTaskListWorkerRPS is used to limit "worker" requests (PollFor...Task, RespondTask..., etc)
+	// per task list to a target RPS that is shared across the entire cluster.
+	//
+	// KeyName: frontend.globalTaskListWorkerrps
+	// Value type: Int
+	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
+	// Allowed filters: DomainName,TaskListName
+	FrontendGlobalTaskListWorkerRPS
 	// FrontendGlobalDomainVisibilityRPS is used to limit "visibility" requests (ListWorkflow* and similar)
 	// per domain to a target RPS that is shared across the entire cluster.
 	//
@@ -673,6 +719,14 @@ const (
 	// Default value: 100000
 	// Allowed filters: DomainName
 	FrontendGlobalDomainAsyncRPS
+	// FrontendGlobalTaskListAsyncRPS is used to limit "async" requests (StartWorkflowAsync, etc for many "user" APIs)
+	// per task list to a target RPS that is shared across the entire cluster.
+	//
+	// KeyName: frontend.globalTaskListAsyncrps
+	// Value type: Int
+	// Default value: 100000 (0 triggers a fallback to per-instance-RPS, generally avoid)
+	// Allowed filters: DomainName,TaskListName
+	FrontendGlobalTaskListAsyncRPS
 	// FrontendDecisionResultCountLimit is max number of decisions per RespondDecisionTaskCompleted request
 	// KeyName: frontend.decisionResultCountLimit
 	// Value type: Int
@@ -2176,12 +2230,20 @@ const (
 	// Allowed filters: DomainID
 	EnableTimerDebugLogByDomainID
 
-	// EnableRetryForChecksumFailure enables retry if mutable state checksum verification fails
-	// KeyName: history.enableMutableStateChecksumFailureRetry
+	// EnableCorruptionAutoRepair enables automatic repair of corrupted workflows via StateRebuilder
+	// When enabled, detected corruption triggers automatic repair and forces operation retry.
+	// KeyName: history.enableCorruptionAutoRepair
 	// Value type: Bool
 	// Default value: false
 	// Allowed filters: DomainName
-	EnableRetryForChecksumFailure
+	EnableCorruptionAutoRepair
+
+	// RequireChecksumMatchAfterRebuildRepair requires that rebuilt state produces same checksum as original
+	// KeyName: history.requireChecksumMatchAfterRebuildRepair
+	// Value type: Bool
+	// Default value: true
+	// Allowed filters: DomainName
+	RequireChecksumMatchAfterRebuildRepair
 
 	// EnableStrongIdempotency enables strong idempotency for APIs
 	// KeyName: history.enableStrongIdempotency
@@ -2821,6 +2883,12 @@ const (
 	// Default value: 20s( time.Second*20)
 	// Allowed filters: DomainName
 	HistoryLongPollExpirationInterval
+	// CorruptionRepairTimeout is the timeout for corruption repair operations
+	// KeyName: history.corruptionRepairTimeout
+	// Value type: Duration
+	// Default value: 30s
+	// Allowed filters: DomainName
+	CorruptionRepairTimeout
 	// HistoryCacheTTL is TTL of history cache
 	// KeyName: history.cacheTTL
 	// Value type: Duration
@@ -3552,10 +3620,22 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "FrontendMaxDomainUserRPSPerInstance is workflow domain rate limit per second",
 		DefaultValue: 1200,
 	},
+	FrontendMaxTaskListUserRPSPerInstance: {
+		KeyName:      "frontend.tasklistrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendMaxTaskListUserRPSPerInstance is workflow task list rate limit per second",
+		DefaultValue: 1200,
+	},
 	FrontendMaxDomainWorkerRPSPerInstance: {
 		KeyName:      "frontend.domainworkerrps",
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendMaxDomainWorkerRPSPerInstance is background-processing workflow domain rate limit per second",
+		DefaultValue: UnlimitedRPS,
+	},
+	FrontendMaxTaskListWorkerRPSPerInstance: {
+		KeyName:      "frontend.tasklistworkerrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendMaxTaskListWorkerRPSPerInstance is background-processing workflow task list rate limit per second",
 		DefaultValue: UnlimitedRPS,
 	},
 	FrontendMaxDomainVisibilityRPSPerInstance: {
@@ -3570,16 +3650,34 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "FrontendMaxDomainAsyncRPSPerInstance is the per-instance async workflow request rate limit per second",
 		DefaultValue: 10000,
 	},
+	FrontendMaxTaskListAsyncRPSPerInstance: {
+		KeyName:      "frontend.tasklistasyncrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendMaxTaskListAsyncRPSPerInstance is the per-instance async workflow task list rate limit per second",
+		DefaultValue: 10000,
+	},
 	FrontendGlobalDomainUserRPS: {
 		KeyName:      "frontend.globalDomainrps",
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendGlobalDomainUserRPS is workflow domain rate limit per second for the whole Cadence cluster",
 		DefaultValue: UnlimitedRPS,
 	},
+	FrontendGlobalTaskListUserRPS: {
+		KeyName:      "frontend.globalTaskListrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendGlobalTaskListUserRPS is workflow task list rate limit per second for the whole Cadence cluster",
+		DefaultValue: UnlimitedRPS,
+	},
 	FrontendGlobalDomainWorkerRPS: {
 		KeyName:      "frontend.globalDomainWorkerrps",
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendGlobalDomainWorkerRPS is background-processing workflow domain rate limit per second for the whole Cadence cluster",
+		DefaultValue: UnlimitedRPS,
+	},
+	FrontendGlobalTaskListWorkerRPS: {
+		KeyName:      "frontend.globalTaskListWorkerrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendGlobalTaskListWorkerRPS is background-processing workflow task list rate limit per second for the whole Cadence cluster",
 		DefaultValue: UnlimitedRPS,
 	},
 	FrontendGlobalDomainVisibilityRPS: {
@@ -3592,6 +3690,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "frontend.globalDomainAsyncrps",
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendGlobalDomainAsyncRPS is the per-domain async workflow request rate limit per second",
+		DefaultValue: 100000,
+	},
+	FrontendGlobalTaskListAsyncRPS: {
+		KeyName:      "frontend.globalTaskListAsyncrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendGlobalTaskListAsyncRPS is the per-task list async workflow request rate limit per second",
 		DefaultValue: 100000,
 	},
 	FrontendDecisionResultCountLimit: {
@@ -4125,7 +4229,7 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	MaxActivityCountDispatchByDomain: {
 		KeyName:      "history.maxActivityCountDispatchByDomain",
-		Description:  "MaxActivityCountDispatchByDomain max # of activity tasks to dispatch to matching before creating transfer tasks. This is an performance optimization to skip activity scheduling efforts.",
+		Description:  "DEPRECATED: MaxActivityCountDispatchByDomain max # of activity tasks to dispatch to matching before creating transfer tasks. This is an performance optimization to skip activity scheduling efforts.",
 		DefaultValue: 0,
 	},
 	ReplicationTaskFetcherParallelism: {
@@ -4893,11 +4997,17 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "Enable log for debugging timer task issue by domain",
 		DefaultValue: false,
 	},
-	EnableRetryForChecksumFailure: {
-		KeyName:      "history.enableMutableStateChecksumFailureRetry",
+	EnableCorruptionAutoRepair: {
+		KeyName:      "history.enableCorruptionAutoRepair",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableRetryForChecksumFailure enables retry if mutable state checksum verification fails",
+		Description:  "EnableCorruptionAutoRepair enables automatic repair of corrupted workflows via StateRebuilder",
 		DefaultValue: false,
+	},
+	RequireChecksumMatchAfterRebuildRepair: {
+		KeyName:      "history.requireChecksumMatchAfterRebuildRepair",
+		Filters:      []Filter{DomainName},
+		Description:  "RequireChecksumMatchAfterRebuildRepair requires that rebuilt state produces same checksum as original",
+		DefaultValue: true,
 	},
 	EnableStrongIdempotency: {
 		KeyName:      "history.enableStrongIdempotency",
@@ -5790,6 +5900,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainID},
 		Description:  "DomainAuditLogTTL is the TTL for domain audit log entries",
 		DefaultValue: time.Hour * 24 * 365, // 1 year
+	},
+	CorruptionRepairTimeout: {
+		KeyName:      "history.corruptionRepairTimeout",
+		Filters:      []Filter{DomainName},
+		Description:  "CorruptionRepairTimeout is the timeout for corruption repair operations",
+		DefaultValue: time.Second * 30,
 	},
 }
 

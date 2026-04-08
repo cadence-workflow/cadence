@@ -22,6 +22,7 @@ const (
 	ShardDistributorExecutorAssignmentConvergence     = "shard_distributor_executor_assignment_convergence"
 	ShardDistributorExecutorProcessorStartTimeout     = "shard_distributor_executor_processor_start_timeout"
 	ShardDistributorExecutorProcessorStopTimeout      = "shard_distributor_executor_processor_stop_timeout"
+	ShardDistributorExecutorShardsCleanedUpDone       = "shard_distributor_executor_shards_cleaned_up_done"
 
 	// Gauge metrics
 	ShardDistributorExecutorOwnedShards = "shard_distributor_executor_owned_shards"

@@ -1230,6 +1230,12 @@ func TestGetActiveClusterSelectionPolicy(t *testing.T) {
 	workflowID := "workflowID"
 	runID := "runID"
 
+	request := &GetActiveClusterSelectionPolicyRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	}
+
 	tests := []struct {
 		name         string
 		prepareMocks func(*MockExecutionStore, *MockPayloadSerializer)
@@ -1240,7 +1246,7 @@ func TestGetActiveClusterSelectionPolicy(t *testing.T) {
 			name: "success",
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
 				data := sampleActiveClusterSelectionPolicyData()
-				mockedStore.EXPECT().GetActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID).
+				mockedStore.EXPECT().GetActiveClusterSelectionPolicy(ctx, request).
 					Return(data, nil)
 				mockedSerializer.EXPECT().DeserializeActiveClusterSelectionPolicy(data).Return(sampleActiveClusterSelectionPolicy(), nil)
 			},
@@ -1249,7 +1255,7 @@ func TestGetActiveClusterSelectionPolicy(t *testing.T) {
 		{
 			name: "store error",
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
-				mockedStore.EXPECT().GetActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID).
+				mockedStore.EXPECT().GetActiveClusterSelectionPolicy(ctx, request).
 					Return(nil, assert.AnError)
 			},
 			wantErr: assert.AnError,
@@ -1257,7 +1263,7 @@ func TestGetActiveClusterSelectionPolicy(t *testing.T) {
 		{
 			name: "store returned nil",
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
-				mockedStore.EXPECT().GetActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID).
+				mockedStore.EXPECT().GetActiveClusterSelectionPolicy(ctx, request).
 					Return(nil, nil)
 			},
 			wantErr: &types.EntityNotExistsError{
@@ -1268,7 +1274,7 @@ func TestGetActiveClusterSelectionPolicy(t *testing.T) {
 			name: "deserialize error",
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
 				data := sampleActiveClusterSelectionPolicyData()
-				mockedStore.EXPECT().GetActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID).
+				mockedStore.EXPECT().GetActiveClusterSelectionPolicy(ctx, request).
 					Return(data, nil)
 				mockedSerializer.EXPECT().DeserializeActiveClusterSelectionPolicy(data).Return(nil, assert.AnError)
 			},
@@ -1287,7 +1293,7 @@ func TestGetActiveClusterSelectionPolicy(t *testing.T) {
 
 			test.prepareMocks(mockedStore, mockedSerializer)
 
-			policy, err := manager.GetActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
+			policy, err := manager.GetActiveClusterSelectionPolicy(ctx, request)
 			if test.wantErr != nil {
 				assert.EqualError(t, err, test.wantErr.Error())
 			} else {
@@ -1304,6 +1310,12 @@ func TestDeleteActiveClusterSelectionPolicy(t *testing.T) {
 	workflowID := "workflowID"
 	runID := "runID"
 
+	request := &DeleteActiveClusterSelectionPolicyRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	}
+
 	tests := []struct {
 		name         string
 		prepareMocks func(*MockExecutionStore)
@@ -1312,13 +1324,13 @@ func TestDeleteActiveClusterSelectionPolicy(t *testing.T) {
 		{
 			name: "success",
 			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID).Return(nil)
+				mockedStore.EXPECT().DeleteActiveClusterSelectionPolicy(ctx, request).Return(nil)
 			},
 		},
 		{
 			name: "store error",
 			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID).Return(assert.AnError)
+				mockedStore.EXPECT().DeleteActiveClusterSelectionPolicy(ctx, request).Return(assert.AnError)
 			},
 			wantErr: assert.AnError,
 		},
@@ -1334,7 +1346,7 @@ func TestDeleteActiveClusterSelectionPolicy(t *testing.T) {
 
 			test.prepareMocks(mockedStore)
 
-			err := manager.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
+			err := manager.DeleteActiveClusterSelectionPolicy(ctx, request)
 			if test.wantErr != nil {
 				assert.EqualError(t, err, test.wantErr.Error())
 			} else {

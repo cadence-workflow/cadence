@@ -28,6 +28,7 @@ import (
 
 	"github.com/pborman/uuid"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
@@ -438,6 +439,7 @@ func (r *transactionManagerImpl) getCurrentWorkflowRunID(
 			DomainID:   domainID,
 			WorkflowID: workflowID,
 			DomainName: domainName,
+			ShardID:    common.Ptr(r.shard.GetShardID()),
 		},
 	)
 
