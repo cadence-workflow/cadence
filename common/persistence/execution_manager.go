@@ -79,6 +79,7 @@ func (m *executionManagerImpl) GetWorkflowExecution(
 ) (*GetWorkflowExecutionResponse, error) {
 
 	internalRequest := &InternalGetWorkflowExecutionRequest{
+		ShardID:   request.ShardID,
 		DomainID:  request.DomainID,
 		Execution: request.Execution,
 		RangeID:   request.RangeID,
@@ -356,6 +357,7 @@ func (m *executionManagerImpl) UpdateWorkflowExecution(
 	}
 
 	newRequest := &InternalUpdateWorkflowExecutionRequest{
+		ShardID: request.ShardID,
 		RangeID: request.RangeID,
 
 		Mode: request.Mode,
@@ -583,6 +585,7 @@ func (m *executionManagerImpl) ConflictResolveWorkflowExecution(
 	}
 
 	newRequest := &InternalConflictResolveWorkflowExecutionRequest{
+		ShardID: request.ShardID,
 		RangeID: request.RangeID,
 
 		Mode: request.Mode,
@@ -615,6 +618,7 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 	}
 
 	newRequest := &InternalCreateWorkflowExecutionRequest{
+		ShardID: request.ShardID,
 		RangeID: request.RangeID,
 
 		Mode: request.Mode,
@@ -871,6 +875,7 @@ func (m *executionManagerImpl) PutReplicationTaskToDLQ(
 	request *PutReplicationTaskToDLQRequest,
 ) error {
 	internalRequest := &InternalPutReplicationTaskToDLQRequest{
+		ShardID:           request.ShardID,
 		SourceClusterName: request.SourceClusterName,
 		TaskInfo:          m.toInternalReplicationTaskInfo(request.TaskInfo),
 	}

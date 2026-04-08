@@ -62,6 +62,15 @@ func (d *nosqlExecutionStore) GetShardID() int {
 	return d.shardID
 }
 
+// getShardID returns the effective shard ID: request.ShardID if set, otherwise the store's own shardID.
+// This supports the incremental migration toward host-level ExecutionManager/ExecutionStore.
+func getShardID(requestShardID *int, storeShardID int) int {
+	if requestShardID != nil {
+		return *requestShardID
+	}
+	return storeShardID
+}
+
 func (d *nosqlExecutionStore) CreateWorkflowExecution(
 	ctx context.Context,
 	request *persistence.InternalCreateWorkflowExecutionRequest,
@@ -81,12 +90,14 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 		return nil, err
 	}
 
+	shardID := getShardID(request.ShardID, d.shardID)
+
 	workflowRequestWriteMode, err := getWorkflowRequestWriteMode(request.WorkflowRequestMode)
 	if err != nil {
 		return nil, err
 	}
 
-	currentWorkflowWriteReq, err := d.prepareCurrentWorkflowRequestForCreateWorkflowTxn(domainID, workflowID, runID, executionInfo, lastWriteVersion, request)
+	currentWorkflowWriteReq, err := d.prepareCurrentWorkflowRequestForCreateWorkflowTxn(domainID, workflowID, runID, executionInfo, lastWriteVersion, request, shardID)
 	if err != nil {
 		return nil, err
 	}
@@ -106,16 +117,16 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 		return nil, err
 	}
 
-	workflowRequests := d.prepareWorkflowRequestRows(domainID, workflowID, runID, newWorkflow.WorkflowRequests, nil)
+	workflowRequests := d.prepareWorkflowRequestRows(domainID, workflowID, runID, newWorkflow.WorkflowRequests, nil, shardID)
 	workflowRequestsWriteRequest := &nosqlplugin.WorkflowRequestsWriteRequest{
 		Rows:      workflowRequests,
 		WriteMode: workflowRequestWriteMode,
 	}
 
-	activeClusterSelectionPolicyRow := d.prepareActiveClusterSelectionPolicyRow(domainID, workflowID, runID, executionInfo.ActiveClusterSelectionPolicy)
+	activeClusterSelectionPolicyRow := d.prepareActiveClusterSelectionPolicyRow(domainID, workflowID, runID, executionInfo.ActiveClusterSelectionPolicy, shardID)
 
 	shardCondition := &nosqlplugin.ShardCondition{
-		ShardID: d.shardID,
+		ShardID: shardID,
 		RangeID: request.RangeID,
 	}
 
@@ -134,12 +145,12 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 			switch {
 			case conditionFailureErr.UnknownConditionFailureDetails != nil:
 				return nil, &persistence.ShardOwnershipLostError{
-					ShardID: d.shardID,
+					ShardID: shardID,
 					Msg:     *conditionFailureErr.UnknownConditionFailureDetails,
 				}
 			case conditionFailureErr.ShardRangeIDNotMatch != nil:
 				return nil, &persistence.ShardOwnershipLostError{
-					ShardID: d.shardID,
+					ShardID: shardID,
 					Msg: fmt.Sprintf("Failed to create workflow execution.  Request RangeID: %v, Actual RangeID: %v",
 						request.RangeID, *conditionFailureErr.ShardRangeIDNotMatch),
 				}
@@ -179,8 +190,9 @@ func (d *nosqlExecutionStore) GetWorkflowExecution(
 	request *persistence.InternalGetWorkflowExecutionRequest,
 ) (*persistence.InternalGetWorkflowExecutionResponse, error) {
 
+	shardID := getShardID(request.ShardID, d.shardID)
 	execution := request.Execution
-	state, err := d.db.SelectWorkflowExecution(ctx, d.shardID, request.DomainID, execution.WorkflowID, execution.RunID)
+	state, err := d.db.SelectWorkflowExecution(ctx, shardID, request.DomainID, execution.WorkflowID, execution.RunID)
 	if err != nil {
 		if d.db.IsNotFoundError(err) {
 			return nil, &types.EntityNotExistsError{
@@ -214,6 +226,8 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 	); err != nil {
 		return err
 	}
+
+	shardID := getShardID(request.ShardID, d.shardID)
 
 	workflowRequestWriteMode, err := getWorkflowRequestWriteMode(request.WorkflowRequestMode)
 	if err != nil {
@@ -256,7 +270,7 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 			currentWorkflowWriteReq = &nosqlplugin.CurrentWorkflowWriteRequest{
 				WriteMode: nosqlplugin.CurrentWorkflowWriteModeUpdate,
 				Row: nosqlplugin.CurrentWorkflowRow{
-					ShardID:          d.shardID,
+					ShardID:          shardID,
 					DomainID:         newDomainID,
 					WorkflowID:       newWorkflowID,
 					RunID:            newRunID,
@@ -275,7 +289,7 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 			currentWorkflowWriteReq = &nosqlplugin.CurrentWorkflowWriteRequest{
 				WriteMode: nosqlplugin.CurrentWorkflowWriteModeUpdate,
 				Row: nosqlplugin.CurrentWorkflowRow{
-					ShardID:          d.shardID,
+					ShardID:          shardID,
 					DomainID:         domainID,
 					WorkflowID:       workflowID,
 					RunID:            runID,
@@ -314,7 +328,7 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 	if err != nil {
 		return err
 	}
-	workflowRequests = d.prepareWorkflowRequestRows(domainID, workflowID, runID, updateWorkflow.WorkflowRequests, workflowRequests)
+	workflowRequests = d.prepareWorkflowRequestRows(domainID, workflowID, runID, updateWorkflow.WorkflowRequests, workflowRequests, shardID)
 
 	// 2. new
 	if newWorkflow != nil {
@@ -328,6 +342,7 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 			newWorkflow.ExecutionInfo.WorkflowID,
 			newWorkflow.ExecutionInfo.RunID,
 			newWorkflow.ExecutionInfo.ActiveClusterSelectionPolicy,
+			shardID,
 		)
 
 		err = d.prepareNoSQLTasksForWorkflowTxn(
@@ -338,11 +353,11 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 		if err != nil {
 			return err
 		}
-		workflowRequests = d.prepareWorkflowRequestRows(domainID, workflowID, newWorkflow.ExecutionInfo.RunID, newWorkflow.WorkflowRequests, workflowRequests)
+		workflowRequests = d.prepareWorkflowRequestRows(domainID, workflowID, newWorkflow.ExecutionInfo.RunID, newWorkflow.WorkflowRequests, workflowRequests, shardID)
 	}
 
 	shardCondition := &nosqlplugin.ShardCondition{
-		ShardID: d.shardID,
+		ShardID: shardID,
 		RangeID: request.RangeID,
 	}
 
@@ -363,7 +378,7 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 		shardCondition,
 	)
 
-	return d.processUpdateWorkflowResult(err, request.RangeID)
+	return d.processUpdateWorkflowResult(err, request.RangeID, shardID)
 }
 
 func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
@@ -385,6 +400,8 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 	); err != nil {
 		return err
 	}
+
+	shardID := getShardID(request.ShardID, d.shardID)
 
 	workflowRequestWriteMode, err := getWorkflowRequestWriteMode(request.WorkflowRequestMode)
 	if err != nil {
@@ -422,7 +439,7 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 		currentWorkflowWriteReq = &nosqlplugin.CurrentWorkflowWriteRequest{
 			WriteMode: nosqlplugin.CurrentWorkflowWriteModeUpdate,
 			Row: nosqlplugin.CurrentWorkflowRow{
-				ShardID:          d.shardID,
+				ShardID:          shardID,
 				DomainID:         domainID,
 				WorkflowID:       workflowID,
 				RunID:            executionInfo.RunID,
@@ -460,7 +477,7 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 		if err != nil {
 			return err
 		}
-		workflowRequests = d.prepareWorkflowRequestRows(domainID, workflowID, currentWorkflow.ExecutionInfo.RunID, currentWorkflow.WorkflowRequests, workflowRequests)
+		workflowRequests = d.prepareWorkflowRequestRows(domainID, workflowID, currentWorkflow.ExecutionInfo.RunID, currentWorkflow.WorkflowRequests, workflowRequests, shardID)
 	}
 
 	// 2. reset
@@ -476,7 +493,7 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 	if err != nil {
 		return err
 	}
-	workflowRequests = d.prepareWorkflowRequestRows(domainID, workflowID, resetWorkflow.ExecutionInfo.RunID, resetWorkflow.WorkflowRequests, workflowRequests)
+	workflowRequests = d.prepareWorkflowRequestRows(domainID, workflowID, resetWorkflow.ExecutionInfo.RunID, resetWorkflow.WorkflowRequests, workflowRequests, shardID)
 
 	// 3. new
 	if newWorkflow != nil {
@@ -495,11 +512,11 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 		if err != nil {
 			return err
 		}
-		workflowRequests = d.prepareWorkflowRequestRows(domainID, workflowID, newWorkflow.ExecutionInfo.RunID, newWorkflow.WorkflowRequests, workflowRequests)
+		workflowRequests = d.prepareWorkflowRequestRows(domainID, workflowID, newWorkflow.ExecutionInfo.RunID, newWorkflow.WorkflowRequests, workflowRequests, shardID)
 	}
 
 	shardCondition := &nosqlplugin.ShardCondition{
-		ShardID: d.shardID,
+		ShardID: shardID,
 		RangeID: request.RangeID,
 	}
 
@@ -513,7 +530,7 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 		mutateExecution, insertExecution, nil, resetExecution,
 		tasksByCategory,
 		shardCondition)
-	return d.processUpdateWorkflowResult(err, request.RangeID)
+	return d.processUpdateWorkflowResult(err, request.RangeID, shardID)
 }
 
 func (d *nosqlExecutionStore) DeleteWorkflowExecution(
@@ -622,7 +639,7 @@ func (d *nosqlExecutionStore) PutReplicationTaskToDLQ(
 	ctx context.Context,
 	request *persistence.InternalPutReplicationTaskToDLQRequest,
 ) error {
-	err := d.db.InsertReplicationDLQTask(ctx, d.shardID, request.SourceClusterName, &nosqlplugin.HistoryMigrationTask{
+	err := d.db.InsertReplicationDLQTask(ctx, getShardID(request.ShardID, d.shardID), request.SourceClusterName, &nosqlplugin.HistoryMigrationTask{
 		Replication: request.TaskInfo,
 		Task:        nil, // TODO: encode task infor into datablob
 	})
