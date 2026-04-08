@@ -49,7 +49,7 @@ func Test_buildDSN(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			dsn := buildDSN(c.cfg)
-			dsnAttrs :=strings.Split(dsn, "&")
+			dsnAttrs := strings.Split(dsn, "&")
 			wantAttrs := strings.Split(c.want, "&")
 			assert.Subset(t, dsnAttrs, wantAttrs)
 		})
@@ -82,7 +82,7 @@ func Test_buildDSN_attrs(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			dsn := buildDSN(c.cfg)
-			dsnAttrs :=strings.Split(dsn, "&")
+			dsnAttrs := strings.Split(dsn, "&")
 			wantAttrs := strings.Split(c.want, "&")
 			assert.Subset(t, dsnAttrs, wantAttrs)
 		})
