@@ -44,6 +44,14 @@ const (
 	// https://sqlite.org/pragma.html#pragma_busy_timeout
 	pragmaBusyTimeoutAttrName = "_pragma.busy_timeout"
 	pragmaBusyTimeoutDefault  = "60000"
+
+	// praga cache size (set the maximum number of pages in the page cache)
+	pragmaCacheSizeAttrName = "_pragma.cache_size"
+	pragmaCacheSizeDefault  = "131072" // 128MB
+
+	// pragma mmap size (enable memory-mapped I/O)
+	pragmaMmapSizeAttrName = "_pragma.mmap_size"
+	pragmaMmapSizeDefault  = "268435456" // 256MB
 )
 
 const (
@@ -92,6 +100,8 @@ func buildDSNAttrs(cfg *config.SQL) string {
 	}
 
 	defaultIfEmpty(sanitizedAttrs, pragmaBusyTimeoutAttrName, pragmaBusyTimeoutDefault)
+	defaultIfEmpty(sanitizedAttrs, pragmaCacheSizeAttrName, pragmaCacheSizeDefault)
+	defaultIfEmpty(sanitizedAttrs, pragmaMmapSizeAttrName, pragmaMmapSizeDefault)
 	return joinDSNAttrs(sanitizedAttrs)
 }
 
