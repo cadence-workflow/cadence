@@ -298,6 +298,10 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 			tag.WorkflowDomainID(retryErr.GetDomainID()),
 			tag.WorkflowID(retryErr.GetWorkflowID()),
 			tag.WorkflowRunID(retryErr.GetRunID()),
+			tag.WorkflowFirstEventID(retryErr.GetStartEventID()),
+			tag.FirstEventVersion(retryErr.GetStartEventVersion()),
+			tag.WorkflowLastEventID(retryErr.GetEndEventID()),
+			tag.LastEventVersion(retryErr.GetEndEventVersion()),
 			tag.Error(resendErr),
 		)
 		// should return the replication error, not the resending error

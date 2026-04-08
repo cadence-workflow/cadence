@@ -6678,6 +6678,38 @@ func (v *RetryTaskV2Error) GetRunID() (o string) {
 	return
 }
 
+// GetStartEventID is an internal getter (TBD...)
+func (v *RetryTaskV2Error) GetStartEventID() (o int64) {
+	if v != nil && v.StartEventID != nil {
+		return *v.StartEventID
+	}
+	return
+}
+
+// GetStartEventVersion is an internal getter (TBD...)
+func (v *RetryTaskV2Error) GetStartEventVersion() (o int64) {
+	if v != nil && v.StartEventVersion != nil {
+		return *v.StartEventVersion
+	}
+	return
+}
+
+// GetEndEventID is an internal getter (TBD...)
+func (v *RetryTaskV2Error) GetEndEventID() (o int64) {
+	if v != nil && v.EndEventID != nil {
+		return *v.EndEventID
+	}
+	return
+}
+
+// GetEndEventVersion is an internal getter (TBD...)
+func (v *RetryTaskV2Error) GetEndEventVersion() (o int64) {
+	if v != nil && v.EndEventVersion != nil {
+		return *v.EndEventVersion
+	}
+	return
+}
+
 // ScheduleActivityTaskDecisionAttributes is an internal type (TBD...)
 type ScheduleActivityTaskDecisionAttributes struct {
 	ActivityID                    string        `json:"activityId,omitempty"`
