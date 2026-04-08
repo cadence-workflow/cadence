@@ -110,6 +110,11 @@ func TestElector_Run(t *testing.T) {
 	assert.False(t, onResignCalled, "OnResign callback should not have been called")
 	cancel()
 	<-finished
+	// Drain leaderChan until it is closed: the goroutine sends false and then
+	// closes the channel only after resign() (including Cleanup) has returned,
+	// so this guarantees all mock expectations are satisfied before the test exits.
+	for range leaderChan {
+	}
 }
 
 func TestElector_Run_Resign(t *testing.T) {

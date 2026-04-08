@@ -1696,7 +1696,7 @@ func (s *historyBuilderSuite) addActivityTaskScheduledEvent(
 	retryPolicy *types.RetryPolicy,
 	requestLocalDispatch bool,
 ) (*types.HistoryEvent, *persistence.ActivityInfo, *types.ActivityLocalDispatchInfo) {
-	event, ai, activityDispatchInfo, _, _, err := s.msBuilder.AddActivityTaskScheduledEvent(nil, decisionCompletedID,
+	event, ai, activityDispatchInfo, err := s.msBuilder.AddActivityTaskScheduledEvent(decisionCompletedID,
 		&types.ScheduleActivityTaskDecisionAttributes{
 			ActivityID:                    activityID,
 			ActivityType:                  &types.ActivityType{Name: activityType},
@@ -1709,7 +1709,7 @@ func (s *historyBuilderSuite) addActivityTaskScheduledEvent(
 			StartToCloseTimeoutSeconds:    common.Int32Ptr(1),
 			RetryPolicy:                   retryPolicy,
 			RequestLocalDispatch:          requestLocalDispatch,
-		}, false,
+		},
 	)
 	s.Nil(err)
 	if domain == "" {

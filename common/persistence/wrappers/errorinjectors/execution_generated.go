@@ -101,11 +101,11 @@ func (c *injectorExecutionManager) CreateWorkflowExecution(ctx context.Context, 
 	return
 }
 
-func (c *injectorExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID string, workflowID string, runID string) (err error) {
+func (c *injectorExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, request *persistence.DeleteActiveClusterSelectionPolicyRequest) (err error) {
 	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
+		err = c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -161,11 +161,11 @@ func (c *injectorExecutionManager) DeleteWorkflowExecution(ctx context.Context, 
 	return
 }
 
-func (c *injectorExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, domainID string, wfID string, rID string) (ap1 *types.ActiveClusterSelectionPolicy, err error) {
+func (c *injectorExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, request *persistence.GetActiveClusterSelectionPolicyRequest) (ap1 *types.ActiveClusterSelectionPolicy, err error) {
 	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		ap1, err = c.wrapped.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
+		ap1, err = c.wrapped.GetActiveClusterSelectionPolicy(ctx, request)
 	}
 
 	if fakeErr != nil {

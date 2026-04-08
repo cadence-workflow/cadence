@@ -314,7 +314,7 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 		tag.WorkflowDomainID(taskList.GetDomainID()),
 	)
 
-	logger.Info("Task list manager state changed", tag.LifeCycleStarting)
+	logger.Debug("Task list manager state changed", tag.LifeCycleStarting)
 	params := tasklist.ManagerParams{
 		DomainCache:     e.domainCache,
 		Logger:          e.logger,
@@ -334,7 +334,7 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 	mgr, err := tasklist.NewManager(params)
 	if err != nil {
 		e.taskListCreationLock.Unlock()
-		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
+		logger.Warn("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
 		return nil, err
 	}
 
@@ -343,11 +343,11 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 
 	err = mgr.Start(context.Background())
 	if err != nil {
-		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
+		logger.Warn("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
 		return nil, err
 	}
 
-	logger.Info("Task list manager state changed", tag.LifeCycleStarted)
+	logger.Debug("Task list manager state changed", tag.LifeCycleStarted)
 	event.Log(event.E{
 		TaskListName: taskList.GetName(),
 		TaskListKind: &taskListKind,

@@ -517,6 +517,7 @@ func (t *timerQueueProcessor) completeTimer(ctx context.Context) error {
 			InclusiveMinTaskKey: persistence.NewHistoryTaskKey(t.ackLevel, 0),
 			ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(newAckLevelTimestamp, 0),
 			PageSize:            pageSize,
+			ShardID:             common.Ptr(t.shard.GetShardID()),
 		})
 		if err != nil {
 			return err

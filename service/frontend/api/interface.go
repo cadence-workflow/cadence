@@ -86,5 +86,14 @@ type (
 		UpdateDomain(context.Context, *types.UpdateDomainRequest) (*types.UpdateDomainResponse, error)
 		FailoverDomain(context.Context, *types.FailoverDomainRequest) (*types.FailoverDomainResponse, error)
 		ListFailoverHistory(context.Context, *types.ListFailoverHistoryRequest) (*types.ListFailoverHistoryResponse, error)
+
+		CreateSchedule(context.Context, *types.CreateScheduleRequest) (*types.CreateScheduleResponse, error)
+		DescribeSchedule(context.Context, *types.DescribeScheduleRequest) (*types.DescribeScheduleResponse, error)
+		UpdateSchedule(context.Context, *types.UpdateScheduleRequest) (*types.UpdateScheduleResponse, error)
+		DeleteSchedule(context.Context, *types.DeleteScheduleRequest) (*types.DeleteScheduleResponse, error)
+		PauseSchedule(context.Context, *types.PauseScheduleRequest) (*types.PauseScheduleResponse, error)
+		UnpauseSchedule(context.Context, *types.UnpauseScheduleRequest) (*types.UnpauseScheduleResponse, error)
+		BackfillSchedule(context.Context, *types.BackfillScheduleRequest) (*types.BackfillScheduleResponse, error)
+		ListSchedules(context.Context, *types.ListSchedulesRequest) (*types.ListSchedulesResponse, error)
 	}
 )

@@ -30,7 +30,6 @@ type (
 	DynamicConfiguration struct {
 		EnableSQLAsyncTransaction                dynamicproperties.BoolPropertyFn
 		EnableCassandraAllConsistencyLevelDelete dynamicproperties.BoolPropertyFn
-		PersistenceSampleLoggingRate             dynamicproperties.IntPropertyFn
 		EnableShardIDMetrics                     dynamicproperties.BoolPropertyFn
 		EnableHistoryTaskDualWriteMode           dynamicproperties.BoolPropertyFn
 		ReadNoSQLHistoryTaskFromDataBlob         dynamicproperties.BoolPropertyFn
@@ -47,7 +46,6 @@ func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration
 	return &DynamicConfiguration{
 		EnableSQLAsyncTransaction:                dc.GetBoolProperty(dynamicproperties.EnableSQLAsyncTransaction),
 		EnableCassandraAllConsistencyLevelDelete: dc.GetBoolProperty(dynamicproperties.EnableCassandraAllConsistencyLevelDelete),
-		PersistenceSampleLoggingRate:             dc.GetIntProperty(dynamicproperties.SampleLoggingRate),
 		EnableShardIDMetrics:                     dc.GetBoolProperty(dynamicproperties.EnableShardIDMetrics),
 		EnableHistoryTaskDualWriteMode:           dc.GetBoolProperty(dynamicproperties.EnableNoSQLHistoryTaskDualWriteMode),
 		ReadNoSQLHistoryTaskFromDataBlob:         dc.GetBoolProperty(dynamicproperties.ReadNoSQLHistoryTaskFromDataBlob),

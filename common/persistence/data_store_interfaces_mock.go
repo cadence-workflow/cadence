@@ -110,17 +110,17 @@ func (mr *MockExecutionStoreMockRecorder) CreateWorkflowExecution(ctx, request a
 }
 
 // DeleteActiveClusterSelectionPolicy mocks base method.
-func (m *MockExecutionStore) DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) error {
+func (m *MockExecutionStore) DeleteActiveClusterSelectionPolicy(ctx context.Context, request *DeleteActiveClusterSelectionPolicyRequest) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteActiveClusterSelectionPolicy", ctx, domainID, wfID, rID)
+	ret := m.ctrl.Call(m, "DeleteActiveClusterSelectionPolicy", ctx, request)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteActiveClusterSelectionPolicy indicates an expected call of DeleteActiveClusterSelectionPolicy.
-func (mr *MockExecutionStoreMockRecorder) DeleteActiveClusterSelectionPolicy(ctx, domainID, wfID, rID any) *gomock.Call {
+func (mr *MockExecutionStoreMockRecorder) DeleteActiveClusterSelectionPolicy(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteActiveClusterSelectionPolicy", reflect.TypeOf((*MockExecutionStore)(nil).DeleteActiveClusterSelectionPolicy), ctx, domainID, wfID, rID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteActiveClusterSelectionPolicy", reflect.TypeOf((*MockExecutionStore)(nil).DeleteActiveClusterSelectionPolicy), ctx, request)
 }
 
 // DeleteCurrentWorkflowExecution mocks base method.
@@ -166,18 +166,18 @@ func (mr *MockExecutionStoreMockRecorder) DeleteWorkflowExecution(ctx, request a
 }
 
 // GetActiveClusterSelectionPolicy mocks base method.
-func (m *MockExecutionStore) GetActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*DataBlob, error) {
+func (m *MockExecutionStore) GetActiveClusterSelectionPolicy(ctx context.Context, request *GetActiveClusterSelectionPolicyRequest) (*DataBlob, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetActiveClusterSelectionPolicy", ctx, domainID, wfID, rID)
+	ret := m.ctrl.Call(m, "GetActiveClusterSelectionPolicy", ctx, request)
 	ret0, _ := ret[0].(*DataBlob)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetActiveClusterSelectionPolicy indicates an expected call of GetActiveClusterSelectionPolicy.
-func (mr *MockExecutionStoreMockRecorder) GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID any) *gomock.Call {
+func (mr *MockExecutionStoreMockRecorder) GetActiveClusterSelectionPolicy(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterSelectionPolicy", reflect.TypeOf((*MockExecutionStore)(nil).GetActiveClusterSelectionPolicy), ctx, domainID, wfID, rID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterSelectionPolicy", reflect.TypeOf((*MockExecutionStore)(nil).GetActiveClusterSelectionPolicy), ctx, request)
 }
 
 // GetCurrentExecution mocks base method.

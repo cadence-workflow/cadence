@@ -463,6 +463,7 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessActivityTimeout_Multiple_CanU
 		mutableState.GetExecutionInfo().LastEventTaskID = 0
 		mutableState.GetExecutionInfo().DecisionOriginalScheduledTimestamp = input.UpdateWorkflowMutation.ExecutionInfo.DecisionOriginalScheduledTimestamp
 		s.Equal(&persistence.UpdateWorkflowExecutionRequest{
+			ShardID: common.Ptr(0),
 			UpdateWorkflowMutation: persistence.WorkflowMutation{
 				ExecutionInfo:             mutableState.GetExecutionInfo(),
 				ExecutionStats:            &persistence.ExecutionStats{},

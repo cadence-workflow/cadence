@@ -23,7 +23,6 @@ package permember
 import (
 	"math"
 
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/quotas"
 )
@@ -50,8 +49,8 @@ func PerMember(service string, globalRPS, instanceRPS float64, resolver membersh
 // instanceRPS is used as a fallback if globalRPS is not provided.
 func NewPerMemberDynamicRateLimiterFactory(
 	service string,
-	globalRPS dynamicproperties.IntPropertyFnWithDomainFilter,
-	instanceRPS dynamicproperties.IntPropertyFnWithDomainFilter,
+	globalRPS func(key string) int,
+	instanceRPS func(key string) int,
 	resolver membership.Resolver,
 ) quotas.LimiterFactory[string] {
 	return perMemberFactory{
@@ -64,17 +63,17 @@ func NewPerMemberDynamicRateLimiterFactory(
 
 type perMemberFactory struct {
 	service     string
-	globalRPS   dynamicproperties.IntPropertyFnWithDomainFilter
-	instanceRPS dynamicproperties.IntPropertyFnWithDomainFilter
+	globalRPS   func(key string) int
+	instanceRPS func(key string) int
 	resolver    membership.Resolver
 }
 
-func (f perMemberFactory) GetLimiter(domain string) quotas.Limiter {
+func (f perMemberFactory) GetLimiter(key string) quotas.Limiter {
 	return quotas.NewDynamicRateLimiter(func() float64 {
 		return PerMember(
 			f.service,
-			float64(f.globalRPS(domain)),
-			float64(f.instanceRPS(domain)),
+			float64(f.globalRPS(key)),
+			float64(f.instanceRPS(key)),
 			f.resolver,
 		)
 	})

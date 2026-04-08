@@ -60,6 +60,7 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 			ScheduledTimeNano: mockTimeSource.Now().UnixNano(),
 		},
 	}, nil).AnyTimes()
+	mockShard.EXPECT().GetShardID().Return(0).AnyTimes()
 	mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).AnyTimes()
 	mockExecutionManager.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{}, nil).AnyTimes()
 	mockExecutionManager.EXPECT().RangeCompleteHistoryTask(gomock.Any(), gomock.Any()).Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil).AnyTimes()

@@ -2269,3 +2269,27 @@ func TestBudgetManager_DisabledManager_NoMetricsEmitted(t *testing.T) {
 	mockScope.AssertNotCalled(t, "UpdateGauge")
 	mockScope.AssertNotCalled(t, "IncCounter")
 }
+
+func TestBudgetManager_NilLoggerDoesNotPanic(t *testing.T) {
+	assert.NotPanics(t, func() {
+		mgr := NewBudgetManager(
+			"test-nil-logger",
+			dynamicproperties.GetIntPropertyFn(1024),
+			dynamicproperties.GetIntPropertyFn(10),
+			AdmissionOptimistic,
+			0,
+			nil,
+			nil, // nil logger should not panic
+			nil,
+		)
+		defer mgr.Stop()
+
+		// Verify basic operations work with nil logger
+		err := mgr.ReserveWithCallback("cache1", 100, 1, func() error {
+			return nil
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(100), mgr.UsedBytes())
+		assert.Equal(t, int64(1), mgr.UsedCount())
+	})
+}

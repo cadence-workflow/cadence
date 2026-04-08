@@ -273,6 +273,7 @@ func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteFailed_PutDLQSuccess()
 			ScheduledID: testScheduleID,
 		},
 		DomainName: testDomainName,
+		ShardID:    common.Ptr(0),
 	}
 	s.mockShard.Resource.ExecutionMgr.On("PutReplicationTaskToDLQ", mock.Anything, dlqReq).Return(nil).Times(1)
 
@@ -326,6 +327,7 @@ func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteFailed_PutDLQFailed() 
 			ScheduledID: testScheduleID,
 		},
 		DomainName: testDomainName,
+		ShardID:    common.Ptr(0),
 	}
 	s.mockShard.Resource.ExecutionMgr.
 		On("PutReplicationTaskToDLQ", mock.Anything, dlqReq).
@@ -546,6 +548,7 @@ func (s *taskProcessorSuite) TestCleanupReplicationTaskLoop() {
 		TaskCategory:        persistence.HistoryTaskCategoryReplication,
 		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(351),
 		PageSize:            50, // this comes from test config
+		ShardID:             common.Ptr(0),
 	}
 	s.executionManager.On("RangeCompleteHistoryTask", mock.Anything, req).Return(&persistence.RangeCompleteHistoryTaskResponse{
 		TasksCompleted: 50, // if this number equals to page size the loop continues

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/shard"
 )
@@ -64,6 +65,7 @@ func TestQueueReader_GetTask(t *testing.T) {
 				PageSize: 10,
 			},
 			mockSetup: func(mockShard *shard.MockContext, mockExec *persistence.MockExecutionManager, mockPredicate *MockPredicate) {
+				mockShard.EXPECT().GetShardID().Return(0)
 				mockShard.EXPECT().GetExecutionManager().Return(mockExec)
 				mockExec.EXPECT().GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
 					TaskCategory:        persistence.HistoryTaskCategoryTimer,
@@ -71,6 +73,7 @@ func TestQueueReader_GetTask(t *testing.T) {
 					ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, math.MaxInt64), 10),
 					PageSize:            10,
 					NextPageToken:       nil,
+					ShardID:             common.Ptr(0),
 				}).Return(&persistence.GetHistoryTasksResponse{
 					Tasks:         historyTasks,
 					NextPageToken: []byte("next-page"),
@@ -95,6 +98,7 @@ func TestQueueReader_GetTask(t *testing.T) {
 				PageSize: 10,
 			},
 			mockSetup: func(mockShard *shard.MockContext, mockExec *persistence.MockExecutionManager, mockPredicate *MockPredicate) {
+				mockShard.EXPECT().GetShardID().Return(0)
 				mockShard.EXPECT().GetExecutionManager().Return(mockExec)
 				mockExec.EXPECT().GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
 					TaskCategory:        persistence.HistoryTaskCategoryTimer,
@@ -102,6 +106,7 @@ func TestQueueReader_GetTask(t *testing.T) {
 					ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, math.MaxInt64), 10),
 					PageSize:            10,
 					NextPageToken:       nil,
+					ShardID:             common.Ptr(0),
 				}).Return(&persistence.GetHistoryTasksResponse{
 					Tasks:         historyTasks,
 					NextPageToken: nil,
@@ -126,6 +131,7 @@ func TestQueueReader_GetTask(t *testing.T) {
 				PageSize: 10,
 			},
 			mockSetup: func(mockShard *shard.MockContext, mockExec *persistence.MockExecutionManager, mockPredicate *MockPredicate) {
+				mockShard.EXPECT().GetShardID().Return(0)
 				mockShard.EXPECT().GetExecutionManager().Return(mockExec)
 				mockExec.EXPECT().GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
 					TaskCategory:        persistence.HistoryTaskCategoryTimer,
@@ -133,6 +139,7 @@ func TestQueueReader_GetTask(t *testing.T) {
 					ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, math.MaxInt64), 10),
 					PageSize:            10,
 					NextPageToken:       nil,
+					ShardID:             common.Ptr(0),
 				}).Return(&persistence.GetHistoryTasksResponse{
 					Tasks:         historyTasks,
 					NextPageToken: []byte("next-page"),
@@ -158,6 +165,7 @@ func TestQueueReader_GetTask(t *testing.T) {
 				PageSize: 10,
 			},
 			mockSetup: func(mockShard *shard.MockContext, mockExec *persistence.MockExecutionManager, mockPredicate *MockPredicate) {
+				mockShard.EXPECT().GetShardID().Return(0)
 				mockShard.EXPECT().GetExecutionManager().Return(mockExec)
 				mockExec.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
 			},
@@ -177,6 +185,7 @@ func TestQueueReader_GetTask(t *testing.T) {
 				PageSize: 10,
 			},
 			mockSetup: func(mockShard *shard.MockContext, mockExec *persistence.MockExecutionManager, mockPredicate *MockPredicate) {
+				mockShard.EXPECT().GetShardID().Return(0)
 				mockShard.EXPECT().GetExecutionManager().Return(mockExec)
 				mockExec.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{
 					Tasks:         []persistence.Task{},

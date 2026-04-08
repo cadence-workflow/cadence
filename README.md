@@ -29,6 +29,10 @@ Try out the sample recipes for [Go](https://github.com/cadence-workflow/cadence-
 Visit http://localhost:8088 to check workflow histories and detailed traces.
 
 
+### Kubernetes Deployment
+
+For a guided Kubernetes installation experience, [KubeStellar Console](https://console.kubestellar.io/missions/install-cadence-workflow) provides a step-by-step mission that deploys Cadence using the official Helm chart from [cadence-charts](https://github.com/cadence-workflow/cadence-charts). The mission includes pre-flight checks, validation, troubleshooting, and rollback support.
+
 ### Client Libraries
 You can implement your workflows with one of our client libraries:
 - [Official Cadence Go SDK](https://github.com/cadence-workflow/cadence-go-client)

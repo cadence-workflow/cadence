@@ -39,7 +39,8 @@ type RPSKeyFunc func(key string) float64
 
 // Info corresponds to information required to determine rate limits
 type Info struct {
-	Domain string
+	Domain   string
+	TaskList string
 }
 
 // Limiter corresponds to basic rate limiting functionality.

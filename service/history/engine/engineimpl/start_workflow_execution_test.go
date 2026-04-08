@@ -449,6 +449,7 @@ func TestSignalWithStartWorkflowExecution(t *testing.T) {
 				eft.ShardCtx.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), constants.TestDomainID, nil).Return(&types.ActiveClusterInfo{ActiveClusterName: cluster.TestCurrentClusterName}, nil)
 				// Mock GetCurrentExecution to simulate a non-existent current execution
 				getCurrentExecReq := &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(0),
 					DomainID:   constants.TestDomainID,
 					WorkflowID: "workflow-id",
 					DomainName: constants.TestDomainName,
@@ -496,6 +497,7 @@ func TestSignalWithStartWorkflowExecution(t *testing.T) {
 
 				// Simulate current workflow execution is running
 				getCurrentExecReq := &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(0),
 					DomainID:   constants.TestDomainID,
 					WorkflowID: constants.TestWorkflowID,
 					DomainName: constants.TestDomainName,
@@ -508,6 +510,7 @@ func TestSignalWithStartWorkflowExecution(t *testing.T) {
 				eft.ShardCtx.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, getCurrentExecReq).Return(getCurrentExecResp, nil).Once()
 
 				getExecReq := &persistence.GetWorkflowExecutionRequest{
+					ShardID:    common.Ptr(0),
 					DomainID:   constants.TestDomainID,
 					Execution:  types.WorkflowExecution{WorkflowID: constants.TestWorkflowID, RunID: constants.TestRunID},
 					DomainName: constants.TestDomainName,

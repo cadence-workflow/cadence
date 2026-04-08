@@ -73,7 +73,7 @@ func (m *metricsScope) UpdateGauge(id MetricIdx, value float64) {
 	}
 	if !def.metricRollupName.Empty() {
 		if m.migrationConfig.Gauge.EmitGauge(def.metricRollupName.String()) {
-			m.scope.Gauge(def.metricRollupName.String()).Update(value)
+			m.rootScope.Gauge(def.metricRollupName.String()).Update(value)
 		}
 	}
 }
@@ -83,16 +83,16 @@ func (m *metricsScope) StartTimer(id MetricIdx) Stopwatch {
 	timer := m.scope.Timer(def.metricName.String())
 	switch {
 	case !def.metricRollupName.Empty():
-		if m.migrationConfig.Histogram.EmitTimer(def.metricRollupName.String()) {
+		if m.migrationConfig.EmitTimer(def.metricRollupName.String()) {
 			return NewStopwatch(timer, m.rootScope.Timer(def.metricRollupName.String()))
 		}
 	case m.isDomainTagged:
-		if m.migrationConfig.Histogram.EmitTimer(def.metricName.String()) {
+		if m.migrationConfig.EmitTimer(def.metricName.String()) {
 			timerAll := m.scope.Tagged(map[string]string{domain: allValue}).Timer(def.metricName.String())
 			return NewStopwatch(timer, timerAll)
 		}
 	default:
-		if m.migrationConfig.Histogram.EmitTimer(def.metricName.String()) {
+		if m.migrationConfig.EmitTimer(def.metricName.String()) {
 			return NewStopwatch(timer)
 		}
 	}
@@ -101,18 +101,18 @@ func (m *metricsScope) StartTimer(id MetricIdx) Stopwatch {
 
 func (m *metricsScope) RecordTimer(id MetricIdx, d time.Duration) {
 	def := m.defs[id]
-	if m.migrationConfig.Histogram.EmitTimer(def.metricName.String()) {
+	if m.migrationConfig.EmitTimer(def.metricName.String()) {
 		m.scope.Timer(def.metricName.String()).Record(d)
 	}
 	switch {
 	case !def.metricRollupName.Empty():
-		if m.migrationConfig.Histogram.EmitTimer(def.metricRollupName.String()) {
+		if m.migrationConfig.EmitTimer(def.metricRollupName.String()) {
 			m.rootScope.Timer(def.metricRollupName.String()).Record(d)
 		}
 	case m.isDomainTagged:
 		// N.B. - Dual emit here so that we can see aggregate timer stats across all
 		// domains along with the individual domains stats
-		if m.migrationConfig.Histogram.EmitTimer(def.metricName.String()) {
+		if m.migrationConfig.EmitTimer(def.metricName.String()) {
 			m.scope.Tagged(map[string]string{domain: allValue}).Timer(def.metricName.String()).Record(d)
 		}
 	}
@@ -147,12 +147,22 @@ func (m *metricsScope) ExponentialHistogram(id MetricIdx, value time.Duration) {
 	if m.migrationConfig.Histogram.EmitHistogram(def.metricName.String()) {
 		m.scope.Tagged(def.exponentialBuckets.tags()).Histogram(def.metricName.String(), def.exponentialBuckets.buckets()).RecordDuration(value)
 	}
+	if !def.metricRollupName.Empty() {
+		if m.migrationConfig.Histogram.EmitHistogram(def.metricRollupName.String()) {
+			m.rootScope.Tagged(def.exponentialBuckets.tags()).Histogram(def.metricRollupName.String(), def.exponentialBuckets.buckets()).RecordDuration(value)
+		}
+	}
 }
 
 func (m *metricsScope) IntExponentialHistogram(id MetricIdx, value int) {
 	def := m.defs[id]
 	if m.migrationConfig.Histogram.EmitHistogram(def.metricName.String()) {
 		m.scope.Tagged(def.intExponentialBuckets.tags()).Histogram(def.metricName.String(), def.intExponentialBuckets.buckets()).RecordDuration(time.Duration(value))
+	}
+	if !def.metricRollupName.Empty() {
+		if m.migrationConfig.Histogram.EmitHistogram(def.metricRollupName.String()) {
+			m.rootScope.Tagged(def.intExponentialBuckets.tags()).Histogram(def.metricRollupName.String(), def.intExponentialBuckets.buckets()).RecordDuration(time.Duration(value))
+		}
 	}
 }
 

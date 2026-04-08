@@ -93,7 +93,7 @@ func (m *ClientImpl) AddCounter(scope ScopeIdx, counterIdx MetricIdx, delta int6
 // metric name
 func (m *ClientImpl) StartTimer(scope ScopeIdx, timerIdx MetricIdx) tally.Stopwatch {
 	name := string(m.metricDefs[timerIdx].metricName)
-	if m.migrationConfig.Histogram.EmitTimer(name) {
+	if m.migrationConfig.EmitTimer(name) {
 		return m.childScopes[scope].Timer(name).Start()
 	}
 	return NoopStopwatch
@@ -103,7 +103,7 @@ func (m *ClientImpl) StartTimer(scope ScopeIdx, timerIdx MetricIdx) tally.Stopwa
 // metric name
 func (m *ClientImpl) RecordTimer(scope ScopeIdx, timerIdx MetricIdx, d time.Duration) {
 	name := string(m.metricDefs[timerIdx].metricName)
-	if m.migrationConfig.Histogram.EmitTimer(name) {
+	if m.migrationConfig.EmitTimer(name) {
 		m.childScopes[scope].Timer(name).Record(d)
 	}
 }

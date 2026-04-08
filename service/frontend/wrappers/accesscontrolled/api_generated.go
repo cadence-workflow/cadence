@@ -39,6 +39,24 @@ func NewAPIHandler(handler api.Handler, resource resource.Resource, authorizer a
 	}
 }
 
+func (a *apiHandler) BackfillSchedule(ctx context.Context, bp1 *types.BackfillScheduleRequest) (bp2 *types.BackfillScheduleResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendBackfillScheduleScope, bp1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "BackfillSchedule",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(bp1),
+		DomainName:  bp1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.BackfillSchedule(ctx, bp1)
+}
+
 func (a *apiHandler) CountWorkflowExecutions(ctx context.Context, cp1 *types.CountWorkflowExecutionsRequest) (cp2 *types.CountWorkflowExecutionsResponse, err error) {
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendCountWorkflowExecutionsScope, cp1.GetDomain())
 	attr := &authorization.Attributes{
@@ -57,6 +75,24 @@ func (a *apiHandler) CountWorkflowExecutions(ctx context.Context, cp1 *types.Cou
 	return a.handler.CountWorkflowExecutions(ctx, cp1)
 }
 
+func (a *apiHandler) CreateSchedule(ctx context.Context, cp1 *types.CreateScheduleRequest) (cp2 *types.CreateScheduleResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendCreateScheduleScope, cp1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "CreateSchedule",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(cp1),
+		DomainName:  cp1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.CreateSchedule(ctx, cp1)
+}
+
 func (a *apiHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest) (err error) {
 	scope := a.GetMetricsClient().Scope(metrics.FrontendDeleteDomainScope)
 	attr := &authorization.Attributes{
@@ -72,6 +108,24 @@ func (a *apiHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRe
 		return errUnauthorized
 	}
 	return a.handler.DeleteDomain(ctx, dp1)
+}
+
+func (a *apiHandler) DeleteSchedule(ctx context.Context, dp1 *types.DeleteScheduleRequest) (dp2 *types.DeleteScheduleResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendDeleteScheduleScope, dp1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "DeleteSchedule",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(dp1),
+		DomainName:  dp1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.DeleteSchedule(ctx, dp1)
 }
 
 func (a *apiHandler) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDomainRequest) (err error) {
@@ -107,6 +161,24 @@ func (a *apiHandler) DescribeDomain(ctx context.Context, dp1 *types.DescribeDoma
 		return nil, errUnauthorized
 	}
 	return a.handler.DescribeDomain(ctx, dp1)
+}
+
+func (a *apiHandler) DescribeSchedule(ctx context.Context, dp1 *types.DescribeScheduleRequest) (dp2 *types.DescribeScheduleResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendDescribeScheduleScope, dp1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "DescribeSchedule",
+		Permission:  authorization.PermissionRead,
+		RequestBody: authorization.NewFilteredRequestBody(dp1),
+		DomainName:  dp1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.DescribeSchedule(ctx, dp1)
 }
 
 func (a *apiHandler) DescribeTaskList(ctx context.Context, dp1 *types.DescribeTaskListRequest) (dp2 *types.DescribeTaskListResponse, err error) {
@@ -277,6 +349,24 @@ func (a *apiHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.
 	return a.handler.ListOpenWorkflowExecutions(ctx, lp1)
 }
 
+func (a *apiHandler) ListSchedules(ctx context.Context, lp1 *types.ListSchedulesRequest) (lp2 *types.ListSchedulesResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendListSchedulesScope, lp1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "ListSchedules",
+		Permission:  authorization.PermissionRead,
+		RequestBody: authorization.NewFilteredRequestBody(lp1),
+		DomainName:  lp1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.ListSchedules(ctx, lp1)
+}
+
 func (a *apiHandler) ListTaskListPartitions(ctx context.Context, lp1 *types.ListTaskListPartitionsRequest) (lp2 *types.ListTaskListPartitionsResponse, err error) {
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendListTaskListPartitionsScope, lp1.GetDomain())
 	attr := &authorization.Attributes{
@@ -311,6 +401,24 @@ func (a *apiHandler) ListWorkflowExecutions(ctx context.Context, lp1 *types.List
 		return nil, errUnauthorized
 	}
 	return a.handler.ListWorkflowExecutions(ctx, lp1)
+}
+
+func (a *apiHandler) PauseSchedule(ctx context.Context, pp1 *types.PauseScheduleRequest) (pp2 *types.PauseScheduleResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendPauseScheduleScope, pp1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "PauseSchedule",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(pp1),
+		DomainName:  pp1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.PauseSchedule(ctx, pp1)
 }
 
 func (a *apiHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollForActivityTaskRequest) (pp2 *types.PollForActivityTaskResponse, err error) {
@@ -640,6 +748,24 @@ func (a *apiHandler) TerminateWorkflowExecution(ctx context.Context, tp1 *types.
 	return a.handler.TerminateWorkflowExecution(ctx, tp1)
 }
 
+func (a *apiHandler) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseScheduleRequest) (up2 *types.UnpauseScheduleResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendUnpauseScheduleScope, up1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "UnpauseSchedule",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(up1),
+		DomainName:  up1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.UnpauseSchedule(ctx, up1)
+}
+
 func (a *apiHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest) (up2 *types.UpdateDomainResponse, err error) {
 	scope := a.GetMetricsClient().Scope(metrics.FrontendUpdateDomainScope)
 	attr := &authorization.Attributes{
@@ -655,4 +781,22 @@ func (a *apiHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRe
 		return nil, errUnauthorized
 	}
 	return a.handler.UpdateDomain(ctx, up1)
+}
+
+func (a *apiHandler) UpdateSchedule(ctx context.Context, up1 *types.UpdateScheduleRequest) (up2 *types.UpdateScheduleResponse, err error) {
+	scope := a.getMetricsScopeWithDomain(metrics.FrontendUpdateScheduleScope, up1.GetDomain())
+	attr := &authorization.Attributes{
+		APIName:     "UpdateSchedule",
+		Permission:  authorization.PermissionWrite,
+		RequestBody: authorization.NewFilteredRequestBody(up1),
+		DomainName:  up1.GetDomain(),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.UpdateSchedule(ctx, up1)
 }

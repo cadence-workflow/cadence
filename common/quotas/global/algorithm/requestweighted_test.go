@@ -113,20 +113,13 @@ func newForTest(t testlogger.TestingT, snap configSnapshot, validate bool) (*imp
 }
 
 func TestEmitsMetrics(t *testing.T) {
-	t.Cleanup(func() {
-		if t.Failed() {
-			t.Log("This test is sensitive about bucket sizes, but they aren't actually important.")
-			t.Log("If bucket sizes have changed, just update the test to create enough data / use the new values, so each step is unique")
-		}
-	})
-
-	assertHistogramContents := func(name string, snap tally.HistogramSnapshot, expected map[float64]int64) {
+	assertHistogramContents := func(t *testing.T, name string, snap tally.HistogramSnapshot, expected map[float64]int64) {
 		t.Helper()
 		for bucket, val := range snap.Values() { // {bucket_boundary: value}
 			assert.Equal(t, expected[bucket], val, "bucket %v has unexpected value for histogram name %v", bucket, name)
 		}
 	}
-	assertAllHistogramContents := func(snap tally.Snapshot, contents map[string]map[float64]int64) {
+	assertAllHistogramContents := func(t *testing.T, snap tally.Snapshot, contents map[string]map[float64]int64) {
 		t.Helper()
 		for _, data := range snap.Histograms() { // {"full.name+tags":{tags, values, etc}}
 			name := strings.TrimPrefix(data.Name(), "test.global_ratelimiter_") // common prefix for this test
@@ -138,7 +131,7 @@ func TestEmitsMetrics(t *testing.T) {
 					assert.Zerof(t, val, "ignored key %v (trimmed: %v) in bucket %v has non-zero value, cannot be ignored", data.Name(), name, bucket)
 				}
 			} else {
-				assertHistogramContents(name, data, exp)
+				assertHistogramContents(t, name, data, exp)
 			}
 		}
 	}
@@ -150,57 +143,87 @@ func TestEmitsMetrics(t *testing.T) {
 	h1, h2 := Identity("host 1"), Identity("host 2")
 	key := Limit("key")
 
-	err := agg.Update(UpdateParams{
-		ID:      h1,
-		Load:    map[Limit]Requests{key: {1, 1}},
-		Elapsed: time.Second,
-	})
-	require.NoError(t, err)
-	snap := ts.Snapshot()
-	assertAllHistogramContents(snap, map[string]map[float64]int64{
-		"initialized":   {1: 1}, // one key was created
-		"reinitialized": {0: 1},
-		"updated":       {0: 1},
-		"decayed":       {0: 1},
-	})
+	testCases := []struct {
+		name     string
+		setup    func() error
+		expected map[string]map[float64]int64
+	}{
+		{
+			name: "first update creates new key",
+			setup: func() error {
+				return agg.Update(UpdateParams{
+					ID:      h1,
+					Load:    map[Limit]Requests{key: {1, 1}},
+					Elapsed: time.Second,
+				})
+			},
+			expected: map[string]map[float64]int64{
+				"initialized":   {1: 1}, // one key was created
+				"reinitialized": {0: 1},
+				"updated":       {0: 1},
+				"decayed":       {0: 1},
+			},
+		},
+		{
+			name: "second update with different host creates another key",
+			setup: func() error {
+				return agg.Update(UpdateParams{
+					ID:      h2,
+					Load:    map[Limit]Requests{key: {1, 1}},
+					Elapsed: time.Second,
+				})
+			},
+			expected: map[string]map[float64]int64{
+				"initialized":   {1: 1}, // keys are disjoint, so another key was created
+				"reinitialized": {0: 1},
+				"updated":       {0: 1},
+				"decayed":       {0: 1},
+			},
+		},
+		{
+			name: "third update with first host updates existing key",
+			setup: func() error {
+				return agg.Update(UpdateParams{
+					ID:      h1,
+					Load:    map[Limit]Requests{key: {1, 1}},
+					Elapsed: time.Second,
+				})
+			},
+			expected: map[string]map[float64]int64{
+				"initialized":   {0: 1},
+				"reinitialized": {0: 1},
+				"updated":       {1: 1}, // h1 was updated
+				"decayed":       {0: 1},
+			},
+		},
+		{
+			name: "host usage query emits query metrics",
+			setup: func() error {
+				_, err := agg.HostUsage(h1, []Limit{key})
+				return err
+			},
+			expected: map[string]map[float64]int64{
+				"limits_queried":      {1: 1}, // one limit exists
+				"host_limits_queried": {2: 1}, // two hosts have data for that limit
+				"removed_limits":      {0: 1}, // none removed
+				"removed_host_limits": {0: 1}, // none removed
+			},
+		},
+	}
 
-	err = agg.Update(UpdateParams{
-		ID:      h2,
-		Load:    map[Limit]Requests{key: {1, 1}},
-		Elapsed: time.Second,
-	})
-	require.NoError(t, err)
-	snap = ts.Snapshot()
-	assertAllHistogramContents(snap, map[string]map[float64]int64{
-		"initialized":   {1: 1}, // keys are disjoint, so another key was created
-		"reinitialized": {0: 1},
-		"updated":       {0: 1},
-		"decayed":       {0: 1},
-	})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a fresh test scope for each test case
+			ts := tally.NewTestScope("test", nil)
+			agg.scope = metrics.NewClient(ts, metrics.History, metrics.MigrationConfig{}).Scope(metrics.GlobalRatelimiterAggregator)
 
-	err = agg.Update(UpdateParams{
-		ID:      h1,
-		Load:    map[Limit]Requests{key: {1, 1}},
-		Elapsed: time.Second,
-	})
-	require.NoError(t, err)
-	snap = ts.Snapshot()
-	assertAllHistogramContents(snap, map[string]map[float64]int64{
-		"initialized":   {0: 1},
-		"reinitialized": {0: 1},
-		"updated":       {1: 1}, // h1 was updated
-		"decayed":       {0: 1},
-	})
+			err := tc.setup()
+			require.NoError(t, err)
 
-	_, err = agg.HostUsage(h1, []Limit{key})
-	require.NoError(t, err)
-	snap = ts.Snapshot()
-	assertAllHistogramContents(snap, map[string]map[float64]int64{
-		"limits_queried":      {1: 1}, // one limit exists
-		"host_limits_queried": {2: 1}, // two hosts have data for that limit
-		"removed_limits":      {0: 1}, // none removed
-		"removed_host_limits": {0: 1}, // none removed
-	})
+			snap := ts.Snapshot()
+			assertAllHistogramContents(t, snap, tc.expected)
+		})
+	}
 }
 
 func TestMissedUpdateHandling(t *testing.T) {

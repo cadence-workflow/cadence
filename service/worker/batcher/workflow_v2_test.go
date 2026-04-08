@@ -26,7 +26,6 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
@@ -149,6 +148,20 @@ func TestBatchWorkflowV2_TuneSignal(t *testing.T) {
 	// Track params received by each activity invocation.
 	var mu sync.Mutex
 	var capturedParams []BatchParams
+
+	// firstActivityStarted is signalled by the first activity mock when it is
+	// running, so the tune signal can be sent reliably after the activity has
+	// started but before it returns.
+	firstActivityStarted := make(chan struct{}, 1)
+
+	// firstActivityDone is closed by t.Cleanup after the workflow completes and
+	// assertions pass, unblocking the goroutine for the first activity mock.
+	// The Cadence test framework delivers CanceledError to the activity future
+	// independently of the goroutine, so the blocked goroutine does not prevent
+	// the workflow from completing.
+	firstActivityDone := make(chan struct{})
+	t.Cleanup(func() { close(firstActivityDone) })
+
 	env.OnActivity(batchActivityV2Name, mock.Anything, mock.Anything).
 		Return(func(_ context.Context, p BatchParams) (HeartBeatDetails, error) {
 			mu.Lock()
@@ -156,20 +169,26 @@ func TestBatchWorkflowV2_TuneSignal(t *testing.T) {
 			n := len(capturedParams)
 			mu.Unlock()
 			if n == 1 {
-				// First invocation: the test framework will cancel this activity when
-				// the tune signal fires. Return value is discarded on cancellation;
-				// the framework delivers an empty CanceledError to the workflow.
+				// Notify that the first activity has started, then block until
+				// the test is done. The workflow can still complete because the
+				// Cadence test framework delivers CanceledError to the future
+				// independently of this goroutine.
+				firstActivityStarted <- struct{}{}
+				<-firstActivityDone
 				return HeartBeatDetails{}, nil
 			}
 			// Second invocation: completes normally.
 			return HeartBeatDetails{SuccessCount: 8, CurrentPage: 3}, nil
 		})
 
-	// RegisterDelayedCallback at time.Millisecond*0 fires before any mock activity
-	// resolves, injecting the signal into the workflow's signal channel.
-	env.RegisterDelayedCallback(func() {
+	// Send the tune signal from a separate goroutine as soon as the first
+	// activity has confirmed it is running. This avoids relying on the test
+	// framework's 0ms timer mechanism (which uses a wall-clock AfterFunc path
+	// when runningCount > 0 and can occasionally miss the 3-second deadline).
+	go func() {
+		<-firstActivityStarted
 		env.SignalWorkflow(SignalNameTune, TuneSignal{RPS: 20, Concurrency: 5})
-	}, time.Millisecond*0)
+	}()
 
 	params := createParams(BatchTypeCancel)
 	env.ExecuteWorkflow(BatchWorkflowV2, params)
@@ -182,10 +201,15 @@ func TestBatchWorkflowV2_TuneSignal(t *testing.T) {
 	assert.Equal(t, 8, result.SuccessCount)
 	assert.Equal(t, 3, result.CurrentPage)
 
-	require.Len(t, capturedParams, 2, "activity must be invoked twice (cancelled then restarted)")
+	mu.Lock()
+	captured := make([]BatchParams, len(capturedParams))
+	copy(captured, capturedParams)
+	mu.Unlock()
+
+	require.Len(t, captured, 2, "activity must be invoked twice (cancelled then restarted)")
 	// Second invocation must carry the updated RPS and Concurrency from the signal.
-	assert.Equal(t, 20, capturedParams[1].RPS, "RPS must be updated by tune signal")
-	assert.Equal(t, 5, capturedParams[1].Concurrency, "Concurrency must be updated by tune signal")
+	assert.Equal(t, 20, captured[1].RPS, "RPS must be updated by tune signal")
+	assert.Equal(t, 5, captured[1].Concurrency, "Concurrency must be updated by tune signal")
 }
 
 func TestBatchActivityV2_UsesProgress(t *testing.T) {

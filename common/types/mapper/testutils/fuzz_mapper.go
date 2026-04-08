@@ -252,12 +252,47 @@ func clearFieldsIf(obj interface{}, shouldClear func(fieldName string) bool) {
 					}
 				}
 			case reflect.Map:
-				// Map values cannot be modified through reflection in Go.
-				// Calling clearFieldsIf on map values would operate on copies that are discarded.
-				// To properly handle maps with struct values, the map would need to be rebuilt
-				// with cleared values, which is beyond the scope of this utility.
-				// Since Cadence types primarily use slices and pointers rather than maps of structs,
-				// this limitation has minimal practical impact.
+				clearMapValues(field, shouldClear)
+			}
+		}
+	}
+}
+
+// clearMapValues rebuilds a map, recursively clearing fields in struct or pointer-to-struct values.
+// In Go, map values retrieved via reflection are copies and cannot be modified in place.
+// This function rebuilds the map with cleared values to work around that limitation.
+func clearMapValues(m reflect.Value, shouldClear func(string) bool) {
+	if m.IsNil() {
+		return
+	}
+
+	valType := m.Type().Elem()
+	needsClear := false
+
+	switch valType.Kind() {
+	case reflect.Struct:
+		needsClear = true
+	case reflect.Ptr:
+		needsClear = valType.Elem().Kind() == reflect.Struct
+	}
+
+	if !needsClear {
+		return
+	}
+
+	for _, key := range m.MapKeys() {
+		val := m.MapIndex(key)
+
+		switch valType.Kind() {
+		case reflect.Struct:
+			// Create a new addressable copy, clear it, and set it back
+			cp := reflect.New(valType).Elem()
+			cp.Set(val)
+			clearFieldsIf(cp.Addr().Interface(), shouldClear)
+			m.SetMapIndex(key, cp)
+		case reflect.Ptr:
+			if !val.IsNil() {
+				clearFieldsIf(val.Interface(), shouldClear)
 			}
 		}
 	}

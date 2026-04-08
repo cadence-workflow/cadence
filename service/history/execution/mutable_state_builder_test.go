@@ -108,7 +108,7 @@ func (s *mutableStateSuite) SetupTest() {
 	// set the checksum probabilities to 100% for exercising during test
 	s.mockShard.GetConfig().MutableStateChecksumGenProbability = func(domain string) int { return 100 }
 	s.mockShard.GetConfig().MutableStateChecksumVerifyProbability = func(domain string) int { return 100 }
-	s.mockShard.GetConfig().EnableRetryForChecksumFailure = func(domain string) bool { return true }
+	s.mockShard.GetConfig().EnableCorruptionAutoRepair = func(domain string) bool { return false }
 
 	s.mockEventsCache = s.mockShard.GetEventsCache().(*events.MockCache)
 
@@ -130,7 +130,7 @@ func (s *mutableStateSuite) TestErrorReturnedWhenSchedulingTooManyPendingActivit
 		s.msBuilder.pendingActivityInfoIDs[int64(i)] = &persistence.ActivityInfo{}
 	}
 
-	_, _, _, _, _, err := s.msBuilder.AddActivityTaskScheduledEvent(nil, 1, &types.ScheduleActivityTaskDecisionAttributes{}, false)
+	_, _, _, err := s.msBuilder.AddActivityTaskScheduledEvent(1, &types.ScheduleActivityTaskDecisionAttributes{})
 	assert.Equal(s.T(), "Too many pending activities", err.Error())
 }
 
@@ -354,8 +354,7 @@ func (s *mutableStateSuite) TestReorderEvents() {
 		BufferedEvents: bufferedEvents,
 	}
 
-	err := s.msBuilder.Load(context.Background(), dbState)
-	s.Nil(err)
+	s.msBuilder.Load(context.Background(), dbState)
 
 	s.Equal(types.EventTypeActivityTaskStarted, s.msBuilder.bufferedEvents[0].GetEventType())
 	s.Equal(int64(-123), s.msBuilder.bufferedEvents[0].ID)
@@ -365,7 +364,7 @@ func (s *mutableStateSuite) TestReorderEvents() {
 	s.Equal(int64(-123), s.msBuilder.bufferedEvents[1].ActivityTaskCompletedEventAttributes.GetStartedEventID())
 	s.Equal(int64(5), s.msBuilder.bufferedEvents[1].ActivityTaskCompletedEventAttributes.GetScheduledEventID())
 
-	err = s.msBuilder.FlushBufferedEvents()
+	err := s.msBuilder.FlushBufferedEvents()
 	s.Nil(err)
 
 	s.Equal(types.EventTypeActivityTaskStarted, s.msBuilder.hBuilder.history[0].GetEventType())
@@ -438,8 +437,7 @@ func (s *mutableStateSuite) TestChecksum() {
 
 			// verify checksum is verified on Load
 			dbState.Checksum = csum
-			err = s.msBuilder.Load(context.Background(), dbState)
-			s.NoError(err)
+			s.msBuilder.Load(context.Background(), dbState)
 			s.Equal(loadErrors, loadErrorsFunc())
 
 			// generate checksum again and verify its the same
@@ -448,11 +446,10 @@ func (s *mutableStateSuite) TestChecksum() {
 			s.NotNil(csum.Value)
 			s.Equal(dbState.Checksum.Value, csum.Value)
 
-			// modify checksum and verify Load fails
+			// modify checksum — Load now succeeds (checksum verification moved to WorkflowRepairer)
 			dbState.Checksum.Value[0]++
-			err = s.msBuilder.Load(context.Background(), dbState)
-			s.Error(err)
-			s.Equal(loadErrors+1, loadErrorsFunc())
+			s.msBuilder.Load(context.Background(), dbState)
+			s.Equal(loadErrors, loadErrorsFunc()) // no counter: repairer does verification, not Load
 			s.EqualValues(dbState.Checksum, s.msBuilder.checksum)
 
 			// test checksum is invalidated
@@ -460,8 +457,7 @@ func (s *mutableStateSuite) TestChecksum() {
 			s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicproperties.FilterOption) float64 {
 				return float64((s.msBuilder.executionInfo.LastUpdatedTimestamp.UnixNano() / int64(time.Second)) + 1)
 			}
-			err = s.msBuilder.Load(context.Background(), dbState)
-			s.NoError(err)
+			s.msBuilder.Load(context.Background(), dbState)
 			s.Equal(loadErrors, loadErrorsFunc())
 			s.EqualValues(checksum.Checksum{}, s.msBuilder.checksum)
 
@@ -476,12 +472,9 @@ func (s *mutableStateSuite) TestChecksum() {
 func (s *mutableStateSuite) TestChecksumProbabilities() {
 	for _, prob := range []int{0, 100} {
 		s.mockShard.GetConfig().MutableStateChecksumGenProbability = func(domain string) int { return prob }
-		s.mockShard.GetConfig().MutableStateChecksumVerifyProbability = func(domain string) int { return prob }
 		for i := 0; i < 100; i++ {
 			shouldGenerate := s.msBuilder.shouldGenerateChecksum()
-			shouldVerify := s.msBuilder.shouldVerifyChecksum()
 			s.Equal(prob == 100, shouldGenerate)
-			s.Equal(prob == 100, shouldVerify)
 		}
 	}
 }
@@ -4114,7 +4107,6 @@ func TestLoad_ActiveActive(t *testing.T) {
 		mutableState                   *persistence.WorkflowMutableState
 		activeClusterManagerAffordance func(activeClusterManager *activecluster.MockManager)
 		expectedCurrentVersion         int64
-		expectedErr                    error
 	}{
 		"Non-active-active domain": {
 			domainEntry:  nonActiveActiveDomainEntry,
@@ -4122,7 +4114,6 @@ func TestLoad_ActiveActive(t *testing.T) {
 			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
 			},
 			expectedCurrentVersion: commonconstants.EmptyVersion,
-			expectedErr:            nil,
 		},
 		"Active-active domain with nil version history - should return EmptyVersion": {
 			domainEntry:  activeActiveDomainEntry,
@@ -4130,7 +4121,6 @@ func TestLoad_ActiveActive(t *testing.T) {
 			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
 			},
 			expectedCurrentVersion: commonconstants.EmptyVersion, // GetCurrentVersion returns EmptyVersion when versionHistories is nil
-			expectedErr:            nil,
 		},
 	}
 
@@ -4160,16 +4150,10 @@ func TestLoad_ActiveActive(t *testing.T) {
 			td.activeClusterManagerAffordance(activeClusterManager)
 
 			// Execute Load function
-			err := msb.Load(context.Background(), td.mutableState)
+			msb.Load(context.Background(), td.mutableState)
 
 			// Verify results
-			if td.expectedErr != nil {
-				require.Error(t, err)
-				assert.Equal(t, td.expectedErr.Error(), err.Error())
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, td.expectedCurrentVersion, msb.GetCurrentVersion())
-			}
+			assert.Equal(t, td.expectedCurrentVersion, msb.GetCurrentVersion())
 		})
 	}
 }

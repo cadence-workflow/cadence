@@ -72,8 +72,6 @@ type (
 		domainCache   cache.DomainCache
 		metricsClient metrics.Client
 		config        *config.Config
-
-		activityCountToDispatch int
 	}
 
 	decisionResult struct {
@@ -120,8 +118,6 @@ func newDecisionTaskHandler(
 		domainCache:   domainCache,
 		metricsClient: metricsClient,
 		config:        config,
-
-		activityCountToDispatch: config.MaxActivityCountDispatchByDomain(domainEntry.GetInfo().Name),
 	}
 }
 
@@ -256,19 +252,12 @@ func (handler *taskHandlerImpl) handleDecisionScheduleActivity(
 		return nil, err
 	}
 
-	event, ai, activityDispatchInfo, dispatched, started, err := handler.mutableState.AddActivityTaskScheduledEvent(
-		ctx, handler.decisionTaskCompletedID, attr, handler.activityCountToDispatch > 0)
-	if dispatched {
-		handler.activityCountToDispatch--
-	}
+	event, ai, activityDispatchInfo, err := handler.mutableState.AddActivityTaskScheduledEvent(handler.decisionTaskCompletedID, attr)
 	switch err.(type) {
 	case nil:
-		if activityDispatchInfo != nil || started {
+		if activityDispatchInfo != nil {
 			if _, err1 := handler.mutableState.AddActivityTaskStartedEvent(ai, event.ID, uuid.New(), handler.identity); err1 != nil {
 				return nil, err1
-			}
-			if started {
-				return nil, nil
 			}
 			token := &common.TaskToken{
 				DomainID:        executionInfo.DomainID,

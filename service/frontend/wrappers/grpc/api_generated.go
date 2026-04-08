@@ -21,14 +21,29 @@ func NewAPIHandler(h api.Handler) APIHandler {
 	return APIHandler{h}
 }
 
+func (g APIHandler) BackfillSchedule(ctx context.Context, request *apiv1.BackfillScheduleRequest) (*apiv1.BackfillScheduleResponse, error) {
+	response, err := g.h.BackfillSchedule(ctx, proto.ToBackfillScheduleRequest(request))
+	return proto.FromBackfillScheduleResponse(response), proto.FromError(err)
+}
+
 func (g APIHandler) CountWorkflowExecutions(ctx context.Context, request *apiv1.CountWorkflowExecutionsRequest) (*apiv1.CountWorkflowExecutionsResponse, error) {
 	response, err := g.h.CountWorkflowExecutions(ctx, proto.ToCountWorkflowExecutionsRequest(request))
 	return proto.FromCountWorkflowExecutionsResponse(response), proto.FromError(err)
 }
 
+func (g APIHandler) CreateSchedule(ctx context.Context, request *apiv1.CreateScheduleRequest) (*apiv1.CreateScheduleResponse, error) {
+	response, err := g.h.CreateSchedule(ctx, proto.ToCreateScheduleRequest(request))
+	return proto.FromCreateScheduleResponse(response), proto.FromError(err)
+}
+
 func (g APIHandler) DeleteDomain(ctx context.Context, request *apiv1.DeleteDomainRequest) (*apiv1.DeleteDomainResponse, error) {
 	err := g.h.DeleteDomain(ctx, proto.ToDeleteDomainRequest(request))
 	return &apiv1.DeleteDomainResponse{}, proto.FromError(err)
+}
+
+func (g APIHandler) DeleteSchedule(ctx context.Context, request *apiv1.DeleteScheduleRequest) (*apiv1.DeleteScheduleResponse, error) {
+	response, err := g.h.DeleteSchedule(ctx, proto.ToDeleteScheduleRequest(request))
+	return proto.FromDeleteScheduleResponse(response), proto.FromError(err)
 }
 
 func (g APIHandler) DeprecateDomain(ctx context.Context, request *apiv1.DeprecateDomainRequest) (*apiv1.DeprecateDomainResponse, error) {
@@ -39,6 +54,11 @@ func (g APIHandler) DeprecateDomain(ctx context.Context, request *apiv1.Deprecat
 func (g APIHandler) DescribeDomain(ctx context.Context, request *apiv1.DescribeDomainRequest) (*apiv1.DescribeDomainResponse, error) {
 	response, err := g.h.DescribeDomain(ctx, proto.ToDescribeDomainRequest(request))
 	return proto.FromDescribeDomainResponse(response), proto.FromError(err)
+}
+
+func (g APIHandler) DescribeSchedule(ctx context.Context, request *apiv1.DescribeScheduleRequest) (*apiv1.DescribeScheduleResponse, error) {
+	response, err := g.h.DescribeSchedule(ctx, proto.ToDescribeScheduleRequest(request))
+	return proto.FromDescribeScheduleResponse(response), proto.FromError(err)
 }
 
 func (g APIHandler) DescribeTaskList(ctx context.Context, request *apiv1.DescribeTaskListRequest) (*apiv1.DescribeTaskListResponse, error) {
@@ -106,6 +126,11 @@ func (g APIHandler) ListOpenWorkflowExecutions(ctx context.Context, request *api
 	return proto.FromListOpenWorkflowExecutionsResponse(response), proto.FromError(err)
 }
 
+func (g APIHandler) ListSchedules(ctx context.Context, request *apiv1.ListSchedulesRequest) (*apiv1.ListSchedulesResponse, error) {
+	response, err := g.h.ListSchedules(ctx, proto.ToListSchedulesRequest(request))
+	return proto.FromListSchedulesResponse(response), proto.FromError(err)
+}
+
 func (g APIHandler) ListTaskListPartitions(ctx context.Context, request *apiv1.ListTaskListPartitionsRequest) (*apiv1.ListTaskListPartitionsResponse, error) {
 	response, err := g.h.ListTaskListPartitions(ctx, proto.ToListTaskListPartitionsRequest(request))
 	return proto.FromListTaskListPartitionsResponse(response), proto.FromError(err)
@@ -114,6 +139,11 @@ func (g APIHandler) ListTaskListPartitions(ctx context.Context, request *apiv1.L
 func (g APIHandler) ListWorkflowExecutions(ctx context.Context, request *apiv1.ListWorkflowExecutionsRequest) (*apiv1.ListWorkflowExecutionsResponse, error) {
 	response, err := g.h.ListWorkflowExecutions(ctx, proto.ToListWorkflowExecutionsRequest(request))
 	return proto.FromListWorkflowExecutionsResponse(response), proto.FromError(err)
+}
+
+func (g APIHandler) PauseSchedule(ctx context.Context, request *apiv1.PauseScheduleRequest) (*apiv1.PauseScheduleResponse, error) {
+	response, err := g.h.PauseSchedule(ctx, proto.ToPauseScheduleRequest(request))
+	return proto.FromPauseScheduleResponse(response), proto.FromError(err)
 }
 
 func (g APIHandler) PollForActivityTask(ctx context.Context, request *apiv1.PollForActivityTaskRequest) (*apiv1.PollForActivityTaskResponse, error) {
@@ -251,7 +281,17 @@ func (g APIHandler) TerminateWorkflowExecution(ctx context.Context, request *api
 	return &apiv1.TerminateWorkflowExecutionResponse{}, proto.FromError(err)
 }
 
+func (g APIHandler) UnpauseSchedule(ctx context.Context, request *apiv1.UnpauseScheduleRequest) (*apiv1.UnpauseScheduleResponse, error) {
+	response, err := g.h.UnpauseSchedule(ctx, proto.ToUnpauseScheduleRequest(request))
+	return proto.FromUnpauseScheduleResponse(response), proto.FromError(err)
+}
+
 func (g APIHandler) UpdateDomain(ctx context.Context, request *apiv1.UpdateDomainRequest) (*apiv1.UpdateDomainResponse, error) {
 	response, err := g.h.UpdateDomain(ctx, proto.ToUpdateDomainRequest(request))
 	return proto.FromUpdateDomainResponse(response), proto.FromError(err)
+}
+
+func (g APIHandler) UpdateSchedule(ctx context.Context, request *apiv1.UpdateScheduleRequest) (*apiv1.UpdateScheduleResponse, error) {
+	response, err := g.h.UpdateSchedule(ctx, proto.ToUpdateScheduleRequest(request))
+	return proto.FromUpdateScheduleResponse(response), proto.FromError(err)
 }

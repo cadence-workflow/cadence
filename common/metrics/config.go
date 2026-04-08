@@ -10,6 +10,16 @@ type MigrationConfig struct {
 	Counter   CounterMigration
 }
 
+// EmitTimer returns true if the metric should be emitted as a timer.
+// A metric is suppressed from timer emission if the migration that owns it
+// has been configured to move away from timer.
+// Metrics not in any migration map are always emitted.
+func (mc MigrationConfig) EmitTimer(name string) bool {
+	return mc.Histogram.EmitTimer(name) &&
+		mc.Gauge.EmitTimer(name) &&
+		mc.Counter.EmitTimer(name)
+}
+
 type HistogramMigration struct {
 	Default HistogramMigrationMode `yaml:"default"`
 	// Names maps "metric name" -> "should it be emitted".
@@ -88,6 +98,28 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"replication_tasks_fetched_counts": {},
 	"replication_tasks_lag_raw":        {},
 	"replication_tasks_lag_raw_counts": {},
+
+	"activity_end_to_end_latency":    {},
+	"activity_end_to_end_latency_ns": {},
+
+	"schedule_to_start_history_queue_latency_per_tl":    {},
+	"schedule_to_start_history_queue_latency_per_tl_ns": {},
+
+	"processing_queue_num":        {},
+	"processing_queue_num_counts": {},
+
+	"processing_queue_max_level":        {},
+	"processing_queue_max_level_counts": {},
+
+	"persistence_latency_per_domain":    {},
+	"persistence_latency_per_domain_ns": {},
+	"persistence_latency":               {},
+	"persistence_latency_ns":            {},
+
+	"elasticsearch_latency_per_domain":    {},
+	"elasticsearch_latency_per_domain_ns": {},
+	"elasticsearch_latency":               {},
+	"elasticsearch_latency_ns":            {},
 }
 
 func (h HistogramMigration) EmitTimer(name string) bool {
@@ -153,21 +185,19 @@ func (h HistogramMigrationMode) EmitHistogram() bool {
 	}
 }
 
-// GaugeMigration controls emission of gauge metrics during migration.
-// Metrics listed in GaugeMigrationMetrics can be individually toggled via YAML config.
 type GaugeMigration struct {
 	Default GaugeMigrationMode `yaml:"default"`
 	// Names maps "metric name" -> "should it be emitted".
 	//
 	// If a name/key does not exist, the default mode will be checked to determine
-	// if a gauge should be emitted.
+	// if a timer or gauge should be emitted.
 	//
-	// This is only checked for gauges that are in GaugeMigrationMetrics.
+	// This is only checked for timers and gauges that are in GaugeMigrationMetrics.
 	Names map[string]bool `yaml:"names"`
 }
 
 func (g *GaugeMigration) UnmarshalYAML(read func(any) error) error {
-	type tmpType GaugeMigration
+	type tmpType GaugeMigration // without the custom unmarshaler
 	var tmp tmpType
 	if err := read(&tmp); err != nil {
 		return err
@@ -186,10 +216,13 @@ func (g *GaugeMigration) UnmarshalYAML(read func(any) error) error {
 }
 
 // GaugeMigrationMetrics contains all metric names being migrated, to prevent affecting
-// non-migration-related gauges, and to catch metric name config mistakes early on.
+// non-migration-related timers and gauges, and to catch metric name config
+// mistakes early on.
 //
 // It is public to allow Cadence operators to add to the collection before
 // loading config, in case they have any custom migrations to perform.
+// This is likely best done in an `init` func, to ensure it happens early enough
+// and does not race with config reading.
 var GaugeMigrationMetrics = map[string]struct{}{
 	"cache_size_gauge":                      {},
 	"replication_tasks_lag_gauge":           {},
@@ -199,11 +232,21 @@ var GaugeMigrationMetrics = map[string]struct{}{
 	"replication_tasks_returned_diff_gauge": {},
 }
 
-// EmitGauge returns true if the given metric name should emit a gauge.
+func (g GaugeMigration) EmitTimer(name string) bool {
+	if _, ok := GaugeMigrationMetrics[name]; !ok {
+		return true
+	}
+	emit, ok := g.Names[name]
+	if ok {
+		return emit
+	}
+	return g.Default.EmitTimer()
+}
 func (g GaugeMigration) EmitGauge(name string) bool {
 	if _, ok := GaugeMigrationMetrics[name]; !ok {
 		return true
 	}
+
 	emit, ok := g.Names[name]
 	if ok {
 		return emit
@@ -212,7 +255,12 @@ func (g GaugeMigration) EmitGauge(name string) bool {
 }
 
 // GaugeMigrationMode is a pseudo-enum to provide unmarshalling config and helper methods.
-// By default / when not specified / when an empty string, it means "gauge" (emit gauges).
+// It should only be created by YAML unmarshaling, or by getting it from the GaugeMigration map.
+// Zero values from the map are valid, they are just the default mode (NOT the configured default).
+//
+// By default / when not specified / when an empty string, it currently means "timer".
+// This will likely change when most or all timers have gauges available, and will
+// eventually be fully deprecated and removed.
 type GaugeMigrationMode string
 
 func (g *GaugeMigrationMode) UnmarshalYAML(read func(any) error) error {
@@ -221,39 +269,45 @@ func (g *GaugeMigrationMode) UnmarshalYAML(read func(any) error) error {
 		return fmt.Errorf("cannot read gauge migration mode as a string: %w", err)
 	}
 	switch value {
-	case "gauge", "none":
+	case "timer", "gauge", "both":
 		*g = GaugeMigrationMode(value)
 	default:
-		return fmt.Errorf(`unsupported gauge migration mode %q, must be "gauge" or "none"`, value)
+		return fmt.Errorf(`unsupported gauge migration mode %q, must be "timer", "gauge", or "both"`, value)
 	}
 	return nil
 }
 
-// EmitGauge returns true if this mode allows gauge emission.
-func (g GaugeMigrationMode) EmitGauge() bool {
+func (g GaugeMigrationMode) EmitTimer() bool {
 	switch g {
-	case "gauge", "":
+	case "timer", "both", "": // default == not specified == timer
 		return true
 	default:
 		return false
 	}
 }
 
-// CounterMigration controls emission of counter metrics during migration.
-// Metrics listed in CounterMigrationMetrics can be individually toggled via YAML config.
+func (g GaugeMigrationMode) EmitGauge() bool {
+	switch g {
+	case "gauge", "both": // default == not specified == timer
+		return true
+	default:
+		return false
+	}
+}
+
 type CounterMigration struct {
 	Default CounterMigrationMode `yaml:"default"`
 	// Names maps "metric name" -> "should it be emitted".
 	//
 	// If a name/key does not exist, the default mode will be checked to determine
-	// if a counter should be emitted.
+	// if a timer or counter should be emitted.
 	//
-	// This is only checked for counters that are in CounterMigrationMetrics.
+	// This is only checked for timers and counters that are in CounterMigrationMetrics.
 	Names map[string]bool `yaml:"names"`
 }
 
 func (c *CounterMigration) UnmarshalYAML(read func(any) error) error {
-	type tmpType CounterMigration
+	type tmpType CounterMigration // without the custom unmarshaler
 	var tmp tmpType
 	if err := read(&tmp); err != nil {
 		return err
@@ -272,17 +326,30 @@ func (c *CounterMigration) UnmarshalYAML(read func(any) error) error {
 }
 
 // CounterMigrationMetrics contains all metric names being migrated, to prevent affecting
-// non-migration-related counters, and to catch metric name config mistakes early on.
+// non-migration-related timers and counters, and to catch metric name config
+// mistakes early on.
 //
 // It is public to allow Cadence operators to add to the collection before
 // loading config, in case they have any custom migrations to perform.
+// This is likely best done in an `init` func, to ensure it happens early enough
+// and does not race with config reading.
 var CounterMigrationMetrics = map[string]struct{}{}
 
-// EmitCounter returns true if the given metric name should emit a counter.
+func (c CounterMigration) EmitTimer(name string) bool {
+	if _, ok := CounterMigrationMetrics[name]; !ok {
+		return true
+	}
+	emit, ok := c.Names[name]
+	if ok {
+		return emit
+	}
+	return c.Default.EmitTimer()
+}
 func (c CounterMigration) EmitCounter(name string) bool {
 	if _, ok := CounterMigrationMetrics[name]; !ok {
 		return true
 	}
+
 	emit, ok := c.Names[name]
 	if ok {
 		return emit
@@ -291,7 +358,12 @@ func (c CounterMigration) EmitCounter(name string) bool {
 }
 
 // CounterMigrationMode is a pseudo-enum to provide unmarshalling config and helper methods.
-// By default / when not specified / when an empty string, it means "counter" (emit counters).
+// It should only be created by YAML unmarshaling, or by getting it from the CounterMigration map.
+// Zero values from the map are valid, they are just the default mode (NOT the configured default).
+//
+// By default / when not specified / when an empty string, it currently means "timer".
+// This will likely change when most or all timers have counters available, and will
+// eventually be fully deprecated and removed.
 type CounterMigrationMode string
 
 func (c *CounterMigrationMode) UnmarshalYAML(read func(any) error) error {
@@ -300,18 +372,26 @@ func (c *CounterMigrationMode) UnmarshalYAML(read func(any) error) error {
 		return fmt.Errorf("cannot read counter migration mode as a string: %w", err)
 	}
 	switch value {
-	case "counter", "none":
+	case "timer", "counter", "both":
 		*c = CounterMigrationMode(value)
 	default:
-		return fmt.Errorf(`unsupported counter migration mode %q, must be "counter" or "none"`, value)
+		return fmt.Errorf(`unsupported counter migration mode %q, must be "timer", "counter", or "both"`, value)
 	}
 	return nil
 }
 
-// EmitCounter returns true if this mode allows counter emission.
+func (c CounterMigrationMode) EmitTimer() bool {
+	switch c {
+	case "timer", "both", "": // default == not specified == timer
+		return true
+	default:
+		return false
+	}
+}
+
 func (c CounterMigrationMode) EmitCounter() bool {
 	switch c {
-	case "counter", "":
+	case "counter", "both": // default == not specified == timer
 		return true
 	default:
 		return false

@@ -305,7 +305,11 @@ type Config struct {
 	MutableStateChecksumGenProbability    dynamicproperties.IntPropertyFnWithDomainFilter
 	MutableStateChecksumVerifyProbability dynamicproperties.IntPropertyFnWithDomainFilter
 	MutableStateChecksumInvalidateBefore  dynamicproperties.FloatPropertyFn
-	EnableRetryForChecksumFailure         dynamicproperties.BoolPropertyFnWithDomainFilter
+
+	// Corruption detection and repair config knobs
+	EnableCorruptionAutoRepair             dynamicproperties.BoolPropertyFnWithDomainFilter
+	CorruptionRepairTimeout                dynamicproperties.DurationPropertyFnWithDomainFilter
+	RequireChecksumMatchAfterRebuildRepair dynamicproperties.BoolPropertyFnWithDomainFilter
 
 	// History check for corruptions
 	EnableHistoryCorruptionCheck dynamicproperties.BoolPropertyFnWithDomainFilter
@@ -317,8 +321,6 @@ type Config struct {
 
 	// Allows worker to dispatch activity tasks through local tunnel after decisions are made. This is an performance optimization to skip activity scheduling efforts.
 	EnableActivityLocalDispatchByDomain dynamicproperties.BoolPropertyFnWithDomainFilter
-	// Max # of activity tasks to dispatch to matching before creating transfer tasks. This is an performance optimization to skip activity scheduling efforts.
-	MaxActivityCountDispatchByDomain dynamicproperties.IntPropertyFnWithDomainFilter
 
 	ActivityMaxScheduleToStartTimeoutForRetry dynamicproperties.DurationPropertyFnWithDomainFilter
 
@@ -577,7 +579,10 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		MutableStateChecksumGenProbability:    dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumGenProbability),
 		MutableStateChecksumVerifyProbability: dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumVerifyProbability),
 		MutableStateChecksumInvalidateBefore:  dc.GetFloat64Property(dynamicproperties.MutableStateChecksumInvalidateBefore),
-		EnableRetryForChecksumFailure:         dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableRetryForChecksumFailure),
+
+		EnableCorruptionAutoRepair:             dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCorruptionAutoRepair),
+		CorruptionRepairTimeout:                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.CorruptionRepairTimeout),
+		RequireChecksumMatchAfterRebuildRepair: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.RequireChecksumMatchAfterRebuildRepair),
 
 		EnableHistoryCorruptionCheck: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableHistoryCorruptionCheck),
 
@@ -586,7 +591,6 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		EnableGracefulFailover:                     dc.GetBoolProperty(dynamicproperties.EnableGracefulFailover),
 
 		EnableActivityLocalDispatchByDomain: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableActivityLocalDispatchByDomain),
-		MaxActivityCountDispatchByDomain:    dc.GetIntPropertyFilteredByDomain(dynamicproperties.MaxActivityCountDispatchByDomain),
 
 		ActivityMaxScheduleToStartTimeoutForRetry: dc.GetDurationPropertyFilteredByDomain(dynamicproperties.ActivityMaxScheduleToStartTimeoutForRetry),
 
@@ -636,7 +640,6 @@ func NewForTestByShardNumber(shardNumber int) *Config {
 	panicIfErr(inMem.UpdateValue(dynamicproperties.ReplicationTaskProcessorShardQPS, float64(10000)))
 	panicIfErr(inMem.UpdateValue(dynamicproperties.ReplicationTaskProcessorStartWait, time.Nanosecond))
 	panicIfErr(inMem.UpdateValue(dynamicproperties.EnableActivityLocalDispatchByDomain, true))
-	panicIfErr(inMem.UpdateValue(dynamicproperties.MaxActivityCountDispatchByDomain, 0))
 	panicIfErr(inMem.UpdateValue(dynamicproperties.EnableCrossClusterOperationsForDomain, true))
 	panicIfErr(inMem.UpdateValue(dynamicproperties.NormalDecisionScheduleToStartMaxAttempts, 3))
 	panicIfErr(inMem.UpdateValue(dynamicproperties.EnablePendingActivityValidation, true))
@@ -665,7 +668,6 @@ func NewForTestByShardNumber(shardNumber int) *Config {
 	config.ReplicationTaskProcessorShardQPS = dc.GetFloat64Property(dynamicproperties.ReplicationTaskProcessorShardQPS)
 	config.ReplicationTaskProcessorStartWait = dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorStartWait)
 	config.EnableActivityLocalDispatchByDomain = dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableActivityLocalDispatchByDomain)
-	config.MaxActivityCountDispatchByDomain = dc.GetIntPropertyFilteredByDomain(dynamicproperties.MaxActivityCountDispatchByDomain)
 	config.EnableCrossClusterOperationsForDomain = dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCrossClusterOperationsForDomain)
 	config.NormalDecisionScheduleToStartMaxAttempts = dc.GetIntPropertyFilteredByDomain(dynamicproperties.NormalDecisionScheduleToStartMaxAttempts)
 	config.NormalDecisionScheduleToStartTimeout = dc.GetDurationPropertyFilteredByDomain(dynamicproperties.NormalDecisionScheduleToStartTimeout)

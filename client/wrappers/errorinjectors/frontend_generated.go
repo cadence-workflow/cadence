@@ -40,6 +40,26 @@ func NewFrontendClient(client frontend.Client, errorRate float64, logger log.Log
 	}
 }
 
+func (c *frontendClient) BackfillSchedule(ctx context.Context, bp1 *types.BackfillScheduleRequest, p1 ...yarpc.CallOption) (bp2 *types.BackfillScheduleResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		bp2, err = c.client.BackfillSchedule(ctx, bp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationBackfillSchedule,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *frontendClient) CountWorkflowExecutions(ctx context.Context, cp1 *types.CountWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (cp2 *types.CountWorkflowExecutionsResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
@@ -60,6 +80,26 @@ func (c *frontendClient) CountWorkflowExecutions(ctx context.Context, cp1 *types
 	return
 }
 
+func (c *frontendClient) CreateSchedule(ctx context.Context, cp1 *types.CreateScheduleRequest, p1 ...yarpc.CallOption) (cp2 *types.CreateScheduleResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		cp2, err = c.client.CreateSchedule(ctx, cp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationCreateSchedule,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *frontendClient) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest, p1 ...yarpc.CallOption) (err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
@@ -70,6 +110,26 @@ func (c *frontendClient) DeleteDomain(ctx context.Context, dp1 *types.DeleteDoma
 	if fakeErr != nil {
 		c.logger.Error(msgFrontendInjectedFakeErr,
 			tag.FrontendClientOperationDeleteDomain,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *frontendClient) DeleteSchedule(ctx context.Context, dp1 *types.DeleteScheduleRequest, p1 ...yarpc.CallOption) (dp2 *types.DeleteScheduleResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		dp2, err = c.client.DeleteSchedule(ctx, dp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationDeleteSchedule,
 			tag.Error(fakeErr),
 			tag.Bool(forwardCall),
 			tag.ClientError(err),
@@ -110,6 +170,26 @@ func (c *frontendClient) DescribeDomain(ctx context.Context, dp1 *types.Describe
 	if fakeErr != nil {
 		c.logger.Error(msgFrontendInjectedFakeErr,
 			tag.FrontendClientOperationDescribeDomain,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *frontendClient) DescribeSchedule(ctx context.Context, dp1 *types.DescribeScheduleRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeScheduleResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		dp2, err = c.client.DescribeSchedule(ctx, dp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationDescribeSchedule,
 			tag.Error(fakeErr),
 			tag.Bool(forwardCall),
 			tag.ClientError(err),
@@ -380,6 +460,26 @@ func (c *frontendClient) ListOpenWorkflowExecutions(ctx context.Context, lp1 *ty
 	return
 }
 
+func (c *frontendClient) ListSchedules(ctx context.Context, lp1 *types.ListSchedulesRequest, p1 ...yarpc.CallOption) (lp2 *types.ListSchedulesResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		lp2, err = c.client.ListSchedules(ctx, lp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationListSchedules,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *frontendClient) ListTaskListPartitions(ctx context.Context, lp1 *types.ListTaskListPartitionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListTaskListPartitionsResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
@@ -410,6 +510,26 @@ func (c *frontendClient) ListWorkflowExecutions(ctx context.Context, lp1 *types.
 	if fakeErr != nil {
 		c.logger.Error(msgFrontendInjectedFakeErr,
 			tag.FrontendClientOperationListWorkflowExecutions,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *frontendClient) PauseSchedule(ctx context.Context, pp1 *types.PauseScheduleRequest, p1 ...yarpc.CallOption) (pp2 *types.PauseScheduleResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		pp2, err = c.client.PauseSchedule(ctx, pp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationPauseSchedule,
 			tag.Error(fakeErr),
 			tag.Bool(forwardCall),
 			tag.ClientError(err),
@@ -960,6 +1080,26 @@ func (c *frontendClient) TerminateWorkflowExecution(ctx context.Context, tp1 *ty
 	return
 }
 
+func (c *frontendClient) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseScheduleRequest, p1 ...yarpc.CallOption) (up2 *types.UnpauseScheduleResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		up2, err = c.client.UnpauseSchedule(ctx, up1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationUnpauseSchedule,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
@@ -970,6 +1110,26 @@ func (c *frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDoma
 	if fakeErr != nil {
 		c.logger.Error(msgFrontendInjectedFakeErr,
 			tag.FrontendClientOperationUpdateDomain,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *frontendClient) UpdateSchedule(ctx context.Context, up1 *types.UpdateScheduleRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateScheduleResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		up2, err = c.client.UpdateSchedule(ctx, up1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgFrontendInjectedFakeErr,
+			tag.FrontendClientOperationUpdateSchedule,
 			tag.Error(fakeErr),
 			tag.Bool(forwardCall),
 			tag.ClientError(err),

@@ -186,6 +186,7 @@ func (s *ReplicationSimulationConfig) MustInitClientsFor(t *testing.T, clusterNa
 		apiv1.NewWorkflowAPIYARPCClient(clientConfig),
 		apiv1.NewWorkerAPIYARPCClient(clientConfig),
 		apiv1.NewVisibilityAPIYARPCClient(clientConfig),
+		apiv1.NewScheduleAPIYARPCClient(clientConfig),
 	)
 
 	cluster.AdminClient = grpcClient.NewAdminClient(adminv1.NewAdminAPIYARPCClient(clientConfig))
