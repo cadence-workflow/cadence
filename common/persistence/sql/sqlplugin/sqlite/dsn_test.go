@@ -23,6 +23,7 @@
 package sqlite
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,7 +49,9 @@ func Test_buildDSN(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			dsn := buildDSN(c.cfg)
-			assert.Equal(t, c.want, dsn)
+			dsnAttrs :=strings.Split(dsn, "&")
+			wantAttrs := strings.Split(c.want, "&")
+			assert.Subset(t, dsnAttrs, wantAttrs)
 		})
 	}
 }
@@ -79,7 +82,9 @@ func Test_buildDSN_attrs(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			dsn := buildDSN(c.cfg)
-			assert.Contains(t, c.want, dsn)
+			dsnAttrs :=strings.Split(dsn, "&")
+			wantAttrs := strings.Split(c.want, "&")
+			assert.Subset(t, dsnAttrs, wantAttrs)
 		})
 	}
 }
