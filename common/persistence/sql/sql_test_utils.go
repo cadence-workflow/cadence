@@ -71,6 +71,7 @@ func NewTestCluster(pluginName, dbName, username, password, host string, port in
 		NumShards:       4,
 		EncodingType:    "thriftrw",
 		DecodingTypes:   []string{"thriftrw"},
+		MaxConns:        1, // SQLite would encounter database is locked error if maxConns is larger than 1
 	}
 	return &result, nil
 }
