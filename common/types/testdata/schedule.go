@@ -119,7 +119,9 @@ var (
 		SearchAttributes: &SearchAttributes,
 	}
 
-	CreateScheduleResponse = types.CreateScheduleResponse{}
+	CreateScheduleResponse = types.CreateScheduleResponse{
+		ScheduleID: "my-schedule-id",
+	}
 
 	DescribeScheduleRequest = types.DescribeScheduleRequest{
 		Domain:     DomainName,
@@ -158,6 +160,7 @@ var (
 		Domain:     DomainName,
 		ScheduleID: "my-schedule-id",
 		Reason:     "maintenance window",
+		Identity:   "user@example.com",
 	}
 
 	PauseScheduleResponse = types.PauseScheduleResponse{}

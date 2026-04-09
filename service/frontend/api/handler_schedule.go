@@ -117,8 +117,7 @@ func (wh *WorkflowHandler) CreateSchedule(
 		return nil, err
 	}
 
-	// TODO: return ScheduleID in the response once the IDL CreateScheduleResponse has the field
-	return &types.CreateScheduleResponse{}, nil
+	return &types.CreateScheduleResponse{ScheduleID: scheduleID}, nil
 }
 
 func (wh *WorkflowHandler) DescribeSchedule(
@@ -269,9 +268,9 @@ func (wh *WorkflowHandler) PauseSchedule(
 		return nil, &types.BadRequestError{Message: "ScheduleID is not set on request."}
 	}
 
-	// TODO: populate PausedBy once PauseScheduleRequest has an Identity field in the IDL
 	signal := scheduler.PauseSignal{
-		Reason: request.GetReason(),
+		Reason:   request.GetReason(),
+		PausedBy: request.GetIdentity(),
 	}
 
 	if err := wh.signalScheduleWorkflow(ctx, domainName, scheduleID, scheduler.SignalNamePause, signal); err != nil {

@@ -392,14 +392,18 @@ func FromCreateScheduleResponse(t *types.CreateScheduleResponse) *apiv1.CreateSc
 	if t == nil {
 		return nil
 	}
-	return &apiv1.CreateScheduleResponse{}
+	return &apiv1.CreateScheduleResponse{
+		ScheduleId: t.ScheduleID,
+	}
 }
 
 func ToCreateScheduleResponse(t *apiv1.CreateScheduleResponse) *types.CreateScheduleResponse {
 	if t == nil {
 		return nil
 	}
-	return &types.CreateScheduleResponse{}
+	return &types.CreateScheduleResponse{
+		ScheduleID: t.ScheduleId,
+	}
 }
 
 func FromDescribeScheduleRequest(t *types.DescribeScheduleRequest) *apiv1.DescribeScheduleRequest {
@@ -538,6 +542,7 @@ func FromPauseScheduleRequest(t *types.PauseScheduleRequest) *apiv1.PauseSchedul
 		Domain:     t.Domain,
 		ScheduleId: t.ScheduleID,
 		Reason:     t.Reason,
+		Identity:   t.Identity,
 	}
 }
 
@@ -549,6 +554,7 @@ func ToPauseScheduleRequest(t *apiv1.PauseScheduleRequest) *types.PauseScheduleR
 		Domain:     t.Domain,
 		ScheduleID: t.ScheduleId,
 		Reason:     t.Reason,
+		Identity:   t.Identity,
 	}
 }
 
