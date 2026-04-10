@@ -374,7 +374,7 @@ func (t *timerTaskExecutorBase) deleteWorkflowTimerTasksBestEffort(
 		return
 	}
 	workflowTimerTasks := msBuilder.GetPendingWorkflowTimerTaskInfos()
-	threshold := t.shard.GetConfig().TaskCleanupTimeoutThreshold()
+	threshold := t.shard.GetConfig().OrphanedTimerDeletionMinTTL()
 	now := t.shard.GetTimeSource().Now()
 
 	for _, taskInfo := range workflowTimerTasks {

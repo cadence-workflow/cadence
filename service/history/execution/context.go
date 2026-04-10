@@ -952,7 +952,7 @@ func (c *contextImpl) deleteWorkflowTimerTasksBestEffortAsync(executionInfo *per
 	tasksCopy := make([]*persistence.WorkflowTimerTaskInfo, len(timerTasks))
 	copy(tasksCopy, timerTasks)
 
-	threshold := c.shard.GetConfig().TaskCleanupTimeoutThreshold()
+	threshold := c.shard.GetConfig().OrphanedTimerDeletionMinTTL()
 	now := c.shard.GetTimeSource().Now()
 	executionMgr := c.shard.GetExecutionManager()
 	logger := c.logger

@@ -297,7 +297,7 @@ type Config struct {
 	EnableConsistentQueryByDomain dynamicproperties.BoolPropertyFnWithDomainFilter
 	MaxBufferedQueryCount         dynamicproperties.IntPropertyFn
 
-	TaskCleanupTimeoutThreshold dynamicproperties.DurationPropertyFn
+	OrphanedTimerDeletionMinTTL dynamicproperties.DurationPropertyFn
 
 	// EnableContextHeaderInVisibility whether to enable indexing context header in visibility
 	EnableContextHeaderInVisibility dynamicproperties.BoolPropertyFnWithDomainFilter
@@ -587,7 +587,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		MutableStateChecksumGenProbability:    dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumGenProbability),
 		MutableStateChecksumVerifyProbability: dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumVerifyProbability),
 		MutableStateChecksumInvalidateBefore:  dc.GetFloat64Property(dynamicproperties.MutableStateChecksumInvalidateBefore),
-		TaskCleanupTimeoutThreshold:           dc.GetDurationProperty(dynamicproperties.TaskCleanupTimeoutThreshold),
+		OrphanedTimerDeletionMinTTL:           dc.GetDurationProperty(dynamicproperties.OrphanedTimerDeletionMinTTL),
 
 		EnableCorruptionAutoRepair:             dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCorruptionAutoRepair),
 		CorruptionRepairTimeout:                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.CorruptionRepairTimeout),

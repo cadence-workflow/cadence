@@ -2921,14 +2921,14 @@ const (
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: N/A
 	StandbyClusterDelay
-	// TaskCleanupTimeoutThreshold Is the time, above which, it will attempt to cleanup tasks on workflow deletion
-	// but below which, it will skip cleanup attempts, based on the assumption that short-lived workflows will be mostly
-	// creating extremely short-lived timer tasks and there's no real value in explicitly going and deleting them
-	// KeyName: history.taskCleanupTimeoutThreshold
+	// OrphanedTimerDeletionMinTTL is the minimum remaining time before an orphaned timer task
+	// is worth explicitly deleting. Timers scheduled to fire within this window are skipped —
+	// they will fire and clean up naturally. Applies to both workflow-level and user timers.
+	// KeyName: history.orphanedTimerDeletionMinTTL
 	// Value type: Duration
-	// Default value: 1d (24 hours)
+	// Default value: 24h
 	// Allowed filters: N/A
-	TaskCleanupTimeoutThreshold
+	OrphanedTimerDeletionMinTTL
 	// StandbyTaskMissingEventsResendDelay is the amount of time standby cluster's will wait (if events are missing)before calling remote for missing events
 	// KeyName: history.standbyTaskMissingEventsResendDelay
 	// Value type: Duration
@@ -5616,9 +5616,9 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Description:  "StandbyClusterDelay is the artificial delay added to standby cluster's view of active cluster's time",
 		DefaultValue: time.Minute * 5,
 	},
-	TaskCleanupTimeoutThreshold: {
-		KeyName:      "history.taskCleanupTimeoutThreshold",
-		Description:  "TaskCleanupTimeoutThreshold is the time, above which, it will attempt to cleanup tasks on workflow deletion but below which, it will skip cleanup attempts, based on the assumption that short-lived workflows will be mostly creating extremely short-lived timer tasks and there's no real value in explicitly going and deleting them",
+	OrphanedTimerDeletionMinTTL: {
+		KeyName:      "history.orphanedTimerDeletionMinTTL",
+		Description:  "Minimum remaining time before an orphaned timer task is worth explicitly deleting. Timers firing within this window are skipped and will clean up naturally. Applies to both workflow-level and user timers.",
 		DefaultValue: time.Hour * 24,
 	},
 	StandbyTaskMissingEventsResendDelay: {
