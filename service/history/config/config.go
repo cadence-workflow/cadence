@@ -60,7 +60,7 @@ type Config struct {
 	ShutdownDrainDuration            dynamicproperties.DurationPropertyFn
 	WorkflowDeletionJitterRange      dynamicproperties.IntPropertyFnWithDomainFilter
 	DeleteHistoryEventContextTimeout dynamicproperties.IntPropertyFn
-	EnableOrphanedTimerCleanup      dynamicproperties.BoolPropertyFn
+	EnableOrphanedWorkflowTimerCleanup      dynamicproperties.BoolPropertyFn
 	MaxResponseSize                  int
 
 	// HistoryCache settings
@@ -406,7 +406,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		StandbyTaskMissingEventsDiscardDelay: dc.GetDurationProperty(dynamicproperties.StandbyTaskMissingEventsDiscardDelay),
 		WorkflowDeletionJitterRange:          dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowDeletionJitterRange),
 		DeleteHistoryEventContextTimeout:     dc.GetIntProperty(dynamicproperties.DeleteHistoryEventContextTimeout),
-		EnableOrphanedTimerCleanup:          dc.GetBoolProperty(dynamicproperties.EnableOrphanedTimerCleanup),
+		EnableOrphanedWorkflowTimerCleanup:          dc.GetBoolProperty(dynamicproperties.EnableOrphanedWorkflowTimerCleanup),
 		MaxResponseSize:                      maxMessageSize,
 
 		TaskProcessRPS:                                    dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskProcessRPS),

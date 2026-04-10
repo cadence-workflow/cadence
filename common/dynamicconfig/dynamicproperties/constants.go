@@ -1718,15 +1718,15 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableGRPCOutbound
-	// EnableOrphanedTimerCleanup enables cleanup of orphaned workflow timer tasks when a workflow
+	// EnableOrphanedWorkflowTimerCleanup enables cleanup of orphaned workflow timer tasks when a workflow
 	// closes before its timers fire. When enabled, tracked timer tasks are deleted at workflow close
 	// time and again at retention-based deletion. This is a feature flag intended to be defaulted
 	// to true once validated.
-	// KeyName: system.enableOrphanedTimerCleanup
+	// KeyName: system.enableOrphanedWorkflowTimerCleanup
 	// Value type: Bool
 	// Default value: false
 	// Allowed filters: N/A
-	EnableOrphanedTimerCleanup
+	EnableOrphanedWorkflowTimerCleanup
 	// EnableSQLAsyncTransaction is the key for enabling async transaction
 	// KeyName: system.enableSQLAsyncTransaction
 	// Value type: Bool
@@ -4605,8 +4605,8 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableGRPCOutbound is the key for enabling outbound GRPC traffic",
 		DefaultValue: true,
 	},
-	EnableOrphanedTimerCleanup: {
-		KeyName:      "system.enableOrphanedTimerCleanup",
+	EnableOrphanedWorkflowTimerCleanup: {
+		KeyName:      "system.enableOrphanedWorkflowTimerCleanup",
 		Description:  "Enables cleanup of orphaned workflow timer tasks when a workflow closes before its timers fire. Feature flag, intended to be defaulted to true once validated.",
 		DefaultValue: false,
 	},

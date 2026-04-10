@@ -368,7 +368,7 @@ func (t *timerTaskExecutorBase) deleteWorkflowTimerTasksBestEffort(
 	msBuilder execution.MutableState,
 ) {
 	cfg := t.shard.GetConfig()
-	if cfg.EnableOrphanedTimerCleanup == nil || !cfg.EnableOrphanedTimerCleanup() {
+	if cfg.EnableOrphanedWorkflowTimerCleanup == nil || !cfg.EnableOrphanedWorkflowTimerCleanup() {
 		// feature-flag: to remove once this is defaulted to true
 		// there's nothing to run if the data's not tracked, but just out of caution, bail out if not enabled
 		return

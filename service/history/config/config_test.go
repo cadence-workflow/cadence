@@ -75,7 +75,7 @@ func TestNewConfig(t *testing.T) {
 		"ShutdownDrainDuration":                                {dynamicproperties.HistoryShutdownDrainDuration, time.Second},
 		"WorkflowDeletionJitterRange":                          {dynamicproperties.WorkflowDeletionJitterRange, 20},
 		"DeleteHistoryEventContextTimeout":                     {dynamicproperties.DeleteHistoryEventContextTimeout, 21},
-		"EnableOrphanedTimerCleanup":                          {dynamicproperties.EnableOrphanedTimerCleanup, true},
+		"EnableOrphanedWorkflowTimerCleanup":                          {dynamicproperties.EnableOrphanedWorkflowTimerCleanup, true},
 		"MaxResponseSize":                                      {nil, maxMessageSize},
 		"HistoryCacheInitialSize":                              {dynamicproperties.HistoryCacheInitialSize, 22},
 		"HistoryCacheMaxSize":                                  {dynamicproperties.HistoryCacheMaxSize, 23},
