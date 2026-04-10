@@ -273,6 +273,11 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	}
 	state.BufferedEvents = bufferedEventsBlobs
 
+	if workflowTimerTasksData, ok := result["workflow_timer_tasks"].([]byte); ok && len(workflowTimerTasksData) > 0 {
+		encoding, _ := result["workflow_timer_tasks_encoding"].(string)
+		state.WorkflowTimerTasks = persistence.NewDataBlob(workflowTimerTasksData, constants.EncodingType(encoding))
+	}
+
 	state.Checksum = parseChecksum(result["checksum"].(map[string]interface{}))
 	return state, nil
 }
@@ -521,6 +526,26 @@ func (db *CDB) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardI
 }
 
 func (db *CDB) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
+	ts := persistence.UnixNanoToDBTimestamp(visibilityTimestamp.UnixNano())
+	query := db.session.Query(templateCompleteTimerTaskQuery,
+		shardID,
+		rowTypeTimerTask,
+		rowTypeTimerDomainID,
+		rowTypeTimerWorkflowID,
+		rowTypeTimerRunID,
+		ts,
+		taskID,
+	).WithContext(ctx)
+
+	return db.executeWithConsistencyAll(query)
+}
+
+func (db *CDB) DeleteWorkflowTimerTask(
+	ctx context.Context,
+	shardID int,
+	visibilityTimestamp time.Time,
+	taskID int64,
+) error {
 	ts := persistence.UnixNanoToDBTimestamp(visibilityTimestamp.UnixNano())
 	query := db.session.Query(templateCompleteTimerTaskQuery,
 		shardID,

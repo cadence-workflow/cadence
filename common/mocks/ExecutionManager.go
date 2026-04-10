@@ -165,6 +165,20 @@ func (_m *ExecutionManager) DeleteWorkflowExecution(ctx context.Context, request
 	return r0
 }
 
+// DeleteTimerTask provides a mock function with given fields: ctx, request
+func (_m *ExecutionManager) DeleteTimerTask(ctx context.Context, request *persistence.DeleteTimerTaskRequest) error {
+	ret := _m.Called(ctx, request)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.DeleteTimerTaskRequest) error); ok {
+		r0 = rf(ctx, request)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // GetCurrentExecution provides a mock function with given fields: ctx, request
 func (_m *ExecutionManager) GetCurrentExecution(ctx context.Context, request *persistence.GetCurrentExecutionRequest) (*persistence.GetCurrentExecutionResponse, error) {
 	ret := _m.Called(ctx, request)

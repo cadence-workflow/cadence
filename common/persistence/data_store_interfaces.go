@@ -137,6 +137,7 @@ type (
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
+		DeleteTimerTask(ctx context.Context, request *DeleteTimerTaskRequest) error
 
 		// Scan related methods
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*InternalListConcreteExecutionsResponse, error)
@@ -434,6 +435,7 @@ type (
 		SignalInfos         map[int64]*SignalInfo
 		SignalRequestedIDs  map[string]struct{}
 		BufferedEvents      []*DataBlob
+		WorkflowTimerTasks  *DataBlob
 
 		// Checksum field is used by Cassandra storage
 		// ChecksumData is used by All SQL storage
@@ -547,6 +549,7 @@ type (
 		DeleteActivityInfos       []int64
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
+		WorkflowTimerTasks        *DataBlob
 		UpsertChildExecutionInfos []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
@@ -577,6 +580,7 @@ type (
 
 		ActivityInfos       []*InternalActivityInfo
 		TimerInfos          []*TimerInfo
+		WorkflowTimerTasks  *DataBlob
 		ChildExecutionInfos []*InternalChildExecutionInfo
 		RequestCancelInfos  []*RequestCancelInfo
 		SignalInfos         []*SignalInfo

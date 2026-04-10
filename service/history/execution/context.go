@@ -47,9 +47,10 @@ import (
 )
 
 const (
-	defaultRemoteCallTimeout = 30 * time.Second
-	checksumErrorRetryCount  = 3
-	maxLockDuration          = 1 * time.Second
+	defaultRemoteCallTimeout        = 30 * time.Second
+	checksumErrorRetryCount         = 3
+	maxLockDuration                 = 1 * time.Second
+	workflowTimerCleanupTimeout     = 5 * time.Second
 )
 
 type conflictError struct {
@@ -925,9 +926,66 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 			taskList := currentWorkflow.ExecutionInfo.TaskList
 			c.emitWorkflowCompletionStatsFn(domain, workflowType, c.workflowExecution.GetWorkflowID(), c.workflowExecution.GetRunID(), taskList, event)
 		}
+		c.deleteWorkflowTimerTasksBestEffortAsync(currentWorkflow.ExecutionInfo)
 	}
 
 	return nil
+}
+
+// deleteWorkflowTimerTasksBestEffortAsync spawns a goroutine to delete tracked workflow timer tasks
+// that are still pending (i.e. the workflow closed before they fired). This is a best-effort
+// cleanup that runs in addition to the retention-time cleanup in timer_task_executor_base.go.
+// A goroutine is used so that workflow close latency is not affected, and to be safe when
+// the number of tracked tasks grows (e.g. once user-timer tracking is added via the IDL work).
+func (c *contextImpl) deleteWorkflowTimerTasksBestEffortAsync(executionInfo *persistence.WorkflowExecutionInfo) {
+	cfg := c.shard.GetConfig()
+	if cfg.EnableOrphanedTimerCleanup == nil || !cfg.EnableOrphanedTimerCleanup() {
+		return
+	}
+	timerTasks := c.mutableState.GetPendingWorkflowTimerTaskInfos()
+	if len(timerTasks) == 0 {
+		return
+	}
+
+	threshold := c.shard.GetConfig().TaskCleanupTimeoutThreshold()
+	now := c.shard.GetTimeSource().Now()
+	executionMgr := c.shard.GetExecutionManager()
+	logger := c.logger
+	domainID := executionInfo.DomainID
+	workflowID := executionInfo.WorkflowID
+	runID := c.workflowExecution.GetRunID()
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), workflowTimerCleanupTimeout)
+		defer cancel()
+
+		for _, taskInfo := range timerTasks {
+			if taskInfo.VisibilityTimestamp.Sub(now) < threshold {
+				// Timer fires soon — let it fire naturally.
+				continue
+			}
+			err := executionMgr.DeleteTimerTask(ctx, &persistence.DeleteTimerTaskRequest{
+				DomainID:            domainID,
+				WorkflowID:          workflowID,
+				RunID:               runID,
+				TaskID:              taskInfo.TaskID,
+				VisibilityTimestamp: taskInfo.VisibilityTimestamp,
+			})
+			if err != nil {
+				if errors.As(err, new(*types.EntityNotExistsError)) {
+					// Timer already fired — expected.
+					continue
+				}
+				logger.Warn("Failed to delete workflow timer task on workflow close",
+					tag.WorkflowDomainID(domainID),
+					tag.WorkflowID(workflowID),
+					tag.WorkflowRunID(runID),
+					tag.TaskID(taskInfo.TaskID),
+					tag.Error(err),
+				)
+			}
+		}
+	}()
 }
 
 func notifyTasksFromWorkflowSnapshot(

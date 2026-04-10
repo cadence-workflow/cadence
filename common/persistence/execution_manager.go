@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -99,6 +100,10 @@ func (m *executionManagerImpl) GetWorkflowExecution(
 		},
 	}
 
+	newResponse.State.WorkflowTimerTaskInfos, err = m.DeserializeWorkflowTimerTasks(response.State.WorkflowTimerTasks)
+	if err != nil {
+		return nil, err
+	}
 	newResponse.State.ActivityInfos, err = m.DeserializeActivityInfos(response.State.ActivityInfos)
 	if err != nil {
 		return nil, err
@@ -282,6 +287,16 @@ func (m *executionManagerImpl) DeserializeChildExecutionInfos(
 	return newInfos, nil
 }
 
+func (m *executionManagerImpl) DeserializeWorkflowTimerTasks(
+	blob *DataBlob,
+) ([]*WorkflowTimerTaskInfo, error) {
+	if blob == nil || len(blob.Data) == 0 {
+		return nil, nil
+	}
+
+	return m.serializer.DeserializeWorkflowTimerTasks(blob)
+}
+
 func (m *executionManagerImpl) DeserializeActivityInfos(
 	infos map[int64]*InternalActivityInfo,
 ) (map[int64]*ActivityInfo, error) {
@@ -343,6 +358,10 @@ func (m *executionManagerImpl) UpdateWorkflowExecution(
 	ctx context.Context,
 	request *UpdateWorkflowExecutionRequest,
 ) (*UpdateWorkflowExecutionResponse, error) {
+	// Note: syncExecutionInfoWithTasks is intentionally not called here. Timer task
+	// tracking currently only covers tasks created at workflow creation. To extend
+	// tracking to update mutations, call a sync here that appends new tasks from
+	// request.UpdateWorkflowMutation.TasksByCategory to the existing WorkflowTimerTasks.
 
 	serializedWorkflowMutation, err := m.SerializeWorkflowMutation(&request.UpdateWorkflowMutation, request.Encoding)
 	if err != nil {
@@ -411,6 +430,13 @@ func (m *executionManagerImpl) SerializeUpsertChildExecutionInfos(
 		newInfos = append(newInfos, i)
 	}
 	return newInfos, nil
+}
+
+func (m *executionManagerImpl) SerializeWorkflowTimerTasks(
+	tasks []*WorkflowTimerTaskInfo,
+	encoding constants.EncodingType,
+) (*DataBlob, error) {
+	return m.serializer.SerializeWorkflowTimerTasks(tasks, encoding)
 }
 
 func (m *executionManagerImpl) SerializeUpsertActivityInfos(
@@ -612,6 +638,9 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 	ctx context.Context,
 	request *CreateWorkflowExecutionRequest,
 ) (*CreateWorkflowExecutionResponse, error) {
+
+	m.syncExecutionInfoWithTasks(&request.NewWorkflowSnapshot)
+
 	serializedNewWorkflowSnapshot, err := m.SerializeWorkflowSnapshot(&request.NewWorkflowSnapshot, constants.EncodingType(m.dc.SerializationEncoding()))
 	if err != nil {
 		return nil, err
@@ -641,6 +670,44 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 	return &CreateWorkflowExecutionResponse{MutableStateUpdateSessionStats: msuss}, nil
 }
 
+// syncExecutionInfoWithTasks ensures that the mutable state / execution info is in sync with the tasks.
+// for the purpose of tracking them, such that when we go to clean up
+//
+// The reason this must be done here is that the tasks are first created, then their IDs are assigned
+// after their creation. In order to track these via the execution / mutable state record, we
+// need to update these references after their creation and taskID assignment.
+func (m *executionManagerImpl) syncExecutionInfoWithTasks(workflowSnapshot *WorkflowSnapshot) {
+	// for now, this is only a best effort thing. It might change for more rigourously
+	// tracking these.
+	if m.dc == nil || m.dc.EnableOrphanedTimerCleanup == nil || !m.dc.EnableOrphanedTimerCleanup() {
+		return
+	}
+
+	for category, tasks := range workflowSnapshot.TasksByCategory {
+		for _, task := range tasks {
+			switch category.categoryID {
+			case HistoryTaskCategoryIDTimer:
+				timerTaskInfo, err := task.ToTimerTaskInfo()
+				if err != nil {
+					m.logger.Warn("Failed to convert timer task info for tracking; task will not be cleaned up on workflow deletion",
+						tag.TaskID(task.GetTaskID()),
+						tag.Error(err),
+					)
+					continue
+				}
+				workflowSnapshot.WorkflowTimerTasks = append(workflowSnapshot.WorkflowTimerTasks, &WorkflowTimerTaskInfo{
+					TaskID:              task.GetTaskID(),
+					VisibilityTimestamp: task.GetVisibilityTimestamp(),
+					TimeoutType:         timerTaskInfo.TimeoutType,
+				})
+			// not tracking any other types of tasks at present, although this may be reasonable in the future
+			default:
+				continue
+			}
+		}
+	}
+}
+
 func (m *executionManagerImpl) SerializeWorkflowMutation(
 	input *WorkflowMutation,
 	encoding constants.EncodingType,
@@ -663,6 +730,10 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		return nil, err
 	}
 	serializedUpsertChildExecutionInfos, err := m.SerializeUpsertChildExecutionInfos(input.UpsertChildExecutionInfos, encoding)
+	if err != nil {
+		return nil, err
+	}
+	serializedWorkflowTimerTasks, err := m.SerializeWorkflowTimerTasks(input.WorkflowTimerTasks, encoding)
 	if err != nil {
 		return nil, err
 	}
@@ -697,6 +768,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		DeleteActivityInfos:       input.DeleteActivityInfos,
 		UpsertTimerInfos:          input.UpsertTimerInfos,
 		DeleteTimerInfos:          input.DeleteTimerInfos,
+		WorkflowTimerTasks:        serializedWorkflowTimerTasks,
 		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
 		DeleteChildExecutionInfos: input.DeleteChildExecutionInfos,
 		UpsertRequestCancelInfos:  input.UpsertRequestCancelInfos,
@@ -743,6 +815,10 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 	if err != nil {
 		return nil, err
 	}
+	serializedWorkflowTimerTasks, err := m.SerializeWorkflowTimerTasks(input.WorkflowTimerTasks, encoding)
+	if err != nil {
+		return nil, err
+	}
 
 	startVersion, err := getStartVersion(input.VersionHistories)
 	if err != nil {
@@ -766,6 +842,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 
 		ActivityInfos:       serializedActivityInfos,
 		TimerInfos:          input.TimerInfos,
+		WorkflowTimerTasks:  serializedWorkflowTimerTasks,
 		ChildExecutionInfos: serializedChildExecutionInfos,
 		RequestCancelInfos:  input.RequestCancelInfos,
 		SignalInfos:         input.SignalInfos,
@@ -1020,6 +1097,13 @@ func (m *executionManagerImpl) RangeCompleteHistoryTask(
 	request *RangeCompleteHistoryTaskRequest,
 ) (*RangeCompleteHistoryTaskResponse, error) {
 	return m.persistence.RangeCompleteHistoryTask(ctx, request)
+}
+
+func (m *executionManagerImpl) DeleteTimerTask(
+	ctx context.Context,
+	request *DeleteTimerTaskRequest,
+) error {
+	return m.persistence.DeleteTimerTask(ctx, request)
 }
 
 func getStartVersion(

@@ -60,6 +60,7 @@ type Config struct {
 	ShutdownDrainDuration            dynamicproperties.DurationPropertyFn
 	WorkflowDeletionJitterRange      dynamicproperties.IntPropertyFnWithDomainFilter
 	DeleteHistoryEventContextTimeout dynamicproperties.IntPropertyFn
+	EnableOrphanedTimerCleanup      dynamicproperties.BoolPropertyFn
 	MaxResponseSize                  int
 
 	// HistoryCache settings
@@ -296,6 +297,8 @@ type Config struct {
 	EnableConsistentQueryByDomain dynamicproperties.BoolPropertyFnWithDomainFilter
 	MaxBufferedQueryCount         dynamicproperties.IntPropertyFn
 
+	TaskCleanupTimeoutThreshold dynamicproperties.DurationPropertyFn
+
 	// EnableContextHeaderInVisibility whether to enable indexing context header in visibility
 	EnableContextHeaderInVisibility dynamicproperties.BoolPropertyFnWithDomainFilter
 
@@ -403,6 +406,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		StandbyTaskMissingEventsDiscardDelay: dc.GetDurationProperty(dynamicproperties.StandbyTaskMissingEventsDiscardDelay),
 		WorkflowDeletionJitterRange:          dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowDeletionJitterRange),
 		DeleteHistoryEventContextTimeout:     dc.GetIntProperty(dynamicproperties.DeleteHistoryEventContextTimeout),
+		EnableOrphanedTimerCleanup:          dc.GetBoolProperty(dynamicproperties.EnableOrphanedTimerCleanup),
 		MaxResponseSize:                      maxMessageSize,
 
 		TaskProcessRPS:                                    dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskProcessRPS),
@@ -583,6 +587,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		MutableStateChecksumGenProbability:    dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumGenProbability),
 		MutableStateChecksumVerifyProbability: dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumVerifyProbability),
 		MutableStateChecksumInvalidateBefore:  dc.GetFloat64Property(dynamicproperties.MutableStateChecksumInvalidateBefore),
+		TaskCleanupTimeoutThreshold:           dc.GetDurationProperty(dynamicproperties.TaskCleanupTimeoutThreshold),
 
 		EnableCorruptionAutoRepair:             dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCorruptionAutoRepair),
 		CorruptionRepairTimeout:                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.CorruptionRepairTimeout),

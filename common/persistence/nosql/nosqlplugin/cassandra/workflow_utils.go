@@ -986,6 +986,34 @@ func updateTimerInfos(
 	return nil
 }
 
+func updateWorkflowTimerTasks(
+	batch gocql.Batch,
+	shardID int,
+	domainID string,
+	workflowID string,
+	runID string,
+	workflowTimerTasks *persistence.DataBlob,
+	timeStamp time.Time,
+) error {
+	if workflowTimerTasks == nil {
+		return nil
+	}
+
+	batch.Query(templateUpdateWorkflowTimerTasksQuery,
+		workflowTimerTasks.Data,
+		workflowTimerTasks.GetEncodingString(),
+		timeStamp,
+		shardID,
+		rowTypeExecution,
+		domainID,
+		workflowID,
+		runID,
+		defaultVisibilityTimestamp,
+		rowTypeExecutionTaskID)
+
+	return nil
+}
+
 func resetActivityInfos(
 	batch gocql.Batch,
 	shardID int,
@@ -1171,6 +1199,10 @@ func createWorkflowExecutionWithMergeMaps(
 	if err != nil {
 		return err
 	}
+	err = updateWorkflowTimerTasks(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTasks, timeStamp)
+	if err != nil {
+		return err
+	}
 	err = updateChildExecutionInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ChildWorkflowInfos, nil, timeStamp)
 	if err != nil {
 		return err
@@ -1319,6 +1351,10 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 		return err
 	}
 	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete, timeStamp)
+	if err != nil {
+		return err
+	}
+	err = updateWorkflowTimerTasks(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTasks, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -1520,6 +1556,8 @@ func createWorkflowExecution(
 		execution.NextEventID,
 		defaultVisibilityTimestamp,
 		rowTypeExecutionTaskID,
+		execution.WorkflowTimerTasks.GetData(),
+		execution.WorkflowTimerTasks.GetEncodingString(),
 		execution.VersionHistories.Data,
 		execution.VersionHistories.GetEncodingString(),
 		execution.Checksums.Version,

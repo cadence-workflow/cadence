@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.47",
+  "MinCompatibleVersion": "0.47",
+  "Description": "Adding workflow_timer_tasks blob fields to track workflow-level timer tasks for cleanup during workflow deletion",
+  "SchemaUpdateCqlFiles": [
+    "workflow_timer_task_info.cql"
+  ]
+}
