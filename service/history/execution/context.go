@@ -946,6 +946,11 @@ func (c *contextImpl) deleteWorkflowTimerTasksBestEffortAsync(executionInfo *per
 	if len(timerTasks) == 0 {
 		return
 	}
+	// Defensive copy: the goroutine outlives the mutable state lock. If mutation-time
+	// tracking is added later (see CloseTransactionAsMutation), the slice backing array
+	// could be modified concurrently without this copy.
+	tasksCopy := make([]*persistence.WorkflowTimerTaskInfo, len(timerTasks))
+	copy(tasksCopy, timerTasks)
 
 	threshold := c.shard.GetConfig().TaskCleanupTimeoutThreshold()
 	now := c.shard.GetTimeSource().Now()
@@ -959,7 +964,7 @@ func (c *contextImpl) deleteWorkflowTimerTasksBestEffortAsync(executionInfo *per
 		ctx, cancel := context.WithTimeout(context.Background(), workflowTimerCleanupTimeout)
 		defer cancel()
 
-		for _, taskInfo := range timerTasks {
+		for _, taskInfo := range tasksCopy {
 			if taskInfo.VisibilityTimestamp.Sub(now) < threshold {
 				// Timer fires soon — let it fire naturally.
 				continue
