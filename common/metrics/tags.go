@@ -64,6 +64,7 @@ const (
 	asyncWFRequestType        = "async_wf_request_type"
 	workflowTerminationReason = "workflow_termination_reason"
 	workflowCloseStatus       = "workflow_close_status"
+	corruptionType            = "corruption_type"
 	isolationEnabled          = "isolation_enabled"
 	isolationGroup            = "isolation_group"
 	leakCause                 = "leak_cause"
@@ -316,6 +317,11 @@ func WorkflowTerminationReasonTag(value string) Tag {
 func WorkflowCloseStatusTag(value string) Tag {
 	value = safeAlphaNumericStringRE.ReplaceAllString(value, "_")
 	return simpleMetric{key: workflowCloseStatus, value: value}
+}
+
+// CorruptionTypeTag reports the type of corruption detected
+func CorruptionTypeTag(value string) Tag {
+	return simpleMetric{key: corruptionType, value: value}
 }
 
 func IsolationGroupTag(group string) Tag {

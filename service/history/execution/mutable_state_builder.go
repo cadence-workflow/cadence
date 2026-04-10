@@ -329,7 +329,7 @@ func (e *mutableStateBuilder) CopyToPersistence() *persistence.WorkflowMutableSt
 func (e *mutableStateBuilder) Load(
 	ctx context.Context,
 	state *persistence.WorkflowMutableState,
-) error {
+) {
 
 	e.pendingActivityInfoIDs = state.ActivityInfos
 	for _, activityInfo := range state.ActivityInfos {
@@ -359,33 +359,11 @@ func (e *mutableStateBuilder) Load(
 	e.fillForBackwardsCompatibility()
 
 	if len(state.Checksum.Value) > 0 {
-		switch {
-		case e.shouldInvalidateChecksum():
+		if e.shouldInvalidateChecksum() {
 			e.checksum = checksum.Checksum{}
 			e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.MutableStateChecksumInvalidated)
-		case e.shouldVerifyChecksum():
-			if err := verifyMutableStateChecksum(e, state.Checksum); err != nil {
-				// we ignore checksum verification errors for now until this
-				// feature is tested and/or we have mechanisms in place to deal
-				// with these types of errors
-				e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.MutableStateChecksumMismatch)
-				e.logError("mutable state checksum mismatch",
-					tag.WorkflowNextEventID(e.executionInfo.NextEventID),
-					tag.WorkflowScheduleID(e.executionInfo.DecisionScheduleID),
-					tag.WorkflowStartedID(e.executionInfo.DecisionStartedID),
-					tag.Dynamic("timerIDs", maps.Keys(e.pendingTimerInfoIDs)),
-					tag.Dynamic("activityIDs", maps.Keys(e.pendingActivityInfoIDs)),
-					tag.Dynamic("childIDs", maps.Keys(e.pendingChildExecutionInfoIDs)),
-					tag.Dynamic("signalIDs", maps.Keys(e.pendingSignalInfoIDs)),
-					tag.Dynamic("cancelIDs", maps.Keys(e.pendingRequestCancelInfoIDs)),
-					tag.Error(err))
-				if e.enableChecksumFailureRetry() {
-					return err
-				}
-			}
 		}
 	}
-	return nil
 }
 
 func (e *mutableStateBuilder) fillForBackwardsCompatibility() {
@@ -416,6 +394,10 @@ func (e *mutableStateBuilder) GetCurrentBranchToken() ([]byte, error) {
 
 func (e *mutableStateBuilder) GetVersionHistories() *persistence.VersionHistories {
 	return e.versionHistories
+}
+
+func (e *mutableStateBuilder) GetChecksum() checksum.Checksum {
+	return e.checksum
 }
 
 // set treeID/historyBranches
@@ -2190,20 +2172,6 @@ func (e *mutableStateBuilder) shouldGenerateChecksum() bool {
 		return false
 	}
 	return rand.Intn(100) < e.config.MutableStateChecksumGenProbability(e.domainEntry.GetInfo().Name)
-}
-
-func (e *mutableStateBuilder) shouldVerifyChecksum() bool {
-	if e.domainEntry == nil {
-		return false
-	}
-	return rand.Intn(100) < e.config.MutableStateChecksumVerifyProbability(e.domainEntry.GetInfo().Name)
-}
-
-func (e *mutableStateBuilder) enableChecksumFailureRetry() bool {
-	if e.domainEntry == nil {
-		return false
-	}
-	return e.config.EnableRetryForChecksumFailure(e.domainEntry.GetInfo().Name)
 }
 
 func (e *mutableStateBuilder) shouldInvalidateChecksum() bool {

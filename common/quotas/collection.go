@@ -28,36 +28,36 @@ import (
 )
 
 // LimiterFactory is used to create a Limiter for a given domain
-type LimiterFactory interface {
+type LimiterFactory[K comparable] interface {
 	// GetLimiter returns a new Limiter for the given domain
-	GetLimiter(domain string) Limiter
+	GetLimiter(key K) Limiter
 }
 
 // Collection stores a map of limiters by key
-type Collection struct {
+type Collection[K comparable] struct {
 	mu       sync.RWMutex
-	factory  LimiterFactory
-	limiters map[string]Limiter
+	factory  LimiterFactory[K]
+	limiters map[K]Limiter
 }
 
-type ICollection interface {
-	For(key string) Limiter
+type ICollection[K comparable] interface {
+	For(key K) Limiter
 }
 
-var _ ICollection = (*Collection)(nil)
+var _ ICollection[string] = (*Collection[string])(nil)
 
 // NewCollection create a new limiter collection.
 // Given factory is called to create new individual limiter.
-func NewCollection(factory LimiterFactory) *Collection {
-	return &Collection{
+func NewCollection[K comparable](factory LimiterFactory[K]) *Collection[K] {
+	return &Collection[K]{
 		factory:  factory,
-		limiters: make(map[string]Limiter),
+		limiters: make(map[K]Limiter),
 	}
 }
 
 // For retrieves limiter by a given key.
 // If limiter for such key does not exists, it creates new one with via factory.
-func (c *Collection) For(key string) Limiter {
+func (c *Collection[K]) For(key K) Limiter {
 	c.mu.RLock()
 	limiter, ok := c.limiters[key]
 	c.mu.RUnlock()

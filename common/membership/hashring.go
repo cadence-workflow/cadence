@@ -188,6 +188,24 @@ func (r *Ring) Lookup(key string) (HostInfo, error) {
 	return r.AddressToHost(addr)
 }
 
+// LookupN returns up to n hosts from the ring for the given key. This can be
+// used to assign the same key to multiple hosts for redundancy purposes.
+func (r *Ring) LookupN(key string, n int) ([]HostInfo, error) {
+	addrs := r.ring().LookupN(key, n)
+	if len(addrs) == 0 {
+		return nil, ErrInsufficientHosts
+	}
+	hosts := make([]HostInfo, 0, len(addrs))
+	for _, addr := range addrs {
+		host, err := r.AddressToHost(addr)
+		if err != nil {
+			return nil, fmt.Errorf("LookupN: address %q returned by ring but not found in members: %w", addr, err)
+		}
+		hosts = append(hosts, host)
+	}
+	return hosts, nil
+}
+
 func (r *Ring) AddressToHost(addr string) (HostInfo, error) {
 	r.members.RLock()
 	defer r.members.RUnlock()

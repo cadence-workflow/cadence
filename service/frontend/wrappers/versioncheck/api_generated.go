@@ -33,6 +33,14 @@ func NewAPIHandler(
 	}
 }
 
+func (h *versionCheckHandler) BackfillSchedule(ctx context.Context, bp1 *types.BackfillScheduleRequest) (bp2 *types.BackfillScheduleResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.BackfillSchedule(ctx, bp1)
+}
+
 func (h *versionCheckHandler) CountWorkflowExecutions(ctx context.Context, cp1 *types.CountWorkflowExecutionsRequest) (cp2 *types.CountWorkflowExecutionsResponse, err error) {
 	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
 	if err != nil {
@@ -41,12 +49,28 @@ func (h *versionCheckHandler) CountWorkflowExecutions(ctx context.Context, cp1 *
 	return h.frontendHandler.CountWorkflowExecutions(ctx, cp1)
 }
 
+func (h *versionCheckHandler) CreateSchedule(ctx context.Context, cp1 *types.CreateScheduleRequest) (cp2 *types.CreateScheduleResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.CreateSchedule(ctx, cp1)
+}
+
 func (h *versionCheckHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest) (err error) {
 	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
 	if err != nil {
 		return
 	}
 	return h.frontendHandler.DeleteDomain(ctx, dp1)
+}
+
+func (h *versionCheckHandler) DeleteSchedule(ctx context.Context, dp1 *types.DeleteScheduleRequest) (dp2 *types.DeleteScheduleResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.DeleteSchedule(ctx, dp1)
 }
 
 func (h *versionCheckHandler) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDomainRequest) (err error) {
@@ -63,6 +87,14 @@ func (h *versionCheckHandler) DescribeDomain(ctx context.Context, dp1 *types.Des
 		return
 	}
 	return h.frontendHandler.DescribeDomain(ctx, dp1)
+}
+
+func (h *versionCheckHandler) DescribeSchedule(ctx context.Context, dp1 *types.DescribeScheduleRequest) (dp2 *types.DescribeScheduleResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.DescribeSchedule(ctx, dp1)
 }
 
 func (h *versionCheckHandler) DescribeTaskList(ctx context.Context, dp1 *types.DescribeTaskListRequest) (dp2 *types.DescribeTaskListResponse, err error) {
@@ -165,6 +197,14 @@ func (h *versionCheckHandler) ListOpenWorkflowExecutions(ctx context.Context, lp
 	return h.frontendHandler.ListOpenWorkflowExecutions(ctx, lp1)
 }
 
+func (h *versionCheckHandler) ListSchedules(ctx context.Context, lp1 *types.ListSchedulesRequest) (lp2 *types.ListSchedulesResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.ListSchedules(ctx, lp1)
+}
+
 func (h *versionCheckHandler) ListTaskListPartitions(ctx context.Context, lp1 *types.ListTaskListPartitionsRequest) (lp2 *types.ListTaskListPartitionsResponse, err error) {
 	return h.frontendHandler.ListTaskListPartitions(ctx, lp1)
 }
@@ -175,6 +215,14 @@ func (h *versionCheckHandler) ListWorkflowExecutions(ctx context.Context, lp1 *t
 		return
 	}
 	return h.frontendHandler.ListWorkflowExecutions(ctx, lp1)
+}
+
+func (h *versionCheckHandler) PauseSchedule(ctx context.Context, pp1 *types.PauseScheduleRequest) (pp2 *types.PauseScheduleResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.PauseSchedule(ctx, pp1)
 }
 
 func (h *versionCheckHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollForActivityTaskRequest) (pp2 *types.PollForActivityTaskResponse, err error) {
@@ -389,10 +437,26 @@ func (h *versionCheckHandler) TerminateWorkflowExecution(ctx context.Context, tp
 	return h.frontendHandler.TerminateWorkflowExecution(ctx, tp1)
 }
 
+func (h *versionCheckHandler) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseScheduleRequest) (up2 *types.UnpauseScheduleResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.UnpauseSchedule(ctx, up1)
+}
+
 func (h *versionCheckHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest) (up2 *types.UpdateDomainResponse, err error) {
 	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
 	if err != nil {
 		return
 	}
 	return h.frontendHandler.UpdateDomain(ctx, up1)
+}
+
+func (h *versionCheckHandler) UpdateSchedule(ctx context.Context, up1 *types.UpdateScheduleRequest) (up2 *types.UpdateScheduleResponse, err error) {
+	err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+	if err != nil {
+		return
+	}
+	return h.frontendHandler.UpdateSchedule(ctx, up1)
 }

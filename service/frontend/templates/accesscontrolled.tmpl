@@ -42,6 +42,15 @@ import (
 {{$permissionMap = set $permissionMap "UpdateDomain" "PermissionAdmin"}}
 {{$permissionMap = set $permissionMap "FailoverDomain" "PermissionWrite"}}
 
+{{$permissionMap = set $permissionMap "CreateSchedule" "PermissionWrite"}}
+{{$permissionMap = set $permissionMap "DescribeSchedule" "PermissionRead"}}
+{{$permissionMap = set $permissionMap "UpdateSchedule" "PermissionWrite"}}
+{{$permissionMap = set $permissionMap "DeleteSchedule" "PermissionWrite"}}
+{{$permissionMap = set $permissionMap "PauseSchedule" "PermissionWrite"}}
+{{$permissionMap = set $permissionMap "UnpauseSchedule" "PermissionWrite"}}
+{{$permissionMap = set $permissionMap "BackfillSchedule" "PermissionWrite"}}
+{{$permissionMap = set $permissionMap "ListSchedules" "PermissionRead"}}
+
 {{$adminPermissionMap := dict }}
 {{$adminPermissionMap = set $adminPermissionMap "DescribeCluster" "PermissionRead"}}
 

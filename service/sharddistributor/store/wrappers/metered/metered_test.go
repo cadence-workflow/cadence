@@ -52,7 +52,7 @@ func TestMeteredStore_GetHeartbeat(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			testScope := tally.NewTestScope("test", nil)
-			metricsClient := metrics.NewClient(testScope, metrics.ShardDistributor, metrics.HistogramMigration{})
+			metricsClient := metrics.NewClient(testScope, metrics.ShardDistributor, metrics.MigrationConfig{})
 			timeSource := clock.NewMockedTimeSource()
 			mockHandler := store.NewMockStore(ctrl)
 

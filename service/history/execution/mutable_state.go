@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -61,7 +62,7 @@ type (
 		AddActivityTaskCanceledEvent(int64, int64, int64, []uint8, string) (*types.HistoryEvent, error)
 		AddActivityTaskCompletedEvent(int64, int64, *types.RespondActivityTaskCompletedRequest) (*types.HistoryEvent, error)
 		AddActivityTaskFailedEvent(int64, int64, *types.RespondActivityTaskFailedRequest) (*types.HistoryEvent, error)
-		AddActivityTaskScheduledEvent(context.Context, int64, *types.ScheduleActivityTaskDecisionAttributes, bool) (*types.HistoryEvent, *persistence.ActivityInfo, *types.ActivityLocalDispatchInfo, bool, bool, error)
+		AddActivityTaskScheduledEvent(int64, *types.ScheduleActivityTaskDecisionAttributes) (*types.HistoryEvent, *persistence.ActivityInfo, *types.ActivityLocalDispatchInfo, error)
 		AddActivityTaskStartedEvent(*persistence.ActivityInfo, int64, string, string) (*types.HistoryEvent, error)
 		AddActivityTaskTimedOutEvent(int64, int64, types.TimeoutType, []uint8) (*types.HistoryEvent, error)
 		AddCancelTimerFailedEvent(int64, *types.CancelTimerDecisionAttributes, string) (*types.HistoryEvent, error)
@@ -167,7 +168,7 @@ type (
 		IsWorkflowCompleted() bool
 		IsResourceDuplicated(resourceDedupKey definition.DeduplicationID) bool
 		UpdateDuplicatedResource(resourceDedupKey definition.DeduplicationID)
-		Load(context.Context, *persistence.WorkflowMutableState) error
+		Load(context.Context, *persistence.WorkflowMutableState)
 		ReplicateActivityInfo(*types.SyncActivityRequest, bool) error
 		ReplicateActivityTaskCancelRequestedEvent(*types.HistoryEvent) error
 		ReplicateActivityTaskCanceledEvent(*types.HistoryEvent) error
@@ -236,6 +237,8 @@ type (
 
 		GetHistorySize() int64
 		SetHistorySize(size int64)
+
+		GetChecksum() checksum.Checksum
 
 		cache.Sizeable
 	}

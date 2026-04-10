@@ -370,6 +370,7 @@ func TestConsumerManagerEnabledDisabled(t *testing.T) {
 
 	// wait for the first round of consumers to be created and verify consumer count
 	atomic.StoreInt32(&consumerMgrEnabled, 1)
+	mockTimeSrc.Advance(defaultRefreshInterval)
 	time.Sleep(50 * time.Millisecond)
 	t.Log("first round comparison")
 	got := atomic.LoadInt32(&consumerCount)

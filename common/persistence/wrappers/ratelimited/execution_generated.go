@@ -69,12 +69,12 @@ func (c *ratelimitedExecutionManager) CreateWorkflowExecution(ctx context.Contex
 	return c.wrapped.CreateWorkflowExecution(ctx, request)
 }
 
-func (c *ratelimitedExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID string, workflowID string, runID string) (err error) {
+func (c *ratelimitedExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, request *persistence.DeleteActiveClusterSelectionPolicyRequest) (err error) {
 	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
+	return c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, request)
 }
 
 func (c *ratelimitedExecutionManager) DeleteCurrentWorkflowExecution(ctx context.Context, request *persistence.DeleteCurrentWorkflowExecutionRequest) (err error) {
@@ -101,12 +101,12 @@ func (c *ratelimitedExecutionManager) DeleteWorkflowExecution(ctx context.Contex
 	return c.wrapped.DeleteWorkflowExecution(ctx, request)
 }
 
-func (c *ratelimitedExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, domainID string, wfID string, rID string) (ap1 *types.ActiveClusterSelectionPolicy, err error) {
+func (c *ratelimitedExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, request *persistence.GetActiveClusterSelectionPolicyRequest) (ap1 *types.ActiveClusterSelectionPolicy, err error) {
 	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
+	return c.wrapped.GetActiveClusterSelectionPolicy(ctx, request)
 }
 
 func (c *ratelimitedExecutionManager) GetCurrentExecution(ctx context.Context, request *persistence.GetCurrentExecutionRequest) (gp1 *persistence.GetCurrentExecutionResponse, err error) {

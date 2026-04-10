@@ -1,0 +1,22 @@
+# Override file for running the Cadence server natively on the host machine
+# while keeping infrastructure dependencies (Cassandra, Kafka, ES, etc.) in Docker.
+#
+# Usage:
+#   docker compose -f docker/docker-compose-es-v7.yml -f docker/docker-compose-local.override.yaml up
+#
+# The cadence service is replaced with a no-op container so that only the
+# infrastructure services start. Kafka advertises on 127.0.0.1 so the
+# host-running server can reach it, and cadence-web points back to the host.
+services:
+  cadence:
+    image: busybox
+    entrypoint: ["true"]
+    ports: !reset []
+    environment: !reset []
+    depends_on: !reset {}
+  kafka:
+    environment:
+      - "KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092"
+  cadence-web:
+    environment:
+      - "CADENCE_GRPC_PEERS=host.docker.internal:7833"

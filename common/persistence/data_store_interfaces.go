@@ -136,8 +136,8 @@ type (
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
 
 		// Active cluster selection policy related methods
-		GetActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*DataBlob, error)
-		DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) error
+		GetActiveClusterSelectionPolicy(ctx context.Context, request *GetActiveClusterSelectionPolicyRequest) (*DataBlob, error)
+		DeleteActiveClusterSelectionPolicy(ctx context.Context, request *DeleteActiveClusterSelectionPolicyRequest) error
 	}
 
 	// HistoryStore is to manager workflow history events
@@ -306,6 +306,7 @@ type (
 
 	// InternalCreateWorkflowExecutionRequest is used to write a new workflow execution
 	InternalCreateWorkflowExecutionRequest struct {
+		ShardID ShardID
 		RangeID int64
 
 		Mode CreateWorkflowMode
@@ -322,6 +323,7 @@ type (
 
 	// InternalPutReplicationTaskToDLQRequest is used to put a replication task to dlq
 	InternalPutReplicationTaskToDLQRequest struct {
+		ShardID           ShardID
 		SourceClusterName string
 		TaskInfo          *InternalReplicationTaskInfo
 	}
@@ -492,6 +494,7 @@ type (
 
 	// InternalUpdateWorkflowExecutionRequest is used to update a workflow execution for Persistence Interface
 	InternalUpdateWorkflowExecutionRequest struct {
+		ShardID ShardID
 		RangeID int64
 
 		Mode UpdateWorkflowMode
@@ -507,6 +510,7 @@ type (
 
 	// InternalConflictResolveWorkflowExecutionRequest is used to reset workflow execution state for Persistence Interface
 	InternalConflictResolveWorkflowExecutionRequest struct {
+		ShardID ShardID
 		RangeID int64
 
 		Mode ConflictResolveWorkflowMode
@@ -615,6 +619,7 @@ type (
 
 	// InternalGetWorkflowExecutionRequest is used to retrieve the info of a workflow execution
 	InternalGetWorkflowExecutionRequest struct {
+		ShardID   ShardID
 		DomainID  string
 		Execution types.WorkflowExecution
 		RangeID   int64

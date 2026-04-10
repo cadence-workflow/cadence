@@ -76,7 +76,6 @@ func (s *WorkflowIDInternalRateLimitIntegrationSuite) SetupSuite() {
 	clusterMetadata := NewClusterMetadata(s.T(), s.TestClusterConfig)
 	dc := persistence.DynamicConfiguration{
 		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
-		PersistenceSampleLoggingRate:             dynamicproperties.GetIntPropertyFn(100),
 		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
 		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
 		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),

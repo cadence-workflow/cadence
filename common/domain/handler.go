@@ -493,6 +493,13 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 	wasActiveActive := currentState.ReplicationConfig.IsActiveActive()
 	now := d.timeSource.Now()
 
+	d.logger.Info("Failover request started",
+		tag.WorkflowDomainName(currentState.Info.Name),
+		tag.WorkflowDomainID(currentState.Info.ID),
+		tag.PrevActiveCluster(currentActiveCluster),
+		tag.ActiveClusterName(common.StringDefault(updateRequest.ActiveClusterName)),
+	)
+
 	// by default, we assume failovers are of type force
 	failoverType := constants.FailoverTypeForce
 
@@ -666,6 +673,9 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 	d.logger.Info("Failover request succeeded",
 		tag.WorkflowDomainName(intendedDomainState.Info.Name),
 		tag.WorkflowDomainID(intendedDomainState.Info.ID),
+		tag.PrevActiveCluster(currentActiveCluster),
+		tag.ActiveClusterName(intendedDomainState.ReplicationConfig.ActiveClusterName),
+		tag.Dynamic("failover-type", failoverType.String()),
 	)
 	return response, nil
 }

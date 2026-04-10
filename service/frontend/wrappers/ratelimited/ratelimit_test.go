@@ -112,7 +112,7 @@ func TestAllowDomainRequestRouting(t *testing.T) {
 			handler := setupHandler(t)
 			tc.setupMock(handler)
 
-			err := handler.allowDomain(context.Background(), tc.requestType, testDomain)
+			err := handler.allowDomain(context.Background(), tc.requestType, quotas.Info{Domain: testDomain})
 
 			if tc.expectedErr != nil {
 				assert.Error(t, err)
@@ -272,7 +272,7 @@ func TestCallerTypeBypass(t *testing.T) {
 				handler.userRateLimiter.(*mockPolicy).On("Allow", quotas.Info{Domain: testDomain}).Return(true).Once()
 			}
 
-			err := handler.allowDomain(ctx, ratelimitTypeUser, testDomain)
+			err := handler.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: testDomain})
 
 			if tt.expectBypass {
 				assert.NoError(t, err, "Expected bypass to allow request")
@@ -324,7 +324,7 @@ func TestCallerTypeBypassWithWait(t *testing.T) {
 			// Wait returns an error, but waitCtx.Err() is nil (case nil path)
 			handler.workerRateLimiter.(*mockPolicy).On("Wait", mock.Anything, quotas.Info{Domain: testDomain}).Return(assert.AnError).Once()
 
-			err := handler.allowDomain(ctx, ratelimitTypeWorkerPoll, testDomain)
+			err := handler.allowDomain(ctx, ratelimitTypeWorkerPoll, quotas.Info{Domain: testDomain})
 
 			if tt.expectBypass {
 				assert.NoError(t, err, "Expected bypass to allow request")

@@ -39,8 +39,9 @@ const (
 )
 
 const (
-	heartbeatJitterCoeff     = 0.1 // 10% jitter
-	drainingHeartbeatTimeout = 5 * time.Second
+	heartbeatJitterCoeff           = 0.1 // 10% jitter
+	drainingHeartbeatTimeout       = 5 * time.Second
+	processorAsyncOperationTimeout = 10 * time.Second //  maximum time allowed for a shard processor Start or Stop call.
 )
 
 type managedProcessor[SP ShardProcessor] struct {
@@ -404,137 +405,174 @@ func (e *executorImpl[SP]) sendDrainingHeartbeat() {
 }
 
 func (e *executorImpl[SP]) updateShardAssignment(ctx context.Context, shardAssignments map[string]*types.ShardAssignment) {
-	wg := sync.WaitGroup{}
-
-	// Stop shard processing for shards not assigned to this executor
+	// Stop shards no longer assigned. Each call fires 2 goroutines: one for the
+	// Stop() call and one per-shard timeout watcher.
 	e.managedProcessors.Range(func(shardID string, managedProcessor *managedProcessor[SP]) bool {
 		if assignment, ok := shardAssignments[shardID]; !ok || assignment.Status != types.AssignmentStatusREADY {
-			wg.Add(1)
-			go func(shardID string) {
-				defer wg.Done()
-				e.stopManagerProcessor(shardID)
-			}(shardID)
+			e.stopManagerProcessor(shardID)
 		}
 		return true
 	})
 
-	// Start shard processing for shards assigned to this executor
+	// Start newly assigned shards. Each call fires 2 goroutines: one for the
+	// Start() call and one per-shard timeout watcher.
 	for shardID, assignment := range shardAssignments {
 		if assignment.Status == types.AssignmentStatusREADY {
-			wg.Add(1)
-			go func(shardID string) {
-				defer wg.Done()
-				e.addManagerProcessor(ctx, shardID)
-			}(shardID)
+			e.addManagerProcessor(ctx, shardID)
 		}
 	}
-
-	wg.Wait()
 }
 
 func (e *executorImpl[SP]) addNewShards(ctx context.Context, shardAssignments map[string]*types.ShardAssignment) {
-	wg := sync.WaitGroup{}
-
 	for shardID, assignment := range shardAssignments {
 		if assignment.Status == types.AssignmentStatusREADY {
-			wg.Add(1)
-			go func(shardID string) {
-				defer wg.Done()
-				e.addManagerProcessor(ctx, shardID)
-			}(shardID)
+			e.addManagerProcessor(ctx, shardID)
 		}
 	}
-
-	wg.Wait()
 }
 
 func (e *executorImpl[SP]) deleteShards(shardIDs []string) {
-	wg := sync.WaitGroup{}
 	for _, shardID := range shardIDs {
-		wg.Add(1)
-		go func(shardID string) {
-			defer wg.Done()
-			e.stopManagerProcessor(shardID)
-		}(shardID)
+		e.stopManagerProcessor(shardID)
 	}
-	wg.Wait()
 }
 
 func (e *executorImpl[SP]) stopShardProcessors() {
-	wg := sync.WaitGroup{}
-
-	e.managedProcessors.Range(func(shardID string, managedProcessor *managedProcessor[SP]) bool {
-		wg.Add(1)
-		go func(shardID string) {
-			defer wg.Done()
-			e.stopManagerProcessor(shardID)
-		}(shardID)
+	// Synchronous: collect each per-shard done channel and block until all
+	// Stop() calls finish.
+	var doneChans []<-chan struct{}
+	e.managedProcessors.Range(func(shardID string, _ *managedProcessor[SP]) bool {
+		if ch := e.stopManagerProcessor(shardID); ch != nil {
+			doneChans = append(doneChans, ch)
+		}
 		return true
 	})
-
-	wg.Wait()
-}
-
-func (e *executorImpl[SP]) addManagerProcessor(ctx context.Context, shardID string) {
-	if _, ok := e.managedProcessors.Load(shardID); !ok {
-		e.metrics.Counter(metricsconstants.ShardDistributorExecutorShardsStarted).Inc(1)
-		processor, err := e.shardProcessorFactory.NewShardProcessor(shardID)
-		if err != nil {
-			e.logger.Error("failed to create shard processor", tag.Error(err))
-			e.metrics.Counter(metricsconstants.ShardDistributorExecutorProcessorCreationFailures).Inc(1)
-			return
-		}
-		managedProcessor := newManagedProcessor(processor, processorStateStarting)
-		e.managedProcessors.Store(shardID, managedProcessor)
-
-		processor.Start(ctx)
-
-		managedProcessor.setState(processorStateStarted)
-
+	for _, ch := range doneChans {
+		<-ch
 	}
 }
-func (e *executorImpl[SP]) stopManagerProcessor(shardID string) {
-	managedProcessor, ok := e.managedProcessors.Load(shardID)
-	// If the processor do not exist for the shard, or it is already stopping, skip it
-	if !ok || managedProcessor.getState() == processorStateStopping {
+
+// addManagerProcessor creates a new shard processor, stores it in the map
+// synchronously (state: starting), then fires 2 goroutines: one to call Start()
+// and one per-shard timeout watcher. No-ops if the shard is already tracked.
+func (e *executorImpl[SP]) addManagerProcessor(ctx context.Context, shardID string) {
+	if existing, ok := e.managedProcessors.Load(shardID); ok {
+		// The processor already exists. If it is stopping (Stop goroutine still
+		// running) we log and skip — the next heartbeat will re-send the shard as
+		// READY once the entry is gone and addManagerProcessor will create a fresh one.
+		if existing.getState() == processorStateStopping {
+			e.logger.Info("shard processor add skipped: existing processor is still stopping, will retry on next heartbeat",
+				tag.ShardKey(shardID))
+		}
 		return
+	}
+
+	e.metrics.Counter(metricsconstants.ShardDistributorExecutorShardsStarted).Inc(1)
+	processor, err := e.shardProcessorFactory.NewShardProcessor(shardID)
+	if err != nil {
+		e.logger.Error("failed to create shard processor", tag.Error(err))
+		e.metrics.Counter(metricsconstants.ShardDistributorExecutorProcessorCreationFailures).Inc(1)
+		return
+	}
+	managedProcessor := newManagedProcessor(processor, processorStateStarting)
+	e.managedProcessors.Store(shardID, managedProcessor)
+	// Seed the last-use time so that the cleanup loop can evict shards that are
+	// assigned but never accessed via GetShardProcess within the TTL window.
+	e.processorsToLastUse.Store(shardID, e.timeSource.Now())
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := processor.Start(context.WithoutCancel(ctx)); err != nil {
+			e.logger.Error("shard processor start failed", tag.ShardKey(shardID), tag.Error(err))
+			// Remove the failed processor so the next heartbeat can retry.
+			e.managedProcessors.Delete(shardID)
+			return
+		}
+		managedProcessor.setState(processorStateStarted)
+	}()
+	go func() {
+		timer := e.timeSource.NewTimer(processorAsyncOperationTimeout)
+		defer timer.Stop()
+		select {
+		case <-done:
+		case <-timer.Chan():
+			e.logger.Error("shard processor start timed out", tag.ShardKey(shardID))
+			e.metrics.Counter(metricsconstants.ShardDistributorExecutorProcessorStartTimeout).Inc(1)
+		}
+	}()
+}
+
+// stopManagerProcessor transitions the processor to stopping, removes it from the
+// map synchronously, then fires 2 goroutines: one to call Stop() and one per-shard
+// timeout watcher. Returns a done channel that closes when Stop() returns so callers
+// that need to block (e.g. stopShardProcessors) can wait on it.
+// No-ops if the processor is not found or already stopping; returns nil in that case.
+func (e *executorImpl[SP]) stopManagerProcessor(shardID string) <-chan struct{} {
+	managedProcessor, ok := e.managedProcessors.Load(shardID)
+	if !ok || managedProcessor.getState() == processorStateStopping {
+		return nil
 	}
 	e.metrics.Counter(metricsconstants.ShardDistributorExecutorShardsStopped).Inc(1)
 	managedProcessor.setState(processorStateStopping)
-	managedProcessor.processor.Stop()
+	// Delete synchronously so the next heartbeat sees a clean state immediately
+	// and can re-add the shard if the server re-assigns it.
 	e.managedProcessors.Delete(shardID)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		managedProcessor.processor.Stop()
+	}()
+	go func() {
+		timer := e.timeSource.NewTimer(processorAsyncOperationTimeout)
+		defer timer.Stop()
+		select {
+		case <-done:
+		case <-timer.Chan():
+			e.logger.Error("shard processor stop timed out", tag.ShardKey(shardID))
+			e.metrics.Counter(metricsconstants.ShardDistributorExecutorProcessorStopTimeout).Inc(1)
+		}
+	}()
+	return done
 }
 
 func (e *executorImpl[SP]) shardCleanUpLoop(ctx context.Context) {
 	// We don't run the loop for invalid durations
 	if e.ttlShard <= 0 {
-
+		e.logger.Info("cleanUpLoop not configured", tag.Dynamic("ttlShard", e.ttlShard))
 		return
 	}
+	e.logger.Info("cleanUpLoop configured", tag.Dynamic("ttlShard", e.ttlShard))
 	shardCleanUpTimer := e.timeSource.NewTimer(backoff.JitDuration(e.ttlShard, heartbeatJitterCoeff))
 	defer shardCleanUpTimer.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
+			e.logger.Info("stopping cleanUpLoop: context done")
 			return
 		case <-e.stopC:
+			e.logger.Info("stopping cleanUpLoop: stop signal")
 			return
 		case <-shardCleanUpTimer.Chan():
-			e.processorsToLastUse.Range(func(shardID string, time time.Time) bool {
-				if time.Add(e.ttlShard).Before(e.timeSource.Now()) {
-					if e.getMigrationMode() == types.MigrationModeONBOARDED {
-						mp, ok := e.managedProcessors.Load(shardID)
-						if ok {
-							mp.processor.SetShardStatus(types.ShardStatusDONE)
-						}
-					} else {
-						e.deleteShards([]string{shardID})
+			e.logger.Info("running cleanUpLoop")
+			e.processorsToLastUse.Range(func(shardID string, lastUse time.Time) bool {
+				if lastUse.Add(e.ttlShard).Before(e.timeSource.Now()) && e.getMigrationMode() == types.MigrationModeONBOARDED {
+					mp, ok := e.managedProcessors.Load(shardID)
+					if ok {
+						e.logger.Info("shard cleanup: marking shard as done (idle past TTL)",
+							tag.ShardKey(shardID),
+							tag.Dynamic("idle_duration", e.timeSource.Since(lastUse).String()),
+						)
+						mp.processor.SetShardStatus(types.ShardStatusDONE)
+						e.metrics.Counter(metricsconstants.ShardDistributorExecutorShardsCleanedUpDone).Inc(1)
 					}
 					e.processorsToLastUse.Delete(shardID)
 				}
 				return true
 			})
+			shardCleanUpTimer.Reset(backoff.JitDuration(e.ttlShard, heartbeatJitterCoeff))
 		}
 	}
 }
@@ -556,7 +594,7 @@ func (e *executorImpl[SP]) compareAssignments(heartbeatAssignments map[string]*t
 		assignment, exists := heartbeatAssignments[shardID]
 		if !exists || assignment.Status != types.AssignmentStatusREADY {
 			e.logger.Warn("assignment divergence: local shard not in heartbeat or not ready",
-				tag.Dynamic("shard-id", shardID))
+				tag.ShardKey(shardID))
 			e.emitMetricsConvergence(false)
 			return ErrAssignmentDivergenceLocalShard
 		}
@@ -567,7 +605,7 @@ func (e *executorImpl[SP]) compareAssignments(heartbeatAssignments map[string]*t
 		if assignment.Status == types.AssignmentStatusREADY {
 			if !localAssignments[shardID] {
 				e.logger.Warn("assignment divergence: heartbeat shard not in local",
-					tag.Dynamic("shard-id", shardID))
+					tag.ShardKey(shardID))
 				e.emitMetricsConvergence(false)
 				return ErrAssignmentDivergenceHeartbeatShard
 			}

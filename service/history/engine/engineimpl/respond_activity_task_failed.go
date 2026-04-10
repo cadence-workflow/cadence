@@ -135,7 +135,9 @@ func (e *historyEngineImpl) RespondActivityTaskFailed(
 				metrics.ActivityTypeTag(token.ActivityType),
 				metrics.TaskListTag(taskList),
 			)
-		scope.RecordTimer(metrics.ActivityE2ELatency, time.Since(activityStartedTime))
+		e2eLatency := time.Since(activityStartedTime)
+		scope.RecordTimer(metrics.ActivityE2ELatency, e2eLatency)
+		scope.ExponentialHistogram(metrics.ActivityE2ELatencyHistogram, e2eLatency)
 	}
 	return err
 }

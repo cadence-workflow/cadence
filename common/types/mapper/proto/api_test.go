@@ -2035,10 +2035,10 @@ func TestListOpenWorkflowExecutionsRequestFuzz(t *testing.T) {
 }
 
 func TestGetTaskListsByDomainResponseFuzz(t *testing.T) {
-	// SKIPPED: PartitionConfig is nested inside map values (map[string]*DescribeTaskListResponse)
-	// clearFieldsIf cannot modify fields inside map values due to Go reflection limitations
-	// TODO(c-warren): Implement map rebuilding in clearFieldsIf to support this pattern
-	t.Skip("Map value field exclusion not yet supported")
+	// SKIPPED: TaskListPartitionConfig uses map[int]*TaskListPartition internally but the proto
+	// mapper converts int keys to int32, making the round trip lossy for fuzzed int values.
+	// This is a known limitation of the proto mapper, not a clearFieldsIf issue.
+	t.Skip("Proto mapper truncates map[int] keys to int32, causing lossy round trip")
 	testutils.RunMapperFuzzTest(t, FromGetTaskListsByDomainResponse, ToGetTaskListsByDomainResponse)
 }
 

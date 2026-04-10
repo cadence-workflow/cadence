@@ -121,7 +121,16 @@ func (v *CreateScheduleRequest) GetSearchAttributes() *SearchAttributes {
 }
 
 // CreateScheduleResponse is the response for creating a schedule.
-type CreateScheduleResponse struct{}
+type CreateScheduleResponse struct {
+	ScheduleID string `json:"scheduleId,omitempty"`
+}
+
+func (v *CreateScheduleResponse) GetScheduleID() (o string) {
+	if v != nil {
+		return v.ScheduleID
+	}
+	return
+}
 
 // DescribeScheduleRequest is the request to describe a schedule.
 type DescribeScheduleRequest struct {
@@ -286,6 +295,7 @@ type PauseScheduleRequest struct {
 	Domain     string `json:"domain,omitempty"`
 	ScheduleID string `json:"scheduleId,omitempty"`
 	Reason     string `json:"reason,omitempty"`
+	Identity   string `json:"identity,omitempty"`
 }
 
 func (v *PauseScheduleRequest) GetDomain() (o string) {
@@ -305,6 +315,13 @@ func (v *PauseScheduleRequest) GetScheduleID() (o string) {
 func (v *PauseScheduleRequest) GetReason() (o string) {
 	if v != nil {
 		return v.Reason
+	}
+	return
+}
+
+func (v *PauseScheduleRequest) GetIdentity() (o string) {
+	if v != nil {
+		return v.Identity
 	}
 	return
 }

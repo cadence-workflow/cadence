@@ -371,7 +371,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 				},
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("database error"))
 			},
 			expectedError: "database error",
@@ -392,7 +392,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 				},
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).
 					Return(nil, &types.EntityNotExistsError{Message: "policy not found"})
 			},
 			expectedResult: &types.ActiveClusterInfo{
@@ -416,7 +416,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 				},
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).
 					Return(nil, &types.EntityNotExistsError{Message: "policy not found"})
 			},
 			expectedResult: &types.ActiveClusterInfo{
@@ -440,7 +440,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 				},
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).
 					Return(&types.ActiveClusterSelectionPolicy{
 						ClusterAttribute: &types.ClusterAttribute{
 							Scope: "datacenter",
@@ -470,7 +470,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 				},
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).
 					Return(&types.ActiveClusterSelectionPolicy{
 						ClusterAttribute: &types.ClusterAttribute{
 							Scope: "region",
@@ -532,7 +532,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 				},
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).
 					Return(&types.ActiveClusterSelectionPolicy{
 						ClusterAttribute: nil, // nil cluster attribute
 					}, nil)
@@ -570,7 +570,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 				},
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).
 					Return(&types.ActiveClusterSelectionPolicy{
 						ClusterAttribute: &types.ClusterAttribute{
 							Scope: "city",
@@ -611,7 +611,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 					RunID: "current-run-id",
 				}, nil)
 				// Then expect GetActiveClusterSelectionPolicy with the returned runID
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "current-run-id").
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).
 					Return(&types.ActiveClusterSelectionPolicy{
 						ClusterAttribute: &types.ClusterAttribute{
 							Scope: "region",
@@ -852,7 +852,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 					RunID: "test-run-id",
 					State: persistence.WorkflowStateRunning,
 				}, nil)
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).
 					Return(&types.ActiveClusterSelectionPolicy{
 						ClusterAttribute: &types.ClusterAttribute{
 							Scope: "region",
@@ -895,7 +895,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 					RunID: "test-run-id",
 					State: persistence.WorkflowStateCreated,
 				}, nil)
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).
 					Return(&types.ActiveClusterSelectionPolicy{
 						ClusterAttribute: &types.ClusterAttribute{
 							Scope: "datacenter",
@@ -934,7 +934,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 					RunID: "test-run-id",
 					State: persistence.WorkflowStateRunning,
 				}, nil)
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("database error"))
 			},
 			expectedError:   "database error",
@@ -1006,7 +1006,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 					RunID: "test-run-id",
 					State: persistence.WorkflowStateRunning,
 				}, nil)
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).
 					Return(nil, &types.EntityNotExistsError{Message: "policy not found"})
 			},
 			expectedError:   "policy not found",
@@ -1035,7 +1035,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 					RunID: "test-run-id",
 					State: persistence.WorkflowStateRunning,
 				}, nil)
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).
 					Return(&types.ActiveClusterSelectionPolicy{
 						ClusterAttribute: nil,
 					}, nil)

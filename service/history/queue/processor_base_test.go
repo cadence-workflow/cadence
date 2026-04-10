@@ -78,7 +78,7 @@ func (s *processorBaseSuite) SetupTest() {
 	s.mockTaskProcessor = task.NewMockProcessor(s.controller)
 
 	s.logger = testlogger.New(s.Suite.T())
-	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
+	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	s.metricsScope = s.metricsClient.Scope(metrics.TransferQueueProcessorScope)
 }
 

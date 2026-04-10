@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+//go:build !race
+
 package sqlite
 
 import (
@@ -113,5 +115,9 @@ func TestSQLiteConfigPersistence(t *testing.T) {
 }
 
 func TestSQLiteDomainAuditPersistence(t *testing.T) {
-	t.Skip("DomainAuditPersistence is only implemented for NoSQL/Cassandra in this PR")
+	s := new(pt.DomainAuditPersistenceSuite)
+	option := GetTestClusterOption()
+	s.TestBase = pt.NewTestBaseWithSQL(t, option)
+	s.TestBase.Setup()
+	suite.Run(t, s)
 }

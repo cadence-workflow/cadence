@@ -19,7 +19,6 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/canary"
 	canaryConfig "github.com/uber/cadence/service/sharddistributor/canary/config"
-	"github.com/uber/cadence/service/sharddistributor/canary/executors"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
@@ -62,10 +61,6 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort in
 		Namespaces: []clientcommon.NamespaceConfig{
 			{Namespace: fixedNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
 			{Namespace: ephemeralNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
-			{Namespace: executors.LocalPassthroughNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeLOCALPASSTHROUGH},
-			{Namespace: executors.LocalPassthroughShadowNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeLOCALPASSTHROUGHSHADOW},
-			{Namespace: executors.DistributedPassthroughNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeDISTRIBUTEDPASSTHROUGH},
-			{Namespace: executors.ExternalAssignmentNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeDISTRIBUTEDPASSTHROUGH},
 		},
 	}
 
@@ -145,7 +140,6 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort in
 		canary.Module(canary.NamespacesNames{
 			FixedNamespace:              fixedNamespace,
 			EphemeralNamespace:          ephemeralNamespace,
-			ExternalAssignmentNamespace: executors.ExternalAssignmentNamespace,
 			SharddistributorServiceName: shardDistributorServiceName,
 			Config: canaryConfig.Config{
 				Canary: canaryConfig.CanaryConfig{

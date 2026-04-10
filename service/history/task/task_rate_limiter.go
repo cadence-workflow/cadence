@@ -48,7 +48,7 @@ type (
 		logger           log.Logger
 		metricsScope     metrics.Scope
 		domainCache      cache.DomainCache
-		limiters         quotas.ICollection
+		limiters         quotas.ICollection[string]
 		enabled          dynamicproperties.BoolPropertyFn
 		enableShadowMode dynamicproperties.BoolPropertyFnWithDomainFilter
 	}

@@ -103,6 +103,10 @@ type (
 		//
 		// Timers will eventually be dropped, and this config will be validation-only (e.g. to error if any explicitly request timers).
 		Histograms metrics.HistogramMigration `yaml:"histograms"`
+		// Gauges controls gauge metric emission during migration.
+		Gauges metrics.GaugeMigration `yaml:"gauge-migration"`
+		// Counters controls counter metric emission during migration.
+		Counters metrics.CounterMigration `yaml:"counter-migration"`
 	}
 
 	// Membership holds peer provider configuration.
@@ -217,6 +221,8 @@ type (
 		// TODO: move dynamic config out of static config
 		// ErrorInjectionRate is the the rate for injecting random error
 		ErrorInjectionRate dynamicproperties.FloatPropertyFn `yaml:"-" json:"-"`
+		// HostName for emitting per-host metrics
+		HostName string `yaml:"-" json:"-"`
 	}
 
 	// DataStore is the configuration for a single datastore

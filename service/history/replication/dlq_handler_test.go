@@ -250,6 +250,11 @@ func (s *dlqHandlerSuite) TestEmitDLQSizeMetricsLoop_FetchesAndEmitsMetricsPerio
 		mockTimeSource.Advance(dlqMetricsEmitTimerInterval + time.Duration(int64(float64(dlqMetricsEmitTimerInterval)*(1+dlqMetricsEmitTimerCoefficient))))
 	}
 
+	// Wait for the last emission to complete before stopping. The goroutine calls
+	// timer.Reset only after fetchAndEmitMessageCount returns, so BlockUntil(1)
+	// guarantees the final call has been made.
+	mockTimeSource.BlockUntil(1)
+
 	s.messageHandler.Stop()
 
 	s.Equal(common.DaemonStatusStopped, s.messageHandler.status)
@@ -281,6 +286,7 @@ func (s *dlqHandlerSuite) TestReadMessages_OK() {
 		MaxReadLevel:      lastMessageID + 1,
 		BatchSize:         pageSize,
 		NextPageToken:     pageToken,
+		ShardID:           common.Ptr(0),
 	}).Return(resp, nil).Times(1)
 
 	s.mockClientBean.EXPECT().GetRemoteAdminClient(s.sourceCluster).Return(s.adminClient, nil).AnyTimes()
@@ -335,6 +341,7 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_OK() {
 		MaxReadLevel:      lastMessageID + 1,
 		BatchSize:         pageSize,
 		NextPageToken:     pageToken,
+		ShardID:           common.Ptr(0),
 	}
 
 	s.executionManager.On("GetReplicationTasksFromDLQ", ctx, req).Return(replicationTasksResponse, nil).Times(1)
@@ -370,6 +377,7 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_GetReplicationTasksFromDL
 		MaxReadLevel:      lastMessageID + 1,
 		BatchSize:         pageSize,
 		NextPageToken:     pageToken,
+		ShardID:           common.Ptr(0),
 	}
 
 	s.executionManager.On("GetReplicationTasksFromDLQ", ctx, req).Return(nil, errors.New(errorMessage)).Times(1)
@@ -405,6 +413,7 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_GetDLQReplicationMessages
 		MaxReadLevel:      lastMessageID + 1,
 		BatchSize:         pageSize,
 		NextPageToken:     pageToken,
+		ShardID:           common.Ptr(0),
 	}
 
 	replicationTasksResponse := &persistence.GetHistoryTasksResponse{
@@ -449,6 +458,7 @@ func (s *dlqHandlerSuite) TestPurgeMessages() {
 					SourceClusterName:    s.sourceCluster,
 					InclusiveBeginTaskID: 0,
 					ExclusiveEndTaskID:   lastMessageID + 1,
+					ShardID:              common.Ptr(0),
 				}).Return(&persistence.RangeDeleteReplicationTaskFromDLQResponse{TasksCompleted: persistence.UnknownNumRowsAffected}, tc.err).Times(1)
 
 			err := s.messageHandler.PurgeMessages(context.Background(), s.sourceCluster, lastMessageID)
@@ -498,6 +508,7 @@ func (s *dlqHandlerSuite) TestMergeMessages_OK() {
 		MaxReadLevel:      lastMessageID + 1,
 		BatchSize:         pageSize,
 		NextPageToken:     pageToken,
+		ShardID:           common.Ptr(0),
 	}).Return(resp, nil).Times(1)
 
 	s.mockClientBean.EXPECT().GetRemoteAdminClient(s.sourceCluster).Return(s.adminClient, nil).AnyTimes()
@@ -515,6 +526,7 @@ func (s *dlqHandlerSuite) TestMergeMessages_OK() {
 			SourceClusterName:    s.sourceCluster,
 			InclusiveBeginTaskID: 0,
 			ExclusiveEndTaskID:   lastMessageID + 1,
+			ShardID:              common.Ptr(0),
 		}).Return(&persistence.RangeDeleteReplicationTaskFromDLQResponse{TasksCompleted: persistence.UnknownNumRowsAffected}, nil).Times(1)
 
 	token, err := s.messageHandler.MergeMessages(ctx, s.sourceCluster, lastMessageID, pageSize, pageToken)
@@ -561,6 +573,7 @@ func (s *dlqHandlerSuite) TestMergeMessages_executeFailed() {
 		MaxReadLevel:      lastMessageID + 1,
 		BatchSize:         pageSize,
 		NextPageToken:     pageToken,
+		ShardID:           common.Ptr(0),
 	}).Return(&persistence.GetHistoryTasksResponse{Tasks: []persistence.Task{&persistence.HistoryReplicationTask{TaskData: persistence.TaskData{TaskID: 1}}}}, nil).Times(1)
 
 	s.adminClient.EXPECT().GetDLQReplicationMessages(ctx, gomock.Any()).

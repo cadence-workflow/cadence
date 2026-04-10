@@ -23,3 +23,4 @@
 - Tim Li (https://github.com/timl3136)
 - Vsevolod Kaloshin (https://github.com/arzonus)
 - Zijian Chen (https://github.com/Shaddoll)
+- Yawei Zhang (https://github.com/YaweiZhang-930)

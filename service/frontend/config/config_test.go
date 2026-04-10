@@ -110,6 +110,12 @@ func TestNewConfig(t *testing.T) {
 		"PinotOptimizedQueryColumns":                        {dynamicproperties.PinotOptimizedQueryColumns, map[string]interface{}{"foo": "bar"}},
 		"EnableDomainAuditLogging":                          {dynamicproperties.EnableDomainAuditLogging, true},
 		"RateLimiterBypassCallerTypes":                      {dynamicproperties.RateLimiterBypassCallerTypes, []interface{}{"cli", "ui"}},
+		"MaxTaskListUserRPSPerInstance":                     {dynamicproperties.FrontendMaxTaskListUserRPSPerInstance, 40},
+		"MaxTaskListWorkerRPSPerInstance":                   {dynamicproperties.FrontendMaxTaskListWorkerRPSPerInstance, 41},
+		"MaxTaskListAsyncRPSPerInstance":                    {dynamicproperties.FrontendMaxTaskListAsyncRPSPerInstance, 43},
+		"GlobalTaskListUserRPS":                             {dynamicproperties.FrontendGlobalTaskListUserRPS, 44},
+		"GlobalTaskListWorkerRPS":                           {dynamicproperties.FrontendGlobalTaskListWorkerRPS, 45},
+		"GlobalTaskListAsyncRPS":                            {dynamicproperties.FrontendGlobalTaskListAsyncRPS, 46},
 	}
 	domainFields := map[string]configTestCase{
 		"MaxBadBinaryCount":        {dynamicproperties.FrontendMaxBadBinaries, 40},
@@ -185,6 +191,8 @@ func getValue(f *reflect.Value) interface{} {
 			return fn("domain")
 		case dynamicproperties.ListPropertyFn:
 			return fn()
+		case dynamicproperties.IntPropertyFnWithTaskListInfoFilters:
+			return fn("domain", "taskList", 0)
 		default:
 			panic("Unable to handle type: " + f.Type().Name())
 		}

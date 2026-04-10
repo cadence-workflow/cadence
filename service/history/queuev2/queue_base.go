@@ -26,6 +26,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -311,6 +312,7 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 				InclusiveMinTaskKey: inclusiveMinTaskKey,
 				ExclusiveMaxTaskKey: exclusiveMaxTaskKey,
 				PageSize:            pageSize,
+				ShardID:             common.Ptr(q.shard.GetShardID()),
 			})
 			if err != nil {
 				q.logger.Error("Failed to range complete history tasks", tag.Error(err))

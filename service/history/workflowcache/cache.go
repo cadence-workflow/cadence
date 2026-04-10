@@ -48,8 +48,8 @@ type WFCache interface {
 
 type wfCache struct {
 	lru                    cache.Cache
-	externalLimiterFactory quotas.LimiterFactory
-	internalLimiterFactory quotas.LimiterFactory
+	externalLimiterFactory quotas.LimiterFactory[string]
+	internalLimiterFactory quotas.LimiterFactory[string]
 	domainCache            cache.DomainCache
 	metricsClient          metrics.Client
 	logger                 log.Logger
@@ -75,8 +75,8 @@ type cacheValue struct {
 type Params struct {
 	TTL                    time.Duration
 	MaxCount               int
-	ExternalLimiterFactory quotas.LimiterFactory
-	InternalLimiterFactory quotas.LimiterFactory
+	ExternalLimiterFactory quotas.LimiterFactory[string]
+	InternalLimiterFactory quotas.LimiterFactory[string]
 	DomainCache            cache.DomainCache
 	MetricsClient          metrics.Client
 	Logger                 log.Logger

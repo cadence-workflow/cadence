@@ -158,7 +158,7 @@ func checkHistogram[T any](t *testing.T, h histogrammy[T], expected string) {
 	var buf strings.Builder
 	h.print(func(s string, a ...any) {
 		str := fmt.Sprintf(s, a...)
-		t.Logf(str)
+		t.Logf("%s", str)
 		buf.WriteString(str)
 	})
 	if strings.TrimSpace(expected) != strings.TrimSpace(buf.String()) {

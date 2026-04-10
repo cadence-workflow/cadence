@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -355,6 +356,7 @@ func (s *historyCacheSuite) TestGetOrCreateWorkflowExecution() {
 			mockSetup: func(mockShard *shard.TestContext) {
 				mockShard.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).Return(constants.TestDomainName, nil).Times(1)
 				req := &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(0),
 					DomainID:   constants.TestDomainID,
 					WorkflowID: constants.TestWorkflowID,
 					DomainName: constants.TestDomainName,
@@ -380,6 +382,7 @@ func (s *historyCacheSuite) TestGetOrCreateWorkflowExecution() {
 			mockSetup: func(mockShard *shard.TestContext) {
 				mockShard.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).Return(constants.TestDomainName, nil).Times(1)
 				req := &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(0),
 					DomainID:   constants.TestDomainID,
 					WorkflowID: constants.TestWorkflowID,
 					DomainName: constants.TestDomainName,

@@ -219,3 +219,81 @@ workflow.Register(MyWorkflowFunc)
 activity.Register(MyActivityFunc)
 client.ExecuteWorkflow(ctx, workflowOptions, MyWorkflowFunc, inputData)
 ```
+
+---
+
+## 9. Use workflow.GetVersion() When Modifying Workflows
+
+Always use workflow.GetVersion() when adding, removing, or reordering activities, child workflows, or timers. This prevents breaking in-flight workflows during deployment.
+
+**USE**
+```go
+func MyWorkflow(ctx workflow.Context) error {
+    v := workflow.GetVersion(ctx, "add-validation", workflow.DefaultVersion, 1)
+    if v >= 1 {
+        // New code path
+        err := workflow.ExecuteActivity(ctx, ValidateInput).Get(ctx, nil)
+        if err != nil {
+            return err
+        }
+    }
+    // Original workflow continues
+    return workflow.ExecuteActivity(ctx, ProcessOrder).Get(ctx, nil)
+}
+```
+
+**NEVER USE**
+```go
+func MyWorkflow(ctx workflow.Context) error {
+    // BAD: Adding this activity breaks in-flight workflows!
+    err := workflow.ExecuteActivity(ctx, ValidateInput).Get(ctx, nil)
+    if err != nil {
+        return err
+    }
+    return workflow.ExecuteActivity(ctx, ProcessOrder).Get(ctx, nil)
+}
+```
+
+**Deployment Strategy:**
+1. Deploy with GetVersion supporting both DefaultVersion (old) and 1 (new)
+2. Wait for all old workflow instances to complete
+3. Remove DefaultVersion branch; eventually remove GetVersion call
+
+---
+
+## 10. Use workflow.Channel and workflow.Selector
+
+In addition to workflow.Go (rule 2), also use Cadence-managed channels and selectors instead of native Go primitives.
+
+**USE**
+```go
+// Channel
+ch := workflow.NewChannel(ctx)
+
+// Selector
+sel := workflow.NewSelector(ctx)
+timer := workflow.NewTimer(ctx, timeout)
+signalChan := workflow.GetSignalChannel(ctx, "cancel")
+
+sel.AddFuture(timer, func(f workflow.Future) {
+    workflow.GetLogger(ctx).Info("timeout")
+})
+sel.AddReceive(signalChan, func(c workflow.Channel, _ bool) {
+    workflow.GetLogger(ctx).Info("cancelled")
+})
+sel.Select(ctx)
+```
+
+**NEVER USE**
+```go
+// Native channel
+ch := make(chan Result)
+
+// Native select
+select {
+case <-timer:
+    log.Println("timeout")
+case <-cancel:
+    log.Println("cancelled")
+}
+```

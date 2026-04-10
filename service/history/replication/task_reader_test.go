@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -66,6 +67,7 @@ func TestTaskReader(t *testing.T) {
 					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(51),
 					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(101),
 					PageSize:            testBatchSize,
+					ShardID:             common.Ptr(testShardID),
 				}).Return(&persistence.GetHistoryTasksResponse{Tasks: testReplicationTasks}, nil)
 			},
 			expectResponse: testReplicationTasks,

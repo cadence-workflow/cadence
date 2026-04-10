@@ -92,7 +92,7 @@ func (s *contextTestSuite) SetupTest() {
 	s.mockResource = resource.NewTest(s.T(), s.controller, metrics.History)
 	s.mockShardManager = s.mockResource.ShardMgr
 
-	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
+	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	s.logger = testlogger.New(s.T())
 
 	s.context = s.newContext()

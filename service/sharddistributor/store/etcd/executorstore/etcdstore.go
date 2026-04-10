@@ -60,7 +60,7 @@ type ExecutorStoreParams struct {
 	fx.In
 
 	Client        etcdclient.Client `name:"executorstore"`
-	ETCDConfig    ETCDConfig
+	ETCDConfig    etcdclient.ExecutorStoreConfig
 	Lifecycle     fx.Lifecycle
 	Logger        log.Logger
 	TimeSource    clock.TimeSource

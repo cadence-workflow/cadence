@@ -161,7 +161,9 @@ func (tc *taskCompleterImpl) CompleteTaskIfStarted(ctx context.Context, task *In
 
 	if err != nil && !errors.Is(err, errDomainIsActive) && !errors.Is(err, errTaskNotStarted) {
 		tc.scope.IncCounter(metrics.StandbyClusterTasksCompletionFailurePerTaskList)
-		tc.logger.Error("Error completing task on domain's standby cluster", tag.Error(err), tag.WorkflowID(task.Event.WorkflowID), tag.WorkflowRunID(task.Event.RunID), tag.MatchingTaskID(task.Event.TaskID))
+		if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+			tc.logger.Error("Error completing task on domain's standby cluster", tag.Error(err), tag.WorkflowID(task.Event.WorkflowID), tag.WorkflowRunID(task.Event.RunID), tag.MatchingTaskID(task.Event.TaskID))
+		}
 	}
 
 	return err

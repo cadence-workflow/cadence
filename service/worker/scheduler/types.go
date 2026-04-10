@@ -75,6 +75,17 @@ type SchedulerWorkflowState struct {
 	Iterations        int               `json:"iterations"`
 	BufferedRuns      int               `json:"bufferedRuns"`
 	PendingBackfills  []BackfillRequest `json:"pendingBackfills,omitempty"`
+	// LastStartedWorkflow tracks the most recently started target workflow so
+	// the overlap policy can check whether it is still running before starting
+	// the next one. Nil when no workflow has been started yet.
+	LastStartedWorkflow *RunningWorkflowInfo `json:"lastStartedWorkflow,omitempty"`
+}
+
+// RunningWorkflowInfo identifies a target workflow started by the scheduler,
+// used for overlap policy checks.
+type RunningWorkflowInfo struct {
+	WorkflowID string `json:"workflowId"`
+	RunID      string `json:"runId"`
 }
 
 // BackfillRequest is a queued backfill that persists across ContinueAsNew.
@@ -140,19 +151,25 @@ const (
 	TriggerSourceBackfill TriggerSource = "backfill"
 )
 
-// StartWorkflowRequest is the input to the start-workflow activity.
-type StartWorkflowRequest struct {
-	Domain        string                    `json:"domain"`
-	ScheduleID    string                    `json:"scheduleId"`
-	Action        types.StartWorkflowAction `json:"action"`
-	ScheduledTime time.Time                 `json:"scheduledTime"`
-	TriggerSource TriggerSource             `json:"triggerSource"`
+// ProcessFireRequest is the input to processScheduleFireActivity. It contains
+// everything the activity needs to resolve the overlap policy and start the
+// target workflow. All side effects (describe, cancel, terminate, start) happen
+// inside this single activity so the workflow history stays stable when the
+// overlap logic evolves.
+type ProcessFireRequest struct {
+	Domain              string                      `json:"domain"`
+	ScheduleID          string                      `json:"scheduleId"`
+	Action              types.StartWorkflowAction   `json:"action"`
+	ScheduledTime       time.Time                   `json:"scheduledTime"`
+	TriggerSource       TriggerSource               `json:"triggerSource"`
+	OverlapPolicy       types.ScheduleOverlapPolicy `json:"overlapPolicy"`
+	LastStartedWorkflow *RunningWorkflowInfo        `json:"lastStartedWorkflow,omitempty"`
 }
 
-// StartWorkflowResult is the output of the start-workflow activity.
-type StartWorkflowResult struct {
-	WorkflowID string `json:"workflowId"`
-	RunID      string `json:"runId"`
-	Started    bool   `json:"started"`
-	Skipped    bool   `json:"skipped"`
+// ProcessFireResult is the output of processScheduleFireActivity. The workflow
+// applies these counters and tracking info to its state after the activity returns.
+type ProcessFireResult struct {
+	StartedWorkflow *RunningWorkflowInfo `json:"startedWorkflow,omitempty"`
+	TotalDelta      int64                `json:"totalDelta"`
+	SkippedDelta    int64                `json:"skippedDelta"`
 }
