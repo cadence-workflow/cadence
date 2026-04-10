@@ -105,10 +105,6 @@ func (db *ddb) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, v
 	panic("TODO")
 }
 
-func (db *ddb) DeleteWorkflowTimerTask(ctx context.Context, shardID int, visibilityTimestamp time.Time, taskID int64) error {
-	panic("TODO")
-}
-
 func (db *ddb) RangeDeleteTimerTasks(ctx context.Context, shardID int, inclusiveMinTime, exclusiveMaxTime time.Time) error {
 	panic("TODO")
 }

@@ -540,26 +540,6 @@ func (db *CDB) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, v
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *CDB) DeleteWorkflowTimerTask(
-	ctx context.Context,
-	shardID int,
-	visibilityTimestamp time.Time,
-	taskID int64,
-) error {
-	ts := persistence.UnixNanoToDBTimestamp(visibilityTimestamp.UnixNano())
-	query := db.session.Query(templateCompleteTimerTaskQuery,
-		shardID,
-		rowTypeTimerTask,
-		rowTypeTimerDomainID,
-		rowTypeTimerWorkflowID,
-		rowTypeTimerRunID,
-		ts,
-		taskID,
-	).WithContext(ctx)
-
-	return db.executeWithConsistencyAll(query)
-}
-
 func (db *CDB) RangeDeleteTimerTasks(ctx context.Context, shardID int, inclusiveMinTime, exclusiveMaxTime time.Time) error {
 	start := persistence.UnixNanoToDBTimestamp(inclusiveMinTime.UnixNano())
 	end := persistence.UnixNanoToDBTimestamp(exclusiveMaxTime.UnixNano())

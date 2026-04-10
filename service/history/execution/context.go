@@ -47,10 +47,10 @@ import (
 )
 
 const (
-	defaultRemoteCallTimeout        = 30 * time.Second
-	checksumErrorRetryCount         = 3
-	maxLockDuration                 = 1 * time.Second
-	workflowTimerCleanupTimeout     = 5 * time.Second
+	defaultRemoteCallTimeout    = 30 * time.Second
+	checksumErrorRetryCount     = 3
+	maxLockDuration             = 1 * time.Second
+	workflowTimerCleanupTimeout = 5 * time.Second
 )
 
 type conflictError struct {
