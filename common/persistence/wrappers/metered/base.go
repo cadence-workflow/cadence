@@ -43,7 +43,6 @@ type base struct {
 	metricClient                  metrics.Client
 	logger                        log.Logger
 	enableLatencyHistogramMetrics bool
-	sampleLoggingRate             dynamicproperties.IntPropertyFn
 	enableShardIDMetrics          dynamicproperties.BoolPropertyFn
 	hostName                      string
 }
@@ -132,7 +131,7 @@ func (p *base) recordLatencyHistogram(scope metrics.ScopeIdx, duration time.Dura
 	if !p.enableLatencyHistogramMetrics {
 		return
 	}
-	p.metricClient.Scope(scope).RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+	p.metricClient.Scope(scope).RecordHistogramDuration(metrics.PersistenceLatencyManualHistogram, duration)
 
 }
 
@@ -148,8 +147,10 @@ func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag
 	duration := time.Since(before)
 	if len(tags) > 0 {
 		metricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration)
+		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerDomainHistogram, duration)
 	} else {
 		metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
+		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 	}
 	p.recordLatencyHistogram(scope, duration)
 
@@ -171,6 +172,7 @@ func (p *base) callWithoutDomainTag(scope metrics.ScopeIdx, op func() error, tag
 	err := op()
 	duration := time.Since(before)
 	metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
+	metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 	p.recordLatencyHistogram(scope, duration)
 
 	if err != nil {
@@ -180,6 +182,7 @@ func (p *base) callWithoutDomainTag(scope metrics.ScopeIdx, op func() error, tag
 }
 
 func (p *base) callWithDomainAndShardScope(scope metrics.ScopeIdx, op func() error, domainTag metrics.Tag, shardIDTag metrics.Tag, additionalTags ...metrics.Tag) error {
+	overallScope := p.metricClient.Scope(scope)
 	domainMetricsScope := p.metricClient.Scope(scope, append([]metrics.Tag{domainTag}, additionalTags...)...)
 	shardOperationsMetricsScope := p.metricClient.Scope(scope, append([]metrics.Tag{shardIDTag}, additionalTags...)...)
 	shardOverallMetricsScope := p.metricClient.Scope(metrics.PersistenceShardRequestCountScope, shardIDTag)
@@ -193,6 +196,8 @@ func (p *base) callWithDomainAndShardScope(scope metrics.ScopeIdx, op func() err
 	duration := time.Since(before)
 
 	domainMetricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration)
+	domainMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerDomainHistogram, duration)
+	overallScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 	shardOperationsMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
 	shardOverallMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
 	p.recordLatencyHistogram(scope, duration)

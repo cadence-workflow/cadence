@@ -221,25 +221,25 @@ func TestHistogramMode(t *testing.T) {
 	})
 
 	HistogramMigrationMetrics = map[string]struct{}{
-		findName(CadenceLatency):                            {},
-		findName(ExponentialReplicationTaskLatency):         {},
-		findName(PersistenceLatencyPerShard):                {},
-		findName(ExponentialTaskProcessingLatency):          {},
-		findName(PersistenceLatency):                        {},
-		findName(PersistenceLatencyHistogram):               {},
-		findName(PersistenceLatencyHistogramPerHost):        {},
-		findName(TaskAttemptTimer):                          {},
-		findName(ExponentialTaskAttemptCounts):              {},
-		findName(TaskQueueLatency):                          {},
-		findName(ExponentialTaskQueueLatency):               {},
-		findName(TaskLatencyPerDomain):                      {},
-		findName(ExponentialTaskLatencyPerDomain):           {},
-		findName(TaskAttemptTimerPerDomain):                 {},
-		findName(ExponentialTaskAttemptCountsPerDomain):     {},
-		findName(TaskProcessingLatencyPerDomain):            {},
-		findName(ExponentialTaskProcessingLatencyPerDomain): {},
-		findName(TaskQueueLatencyPerDomain):                 {},
-		findName(ExponentialTaskQueueLatencyPerDomain):      {},
+		findName(CadenceLatency):                          {},
+		findName(ExponentialReplicationTaskLatency):       {},
+		findName(PersistenceLatencyPerShard):              {},
+		findName(TaskProcessingLatencyHistogram):          {},
+		findName(PersistenceLatency):                      {},
+		findName(PersistenceLatencyHistogram):             {},
+		findName(PersistenceLatencyHistogramPerHost):      {},
+		findName(TaskAttemptTimer):                        {},
+		findName(TaskAttemptCountsHistogram):              {},
+		findName(TaskQueueLatency):                        {},
+		findName(TaskQueueLatencyHistogram):               {},
+		findName(TaskLatencyPerDomain):                    {},
+		findName(TaskLatencyPerDomainHistogram):           {},
+		findName(TaskAttemptTimerPerDomain):               {},
+		findName(TaskAttemptPerDomainCountsHistogram):     {},
+		findName(TaskProcessingLatencyPerDomain):          {},
+		findName(TaskProcessingLatencyPerDomainHistogram): {},
+		findName(TaskQueueLatencyPerDomain):               {},
+		findName(TaskQueueLatencyPerDomainHistogram):      {},
 	}
 
 	c := NewClient(ts, History, MigrationConfig{
@@ -249,8 +249,8 @@ func TestHistogramMode(t *testing.T) {
 				findName(CadenceLatency):                    true,  // timer type
 				findName(ExponentialReplicationTaskLatency): false, // histogram type
 
-				findName(PersistenceLatencyPerShard):       false, // timer type
-				findName(ExponentialTaskProcessingLatency): true,  // histogram type
+				findName(PersistenceLatencyPerShard):     false, // timer type
+				findName(TaskProcessingLatencyHistogram): true,  // histogram type
 			},
 		},
 	})
@@ -260,7 +260,7 @@ func TestHistogramMode(t *testing.T) {
 	scope.ExponentialHistogram(ExponentialReplicationTaskLatency, 2*time.Second)
 
 	scope.RecordTimer(PersistenceLatencyPerShard, 3*time.Second)
-	scope.ExponentialHistogram(ExponentialTaskProcessingLatency, 4*time.Second)
+	scope.ExponentialHistogram(TaskProcessingLatencyHistogram, 4*time.Second)
 
 	// unspecified -> default config
 	scope.RecordTimer(PersistenceLatency, 5*time.Second)
@@ -313,7 +313,7 @@ func TestHistogramMode(t *testing.T) {
 	assertFound(ExponentialReplicationTaskLatency, false, false)
 	// only the histogram
 	assertFound(PersistenceLatencyPerShard, false, false)
-	assertFound(ExponentialTaskProcessingLatency, false, true)
+	assertFound(TaskProcessingLatencyHistogram, false, true)
 	// timers only (via default)
 	assertFound(PersistenceLatency, true, false)
 	assertFound(PersistenceLatencyHistogram, false, false)
@@ -322,4 +322,107 @@ func TestHistogramMode(t *testing.T) {
 	assertFound(GlobalRatelimiterStartupUsageHistogram, false, true)
 
 	// when fixing: check logs!  you should see metrics with values for: 1, 4, 7, 8
+}
+
+func TestExponentialHistogramRollup(t *testing.T) {
+	ts := tally.NewTestScope("", nil)
+	findName := func(m MetricIdx) string {
+		def, ok := MetricDefs[History][m]
+		if ok {
+			return def.metricName.String()
+		}
+		t.Fatalf("MetricDef not found in history: %v", m)
+		return "unknown"
+	}
+	findRollupName := func(m MetricIdx) string {
+		def, ok := MetricDefs[History][m]
+		if ok {
+			return def.metricRollupName.String()
+		}
+		t.Fatalf("MetricDef not found in history: %v", m)
+		return "unknown"
+	}
+
+	orig := HistogramMigrationMetrics
+	t.Cleanup(func() {
+		HistogramMigrationMetrics = orig
+	})
+
+	HistogramMigrationMetrics = map[string]struct{}{
+		findName(TaskProcessingLatencyPerDomainHistogram):       {},
+		findRollupName(TaskProcessingLatencyPerDomainHistogram): {},
+		findName(TaskAttemptPerDomainCountsHistogram):           {},
+		findRollupName(TaskAttemptPerDomainCountsHistogram):     {},
+	}
+
+	c := NewClient(ts, History, MigrationConfig{
+		Histogram: HistogramMigration{
+			Names: map[string]bool{
+				findName(TaskProcessingLatencyPerDomainHistogram):       true,
+				findRollupName(TaskProcessingLatencyPerDomainHistogram): true,
+				findName(TaskAttemptPerDomainCountsHistogram):           true,
+				findRollupName(TaskAttemptPerDomainCountsHistogram):     true,
+			},
+		},
+	})
+
+	scope := c.Scope(HistoryDescribeQueueScope, DomainTag("test-domain"))
+
+	scope.ExponentialHistogram(TaskProcessingLatencyPerDomainHistogram, time.Second)
+	scope.IntExponentialHistogram(TaskAttemptPerDomainCountsHistogram, 42)
+
+	s := ts.Snapshot()
+	histNames := make(map[string]bool)
+	for _, h := range s.Histograms() {
+		histNames[h.Name()] = true
+	}
+
+	assert.True(t, histNames[findName(TaskProcessingLatencyPerDomainHistogram)],
+		"per-domain ExponentialHistogram metric should be emitted")
+	assert.True(t, histNames[findRollupName(TaskProcessingLatencyPerDomainHistogram)],
+		"rollup ExponentialHistogram metric should be emitted on rootScope")
+
+	assert.True(t, histNames[findName(TaskAttemptPerDomainCountsHistogram)],
+		"per-domain IntExponentialHistogram metric should be emitted")
+	assert.True(t, histNames[findRollupName(TaskAttemptPerDomainCountsHistogram)],
+		"rollup IntExponentialHistogram metric should be emitted on rootScope")
+}
+
+func TestGaugeRollupUsesRootScope(t *testing.T) {
+	rootScope := tally.NewTestScope("", nil)
+	childScope := tally.NewTestScope("", nil)
+
+	const testIdx MetricIdx = 9999
+	defs := map[MetricIdx]metricDefinition{
+		testIdx: {
+			metricName:       "gauge_per_domain",
+			metricRollupName: "gauge_rollup",
+			metricType:       Gauge,
+		},
+	}
+
+	scope := newMetricsScope(rootScope, childScope, defs, true, MigrationConfig{})
+
+	scope.UpdateGauge(testIdx, 42.0)
+
+	childSnap := childScope.Snapshot()
+	rootSnap := rootScope.Snapshot()
+
+	foundInChild := false
+	for _, g := range childSnap.Gauges() {
+		if g.Name() == "gauge_per_domain" {
+			foundInChild = true
+		}
+		assert.NotEqualf(t, "gauge_rollup", g.Name(),
+			"rollup gauge should NOT be emitted on child scope")
+	}
+	assert.True(t, foundInChild, "per-domain gauge should be emitted on child scope")
+
+	foundInRoot := false
+	for _, g := range rootSnap.Gauges() {
+		if g.Name() == "gauge_rollup" {
+			foundInRoot = true
+		}
+	}
+	assert.True(t, foundInRoot, "rollup gauge should be emitted on root scope")
 }

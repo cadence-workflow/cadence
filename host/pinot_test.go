@@ -110,7 +110,6 @@ func (s *PinotIntegrationSuite) SetupSuite() {
 	dc := persistence.DynamicConfiguration{
 		EnableSQLAsyncTransaction:                dynamicproperties.GetBoolPropertyFn(false),
 		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
-		PersistenceSampleLoggingRate:             dynamicproperties.GetIntPropertyFn(100),
 		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
 		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
 		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),

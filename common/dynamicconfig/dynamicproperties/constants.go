@@ -583,6 +583,16 @@ const (
 	// Default value: 1200
 	// Allowed filters: DomainName
 	FrontendMaxDomainUserRPSPerInstance
+	// FrontendMaxTaskListUserRPSPerInstance is used to limit "user" requests (StartWorkflow, Signal, etc)
+	// per task list per frontend instance, and is mostly intended to protect against excessive single-host load.
+	//
+	// This limit applies along-side FrontendGlobalTaskListUserRPS: both must be allowed to allow a request.
+	//
+	// KeyName: frontend.tasklistrps
+	// Value type: Int
+	// Default value: 1200
+	// Allowed filters: DomainName,TaskListName
+	FrontendMaxTaskListUserRPSPerInstance
 	// FrontendMaxDomainWorkerRPSPerInstance is used to limit "worker" requests (PollFor...Task, RespondTask..., etc)
 	// per domain per frontend instance, and is mostly intended to protect against excessive single-host load.
 	//
@@ -593,6 +603,16 @@ const (
 	// Default value: UnlimitedRPS
 	// Allowed filters: DomainName
 	FrontendMaxDomainWorkerRPSPerInstance
+	// FrontendMaxTaskListWorkerRPSPerInstance is used to limit "worker" requests (PollFor...Task, RespondTask..., etc)
+	// per task list per frontend instance, and is mostly intended to protect against excessive single-host load.
+	//
+	// This limit applies along-side FrontendGlobalTaskListWorkerRPS: both must be allowed to allow a request.
+	//
+	// KeyName: frontend.tasklistworkerrps
+	// Value type: Int
+	// Default value: UnlimitedRPS
+	// Allowed filters: DomainName,TaskListName
+	FrontendMaxTaskListWorkerRPSPerInstance
 	// FrontendMaxDomainVisibilityRPSPerInstance is used to limit "visibility" requests (ListWorkflow* and similar)
 	// per domain per frontend instance, and is mostly intended to protect against excessive single-host load.
 	//
@@ -613,6 +633,16 @@ const (
 	// Default value: 10000
 	// Allowed filters: DomainName
 	FrontendMaxDomainAsyncRPSPerInstance
+	// FrontendMaxTaskListAsyncRPSPerInstance is used to limit "async" requests (StartWorkflowAsync, etc for many "user" APIs)
+	// per task list per frontend instance, and is mostly intended to protect against excessive single-host load.
+	//
+	// This limit applies along-side FrontendGlobalTaskListAsyncRPS: both must be allowed to allow a request.
+	//
+	// KeyName: frontend.tasklistasyncrps
+	// Value type: Int
+	// Default value: 10000
+	// Allowed filters: DomainName,TaskListName
+	FrontendMaxTaskListAsyncRPSPerInstance
 	// FrontendGlobalDomainUserRPS is used to limit "user" requests (StartWorkflow, Signal, etc)
 	// per domain to a target RPS that is shared across the entire cluster.
 	//
@@ -628,6 +658,14 @@ const (
 	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
 	// Allowed filters: DomainName
 	FrontendGlobalDomainUserRPS
+	// FrontendGlobalTaskListUserRPS is used to limit "user" requests (StartWorkflow, Signal, etc)
+	// per task list to a target RPS that is shared across the entire cluster.
+	//
+	// KeyName: frontend.globalTaskListrps
+	// Value type: Int
+	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
+	// Allowed filters: DomainName,TaskListName
+	FrontendGlobalTaskListUserRPS
 	// FrontendGlobalDomainWorkerRPS is used to limit "worker" requests (PollFor...Task, RespondTask..., etc)
 	// per domain to a target RPS that is shared across the entire cluster.
 	//
@@ -643,6 +681,14 @@ const (
 	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
 	// Allowed filters: DomainName
 	FrontendGlobalDomainWorkerRPS
+	// FrontendGlobalTaskListWorkerRPS is used to limit "worker" requests (PollFor...Task, RespondTask..., etc)
+	// per task list to a target RPS that is shared across the entire cluster.
+	//
+	// KeyName: frontend.globalTaskListWorkerrps
+	// Value type: Int
+	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
+	// Allowed filters: DomainName,TaskListName
+	FrontendGlobalTaskListWorkerRPS
 	// FrontendGlobalDomainVisibilityRPS is used to limit "visibility" requests (ListWorkflow* and similar)
 	// per domain to a target RPS that is shared across the entire cluster.
 	//
@@ -673,6 +719,14 @@ const (
 	// Default value: 100000
 	// Allowed filters: DomainName
 	FrontendGlobalDomainAsyncRPS
+	// FrontendGlobalTaskListAsyncRPS is used to limit "async" requests (StartWorkflowAsync, etc for many "user" APIs)
+	// per task list to a target RPS that is shared across the entire cluster.
+	//
+	// KeyName: frontend.globalTaskListAsyncrps
+	// Value type: Int
+	// Default value: 100000 (0 triggers a fallback to per-instance-RPS, generally avoid)
+	// Allowed filters: DomainName,TaskListName
+	FrontendGlobalTaskListAsyncRPS
 	// FrontendDecisionResultCountLimit is max number of decisions per RespondDecisionTaskCompleted request
 	// KeyName: frontend.decisionResultCountLimit
 	// Value type: Int
@@ -2637,19 +2691,6 @@ const (
 	// Note: not currently used in open-source
 	EnableAdminAuthorization
 
-	// MatchingShardDistributionMode is the mode of shard distribution for matching, we currently have four modes, we _highly_
-	// recommend using hash_ring while the shard distributor is still in development.
-	//
-	// - "hash_ring" means that the shards are distributed using a consistent hash ring, in particular using the ringpop library
-	// - "shard_distributor" means that the shards are distributed using the _highly experimental_ shard distributor service
-	// - "hash_ring-shadow-shard_distributor" means that the shards are distrubuted using the hash ring, but shadowed by the shard distributor
-	// - "shard_distributor-shadow-hash_ring" means that the shards are distrubuted using the shard distributor, but shadowed by the hash ring
-	//
-	// KeyName: matching.shardDistributionMode
-	// Value type: string enum: "hash_ring" or "shard_distributor"
-	// Default value: "hash_ring"
-	MatchingShardDistributionMode
-
 	// SerializationEncoding is the encoding type for blobs
 	// KeyName: history.serializationEncoding
 	// Value type: String
@@ -3566,10 +3607,22 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "FrontendMaxDomainUserRPSPerInstance is workflow domain rate limit per second",
 		DefaultValue: 1200,
 	},
+	FrontendMaxTaskListUserRPSPerInstance: {
+		KeyName:      "frontend.tasklistrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendMaxTaskListUserRPSPerInstance is workflow task list rate limit per second",
+		DefaultValue: 1200,
+	},
 	FrontendMaxDomainWorkerRPSPerInstance: {
 		KeyName:      "frontend.domainworkerrps",
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendMaxDomainWorkerRPSPerInstance is background-processing workflow domain rate limit per second",
+		DefaultValue: UnlimitedRPS,
+	},
+	FrontendMaxTaskListWorkerRPSPerInstance: {
+		KeyName:      "frontend.tasklistworkerrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendMaxTaskListWorkerRPSPerInstance is background-processing workflow task list rate limit per second",
 		DefaultValue: UnlimitedRPS,
 	},
 	FrontendMaxDomainVisibilityRPSPerInstance: {
@@ -3584,16 +3637,34 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "FrontendMaxDomainAsyncRPSPerInstance is the per-instance async workflow request rate limit per second",
 		DefaultValue: 10000,
 	},
+	FrontendMaxTaskListAsyncRPSPerInstance: {
+		KeyName:      "frontend.tasklistasyncrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendMaxTaskListAsyncRPSPerInstance is the per-instance async workflow task list rate limit per second",
+		DefaultValue: 10000,
+	},
 	FrontendGlobalDomainUserRPS: {
 		KeyName:      "frontend.globalDomainrps",
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendGlobalDomainUserRPS is workflow domain rate limit per second for the whole Cadence cluster",
 		DefaultValue: UnlimitedRPS,
 	},
+	FrontendGlobalTaskListUserRPS: {
+		KeyName:      "frontend.globalTaskListrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendGlobalTaskListUserRPS is workflow task list rate limit per second for the whole Cadence cluster",
+		DefaultValue: UnlimitedRPS,
+	},
 	FrontendGlobalDomainWorkerRPS: {
 		KeyName:      "frontend.globalDomainWorkerrps",
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendGlobalDomainWorkerRPS is background-processing workflow domain rate limit per second for the whole Cadence cluster",
+		DefaultValue: UnlimitedRPS,
+	},
+	FrontendGlobalTaskListWorkerRPS: {
+		KeyName:      "frontend.globalTaskListWorkerrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendGlobalTaskListWorkerRPS is background-processing workflow task list rate limit per second for the whole Cadence cluster",
 		DefaultValue: UnlimitedRPS,
 	},
 	FrontendGlobalDomainVisibilityRPS: {
@@ -3606,6 +3677,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "frontend.globalDomainAsyncrps",
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendGlobalDomainAsyncRPS is the per-domain async workflow request rate limit per second",
+		DefaultValue: 100000,
+	},
+	FrontendGlobalTaskListAsyncRPS: {
+		KeyName:      "frontend.globalTaskListAsyncrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendGlobalTaskListAsyncRPS is the per-task list async workflow request rate limit per second",
 		DefaultValue: 100000,
 	},
 	FrontendDecisionResultCountLimit: {
@@ -5291,11 +5368,6 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "ReadVisibilityStoreName is key to identify which store to read visibility data from",
 		DefaultValue: "es",
 		Filters:      []Filter{DomainName},
-	},
-	MatchingShardDistributionMode: {
-		KeyName:      "matching.shardDistributionMode",
-		Description:  "MatchingShardDistributionMode defines which shard distribution mode should be used",
-		DefaultValue: "hash_ring",
 	},
 	SerializationEncoding: {
 		KeyName:      "history.serializationEncoding",

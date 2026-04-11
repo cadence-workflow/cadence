@@ -457,6 +457,9 @@ func TestGetTasksPumpHandleErrStopNoDeadlock(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return atomic.LoadInt32(&tlm.stopped) == 1
 	}, 5*time.Second, 10*time.Millisecond)
+
+	// Wait for the async go c.Stop() to fully complete
+	tlm.Stop()
 }
 
 func TestTaskReaderBatchSizeValidation(t *testing.T) {

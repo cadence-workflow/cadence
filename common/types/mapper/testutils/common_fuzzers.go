@@ -77,10 +77,10 @@ func ReplicationTaskTypeFuzzer(e *types.ReplicationTaskType, c fuzz.Continue) {
 }
 
 func WorkflowStateFuzzer(e *int32, c fuzz.Continue) {
-	// WorkflowState values: 0-2 (Created, Running, Completed)
+	// WorkflowState values: 0-5 (Created, Running, Completed, Zombie, Void, Corrupted)
 	// Note: This operates on *int32 because the types package uses *int32 for WorkflowState
 	if e != nil {
-		*e = int32(c.Intn(3))
+		*e = int32(c.Intn(6))
 	}
 }
 

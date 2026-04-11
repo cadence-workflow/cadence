@@ -250,6 +250,11 @@ func (s *dlqHandlerSuite) TestEmitDLQSizeMetricsLoop_FetchesAndEmitsMetricsPerio
 		mockTimeSource.Advance(dlqMetricsEmitTimerInterval + time.Duration(int64(float64(dlqMetricsEmitTimerInterval)*(1+dlqMetricsEmitTimerCoefficient))))
 	}
 
+	// Wait for the last emission to complete before stopping. The goroutine calls
+	// timer.Reset only after fetchAndEmitMessageCount returns, so BlockUntil(1)
+	// guarantees the final call has been made.
+	mockTimeSource.BlockUntil(1)
+
 	s.messageHandler.Stop()
 
 	s.Equal(common.DaemonStatusStopped, s.messageHandler.status)

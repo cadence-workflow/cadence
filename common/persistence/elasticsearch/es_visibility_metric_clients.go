@@ -22,6 +22,7 @@ package elasticsearch
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -59,10 +60,12 @@ func (p *visibilityMetricsClient) RecordWorkflowExecutionStarted(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchRecordWorkflowExecutionStartedScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
 
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 
 	err := p.persistence.RecordWorkflowExecutionStarted(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchRecordWorkflowExecutionStartedScope, err)
@@ -79,9 +82,11 @@ func (p *visibilityMetricsClient) RecordWorkflowExecutionClosed(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchRecordWorkflowExecutionClosedScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
 
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 	err := p.persistence.RecordWorkflowExecutionClosed(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchRecordWorkflowExecutionClosedScope, err)
@@ -98,9 +103,11 @@ func (p *visibilityMetricsClient) RecordWorkflowExecutionUninitialized(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchRecordWorkflowExecutionUninitializedScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
 
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 	err := p.persistence.RecordWorkflowExecutionUninitialized(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchRecordWorkflowExecutionUninitializedScope, err)
@@ -117,9 +124,11 @@ func (p *visibilityMetricsClient) UpsertWorkflowExecution(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchUpsertWorkflowExecutionScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
 
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 	err := p.persistence.UpsertWorkflowExecution(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchUpsertWorkflowExecutionScope, err)
@@ -136,9 +145,11 @@ func (p *visibilityMetricsClient) ListOpenWorkflowExecutions(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchListOpenWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
 
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 	response, err := p.persistence.ListOpenWorkflowExecutions(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchListOpenWorkflowExecutionsScope, err)
@@ -155,9 +166,11 @@ func (p *visibilityMetricsClient) ListClosedWorkflowExecutions(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchListClosedWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
 
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 	response, err := p.persistence.ListClosedWorkflowExecutions(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchListClosedWorkflowExecutionsScope, err)
@@ -174,9 +187,11 @@ func (p *visibilityMetricsClient) ListOpenWorkflowExecutionsByType(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchListOpenWorkflowExecutionsByTypeScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
 
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 	response, err := p.persistence.ListOpenWorkflowExecutionsByType(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchListOpenWorkflowExecutionsByTypeScope, err)
@@ -192,9 +207,11 @@ func (p *visibilityMetricsClient) ListClosedWorkflowExecutionsByType(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchListClosedWorkflowExecutionsByTypeScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 	response, err := p.persistence.ListClosedWorkflowExecutionsByType(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchListClosedWorkflowExecutionsByTypeScope, err)
@@ -210,9 +227,11 @@ func (p *visibilityMetricsClient) ListOpenWorkflowExecutionsByWorkflowID(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchListOpenWorkflowExecutionsByWorkflowIDScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 	response, err := p.persistence.ListOpenWorkflowExecutionsByWorkflowID(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchListOpenWorkflowExecutionsByWorkflowIDScope, err)
@@ -228,9 +247,11 @@ func (p *visibilityMetricsClient) ListClosedWorkflowExecutionsByWorkflowID(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchListClosedWorkflowExecutionsByWorkflowIDScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 	response, err := p.persistence.ListClosedWorkflowExecutionsByWorkflowID(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchListClosedWorkflowExecutionsByWorkflowIDScope, err)
@@ -246,9 +267,11 @@ func (p *visibilityMetricsClient) ListClosedWorkflowExecutionsByStatus(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchListClosedWorkflowExecutionsByStatusScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 	response, err := p.persistence.ListClosedWorkflowExecutionsByStatus(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchListClosedWorkflowExecutionsByStatusScope, err)
@@ -264,10 +287,12 @@ func (p *visibilityMetricsClient) GetClosedWorkflowExecution(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchGetClosedWorkflowExecutionScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 
 	response, err := p.persistence.GetClosedWorkflowExecution(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchGetClosedWorkflowExecutionScope, err)
@@ -283,10 +308,12 @@ func (p *visibilityMetricsClient) ListWorkflowExecutions(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchListWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 
 	response, err := p.persistence.ListWorkflowExecutions(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchListWorkflowExecutionsScope, err)
@@ -302,9 +329,11 @@ func (p *visibilityMetricsClient) ScanWorkflowExecutions(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchScanWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 	response, err := p.persistence.ScanWorkflowExecutions(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchScanWorkflowExecutionsScope, err)
@@ -320,10 +349,12 @@ func (p *visibilityMetricsClient) CountWorkflowExecutions(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchCountWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 
 	response, err := p.persistence.CountWorkflowExecutions(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchCountWorkflowExecutionsScope, err)
@@ -339,9 +370,11 @@ func (p *visibilityMetricsClient) DeleteWorkflowExecution(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchDeleteWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 	err := p.persistence.DeleteWorkflowExecution(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchDeleteWorkflowExecutionsScope, err)
@@ -357,9 +390,11 @@ func (p *visibilityMetricsClient) DeleteUninitializedWorkflowExecution(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.ElasticsearchDeleteWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.ElasticsearchRequestsPerDomain)
-	sw := scopeWithDomainTag.StartTimer(metrics.ElasticsearchLatencyPerDomain)
+	before := time.Now()
 	err := p.persistence.DeleteWorkflowExecution(ctx, request)
-	sw.Stop()
+	duration := time.Since(before)
+	scopeWithDomainTag.RecordTimer(metrics.ElasticsearchLatencyPerDomain, duration)
+	scopeWithDomainTag.ExponentialHistogram(metrics.ElasticsearchLatencyPerDomainHistogram, duration)
 
 	if err != nil {
 		p.updateErrorMetric(scopeWithDomainTag, metrics.ElasticsearchDeleteWorkflowExecutionsScope, err)

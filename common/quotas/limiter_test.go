@@ -305,6 +305,7 @@ func newFixedRpsMultiStageRateLimiter(t testing.TB, globalRps float64, domainRps
 			return globalRps
 		}),
 		NewCollection(newStubFactory(t, domainRps)),
+		nil,
 	)
 }
 

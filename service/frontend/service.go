@@ -150,10 +150,10 @@ func (s *Service) Start() {
 	if err != nil {
 		logger.Fatal("constructing ratelimiter collections", tag.Error(err))
 	}
-	userRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.UserRPS.AsFloat64()), collections.user)
-	workerRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.WorkerRPS.AsFloat64()), collections.worker)
-	visibilityRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.VisibilityRPS.AsFloat64()), collections.visibility)
-	asyncRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.AsyncRPS.AsFloat64()), collections.async)
+	userRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.UserRPS.AsFloat64()), collections.user, collections.userTaskList)
+	workerRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.WorkerRPS.AsFloat64()), collections.worker, collections.workerTaskList)
+	visibilityRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.VisibilityRPS.AsFloat64()), collections.visibility, nil)
+	asyncRateLimiter := quotas.NewMultiStageRateLimiter(quotas.NewDynamicRateLimiter(s.config.AsyncRPS.AsFloat64()), collections.async, collections.asyncTaskList)
 
 	// Additional decorations
 	var handler api.Handler = s.handler
@@ -199,6 +199,15 @@ func (s *Service) Start() {
 	if err := collections.async.OnStart(startCtx); err != nil {
 		logger.Fatal("failed to start async global ratelimiter collection", tag.Error(err))
 	}
+	if err := collections.userTaskList.OnStart(startCtx); err != nil {
+		logger.Fatal("failed to start user task list global ratelimiter collection", tag.Error(err))
+	}
+	if err := collections.workerTaskList.OnStart(startCtx); err != nil {
+		logger.Fatal("failed to start worker task list global ratelimiter collection", tag.Error(err))
+	}
+	if err := collections.asyncTaskList.OnStart(startCtx); err != nil {
+		logger.Fatal("failed to start async task list global ratelimiter collection", tag.Error(err))
+	}
 	cancel()
 	s.ratelimiterCollections = collections // save so they can be stopped later
 
@@ -213,14 +222,25 @@ func (s *Service) Start() {
 }
 
 type globalRatelimiterCollections struct {
-	user, worker, visibility, async *collection.Collection
+	user, worker, visibility, async             *collection.Collection
+	userTaskList, workerTaskList, asyncTaskList *collection.Collection
 }
 
 // ratelimiterCollections contains the "base" ratelimiters that make up both:
 // - "local" limits, which do not use global-load-balancing to adjust to request load
 // - fallbacks within "global" limits, for when the global-load information cannot be retrieved (startup, errors, etc)
 type ratelimiterCollections struct {
-	user, worker, visibility, async *quotas.Collection[string]
+	user, worker, visibility, async             *quotas.Collection[string]
+	userTaskList, workerTaskList, asyncTaskList *quotas.Collection[string]
+}
+
+// taskListRPS adapts an IntPropertyFnWithTaskListInfoFilters into an IntPropertyFnWithDomainFilter
+// by parsing the composite task list key into its domain/taskList components.
+func taskListRPS(fn dynamicproperties.IntPropertyFnWithTaskListInfoFilters) dynamicproperties.IntPropertyFnWithDomainFilter {
+	return func(key string) int {
+		k := quotas.ParseTaskListKey(key)
+		return fn(k.Domain, k.TaskList, 0) // ignore the task list type filter
+	}
 }
 
 func (s *Service) createGlobalQuotaCollections() (globalRatelimiterCollections, error) {
@@ -260,13 +280,26 @@ func (s *Service) createGlobalQuotaCollections() (globalRatelimiterCollections, 
 	async, err := create("async", local.async, global.async, s.config.GlobalDomainAsyncRPS)
 	combinedErr = multierr.Combine(combinedErr, err)
 
+	userTaskList, err := create("userTaskList", local.userTaskList, global.userTaskList, taskListRPS(s.config.GlobalTaskListUserRPS))
+	combinedErr = multierr.Combine(combinedErr, err)
+
+	workerTaskList, err := create("workerTaskList", local.workerTaskList, global.workerTaskList, taskListRPS(s.config.GlobalTaskListWorkerRPS))
+	combinedErr = multierr.Combine(combinedErr, err)
+
+	asyncTaskList, err := create("asyncTaskList", local.asyncTaskList, global.asyncTaskList, taskListRPS(s.config.GlobalTaskListAsyncRPS))
+	combinedErr = multierr.Combine(combinedErr, err)
+
 	return globalRatelimiterCollections{
-		user:       user,
-		worker:     worker,
-		visibility: visibility,
-		async:      async,
+		user:           user,
+		worker:         worker,
+		visibility:     visibility,
+		async:          async,
+		userTaskList:   userTaskList,
+		workerTaskList: workerTaskList,
+		asyncTaskList:  asyncTaskList,
 	}, combinedErr
 }
+
 func (s *Service) createBaseLimiters() ratelimiterCollections {
 	create := func(shared, perInstance dynamicproperties.IntPropertyFnWithDomainFilter) *quotas.Collection[string] {
 		return quotas.NewCollection(permember.NewPerMemberDynamicRateLimiterFactory(
@@ -276,11 +309,15 @@ func (s *Service) createBaseLimiters() ratelimiterCollections {
 			s.GetMembershipResolver(),
 		))
 	}
+
 	return ratelimiterCollections{
-		user:       create(s.config.GlobalDomainUserRPS, s.config.MaxDomainUserRPSPerInstance),
-		worker:     create(s.config.GlobalDomainWorkerRPS, s.config.MaxDomainWorkerRPSPerInstance),
-		visibility: create(s.config.GlobalDomainVisibilityRPS, s.config.MaxDomainVisibilityRPSPerInstance),
-		async:      create(s.config.GlobalDomainAsyncRPS, s.config.MaxDomainAsyncRPSPerInstance),
+		user:           create(s.config.GlobalDomainUserRPS, s.config.MaxDomainUserRPSPerInstance),
+		worker:         create(s.config.GlobalDomainWorkerRPS, s.config.MaxDomainWorkerRPSPerInstance),
+		visibility:     create(s.config.GlobalDomainVisibilityRPS, s.config.MaxDomainVisibilityRPSPerInstance),
+		async:          create(s.config.GlobalDomainAsyncRPS, s.config.MaxDomainAsyncRPSPerInstance),
+		userTaskList:   create(taskListRPS(s.config.GlobalTaskListUserRPS), taskListRPS(s.config.MaxTaskListUserRPSPerInstance)),
+		workerTaskList: create(taskListRPS(s.config.GlobalTaskListWorkerRPS), taskListRPS(s.config.MaxTaskListWorkerRPSPerInstance)),
+		asyncTaskList:  create(taskListRPS(s.config.GlobalTaskListAsyncRPS), taskListRPS(s.config.MaxTaskListAsyncRPSPerInstance)),
 	}
 }
 

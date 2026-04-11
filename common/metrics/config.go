@@ -98,6 +98,28 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"replication_tasks_fetched_counts": {},
 	"replication_tasks_lag_raw":        {},
 	"replication_tasks_lag_raw_counts": {},
+
+	"activity_end_to_end_latency":    {},
+	"activity_end_to_end_latency_ns": {},
+
+	"schedule_to_start_history_queue_latency_per_tl":    {},
+	"schedule_to_start_history_queue_latency_per_tl_ns": {},
+
+	"processing_queue_num":        {},
+	"processing_queue_num_counts": {},
+
+	"processing_queue_max_level":        {},
+	"processing_queue_max_level_counts": {},
+
+	"persistence_latency_per_domain":    {},
+	"persistence_latency_per_domain_ns": {},
+	"persistence_latency":               {},
+	"persistence_latency_ns":            {},
+
+	"elasticsearch_latency_per_domain":    {},
+	"elasticsearch_latency_per_domain_ns": {},
+	"elasticsearch_latency":               {},
+	"elasticsearch_latency_ns":            {},
 }
 
 func (h HistogramMigration) EmitTimer(name string) bool {

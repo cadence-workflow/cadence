@@ -153,7 +153,11 @@ func (tr *taskReader) Start() {
 			tr.dispatchBufferedTasks(g)
 		}()
 	}
-	go tr.getTasksPump()
+	tr.stopWg.Add(1)
+	go func() {
+		defer tr.stopWg.Done()
+		tr.getTasksPump()
+	}()
 }
 
 func (tr *taskReader) Stop() {
@@ -484,7 +488,7 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInf
 	if errors.Is(err, context.Canceled) {
 		e.EventName = "Dispatch Failed because Context Cancelled"
 		event.Log(e)
-		tr.logger.Info("Tasklist manager context is cancelled, shutting down")
+		tr.logger.Debug("Tasklist manager context is cancelled, shutting down")
 		return true, true
 	}
 
@@ -493,7 +497,7 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInf
 		// if this happens, we don't want to block the task dispatching, because there might be pollers from
 		// other isolation groups, we just simply continue and dispatch the task to a new isolation group which
 		// has pollers
-		tr.logger.Warn("Async task dispatch timed out",
+		tr.logger.Debug("Async task dispatch timed out",
 			tag.IsolationGroup(isolationGroup),
 			tag.WorkflowRunID(taskInfo.RunID),
 			tag.WorkflowID(taskInfo.WorkflowID),

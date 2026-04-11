@@ -99,6 +99,7 @@ func TestPauseScheduleRequest_NilGetters(t *testing.T) {
 	assert.Equal(t, "", v.GetDomain())
 	assert.Equal(t, "", v.GetScheduleID())
 	assert.Equal(t, "", v.GetReason())
+	assert.Equal(t, "", v.GetIdentity())
 }
 
 func TestUnpauseScheduleRequest_NilGetters(t *testing.T) {

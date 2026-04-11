@@ -131,7 +131,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 				wrapped.EXPECT().GetShardID().Return(0).AnyTimes()
 
 				newObj := NewExecutionManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
-					dynamicproperties.GetIntPropertyFn(1), dynamicproperties.GetBoolPropertyFn(true))
+					dynamicproperties.GetBoolPropertyFn(true))
 
 				return newObj, wrapped
 			},

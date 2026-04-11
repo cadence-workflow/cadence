@@ -228,7 +228,9 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 	err = t.pushActivity(ctx, task, pushActivityInfo)
 	if err == nil {
 		scope := common.NewPerTaskListScope(domainName, taskList.Name, taskList.GetKind(), t.metricsClient, metrics.TransferActiveTaskActivityScope)
-		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, time.Since(task.GetVisibilityTimestamp()))
+		scheduleToStartLatency := time.Since(task.GetVisibilityTimestamp())
+		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, scheduleToStartLatency)
+		scope.ExponentialHistogram(metrics.ScheduleToStartHistoryQueueLatencyPerTaskListHistogram, scheduleToStartLatency)
 	}
 	return err
 }
@@ -331,7 +333,9 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 	}
 	if err == nil {
 		scope := common.NewPerTaskListScope(domainName, taskList.Name, taskList.GetKind(), t.metricsClient, metrics.TransferActiveTaskDecisionScope)
-		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, time.Since(task.GetVisibilityTimestamp()))
+		scheduleToStartLatency := time.Since(task.GetVisibilityTimestamp())
+		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, scheduleToStartLatency)
+		scope.ExponentialHistogram(metrics.ScheduleToStartHistoryQueueLatencyPerTaskListHistogram, scheduleToStartLatency)
 	}
 	return err
 }

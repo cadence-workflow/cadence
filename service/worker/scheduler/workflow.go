@@ -367,18 +367,66 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 }
 
 // processScheduleFire executes the configured action for a single schedule fire.
-// It calls the start-workflow activity, updates state counters, and logs the outcome.
-// Activity failures do not terminate the schedule, they are logged and counted as missed runs.
+// All side effects (overlap check, cancel/terminate, start) are encapsulated in
+// a single activity so that the overlap logic can evolve without introducing
+// nondeterminism in the workflow history.
 func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource) {
 	state.LastRunTime = scheduledTime
-	state.TotalRuns++
 
 	logger.Info("schedule fired",
 		zap.Time("scheduledTime", scheduledTime),
-		zap.Int64("totalRuns", state.TotalRuns),
 	)
 
-	activityOpts := workflow.LocalActivityOptions{
+	if input.Action.StartWorkflow == nil {
+		state.MissedRuns++
+		logger.Error("schedule action has no StartWorkflow configuration")
+		return
+	}
+
+	actCtx := workflow.WithLocalActivityOptions(ctx, defaultActivityOptions())
+
+	req := ProcessFireRequest{
+		Domain:              input.Domain,
+		ScheduleID:          input.ScheduleID,
+		Action:              *input.Action.StartWorkflow,
+		ScheduledTime:       scheduledTime,
+		TriggerSource:       trigger,
+		OverlapPolicy:       input.Policies.OverlapPolicy,
+		LastStartedWorkflow: state.LastStartedWorkflow,
+	}
+
+	var result ProcessFireResult
+	if err := workflow.ExecuteLocalActivity(actCtx, processScheduleFireActivity, req).Get(ctx, &result); err != nil {
+		state.MissedRuns++
+		logger.Error("processScheduleFireActivity failed",
+			zap.Time("scheduledTime", scheduledTime),
+			zap.Error(err),
+		)
+		return
+	}
+
+	state.TotalRuns += result.TotalDelta
+	state.SkippedRuns += result.SkippedDelta
+	if result.StartedWorkflow != nil {
+		state.LastStartedWorkflow = result.StartedWorkflow
+	}
+
+	if result.TotalDelta > 0 && result.StartedWorkflow != nil {
+		logger.Info("scheduled workflow started",
+			zap.String("workflowId", result.StartedWorkflow.WorkflowID),
+			zap.String("runId", result.StartedWorkflow.RunID),
+		)
+	} else if result.SkippedDelta > 0 {
+		logger.Info("schedule fire skipped",
+			zap.Time("scheduledTime", scheduledTime),
+		)
+	}
+}
+
+// defaultActivityOptions returns the standard local activity options used by
+// all scheduler activities.
+func defaultActivityOptions() workflow.LocalActivityOptions {
+	return workflow.LocalActivityOptions{
 		ScheduleToCloseTimeout: localActivityScheduleToCloseTimeout,
 		RetryPolicy: &workflow.RetryPolicy{
 			InitialInterval:    localActivityRetryInitialInterval,
@@ -387,45 +435,6 @@ func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *Schedu
 			BackoffCoefficient: 2,
 		},
 	}
-	actCtx := workflow.WithLocalActivityOptions(ctx, activityOpts)
-
-	if input.Action.StartWorkflow == nil {
-		state.MissedRuns++
-		logger.Error("schedule action has no StartWorkflow configuration")
-		return
-	}
-
-	req := StartWorkflowRequest{
-		Domain:        input.Domain,
-		ScheduleID:    input.ScheduleID,
-		Action:        *input.Action.StartWorkflow,
-		ScheduledTime: scheduledTime,
-		TriggerSource: trigger,
-	}
-
-	var result StartWorkflowResult
-	err := workflow.ExecuteLocalActivity(actCtx, startWorkflowActivity, req).Get(ctx, &result)
-	if err != nil {
-		state.MissedRuns++
-		logger.Error("scheduled action failed",
-			zap.Time("scheduledTime", scheduledTime),
-			zap.Error(err),
-		)
-		return
-	}
-
-	if result.Skipped {
-		state.SkippedRuns++
-		logger.Info("scheduled action skipped (already running)",
-			zap.String("workflowId", result.WorkflowID),
-		)
-		return
-	}
-
-	logger.Info("scheduled workflow started",
-		zap.String("workflowId", result.WorkflowID),
-		zap.String("runId", result.RunID),
-	)
 }
 
 // computeNextRunTime determines the next fire time for the cron schedule,

@@ -139,6 +139,7 @@ func NewHandler(
 		domainFailoverWatcher: domain.NewFailoverWatcher(
 			resource.GetDomainCache(),
 			resource.GetDomainManager(),
+			resource.GetClusterMetadata(),
 			resource.GetTimeSource(),
 			config.DomainFailoverRefreshInterval,
 			config.DomainFailoverRefreshTimerJitterCoefficient,

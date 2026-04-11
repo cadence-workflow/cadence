@@ -23,7 +23,6 @@ package execution
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -674,8 +673,6 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionScheduleTasks() {
 }
 
 func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionStartTasks() {
-	seed := int64(1)
-	rand.Seed(seed)
 	decisionScheduleID := int64(123)
 	getDecision := func() *DecisionInfo {
 		return &DecisionInfo{
@@ -704,11 +701,25 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionStartTasks() {
 					DecisionStartToCloseTimeout: defaultStartToCloseTimeout,
 					TaskList:                    "task-list",
 				}).Times(1)
-				startToCloseTimeout := getNextDecisionTimeout(decision.Attempt, time.Duration(defaultStartToCloseTimeout)*time.Second)
-				decision.DecisionTimeout = int32(startToCloseTimeout.Seconds())
-				s.mockMutableState.EXPECT().UpdateDecision(decision).Times(1)
+				s.mockMutableState.EXPECT().UpdateDecision(gomock.Any()).Times(1)
 
-				minExpectedTimestamp := time.Unix(0, decision.StartedTimestamp).Add(startToCloseTimeout)
+				// Compute expected range deterministically from constants, without using rand.
+				// getNextDecisionTimeout for attempt=2: base = defaultInitIntervalForDecisionRetry * 2^0,
+				// capped at defaultMaxIntervalForDecisionRetry, then jitter added in [0, jitterPortion).
+				base := float64(defaultInitIntervalForDecisionRetry)
+				if base > float64(defaultMaxIntervalForDecisionRetry) {
+					base = float64(defaultMaxIntervalForDecisionRetry)
+				}
+				jitterPortion := int(defaultJitterCoefficient * base)
+				if jitterPortion < 1 {
+					jitterPortion = 1
+				}
+				minTimeout := time.Duration(base * (1 - defaultJitterCoefficient))
+				maxTimeout := minTimeout + time.Duration(jitterPortion)
+				startedTime := time.Unix(0, decision.StartedTimestamp)
+				minExpectedTimestamp := startedTime.Add(minTimeout)
+				maxExpectedTimestamp := startedTime.Add(maxTimeout)
+
 				s.mockMutableState.EXPECT().AddTimerTasks(gomock.Any()).Do(func(tasks ...persistence.Task) {
 					require.Len(s.T(), tasks, 1)
 					task, ok := tasks[0].(*persistence.DecisionTimeoutTask)
@@ -724,11 +735,12 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionStartTasks() {
 					assert.Equal(s.T(), decision.Attempt, task.ScheduleAttempt)
 					assert.Equal(s.T(), "task-list", task.TaskList)
 
-					// Check VisibilityTimestamp is at least the expected time (allows for jitter from rand.Intn)
+					// Check VisibilityTimestamp is within the expected range [min, max)
 					assert.False(s.T(), task.VisibilityTimestamp.Before(minExpectedTimestamp),
 						"VisibilityTimestamp should be >= %v, got %v", minExpectedTimestamp, task.VisibilityTimestamp)
+					assert.True(s.T(), task.VisibilityTimestamp.Before(maxExpectedTimestamp),
+						"VisibilityTimestamp should be < %v, got %v", maxExpectedTimestamp, task.VisibilityTimestamp)
 				})
-				rand.Seed(seed)
 			},
 		},
 		{

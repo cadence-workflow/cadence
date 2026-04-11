@@ -292,6 +292,11 @@ func WorkflowFirstEventID(firstEventID int64) Tag {
 	return newInt64("wf-first-event-id", firstEventID)
 }
 
+// WorkflowLastEventID returns tag for WorkflowLastEventID
+func WorkflowLastEventID(lastEventID int64) Tag {
+	return newInt64("wf-last-event-id", lastEventID)
+}
+
 // WorkflowNextEventID returns tag for WorkflowNextEventID
 func WorkflowNextEventID(nextEventID int64) Tag {
 	return newInt64("wf-next-event-id", nextEventID)
