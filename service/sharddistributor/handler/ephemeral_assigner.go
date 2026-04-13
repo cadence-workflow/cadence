@@ -27,10 +27,17 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
+	"time"
 
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
+
+type executorAssignmentLoad struct {
+	smoothedLoad float64
+	shardCount   int
+}
 
 // assignEphemeralBatch is the ephemeralAssignmentBatchFn wired into the shardBatcher.
 // It processes a whole batch of unassigned shard keys for a single ephemeral
@@ -42,20 +49,26 @@ import (
 // per shard) to fetch metadata for the response, since metadata is stored
 // separately in the shard cache and is not returned by GetState.
 //
-// Within the batch the least-loaded ACTIVE executor is chosen per shard, with
-// the in-batch running count updated after each pick so load is spread evenly.
+// Within the batch, each shard is assigned to an ACTIVE executor according to
+// the configured load balancing mode. The in-batch running shard count is
+// updated after each pick so ties spread evenly.
 func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string, shardKeys []string) (map[string]*types.GetShardOwnerResponse, error) {
 	state, err := h.storage.GetState(ctx, namespace)
 	if err != nil {
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
 	}
 
-	assignedCounts, err := buildAssignedCounts(state)
+	loadBalancingMode := h.cfg.GetLoadBalancingMode(namespace)
+	if loadBalancingMode == types.LoadBalancingModeINVALID {
+		loadBalancingMode = types.LoadBalancingModeNAIVE
+	}
+
+	assignmentLoads, err := h.buildExecutorAssignmentLoads(loadBalancingMode, state)
 	if err != nil {
 		return nil, err
 	}
 
-	chosenExecutors, err := pickExecutors(namespace, shardKeys, assignedCounts)
+	chosenExecutors, err := pickExecutors(namespace, shardKeys, assignmentLoads, loadBalancingMode)
 	if err != nil {
 		return nil, err
 	}
@@ -79,41 +92,120 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 	return buildResults(namespace, shardKeys, chosenExecutors, executorOwners), nil
 }
 
-// buildAssignedCounts returns a map of executorID -> current shard count for
-// all ACTIVE executors in the given namespace state.
-func buildAssignedCounts(state *store.NamespaceState) (map[string]int, error) {
-	counts := make(map[string]int, len(state.ShardAssignments))
-	for executorID, assignment := range state.ShardAssignments {
-		executorState, ok := state.Executors[executorID]
-		if !ok || executorState.Status != types.ExecutorStatusACTIVE {
+// buildExecutorAssignmentLoads returns current shard count for all ACTIVE executors.
+// In GREEDY mode it also includes smoothed shard load; other modes stay count-based.
+func (h *handlerImpl) buildExecutorAssignmentLoads(mode types.LoadBalancingMode, state *store.NamespaceState) (map[string]executorAssignmentLoad, error) {
+	var useSmoothedLoad bool
+	switch mode {
+	case types.LoadBalancingModeGREEDY:
+		useSmoothedLoad = true
+	case types.LoadBalancingModeNAIVE:
+		useSmoothedLoad = false
+	default:
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", mode)}
+	}
+
+	executorsAssignmentLoad := make(map[string]executorAssignmentLoad, len(state.Executors))
+	var now time.Time
+	var ttl time.Duration
+	if useSmoothedLoad {
+		now = h.timeSource.Now().UTC()
+		ttl = h.shardDistributionCfg.Process.HeartbeatTTL
+	}
+
+	for executorID, executorState := range state.Executors {
+		if executorState.Status != types.ExecutorStatusACTIVE {
 			continue
 		}
-		counts[executorID] = len(assignment.AssignedShards)
-	}
-	return counts, nil
-}
 
-// pickExecutors assigns each shard key to the least-loaded active executor,
-// updating the in-batch running count after every pick to spread load evenly.
-// It returns a map of shardKey -> chosen executorID.
-func pickExecutors(namespace string, shardKeys []string, assignedCounts map[string]int) (map[string]string, error) {
-	chosenExecutors := make(map[string]string, len(shardKeys))
-	for _, shardKey := range shardKeys {
-		chosenExecutor := ""
-		minCount := math.MaxInt
-		for executorID, count := range assignedCounts {
-			if count < minCount {
-				minCount = count
-				chosenExecutor = executorID
+		assignment := state.ShardAssignments[executorID]
+		executorLoad := executorAssignmentLoad{shardCount: len(assignment.AssignedShards)}
+		if useSmoothedLoad {
+			for shardID := range assignment.AssignedShards {
+				stats, ok := state.ShardStats[shardID]
+				if !ok {
+					continue
+				}
+				if ttl > 0 && !stats.LastUpdateTime.IsZero() && now.Sub(stats.LastUpdateTime) > ttl {
+					continue
+				}
+				executorLoad.smoothedLoad += stats.SmoothedLoad
 			}
 		}
+		executorsAssignmentLoad[executorID] = executorLoad
+	}
+	return executorsAssignmentLoad, nil
+}
+
+// pickExecutors assigns each shard key to an active executor,
+// updating the in-batch running count after every pick to spread load evenly when loads tie.
+// It returns a map of shardKey -> chosen executorID.
+func pickExecutors(
+	namespace string,
+	shardKeys []string,
+	assignmentLoads map[string]executorAssignmentLoad,
+	mode types.LoadBalancingMode,
+) (map[string]string, error) {
+	executorIDs := make([]string, 0, len(assignmentLoads))
+	for executorID := range assignmentLoads {
+		executorIDs = append(executorIDs, executorID)
+	}
+	slices.Sort(executorIDs)
+
+	var pickExecutor func([]string, map[string]executorAssignmentLoad) string
+	switch mode {
+	case types.LoadBalancingModeNAIVE:
+		pickExecutor = pickExecutorByShardCount
+	case types.LoadBalancingModeGREEDY:
+		pickExecutor = pickExecutorBySmoothedLoad
+	default:
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", mode)}
+	}
+
+	chosenExecutors := make(map[string]string, len(shardKeys))
+	for _, shardKey := range shardKeys {
+		chosenExecutor := pickExecutor(executorIDs, assignmentLoads)
 		if chosenExecutor == "" {
 			return nil, &types.InternalServiceError{Message: "no active executors available for namespace: " + namespace}
 		}
 		chosenExecutors[shardKey] = chosenExecutor
-		assignedCounts[chosenExecutor]++
+		load := assignmentLoads[chosenExecutor]
+		load.shardCount++
+		assignmentLoads[chosenExecutor] = load
 	}
 	return chosenExecutors, nil
+}
+
+// pickExecutorBySmoothedLoad returns the executor with the lowest smoothed load.
+// Ties are broken by shard count, then by sorted executorID order.
+func pickExecutorBySmoothedLoad(executorIDs []string, assignmentLoads map[string]executorAssignmentLoad) string {
+	chosenExecutor := ""
+	minLoad := math.MaxFloat64
+	minCount := math.MaxInt
+	for _, executorID := range executorIDs {
+		load := assignmentLoads[executorID]
+		if load.smoothedLoad < minLoad || (load.smoothedLoad == minLoad && load.shardCount < minCount) {
+			minLoad = load.smoothedLoad
+			minCount = load.shardCount
+			chosenExecutor = executorID
+		}
+	}
+	return chosenExecutor
+}
+
+// pickExecutorByShardCount returns the executor with the fewest assigned shards.
+// Ties are broken by sorted executorID order.
+func pickExecutorByShardCount(executorIDs []string, assignmentLoads map[string]executorAssignmentLoad) string {
+	chosenExecutor := ""
+	minCount := math.MaxInt
+	for _, executorID := range executorIDs {
+		load := assignmentLoads[executorID]
+		if load.shardCount < minCount {
+			minCount = load.shardCount
+			chosenExecutor = executorID
+		}
+	}
+	return chosenExecutor
 }
 
 // mergeAssignments folds the chosen shard→executor assignments back into state.

@@ -26,12 +26,15 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -163,6 +166,25 @@ func TestAssignEphemeralBatch(t *testing.T) {
 			expectedErrMsg: "no active executors available for namespace",
 		},
 		{
+			name:      "AssignsToActiveExecutorWithoutExistingAssignment",
+			namespace: _testNamespaceEphemeral,
+			shardKeys: []string{"NON-EXISTING-SHARD"},
+			setupMocks: func(mockStore *store.MockStore) {
+				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+					Executors: map[string]store.HeartbeatState{
+						"owner1": {Status: types.ExecutorStatusACTIVE},
+					},
+					ShardAssignments: map[string]store.AssignedState{},
+				}, nil)
+				mockStore.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
+				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner1").Return(&store.ShardOwner{
+					ExecutorID: "owner1",
+					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
+				}, nil)
+			},
+			expectedOwners: map[string]string{"NON-EXISTING-SHARD": "owner1"},
+		},
+		{
 			name:      "AssignShardsFailure",
 			namespace: _testNamespaceEphemeral,
 			shardKeys: []string{"NON-EXISTING-SHARD"},
@@ -183,8 +205,10 @@ func TestAssignEphemeralBatch(t *testing.T) {
 			mockStorage := store.NewMockStore(ctrl)
 
 			h := &handlerImpl{
-				logger:  testlogger.New(t),
-				storage: mockStorage,
+				logger:     testlogger.New(t),
+				storage:    mockStorage,
+				cfg:        newTestShardDistributorConfig(config.LoadBalancingModeNAIVE),
+				timeSource: clock.NewRealTimeSource(),
 			}
 
 			if tt.setupMocks != nil {
@@ -207,4 +231,55 @@ func TestAssignEphemeralBatch(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAssignEphemeralBatch_PrefersLowerSmoothedLoad(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockStorage := store.NewMockStore(ctrl)
+	timeSource := clock.NewMockedTimeSourceAt(time.Date(2026, 4, 12, 12, 0, 0, 0, time.UTC))
+	h := &handlerImpl{
+		logger:     testlogger.New(t),
+		storage:    mockStorage,
+		timeSource: timeSource,
+		cfg:        newTestShardDistributorConfig(config.LoadBalancingModeGREEDY),
+		shardDistributionCfg: config.ShardDistribution{
+			Process: config.LeaderProcess{HeartbeatTTL: time.Minute},
+		},
+	}
+
+	mockStorage.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			"owner1": {Status: types.ExecutorStatusACTIVE},
+			"owner2": {Status: types.ExecutorStatusACTIVE},
+		},
+		ShardAssignments: map[string]store.AssignedState{
+			"owner1": {
+				AssignedShards: map[string]*types.ShardAssignment{
+					"cold-1": {Status: types.AssignmentStatusREADY},
+					"cold-2": {Status: types.AssignmentStatusREADY},
+				},
+			},
+			"owner2": {
+				AssignedShards: map[string]*types.ShardAssignment{
+					"hot-1": {Status: types.AssignmentStatusREADY},
+				},
+			},
+		},
+		ShardStats: map[string]store.ShardStatistics{
+			"cold-1": {SmoothedLoad: 1.0, LastUpdateTime: timeSource.Now()},
+			"cold-2": {SmoothedLoad: 1.0, LastUpdateTime: timeSource.Now()},
+			"hot-1":  {SmoothedLoad: 100.0, LastUpdateTime: timeSource.Now()},
+		},
+	}, nil)
+	mockStorage.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
+	mockStorage.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner1").Return(&store.ShardOwner{
+		ExecutorID: "owner1",
+		Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
+	}, nil)
+
+	results, err := h.assignEphemeralBatch(context.Background(), _testNamespaceEphemeral, []string{"new-shard"})
+	require.NoError(t, err)
+	require.Equal(t, "owner1", results["new-shard"].Owner)
 }
