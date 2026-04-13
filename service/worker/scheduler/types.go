@@ -40,7 +40,7 @@ const (
 
 	// Search attribute keys set on target workflows started by the scheduler.
 	SearchAttrScheduleID    = "CadenceScheduleID"
-	SearchAttrScheduledTime = "CadenceScheduledTime"
+	SearchAttrScheduleTime = "CadenceScheduleTime"
 	SearchAttrIsBackfill    = "CadenceScheduleIsBackfill"
 
 	maxIterationsBeforeContinueAsNew = 500

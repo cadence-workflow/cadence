@@ -221,7 +221,7 @@ func buildSearchAttributes(req ProcessFireRequest) *types.SearchAttributes {
 		fields[SearchAttrScheduleID] = v
 	}
 	if v, err := json.Marshal(req.ScheduledTime); err == nil {
-		fields[SearchAttrScheduledTime] = v
+		fields[SearchAttrScheduleTime] = v
 	}
 	if v, err := json.Marshal(req.TriggerSource == TriggerSourceBackfill); err == nil {
 		fields[SearchAttrIsBackfill] = v

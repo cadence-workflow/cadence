@@ -383,7 +383,7 @@ func TestBuildSearchAttributes(t *testing.T) {
 		require.NoError(t, json.Unmarshal(sa.IndexedFields[SearchAttrIsBackfill], &isBackfill))
 		assert.False(t, isBackfill)
 
-		assert.Contains(t, sa.IndexedFields, SearchAttrScheduledTime)
+		assert.Contains(t, sa.IndexedFields, SearchAttrScheduleTime)
 	})
 
 	t.Run("backfill trigger sets isBackfill true", func(t *testing.T) {
