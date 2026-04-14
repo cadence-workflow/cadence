@@ -22,6 +22,7 @@ package scheduler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -360,6 +361,84 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			assert.Equal(t, tc.wantResult, result)
 		})
 	}
+}
+
+func TestBuildSearchAttributes(t *testing.T) {
+	scheduledTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+
+	t.Run("sets scheduler-managed attributes", func(t *testing.T) {
+		req := ProcessFireRequest{
+			ScheduleID:    "sched-1",
+			ScheduledTime: scheduledTime,
+			TriggerSource: TriggerSourceSchedule,
+		}
+		sa := buildSearchAttributes(req)
+		require.NotNil(t, sa)
+
+		var schedID string
+		require.NoError(t, json.Unmarshal(sa.IndexedFields[SearchAttrScheduleID], &schedID))
+		assert.Equal(t, "sched-1", schedID)
+
+		var isBackfill bool
+		require.NoError(t, json.Unmarshal(sa.IndexedFields[SearchAttrIsBackfill], &isBackfill))
+		assert.False(t, isBackfill)
+
+		assert.Contains(t, sa.IndexedFields, SearchAttrScheduleTime)
+	})
+
+	t.Run("backfill trigger sets isBackfill true", func(t *testing.T) {
+		req := ProcessFireRequest{
+			ScheduleID:    "sched-1",
+			ScheduledTime: scheduledTime,
+			TriggerSource: TriggerSourceBackfill,
+		}
+		sa := buildSearchAttributes(req)
+
+		var isBackfill bool
+		require.NoError(t, json.Unmarshal(sa.IndexedFields[SearchAttrIsBackfill], &isBackfill))
+		assert.True(t, isBackfill)
+	})
+
+	t.Run("preserves user search attributes", func(t *testing.T) {
+		userVal, _ := json.Marshal("my-value")
+		req := ProcessFireRequest{
+			ScheduleID:    "sched-1",
+			ScheduledTime: scheduledTime,
+			TriggerSource: TriggerSourceSchedule,
+			Action: types.StartWorkflowAction{
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{
+						"CustomAttr": userVal,
+					},
+				},
+			},
+		}
+		sa := buildSearchAttributes(req)
+
+		assert.Equal(t, userVal, sa.IndexedFields["CustomAttr"])
+		assert.Contains(t, sa.IndexedFields, SearchAttrScheduleID)
+	})
+
+	t.Run("scheduler attributes override conflicting user attributes", func(t *testing.T) {
+		userVal, _ := json.Marshal("user-override")
+		req := ProcessFireRequest{
+			ScheduleID:    "sched-1",
+			ScheduledTime: scheduledTime,
+			TriggerSource: TriggerSourceSchedule,
+			Action: types.StartWorkflowAction{
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{
+						SearchAttrScheduleID: userVal,
+					},
+				},
+			},
+		}
+		sa := buildSearchAttributes(req)
+
+		var schedID string
+		require.NoError(t, json.Unmarshal(sa.IndexedFields[SearchAttrScheduleID], &schedID))
+		assert.Equal(t, "sched-1", schedID, "scheduler-managed attribute should override user value")
+	})
 }
 
 func TestIsEntityNotExistsError(t *testing.T) {
