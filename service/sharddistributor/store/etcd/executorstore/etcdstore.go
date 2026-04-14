@@ -437,7 +437,7 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 	if s.cfg.GetLoadBalancingMode(namespace) == types.LoadBalancingModeGREEDY {
 		statsUpdates, errUpdate := s.prepareShardStatisticsUpdates(ctx, namespace, request.NewState.ShardAssignments)
 		if errUpdate != nil {
-			return fmt.Errorf("prepare shard statistics: %w", err)
+			return fmt.Errorf("prepare shard statistics: %w", errUpdate)
 		}
 
 		defer func() {
