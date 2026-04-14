@@ -261,6 +261,10 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			request: func() *persistence.InternalUpdateWorkflowExecutionRequest {
 				req := newUpdateWorkflowExecutionRequest()
 				req.Mode = persistence.UpdateWorkflowModeBypassCurrent
+				// BypassCurrent is invalid for CREATED/RUNNING workflows; set a terminal state so the
+				// request passes ValidateUpdateWorkflowModeState and reaches assertNotCurrentExecution.
+				req.UpdateWorkflowMutation.ExecutionInfo.State = persistence.WorkflowStateCompleted
+				req.UpdateWorkflowMutation.ExecutionInfo.CloseStatus = persistence.WorkflowCloseStatusCompleted
 				return req
 			},
 			expectedError: &persistence.ConditionFailedError{},
@@ -289,6 +293,9 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			request: func() *persistence.InternalUpdateWorkflowExecutionRequest {
 				req := newUpdateWorkflowExecutionRequest()
 				req.Mode = persistence.UpdateWorkflowModeBypassCurrent
+				// See comment above: ensure the request is valid for BypassCurrent.
+				req.UpdateWorkflowMutation.ExecutionInfo.State = persistence.WorkflowStateCompleted
+				req.UpdateWorkflowMutation.ExecutionInfo.CloseStatus = persistence.WorkflowCloseStatusCompleted
 				return req
 			},
 			expectedError: &persistence.ConditionFailedError{},
