@@ -146,6 +146,25 @@ func TestCreateSchedule(t *testing.T) {
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
 		},
+		"invalid SKIP_NEW + CATCH_UP_ALL": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "* * * * *"},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "wf"},
+						TaskList:     &types.TaskList{Name: "tl"},
+					},
+				},
+				Policies: &types.SchedulePolicies{
+					OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
+					CatchUpPolicy: types.ScheduleCatchUpPolicyAll,
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
 		"domain not found": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -457,6 +476,18 @@ func TestUpdateSchedule(t *testing.T) {
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
 		},
+		"invalid SKIP_NEW + CATCH_UP_ALL": {
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Policies: &types.SchedulePolicies{
+					OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
+					CatchUpPolicy: types.ScheduleCatchUpPolicyAll,
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
 		"success with spec update": {
 			request: &types.UpdateScheduleRequest{
 				Domain:     testDomain,
@@ -713,6 +744,63 @@ func TestNormalizeScheduleError(t *testing.T) {
 func TestScheduleWorkflowID(t *testing.T) {
 	assert.Equal(t, "cadence-scheduler:my-schedule", scheduleWorkflowID("my-schedule"))
 	assert.Equal(t, "cadence-scheduler:", scheduleWorkflowID(""))
+}
+
+func TestValidateSchedulePolicies(t *testing.T) {
+	tests := map[string]struct {
+		policies *types.SchedulePolicies
+		wantErr  bool
+	}{
+		"nil policies": {
+			policies: nil,
+			wantErr:  false,
+		},
+		"valid SKIP_NEW + SKIP": {
+			policies: &types.SchedulePolicies{
+				OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
+				CatchUpPolicy: types.ScheduleCatchUpPolicySkip,
+			},
+			wantErr: false,
+		},
+		"valid SKIP_NEW + ONE": {
+			policies: &types.SchedulePolicies{
+				OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
+				CatchUpPolicy: types.ScheduleCatchUpPolicyOne,
+			},
+			wantErr: false,
+		},
+		"invalid SKIP_NEW + ALL": {
+			policies: &types.SchedulePolicies{
+				OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
+				CatchUpPolicy: types.ScheduleCatchUpPolicyAll,
+			},
+			wantErr: true,
+		},
+		"valid TERMINATE_PREVIOUS + ALL": {
+			policies: &types.SchedulePolicies{
+				OverlapPolicy: types.ScheduleOverlapPolicyTerminatePrevious,
+				CatchUpPolicy: types.ScheduleCatchUpPolicyAll,
+			},
+			wantErr: false,
+		},
+		"valid CONCURRENT + ALL": {
+			policies: &types.SchedulePolicies{
+				OverlapPolicy: types.ScheduleOverlapPolicyConcurrent,
+				CatchUpPolicy: types.ScheduleCatchUpPolicyAll,
+			},
+			wantErr: false,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateSchedulePolicies(tt.policies)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestCreateSchedule_ShuttingDown(t *testing.T) {

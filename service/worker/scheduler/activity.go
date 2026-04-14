@@ -22,6 +22,7 @@ package scheduler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -107,7 +108,7 @@ func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (*
 		WorkflowIDReusePolicy:               &reusePolicy,
 		RetryPolicy:                         req.Action.RetryPolicy,
 		Memo:                                req.Action.Memo,
-		SearchAttributes:                    req.Action.SearchAttributes,
+		SearchAttributes:                    buildSearchAttributes(req),
 	}
 
 	resp, err := sc.FrontendClient.StartWorkflowExecution(ctx, startReq)
@@ -203,6 +204,30 @@ func terminateWorkflow(ctx context.Context, client frontend.Client, domain strin
 		return fmt.Errorf("failed to terminate workflow: %w", err)
 	}
 	return nil
+}
+
+func buildSearchAttributes(req ProcessFireRequest) *types.SearchAttributes {
+	fields := make(map[string][]byte)
+
+	// Preserve any user-provided search attributes from the action config
+	if req.Action.SearchAttributes != nil {
+		for k, v := range req.Action.SearchAttributes.IndexedFields {
+			fields[k] = v
+		}
+	}
+
+	// Add scheduler-managed attributes (overwrite user values if keys conflict)
+	if v, err := json.Marshal(req.ScheduleID); err == nil {
+		fields[SearchAttrScheduleID] = v
+	}
+	if v, err := json.Marshal(req.ScheduledTime); err == nil {
+		fields[SearchAttrScheduleTime] = v
+	}
+	if v, err := json.Marshal(req.TriggerSource == TriggerSourceBackfill); err == nil {
+		fields[SearchAttrIsBackfill] = v
+	}
+
+	return &types.SearchAttributes{IndexedFields: fields}
 }
 
 func isEntityNotExistsError(err error) bool {
