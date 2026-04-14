@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
@@ -14,6 +15,7 @@ func (p *namespaceProcessor) loadBalance(
 	currentAssignments map[string][]string,
 	namespaceState *store.NamespaceState,
 	deletedShards map[string]store.ShardState,
+	metricsScope metrics.Scope,
 ) (bool, error) {
 	loads, totalLoad := computeExecutorLoads(currentAssignments, namespaceState)
 	if len(loads) == 0 {
@@ -97,6 +99,9 @@ func (p *namespaceProcessor) loadBalance(
 			movesPlanned++
 			shardsMoved = true
 
+			if metricsScope != nil {
+				metricsScope.UpdateGauge(metrics.ShardDistributorAssignLoopMovedShardLoad, namespaceState.ShardStats[shardToMove].SmoothedLoad)
+			}
 			p.updateExecutorLoadsAfterMove(namespaceState, sourceExecutor, destExecutor, loads, shardToMove)
 			moveBudget--
 			movedThisIteration = true
@@ -107,6 +112,9 @@ func (p *namespaceProcessor) loadBalance(
 		if !movedThisIteration {
 			break
 		}
+	}
+	if movesPlanned > 0 && metricsScope != nil {
+		metricsScope.AddCounter(metrics.ShardDistributorAssignLoopLoadBasedMoves, int64(movesPlanned))
 	}
 	return shardsMoved, nil
 }
