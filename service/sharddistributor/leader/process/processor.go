@@ -466,10 +466,11 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	// If there are deleted shards or stale executors, the distribution has changed.
 	assignedToEmptyExecutors := assignShardsToEmptyExecutors(currentAssignments)
 	updatedAssignments := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
+
 	var isRebalancedByShardLoad bool
 	switch p.sdConfig.GetLoadBalancingMode(p.namespaceCfg.Name) {
 	case types.LoadBalancingModeGREEDY:
-		isRebalancedByShardLoad, err = p.loadBalance(currentAssignments, namespaceState, deletedShards, metricsLoopScope)
+		isRebalancedByShardLoad, err = p.rebalanceGreedyBySmoothedLoad(currentAssignments, namespaceState, deletedShards, metricsLoopScope)
 		if err != nil {
 			return fmt.Errorf("load balance: %w", err)
 		}

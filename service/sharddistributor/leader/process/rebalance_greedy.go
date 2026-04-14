@@ -11,7 +11,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-func (p *namespaceProcessor) loadBalance(
+func (p *namespaceProcessor) rebalanceGreedyBySmoothedLoad(
 	currentAssignments map[string][]string,
 	namespaceState *store.NamespaceState,
 	deletedShards map[string]store.ShardState,
@@ -30,6 +30,7 @@ func (p *namespaceProcessor) loadBalance(
 	}
 	shardsMoved := false
 	movesPlanned := 0
+	movedShards := make(map[string]struct{})
 	now := p.timeSource.Now().UTC()
 
 	// Plan multiple moves per cycle (within budget), recomputing eligibility after each move.
@@ -86,6 +87,7 @@ func (p *namespaceProcessor) loadBalance(
 				sourceExecutor,
 				destExecutor,
 				loads,
+				movedShards,
 				now,
 			)
 			if !found {
@@ -98,6 +100,7 @@ func (p *namespaceProcessor) loadBalance(
 			}
 			movesPlanned++
 			shardsMoved = true
+			movedShards[shardToMove] = struct{}{}
 
 			if metricsScope != nil {
 				metricsScope.UpdateGauge(metrics.ShardDistributorAssignLoopMovedShardLoad, namespaceState.ShardStats[shardToMove].SmoothedLoad)
@@ -225,6 +228,7 @@ func (p *namespaceProcessor) findShardToMove(
 	source string,
 	destination string,
 	executorLoads map[string]float64,
+	movedShards map[string]struct{},
 	now time.Time,
 ) (string, int, bool) {
 	bestShard := ""
@@ -236,6 +240,10 @@ func (p *namespaceProcessor) findShardToMove(
 
 	bestBenefit := 0.0
 	for i, shard := range currentAssignments[source] {
+		if _, ok := movedShards[shard]; ok {
+			continue
+		}
+
 		stats, ok := namespaceState.ShardStats[shard]
 		if !ok {
 			continue
