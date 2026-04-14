@@ -71,6 +71,19 @@ func getShardID(requestShardID *int, storeShardID int) int {
 	return storeShardID
 }
 
+// effectiveShardID returns the shard ID used for persistence. It prefers request.ShardID when set.
+// When the request omits ShardID, a debug log is emitted so callers missing the field can be found
+// during migration to host-level ExecutionStore.
+func (d *nosqlExecutionStore) effectiveShardID(requestShardID *int, operation string) int {
+	if requestShardID == nil && d.logger != nil {
+		d.logger.Debug("execution store request missing ShardID; using store shard ID",
+			tag.ShardID(d.shardID),
+			tag.Custom("operation", operation),
+		)
+	}
+	return getShardID(requestShardID, d.shardID)
+}
+
 func (d *nosqlExecutionStore) CreateWorkflowExecution(
 	ctx context.Context,
 	request *persistence.InternalCreateWorkflowExecutionRequest,
@@ -90,7 +103,7 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 		return nil, err
 	}
 
-	shardID := getShardID(request.ShardID, d.shardID)
+	shardID := d.effectiveShardID(request.ShardID, "CreateWorkflowExecution")
 
 	workflowRequestWriteMode, err := getWorkflowRequestWriteMode(request.WorkflowRequestMode)
 	if err != nil {
@@ -190,7 +203,7 @@ func (d *nosqlExecutionStore) GetWorkflowExecution(
 	request *persistence.InternalGetWorkflowExecutionRequest,
 ) (*persistence.InternalGetWorkflowExecutionResponse, error) {
 
-	shardID := getShardID(request.ShardID, d.shardID)
+	shardID := d.effectiveShardID(request.ShardID, "GetWorkflowExecution")
 	execution := request.Execution
 	state, err := d.db.SelectWorkflowExecution(ctx, shardID, request.DomainID, execution.WorkflowID, execution.RunID)
 	if err != nil {
@@ -227,7 +240,7 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 		return err
 	}
 
-	shardID := getShardID(request.ShardID, d.shardID)
+	shardID := d.effectiveShardID(request.ShardID, "UpdateWorkflowExecution")
 
 	workflowRequestWriteMode, err := getWorkflowRequestWriteMode(request.WorkflowRequestMode)
 	if err != nil {
@@ -243,6 +256,7 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 	case persistence.UpdateWorkflowModeBypassCurrent:
 		if err := d.assertNotCurrentExecution(
 			ctx,
+			shardID,
 			domainID,
 			workflowID,
 			runID); err != nil {
@@ -401,7 +415,7 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 		return err
 	}
 
-	shardID := getShardID(request.ShardID, d.shardID)
+	shardID := d.effectiveShardID(request.ShardID, "ConflictResolveWorkflowExecution")
 
 	workflowRequestWriteMode, err := getWorkflowRequestWriteMode(request.WorkflowRequestMode)
 	if err != nil {
@@ -414,6 +428,7 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 	case persistence.ConflictResolveWorkflowModeBypassCurrent:
 		if err := d.assertNotCurrentExecution(
 			ctx,
+			shardID,
 			domainID,
 			workflowID,
 			resetWorkflow.ExecutionInfo.RunID); err != nil {
@@ -537,7 +552,8 @@ func (d *nosqlExecutionStore) DeleteWorkflowExecution(
 	ctx context.Context,
 	request *persistence.DeleteWorkflowExecutionRequest,
 ) error {
-	err := d.db.DeleteWorkflowExecution(ctx, d.shardID, request.DomainID, request.WorkflowID, request.RunID)
+	shardID := d.effectiveShardID(request.ShardID, "DeleteWorkflowExecution")
+	err := d.db.DeleteWorkflowExecution(ctx, shardID, request.DomainID, request.WorkflowID, request.RunID)
 	if err != nil {
 		return convertCommonErrors(d.db, "DeleteWorkflowExecution", err)
 	}
@@ -549,7 +565,8 @@ func (d *nosqlExecutionStore) DeleteCurrentWorkflowExecution(
 	ctx context.Context,
 	request *persistence.DeleteCurrentWorkflowExecutionRequest,
 ) error {
-	err := d.db.DeleteCurrentWorkflow(ctx, d.shardID, request.DomainID, request.WorkflowID, request.RunID)
+	shardID := d.effectiveShardID(request.ShardID, "DeleteCurrentWorkflowExecution")
+	err := d.db.DeleteCurrentWorkflow(ctx, shardID, request.DomainID, request.WorkflowID, request.RunID)
 	if err != nil {
 		return convertCommonErrors(d.db, "DeleteCurrentWorkflowExecution", err)
 	}
@@ -561,7 +578,8 @@ func (d *nosqlExecutionStore) DeleteActiveClusterSelectionPolicy(
 	ctx context.Context,
 	request *persistence.DeleteActiveClusterSelectionPolicyRequest,
 ) error {
-	err := d.db.DeleteActiveClusterSelectionPolicy(ctx, d.shardID, request.DomainID, request.WorkflowID, request.RunID)
+	shardID := d.effectiveShardID(request.ShardID, "DeleteActiveClusterSelectionPolicy")
+	err := d.db.DeleteActiveClusterSelectionPolicy(ctx, shardID, request.DomainID, request.WorkflowID, request.RunID)
 	if err != nil {
 		return convertCommonErrors(d.db, "DeleteActiveClusterSelectionPolicy", err)
 	}
@@ -573,7 +591,8 @@ func (d *nosqlExecutionStore) GetCurrentExecution(
 	request *persistence.GetCurrentExecutionRequest,
 ) (*persistence.GetCurrentExecutionResponse,
 	error) {
-	result, err := d.db.SelectCurrentWorkflow(ctx, d.shardID, request.DomainID, request.WorkflowID)
+	shardID := d.effectiveShardID(request.ShardID, "GetCurrentExecution")
+	result, err := d.db.SelectCurrentWorkflow(ctx, shardID, request.DomainID, request.WorkflowID)
 
 	if err != nil {
 		if d.db.IsNotFoundError(err) {
@@ -598,7 +617,8 @@ func (d *nosqlExecutionStore) ListCurrentExecutions(
 	ctx context.Context,
 	request *persistence.ListCurrentExecutionsRequest,
 ) (*persistence.ListCurrentExecutionsResponse, error) {
-	executions, token, err := d.db.SelectAllCurrentWorkflows(ctx, d.shardID, request.PageToken, request.PageSize)
+	shardID := d.effectiveShardID(request.ShardID, "ListCurrentExecutions")
+	executions, token, err := d.db.SelectAllCurrentWorkflows(ctx, shardID, request.PageToken, request.PageSize)
 	if err != nil {
 		return nil, convertCommonErrors(d.db, "ListCurrentExecutions", err)
 	}
@@ -612,7 +632,8 @@ func (d *nosqlExecutionStore) IsWorkflowExecutionExists(
 	ctx context.Context,
 	request *persistence.IsWorkflowExecutionExistsRequest,
 ) (*persistence.IsWorkflowExecutionExistsResponse, error) {
-	exists, err := d.db.IsWorkflowExecutionExists(ctx, d.shardID, request.DomainID, request.WorkflowID, request.RunID)
+	shardID := d.effectiveShardID(request.ShardID, "IsWorkflowExecutionExists")
+	exists, err := d.db.IsWorkflowExecutionExists(ctx, shardID, request.DomainID, request.WorkflowID, request.RunID)
 	if err != nil {
 		return nil, convertCommonErrors(d.db, "IsWorkflowExecutionExists", err)
 	}
@@ -625,7 +646,8 @@ func (d *nosqlExecutionStore) ListConcreteExecutions(
 	ctx context.Context,
 	request *persistence.ListConcreteExecutionsRequest,
 ) (*persistence.InternalListConcreteExecutionsResponse, error) {
-	executions, nextPageToken, err := d.db.SelectAllWorkflowExecutions(ctx, d.shardID, request.PageToken, request.PageSize)
+	shardID := d.effectiveShardID(request.ShardID, "ListConcreteExecutions")
+	executions, nextPageToken, err := d.db.SelectAllWorkflowExecutions(ctx, shardID, request.PageToken, request.PageSize)
 	if err != nil {
 		return nil, convertCommonErrors(d.db, "ListConcreteExecutions", err)
 	}
@@ -639,7 +661,7 @@ func (d *nosqlExecutionStore) PutReplicationTaskToDLQ(
 	ctx context.Context,
 	request *persistence.InternalPutReplicationTaskToDLQRequest,
 ) error {
-	err := d.db.InsertReplicationDLQTask(ctx, getShardID(request.ShardID, d.shardID), request.SourceClusterName, &nosqlplugin.HistoryMigrationTask{
+	err := d.db.InsertReplicationDLQTask(ctx, d.effectiveShardID(request.ShardID, "PutReplicationTaskToDLQ"), request.SourceClusterName, &nosqlplugin.HistoryMigrationTask{
 		Replication: request.TaskInfo,
 		Task:        nil, // TODO: encode task infor into datablob
 	})
@@ -657,7 +679,8 @@ func (d *nosqlExecutionStore) GetReplicationTasksFromDLQ(
 	if request.ReadLevel > request.MaxReadLevel {
 		return nil, &types.BadRequestError{Message: "ReadLevel cannot be higher than MaxReadLevel"}
 	}
-	tasks, nextPageToken, err := d.db.SelectReplicationDLQTasksOrderByTaskID(ctx, d.shardID, request.SourceClusterName, request.BatchSize, request.NextPageToken, request.ReadLevel, request.MaxReadLevel)
+	shardID := d.effectiveShardID(request.ShardID, "GetReplicationTasksFromDLQ")
+	tasks, nextPageToken, err := d.db.SelectReplicationDLQTasksOrderByTaskID(ctx, shardID, request.SourceClusterName, request.BatchSize, request.NextPageToken, request.ReadLevel, request.MaxReadLevel)
 	if err != nil {
 		return nil, convertCommonErrors(d.db, "GetReplicationTasksFromDLQ", err)
 	}
@@ -679,8 +702,8 @@ func (d *nosqlExecutionStore) GetReplicationDLQSize(
 	ctx context.Context,
 	request *persistence.GetReplicationDLQSizeRequest,
 ) (*persistence.GetReplicationDLQSizeResponse, error) {
-
-	size, err := d.db.SelectReplicationDLQTasksCount(ctx, d.shardID, request.SourceClusterName)
+	shardID := d.effectiveShardID(request.ShardID, "GetReplicationDLQSize")
+	size, err := d.db.SelectReplicationDLQTasksCount(ctx, shardID, request.SourceClusterName)
 	if err != nil {
 		return nil, convertCommonErrors(d.db, "GetReplicationDLQSize", err)
 	}
@@ -693,8 +716,8 @@ func (d *nosqlExecutionStore) DeleteReplicationTaskFromDLQ(
 	ctx context.Context,
 	request *persistence.DeleteReplicationTaskFromDLQRequest,
 ) error {
-
-	err := d.db.DeleteReplicationDLQTask(ctx, d.shardID, request.SourceClusterName, request.TaskID)
+	shardID := d.effectiveShardID(request.ShardID, "DeleteReplicationTaskFromDLQ")
+	err := d.db.DeleteReplicationDLQTask(ctx, shardID, request.SourceClusterName, request.TaskID)
 	if err != nil {
 		return convertCommonErrors(d.db, "DeleteReplicationTaskFromDLQ", err)
 	}
@@ -706,8 +729,8 @@ func (d *nosqlExecutionStore) RangeDeleteReplicationTaskFromDLQ(
 	ctx context.Context,
 	request *persistence.RangeDeleteReplicationTaskFromDLQRequest,
 ) (*persistence.RangeDeleteReplicationTaskFromDLQResponse, error) {
-
-	err := d.db.RangeDeleteReplicationDLQTasks(ctx, d.shardID, request.SourceClusterName, request.InclusiveBeginTaskID, request.ExclusiveEndTaskID)
+	shardID := d.effectiveShardID(request.ShardID, "RangeDeleteReplicationTaskFromDLQ")
+	err := d.db.RangeDeleteReplicationDLQTasks(ctx, shardID, request.SourceClusterName, request.InclusiveBeginTaskID, request.ExclusiveEndTaskID)
 	if err != nil {
 		return nil, convertCommonErrors(d.db, "RangeDeleteReplicationTaskFromDLQ", err)
 	}
@@ -719,6 +742,7 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 	ctx context.Context,
 	request *persistence.CreateFailoverMarkersRequest,
 ) error {
+	shardID := d.effectiveShardID(request.ShardID, "CreateFailoverMarkerTasks")
 
 	var nosqlTasks []*nosqlplugin.HistoryMigrationTask
 	for i, task := range request.Markers {
@@ -733,7 +757,7 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 	}
 
 	err := d.db.InsertReplicationTask(ctx, nosqlTasks, nosqlplugin.ShardCondition{
-		ShardID: d.shardID,
+		ShardID: shardID,
 		RangeID: request.RangeID,
 	})
 
@@ -741,7 +765,7 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 		conditionFailureErr, isConditionFailedError := err.(*nosqlplugin.ShardOperationConditionFailure)
 		if isConditionFailedError {
 			return &persistence.ShardOwnershipLostError{
-				ShardID: d.shardID,
+				ShardID: shardID,
 				Msg: fmt.Sprintf("Failed to create workflow execution.  Request RangeID: %v, columns: (%v)",
 					conditionFailureErr.RangeID, conditionFailureErr.Details),
 			}
@@ -754,11 +778,12 @@ func (d *nosqlExecutionStore) GetHistoryTasks(
 	ctx context.Context,
 	request *persistence.GetHistoryTasksRequest,
 ) (*persistence.GetHistoryTasksResponse, error) {
+	shardID := d.effectiveShardID(request.ShardID, "GetHistoryTasks")
 	switch request.TaskCategory.Type() {
 	case persistence.HistoryTaskCategoryTypeImmediate:
-		return d.getImmediateHistoryTasks(ctx, request)
+		return d.getImmediateHistoryTasks(ctx, request, shardID)
 	case persistence.HistoryTaskCategoryTypeScheduled:
-		return d.getScheduledHistoryTasks(ctx, request)
+		return d.getScheduledHistoryTasks(ctx, request, shardID)
 	default:
 		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
 	}
@@ -767,10 +792,11 @@ func (d *nosqlExecutionStore) GetHistoryTasks(
 func (d *nosqlExecutionStore) getImmediateHistoryTasks(
 	ctx context.Context,
 	request *persistence.GetHistoryTasksRequest,
+	shardID int,
 ) (*persistence.GetHistoryTasksResponse, error) {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTransfer:
-		tasks, nextPageToken, err := d.db.SelectTransferTasksOrderByTaskID(ctx, d.shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
+		tasks, nextPageToken, err := d.db.SelectTransferTasksOrderByTaskID(ctx, shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
 		}
@@ -796,7 +822,7 @@ func (d *nosqlExecutionStore) getImmediateHistoryTasks(
 			NextPageToken: nextPageToken,
 		}, nil
 	case persistence.HistoryTaskCategoryIDReplication:
-		tasks, nextPageToken, err := d.db.SelectReplicationTasksOrderByTaskID(ctx, d.shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
+		tasks, nextPageToken, err := d.db.SelectReplicationTasksOrderByTaskID(ctx, shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
 		}
@@ -829,10 +855,11 @@ func (d *nosqlExecutionStore) getImmediateHistoryTasks(
 func (d *nosqlExecutionStore) getScheduledHistoryTasks(
 	ctx context.Context,
 	request *persistence.GetHistoryTasksRequest,
+	shardID int,
 ) (*persistence.GetHistoryTasksResponse, error) {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTimer:
-		timers, nextPageToken, err := d.db.SelectTimerTasksOrderByVisibilityTime(ctx, d.shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.GetScheduledTime(), request.ExclusiveMaxTaskKey.GetScheduledTime())
+		timers, nextPageToken, err := d.db.SelectTimerTasksOrderByVisibilityTime(ctx, shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.GetScheduledTime(), request.ExclusiveMaxTaskKey.GetScheduledTime())
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "GetScheduledHistoryTasks", err)
 		}
@@ -867,11 +894,12 @@ func (d *nosqlExecutionStore) CompleteHistoryTask(
 	ctx context.Context,
 	request *persistence.CompleteHistoryTaskRequest,
 ) error {
+	shardID := d.effectiveShardID(request.ShardID, "CompleteHistoryTask")
 	switch request.TaskCategory.Type() {
 	case persistence.HistoryTaskCategoryTypeScheduled:
-		return d.completeScheduledHistoryTask(ctx, request)
+		return d.completeScheduledHistoryTask(ctx, request, shardID)
 	case persistence.HistoryTaskCategoryTypeImmediate:
-		return d.completeImmediateHistoryTask(ctx, request)
+		return d.completeImmediateHistoryTask(ctx, request, shardID)
 	default:
 		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
 	}
@@ -880,10 +908,11 @@ func (d *nosqlExecutionStore) CompleteHistoryTask(
 func (d *nosqlExecutionStore) completeScheduledHistoryTask(
 	ctx context.Context,
 	request *persistence.CompleteHistoryTaskRequest,
+	shardID int,
 ) error {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTimer:
-		err := d.db.DeleteTimerTask(ctx, d.shardID, request.TaskKey.GetTaskID(), request.TaskKey.GetScheduledTime())
+		err := d.db.DeleteTimerTask(ctx, shardID, request.TaskKey.GetTaskID(), request.TaskKey.GetScheduledTime())
 		if err != nil {
 			return convertCommonErrors(d.db, "CompleteScheduledHistoryTask", err)
 		}
@@ -896,16 +925,17 @@ func (d *nosqlExecutionStore) completeScheduledHistoryTask(
 func (d *nosqlExecutionStore) completeImmediateHistoryTask(
 	ctx context.Context,
 	request *persistence.CompleteHistoryTaskRequest,
+	shardID int,
 ) error {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTransfer:
-		err := d.db.DeleteTransferTask(ctx, d.shardID, request.TaskKey.GetTaskID())
+		err := d.db.DeleteTransferTask(ctx, shardID, request.TaskKey.GetTaskID())
 		if err != nil {
 			return convertCommonErrors(d.db, "CompleteImmediateHistoryTask", err)
 		}
 		return nil
 	case persistence.HistoryTaskCategoryIDReplication:
-		err := d.db.DeleteReplicationTask(ctx, d.shardID, request.TaskKey.GetTaskID())
+		err := d.db.DeleteReplicationTask(ctx, shardID, request.TaskKey.GetTaskID())
 		if err != nil {
 			return convertCommonErrors(d.db, "CompleteImmediateHistoryTask", err)
 		}
@@ -919,11 +949,12 @@ func (d *nosqlExecutionStore) RangeCompleteHistoryTask(
 	ctx context.Context,
 	request *persistence.RangeCompleteHistoryTaskRequest,
 ) (*persistence.RangeCompleteHistoryTaskResponse, error) {
+	shardID := d.effectiveShardID(request.ShardID, "RangeCompleteHistoryTask")
 	switch request.TaskCategory.Type() {
 	case persistence.HistoryTaskCategoryTypeScheduled:
-		return d.rangeCompleteScheduledHistoryTask(ctx, request)
+		return d.rangeCompleteScheduledHistoryTask(ctx, request, shardID)
 	case persistence.HistoryTaskCategoryTypeImmediate:
-		return d.rangeCompleteImmediateHistoryTask(ctx, request)
+		return d.rangeCompleteImmediateHistoryTask(ctx, request, shardID)
 	default:
 		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
 	}
@@ -932,10 +963,11 @@ func (d *nosqlExecutionStore) RangeCompleteHistoryTask(
 func (d *nosqlExecutionStore) rangeCompleteScheduledHistoryTask(
 	ctx context.Context,
 	request *persistence.RangeCompleteHistoryTaskRequest,
+	shardID int,
 ) (*persistence.RangeCompleteHistoryTaskResponse, error) {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTimer:
-		err := d.db.RangeDeleteTimerTasks(ctx, d.shardID, request.InclusiveMinTaskKey.GetScheduledTime(), request.ExclusiveMaxTaskKey.GetScheduledTime())
+		err := d.db.RangeDeleteTimerTasks(ctx, shardID, request.InclusiveMinTaskKey.GetScheduledTime(), request.ExclusiveMaxTaskKey.GetScheduledTime())
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "RangeCompleteTimerTask", err)
 		}
@@ -948,15 +980,16 @@ func (d *nosqlExecutionStore) rangeCompleteScheduledHistoryTask(
 func (d *nosqlExecutionStore) rangeCompleteImmediateHistoryTask(
 	ctx context.Context,
 	request *persistence.RangeCompleteHistoryTaskRequest,
+	shardID int,
 ) (*persistence.RangeCompleteHistoryTaskResponse, error) {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTransfer:
-		err := d.db.RangeDeleteTransferTasks(ctx, d.shardID, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
+		err := d.db.RangeDeleteTransferTasks(ctx, shardID, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "RangeCompleteTransferTask", err)
 		}
 	case persistence.HistoryTaskCategoryIDReplication:
-		err := d.db.RangeDeleteReplicationTasks(ctx, d.shardID, request.ExclusiveMaxTaskKey.GetTaskID())
+		err := d.db.RangeDeleteReplicationTasks(ctx, shardID, request.ExclusiveMaxTaskKey.GetTaskID())
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "RangeCompleteReplicationTask", err)
 		}
@@ -970,7 +1003,8 @@ func (d *nosqlExecutionStore) GetActiveClusterSelectionPolicy(
 	ctx context.Context,
 	request *persistence.GetActiveClusterSelectionPolicyRequest,
 ) (*persistence.DataBlob, error) {
-	row, err := d.db.SelectActiveClusterSelectionPolicy(ctx, d.shardID, request.DomainID, request.WorkflowID, request.RunID)
+	shardID := d.effectiveShardID(request.ShardID, "GetActiveClusterSelectionPolicy")
+	row, err := d.db.SelectActiveClusterSelectionPolicy(ctx, shardID, request.DomainID, request.WorkflowID, request.RunID)
 	if err != nil {
 		if d.db.IsNotFoundError(err) {
 			return nil, &types.EntityNotExistsError{

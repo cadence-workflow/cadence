@@ -1289,7 +1289,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 				).Return(&nosqlplugin.CurrentWorkflowRow{
 					RunID: "different-run-id",
 				}, nil)
-				return nil, store.assertNotCurrentExecution(ctx, "test-domain-id", "test-workflow-id", "expected-run-id")
+				return nil, store.assertNotCurrentExecution(ctx, store.shardID, "test-domain-id", "test-workflow-id", "expected-run-id")
 			},
 			validate: func(t *testing.T, _ interface{}, err error) {
 				assert.NoError(t, err)
@@ -1308,7 +1308,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					"test-workflow-id",
 				).Return(nil, &types.EntityNotExistsError{})
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true).AnyTimes()
-				return nil, store.assertNotCurrentExecution(ctx, "test-domain-id", "test-workflow-id", "expected-run-id")
+				return nil, store.assertNotCurrentExecution(ctx, store.shardID, "test-domain-id", "test-workflow-id", "expected-run-id")
 			},
 			validate: func(t *testing.T, _ interface{}, err error) {
 				assert.NoError(t, err)

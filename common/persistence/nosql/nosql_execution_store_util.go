@@ -590,12 +590,14 @@ func (d *nosqlExecutionStore) processUpdateWorkflowResult(err error, rangeID int
 
 func (d *nosqlExecutionStore) assertNotCurrentExecution(
 	ctx context.Context,
+	shardID int,
 	domainID string,
 	workflowID string,
 	runID string,
 ) error {
 
 	if resp, err := d.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(shardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	}); err != nil {

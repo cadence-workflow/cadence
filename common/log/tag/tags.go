@@ -490,6 +490,14 @@ func Value(v interface{}) Tag {
 	return newObjectTag("value", v)
 }
 
+// Custom returns a tag with a caller-provided key.
+//
+// Note: this formats the value as a string (same as newObjectTag) to match the
+// existing tag package behavior for object tags.
+func Custom(key string, value interface{}) Tag {
+	return newObjectTag(key, value)
+}
+
 // Reason returns tag for Reason
 func Reason(reason string) Tag {
 	return newStringTag("reason", reason)

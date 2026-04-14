@@ -249,6 +249,12 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			name: "UpdateWorkflowModeBypassCurrent - assertNotCurrentExecution failure",
 			setupMock: func(mockDB *nosqlplugin.MockDB, shardID int) {
 				mockDB.EXPECT().
+					SelectCurrentWorkflow(gomock.Any(), shardID, constants.TestDomainID, constants.TestWorkflowID).
+					Return(&nosqlplugin.CurrentWorkflowRow{
+						RunID: constants.TestRunID,
+					}, nil).
+					Times(1)
+				mockDB.EXPECT().
 					UpdateWorkflowExecutionWithTasks(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), nil, gomock.Any(), gomock.Any()).
 					Times(0)
 			},
@@ -257,7 +263,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 				req.Mode = persistence.UpdateWorkflowModeBypassCurrent
 				return req
 			},
-			expectedError: &types.InternalServiceError{Message: "assertNotCurrentExecution failure"},
+			expectedError: &persistence.ConditionFailedError{},
 		},
 		{
 			name: "Unknown update mode",
@@ -271,14 +277,21 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			expectedError: &types.InternalServiceError{Message: "UpdateWorkflowExecution: unknown mode: -1"},
 		},
 		{
-			name:      "Bypass_current_execution_failure_due_to_assertNotCurrentExecution",
-			setupMock: func(mockDB *nosqlplugin.MockDB, shardID int) {},
+			name: "Bypass_current_execution_failure_due_to_assertNotCurrentExecution",
+			setupMock: func(mockDB *nosqlplugin.MockDB, shardID int) {
+				mockDB.EXPECT().
+					SelectCurrentWorkflow(gomock.Any(), shardID, constants.TestDomainID, constants.TestWorkflowID).
+					Return(&nosqlplugin.CurrentWorkflowRow{
+						RunID: constants.TestRunID,
+					}, nil).
+					Times(1)
+			},
 			request: func() *persistence.InternalUpdateWorkflowExecutionRequest {
 				req := newUpdateWorkflowExecutionRequest()
 				req.Mode = persistence.UpdateWorkflowModeBypassCurrent
 				return req
 			},
-			expectedError: &types.InternalServiceError{Message: "assertNotCurrentExecution failure"},
+			expectedError: &persistence.ConditionFailedError{},
 		},
 		{
 			name: "Update with new snapshot (continue as new)",
@@ -1935,4 +1948,45 @@ func TestCompleteHistoryTask(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetShardID(t *testing.T) {
+	tests := []struct {
+		name     string
+		reqID    *int
+		storeID  int
+		expected int
+	}{
+		{name: "nil uses store", reqID: nil, storeID: 5, expected: 5},
+		{name: "non-nil overrides", reqID: common.IntPtr(9), storeID: 5, expected: 9},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, getShardID(tc.reqID, tc.storeID))
+		})
+	}
+}
+
+func TestGetWorkflowExecution_usesRequestShardIDWhenSet(t *testing.T) {
+	ctx := context.Background()
+	const storeShardID = 1
+	const overrideShardID = 9
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockDB := nosqlplugin.NewMockDB(ctrl)
+	mockDB.EXPECT().
+		SelectWorkflowExecution(ctx, overrideShardID, gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&nosqlplugin.WorkflowExecution{}, nil).
+		Times(1)
+
+	store := &nosqlExecutionStore{
+		shardID:    storeShardID,
+		nosqlStore: nosqlStore{logger: log.NewNoop(), db: mockDB},
+	}
+	req := newGetWorkflowExecutionRequest()
+	req.ShardID = common.IntPtr(overrideShardID)
+
+	_, err := store.GetWorkflowExecution(ctx, req)
+	require.NoError(t, err)
 }
