@@ -49,8 +49,9 @@ type executorAssignmentLoad struct {
 // separately in the shard cache and is not returned by GetState.
 //
 // Within the batch, each shard is assigned to an ACTIVE executor according to
-// the configured load balancing mode. The in-batch running shard count is
-// updated after each pick so ties spread evenly.
+// the configured load balancing mode. The in-batch load state is updated after
+// each pick so later picks account for earlier picks.
+
 func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string, shardKeys []string) (map[string]*types.GetShardOwnerResponse, error) {
 	state, err := h.storage.GetState(ctx, namespace)
 	if err != nil {
