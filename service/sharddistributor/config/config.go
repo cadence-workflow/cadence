@@ -96,6 +96,32 @@ type (
 		// the executor is considered stale and its shards are eligible for redistribution.
 		// Default: 10 seconds
 		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
+
+		// LoadBalance contains tunables for GREEDY load-based rebalancing.
+		LoadBalance LoadBalance `yaml:"loadBalance"`
+	}
+
+	// LoadBalance contains static tunables for GREEDY load-based rebalancing.
+	LoadBalance struct {
+		// PerShardCooldown is the minimum time between moving the same shard.
+		// Default: 1 minute.
+		PerShardCooldown time.Duration `yaml:"perShardCooldown"`
+
+		// MoveBudgetProportion is the fraction of total shards that may be moved per load-balance pass.
+		// Default: 0.01 (1%).
+		MoveBudgetProportion float64 `yaml:"moveBudgetProportion"`
+
+		// HysteresisUpperBand is the multiplier above mean load that qualifies an executor as a source.
+		// Default: 1.15.
+		HysteresisUpperBand float64 `yaml:"hysteresisUpperBand"`
+
+		// HysteresisLowerBand is the multiplier below mean load that qualifies an executor as a destination.
+		// Default: 0.95.
+		HysteresisLowerBand float64 `yaml:"hysteresisLowerBand"`
+
+		// SevereImbalanceRatio allows relaxing destination selection when maxLoad/meanLoad reaches this value.
+		// Default: 1.5.
+		SevereImbalanceRatio float64 `yaml:"severeImbalanceRatio"`
 	}
 
 	// YamlNode is a lazy-unmarshaler, because *yaml.Node only exists in gopkg.in/yaml.v3, not v2,
