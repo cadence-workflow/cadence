@@ -26,7 +26,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -238,15 +237,11 @@ func TestAssignEphemeralBatch_UsesSmoothedLoadForGreedyPlacement(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockStorage := store.NewMockStore(ctrl)
-	timeSource := clock.NewMockedTimeSourceAt(time.Date(2026, 4, 12, 12, 0, 0, 0, time.UTC))
 	h := &handlerImpl{
 		logger:     testlogger.New(t),
 		storage:    mockStorage,
-		timeSource: timeSource,
+		timeSource: clock.NewMockedTimeSource(),
 		cfg:        newTestShardDistributorConfig(config.LoadBalancingModeGREEDY),
-		shardDistributionCfg: config.ShardDistribution{
-			Process: config.LeaderProcess{HeartbeatTTL: time.Minute},
-		},
 	}
 
 	mockStorage.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
@@ -275,11 +270,11 @@ func TestAssignEphemeralBatch_UsesSmoothedLoadForGreedyPlacement(t *testing.T) {
 			},
 		},
 		ShardStats: map[string]store.ShardStatistics{
-			"hot-1":  {SmoothedLoad: 100.0, LastUpdateTime: timeSource.Now()},
-			"cold-1": {SmoothedLoad: 1.0, LastUpdateTime: timeSource.Now()},
-			"cold-2": {SmoothedLoad: 1.0, LastUpdateTime: timeSource.Now()},
-			"cold-3": {SmoothedLoad: 1.5, LastUpdateTime: timeSource.Now()},
-			"cold-4": {SmoothedLoad: 1.5, LastUpdateTime: timeSource.Now()},
+			"hot-1":  {SmoothedLoad: 100.0},
+			"cold-1": {SmoothedLoad: 1.0},
+			"cold-2": {SmoothedLoad: 1.0},
+			"cold-3": {SmoothedLoad: 1.5},
+			"cold-4": {SmoothedLoad: 1.5},
 		},
 	}, nil)
 	mockStorage.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
