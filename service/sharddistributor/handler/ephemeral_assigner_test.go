@@ -49,7 +49,7 @@ func TestAssignEphemeralBatch(t *testing.T) {
 		expectedErrMsg string
 	}{
 		{
-			name:      "AssignsToLeastLoadedExecutor",
+			name:      "NaiveAssignsToFewestShards",
 			namespace: _testNamespaceEphemeral,
 			shardKeys: []string{"NON-EXISTING-SHARD"},
 			setupMocks: func(mockStore *store.MockStore) {
@@ -253,36 +253,52 @@ func TestAssignEphemeralBatch_UsesSmoothedLoadForGreedyPlacement(t *testing.T) {
 		Executors: map[string]store.HeartbeatState{
 			"owner1": {Status: types.ExecutorStatusACTIVE},
 			"owner2": {Status: types.ExecutorStatusACTIVE},
+			"owner3": {Status: types.ExecutorStatusACTIVE},
 		},
 		ShardAssignments: map[string]store.AssignedState{
 			"owner1": {
 				AssignedShards: map[string]*types.ShardAssignment{
-					"cold-1": {Status: types.AssignmentStatusREADY},
+					"hot-1": {Status: types.AssignmentStatusREADY},
 				},
 			},
 			"owner2": {
 				AssignedShards: map[string]*types.ShardAssignment{
-					"warm-1": {Status: types.AssignmentStatusREADY},
+					"cold-1": {Status: types.AssignmentStatusREADY},
+					"cold-2": {Status: types.AssignmentStatusREADY},
+				},
+			},
+			"owner3": {
+				AssignedShards: map[string]*types.ShardAssignment{
+					"cold-3": {Status: types.AssignmentStatusREADY},
+					"cold-4": {Status: types.AssignmentStatusREADY},
 				},
 			},
 		},
 		ShardStats: map[string]store.ShardStatistics{
+			"hot-1":  {SmoothedLoad: 100.0, LastUpdateTime: timeSource.Now()},
 			"cold-1": {SmoothedLoad: 1.0, LastUpdateTime: timeSource.Now()},
-			"warm-1": {SmoothedLoad: 2.0, LastUpdateTime: timeSource.Now()},
+			"cold-2": {SmoothedLoad: 1.0, LastUpdateTime: timeSource.Now()},
+			"cold-3": {SmoothedLoad: 1.5, LastUpdateTime: timeSource.Now()},
+			"cold-4": {SmoothedLoad: 1.5, LastUpdateTime: timeSource.Now()},
 		},
 	}, nil)
 	mockStorage.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
-	mockStorage.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner1").Return(&store.ShardOwner{
-		ExecutorID: "owner1",
-		Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
-	}, nil)
 	mockStorage.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner2").Return(&store.ShardOwner{
 		ExecutorID: "owner2",
 		Metadata:   map[string]string{"ip": "127.0.0.2", "port": "1234"},
 	}, nil)
+	mockStorage.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner3").Return(&store.ShardOwner{
+		ExecutorID: "owner3",
+		Metadata:   map[string]string{"ip": "127.0.0.3", "port": "1234"},
+	}, nil)
 
 	results, err := h.assignEphemeralBatch(context.Background(), _testNamespaceEphemeral, []string{"new-shard-1", "new-shard-2"})
 	require.NoError(t, err)
-	require.Equal(t, "owner1", results["new-shard-1"].Owner)
-	require.Equal(t, "owner2", results["new-shard-2"].Owner)
+
+	// owner1 has the fewest shards but the highest load, so GREEDY should
+	// choose owner2 for the first shard.
+	require.Equal(t, "owner2", results["new-shard-1"].Owner)
+	// The first pick temporarily adds the average shard load to owner2, making
+	// owner3 the next lowest-load executor for the second shard.
+	require.Equal(t, "owner3", results["new-shard-2"].Owner)
 }
