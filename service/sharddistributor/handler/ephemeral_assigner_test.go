@@ -233,7 +233,7 @@ func TestAssignEphemeralBatch(t *testing.T) {
 	}
 }
 
-func TestAssignEphemeralBatch_PrefersLowerSmoothedLoad(t *testing.T) {
+func TestAssignEphemeralBatch_UsesSmoothedLoadForGreedyPlacement(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -258,19 +258,17 @@ func TestAssignEphemeralBatch_PrefersLowerSmoothedLoad(t *testing.T) {
 			"owner1": {
 				AssignedShards: map[string]*types.ShardAssignment{
 					"cold-1": {Status: types.AssignmentStatusREADY},
-					"cold-2": {Status: types.AssignmentStatusREADY},
 				},
 			},
 			"owner2": {
 				AssignedShards: map[string]*types.ShardAssignment{
-					"hot-1": {Status: types.AssignmentStatusREADY},
+					"warm-1": {Status: types.AssignmentStatusREADY},
 				},
 			},
 		},
 		ShardStats: map[string]store.ShardStatistics{
 			"cold-1": {SmoothedLoad: 1.0, LastUpdateTime: timeSource.Now()},
-			"cold-2": {SmoothedLoad: 1.0, LastUpdateTime: timeSource.Now()},
-			"hot-1":  {SmoothedLoad: 100.0, LastUpdateTime: timeSource.Now()},
+			"warm-1": {SmoothedLoad: 2.0, LastUpdateTime: timeSource.Now()},
 		},
 	}, nil)
 	mockStorage.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
@@ -278,8 +276,13 @@ func TestAssignEphemeralBatch_PrefersLowerSmoothedLoad(t *testing.T) {
 		ExecutorID: "owner1",
 		Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
 	}, nil)
+	mockStorage.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner2").Return(&store.ShardOwner{
+		ExecutorID: "owner2",
+		Metadata:   map[string]string{"ip": "127.0.0.2", "port": "1234"},
+	}, nil)
 
-	results, err := h.assignEphemeralBatch(context.Background(), _testNamespaceEphemeral, []string{"new-shard"})
+	results, err := h.assignEphemeralBatch(context.Background(), _testNamespaceEphemeral, []string{"new-shard-1", "new-shard-2"})
 	require.NoError(t, err)
-	require.Equal(t, "owner1", results["new-shard"].Owner)
+	require.Equal(t, "owner1", results["new-shard-1"].Owner)
+	require.Equal(t, "owner2", results["new-shard-2"].Owner)
 }

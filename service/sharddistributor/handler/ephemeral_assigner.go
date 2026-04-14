@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"time"
 
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -63,12 +62,18 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 		loadBalancingMode = types.LoadBalancingModeNAIVE
 	}
 
-	assignmentLoads, err := h.buildExecutorAssignmentLoads(loadBalancingMode, state)
+	executorLoads, averageShardLoad, err := h.computeInitialPlacementLoads(loadBalancingMode, state)
 	if err != nil {
 		return nil, err
 	}
 
-	chosenExecutors, err := pickExecutors(namespace, shardKeys, assignmentLoads, loadBalancingMode)
+	chosenExecutors, err := pickExecutors(
+		namespace,
+		shardKeys,
+		executorLoads,
+		loadBalancingMode,
+		averageShardLoad,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -92,9 +97,9 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 	return buildResults(namespace, shardKeys, chosenExecutors, executorOwners), nil
 }
 
-// buildExecutorAssignmentLoads returns current shard count for all ACTIVE executors.
-// In GREEDY mode it also includes smoothed shard load; other modes stay count-based.
-func (h *handlerImpl) buildExecutorAssignmentLoads(mode types.LoadBalancingMode, state *store.NamespaceState) (map[string]executorAssignmentLoad, error) {
+// computeInitialPlacementLoads returns current shard count for all ACTIVE executors.
+// In GREEDY mode it also includes smoothed shard and an average shard load
+func (h *handlerImpl) computeInitialPlacementLoads(mode types.LoadBalancingMode, state *store.NamespaceState) (map[string]executorAssignmentLoad, float64, error) {
 	var useSmoothedLoad bool
 	switch mode {
 	case types.LoadBalancingModeGREEDY:
@@ -102,16 +107,12 @@ func (h *handlerImpl) buildExecutorAssignmentLoads(mode types.LoadBalancingMode,
 	case types.LoadBalancingModeNAIVE:
 		useSmoothedLoad = false
 	default:
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", mode)}
+		return nil, 0, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", mode)}
 	}
 
 	executorsAssignmentLoad := make(map[string]executorAssignmentLoad, len(state.Executors))
-	var now time.Time
-	var ttl time.Duration
-	if useSmoothedLoad {
-		now = h.timeSource.Now().UTC()
-		ttl = h.shardDistributionCfg.Process.HeartbeatTTL
-	}
+	totalSmoothedLoad := 0.0
+	totalShardCount := 0
 
 	for executorID, executorState := range state.Executors {
 		if executorState.Status != types.ExecutorStatusACTIVE {
@@ -120,21 +121,23 @@ func (h *handlerImpl) buildExecutorAssignmentLoads(mode types.LoadBalancingMode,
 
 		assignment := state.ShardAssignments[executorID]
 		executorLoad := executorAssignmentLoad{shardCount: len(assignment.AssignedShards)}
+		totalShardCount += executorLoad.shardCount
 		if useSmoothedLoad {
 			for shardID := range assignment.AssignedShards {
 				stats, ok := state.ShardStats[shardID]
 				if !ok {
 					continue
 				}
-				if ttl > 0 && !stats.LastUpdateTime.IsZero() && now.Sub(stats.LastUpdateTime) > ttl {
-					continue
-				}
 				executorLoad.smoothedLoad += stats.SmoothedLoad
+				totalSmoothedLoad += stats.SmoothedLoad
 			}
 		}
 		executorsAssignmentLoad[executorID] = executorLoad
 	}
-	return executorsAssignmentLoad, nil
+	if !useSmoothedLoad || totalShardCount == 0 {
+		return executorsAssignmentLoad, 0, nil
+	}
+	return executorsAssignmentLoad, totalSmoothedLoad / float64(totalShardCount), nil
 }
 
 // pickExecutors assigns each shard key to an active executor,
@@ -145,6 +148,7 @@ func pickExecutors(
 	shardKeys []string,
 	assignmentLoads map[string]executorAssignmentLoad,
 	mode types.LoadBalancingMode,
+	averageShardLoad float64,
 ) (map[string]string, error) {
 	executorIDs := make([]string, 0, len(assignmentLoads))
 	for executorID := range assignmentLoads {
@@ -171,6 +175,11 @@ func pickExecutors(
 		chosenExecutors[shardKey] = chosenExecutor
 		load := assignmentLoads[chosenExecutor]
 		load.shardCount++
+		if mode == types.LoadBalancingModeGREEDY {
+			// We increase the total load by the average shard load in the namespace
+			// This helps avoid placing all shards in the batch on the same executor
+			load.smoothedLoad += averageShardLoad
+		}
 		assignmentLoads[chosenExecutor] = load
 	}
 	return chosenExecutors, nil
