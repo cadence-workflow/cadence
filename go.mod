@@ -61,8 +61,8 @@ require (
 	golang.org/x/sync v0.16.0
 	golang.org/x/time v0.5.0
 	golang.org/x/tools v0.36.0
-	gonum.org/v1/gonum v0.16.0
-	google.golang.org/grpc v1.75.1
+	gonum.org/v1/gonum v0.15.1
+	google.golang.org/grpc v1.67.3
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -94,7 +94,7 @@ require (
 	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142 // indirect
 )
 
 require (
