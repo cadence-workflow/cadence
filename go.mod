@@ -23,7 +23,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-version v1.2.0
-	github.com/iancoleman/strcase v0.3.0
+	github.com/iancoleman/strcase v0.2.0
 	github.com/jmespath/go-jmespath v0.4.0
 	github.com/jmoiron/sqlx v1.2.1-0.20200615141059-0794cb1f47ee
 	github.com/jonboulle/clockwork v0.5.0
@@ -53,7 +53,7 @@ require (
 	go.uber.org/config v1.4.0
 	go.uber.org/fx v1.23.0
 	go.uber.org/multierr v1.11.0
-	go.uber.org/thriftrw v1.32.0
+	go.uber.org/thriftrw v1.34.0
 	go.uber.org/yarpc v1.88.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b
@@ -62,7 +62,7 @@ require (
 	golang.org/x/time v0.5.0
 	golang.org/x/tools v0.39.0
 	gonum.org/v1/gonum v0.16.0
-	google.golang.org/grpc v1.79.3
+	google.golang.org/grpc v1.75.1
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -98,7 +98,7 @@ require (
 )
 
 require (
-	github.com/BurntSushi/toml v1.3.2 // indirect
+	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/apache/thrift v0.17.0 // indirect
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -152,7 +152,7 @@ require (
 	go.uber.org/goleak v1.3.0
 	go.uber.org/net/metrics v1.4.0 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
-	golang.org/x/exp/typeparams v0.0.0-20221208152030-732eee02a75a // indirect
+	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/mod v0.30.0
 	golang.org/x/sys v0.39.0 // indirect
@@ -161,7 +161,7 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	honnef.co/go/tools v0.4.3 // indirect
+	honnef.co/go/tools v0.5.1 // indirect
 )
 
 // ringpop-go and tchannel-go depends on older version of thrift, yarpc brings up newer version
