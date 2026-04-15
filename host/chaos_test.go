@@ -201,7 +201,7 @@ func TestChaosMonkey_ForcedRecoveryAtMinHosts(t *testing.T) {
 	mc.EXPECT().StopHost(gomock.Any()).Times(0) // canStop=false
 
 	cfg := chaosTestCfg()
-	cfg.MinHosts = 3    // equals numHosts → canStop always false
+	cfg.MinHosts = 3 // equals numHosts → canStop always false
 	cfg.StopChance = 1.0
 	cfg.StartChance = 0.01 // near-zero: would almost never fire without the forced-recovery fix
 
@@ -230,7 +230,7 @@ func TestChaosMonkey_NeverDropsBelowMinHosts(t *testing.T) {
 	mc.EXPECT().StartHost(gomock.Any()).Times(0)
 
 	cfg := chaosTestCfg()
-	cfg.MinHosts = 2    // equals numHosts → canStop always false
+	cfg.MinHosts = 2     // equals numHosts → canStop always false
 	cfg.StopChance = 1.0 // would stop if it could
 
 	cm := NewChaosMonkey(mc, cfg, 2, log.NewNoop())
