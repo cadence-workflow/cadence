@@ -2370,7 +2370,9 @@ const (
 	DomainCacheCallbacksCount
 
 	HistorySize
+	HistorySizeHistogram
 	HistoryCount
+	HistoryCountHistogram
 	EventBlobSize
 
 	EventBlobSizeExceedLimit
@@ -2757,18 +2759,31 @@ const (
 	WorkflowContextCleared
 	WorkflowContextLockLatency
 	MutableStateSize
+	MutableStateSizeHistogram
 	ExecutionInfoSize
+	ExecutionInfoSizeHistogram
 	ActivityInfoSize
+	ActivityInfoSizeHistogram
 	TimerInfoSize
+	TimerInfoSizeHistogram
 	ChildInfoSize
+	ChildInfoSizeHistogram
 	SignalInfoSize
+	SignalInfoSizeHistogram
 	BufferedEventsSize
+	BufferedEventsSizeHistogram
 	ActivityInfoCount
+	ActivityInfoCountHistogram
 	TimerInfoCount
+	TimerInfoCountHistogram
 	ChildInfoCount
+	ChildInfoCountHistogram
 	SignalInfoCount
+	SignalInfoCountHistogram
 	RequestCancelInfoCount
+	RequestCancelInfoCountHistogram
 	BufferedEventsCount
+	BufferedEventsCountHistogram
 	TransferTasksCount
 	TimerTasksCount
 	CrossClusterTasksCount
@@ -3228,7 +3243,9 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		DomainCacheCallbacksLatency:                                  {metricName: "domain_cache_callbacks_latency", metricType: Timer},
 		DomainCacheCallbacksCount:                                    {metricName: "domain_cache_callbacks_count", metricType: Counter},
 		HistorySize:                                                  {metricName: "history_size", metricType: Timer},
+		HistorySizeHistogram:                                         {metricName: "history_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
 		HistoryCount:                                                 {metricName: "history_count", metricType: Timer},
+		HistoryCountHistogram:                                        {metricName: "history_count_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		EventBlobSizeExceedLimit:                                     {metricName: "blob_size_exceed_limit", metricType: Counter},
 		EventBlobSize:                                                {metricName: "event_blob_size", metricType: Timer},
 		DecisionResultCount:                                          {metricName: "decision_result_count", metricType: Timer},
@@ -3636,18 +3653,31 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		WorkflowContextCleared:                                       {metricName: "workflow_context_cleared", metricType: Counter},
 		WorkflowContextLockLatency:                                   {metricName: "workflow_context_lock_latency", metricType: Timer},
 		MutableStateSize:                                             {metricName: "mutable_state_size", metricType: Timer},
+		MutableStateSizeHistogram:                                    {metricName: "mutable_state_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
 		ExecutionInfoSize:                                            {metricName: "execution_info_size", metricType: Timer},
+		ExecutionInfoSizeHistogram:                                   {metricName: "execution_info_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
 		ActivityInfoSize:                                             {metricName: "activity_info_size", metricType: Timer},
+		ActivityInfoSizeHistogram:                                    {metricName: "activity_info_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
 		TimerInfoSize:                                                {metricName: "timer_info_size", metricType: Timer},
+		TimerInfoSizeHistogram:                                       {metricName: "timer_info_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
 		ChildInfoSize:                                                {metricName: "child_info_size", metricType: Timer},
+		ChildInfoSizeHistogram:                                       {metricName: "child_info_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
 		SignalInfoSize:                                               {metricName: "signal_info_size", metricType: Timer},
+		SignalInfoSizeHistogram:                                      {metricName: "signal_info_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
 		BufferedEventsSize:                                           {metricName: "buffered_events_size", metricType: Timer},
+		BufferedEventsSizeHistogram:                                  {metricName: "buffered_events_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
 		ActivityInfoCount:                                            {metricName: "activity_info_count", metricType: Timer},
+		ActivityInfoCountHistogram:                                   {metricName: "activity_info_count_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		TimerInfoCount:                                               {metricName: "timer_info_count", metricType: Timer},
+		TimerInfoCountHistogram:                                      {metricName: "timer_info_count_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		ChildInfoCount:                                               {metricName: "child_info_count", metricType: Timer},
+		ChildInfoCountHistogram:                                      {metricName: "child_info_count_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		SignalInfoCount:                                              {metricName: "signal_info_count", metricType: Timer},
+		SignalInfoCountHistogram:                                     {metricName: "signal_info_count_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		RequestCancelInfoCount:                                       {metricName: "request_cancel_info_count", metricType: Timer},
+		RequestCancelInfoCountHistogram:                              {metricName: "request_cancel_info_count_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		BufferedEventsCount:                                          {metricName: "buffered_events_count", metricType: Timer},
+		BufferedEventsCountHistogram:                                 {metricName: "buffered_events_count_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		DeleteActivityInfoCount:                                      {metricName: "delete_activity_info", metricType: Timer},
 		DeleteTimerInfoCount:                                         {metricName: "delete_timer_info", metricType: Timer},
 		DeleteChildInfoCount:                                         {metricName: "delete_child_info", metricType: Timer},

@@ -65,6 +65,12 @@ var (
 	// Note: we intentionally start at 8 (not 1). Starting at 1 causes duplicate bucket boundaries
 	// due to float->duration truncation, which Prometheus rejects.
 	Mid1To16k = IntSubsettableHistogram(makeSubsettableHistogram(2, 8, 16384, 64))
+
+	// Mid8B16MB is a histogram for byte sizes, like mutable state or history blob sizes.
+	//
+	// This targets a few bytes through ~16MB, covering typical workflow execution sizes.
+	// Starting at 8 bytes to avoid duplicate bucket boundaries from float->duration truncation.
+	Mid8B16MB = IntSubsettableHistogram(makeSubsettableHistogram(2, 8, 16*1024*1024, 64))
 )
 
 // SubsettableHistogram is a duration-based histogram that can be subset to a lower scale
