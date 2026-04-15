@@ -1,0 +1,28 @@
+enablearchival: false
+clusterno: 0
+messagingclientconfig:
+  usemock: true
+historyconfig:
+  numhistoryshards: 16
+  numhistoryhosts: 3
+  chaosconfig:
+    enable: true
+    intervalms: 5000
+    jitterms: 2000
+    minhistoryhosts: 1
+  simulationconfig:
+    numworkflows: 20
+    workflowstartdelayms: 15000
+    testtimeoutseconds: 600
+    workflowexecutiontimeoutseconds: 300
+    endsleepseconds: 30
+matchingconfig:
+  nummatchinghosts: 1
+workerconfig:
+  enableasyncwfconsumer: false
+  enablearchiver: false
+  enablereplicator: false
+  enableindexer: false
+dynamicclientconfig:
+  filepath: "dynamicconfig/default.yaml"
+  pollInterval: "10s"

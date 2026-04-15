@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -172,6 +173,18 @@ func (s *HistorySimulationSuite) TestHistorySimulation() {
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
 	defer cancel()
 
+	chaosConfig := s.TestClusterConfig.HistoryConfig.ChaosConfig
+	numHosts := s.TestClusterConfig.HistoryConfig.NumHistoryHosts
+	cadenceCluster := s.TestCluster.GetCadence()
+
+	chaosCtx, chaosCancel := context.WithCancel(ctx)
+	var chaosWg sync.WaitGroup
+	cm := host.NewHistoryChaosMonkey(cadenceCluster, chaosConfig, numHosts, s.Logger)
+	chaosWg.Add(1)
+	go func() { defer chaosWg.Done(); cm.Run(chaosCtx) }()
+
+	// Start workflows. Use a long execution timeout so chaos-induced shard
+	// movement does not cause workflows to time out before recovery completes.
 	var runs []client.WorkflowRun
 	for i := 0; i < cfg.NumWorkflows; i++ {
 		workflowOptions := client.StartWorkflowOptions{
@@ -189,9 +202,17 @@ func (s *HistorySimulationSuite) TestHistorySimulation() {
 		runs = append(runs, we)
 		time.Sleep(cfg.SleepBetweenWorkflowStarts)
 	}
+
+	// Wait for all workflows to complete. Chaos runs in the background during
+	// this time, exercising shard movement while workflows are in flight.
 	for _, we := range runs {
 		s.NoError(we.Get(ctx, nil))
 	}
 
+	// Stop chaos and wait for the goroutine to finish (which restarts any
+	// stopped hosts). Then sleep to let shard re-acquisition settle and
+	// Prometheus scrape final metrics.
+	chaosCancel()
+	chaosWg.Wait()
 	time.Sleep(cfg.SleepAfterAllWorkflows)
 }

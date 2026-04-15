@@ -18,6 +18,13 @@ const (
 	EventNameExecuteHistoryTask = "Execute History Task"
 )
 
+const (
+	EventNameHostStopped   = "Host Stopped"
+	EventNameHostStarted   = "Host Started"
+	EventNameShardAcquired = "Shard Acquired"
+	EventNameShardReleased = "Shard Released"
+)
+
 type E struct {
 	ShardID    int
 	DomainID   string

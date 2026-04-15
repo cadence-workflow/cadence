@@ -381,8 +381,11 @@ func setupShards(testBase *persistencetests.TestBase, numHistoryShards int, logg
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 		err := testBase.CreateShard(ctx, shardID, "", 0)
 		if err != nil {
-			cancel()
-			logger.Fatal("Failed to create shard", tag.Error(err))
+			// Some shards may be pre-created by TestBase.Setup(), so ignore "already exists" errors
+			if _, ok := err.(*persistence.ShardAlreadyExistError); !ok {
+				cancel()
+				logger.Fatal("Failed to create shard", tag.Error(err))
+			}
 		}
 		cancel()
 	}
@@ -487,4 +490,9 @@ func (tc *TestCluster) GetMatchingClients() []MatchingClient {
 // GetExecutionManagerFactory returns an execution manager factory from the test cluster
 func (tc *TestCluster) GetExecutionManagerFactory() persistence.ExecutionManagerFactory {
 	return tc.host.GetExecutionManagerFactory()
+}
+
+// GetCadence returns the underlying Cadence instance for direct host control
+func (tc *TestCluster) GetCadence() Cadence {
+	return tc.host
 }

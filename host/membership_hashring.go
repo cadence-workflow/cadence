@@ -21,12 +21,15 @@
 package host
 
 import (
+	"sync"
+
 	"github.com/dgryski/go-farm"
 
 	"github.com/uber/cadence/common/membership"
 )
 
 type simpleHashring struct {
+	mu       sync.RWMutex
 	hosts    []membership.HostInfo
 	hashfunc func([]byte) uint32
 }
@@ -34,13 +37,39 @@ type simpleHashring struct {
 // newSimpleHashring returns a service resolver that maintains static mapping
 // between services and host info
 func newSimpleHashring(hosts []membership.HostInfo) *simpleHashring {
+	// Copy the slice so RemoveHost's in-place append cannot corrupt the caller's
+	// backing array (e.g. cadenceImpl.historyHostInfos).
+	hostsCopy := make([]membership.HostInfo, len(hosts))
+	copy(hostsCopy, hosts)
 	return &simpleHashring{
-		hosts:    hosts,
+		hosts:    hostsCopy,
 		hashfunc: farm.Fingerprint32,
 	}
 }
 
+func (s *simpleHashring) AddHost(host membership.HostInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hosts = append(s.hosts, host)
+}
+
+func (s *simpleHashring) RemoveHost(host membership.HostInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, h := range s.hosts {
+		if h.Identity() == host.Identity() {
+			s.hosts = append(s.hosts[:i], s.hosts[i+1:]...)
+			return
+		}
+	}
+}
+
 func (s *simpleHashring) Lookup(key string) (membership.HostInfo, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.hosts) == 0 {
+		return membership.HostInfo{}, membership.ErrInsufficientHosts
+	}
 	hash := int(s.hashfunc([]byte(key)))
 	idx := hash % len(s.hosts)
 	return s.hosts[idx], nil
@@ -49,6 +78,8 @@ func (s *simpleHashring) Lookup(key string) (membership.HostInfo, error) {
 // LookupN returns up to n hosts for the given key using consecutive slots in
 // the ring, wrapping around if needed.
 func (s *simpleHashring) LookupN(key string, n int) ([]membership.HostInfo, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if len(s.hosts) == 0 {
 		return nil, membership.ErrInsufficientHosts
 	}
@@ -74,9 +105,15 @@ func (s *simpleHashring) RemoveListener(name string) error {
 }
 
 func (s *simpleHashring) MemberCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return len(s.hosts)
 }
 
 func (s *simpleHashring) Members() []membership.HostInfo {
-	return s.hosts
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make([]membership.HostInfo, len(s.hosts))
+	copy(result, s.hosts)
+	return result
 }

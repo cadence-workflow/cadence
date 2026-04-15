@@ -91,7 +91,7 @@ func NewTimerStandbyTaskExecutor(
 func (t *timerStandbyTaskExecutor) Execute(task Task) (ExecuteResponse, error) {
 	simulation.LogEvents(simulation.E{
 		EventName:  simulation.EventNameExecuteHistoryTask,
-		Host:       t.shard.GetConfig().HostName,
+		Host:       t.shard.GetService().GetHostInfo().Identity(),
 		ShardID:    t.shard.GetShardID(),
 		DomainID:   task.GetDomainID(),
 		WorkflowID: task.GetWorkflowID(),
