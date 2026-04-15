@@ -39,6 +39,22 @@ func NewAPIHandler(handler api.Handler, logger log.Logger, metricsClient metrics
 	}
 }
 
+func (h *apiHandler) BackfillSchedule(ctx context.Context, bp1 *types.BackfillScheduleRequest) (bp2 *types.BackfillScheduleResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("BackfillSchedule")}
+	tags = append(tags, toBackfillScheduleRequestTags(bp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendBackfillScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(bp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tags...)
+
+	bp2, err = h.handler.BackfillSchedule(ctx, bp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return bp2, err
+}
 func (h *apiHandler) CountWorkflowExecutions(ctx context.Context, cp1 *types.CountWorkflowExecutionsRequest) (cp2 *types.CountWorkflowExecutionsResponse, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("CountWorkflowExecutions")}
@@ -50,6 +66,22 @@ func (h *apiHandler) CountWorkflowExecutions(ctx context.Context, cp1 *types.Cou
 	logger := h.logger.WithTags(tags...)
 
 	cp2, err = h.handler.CountWorkflowExecutions(ctx, cp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return cp2, err
+}
+func (h *apiHandler) CreateSchedule(ctx context.Context, cp1 *types.CreateScheduleRequest) (cp2 *types.CreateScheduleResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("CreateSchedule")}
+	tags = append(tags, toCreateScheduleRequestTags(cp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendCreateScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(cp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tags...)
+
+	cp2, err = h.handler.CreateSchedule(ctx, cp1)
 	if err != nil {
 		return nil, h.handleErr(err, scope, logger)
 	}
@@ -69,6 +101,22 @@ func (h *apiHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRe
 		return h.handleErr(err, scope, logger)
 	}
 	return err
+}
+func (h *apiHandler) DeleteSchedule(ctx context.Context, dp1 *types.DeleteScheduleRequest) (dp2 *types.DeleteScheduleResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("DeleteSchedule")}
+	tags = append(tags, toDeleteScheduleRequestTags(dp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendDeleteScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(dp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tags...)
+
+	dp2, err = h.handler.DeleteSchedule(ctx, dp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return dp2, err
 }
 func (h *apiHandler) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDomainRequest) (err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
@@ -100,14 +148,34 @@ func (h *apiHandler) DescribeDomain(ctx context.Context, dp1 *types.DescribeDoma
 	}
 	return dp2, err
 }
+func (h *apiHandler) DescribeSchedule(ctx context.Context, dp1 *types.DescribeScheduleRequest) (dp2 *types.DescribeScheduleResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("DescribeSchedule")}
+	tags = append(tags, toDescribeScheduleRequestTags(dp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendDescribeScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(dp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tags...)
+
+	dp2, err = h.handler.DescribeSchedule(ctx, dp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return dp2, err
+}
 func (h *apiHandler) DescribeTaskList(ctx context.Context, dp1 *types.DescribeTaskListRequest) (dp2 *types.DescribeTaskListResponse, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("DescribeTaskList")}
 	tags = append(tags, toDescribeTaskListRequestTags(dp1)...)
-	scope := h.metricsClient.Scope(metrics.FrontendDescribeTaskListScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(dp1.GetDomain()))...)
-	scope.IncCounter(metrics.CadenceRequests)
-	sw := scope.StartTimer(metrics.CadenceLatency)
+	scope := common.NewPerTaskListScope(dp1.Domain, dp1.TaskList.GetName(), dp1.TaskList.GetKind(), h.metricsClient, metrics.FrontendDescribeTaskListScope).Tagged(metrics.GetContextTags(ctx)...)
+	scope.IncCounter(metrics.CadenceRequestsPerTaskListWithoutRollup)
+	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
 	defer sw.Stop()
+	scopePerDomain := h.metricsClient.Scope(metrics.FrontendDescribeTaskListScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(dp1.GetDomain()))...)
+	scopePerDomain.IncCounter(metrics.CadenceRequests)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	defer swPerDomain.Stop()
 	logger := h.logger.WithTags(tags...)
 
 	dp2, err = h.handler.DescribeTaskList(ctx, dp1)
@@ -307,14 +375,34 @@ func (h *apiHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.
 	}
 	return lp2, err
 }
+func (h *apiHandler) ListSchedules(ctx context.Context, lp1 *types.ListSchedulesRequest) (lp2 *types.ListSchedulesResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("ListSchedules")}
+	tags = append(tags, toListSchedulesRequestTags(lp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendListSchedulesScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(lp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tags...)
+
+	lp2, err = h.handler.ListSchedules(ctx, lp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return lp2, err
+}
 func (h *apiHandler) ListTaskListPartitions(ctx context.Context, lp1 *types.ListTaskListPartitionsRequest) (lp2 *types.ListTaskListPartitionsResponse, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("ListTaskListPartitions")}
 	tags = append(tags, toListTaskListPartitionsRequestTags(lp1)...)
-	scope := h.metricsClient.Scope(metrics.FrontendListTaskListPartitionsScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(lp1.GetDomain()))...)
-	scope.IncCounter(metrics.CadenceRequests)
-	sw := scope.StartTimer(metrics.CadenceLatency)
+	scope := common.NewPerTaskListScope(lp1.Domain, lp1.TaskList.GetName(), lp1.TaskList.GetKind(), h.metricsClient, metrics.FrontendListTaskListPartitionsScope).Tagged(metrics.GetContextTags(ctx)...)
+	scope.IncCounter(metrics.CadenceRequestsPerTaskListWithoutRollup)
+	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
 	defer sw.Stop()
+	scopePerDomain := h.metricsClient.Scope(metrics.FrontendListTaskListPartitionsScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(lp1.GetDomain()))...)
+	scopePerDomain.IncCounter(metrics.CadenceRequests)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	defer swPerDomain.Stop()
 	logger := h.logger.WithTags(tags...)
 
 	lp2, err = h.handler.ListTaskListPartitions(ctx, lp1)
@@ -338,6 +426,22 @@ func (h *apiHandler) ListWorkflowExecutions(ctx context.Context, lp1 *types.List
 		return nil, h.handleErr(err, scope, logger)
 	}
 	return lp2, err
+}
+func (h *apiHandler) PauseSchedule(ctx context.Context, pp1 *types.PauseScheduleRequest) (pp2 *types.PauseScheduleResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("PauseSchedule")}
+	tags = append(tags, toPauseScheduleRequestTags(pp1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendPauseScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(pp1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tags...)
+
+	pp2, err = h.handler.PauseSchedule(ctx, pp1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return pp2, err
 }
 func (h *apiHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollForActivityTaskRequest) (pp2 *types.PollForActivityTaskResponse, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
@@ -742,10 +846,14 @@ func (h *apiHandler) SignalWithStartWorkflowExecution(ctx context.Context, sp1 *
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("SignalWithStartWorkflowExecution")}
 	tags = append(tags, toSignalWithStartWorkflowExecutionRequestTags(sp1)...)
-	scope := h.metricsClient.Scope(metrics.FrontendSignalWithStartWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
-	scope.IncCounter(metrics.CadenceRequests)
-	sw := scope.StartTimer(metrics.CadenceLatency)
+	scope := common.NewPerTaskListScope(sp1.Domain, sp1.TaskList.GetName(), sp1.TaskList.GetKind(), h.metricsClient, metrics.FrontendSignalWithStartWorkflowExecutionScope).Tagged(metrics.GetContextTags(ctx)...)
+	scope.IncCounter(metrics.CadenceRequestsPerTaskListWithoutRollup)
+	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
 	defer sw.Stop()
+	scopePerDomain := h.metricsClient.Scope(metrics.FrontendSignalWithStartWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
+	scopePerDomain.IncCounter(metrics.CadenceRequests)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	defer swPerDomain.Stop()
 	logger := h.logger.WithTags(tags...)
 
 	sp2, err = h.handler.SignalWithStartWorkflowExecution(ctx, sp1)
@@ -758,10 +866,14 @@ func (h *apiHandler) SignalWithStartWorkflowExecutionAsync(ctx context.Context, 
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("SignalWithStartWorkflowExecutionAsync")}
 	tags = append(tags, toSignalWithStartWorkflowExecutionAsyncRequestTags(sp1)...)
-	scope := h.metricsClient.Scope(metrics.FrontendSignalWithStartWorkflowExecutionAsyncScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
-	scope.IncCounter(metrics.CadenceRequests)
-	sw := scope.StartTimer(metrics.CadenceLatency)
+	scope := common.NewPerTaskListScope(sp1.Domain, sp1.TaskList.GetName(), sp1.TaskList.GetKind(), h.metricsClient, metrics.FrontendSignalWithStartWorkflowExecutionAsyncScope).Tagged(metrics.GetContextTags(ctx)...)
+	scope.IncCounter(metrics.CadenceRequestsPerTaskListWithoutRollup)
+	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
 	defer sw.Stop()
+	scopePerDomain := h.metricsClient.Scope(metrics.FrontendSignalWithStartWorkflowExecutionAsyncScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
+	scopePerDomain.IncCounter(metrics.CadenceRequests)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	defer swPerDomain.Stop()
 	logger := h.logger.WithTags(tags...)
 
 	sp2, err = h.handler.SignalWithStartWorkflowExecutionAsync(ctx, sp1)
@@ -791,10 +903,14 @@ func (h *apiHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.Star
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("StartWorkflowExecution")}
 	tags = append(tags, toStartWorkflowExecutionRequestTags(sp1)...)
-	scope := h.metricsClient.Scope(metrics.FrontendStartWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
-	scope.IncCounter(metrics.CadenceRequests)
-	sw := scope.StartTimer(metrics.CadenceLatency)
+	scope := common.NewPerTaskListScope(sp1.Domain, sp1.TaskList.GetName(), sp1.TaskList.GetKind(), h.metricsClient, metrics.FrontendStartWorkflowExecutionScope).Tagged(metrics.GetContextTags(ctx)...)
+	scope.IncCounter(metrics.CadenceRequestsPerTaskListWithoutRollup)
+	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
 	defer sw.Stop()
+	scopePerDomain := h.metricsClient.Scope(metrics.FrontendStartWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
+	scopePerDomain.IncCounter(metrics.CadenceRequests)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	defer swPerDomain.Stop()
 	logger := h.logger.WithTags(tags...)
 
 	sp2, err = h.handler.StartWorkflowExecution(ctx, sp1)
@@ -807,10 +923,14 @@ func (h *apiHandler) StartWorkflowExecutionAsync(ctx context.Context, sp1 *types
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("StartWorkflowExecutionAsync")}
 	tags = append(tags, toStartWorkflowExecutionAsyncRequestTags(sp1)...)
-	scope := h.metricsClient.Scope(metrics.FrontendStartWorkflowExecutionAsyncScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
-	scope.IncCounter(metrics.CadenceRequests)
-	sw := scope.StartTimer(metrics.CadenceLatency)
+	scope := common.NewPerTaskListScope(sp1.Domain, sp1.TaskList.GetName(), sp1.TaskList.GetKind(), h.metricsClient, metrics.FrontendStartWorkflowExecutionAsyncScope).Tagged(metrics.GetContextTags(ctx)...)
+	scope.IncCounter(metrics.CadenceRequestsPerTaskListWithoutRollup)
+	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
 	defer sw.Stop()
+	scopePerDomain := h.metricsClient.Scope(metrics.FrontendStartWorkflowExecutionAsyncScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
+	scopePerDomain.IncCounter(metrics.CadenceRequests)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	defer swPerDomain.Stop()
 	logger := h.logger.WithTags(tags...)
 
 	sp2, err = h.handler.StartWorkflowExecutionAsync(ctx, sp1)
@@ -835,6 +955,22 @@ func (h *apiHandler) TerminateWorkflowExecution(ctx context.Context, tp1 *types.
 	}
 	return err
 }
+func (h *apiHandler) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseScheduleRequest) (up2 *types.UnpauseScheduleResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("UnpauseSchedule")}
+	tags = append(tags, toUnpauseScheduleRequestTags(up1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendUnpauseScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(up1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tags...)
+
+	up2, err = h.handler.UnpauseSchedule(ctx, up1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return up2, err
+}
 func (h *apiHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest) (up2 *types.UpdateDomainResponse, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("UpdateDomain")}
@@ -845,6 +981,22 @@ func (h *apiHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRe
 	logger := h.logger.WithTags(tags...)
 
 	up2, err = h.handler.UpdateDomain(ctx, up1)
+	if err != nil {
+		return nil, h.handleErr(err, scope, logger)
+	}
+	return up2, err
+}
+func (h *apiHandler) UpdateSchedule(ctx context.Context, up1 *types.UpdateScheduleRequest) (up2 *types.UpdateScheduleResponse, err error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+	tags := []tag.Tag{tag.WorkflowHandlerName("UpdateSchedule")}
+	tags = append(tags, toUpdateScheduleRequestTags(up1)...)
+	scope := h.metricsClient.Scope(metrics.FrontendUpdateScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(up1.GetDomain()))...)
+	scope.IncCounter(metrics.CadenceRequests)
+	sw := scope.StartTimer(metrics.CadenceLatency)
+	defer sw.Stop()
+	logger := h.logger.WithTags(tags...)
+
+	up2, err = h.handler.UpdateSchedule(ctx, up1)
 	if err != nil {
 		return nil, h.handleErr(err, scope, logger)
 	}

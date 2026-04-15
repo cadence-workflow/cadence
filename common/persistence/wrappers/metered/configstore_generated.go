@@ -32,6 +32,7 @@ func NewConfigStoreManager(
 			metricClient:                  metricClient,
 			logger:                        logger,
 			enableLatencyHistogramMetrics: cfg.EnablePersistenceLatencyHistogramMetrics,
+			hostName:                      cfg.HostName,
 		},
 	}
 }

@@ -43,6 +43,26 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
+// BackfillSchedule mocks base method.
+func (m *MockClient) BackfillSchedule(arg0 context.Context, arg1 *types.BackfillScheduleRequest, arg2 ...yarpc.CallOption) (*types.BackfillScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "BackfillSchedule", varargs...)
+	ret0, _ := ret[0].(*types.BackfillScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BackfillSchedule indicates an expected call of BackfillSchedule.
+func (mr *MockClientMockRecorder) BackfillSchedule(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackfillSchedule", reflect.TypeOf((*MockClient)(nil).BackfillSchedule), varargs...)
+}
+
 // CountWorkflowExecutions mocks base method.
 func (m *MockClient) CountWorkflowExecutions(arg0 context.Context, arg1 *types.CountWorkflowExecutionsRequest, arg2 ...yarpc.CallOption) (*types.CountWorkflowExecutionsResponse, error) {
 	m.ctrl.T.Helper()
@@ -63,6 +83,26 @@ func (mr *MockClientMockRecorder) CountWorkflowExecutions(arg0, arg1 any, arg2 .
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountWorkflowExecutions", reflect.TypeOf((*MockClient)(nil).CountWorkflowExecutions), varargs...)
 }
 
+// CreateSchedule mocks base method.
+func (m *MockClient) CreateSchedule(arg0 context.Context, arg1 *types.CreateScheduleRequest, arg2 ...yarpc.CallOption) (*types.CreateScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "CreateSchedule", varargs...)
+	ret0, _ := ret[0].(*types.CreateScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateSchedule indicates an expected call of CreateSchedule.
+func (mr *MockClientMockRecorder) CreateSchedule(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSchedule", reflect.TypeOf((*MockClient)(nil).CreateSchedule), varargs...)
+}
+
 // DeleteDomain mocks base method.
 func (m *MockClient) DeleteDomain(arg0 context.Context, arg1 *types.DeleteDomainRequest, arg2 ...yarpc.CallOption) error {
 	m.ctrl.T.Helper()
@@ -80,6 +120,26 @@ func (mr *MockClientMockRecorder) DeleteDomain(arg0, arg1 any, arg2 ...any) *gom
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDomain", reflect.TypeOf((*MockClient)(nil).DeleteDomain), varargs...)
+}
+
+// DeleteSchedule mocks base method.
+func (m *MockClient) DeleteSchedule(arg0 context.Context, arg1 *types.DeleteScheduleRequest, arg2 ...yarpc.CallOption) (*types.DeleteScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DeleteSchedule", varargs...)
+	ret0, _ := ret[0].(*types.DeleteScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteSchedule indicates an expected call of DeleteSchedule.
+func (mr *MockClientMockRecorder) DeleteSchedule(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSchedule", reflect.TypeOf((*MockClient)(nil).DeleteSchedule), varargs...)
 }
 
 // DeprecateDomain mocks base method.
@@ -119,6 +179,26 @@ func (mr *MockClientMockRecorder) DescribeDomain(arg0, arg1 any, arg2 ...any) *g
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDomain", reflect.TypeOf((*MockClient)(nil).DescribeDomain), varargs...)
+}
+
+// DescribeSchedule mocks base method.
+func (m *MockClient) DescribeSchedule(arg0 context.Context, arg1 *types.DescribeScheduleRequest, arg2 ...yarpc.CallOption) (*types.DescribeScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeSchedule", varargs...)
+	ret0, _ := ret[0].(*types.DescribeScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeSchedule indicates an expected call of DescribeSchedule.
+func (mr *MockClientMockRecorder) DescribeSchedule(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeSchedule", reflect.TypeOf((*MockClient)(nil).DescribeSchedule), varargs...)
 }
 
 // DescribeTaskList mocks base method.
@@ -381,6 +461,26 @@ func (mr *MockClientMockRecorder) ListOpenWorkflowExecutions(arg0, arg1 any, arg
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOpenWorkflowExecutions", reflect.TypeOf((*MockClient)(nil).ListOpenWorkflowExecutions), varargs...)
 }
 
+// ListSchedules mocks base method.
+func (m *MockClient) ListSchedules(arg0 context.Context, arg1 *types.ListSchedulesRequest, arg2 ...yarpc.CallOption) (*types.ListSchedulesResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ListSchedules", varargs...)
+	ret0, _ := ret[0].(*types.ListSchedulesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListSchedules indicates an expected call of ListSchedules.
+func (mr *MockClientMockRecorder) ListSchedules(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSchedules", reflect.TypeOf((*MockClient)(nil).ListSchedules), varargs...)
+}
+
 // ListTaskListPartitions mocks base method.
 func (m *MockClient) ListTaskListPartitions(arg0 context.Context, arg1 *types.ListTaskListPartitionsRequest, arg2 ...yarpc.CallOption) (*types.ListTaskListPartitionsResponse, error) {
 	m.ctrl.T.Helper()
@@ -419,6 +519,26 @@ func (mr *MockClientMockRecorder) ListWorkflowExecutions(arg0, arg1 any, arg2 ..
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkflowExecutions", reflect.TypeOf((*MockClient)(nil).ListWorkflowExecutions), varargs...)
+}
+
+// PauseSchedule mocks base method.
+func (m *MockClient) PauseSchedule(arg0 context.Context, arg1 *types.PauseScheduleRequest, arg2 ...yarpc.CallOption) (*types.PauseScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "PauseSchedule", varargs...)
+	ret0, _ := ret[0].(*types.PauseScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PauseSchedule indicates an expected call of PauseSchedule.
+func (mr *MockClientMockRecorder) PauseSchedule(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PauseSchedule", reflect.TypeOf((*MockClient)(nil).PauseSchedule), varargs...)
 }
 
 // PollForActivityTask mocks base method.
@@ -948,6 +1068,26 @@ func (mr *MockClientMockRecorder) TerminateWorkflowExecution(arg0, arg1 any, arg
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TerminateWorkflowExecution", reflect.TypeOf((*MockClient)(nil).TerminateWorkflowExecution), varargs...)
 }
 
+// UnpauseSchedule mocks base method.
+func (m *MockClient) UnpauseSchedule(arg0 context.Context, arg1 *types.UnpauseScheduleRequest, arg2 ...yarpc.CallOption) (*types.UnpauseScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "UnpauseSchedule", varargs...)
+	ret0, _ := ret[0].(*types.UnpauseScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UnpauseSchedule indicates an expected call of UnpauseSchedule.
+func (mr *MockClientMockRecorder) UnpauseSchedule(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnpauseSchedule", reflect.TypeOf((*MockClient)(nil).UnpauseSchedule), varargs...)
+}
+
 // UpdateDomain mocks base method.
 func (m *MockClient) UpdateDomain(arg0 context.Context, arg1 *types.UpdateDomainRequest, arg2 ...yarpc.CallOption) (*types.UpdateDomainResponse, error) {
 	m.ctrl.T.Helper()
@@ -966,4 +1106,24 @@ func (mr *MockClientMockRecorder) UpdateDomain(arg0, arg1 any, arg2 ...any) *gom
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDomain", reflect.TypeOf((*MockClient)(nil).UpdateDomain), varargs...)
+}
+
+// UpdateSchedule mocks base method.
+func (m *MockClient) UpdateSchedule(arg0 context.Context, arg1 *types.UpdateScheduleRequest, arg2 ...yarpc.CallOption) (*types.UpdateScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "UpdateSchedule", varargs...)
+	ret0, _ := ret[0].(*types.UpdateScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateSchedule indicates an expected call of UpdateSchedule.
+func (mr *MockClientMockRecorder) UpdateSchedule(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSchedule", reflect.TypeOf((*MockClient)(nil).UpdateSchedule), varargs...)
 }

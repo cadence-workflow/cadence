@@ -61,7 +61,7 @@ type Result struct {
 
 	Config        Config
 	ServiceConfig Service
-	Histograms    metrics.HistogramMigration
+	MigrationCfg  metrics.MigrationConfig
 }
 
 // LookupEnvFunc returns the value of the environment variable given by key.
@@ -100,6 +100,10 @@ func New(p Params) (Result, error) {
 	return Result{
 		Config:        cfg,
 		ServiceConfig: svcCfg,
-		Histograms:    cfg.Histograms,
+		MigrationCfg: metrics.MigrationConfig{
+			Histogram: cfg.Histograms,
+			Gauge:     cfg.Gauges,
+			Counter:   cfg.Counters,
+		},
 	}, nil
 }

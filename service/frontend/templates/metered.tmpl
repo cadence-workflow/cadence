@@ -12,7 +12,7 @@ import (
 {{- $nonDomainSpecificAPIs := list "Health" "DeprecateDomain" "DeleteDomain" "DescribeDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo" "ListFailoverHistory"}}
 {{- $domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{- $queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
-{{- $pollerAPIs := list "PollForActivityTask" "PollForDecisionTask"}}
+{{- $taskListAPIs := list "PollForActivityTask" "PollForDecisionTask" "StartWorkflowExecution" "StartWorkflowExecutionAsync" "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync" "DescribeTaskList" "ListTaskListPartitions"}}
 
 {{- $interfaceName := .Interface.Name}}
 {{- $interfaceType := .Interface.Type}}
@@ -82,7 +82,7 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
 	{{- end}}
 	{{- $domainMetricTag = printf "metrics.DomainTag(%s)" $domain}}
 	{{- end}}
-	{{- if has $method.Name $pollerAPIs}}
+	{{- if has $method.Name $taskListAPIs}}
 	scope := common.NewPerTaskListScope({{(index $method.Params 1).Name}}.Domain, {{(index $method.Params 1).Name}}.TaskList.GetName(), {{(index $method.Params 1).Name}}.TaskList.GetKind(), h.metricsClient, {{$scope}}).Tagged(metrics.GetContextTags(ctx)...)
 	scope.IncCounter(metrics.CadenceRequestsPerTaskListWithoutRollup)
 	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)

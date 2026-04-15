@@ -615,6 +615,7 @@ func (s *contextImpl) GetWorkflowExecution(
 	request *persistence.GetWorkflowExecutionRequest,
 ) (*persistence.GetWorkflowExecutionResponse, error) {
 	request.RangeID = atomic.LoadInt64(&s.rangeID) // This is to make sure read is not blocked by write, s.rangeID is synced with s.shardInfo.RangeID
+	request.ShardID = common.Ptr(s.shardID)
 	if err := s.closedError(); err != nil {
 		return nil, err
 	}
@@ -664,6 +665,7 @@ func (s *contextImpl) CreateWorkflowExecution(
 	}
 	currentRangeID := s.getRangeID()
 	request.RangeID = currentRangeID
+	request.ShardID = common.Ptr(s.shardID)
 
 	response, err := s.executionManager.CreateWorkflowExecution(ctx, request)
 	switch err.(type) {
@@ -769,6 +771,7 @@ func (s *contextImpl) UpdateWorkflowExecution(
 	}
 	currentRangeID := s.getRangeID()
 	request.RangeID = currentRangeID
+	request.ShardID = common.Ptr(s.shardID)
 
 	resp, err := s.executionManager.UpdateWorkflowExecution(ctx, request)
 	switch err.(type) {
@@ -880,6 +883,7 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 	}
 	currentRangeID := s.getRangeID()
 	request.RangeID = currentRangeID
+	request.ShardID = common.Ptr(s.shardID)
 	resp, err := s.executionManager.ConflictResolveWorkflowExecution(ctx, request)
 	switch err.(type) {
 	case nil:
@@ -965,7 +969,7 @@ func (s *contextImpl) AppendHistoryV2Events(
 	}
 
 	request.Encoding = s.getDefaultEncoding(domainName)
-	request.ShardID = common.IntPtr(s.shardID)
+	request.ShardID = common.Ptr(s.shardID)
 	request.TransactionID = transactionID
 
 	size := 0
@@ -1338,24 +1342,37 @@ func (s *contextImpl) allocateTimerIDsLocked(
 		// 2. current time. Otherwise the task timestamp is in the past and causes aritical load latency in queue processor metrics.
 		// Above cases can happen if shard move and new host have a time SKU,
 		// or there is db write delay, or we are simply (re-)generating tasks for an old workflow.
+
+		// Only log warnings for local-domain tasks (EmptyVersion) and tasks owned by the current cluster.
+		// Remote/standby tasks are expected to have timestamps before the local read level or current time,
+		// so these warnings would be noisy and not actionable for this host.
+		shouldLog := task.GetVersion() == constants.EmptyVersion
+		if !shouldLog {
+			clusterName, err := s.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
+			shouldLog = err == nil && clusterName == s.GetClusterMetadata().GetCurrentClusterName()
+		}
 		if ts.Before(readCursorTS) {
 			// This can happen if shard move and new host have a time SKU, or there is db write delay.
 			// We generate a new timer ID using timerMaxReadLevel.
-			s.logger.Warn("New timer generated is less than read level",
-				tag.WorkflowDomainID(domainEntry.GetInfo().ID),
-				tag.WorkflowID(workflowID),
-				tag.Timestamp(ts),
-				tag.CursorTimestamp(readCursorTS),
-				tag.ClusterName(cluster),
-				tag.ValueShardAllocateTimerBeforeRead)
+			if shouldLog {
+				s.logger.Warn("New timer generated is less than read level",
+					tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+					tag.WorkflowID(workflowID),
+					tag.Timestamp(ts),
+					tag.CursorTimestamp(readCursorTS),
+					tag.ClusterName(cluster),
+					tag.ValueShardAllocateTimerBeforeRead)
+			}
 			ts = readCursorTS.Add(persistence.DBTimestampMinPrecision)
 		}
 		if ts.Before(now) {
-			s.logger.Warn("New timer generated is in the past",
-				tag.WorkflowDomainID(domainEntry.GetInfo().ID),
-				tag.WorkflowID(workflowID),
-				tag.Timestamp(ts),
-				tag.ValueShardAllocateTimerBeforeRead)
+			if shouldLog {
+				s.logger.Warn("New timer generated is in the past",
+					tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+					tag.WorkflowID(workflowID),
+					tag.Timestamp(ts),
+					tag.ValueShardAllocateTimerBeforeRead)
+			}
 			ts = now.Add(persistence.DBTimestampMinPrecision)
 		}
 		task.SetVisibilityTimestamp(ts)
@@ -1433,6 +1450,7 @@ func (s *contextImpl) ReplicateFailoverMarkers(
 		&persistence.CreateFailoverMarkersRequest{
 			RangeID: s.getRangeID(),
 			Markers: markers,
+			ShardID: common.Ptr(s.shardID),
 		},
 	)
 	switch err.(type) {

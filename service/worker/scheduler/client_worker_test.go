@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,6 +41,7 @@ import (
 func TestRefreshWorkers(t *testing.T) {
 	selfHost := membership.NewDetailedHostInfo("10.0.0.1:7933", "self", nil)
 	otherHost := membership.NewDetailedHostInfo("10.0.0.2:7933", "other", nil)
+	thirdHost := membership.NewDetailedHostInfo("10.0.0.3:7933", "third", nil)
 
 	makeDomainEntry := func(name string) *cache.DomainCacheEntry {
 		return cache.NewDomainCacheEntryForTest(
@@ -51,8 +53,8 @@ func TestRefreshWorkers(t *testing.T) {
 	tests := []struct {
 		name               string
 		domains            map[string]*cache.DomainCacheEntry
-		lookupResults      map[string]membership.HostInfo
-		lookupErrors       map[string]error
+		lookupNResults     map[string][]membership.HostInfo
+		lookupNErrors      map[string]error
 		existingWorkers    []string
 		wantActiveWorkers  []string
 		wantStoppedWorkers []string
@@ -64,22 +66,33 @@ func TestRefreshWorkers(t *testing.T) {
 				"domain-a": makeDomainEntry("domain-a"),
 				"domain-b": makeDomainEntry("domain-b"),
 			},
-			lookupResults: map[string]membership.HostInfo{
-				"domain-a": selfHost,
-				"domain-b": selfHost,
+			lookupNResults: map[string][]membership.HostInfo{
+				"domain-a": {selfHost, otherHost},
+				"domain-b": {selfHost, otherHost},
 			},
 			wantActiveWorkers:  []string{"domain-a", "domain-b"},
 			wantStartedWorkers: []string{"domain-a", "domain-b"},
 		},
 		{
-			name: "skips domains owned by other hosts",
+			name: "skips domains where this host is not among the owners",
 			domains: map[string]*cache.DomainCacheEntry{
 				"domain-a": makeDomainEntry("domain-a"),
 				"domain-b": makeDomainEntry("domain-b"),
 			},
-			lookupResults: map[string]membership.HostInfo{
-				"domain-a": selfHost,
-				"domain-b": otherHost,
+			lookupNResults: map[string][]membership.HostInfo{
+				"domain-a": {selfHost, otherHost},
+				"domain-b": {otherHost, thirdHost},
+			},
+			wantActiveWorkers:  []string{"domain-a"},
+			wantStartedWorkers: []string{"domain-a"},
+		},
+		{
+			name: "starts worker when self is secondary redundancy owner",
+			domains: map[string]*cache.DomainCacheEntry{
+				"domain-a": makeDomainEntry("domain-a"),
+			},
+			lookupNResults: map[string][]membership.HostInfo{
+				"domain-a": {otherHost, selfHost},
 			},
 			wantActiveWorkers:  []string{"domain-a"},
 			wantStartedWorkers: []string{"domain-a"},
@@ -89,8 +102,8 @@ func TestRefreshWorkers(t *testing.T) {
 			domains: map[string]*cache.DomainCacheEntry{
 				"domain-a": makeDomainEntry("domain-a"),
 			},
-			lookupResults: map[string]membership.HostInfo{
-				"domain-a": otherHost,
+			lookupNResults: map[string][]membership.HostInfo{
+				"domain-a": {otherHost, thirdHost},
 			},
 			existingWorkers:    []string{"domain-a"},
 			wantActiveWorkers:  []string{},
@@ -101,8 +114,8 @@ func TestRefreshWorkers(t *testing.T) {
 			domains: map[string]*cache.DomainCacheEntry{
 				"domain-b": makeDomainEntry("domain-b"),
 			},
-			lookupResults: map[string]membership.HostInfo{
-				"domain-b": selfHost,
+			lookupNResults: map[string][]membership.HostInfo{
+				"domain-b": {selfHost, otherHost},
 			},
 			existingWorkers:    []string{"domain-a"},
 			wantActiveWorkers:  []string{"domain-b"},
@@ -119,7 +132,7 @@ func TestRefreshWorkers(t *testing.T) {
 			domains: map[string]*cache.DomainCacheEntry{
 				"domain-a": makeDomainEntry("domain-a"),
 			},
-			lookupErrors: map[string]error{
+			lookupNErrors: map[string]error{
 				"domain-a": fmt.Errorf("ring not ready"),
 			},
 			existingWorkers:   []string{"domain-a"},
@@ -130,8 +143,8 @@ func TestRefreshWorkers(t *testing.T) {
 			domains: map[string]*cache.DomainCacheEntry{
 				"domain-a": makeDomainEntry("domain-a"),
 			},
-			lookupResults: map[string]membership.HostInfo{
-				"domain-a": selfHost,
+			lookupNResults: map[string][]membership.HostInfo{
+				"domain-a": {selfHost, otherHost},
 			},
 			existingWorkers:   []string{"domain-a"},
 			wantActiveWorkers: []string{"domain-a"},
@@ -146,11 +159,11 @@ func TestRefreshWorkers(t *testing.T) {
 			mockDomainCache.EXPECT().GetAllDomain().Return(tc.domains)
 
 			mockResolver := membership.NewMockResolver(ctrl)
-			for domainName, host := range tc.lookupResults {
-				mockResolver.EXPECT().Lookup(service.Worker, domainName).Return(host, nil)
+			for domainName, hosts := range tc.lookupNResults {
+				mockResolver.EXPECT().LookupN(service.Worker, domainName, workerRedundancyFactor).Return(hosts, nil)
 			}
-			for domainName, err := range tc.lookupErrors {
-				mockResolver.EXPECT().Lookup(service.Worker, domainName).Return(membership.HostInfo{}, err)
+			for domainName, err := range tc.lookupNErrors {
+				mockResolver.EXPECT().LookupN(service.Worker, domainName, workerRedundancyFactor).Return(nil, err)
 			}
 
 			stopped := make(map[string]bool)
@@ -215,7 +228,7 @@ func TestRefreshWorkersHandlesCreateWorkerError(t *testing.T) {
 	})
 
 	mockResolver := membership.NewMockResolver(ctrl)
-	mockResolver.EXPECT().Lookup(service.Worker, "domain-a").Return(selfHost, nil)
+	mockResolver.EXPECT().LookupN(service.Worker, "domain-a", workerRedundancyFactor).Return([]membership.HostInfo{selfHost}, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -258,6 +271,80 @@ func TestStopAllWorkers(t *testing.T) {
 	assert.True(t, stoppedDomains["domain-a"])
 	assert.True(t, stoppedDomains["domain-b"])
 	assert.True(t, stoppedDomains["domain-c"])
+}
+
+// TestMembershipChangeTriggersRefresh verifies that a membership change event
+// causes an immediate call to refreshWorkers without waiting for the next tick.
+func TestMembershipChangeTriggersRefresh(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	selfHost := membership.NewDetailedHostInfo("10.0.0.1:7933", "self", nil)
+	otherHost := membership.NewDetailedHostInfo("10.0.0.2:7933", "other", nil)
+
+	domainEntry := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{Name: "domain-a"},
+		nil, false, nil, 0, nil, 0, 0, 0,
+	)
+
+	// refreshed is closed after GetAllDomain is called a second time, which
+	// proves that the event-driven path invoked refreshWorkers().
+	refreshed := make(chan struct{})
+	getCount := 0
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetAllDomain().DoAndReturn(func() map[string]*cache.DomainCacheEntry {
+		getCount++
+		if getCount == 2 {
+			close(refreshed)
+		}
+		return map[string]*cache.DomainCacheEntry{"domain-a": domainEntry}
+	}).AnyTimes()
+
+	mockResolver := membership.NewMockResolver(ctrl)
+	mockResolver.EXPECT().Subscribe(service.Worker, membershipSubscriberName, gomock.Any()).Return(nil)
+	mockResolver.EXPECT().Unsubscribe(service.Worker, membershipSubscriberName).Return(nil)
+	// First refresh: this host is not an owner, so no worker is started.
+	// Second refresh (event-triggered): this host becomes an owner.
+	mockResolver.EXPECT().LookupN(service.Worker, "domain-a", workerRedundancyFactor).Return(
+		[]membership.HostInfo{otherHost}, nil,
+	).Return(
+		[]membership.HostInfo{selfHost}, nil,
+	).AnyTimes()
+
+	wm := NewWorkerManager(&BootstrapParams{
+		Logger:             testlogger.New(t),
+		DomainCache:        mockDomainCache,
+		MembershipResolver: mockResolver,
+		HostInfo:           selfHost,
+	}, dynamicproperties.GetBoolPropertyFn(true))
+
+	wm.createWorker = func(domainName string) (workerHandle, error) {
+		return &fakeWorker{}, nil
+	}
+
+	wm.Start()
+
+	// Simulate a membership ring change (e.g. a new host joined).
+	wm.membershipChangeCh <- &membership.ChangedEvent{HostsAdded: []string{"10.0.0.3:7933"}}
+
+	// Wait for the event-driven refresh to complete.
+	select {
+	case <-refreshed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for membership change to trigger refresh")
+	}
+
+	wm.Stop()
+}
+
+func TestContainsHost(t *testing.T) {
+	h1 := membership.NewDetailedHostInfo("10.0.0.1:7933", "h1", nil)
+	h2 := membership.NewDetailedHostInfo("10.0.0.2:7933", "h2", nil)
+	h3 := membership.NewDetailedHostInfo("10.0.0.3:7933", "h3", nil)
+
+	assert.True(t, containsHost([]membership.HostInfo{h1, h2}, h1))
+	assert.True(t, containsHost([]membership.HostInfo{h1, h2}, h2))
+	assert.False(t, containsHost([]membership.HostInfo{h1, h2}, h3))
+	assert.False(t, containsHost(nil, h1))
 }
 
 type fakeWorker struct {

@@ -43,6 +43,15 @@ import (
 const (
 	defaultRefreshInterval = 1 * time.Minute
 	defaultShutdownTimeout = 5 * time.Second
+
+	// membershipSubscriberName is the unique name used to subscribe to membership
+	// change notifications for the worker service ring.
+	membershipSubscriberName = "scheduler-worker-manager"
+
+	// workerRedundancyFactor is the number of hosts that concurrently run a
+	// worker for each domain. Using 2 means every domain has a primary and one
+	// backup, so a single host failure causes no scheduling gap.
+	workerRedundancyFactor = 2
 )
 
 // BootstrapParams contains the parameters needed to create a scheduler worker manager.
@@ -67,8 +76,10 @@ type workerFactory func(domainName string) (workerHandle, error)
 
 // WorkerManager manages per-domain scheduler workers. It periodically scans
 // the domain cache and uses the membership hashring to determine which domains
-// this host owns. For each owned domain it starts a Cadence SDK worker polling
-// the scheduler task list in that domain.
+// this host should cover. For each such domain it starts a Cadence SDK worker
+// polling the scheduler task list. Each domain is covered by
+// workerRedundancyFactor hosts simultaneously so that a single host failure
+// does not cause a scheduling gap.
 type WorkerManager struct {
 	enabledFn          dynamicproperties.BoolPropertyFn
 	serviceClient      workflowserviceclient.Interface
@@ -85,6 +96,7 @@ type WorkerManager struct {
 	wg                 sync.WaitGroup
 	activeWorkers      map[string]workerHandle // domain name -> worker
 	createWorker       workerFactory
+	membershipChangeCh chan *membership.ChangedEvent
 }
 
 // NewWorkerManager creates a new per-domain scheduler worker manager.
@@ -104,6 +116,7 @@ func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolP
 		ctx:                ctx,
 		cancelFn:           cancel,
 		activeWorkers:      make(map[string]workerHandle),
+		membershipChangeCh: make(chan *membership.ChangedEvent, 10),
 	}
 	wm.createWorker = wm.defaultCreateWorker
 	return wm
@@ -112,6 +125,9 @@ func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolP
 // Start begins the background loop that manages per-domain workers.
 func (m *WorkerManager) Start() {
 	m.logger.Info("scheduler worker manager starting")
+	if err := m.membershipResolver.Subscribe(service.Worker, membershipSubscriberName, m.membershipChangeCh); err != nil {
+		m.logger.Warn("failed to subscribe to membership changes, will rely on periodic refresh only", tag.Error(err))
+	}
 	m.wg.Add(1)
 	go m.run()
 }
@@ -120,6 +136,9 @@ func (m *WorkerManager) Start() {
 // It then stops all active workers.
 func (m *WorkerManager) Stop() {
 	m.logger.Info("scheduler worker manager stopping")
+	if err := m.membershipResolver.Unsubscribe(service.Worker, membershipSubscriberName); err != nil {
+		m.logger.Warn("failed to unsubscribe from membership changes", tag.Error(err))
+	}
 	m.cancelFn()
 	if !common.AwaitWaitGroup(&m.wg, m.shutdownTimeout) {
 		m.logger.Warn("scheduler worker manager timed out on shutdown")
@@ -157,6 +176,17 @@ func (m *WorkerManager) run() {
 			} else {
 				m.stopAllWorkers()
 			}
+
+		case <-m.membershipChangeCh:
+			drainMembershipCh(m.membershipChangeCh)
+			enabled = m.enabledFn()
+			if enabled {
+				m.logger.Debug("membership ring changed, refreshing scheduler workers")
+				m.refreshWorkers()
+			} else {
+				m.stopAllWorkers()
+			}
+
 		case <-m.ctx.Done():
 			m.logger.Info("scheduler worker manager background loop stopped")
 			return
@@ -184,9 +214,9 @@ func (m *WorkerManager) refreshWorkers() {
 
 		domainName := domainEntry.GetInfo().Name
 
-		owner, err := m.membershipResolver.Lookup(service.Worker, domainName)
+		owners, err := m.membershipResolver.LookupN(service.Worker, domainName, workerRedundancyFactor)
 		if err != nil {
-			m.logger.Warn("failed to look up domain owner, skipping",
+			m.logger.Warn("failed to look up domain owners, skipping",
 				tag.WorkflowDomainName(domainName),
 				tag.Error(err),
 			)
@@ -194,7 +224,7 @@ func (m *WorkerManager) refreshWorkers() {
 			continue
 		}
 
-		if owner.Identity() != m.hostInfo.Identity() {
+		if !containsHost(owners, m.hostInfo) {
 			continue
 		}
 
@@ -268,4 +298,26 @@ func (m *WorkerManager) stopAllWorkers() {
 		)
 		delete(m.activeWorkers, domainName)
 	}
+}
+
+// drainMembershipCh consumes all pending events from the channel without
+// blocking, so that a single refreshWorkers call covers all queued changes.
+func drainMembershipCh(ch <-chan *membership.ChangedEvent) {
+	for {
+		select {
+		case <-ch:
+		default:
+			return
+		}
+	}
+}
+
+// containsHost reports whether hosts contains the given target host.
+func containsHost(hosts []membership.HostInfo, target membership.HostInfo) bool {
+	for _, h := range hosts {
+		if h.Identity() == target.Identity() {
+			return true
+		}
+	}
+	return false
 }

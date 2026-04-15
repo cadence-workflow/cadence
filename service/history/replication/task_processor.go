@@ -292,6 +292,7 @@ func (p *taskProcessorImpl) cleanupAckedReplicationTasks() error {
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
 				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(minAckLevel + 1),
 				PageSize:            pageSize,
+				ShardID:             common.Ptr(p.shard.GetShardID()),
 			},
 		)
 		if err != nil {
@@ -482,7 +483,15 @@ func (p *taskProcessorImpl) processTaskOnce(replicationTask *types.ReplicationTa
 	} else {
 		now := ts.Now()
 		mScope := p.metricsClient.Scope(scope, metrics.TargetClusterTag(p.sourceCluster))
-		domainID := replicationTask.HistoryTaskV2Attributes.GetDomainID()
+		var domainID string
+		switch replicationTask.GetTaskType() {
+		case types.ReplicationTaskTypeHistoryV2:
+			domainID = replicationTask.HistoryTaskV2Attributes.GetDomainID()
+		case types.ReplicationTaskTypeSyncActivity:
+			domainID = replicationTask.SyncActivityTaskAttributes.GetDomainID()
+		case types.ReplicationTaskTypeFailoverMarker:
+			domainID = replicationTask.FailoverMarkerAttributes.GetDomainID()
+		}
 		var domainName string
 		if domainID != "" {
 			cachedName, errorDomainName := p.shard.GetDomainCache().GetDomainName(domainID)
@@ -494,7 +503,7 @@ func (p *taskProcessorImpl) processTaskOnce(replicationTask *types.ReplicationTa
 		mScope = mScope.Tagged(metrics.DomainTag(domainName)) // use consistent tags so Prometheus does not break
 
 		// emit single task processing latency
-		mScope.ExponentialHistogram(metrics.ExponentialTaskProcessingLatency, now.Sub(startTime))
+		mScope.ExponentialHistogram(metrics.TaskProcessingLatencyHistogram, now.Sub(startTime))
 		// emit latency from task generated to task received
 		mScope.ExponentialHistogram(
 			metrics.ExponentialReplicationTaskLatency,
@@ -578,6 +587,7 @@ func (p *taskProcessorImpl) generateDLQRequest(
 				ScheduledID: taskAttributes.GetScheduledID(),
 			},
 			DomainName: domainName,
+			ShardID:    common.Ptr(p.shard.GetShardID()),
 		}, nil
 
 	case types.ReplicationTaskTypeHistoryV2:
@@ -610,6 +620,7 @@ func (p *taskProcessorImpl) generateDLQRequest(
 				Version:      events[0].Version,
 			},
 			DomainName: domainName,
+			ShardID:    common.Ptr(p.shard.GetShardID()),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown replication task type")

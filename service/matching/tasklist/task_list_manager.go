@@ -216,7 +216,7 @@ func NewManager(p ManagerParams) (Manager, error) {
 
 	livenessInterval := taskListConfig.IdleTasklistCheckInterval()
 	tlMgr.liveness = liveness.NewLiveness(p.TimeSource, livenessInterval, func() {
-		tlMgr.logger.Info("Task list manager stopping because no recent events", tag.Dynamic("interval", livenessInterval))
+		tlMgr.logger.Debug("Task list manager stopping because no recent events", tag.Dynamic("interval", livenessInterval))
 		tlMgr.Stop()
 	})
 
@@ -290,7 +290,7 @@ func (c *taskListManagerImpl) Start(ctx context.Context) error {
 	}
 	if c.taskListID.IsRoot() && c.taskListKind == types.TaskListKindNormal {
 		c.partitionConfig = c.db.PartitionConfig().ToInternalType()
-		c.logger.Info("get task list partition config from db", tag.Dynamic("root-partition", c.taskListID.GetRoot()), tag.Dynamic("task-list-partition-config", c.partitionConfig))
+		c.logger.Debug("get task list partition config from db", tag.Dynamic("root-partition", c.taskListID.GetRoot()), tag.Dynamic("task-list-partition-config", c.partitionConfig))
 		if c.partitionConfig != nil {
 			startConfig := c.partitionConfig
 			// push update notification to all non-root partitions on start
@@ -333,7 +333,7 @@ func (c *taskListManagerImpl) Stop() {
 	c.taskReader.Stop()
 	c.matcher.DisconnectBlockedPollers()
 	c.stopWG.Wait()
-	c.logger.Info("Task list manager state changed", tag.LifeCycleStopped)
+	c.logger.Debug("Task list manager state changed", tag.LifeCycleStopped)
 }
 
 func (c *taskListManagerImpl) handleErr(err error) error {
@@ -342,7 +342,7 @@ func (c *taskListManagerImpl) handleErr(err error) error {
 		// This indicates the task list may have moved to another host.
 		c.scope.IncCounter(metrics.ConditionFailedErrorPerTaskListCounter)
 		c.logger.Info("Stopping task list due to persistence condition failure.", tag.Error(err))
-		c.Stop()
+		go c.Stop()
 		if c.taskListKind == types.TaskListKindSticky {
 			// TODO: we don't see this error in our logs, we might be able to remove this error
 			err = &types.InternalServiceError{Message: constants.StickyTaskConditionFailedErrorMsg}

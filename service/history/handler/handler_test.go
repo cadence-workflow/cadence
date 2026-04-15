@@ -1217,6 +1217,7 @@ func (s *handlerSuite) TestRemoveTask() {
 			expectedError: false,
 			mockFn: func() {
 				s.mockResource.ExecutionMgr.On("CompleteHistoryTask", mock.Anything, &persistence.CompleteHistoryTaskRequest{
+					ShardID:      common.Ptr(0),
 					TaskCategory: persistence.HistoryTaskCategoryTransfer,
 					TaskKey:      persistence.NewImmediateTaskKey(1),
 				}).Return(nil).Once()
@@ -1232,6 +1233,7 @@ func (s *handlerSuite) TestRemoveTask() {
 			expectedError: false,
 			mockFn: func() {
 				s.mockResource.ExecutionMgr.On("CompleteHistoryTask", mock.Anything, &persistence.CompleteHistoryTaskRequest{
+					ShardID:      common.Ptr(0),
 					TaskCategory: persistence.HistoryTaskCategoryTimer,
 					TaskKey:      persistence.NewHistoryTaskKey(time.Unix(0, int64(now.UnixNano())), 1),
 				}).Return(nil).Once()
@@ -1246,6 +1248,7 @@ func (s *handlerSuite) TestRemoveTask() {
 			expectedError: false,
 			mockFn: func() {
 				s.mockResource.ExecutionMgr.On("CompleteHistoryTask", mock.Anything, &persistence.CompleteHistoryTaskRequest{
+					ShardID:      common.Ptr(0),
 					TaskCategory: persistence.HistoryTaskCategoryReplication,
 					TaskKey:      persistence.NewImmediateTaskKey(1),
 				}).Return(nil).Once()

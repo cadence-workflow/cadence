@@ -1419,7 +1419,7 @@ func (m *sqlExecutionStore) rangeCompleteImmediateHistoryTask(
 
 func (m *sqlExecutionStore) GetActiveClusterSelectionPolicy(
 	ctx context.Context,
-	domainID, wfID, rID string,
+	request *p.GetActiveClusterSelectionPolicyRequest,
 ) (*p.DataBlob, error) {
 	// TODO(active-active): Active cluster selection policy for SQL stores is not yet implemented
 	// It requires creating a new table in the database to store the active cluster selection policy
@@ -1428,7 +1428,7 @@ func (m *sqlExecutionStore) GetActiveClusterSelectionPolicy(
 
 func (m *sqlExecutionStore) DeleteActiveClusterSelectionPolicy(
 	ctx context.Context,
-	domainID, wfID, rID string,
+	request *p.DeleteActiveClusterSelectionPolicyRequest,
 ) error {
 	// TODO(active-active): Active cluster selection policy for SQL stores is not yet implemented
 	// It requires creating a new table in the database to store the active cluster selection policy

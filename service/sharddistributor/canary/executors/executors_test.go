@@ -10,7 +10,6 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
@@ -41,16 +40,6 @@ func TestNewExecutorsFixedNamespace(t *testing.T) {
 			newExecutor: func(params executorclient.Params[*processor.ShardProcessor]) (ExecutorResult, error) {
 				return NewExecutorWithFixedNamespace(params, "shard-distributor-canary")
 			}},
-		{
-			name:        "TestNewExecutorLocalPassthroughNamespace",
-			params:      createMockParams[*processor.ShardProcessor](ctrl, LocalPassthroughNamespace),
-			newExecutor: NewExecutorLocalPassthroughNamespace,
-		},
-		{
-			name:        "TestNewExecutorDistributedPassthroughNamespace",
-			params:      createMockParams[*processor.ShardProcessor](ctrl, DistributedPassthroughNamespace),
-			newExecutor: NewExecutorDistributedPassthroughNamespace,
-		},
 	}
 
 	for _, tt := range tests {
@@ -76,11 +65,6 @@ func TestNewExecutorsEphemeralNamespace(t *testing.T) {
 			newExecutor: func(params executorclient.Params[*processorephemeral.ShardProcessor]) (ExecutorEphemeralResult, error) {
 				return NewExecutorWithEphemeralNamespace(params, "shard-distributor-canary-ephemeral")
 			}},
-		{
-			name:        "TestNewExecutorLocalPassthroughShadowNamespace",
-			params:      createMockParams[*processorephemeral.ShardProcessor](ctrl, LocalPassthroughShadowNamespace),
-			newExecutor: NewExecutorLocalPassthroughShadowNamespace,
-		},
 	}
 
 	for _, tt := range tests {
@@ -91,22 +75,6 @@ func TestNewExecutorsEphemeralNamespace(t *testing.T) {
 			require.NotNil(t, result.Executor)
 		})
 	}
-}
-
-func TestNewExecutorExternalAssignmentNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockShardDistributorClient := sharddistributor.NewMockClient(ctrl)
-
-	params := createMockParams[*processorephemeral.ShardProcessor](ctrl, "test-external-assignment")
-
-	result, assigner, err := NewExecutorExternalAssignmentNamespace(params, mockShardDistributorClient, "test-external-assignment")
-
-	require.NoError(t, err)
-	require.NotNil(t, result.Executor)
-	require.NotNil(t, assigner)
-	// Verify that the assigner is properly configured and can start/stop
-	assigner.Start()
-	defer assigner.Stop()
 }
 
 func TestNewExecutor_InvalidConfig(t *testing.T) {

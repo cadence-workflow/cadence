@@ -74,6 +74,14 @@ func (s *simpleResolver) Lookup(service string, key string) (membership.HostInfo
 	return resolver.Lookup(key)
 }
 
+func (s *simpleResolver) LookupN(service string, key string, n int) ([]membership.HostInfo, error) {
+	resolver, ok := s.resolvers[service]
+	if !ok {
+		return nil, fmt.Errorf("cannot lookup host for service %q", service)
+	}
+	return resolver.LookupN(key, n)
+}
+
 func (s *simpleResolver) MemberCount(service string) (int, error) {
 	members, err := s.Members(service)
 	return len(members), err

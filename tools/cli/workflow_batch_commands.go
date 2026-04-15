@@ -316,6 +316,11 @@ func StartBatchJob(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Failed to encode batch job search attributes", err)
 	}
+	wfTypeName := batcher.BatchWFTypeName
+	if c.Bool(FlagBatchV2) {
+		wfTypeName = batcher.BatchWFV2TypeName
+	}
+
 	workflowID := uuid.NewRandom().String()
 	request := &types.StartWorkflowExecutionRequest{
 		Domain:                              constants.BatcherLocalDomainName,
@@ -327,7 +332,7 @@ func StartBatchJob(c *cli.Context) error {
 		Memo:                                memo,
 		SearchAttributes:                    searchAttributes,
 		RetryPolicy:                         copyRetryPolicyFromWorkflow(),
-		WorkflowType:                        &types.WorkflowType{Name: batcher.BatchWFTypeName},
+		WorkflowType:                        &types.WorkflowType{Name: wfTypeName},
 		Input:                               input,
 	}
 	_, err = svcClient.StartWorkflowExecution(tcCtx, request)

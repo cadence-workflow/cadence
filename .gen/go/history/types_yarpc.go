@@ -5,23 +5,23 @@ package history
 
 import yarpcerrors "go.uber.org/yarpc/yarpcerrors"
 
-// YARPCErrorCode returns nil for EventAlreadyStartedError.
+// YARPCErrorCode returns a yarpcerrors.CodeAlreadyExists for EventAlreadyStartedError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *EventAlreadyStartedError) YARPCErrorCode() *yarpcerrors.Code {
-
-	return nil
+	code := yarpcerrors.CodeAlreadyExists
+	return &code
 }
 
 // Name is the error name for EventAlreadyStartedError.
 func (e *EventAlreadyStartedError) YARPCErrorName() string { return "EventAlreadyStartedError" }
 
-// YARPCErrorCode returns nil for ShardOwnershipLostError.
+// YARPCErrorCode returns a yarpcerrors.CodeAborted for ShardOwnershipLostError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.
 func (e *ShardOwnershipLostError) YARPCErrorCode() *yarpcerrors.Code {
-
-	return nil
+	code := yarpcerrors.CodeAborted
+	return &code
 }
 
 // Name is the error name for ShardOwnershipLostError.

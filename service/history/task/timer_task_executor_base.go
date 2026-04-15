@@ -267,6 +267,7 @@ func (t *timerTaskExecutorBase) deleteWorkflowExecution(
 			WorkflowID: task.WorkflowID,
 			RunID:      task.RunID,
 			DomainName: domainName,
+			ShardID:    common.Ptr(t.shard.GetShardID()),
 		})
 	}
 	return t.throttleRetry.Do(ctx, op)
@@ -286,6 +287,7 @@ func (t *timerTaskExecutorBase) deleteCurrentWorkflowExecution(
 			WorkflowID: task.WorkflowID,
 			RunID:      task.RunID,
 			DomainName: domainName,
+			ShardID:    common.Ptr(t.shard.GetShardID()),
 		})
 	}
 	return t.throttleRetry.Do(ctx, op)
@@ -296,7 +298,12 @@ func (t *timerTaskExecutorBase) deleteActiveClusterSelectionPolicy(
 	task *persistence.DeleteHistoryEventTask,
 ) error {
 	op := func(ctx context.Context) error {
-		return t.shard.GetExecutionManager().DeleteActiveClusterSelectionPolicy(ctx, task.DomainID, task.WorkflowID, task.RunID)
+		return t.shard.GetExecutionManager().DeleteActiveClusterSelectionPolicy(ctx, &persistence.DeleteActiveClusterSelectionPolicyRequest{
+			DomainID:   task.DomainID,
+			WorkflowID: task.WorkflowID,
+			RunID:      task.RunID,
+			ShardID:    common.Ptr(t.shard.GetShardID()),
+		})
 	}
 	return t.throttleRetry.Do(ctx, op)
 }
@@ -318,7 +325,7 @@ func (t *timerTaskExecutorBase) deleteWorkflowHistory(
 		}
 		return t.shard.GetHistoryManager().DeleteHistoryBranch(ctx, &persistence.DeleteHistoryBranchRequest{
 			BranchToken: branchToken,
-			ShardID:     common.IntPtr(t.shard.GetShardID()),
+			ShardID:     common.Ptr(t.shard.GetShardID()),
 			DomainName:  domainName,
 		})
 

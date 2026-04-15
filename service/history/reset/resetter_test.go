@@ -488,6 +488,12 @@ func (s *workflowResetterSuite) TestReapplyContinueAsNewWorkflowEvents() {
 	resetContextCacheKey := definition.NewWorkflowIdentifier(s.domainID, s.workflowID, newRunID)
 	_, _ = s.workflowResetter.executionCache.PutIfNotExist(resetContextCacheKey, resetContext)
 
+	// Use a distinct currentRunID (not newRunID) so the test exercises the
+	// cache-based path for the continue-as-new run.
+	currentRunID := uuid.New()
+	currentNextEventID := int64(1)
+	currentBranchToken := []byte("some random current branch token")
+
 	err := s.workflowResetter.reapplyResetAndContinueAsNewWorkflowEvents(
 		ctx,
 		resetMutableState,
@@ -497,6 +503,127 @@ func (s *workflowResetterSuite) TestReapplyContinueAsNewWorkflowEvents() {
 		baseBranchToken,
 		baseFirstEventID,
 		baseNextEventID,
+		currentRunID,
+		currentNextEventID,
+		currentBranchToken,
+	)
+	s.NoError(err)
+}
+
+func (s *workflowResetterSuite) TestReapplyContinueAsNewWorkflowEvents_CurrentRunShortCircuit() {
+	// Regression test: when the continue-as-new chain reaches the currentRunID,
+	// reapplyResetAndContinueAsNewWorkflowEvents must NOT attempt to acquire the
+	// execution-context lock for that run (the caller already holds it, and Go
+	// mutexes are not reentrant — attempting to re-lock causes a deadlock that
+	// times out after resetWorkflowTimeout with "context deadline exceeded").
+	ctx := context.Background()
+	baseFirstEventID := int64(124)
+	baseNextEventID := int64(456)
+	baseBranchToken := []byte("some random base branch token")
+
+	// currentRunID is the run the base workflow continued as new into.
+	currentRunID := uuid.New()
+	currentNextEventID := int64(6)
+	currentBranchToken := []byte("some random current branch token")
+
+	domainName := "test-domain"
+
+	baseEvent1 := &types.HistoryEvent{
+		ID:                                   124,
+		EventType:                            types.EventTypeDecisionTaskScheduled.Ptr(),
+		DecisionTaskScheduledEventAttributes: &types.DecisionTaskScheduledEventAttributes{},
+	}
+	baseEvent2 := &types.HistoryEvent{
+		ID:                                 125,
+		EventType:                          types.EventTypeDecisionTaskStarted.Ptr(),
+		DecisionTaskStartedEventAttributes: &types.DecisionTaskStartedEventAttributes{},
+	}
+	baseEvent3 := &types.HistoryEvent{
+		ID:                                   126,
+		EventType:                            types.EventTypeDecisionTaskCompleted.Ptr(),
+		DecisionTaskCompletedEventAttributes: &types.DecisionTaskCompletedEventAttributes{},
+	}
+	baseEvent4 := &types.HistoryEvent{
+		ID:        127,
+		EventType: types.EventTypeWorkflowExecutionContinuedAsNew.Ptr(),
+		WorkflowExecutionContinuedAsNewEventAttributes: &types.WorkflowExecutionContinuedAsNewEventAttributes{
+			NewExecutionRunID: currentRunID, // base continued into the current run
+		},
+	}
+
+	currentEvent1 := &types.HistoryEvent{
+		ID:                                      1,
+		EventType:                               types.EventTypeWorkflowExecutionStarted.Ptr(),
+		WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{},
+	}
+	currentEvent2 := &types.HistoryEvent{
+		ID:                                   2,
+		EventType:                            types.EventTypeDecisionTaskScheduled.Ptr(),
+		DecisionTaskScheduledEventAttributes: &types.DecisionTaskScheduledEventAttributes{},
+	}
+	currentEvent3 := &types.HistoryEvent{
+		ID:                                 3,
+		EventType:                          types.EventTypeDecisionTaskStarted.Ptr(),
+		DecisionTaskStartedEventAttributes: &types.DecisionTaskStartedEventAttributes{},
+	}
+	currentEvent4 := &types.HistoryEvent{
+		ID:                                   4,
+		EventType:                            types.EventTypeDecisionTaskCompleted.Ptr(),
+		DecisionTaskCompletedEventAttributes: &types.DecisionTaskCompletedEventAttributes{},
+	}
+	currentEvent5 := &types.HistoryEvent{
+		ID:                                     5,
+		EventType:                              types.EventTypeWorkflowExecutionFailed.Ptr(),
+		WorkflowExecutionFailedEventAttributes: &types.WorkflowExecutionFailedEventAttributes{},
+	}
+
+	baseEvents := []*types.HistoryEvent{baseEvent1, baseEvent2, baseEvent3, baseEvent4}
+	s.mockHistoryV2Mgr.On("ReadHistoryBranchByBatch", mock.Anything, &persistence.ReadHistoryBranchRequest{
+		BranchToken:   baseBranchToken,
+		MinEventID:    baseFirstEventID,
+		MaxEventID:    baseNextEventID,
+		PageSize:      execution.NDCDefaultPageSize,
+		NextPageToken: nil,
+		ShardID:       common.IntPtr(s.mockShard.GetShardID()),
+		DomainName:    domainName,
+	}).Return(&persistence.ReadHistoryBranchByBatchResponse{
+		History:       []*types.History{{Events: baseEvents}},
+		NextPageToken: nil,
+	}, nil).Once()
+
+	currentEvents := []*types.HistoryEvent{currentEvent1, currentEvent2, currentEvent3, currentEvent4, currentEvent5}
+	s.mockHistoryV2Mgr.On("ReadHistoryBranchByBatch", mock.Anything, &persistence.ReadHistoryBranchRequest{
+		BranchToken:   currentBranchToken,
+		MinEventID:    commonconstants.FirstEventID,
+		MaxEventID:    currentNextEventID,
+		PageSize:      execution.NDCDefaultPageSize,
+		NextPageToken: nil,
+		ShardID:       common.IntPtr(s.mockShard.GetShardID()),
+		DomainName:    domainName,
+	}).Return(&persistence.ReadHistoryBranchByBatchResponse{
+		History:       []*types.History{{Events: currentEvents}},
+		NextPageToken: nil,
+	}, nil).Once()
+
+	resetMutableState := execution.NewMockMutableState(s.controller)
+	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(gomock.Any()).Return(domainName, nil).AnyTimes()
+	resetMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{}).AnyTimes()
+
+	// The currentRunID must NOT be put in the execution cache. The function should
+	// use the provided currentNextEventID/currentBranchToken directly, bypassing
+	// the cache lock that the caller already holds.
+	err := s.workflowResetter.reapplyResetAndContinueAsNewWorkflowEvents(
+		ctx,
+		resetMutableState,
+		s.domainID,
+		s.workflowID,
+		s.baseRunID,
+		baseBranchToken,
+		baseFirstEventID,
+		baseNextEventID,
+		currentRunID,
+		currentNextEventID,
+		currentBranchToken,
 	)
 	s.NoError(err)
 }

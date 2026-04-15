@@ -2288,6 +2288,13 @@ func TestRegisterDomainRequestFuzz(t *testing.T) {
 				func(e *types.ArchivalStatus, c fuzz.Continue) {
 					*e = types.ArchivalStatus(c.Intn(2)) // 0-1 are valid values (Disabled=0, Enabled=1)
 				},
+				func(s *string, c fuzz.Continue) {
+					if c.RandBool() {
+						*s = ""
+					} else {
+						c.Fuzz(s)
+					}
+				},
 			).NilChance(0.3)
 
 			var orig *types.RegisterDomainRequest

@@ -22,7 +22,6 @@ type NamespacesNames struct {
 	fx.In
 	FixedNamespace              string
 	EphemeralNamespace          string
-	ExternalAssignmentNamespace string
 	SharddistributorServiceName string
 
 	Config config.Config
@@ -57,7 +56,7 @@ func opts(names NamespacesNames) fx.Option {
 		// executorclient.ModuleWithNamespace[*processorephemeral.ShardProcessor](names.EphemeralNamespace),
 
 		// Instantiate executors for multiple namespaces
-		executors.Module(names.FixedNamespace, names.EphemeralNamespace, names.ExternalAssignmentNamespace),
+		executors.Module(names.FixedNamespace, names.EphemeralNamespace),
 
 		processorephemeral.ShardCreatorModule([]string{names.EphemeralNamespace}),
 

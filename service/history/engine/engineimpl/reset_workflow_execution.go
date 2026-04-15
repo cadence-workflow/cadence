@@ -88,6 +88,7 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 		DomainID:   domainID,
 		WorkflowID: request.WorkflowExecution.GetWorkflowID(),
 		DomainName: domainName,
+		ShardID:    common.Ptr(e.shard.GetShardID()),
 	})
 	if err != nil {
 		return nil, err
@@ -254,7 +255,7 @@ func (e *historyEngineImpl) getPaginationFn(
 			nextEventID,
 			paginationToken,
 			DefaultPageSize,
-			common.IntPtr(e.shard.GetShardID()),
+			common.Ptr(e.shard.GetShardID()),
 			domainID,
 			e.shard.GetDomainCache(),
 		)

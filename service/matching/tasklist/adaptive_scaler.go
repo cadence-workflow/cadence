@@ -115,7 +115,7 @@ func (a *adaptiveScalerImpl) Start() {
 	if !atomic.CompareAndSwapInt32(&a.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
-	a.logger.Info("adaptive task list scaler state changed", tag.LifeCycleStarted)
+	a.logger.Debug("adaptive task list scaler state changed", tag.LifeCycleStarted)
 	a.wg.Add(1)
 	go a.runPeriodicLoop()
 }
@@ -126,7 +126,7 @@ func (a *adaptiveScalerImpl) Stop() {
 	}
 	a.cancel()
 	a.wg.Wait()
-	a.logger.Info("adaptive task list scaler state changed", tag.LifeCycleStopped)
+	a.logger.Debug("adaptive task list scaler state changed", tag.LifeCycleStopped)
 }
 
 func (a *adaptiveScalerImpl) runPeriodicLoop() {

@@ -283,7 +283,7 @@ func (f *factoryImpl) NewExecutionManager(shardID int) (p.ExecutionManager, erro
 		result = ratelimited.NewExecutionManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
 	}
 	if f.metricsClient != nil {
-		result = metered.NewExecutionManager(result, f.metricsClient, f.logger, f.config, f.dc.PersistenceSampleLoggingRate, f.dc.EnableShardIDMetrics)
+		result = metered.NewExecutionManager(result, f.metricsClient, f.logger, f.config, f.dc.EnableShardIDMetrics)
 	}
 	return result, nil
 }

@@ -112,7 +112,7 @@ func TestAllowDomainRequestRouting(t *testing.T) {
 			handler := setupHandler(t)
 			tc.setupMock(handler)
 
-			err := handler.allowDomain(context.Background(), tc.requestType, testDomain)
+			err := handler.allowDomain(context.Background(), tc.requestType, quotas.Info{Domain: testDomain})
 
 			if tc.expectedErr != nil {
 				assert.Error(t, err)
@@ -272,7 +272,7 @@ func TestCallerTypeBypass(t *testing.T) {
 				handler.userRateLimiter.(*mockPolicy).On("Allow", quotas.Info{Domain: testDomain}).Return(true).Once()
 			}
 
-			err := handler.allowDomain(ctx, ratelimitTypeUser, testDomain)
+			err := handler.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: testDomain})
 
 			if tt.expectBypass {
 				assert.NoError(t, err, "Expected bypass to allow request")
@@ -321,10 +321,15 @@ func TestCallerTypeBypassWithWait(t *testing.T) {
 			handler.maxWorkerPollDelay = func(domain string) time.Duration { return 1 * time.Millisecond }
 			ctx := types.ContextWithCallerInfo(context.Background(), types.NewCallerInfo(tt.callerType))
 
-			// Wait returns an error, but waitCtx.Err() is nil (case nil path)
+			// Wait returns an error, but waitCtx.Err() is nil (nil path).
+			// With a 1ms maxWorkerPollDelay there is a race: if the waitCtx deadline
+			// expires before Wait returns, the DeadlineExceeded branch calls Allow()
+			// instead. .Maybe() covers that optional call; returning false falls through
+			// to ShouldBypass, so both branches produce the same test outcome.
+			handler.workerRateLimiter.(*mockPolicy).On("Allow", quotas.Info{Domain: testDomain}).Return(false).Maybe()
 			handler.workerRateLimiter.(*mockPolicy).On("Wait", mock.Anything, quotas.Info{Domain: testDomain}).Return(assert.AnError).Once()
 
-			err := handler.allowDomain(ctx, ratelimitTypeWorkerPoll, testDomain)
+			err := handler.allowDomain(ctx, ratelimitTypeWorkerPoll, quotas.Info{Domain: testDomain})
 
 			if tt.expectBypass {
 				assert.NoError(t, err, "Expected bypass to allow request")

@@ -23,6 +23,7 @@ package cadence
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/startreedata/pinot-client-go/pinot"
@@ -129,8 +130,14 @@ func (s *server) startService() common.Daemon {
 		s.logger.Fatal(err.Error())
 	}
 
+	hostName, err := os.Hostname()
+	if err != nil {
+		s.logger.Fatal("failed to get hostname", tag.Error(err))
+	}
+
 	params := resource.Params{
 		Name:              service.FullName(s.name),
+		HostName:          hostName,
 		Logger:            s.logger.WithTags(tag.Service(service.FullName(s.name))),
 		PersistenceConfig: s.cfg.Persistence,
 		DynamicConfig:     s.dynamicCfgClient,
@@ -179,7 +186,7 @@ func (s *server) startService() common.Daemon {
 		if len(s.cfg.ShardDistributorMatchingConfig.Namespaces) > 1 {
 			s.logger.Fatal("spectator does not support multiple namespaces", tag.Value(s.cfg.ShardDistributorMatchingConfig.Namespaces))
 		}
-		matchingShardDistributionMode := dc.GetStringProperty(dynamicproperties.MatchingShardDistributionMode)
+		matchingPercentageOnboarded := dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager)
 
 		spectatorParams := spectatorclient.Params{
 			Client:       shardDistributorClient,
@@ -188,7 +195,7 @@ func (s *server) startService() common.Daemon {
 			Config:       s.cfg.ShardDistributorMatchingConfig,
 			TimeSource:   clock.NewRealTimeSource(),
 			Enabled: func() bool {
-				return membership.ModeKey(matchingShardDistributionMode()) != membership.ModeKeyHashRing
+				return matchingPercentageOnboarded() > 0
 			},
 		}
 		namespace := s.cfg.ShardDistributorMatchingConfig.Namespaces[0].Namespace
@@ -326,7 +333,6 @@ func (*server) wrapHashRingsWithShardDistributor(
 	if _, ok := hashRings[service.Matching]; ok {
 		hashRings[service.Matching] = membership.NewShardDistributorResolver(
 			spectator,
-			dc.GetStringProperty(dynamicproperties.MatchingShardDistributionMode),
 			dc.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
 			dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
 			hashRings[service.Matching],

@@ -239,13 +239,11 @@ func TestNewConfig(t *testing.T) {
 		"MutableStateChecksumGenProbability":                   {dynamicproperties.MutableStateChecksumGenProbability, 90},
 		"MutableStateChecksumVerifyProbability":                {dynamicproperties.MutableStateChecksumVerifyProbability, 91},
 		"MutableStateChecksumInvalidateBefore":                 {dynamicproperties.MutableStateChecksumInvalidateBefore, 15.0},
-		"EnableRetryForChecksumFailure":                        {dynamicproperties.EnableRetryForChecksumFailure, true},
 		"EnableHistoryCorruptionCheck":                         {dynamicproperties.EnableHistoryCorruptionCheck, true},
 		"NotifyFailoverMarkerInterval":                         {dynamicproperties.NotifyFailoverMarkerInterval, time.Second},
 		"NotifyFailoverMarkerTimerJitterCoefficient":           {dynamicproperties.NotifyFailoverMarkerTimerJitterCoefficient, 16.0},
 		"EnableGracefulFailover":                               {dynamicproperties.EnableGracefulFailover, true},
 		"EnableActivityLocalDispatchByDomain":                  {dynamicproperties.EnableActivityLocalDispatchByDomain, true},
-		"MaxActivityCountDispatchByDomain":                     {dynamicproperties.MaxActivityCountDispatchByDomain, 92},
 		"ActivityMaxScheduleToStartTimeoutForRetry":            {dynamicproperties.ActivityMaxScheduleToStartTimeoutForRetry, time.Second},
 		"EnableDebugMode":                                      {dynamicproperties.EnableDebugMode, true},
 		"EnableTaskInfoLogByDomainID":                          {dynamicproperties.HistoryEnableTaskInfoLogByDomainID, true},
@@ -281,6 +279,9 @@ func TestNewConfig(t *testing.T) {
 		"EnableCleanupOrphanedHistoryBranchOnWorkflowCreation": {dynamicproperties.EnableCleanupOrphanedHistoryBranchOnWorkflowCreation, true},
 		"EnableHierarchicalWeightedRoundRobinTaskScheduler":    {dynamicproperties.EnableHierarchicalWeightedRoundRobinTaskScheduler, true},
 		"EnableTaskListAwareTaskSchedulerByDomain":             {dynamicproperties.EnableTaskListAwareTaskSchedulerByDomain, true},
+		"EnableCorruptionAutoRepair":                           {dynamicproperties.EnableCorruptionAutoRepair, true},
+		"CorruptionRepairTimeout":                              {dynamicproperties.CorruptionRepairTimeout, time.Duration(1)},
+		"RequireChecksumMatchAfterRebuildRepair":               {dynamicproperties.RequireChecksumMatchAfterRebuildRepair, true},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {

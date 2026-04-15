@@ -1248,7 +1248,7 @@ func TestRebalanceByShardLoad(t *testing.T) {
 			defer mocks.ctrl.Finish()
 			processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
-			distributionChanged := processor.rebalanceByShardLoad(tc.shardLoad, tc.currentAssignments)
+			distributionChanged := processor.rebalanceByShardLoad(tc.shardLoad, tc.currentAssignments, metrics.NoopScope)
 
 			assert.Equal(t, tc.expectedDistributionChange, distributionChanged, "distribution change mismatch")
 			assert.Equal(t, tc.expectedAssignments, tc.currentAssignments, "final assignments mismatch")
@@ -1458,13 +1458,21 @@ func TestRunRebalanceTriggeringLoop(t *testing.T) {
 		processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 
 		// Use unbuffered channel for updates to ensure they are processed one at a time
 		updateChan := make(chan int64)
 		triggerChan := make(chan string, 1)
 
-		go processor.rebalanceTriggeringLoop(ctx, updateChan, triggerChan)
+		var loopWg sync.WaitGroup
+		loopWg.Add(1)
+		go func() {
+			defer loopWg.Done()
+			processor.rebalanceTriggeringLoop(ctx, updateChan, triggerChan)
+		}()
+		defer func() {
+			cancel()
+			loopWg.Wait()
+		}()
 
 		// Wait for ticker to be created
 		mocks.timeSource.BlockUntil(1)
@@ -1487,8 +1495,6 @@ func TestRunRebalanceTriggeringLoop(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("expected trigger from state change, but timed out")
 		}
-
-		cancel()
 	})
 
 	t.Run("update channel closed stops loop", func(t *testing.T) {

@@ -139,7 +139,7 @@ func (s *taskProcessorSuite) SetupTest() {
 	s.mockEngine = engine.NewMockEngine(s.controller)
 	s.config = config.NewForTest()
 	s.config.ReplicationTaskProcessorNoTaskRetryWait = dynamicproperties.GetDurationPropertyFnFilteredByShardID(1 * time.Millisecond)
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	s.requestChan = make(chan *request, 10)
 
 	s.taskFetcher = &fakeTaskFetcher{
@@ -273,6 +273,7 @@ func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteFailed_PutDLQSuccess()
 			ScheduledID: testScheduleID,
 		},
 		DomainName: testDomainName,
+		ShardID:    common.Ptr(0),
 	}
 	s.mockShard.Resource.ExecutionMgr.On("PutReplicationTaskToDLQ", mock.Anything, dlqReq).Return(nil).Times(1)
 
@@ -326,6 +327,7 @@ func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteFailed_PutDLQFailed() 
 			ScheduledID: testScheduleID,
 		},
 		DomainName: testDomainName,
+		ShardID:    common.Ptr(0),
 	}
 	s.mockShard.Resource.ExecutionMgr.
 		On("PutReplicationTaskToDLQ", mock.Anything, dlqReq).
@@ -546,6 +548,7 @@ func (s *taskProcessorSuite) TestCleanupReplicationTaskLoop() {
 		TaskCategory:        persistence.HistoryTaskCategoryReplication,
 		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(351),
 		PageSize:            50, // this comes from test config
+		ShardID:             common.Ptr(0),
 	}
 	s.executionManager.On("RangeCompleteHistoryTask", mock.Anything, req).Return(&persistence.RangeCompleteHistoryTaskResponse{
 		TasksCompleted: 50, // if this number equals to page size the loop continues
@@ -638,7 +641,7 @@ func TestProcessorLoop_TaskExecuteFailed_ShardChangeErr(t *testing.T) {
 	}
 
 	mockEngine := engine.NewMockEngine(ctrl)
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 
 	taskExecutor := NewMockTaskExecutor(ctrl)
 

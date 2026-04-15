@@ -915,9 +915,9 @@ func (m *executionManagerImpl) CreateFailoverMarkerTasks(
 
 func (m *executionManagerImpl) GetActiveClusterSelectionPolicy(
 	ctx context.Context,
-	domainID, wfID, rID string,
+	request *GetActiveClusterSelectionPolicyRequest,
 ) (*types.ActiveClusterSelectionPolicy, error) {
-	blob, err := m.persistence.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
+	blob, err := m.persistence.GetActiveClusterSelectionPolicy(ctx, request)
 	if err != nil {
 		return nil, err
 	}
@@ -935,9 +935,9 @@ func (m *executionManagerImpl) GetActiveClusterSelectionPolicy(
 
 func (m *executionManagerImpl) DeleteActiveClusterSelectionPolicy(
 	ctx context.Context,
-	domainID, workflowID, runID string,
+	request *DeleteActiveClusterSelectionPolicyRequest,
 ) error {
-	return m.persistence.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
+	return m.persistence.DeleteActiveClusterSelectionPolicy(ctx, request)
 }
 
 func (m *executionManagerImpl) Close() {
