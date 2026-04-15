@@ -163,7 +163,7 @@ func TestLoadBalance_SkipsNonBeneficialHotShard(t *testing.T) {
 		},
 	}
 
-	changed, err := processor.loadBalance(currentAssignments, namespaceState, map[string]store.ShardState{}, metrics.NoopScope)
+	changed, err := processor.rebalanceGreedyBySmoothedLoad(currentAssignments, namespaceState, map[string]store.ShardState{}, metrics.NoopScope)
 	require.NoError(t, err)
 	require.True(t, changed)
 	assert.True(t, slices.Contains(currentAssignments[execB], "warm"))
@@ -270,7 +270,7 @@ func TestLoadBalance_SevereImbalance_AllowsMoveWithoutDestinations(t *testing.T)
 	initialOther := len(currentAssignments[execB]) + len(currentAssignments[execC]) + len(currentAssignments[execD]) + len(currentAssignments[execE])
 	expectedBudget := computeMoveBudget(len(shardStats), processor.cfg.LoadBalance.MoveBudgetProportion)
 
-	changed, err := processor.loadBalance(currentAssignments, namespaceState, map[string]store.ShardState{}, metrics.NoopScope)
+	changed, err := processor.rebalanceGreedyBySmoothedLoad(currentAssignments, namespaceState, map[string]store.ShardState{}, metrics.NoopScope)
 	require.NoError(t, err)
 	require.True(t, changed)
 
@@ -318,7 +318,7 @@ func TestLoadBalance_NoDestinations_NotSevere(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	changed, err := processor.loadBalance(currentAssignments, namespaceState, map[string]store.ShardState{}, metrics.NoopScope)
+	changed, err := processor.rebalanceGreedyBySmoothedLoad(currentAssignments, namespaceState, map[string]store.ShardState{}, metrics.NoopScope)
 	require.NoError(t, err)
 	require.False(t, changed)
 	assert.Len(t, currentAssignments[execA], 10)
@@ -521,7 +521,7 @@ func TestLoadBalance_PerShardCooldownSkipsHotShard(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	changed, err := processor.loadBalance(currentAssignments, namespaceState, map[string]store.ShardState{}, metrics.NoopScope)
+	changed, err := processor.rebalanceGreedyBySmoothedLoad(currentAssignments, namespaceState, map[string]store.ShardState{}, metrics.NoopScope)
 	require.NoError(t, err)
 	require.True(t, changed)
 	assert.True(t, slices.Contains(currentAssignments[execB], "hot-2"), "eligible hot shard should move")

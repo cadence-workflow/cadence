@@ -59,9 +59,6 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 	}
 
 	loadBalancingMode := h.cfg.GetLoadBalancingMode(namespace)
-	if loadBalancingMode == types.LoadBalancingModeINVALID {
-		loadBalancingMode = types.LoadBalancingModeNAIVE
-	}
 
 	executorLoads, averageShardLoad, err := h.computeInitialPlacementLoads(loadBalancingMode, state)
 	if err != nil {

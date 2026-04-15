@@ -468,7 +468,8 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	updatedAssignments := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
 
 	var isRebalancedByShardLoad bool
-	switch p.sdConfig.GetLoadBalancingMode(p.namespaceCfg.Name) {
+	loadBalancingMode := p.sdConfig.GetLoadBalancingMode(p.namespaceCfg.Name)
+	switch loadBalancingMode {
 	case types.LoadBalancingModeGREEDY:
 		isRebalancedByShardLoad, err = p.rebalanceGreedyBySmoothedLoad(currentAssignments, namespaceState, deletedShards, metricsLoopScope)
 		if err != nil {
@@ -477,7 +478,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	case types.LoadBalancingModeNAIVE:
 		isRebalancedByShardLoad = p.rebalanceNaiveByReportedLoad(calcShardLoad(namespaceState), currentAssignments, metricsLoopScope)
 	default:
-		isRebalancedByShardLoad = p.rebalanceNaiveByReportedLoad(calcShardLoad(namespaceState), currentAssignments, metricsLoopScope)
+		return &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", loadBalancingMode)}
 	}
 
 	p.emitExecutorMetric(namespaceState, metricsLoopScope)
