@@ -205,13 +205,13 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 			continue
 		}
 
-		statsUpdate.stats[shardID] = UpdateShardStatistic(shardID, report.ShardLoad, now, oldStats)
+		statsUpdate.stats[shardID] = s.UpdateShardStatistic(namespace, executorID, shardID, report.ShardLoad, now, oldStats)
 	}
 
 	return []shardStatisticsUpdate{statsUpdate}, nil
 }
 
-func UpdateShardStatistic(shardID string, shardLoad float64, now time.Time, oldStats map[string]etcdtypes.ShardStatistics) etcdtypes.ShardStatistics {
+func (s *executorStoreImpl) UpdateShardStatistic(namespace, executorID, shardID string, shardLoad float64, now time.Time, oldStats map[string]etcdtypes.ShardStatistics) etcdtypes.ShardStatistics {
 	var stats etcdtypes.ShardStatistics
 
 	prevStats, ok := oldStats[shardID]
@@ -221,7 +221,15 @@ func UpdateShardStatistic(shardID string, shardLoad float64, now time.Time, oldS
 
 	prevSmoothed := prevStats.SmoothedLoad
 	prevUpdate := prevStats.LastUpdateTime.ToTime()
-	newSmoothed := statistics.CalculateSmoothedLoad(prevSmoothed, shardLoad, prevUpdate, now)
+	newSmoothed, err := statistics.CalculateSmoothedLoad(prevSmoothed, shardLoad, prevUpdate, now)
+	if err != nil {
+		s.logger.Error("failed to calculate smoothed load",
+			tag.ShardNamespace(namespace),
+			tag.ShardExecutor(executorID),
+			tag.ShardKey(shardID),
+		)
+		return etcdtypes.ShardStatistics{LastMoveTime: stats.LastMoveTime}
+	}
 
 	stats.SmoothedLoad = newSmoothed
 	stats.LastUpdateTime = etcdtypes.Time(now)
