@@ -23,6 +23,7 @@ package nosql
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -36,7 +37,8 @@ import (
 type nosqlExecutionStore struct {
 	shardID int
 	nosqlStore
-	taskSerializer serialization.TaskSerializer
+	taskSerializer     serialization.TaskSerializer
+	missingShardIDLogs sync.Map
 }
 
 // NewExecutionStore is used to create an instance of ExecutionStore implementation
@@ -76,10 +78,12 @@ func getShardID(requestShardID *int, storeShardID int) int {
 // during migration to host-level ExecutionStore.
 func (d *nosqlExecutionStore) effectiveShardID(requestShardID *int, operation string) int {
 	if requestShardID == nil && d.logger != nil {
-		d.logger.Debug("execution store request missing ShardID; using store shard ID",
-			tag.ShardID(d.shardID),
-			tag.Custom("operation", operation),
-		)
+		if _, loaded := d.missingShardIDLogs.LoadOrStore(operation, struct{}{}); !loaded {
+			d.logger.Debug("execution store request missing ShardID; using store shard ID",
+				tag.ShardID(d.shardID),
+				tag.OperationName(operation),
+			)
+		}
 	}
 	return getShardID(requestShardID, d.shardID)
 }

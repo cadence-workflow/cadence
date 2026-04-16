@@ -1997,3 +1997,25 @@ func TestGetWorkflowExecution_usesRequestShardIDWhenSet(t *testing.T) {
 	_, err := store.GetWorkflowExecution(ctx, req)
 	require.NoError(t, err)
 }
+
+func TestEffectiveShardID_logsOncePerOperationWhenRequestShardIDMissing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := log.NewMockLogger(ctrl)
+	mockLogger.EXPECT().
+		Debug("execution store request missing ShardID; using store shard ID", gomock.Any(), gomock.Any()).
+		Times(2)
+
+	store := &nosqlExecutionStore{
+		shardID: 123,
+		nosqlStore: nosqlStore{
+			logger: mockLogger,
+		},
+	}
+
+	assert.Equal(t, 123, store.effectiveShardID(nil, "GetWorkflowExecution"))
+	assert.Equal(t, 123, store.effectiveShardID(nil, "GetWorkflowExecution"))
+	assert.Equal(t, 123, store.effectiveShardID(nil, "UpdateWorkflowExecution"))
+	assert.Equal(t, 999, store.effectiveShardID(common.IntPtr(999), "GetWorkflowExecution"))
+}
