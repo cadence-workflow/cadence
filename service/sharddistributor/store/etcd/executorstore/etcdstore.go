@@ -454,7 +454,10 @@ func (s *executorStoreImpl) AssignShards(ctx context.Context, namespace string, 
 			if err != nil {
 				return
 			}
-			s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
+			if updateErr := s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates); updateErr != nil {
+				s.logger.Error("failed to apply shard statistics updates", tag.Error(updateErr))
+				err = updateErr
+			}
 		}()
 	}
 
