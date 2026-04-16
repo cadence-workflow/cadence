@@ -205,13 +205,13 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 			continue
 		}
 
-		statsUpdate.stats[shardID] = s.UpdateShardStatistic(namespace, executorID, shardID, report.ShardLoad, now, oldStats)
+		statsUpdate.stats[shardID] = s.updateShardStatistic(namespace, executorID, shardID, report.ShardLoad, now, oldStats)
 	}
 
 	return []shardStatisticsUpdate{statsUpdate}, nil
 }
 
-func (s *executorStoreImpl) UpdateShardStatistic(namespace, executorID, shardID string, shardLoad float64, now time.Time, oldStats map[string]etcdtypes.ShardStatistics) etcdtypes.ShardStatistics {
+func (s *executorStoreImpl) updateShardStatistic(namespace, executorID, shardID string, shardLoad float64, now time.Time, oldStats map[string]etcdtypes.ShardStatistics) etcdtypes.ShardStatistics {
 	var stats etcdtypes.ShardStatistics
 
 	prevStats, ok := oldStats[shardID]
