@@ -154,11 +154,10 @@ func (s *executorStoreImpl) RecordHeartbeat(ctx context.Context, namespace, exec
 	if s.cfg.GetLoadBalancingMode(namespace) == types.LoadBalancingModeGREEDY {
 		statsUpdates, err := s.calcUpdatedStatistics(ctx, namespace, executorID, request.ReportedShards)
 		if err != nil {
-			return err
+			return fmt.Errorf("calculate shard statistics updates: %w", err)
 		}
-		err = s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates)
-		if err != nil {
-			return err
+		if err := s.applyShardStatisticsUpdates(ctx, namespace, statsUpdates); err != nil {
+			return fmt.Errorf("apply shard statistics updates: %w", err)
 		}
 	}
 
@@ -179,7 +178,7 @@ func (s *executorStoreImpl) calcUpdatedStatistics(ctx context.Context, namespace
 		if errors.Is(err, store.ErrExecutorNotFound) {
 			oldStats = make(map[string]etcdtypes.ShardStatistics)
 		} else {
-			return nil, err
+			return nil, fmt.Errorf("get shard statistics for executor %s: %w", executorID, err)
 		}
 	}
 
