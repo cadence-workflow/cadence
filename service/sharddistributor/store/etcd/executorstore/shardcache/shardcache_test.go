@@ -5,12 +5,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/testhelper"
 )
 
@@ -62,4 +64,25 @@ func TestShardExecutorCacheForwarding(t *testing.T) {
 	assert.Equal(t, "executor-1", executor.ExecutorID)
 	assert.Equal(t, "dc1", executor.Metadata["datacenter"])
 	assert.Equal(t, "rack-42", executor.Metadata["rack"])
+}
+
+func TestShardToExecutorCache_GetExecutorStatistics(t *testing.T) {
+	testCluster := testhelper.SetupStoreTestCluster(t)
+	logger := testlogger.New(t)
+
+	executorID := "executor-stats"
+	shardID := "shard-stats-1"
+	initialStats := map[string]etcdtypes.ShardStatistics{
+		shardID: {SmoothedLoad: 10.0},
+	}
+	putExecutorStatisticsInEtcd(t, testCluster, executorID, initialStats)
+
+	cache := NewShardToExecutorCache(testCluster.EtcdPrefix, testCluster.Client, logger, clock.NewRealTimeSource(), metrics.NewNoopMetricsClient())
+	cache.Start()
+	defer cache.Stop()
+
+	// This should trigger the creation of the namespace cache and then fetch stats
+	stats, err := cache.GetExecutorStatistics(context.Background(), testCluster.Namespace, executorID)
+	require.NoError(t, err)
+	assert.Equal(t, initialStats, stats)
 }
