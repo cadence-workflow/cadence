@@ -49,7 +49,7 @@ type namespaceShardToExecutor struct {
 
 type namespaceExecutorStatistics struct {
 	lock  sync.RWMutex
-	stats map[string]map[string]etcdtypes.ShardStatistics
+	stats map[string]map[string]etcdtypes.ShardStatistics // executorID -> shardID -> ShardStatistics
 }
 
 func newNamespaceExecutorStatistics() *namespaceExecutorStatistics {
