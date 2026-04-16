@@ -927,7 +927,7 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 						if errors.Is(err, store.ErrExecutorNotFound) {
 							oldOwnerStats = make(map[string]etcdtypes.ShardStatistics)
 						} else {
-							return nil, err
+							return nil, fmt.Errorf("get old owner shard statistics for executor %s: %w", oldOwner.ExecutorID, err)
 						}
 					}
 				}
@@ -957,7 +957,7 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 					if errors.Is(err, store.ErrExecutorNotFound) {
 						newOwnerStats = make(map[string]etcdtypes.ShardStatistics)
 					} else {
-						return nil, err
+						return nil, fmt.Errorf("get new owner shard statistics for executor %s: %w", executorID, err)
 					}
 				}
 			}
