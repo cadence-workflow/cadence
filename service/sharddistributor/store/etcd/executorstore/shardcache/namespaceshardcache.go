@@ -412,34 +412,44 @@ func (n *namespaceShardToExecutor) refreshExecutorState(ctx context.Context) err
 }
 
 func (n *namespaceShardToExecutor) applyExecutorData(data map[string]executorData) {
+	shardToExecutor := make(map[string]*store.ShardOwner)
+	executorState := make(map[*store.ShardOwner][]string)
+	executorRevision := make(map[string]int64)
+	shardOwners := make(map[string]*store.ShardOwner)
+	executorStatistics := make(map[string]map[string]etcdtypes.ShardStatistics)
+
+	for executorID, executorData := range data {
+		shardOwner := getOrCreateShardOwner(shardOwners, executorID)
+		shardIDs := make([]string, 0, len(executorData.assignedShards))
+		for shardID := range executorData.assignedShards {
+			shardToExecutor[shardID] = shardOwner
+			shardIDs = append(shardIDs, shardID)
+		}
+		executorState[shardOwner] = shardIDs
+		executorRevision[executorID] = executorData.revision
+
+		maps.Copy(shardOwner.Metadata, executorData.metadata)
+
+		executorStatistics[executorID] = maps.Clone(executorData.statistics)
+	}
+
+	n.replaceExecutorState(shardToExecutor, executorState, executorRevision, shardOwners)
+	n.executorStatistics.replaceStatistics(executorStatistics)
+}
+
+func (n *namespaceShardToExecutor) replaceExecutorState(
+	shardToExecutor map[string]*store.ShardOwner,
+	executorState map[*store.ShardOwner][]string,
+	executorRevision map[string]int64,
+	shardOwners map[string]*store.ShardOwner,
+) {
 	n.Lock()
 	defer n.Unlock()
 
-	// Clear the cache
-	n.shardToExecutor = make(map[string]*store.ShardOwner)
-	n.executorState = make(map[*store.ShardOwner][]string)
-	n.executorRevision = make(map[string]int64)
-	n.shardOwners = make(map[string]*store.ShardOwner)
-
-	// Clear statistics to remove stale entries for deleted executors
-	n.executorStatistics.lock.Lock()
-	n.executorStatistics.stats = make(map[string]map[string]etcdtypes.ShardStatistics)
-	n.executorStatistics.lock.Unlock()
-
-	for executorID, executordata := range data {
-		shardOwner := getOrCreateShardOwner(n.shardOwners, executorID)
-		shardIDs := make([]string, 0, len(executordata.assignedShards))
-		for shardID := range executordata.assignedShards {
-			n.shardToExecutor[shardID] = shardOwner
-			shardIDs = append(shardIDs, shardID)
-		}
-		n.executorState[shardOwner] = shardIDs
-		n.executorRevision[executorID] = executordata.revision
-
-		maps.Copy(shardOwner.Metadata, executordata.metadata)
-
-		n.executorStatistics.assignStatistics(executorID, executordata.statistics)
-	}
+	n.shardToExecutor = shardToExecutor
+	n.executorState = executorState
+	n.executorRevision = executorRevision
+	n.shardOwners = shardOwners
 }
 
 // handleExecutorStatisticsEvent processes incoming watch events for executor shard statistics.
@@ -474,6 +484,12 @@ func (n *namespaceExecutorStatistics) assignStatistics(executorID string, stats 
 	n.lock.Lock()
 	defer n.lock.Unlock()
 	n.stats[executorID] = maps.Clone(stats)
+}
+
+func (n *namespaceExecutorStatistics) replaceStatistics(stats map[string]map[string]etcdtypes.ShardStatistics) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+	n.stats = stats
 }
 
 // getOrCreateShardOwner retrieves an existing ShardOwner from the map or creates a new one if it doesn't exist
