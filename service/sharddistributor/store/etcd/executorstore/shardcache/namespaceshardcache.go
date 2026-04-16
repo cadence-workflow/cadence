@@ -15,6 +15,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
@@ -59,10 +60,10 @@ func newNamespaceExecutorStatistics() *namespaceExecutorStatistics {
 }
 
 type executorData struct {
-	assignedStates etcdtypes.AssignedState
+	assignedShards map[string]*types.ShardAssignment
 	metadata       map[string]string
 	statistics     map[string]etcdtypes.ShardStatistics
-	revisions      int64
+	revision       int64
 }
 
 func (n *namespaceShardToExecutor) parseExecutorData(resp *clientv3.GetResponse, etcdPrefix, namespace string) (map[string]executorData, error) {
@@ -79,10 +80,10 @@ func (n *namespaceShardToExecutor) parseExecutorData(resp *clientv3.GetResponse,
 		execData, ok := data[executorID]
 		if !ok {
 			execData = executorData{
-				assignedStates: etcdtypes.AssignedState{},
+				assignedShards: make(map[string]*types.ShardAssignment),
 				metadata:       make(map[string]string),
 				statistics:     make(map[string]etcdtypes.ShardStatistics),
-				revisions:      0,
+				revision:       0,
 			}
 		}
 
@@ -92,8 +93,8 @@ func (n *namespaceShardToExecutor) parseExecutorData(resp *clientv3.GetResponse,
 			if err := common.DecompressAndUnmarshal(kv.Value, &assignedState); err != nil {
 				return nil, fmt.Errorf("parse assigned state for %s: %w", executorID, err)
 			}
-			execData.assignedStates = assignedState
-			execData.revisions = kv.ModRevision
+			execData.assignedShards = assignedState.AssignedShards
+			execData.revision = kv.ModRevision
 		case etcdkeys.ExecutorMetadataKey:
 			metadataKey := strings.TrimPrefix(string(kv.Key), etcdkeys.BuildMetadataKey(etcdPrefix, namespace, executorID, ""))
 			execData.metadata[metadataKey] = string(kv.Value)
@@ -427,13 +428,13 @@ func (n *namespaceShardToExecutor) applyExecutorData(data map[string]executorDat
 
 	for executorID, executordata := range data {
 		shardOwner := getOrCreateShardOwner(n.shardOwners, executorID)
-		shardIDs := make([]string, 0, len(executordata.assignedStates.AssignedShards))
-		for shardID := range executordata.assignedStates.AssignedShards {
+		shardIDs := make([]string, 0, len(executordata.assignedShards))
+		for shardID := range executordata.assignedShards {
 			n.shardToExecutor[shardID] = shardOwner
 			shardIDs = append(shardIDs, shardID)
 		}
 		n.executorState[shardOwner] = shardIDs
-		n.executorRevision[executorID] = executordata.revisions
+		n.executorRevision[executorID] = executordata.revision
 
 		maps.Copy(shardOwner.Metadata, executordata.metadata)
 
