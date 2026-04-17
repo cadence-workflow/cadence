@@ -2334,6 +2334,7 @@ const (
 	PersistenceLatencyPerDomain
 	PersistenceLatencyPerDomainHistogram
 	PersistenceLatencyPerShard
+	PersistenceLatencyPerShardHistogram
 	PersistenceErrShardExistsCounterPerDomain
 	PersistenceErrShardOwnershipLostCounterPerDomain
 	PersistenceErrConditionFailedCounterPerDomain
@@ -3198,6 +3199,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		PersistenceLatencyPerDomain:                                  {metricName: "persistence_latency_per_domain", metricRollupName: "persistence_latency", metricType: Timer},
 		PersistenceLatencyPerDomainHistogram:                         {metricName: "persistence_latency_per_domain_ns", metricRollupName: "persistence_latency_ns", metricType: Histogram, exponentialBuckets: Default1ms100s},
 		PersistenceLatencyPerShard:                                   {metricName: "persistence_latency_per_shard", metricType: Timer},
+		PersistenceLatencyPerShardHistogram:                          {metricName: "persistence_latency_per_shard_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		PersistenceErrShardExistsCounterPerDomain:                    {metricName: "persistence_errors_shard_exists_per_domain", metricRollupName: "persistence_errors_shard_exists", metricType: Counter},
 		PersistenceErrShardOwnershipLostCounterPerDomain:             {metricName: "persistence_errors_shard_ownership_lost_per_domain", metricRollupName: "persistence_errors_shard_ownership_lost", metricType: Counter},
 		PersistenceErrConditionFailedCounterPerDomain:                {metricName: "persistence_errors_condition_failed_per_domain", metricRollupName: "persistence_errors_condition_failed", metricType: Counter},

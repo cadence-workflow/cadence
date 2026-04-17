@@ -199,7 +199,10 @@ func (p *base) callWithDomainAndShardScope(scope metrics.ScopeIdx, op func() err
 	domainMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerDomainHistogram, duration)
 	overallScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 	shardOperationsMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
+	shardOperationsMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerShardHistogram, duration)
+
 	shardOverallMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
+	shardOverallMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerShardHistogram, duration)
 	p.recordLatencyHistogram(scope, duration)
 
 	if err != nil {

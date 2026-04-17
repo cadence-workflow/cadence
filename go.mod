@@ -23,7 +23,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-version v1.2.0
-	github.com/iancoleman/strcase v0.3.0
+	github.com/iancoleman/strcase v0.2.0
 	github.com/jmespath/go-jmespath v0.4.0
 	github.com/jmoiron/sqlx v1.2.1-0.20200615141059-0794cb1f47ee
 	github.com/jonboulle/clockwork v0.5.0
@@ -53,16 +53,16 @@ require (
 	go.uber.org/config v1.4.0
 	go.uber.org/fx v1.23.0
 	go.uber.org/multierr v1.11.0
-	go.uber.org/thriftrw v1.32.0
+	go.uber.org/thriftrw v1.34.0
 	go.uber.org/yarpc v1.88.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b
-	golang.org/x/net v0.48.0
-	golang.org/x/sync v0.19.0
+	golang.org/x/net v0.43.0
+	golang.org/x/sync v0.16.0
 	golang.org/x/time v0.5.0
-	golang.org/x/tools v0.39.0
-	gonum.org/v1/gonum v0.16.0
-	google.golang.org/grpc v1.79.3
+	golang.org/x/tools v0.36.0
+	gonum.org/v1/gonum v0.15.1
+	google.golang.org/grpc v1.67.3
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -92,13 +92,13 @@ require (
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
-	golang.org/x/oauth2 v0.34.0 // indirect
+	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142 // indirect
 )
 
 require (
-	github.com/BurntSushi/toml v1.3.2 // indirect
+	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/apache/thrift v0.17.0 // indirect
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -151,17 +151,17 @@ require (
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/goleak v1.3.0
 	go.uber.org/net/metrics v1.4.0 // indirect
-	golang.org/x/crypto v0.46.0 // indirect
-	golang.org/x/exp/typeparams v0.0.0-20221208152030-732eee02a75a // indirect
+	golang.org/x/crypto v0.41.0 // indirect
+	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/mod v0.30.0
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
+	golang.org/x/mod v0.27.0
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/text v0.28.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	honnef.co/go/tools v0.4.3 // indirect
+	honnef.co/go/tools v0.5.1 // indirect
 )
 
 // ringpop-go and tchannel-go depends on older version of thrift, yarpc brings up newer version

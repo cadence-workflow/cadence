@@ -115,6 +115,10 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"persistence_latency_per_domain_ns": {},
 	"persistence_latency":               {},
 	"persistence_latency_ns":            {},
+	"persistence_latency_histogram":     {},
+
+	"persistence_latency_per_shard":    {},
+	"persistence_latency_per_shard_ns": {},
 
 	"elasticsearch_latency_per_domain":    {},
 	"elasticsearch_latency_per_domain_ns": {},

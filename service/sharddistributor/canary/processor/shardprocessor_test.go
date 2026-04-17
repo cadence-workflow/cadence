@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
 	"go.uber.org/zap/zaptest"
 
@@ -19,7 +20,7 @@ func TestNewShardProcessor(t *testing.T) {
 	timeSource := clock.NewRealTimeSource()
 	logger := zaptest.NewLogger(t)
 
-	processor := NewShardProcessor(shardID, timeSource, logger)
+	processor := NewShardProcessor(shardID, timeSource, logger, tally.NoopScope)
 
 	require.NotNil(t, processor)
 	assert.Equal(t, shardID, processor.shardID)
@@ -29,7 +30,7 @@ func TestNewShardProcessor(t *testing.T) {
 }
 
 func TestShardProcessor_GetShardReport(t *testing.T) {
-	processor := NewShardProcessor("test-shard", clock.NewRealTimeSource(), zaptest.NewLogger(t))
+	processor := NewShardProcessor("test-shard", clock.NewRealTimeSource(), zaptest.NewLogger(t), tally.NoopScope)
 
 	report := processor.GetShardReport()
 	// the simple implementation just returns 1.0 for load and READY status
@@ -43,7 +44,7 @@ func TestShardProcessor_Start_Process_Stop(t *testing.T) {
 
 	logger := zaptest.NewLogger(t)
 	clock := clock.NewMockedTimeSource()
-	processor := NewShardProcessor("test-shard", clock, logger)
+	processor := NewShardProcessor("test-shard", clock, logger, tally.NoopScope)
 
 	ctx := context.Background()
 	processor.Start(ctx)
