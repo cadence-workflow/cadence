@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -891,92 +890,97 @@ func (s *executorStoreImpl) GetExecutor(ctx context.Context, namespace string, e
 	return s.shardCache.GetExecutor(ctx, namespace, executorID)
 }
 
-// This function calculates the necessary changes to shard statistics based on a new shard assignment plan.
-// It determines which shards have moved between executors, which are new. It then prepares a list of
-// update operations that will remove a moved shard's stats from its old owner and add them to its new owner, recording the time of the move.
+// prepareShardStatisticsUpdates calculates the necessary changes to shard statistics based on a new shard assignment plan.
+// It determines which shards have moved between executors, which are new, and prepares a list of updates
+// that remove a moved shard's stats from its old owner and add them to its new owner, recording the time of the move.
 func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, namespace string, newAssignments map[string]store.AssignedState) ([]shardStatisticsUpdate, error) {
-	// This map will store the *new, final* state of statistics for any executor whose stats have changed.
-	pendingStatChanges := make(map[string]map[string]etcdtypes.ShardStatistics)
+	// statsUpdatesByExecutor contains per-executor stats maps that will be written back.
+	statsUpdatesByExecutor := make(map[string]map[string]etcdtypes.ShardStatistics)
 
-	for executorID, state := range newAssignments {
+	for newOwnerID, state := range newAssignments {
 		for shardID := range state.AssignedShards {
 			now := s.timeSource.Now().UTC()
-			existingShardFound := true
 
-			oldOwner, err := s.shardCache.GetShardOwner(ctx, namespace, shardID)
+			oldOwner, err := s.lookupShardOwner(ctx, namespace, shardID)
 			if err != nil {
-				if errors.Is(err, store.ErrShardNotFound) {
-					existingShardFound = false
-				} else {
-					return nil, fmt.Errorf("lookup cached shard owner: %w", err)
-				}
+				return nil, err
+			}
+			if oldOwner != nil && oldOwner.ExecutorID == newOwnerID {
+				// Already owned by the target, nothing to move.
+				continue
 			}
 
-			var shardStatToMove etcdtypes.ShardStatistics
+			// Leave LastMoveTime zero so the shard isn't blocked from rebalancing
+			// before we have any load measurements.
+			newStatForShard := etcdtypes.ShardStatistics{
+				SmoothedLoad:   0,
+				LastUpdateTime: etcdtypes.Time(now),
+			}
 
-			if existingShardFound {
-				if oldOwner.ExecutorID == executorID {
-					continue
-				}
-
-				oldOwnerStats, ok := pendingStatChanges[oldOwner.ExecutorID]
-				if !ok { // Not yet touched in this loop, get from main cache.
-					oldOwnerStats, err = s.shardCache.GetExecutorStatistics(ctx, namespace, oldOwner.ExecutorID)
+			if oldOwner != nil {
+				previousStats, ok := statsUpdatesByExecutor[oldOwner.ExecutorID]
+				if !ok {
+					previousStats, err = s.loadStatsForUpdate(ctx, namespace, oldOwner.ExecutorID)
 					if err != nil {
-						if errors.Is(err, store.ErrExecutorNotFound) {
-							oldOwnerStats = make(map[string]etcdtypes.ShardStatistics)
-						} else {
-							return nil, fmt.Errorf("get old owner shard statistics for executor %s: %w", oldOwner.ExecutorID, err)
-						}
+						return nil, err
 					}
+					statsUpdatesByExecutor[oldOwner.ExecutorID] = previousStats
 				}
-
-				clonedOldOwnerStats := maps.Clone(oldOwnerStats)
-
-				if existing, ok := clonedOldOwnerStats[shardID]; ok {
-					shardStatToMove = existing
-					shardStatToMove.LastMoveTime = etcdtypes.Time(now)
-					delete(clonedOldOwnerStats, shardID)
+				if previousStatForShard, ok := previousStats[shardID]; ok {
+					// Carry over the accumulated load and update the move time.
+					newStatForShard = previousStatForShard
+					newStatForShard.LastMoveTime = etcdtypes.Time(now)
+					delete(previousStats, shardID)
 				}
-				pendingStatChanges[oldOwner.ExecutorID] = clonedOldOwnerStats
 			}
 
-			// If the shard is new or had no previous stats, initialize them.
-			if shardStatToMove.LastUpdateTime == etcdtypes.Time(time.Time{}) {
-				shardStatToMove.SmoothedLoad = 0
-				shardStatToMove.LastUpdateTime = etcdtypes.Time(now)
-				// Leave LastMoveTime for newly added shards as zero, to not block it from being moved once we have load measurements
-				shardStatToMove.LastMoveTime = etcdtypes.Time(time.Time{})
-			}
-
-			newOwnerStats, ok := pendingStatChanges[executorID]
+			newOwnerStats, ok := statsUpdatesByExecutor[newOwnerID]
 			if !ok {
-				newOwnerStats, err = s.shardCache.GetExecutorStatistics(ctx, namespace, executorID)
+				newOwnerStats, err = s.loadStatsForUpdate(ctx, namespace, newOwnerID)
 				if err != nil {
-					if errors.Is(err, store.ErrExecutorNotFound) {
-						newOwnerStats = make(map[string]etcdtypes.ShardStatistics)
-					} else {
-						return nil, fmt.Errorf("get new owner shard statistics for executor %s: %w", executorID, err)
-					}
+					return nil, err
 				}
+				statsUpdatesByExecutor[newOwnerID] = newOwnerStats
 			}
-
-			clonedNewOwnerStats := maps.Clone(newOwnerStats)
-
-			clonedNewOwnerStats[shardID] = shardStatToMove
-			pendingStatChanges[executorID] = clonedNewOwnerStats
+			newOwnerStats[shardID] = newStatForShard
 		}
 	}
 
-	updates := make([]shardStatisticsUpdate, 0, len(pendingStatChanges))
-	for executorID, stats := range pendingStatChanges {
-		updates = append(updates, shardStatisticsUpdate{
+	shardStatisticsUpdates := make([]shardStatisticsUpdate, 0, len(statsUpdatesByExecutor))
+	for executorID, stats := range statsUpdatesByExecutor {
+		shardStatisticsUpdates = append(shardStatisticsUpdates, shardStatisticsUpdate{
 			executorID: executorID,
 			stats:      stats,
 		})
 	}
+	return shardStatisticsUpdates, nil
+}
 
-	return updates, nil
+// lookupShardOwner returns the current owner of shardID, or nil if the shard is unassigned.
+// Other lookup errors are propagated.
+func (s *executorStoreImpl) lookupShardOwner(ctx context.Context, namespace, shardID string) (*store.ShardOwner, error) {
+	owner, err := s.shardCache.GetShardOwner(ctx, namespace, shardID)
+	if err != nil {
+		if errors.Is(err, store.ErrShardNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("lookup cached shard owner: %w", err)
+	}
+	return owner, nil
+}
+
+// loadStatsForUpdate loads the current stats for executorID, or returns an empty map
+// when no stats have been recorded for that executor yet.
+func (s *executorStoreImpl) loadStatsForUpdate(ctx context.Context, namespace, executorID string) (map[string]etcdtypes.ShardStatistics, error) {
+	stats, err := s.shardCache.GetExecutorStatistics(ctx, namespace, executorID)
+	if err != nil {
+		if !errors.Is(err, store.ErrExecutorNotFound) {
+			return nil, fmt.Errorf("get shard statistics for executor %s: %w", executorID, err)
+		}
+		stats = make(map[string]etcdtypes.ShardStatistics)
+	}
+
+	return stats, nil
 }
 
 // applyShardStatisticsUpdates updates shard statistics.
