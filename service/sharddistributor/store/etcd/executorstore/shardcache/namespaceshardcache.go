@@ -411,14 +411,14 @@ func (n *namespaceShardToExecutor) refreshExecutorState(ctx context.Context) err
 	return nil
 }
 
-func (n *namespaceShardToExecutor) applyExecutorData(data map[string]executorData) {
+func (n *namespaceShardToExecutor) applyExecutorData(executors map[string]executorData) {
 	shardToExecutor := make(map[string]*store.ShardOwner)
 	executorState := make(map[*store.ShardOwner][]string)
 	executorRevision := make(map[string]int64)
 	shardOwners := make(map[string]*store.ShardOwner)
 	executorStatistics := make(map[string]map[string]etcdtypes.ShardStatistics)
 
-	for executorID, executorData := range data {
+	for executorID, executorData := range executors {
 		shardOwner := getOrCreateShardOwner(shardOwners, executorID)
 		shardIDs := make([]string, 0, len(executorData.assignedShards))
 		for shardID := range executorData.assignedShards {
