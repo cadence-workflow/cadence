@@ -248,47 +248,29 @@ func (s *executorStoreImpl) GetHeartbeat(ctx context.Context, namespace string, 
 		return nil, nil, store.ErrExecutorNotFound
 	}
 
-	heartbeatState := &store.HeartbeatState{}
-	assignedState := &etcdtypes.AssignedState{}
-	found := false
-
-	for _, kv := range resp.Kvs {
-		key := string(kv.Key)
-		value := string(kv.Value)
-		_, keyType, keyErr := etcdkeys.ParseExecutorKey(s.prefix, namespace, key)
-		if keyErr != nil {
-			continue // Ignore unexpected keys
-		}
-
-		found = true // We found at least one valid key part for the executor.
-		switch keyType {
-		case etcdkeys.ExecutorHeartbeatKey:
-			heartbeatState.LastHeartbeat, err = etcdtypes.ParseTime(value)
-			if err != nil {
-				return nil, nil, fmt.Errorf("parse heartbeat timestamp: %w", err)
-			}
-		case etcdkeys.ExecutorStatusKey:
-			if err := common.DecompressAndUnmarshal(kv.Value, &heartbeatState.Status); err != nil {
-				return nil, nil, fmt.Errorf("parse executor status: %w", err)
-			}
-		case etcdkeys.ExecutorReportedShardsKey:
-			if err := common.DecompressAndUnmarshal(kv.Value, &heartbeatState.ReportedShards); err != nil {
-				return nil, nil, fmt.Errorf("parse reported shards: %w", err)
-			}
-		case etcdkeys.ExecutorAssignedStateKey:
-			assignedState.ModRevision = kv.ModRevision
-			if err := common.DecompressAndUnmarshal(kv.Value, &assignedState); err != nil {
-				return nil, nil, fmt.Errorf("parse assigned shards: %w", err)
-			}
-		}
+	parsedData, err := common.ParseExecutorKVs(s.prefix, namespace, resp.Kvs)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	if !found {
-		// This case is unlikely if resp.Count > 0, but is a good safeguard.
+	executorData, ok := parsedData[executorID]
+	if !ok {
 		return nil, nil, store.ErrExecutorNotFound
 	}
 
-	return heartbeatState, assignedState.ToAssignedState(), nil
+	heartbeatState := &store.HeartbeatState{
+		LastHeartbeat:  executorData.LastHeartbeat.ToTime(),
+		Status:         executorData.Status,
+		ReportedShards: executorData.ReportedShards,
+		Metadata:       executorData.Metadata,
+	}
+
+	var assignedState *store.AssignedState
+	if executorData.AssignedState != nil {
+		assignedState = executorData.AssignedState.ToAssignedState()
+	}
+
+	return heartbeatState, assignedState, nil
 }
 
 // --- ShardStore Implementation ---
@@ -304,52 +286,29 @@ func (s *executorStoreImpl) GetState(ctx context.Context, namespace string) (*st
 		return nil, fmt.Errorf("get executor data: %w", err)
 	}
 
-	for _, kv := range resp.Kvs {
-		key := string(kv.Key)
-		value := string(kv.Value)
-		executorID, keyType, keyErr := etcdkeys.ParseExecutorKey(s.prefix, namespace, key)
-		if keyErr != nil {
-			continue
-		}
-		heartbeat := heartbeatStates[executorID]
-		assigned := assignedStates[executorID]
+	parsedData, err := common.ParseExecutorKVs(s.prefix, namespace, resp.Kvs)
+	if err != nil {
+		return nil, err
+	}
 
-		switch keyType {
-		case etcdkeys.ExecutorHeartbeatKey:
-			heartbeat.LastHeartbeat, err = etcdtypes.ParseTime(value)
-			if err != nil {
-				return nil, fmt.Errorf("parse heartbeat timestamp: %w", err)
-			}
-		case etcdkeys.ExecutorStatusKey:
-			if err := common.DecompressAndUnmarshal(kv.Value, &heartbeat.Status); err != nil {
-				return nil, fmt.Errorf("parse executor status: %w", err)
-			}
-		case etcdkeys.ExecutorReportedShardsKey:
-			if err := common.DecompressAndUnmarshal(kv.Value, &heartbeat.ReportedShards); err != nil {
-				return nil, fmt.Errorf("parse reported shards: %w", err)
-			}
-		case etcdkeys.ExecutorAssignedStateKey:
-			var assignedRaw etcdtypes.AssignedState
-			if err := common.DecompressAndUnmarshal(kv.Value, &assignedRaw); err != nil {
-				return nil, fmt.Errorf("parse assigned shards: %w, %s", err, value)
-			}
-			assignedRaw.ModRevision = kv.ModRevision
-			assigned = *assignedRaw.ToAssignedState()
-		case etcdkeys.ExecutorShardStatisticsKey:
-			// Only load shard statistics if the load balancing mode requires it
-			// TODO: refactor this code to not have a dependency on dynamic config in the store layer
-			if s.cfg.GetLoadBalancingMode(namespace) == types.LoadBalancingModeGREEDY {
-				executorShardStats := make(map[string]etcdtypes.ShardStatistics)
-				if err := common.DecompressAndUnmarshal(kv.Value, &executorShardStats); err != nil {
-					return nil, fmt.Errorf("parse executor shard statistics: %w, %s", err, value)
-				}
-				for shardID, stat := range executorShardStats {
-					shardStats[shardID] = *stat.ToShardStatistics()
-				}
+	for executorID, executorData := range parsedData {
+		heartbeatStates[executorID] = store.HeartbeatState{
+			LastHeartbeat:  executorData.LastHeartbeat.ToTime(),
+			Status:         executorData.Status,
+			ReportedShards: executorData.ReportedShards,
+			Metadata:       executorData.Metadata,
+		}
+
+		if executorData.AssignedState != nil {
+			assignedStates[executorID] = *executorData.AssignedState.ToAssignedState()
+		}
+
+		// Only load shard statistics if the load balancing mode requires it
+		if s.cfg.GetLoadBalancingMode(namespace) == types.LoadBalancingModeGREEDY {
+			for shardID, stat := range executorData.Statistics {
+				shardStats[shardID] = *stat.ToShardStatistics()
 			}
 		}
-		heartbeatStates[executorID] = heartbeat
-		assignedStates[executorID] = assigned
 	}
 
 	return &store.NamespaceState{
@@ -815,23 +774,13 @@ func (s *executorStoreImpl) DeleteShardStats(ctx context.Context, namespace stri
 
 	ops := make([]clientv3.Op, 0)
 
-	for _, kv := range resp.Kvs {
-		key := string(kv.Key)
-		executorID, keyType, keyErr := etcdkeys.ParseExecutorKey(s.prefix, namespace, key)
-		if keyErr != nil || keyType != etcdkeys.ExecutorShardStatisticsKey {
-			continue
-		}
+	parsedData, err := common.ParseExecutorKVs(s.prefix, namespace, resp.Kvs)
+	if err != nil {
+		return err
+	}
 
-		executorStats := make(map[string]etcdtypes.ShardStatistics)
-		if err := common.DecompressAndUnmarshal(kv.Value, &executorStats); err != nil {
-			s.logger.Warn(
-				"failed to parse executor shard statistics during cleanup",
-				tag.ShardNamespace(namespace),
-				tag.ShardExecutor(executorID),
-				tag.Error(err),
-			)
-			continue
-		}
+	for executorID, executorData := range parsedData {
+		executorStats := executorData.Statistics
 
 		changed := false
 		for shardID := range executorStats {

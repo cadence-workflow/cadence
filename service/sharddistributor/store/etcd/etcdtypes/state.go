@@ -113,3 +113,13 @@ func convertMap[K comparable, SrcType any, DstType any](src map[K]SrcType, conve
 	}
 	return dst
 }
+
+// ParsedExecutorData holds all data associated with an executor in etcd.
+type ParsedExecutorData struct {
+	LastHeartbeat  Time
+	Status         types.ExecutorStatus
+	ReportedShards map[string]*types.ShardStatusReport
+	AssignedState  *AssignedState
+	Metadata       map[string]string
+	Statistics     map[string]ShardStatistics
+}
