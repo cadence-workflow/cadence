@@ -49,7 +49,7 @@ type namespaceShardToExecutor struct {
 }
 
 type namespaceExecutorStatistics struct {
-	lock  sync.RWMutex
+	sync.RWMutex
 	stats map[string]map[string]etcdtypes.ShardStatistics // executorID -> shardID -> ShardStatistics
 }
 
@@ -192,8 +192,8 @@ func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, ex
 }
 
 func (n *namespaceShardToExecutor) getStats(executorID string) (map[string]etcdtypes.ShardStatistics, bool) {
-	n.executorStatistics.lock.RLock()
-	defer n.executorStatistics.lock.RUnlock()
+	n.executorStatistics.RLock()
+	defer n.executorStatistics.RUnlock()
 
 	stats, ok := n.executorStatistics.stats[executorID]
 	if ok {
@@ -212,8 +212,8 @@ func (n *namespaceShardToExecutor) refreshExecutorStatisticsCache(ctx context.Co
 		return fmt.Errorf("get executor shard statistics: %w", err)
 	}
 
-	n.executorStatistics.lock.Lock()
-	defer n.executorStatistics.lock.Unlock()
+	n.executorStatistics.Lock()
+	defer n.executorStatistics.Unlock()
 
 	if _, ok := n.executorStatistics.stats[executorID]; ok {
 		return nil
@@ -475,20 +475,20 @@ func (n *namespaceShardToExecutor) handleExecutorStatisticsEvent(executorID stri
 }
 
 func (n *namespaceExecutorStatistics) deleteStatistics(executorID string) {
-	n.lock.Lock()
-	defer n.lock.Unlock()
+	n.Lock()
+	defer n.Unlock()
 	delete(n.stats, executorID)
 }
 
 func (n *namespaceExecutorStatistics) assignStatistics(executorID string, stats map[string]etcdtypes.ShardStatistics) {
-	n.lock.Lock()
-	defer n.lock.Unlock()
+	n.Lock()
+	defer n.Unlock()
 	n.stats[executorID] = maps.Clone(stats)
 }
 
 func (n *namespaceExecutorStatistics) replaceStatistics(stats map[string]map[string]etcdtypes.ShardStatistics) {
-	n.lock.Lock()
-	defer n.lock.Unlock()
+	n.Lock()
+	defer n.Unlock()
 	n.stats = stats
 }
 
