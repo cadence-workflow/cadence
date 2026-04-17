@@ -850,9 +850,13 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 		for shardID := range state.AssignedShards {
 			now := s.timeSource.Now().UTC()
 
-			oldOwner, err := s.lookupShardOwner(ctx, namespace, shardID)
+			oldOwner, err := s.shardCache.GetShardOwner(ctx, namespace, shardID)
 			if err != nil {
-				return nil, err
+				if errors.Is(err, store.ErrShardNotFound) {
+					oldOwner = nil
+				} else {
+					return nil, fmt.Errorf("lookup cached shard owner: %w", err)
+				}
 			}
 			if oldOwner != nil && oldOwner.ExecutorID == newOwnerID {
 				// Already owned by the target, nothing to move.
@@ -903,19 +907,6 @@ func (s *executorStoreImpl) prepareShardStatisticsUpdates(ctx context.Context, n
 		})
 	}
 	return shardStatisticsUpdates, nil
-}
-
-// lookupShardOwner returns the current owner of shardID, or nil if the shard is unassigned.
-// Other lookup errors are propagated.
-func (s *executorStoreImpl) lookupShardOwner(ctx context.Context, namespace, shardID string) (*store.ShardOwner, error) {
-	owner, err := s.shardCache.GetShardOwner(ctx, namespace, shardID)
-	if err != nil {
-		if errors.Is(err, store.ErrShardNotFound) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("lookup cached shard owner: %w", err)
-	}
-	return owner, nil
 }
 
 // loadStatsForUpdate loads the current stats for executorID, or returns an empty map

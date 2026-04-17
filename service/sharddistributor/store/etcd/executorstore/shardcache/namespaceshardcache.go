@@ -124,7 +124,7 @@ func (n *namespaceShardToExecutor) GetExecutorStatistics(ctx context.Context, ex
 		return stats, nil
 	}
 
-	if err := n.refreshExecutorStatisticsCache(ctx, executorID); err != nil {
+	if err := n.populateExecutorStatisticsCacheOnMiss(ctx, executorID); err != nil {
 		return nil, err
 	}
 
@@ -148,9 +148,9 @@ func (n *namespaceShardToExecutor) getStats(executorID string) (map[string]etcdt
 	return nil, false
 }
 
-// refreshExecutorStatisticsCache fetches executor statistics from etcd and caches them.
+// populateExecutorStatisticsCacheOnMiss fetches executor statistics from etcd and caches them.
 // It is called when there's a cache miss.
-func (n *namespaceShardToExecutor) refreshExecutorStatisticsCache(ctx context.Context, executorID string) error {
+func (n *namespaceShardToExecutor) populateExecutorStatisticsCacheOnMiss(ctx context.Context, executorID string) error {
 	statsKey := etcdkeys.BuildExecutorKey(n.etcdPrefix, n.namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
 	resp, err := n.client.Get(ctx, statsKey)
 	if err != nil {
