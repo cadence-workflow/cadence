@@ -91,8 +91,8 @@ CMD /start-cadence.sh
 # All-in-one Cadence server (~450mb)
 FROM cadence-server AS cadence-auto-setup
 
-RUN apk add --update --no-cache ca-certificates py3-pip mysql-client
-RUN pip3 install setuptools wheel && pip3 install cqlsh==6.1.3 && cqlsh --version
+RUN apk add --update --no-cache ca-certificates py3-pip mysql-client build-base python3-dev
+RUN pip3 install setuptools wheel && pip3 install cqlsh && cqlsh --version
 
 COPY docker/start.sh /start.sh
 COPY docker/domain /etc/cadence/domain
