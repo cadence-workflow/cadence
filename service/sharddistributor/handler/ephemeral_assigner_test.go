@@ -297,3 +297,26 @@ func TestAssignEphemeralBatch_UsesSmoothedLoadForGreedyPlacement(t *testing.T) {
 	// owner3 the next lowest-load executor for the second shard.
 	require.Equal(t, "owner3", results["new-shard-2"].Owner)
 }
+
+func TestAssignEphemeralBatch_InvalidLoadBalancingMode(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockStorage := store.NewMockStore(ctrl)
+	h := &handlerImpl{
+		logger:     testlogger.New(t),
+		storage:    mockStorage,
+		timeSource: clock.NewMockedTimeSource(),
+		cfg:        newTestShardDistributorConfig("not-a-valid-mode"),
+	}
+
+	mockStorage.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+		Executors:        map[string]store.HeartbeatState{"owner1": {Status: types.ExecutorStatusACTIVE}},
+		ShardAssignments: map[string]store.AssignedState{"owner1": {AssignedShards: map[string]*types.ShardAssignment{}}},
+	}, nil)
+
+	results, err := h.assignEphemeralBatch(context.Background(), _testNamespaceEphemeral, []string{"new-shard-1"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported load balancing mode")
+	require.Nil(t, results)
+}
