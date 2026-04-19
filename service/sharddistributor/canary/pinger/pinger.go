@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
@@ -27,6 +28,7 @@ type Pinger struct {
 	logger       *zap.Logger
 	timeSource   clock.TimeSource
 	canaryClient sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCClient
+	metricsScope tally.Scope
 	namespace    string
 	numShards    int
 	ctx          context.Context
@@ -41,6 +43,7 @@ type Params struct {
 	Logger       *zap.Logger
 	TimeSource   clock.TimeSource
 	CanaryClient sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCClient
+	MetricsScope tally.Scope
 }
 
 // NewPinger creates a new Pinger for the fixed namespace
@@ -49,6 +52,7 @@ func NewPinger(params Params, namespace string, numShards int) *Pinger {
 		logger:       params.Logger,
 		timeSource:   params.TimeSource,
 		canaryClient: params.CanaryClient,
+		metricsScope: params.MetricsScope.Tagged(map[string]string{"namespace": namespace}),
 		namespace:    namespace,
 		numShards:    numShards,
 	}
@@ -93,5 +97,5 @@ func (p *Pinger) pingRandomShard() {
 	shardNum := rand.Intn(p.numShards)
 	shardKey := fmt.Sprintf("%d", shardNum)
 
-	PingShard(p.ctx, p.canaryClient, p.logger, p.namespace, shardKey)
+	PingShard(p.ctx, p.canaryClient, p.metricsScope, p.logger, p.namespace, shardKey)
 }

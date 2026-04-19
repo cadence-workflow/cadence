@@ -59,6 +59,9 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 	}
 
 	loadBalancingMode := h.cfg.GetLoadBalancingMode(namespace)
+	if loadBalancingMode == types.LoadBalancingModeINVALID {
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", loadBalancingMode)}
+	}
 
 	executorLoads, averageShardLoad, err := h.computeInitialPlacementLoads(loadBalancingMode, state)
 	if err != nil {
@@ -97,15 +100,15 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 
 // computeInitialPlacementLoads returns current shard count for all ACTIVE executors.
 // In GREEDY mode it also includes smoothed shard and an average shard load
-func (h *handlerImpl) computeInitialPlacementLoads(mode types.LoadBalancingMode, state *store.NamespaceState) (map[string]executorAssignmentLoad, float64, error) {
+func (h *handlerImpl) computeInitialPlacementLoads(loadBalancingMode types.LoadBalancingMode, state *store.NamespaceState) (map[string]executorAssignmentLoad, float64, error) {
 	var useSmoothedLoad bool
-	switch mode {
+	switch loadBalancingMode {
 	case types.LoadBalancingModeGREEDY:
 		useSmoothedLoad = true
 	case types.LoadBalancingModeNAIVE:
 		useSmoothedLoad = false
 	default:
-		return nil, 0, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", mode)}
+		return nil, 0, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", loadBalancingMode)}
 	}
 
 	executorsAssignmentLoad := make(map[string]executorAssignmentLoad, len(state.Executors))
@@ -145,7 +148,7 @@ func pickExecutors(
 	namespace string,
 	shardKeys []string,
 	assignmentLoads map[string]executorAssignmentLoad,
-	mode types.LoadBalancingMode,
+	loadBalancingMode types.LoadBalancingMode,
 	averageShardLoad float64,
 ) (map[string]string, error) {
 	executorIDs := make([]string, 0, len(assignmentLoads))
@@ -155,13 +158,13 @@ func pickExecutors(
 	slices.Sort(executorIDs)
 
 	var pickExecutor func([]string, map[string]executorAssignmentLoad) string
-	switch mode {
+	switch loadBalancingMode {
 	case types.LoadBalancingModeNAIVE:
 		pickExecutor = pickExecutorByShardCount
 	case types.LoadBalancingModeGREEDY:
 		pickExecutor = pickExecutorBySmoothedLoad
 	default:
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", mode)}
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", loadBalancingMode)}
 	}
 
 	chosenExecutors := make(map[string]string, len(shardKeys))
@@ -173,7 +176,7 @@ func pickExecutors(
 		chosenExecutors[shardKey] = chosenExecutor
 		load := assignmentLoads[chosenExecutor]
 		load.shardCount++
-		if mode == types.LoadBalancingModeGREEDY {
+		if loadBalancingMode == types.LoadBalancingModeGREEDY {
 			// We increase the total load by the average shard load in the namespace
 			// This helps avoid placing all shards in the batch on the same executor
 			load.smoothedLoad += averageShardLoad

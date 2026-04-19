@@ -38,6 +38,11 @@ const (
 
 	QueryTypeDescribe = "scheduler-describe"
 
+	// Search attribute keys set on target workflows started by the scheduler.
+	SearchAttrScheduleID   = "CadenceScheduleID"
+	SearchAttrScheduleTime = "CadenceScheduleTime"
+	SearchAttrIsBackfill   = "CadenceScheduleIsBackfill"
+
 	maxIterationsBeforeContinueAsNew = 500
 	maxCatchUpFiresPerExecution      = 10
 	maxBackfillFiresPerExecution     = 10

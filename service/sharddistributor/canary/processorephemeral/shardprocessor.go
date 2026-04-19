@@ -7,32 +7,33 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/types"
+	canarymetrics "github.com/uber/cadence/service/sharddistributor/canary/metrics"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 // This is a small shard processor, the only thing it currently does it
 // count the number of steps it has processed and log that information.
 const (
-	processInterval = 10 * time.Second
-
 	// We create a new shard every second. For each of them we have a chance of them to be done of 1/60 every second.
 	// This means the average time to complete a shard is 60 seconds.
 	// It also means we in average have 60 shards per instance running at any given time.
-	stopInterval             = 1 * time.Second
+	processInterval          = 1 * time.Second
 	shardProcessorDoneChance = 60
 )
 
 // NewShardProcessor creates a new ShardProcessor.
-func NewShardProcessor(shardID string, timeSource clock.TimeSource, logger *zap.Logger) *ShardProcessor {
+func NewShardProcessor(shardID string, timeSource clock.TimeSource, logger *zap.Logger, metricsScope tally.Scope) *ShardProcessor {
 	p := &ShardProcessor{
-		shardID:    shardID,
-		timeSource: timeSource,
-		logger:     logger,
-		stopChan:   make(chan struct{}),
+		shardID:      shardID,
+		timeSource:   timeSource,
+		logger:       logger,
+		metricsScope: metricsScope,
+		stopChan:     make(chan struct{}),
 	}
 	p.SetShardStatus(types.ShardStatusREADY)
 	return p
@@ -43,6 +44,7 @@ type ShardProcessor struct {
 	shardID      string
 	timeSource   clock.TimeSource
 	logger       *zap.Logger
+	metricsScope tally.Scope
 	stopChan     chan struct{}
 	goRoutineWg  sync.WaitGroup
 	processSteps int
@@ -62,7 +64,8 @@ func (p *ShardProcessor) GetShardReport() executorclient.ShardReport {
 
 // Start implements executorclient.ShardProcessor.
 func (p *ShardProcessor) Start(_ context.Context) error {
-	p.logger.Info("Starting shard processor", zap.String("shardID", p.shardID))
+	p.metricsScope.Counter(canarymetrics.CanaryShardStarted).Inc(1)
+	p.logger.Debug("Starting shard processor", zap.String("shardID", p.shardID))
 	p.goRoutineWg.Add(1)
 	go p.process()
 	return nil
@@ -70,6 +73,7 @@ func (p *ShardProcessor) Start(_ context.Context) error {
 
 // Stop implements executorclient.ShardProcessor.
 func (p *ShardProcessor) Stop() {
+	p.metricsScope.Counter(canarymetrics.CanaryShardStopped).Inc(1)
 	close(p.stopChan)
 	p.goRoutineWg.Wait()
 }
@@ -84,20 +88,17 @@ func (p *ShardProcessor) process() {
 	ticker := p.timeSource.NewTicker(processInterval)
 	defer ticker.Stop()
 
-	stopTicker := p.timeSource.NewTicker(stopInterval)
-	defer stopTicker.Stop()
-
 	for {
 		select {
 		case <-p.stopChan:
-			p.logger.Info("Stopping shard processor", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", types.ShardStatus(p.status.Load()).String()))
+			p.logger.Debug("Stopping shard processor", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", types.ShardStatus(p.status.Load()).String()))
 			return
 		case <-ticker.Chan():
-			p.logger.Info("Processing shard", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", types.ShardStatus(p.status.Load()).String()))
-		case <-stopTicker.Chan():
 			p.processSteps++
+			p.metricsScope.Counter(canarymetrics.CanaryShardProcessStep).Inc(1)
 			if rand.Intn(shardProcessorDoneChance) == 0 {
-				p.logger.Info("Setting shard processor to done", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", types.ShardStatus(p.status.Load()).String()))
+				p.logger.Debug("Setting shard processor to done", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps), zap.String("status", types.ShardStatus(p.status.Load()).String()))
+				p.metricsScope.Counter(canarymetrics.CanaryShardDone).Inc(1)
 				p.SetShardStatus(types.ShardStatusDONE)
 			}
 		}

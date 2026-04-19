@@ -202,7 +202,8 @@ func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {
 	updated, ok := nsState.ShardStats[shardID]
 	require.True(t, ok)
 	assert.True(t, updated.LastUpdateTime.After(beforeStats.LastUpdateTime))
-	expectedLoad := statistics.CalculateSmoothedLoad(beforeStats.SmoothedLoad, req.ReportedShards[shardID].ShardLoad, beforeStats.LastUpdateTime, updated.LastUpdateTime)
+	expectedLoad, err := statistics.CalculateSmoothedLoad(beforeStats.SmoothedLoad, req.ReportedShards[shardID].ShardLoad, beforeStats.LastUpdateTime, updated.LastUpdateTime)
+	require.NoError(t, err)
 	assert.InDelta(t, expectedLoad, updated.SmoothedLoad, 1e-9)
 	assert.Equal(t, beforeStats.LastMoveTime, updated.LastMoveTime)
 }
@@ -254,7 +255,8 @@ func TestRecordHeartbeatSkipsShardStatisticsWithNilReport(t *testing.T) {
 
 	validStats, ok := nsState.ShardStats[validShardID]
 	require.True(t, ok)
-	expectedLoad := statistics.CalculateSmoothedLoad(beforeStats.SmoothedLoad, req.ReportedShards[validShardID].ShardLoad, beforeStats.LastUpdateTime, validStats.LastUpdateTime)
+	expectedLoad, err := statistics.CalculateSmoothedLoad(beforeStats.SmoothedLoad, req.ReportedShards[validShardID].ShardLoad, beforeStats.LastUpdateTime, validStats.LastUpdateTime)
+	require.NoError(t, err)
 	assert.InDelta(t, expectedLoad, validStats.SmoothedLoad, 1e-9)
 	assert.False(t, validStats.LastUpdateTime.IsZero())
 	assert.Equal(t, beforeStats.LastMoveTime, validStats.LastMoveTime)

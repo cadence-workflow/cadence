@@ -161,6 +161,11 @@ func (s *spectatorImpl) enabledState(ctx context.Context) stateFn {
 }
 
 func (s *spectatorImpl) disabledState(ctx context.Context) stateFn {
+	if ctx.Err() != nil {
+		// shutting down — Reset() would replace doneCh with a new channel
+		// nobody will close, causing Wait() callers to block forever
+		return nil
+	}
 	defer s.logger.Info("Exiting disabled state", tag.ShardNamespace(s.namespace))
 	s.logger.Info("Starting disabled state for namespace", tag.ShardNamespace(s.namespace))
 	// We reset the first state signal to ensure we wait for the first state to be received when we re-enable.

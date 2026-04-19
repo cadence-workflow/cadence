@@ -93,16 +93,13 @@ func (m *sqlDomainAuditStore) GetDomainAuditLogs(
 	ctx context.Context,
 	request *persistence.GetDomainAuditLogsRequest,
 ) (*persistence.InternalGetDomainAuditLogsResponse, error) {
-	minCreatedTime := time.Unix(0, 0)
-	maxCreatedTime := time.Now().UTC()
-	if request.MinCreatedTime != nil {
-		minCreatedTime = *request.MinCreatedTime
-	}
-	if request.MaxCreatedTime != nil {
-		maxCreatedTime = *request.MaxCreatedTime
+	if request.MinCreatedTime == nil || request.MaxCreatedTime == nil {
+		return nil, &types.InternalServiceError{
+			Message: "GetDomainAuditLogs requires non-nil MinCreatedTime and MaxCreatedTime",
+		}
 	}
 
-	pageMaxCreatedTime := maxCreatedTime
+	pageMaxCreatedTime := *request.MaxCreatedTime
 	// if next page token is not present, set pageMinEventID to largest possible uuid
 	// to prevent the query from returning rows where created_time is equal to pageMaxCreatedTime
 	pageMinEventID := "ffffffff-ffff-ffff-ffff-ffffffffffff"
@@ -118,7 +115,7 @@ func (m *sqlDomainAuditStore) GetDomainAuditLogs(
 	filter := &sqlplugin.DomainAuditLogFilter{
 		DomainID:           request.DomainID,
 		OperationType:      request.OperationType,
-		MinCreatedTime:     &minCreatedTime,
+		MinCreatedTime:     request.MinCreatedTime,
 		PageSize:           request.PageSize,
 		PageMaxCreatedTime: &pageMaxCreatedTime,
 		PageMinEventID:     &pageMinEventID,
