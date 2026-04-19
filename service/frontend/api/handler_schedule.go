@@ -44,6 +44,20 @@ func scheduleWorkflowID(scheduleID string) string {
 	return scheduleWorkflowIDPrefix + scheduleID
 }
 
+func validateSchedulePolicies(policies *types.SchedulePolicies) error {
+	if policies == nil {
+		return nil
+	}
+	if policies.OverlapPolicy == types.ScheduleOverlapPolicySkipNew &&
+		policies.CatchUpPolicy == types.ScheduleCatchUpPolicyAll {
+		return &types.BadRequestError{
+			Message: "SKIP_NEW overlap policy with CATCH_UP_ALL catch-up policy is invalid: " +
+				"caught-up fires would be immediately skipped due to overlap with the previous run.",
+		}
+	}
+	return nil
+}
+
 func (wh *WorkflowHandler) CreateSchedule(
 	ctx context.Context,
 	request *types.CreateScheduleRequest,
@@ -71,6 +85,9 @@ func (wh *WorkflowHandler) CreateSchedule(
 	}
 	if request.GetAction() == nil || request.GetAction().GetStartWorkflow() == nil {
 		return nil, &types.BadRequestError{Message: "Action.StartWorkflow is not set on request."}
+	}
+	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
+		return nil, err
 	}
 
 	workflowInput := scheduler.SchedulerWorkflowInput{
@@ -208,6 +225,9 @@ func (wh *WorkflowHandler) UpdateSchedule(
 	}
 	if request.GetSpec() == nil && request.GetAction() == nil && request.GetPolicies() == nil {
 		return nil, &types.BadRequestError{Message: "At least one of Spec, Action, or Policies must be set on request."}
+	}
+	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
+		return nil, err
 	}
 
 	signal := scheduler.UpdateSignal{

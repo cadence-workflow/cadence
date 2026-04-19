@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/uber/cadence/common/clock"
@@ -17,8 +18,9 @@ func TestNewShardProcessorFactory(t *testing.T) {
 	timeSource := clock.NewRealTimeSource()
 
 	params := Params{
-		Logger:     logger,
-		TimeSource: timeSource,
+		Logger:       logger,
+		TimeSource:   timeSource,
+		MetricsScope: tally.NoopScope,
 	}
 
 	factory := NewShardProcessorFactory(params, processor.NewShardProcessor)
@@ -37,9 +39,10 @@ func TestShardProcessorFactory_NewShardProcessor(t *testing.T) {
 	timeSource := clock.NewRealTimeSource()
 
 	factory := &ShardProcessorFactory[*processor.ShardProcessor]{
-		logger:      logger,
-		timeSource:  timeSource,
-		constructor: processor.NewShardProcessor,
+		logger:       logger,
+		timeSource:   timeSource,
+		metricsScope: tally.NoopScope,
+		constructor:  processor.NewShardProcessor,
 	}
 
 	// Test creating multiple processors

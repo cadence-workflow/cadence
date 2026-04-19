@@ -483,7 +483,15 @@ func (p *taskProcessorImpl) processTaskOnce(replicationTask *types.ReplicationTa
 	} else {
 		now := ts.Now()
 		mScope := p.metricsClient.Scope(scope, metrics.TargetClusterTag(p.sourceCluster))
-		domainID := replicationTask.HistoryTaskV2Attributes.GetDomainID()
+		var domainID string
+		switch replicationTask.GetTaskType() {
+		case types.ReplicationTaskTypeHistoryV2:
+			domainID = replicationTask.HistoryTaskV2Attributes.GetDomainID()
+		case types.ReplicationTaskTypeSyncActivity:
+			domainID = replicationTask.SyncActivityTaskAttributes.GetDomainID()
+		case types.ReplicationTaskTypeFailoverMarker:
+			domainID = replicationTask.FailoverMarkerAttributes.GetDomainID()
+		}
 		var domainName string
 		if domainID != "" {
 			cachedName, errorDomainName := p.shard.GetDomainCache().GetDomainName(domainID)
