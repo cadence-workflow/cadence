@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/uber/cadence/common/metrics"
 	config "github.com/uber/cadence/service/sharddistributor/config"
 )

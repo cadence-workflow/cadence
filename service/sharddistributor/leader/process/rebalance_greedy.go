@@ -48,7 +48,7 @@ func (p *namespaceProcessor) rebalanceGreedyBySmoothedLoad(
 			break
 		}
 
-		// Escape hatch: if we have sources but no destinations under the normal lower band,
+		// If we have sources but no destinations under the normal lower band,
 		// allow moving to the least-loaded ACTIVE executor when imbalance is severe.
 		if len(destinationExecutors) == 0 {
 			if !isSevereImbalance(loads, meanLoad, p.cfg.LoadBalance.SevereImbalanceRatio) {
