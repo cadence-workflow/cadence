@@ -2068,11 +2068,12 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableBatcher
-	// EnableScheduler decides whether to start the scheduler worker for cron-based scheduling
+	// EnableScheduler decides whether to start the scheduler worker for cron-based scheduling.
+	// Can be filtered by domain to enable/disable per domain.
 	// KeyName: worker.enableScheduler
 	// Value type: Bool
-	// Default value: false
-	// Allowed filters: N/A
+	// Default value: true
+	// Allowed filters: DomainName
 	EnableScheduler
 	// EnableParentClosePolicyWorker decides whether or not enable system workers for processing parent close policy task
 	// KeyName: system.enableParentClosePolicyWorker
@@ -4856,8 +4857,9 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	},
 	EnableScheduler: {
 		KeyName:      "worker.enableScheduler",
-		Description:  "EnableScheduler decides whether to start the scheduler worker for cron-based scheduling",
-		DefaultValue: false,
+		Filters:      []Filter{DomainName},
+		Description:  "EnableScheduler decides whether to start the scheduler worker for cron-based scheduling. Can be filtered by domain to enable/disable per domain.",
+		DefaultValue: true,
 	},
 	EnableParentClosePolicyWorker: {
 		KeyName:      "system.enableParentClosePolicyWorker",
