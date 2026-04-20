@@ -55,7 +55,6 @@ func newTestHandler(t *testing.T, cfg config.ShardDistribution, mockStore *store
 		shardDistributionCfg: cfg,
 		cfg:                  newTestShardDistributorConfig(config.LoadBalancingModeNAIVE),
 		storage:              mockStore,
-		timeSource:           clock.NewRealTimeSource(),
 	}
 	handler.batcher = newShardBatcher(clock.NewRealTimeSource(), 10*time.Millisecond, handler.assignEphemeralBatch)
 	handler.batcher.Start()
