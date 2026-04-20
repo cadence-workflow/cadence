@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
 
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -155,7 +154,6 @@ func pickExecutors(
 	for executorID := range assignmentLoads {
 		executorIDs = append(executorIDs, executorID)
 	}
-	slices.Sort(executorIDs)
 
 	var pickExecutor func([]string, map[string]executorAssignmentLoad) string
 	switch loadBalancingMode {
