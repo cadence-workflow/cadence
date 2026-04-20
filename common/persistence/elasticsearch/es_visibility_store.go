@@ -544,6 +544,7 @@ var (
 )
 
 var missingStartTimeRegex = regexp.MustCompile(jsonMissingStartTime)
+var dummyFieldRegex = regexp.MustCompile(`^__dummy_field_(\d+)__$`)
 
 func getESQueryDSLForScan(request *p.ListWorkflowExecutionsByQueryRequest) (string, error) {
 	sql := getSQLFromListRequest(request)
@@ -1091,7 +1092,7 @@ var skipNode = &fastjson.Value{}
 // with the corresponding wildcard queries in-place.
 // Dummies whose LIKE pattern is whitespace-only are removed from their parent array entirely.
 func replaceDummyWithWildcard(dsl *fastjson.Value, likes []likeClause) *fastjson.Value {
-	dummyRe := regexp.MustCompile(`^__dummy_field_(\d+)__$`)
+	dummyRe := dummyFieldRegex
 
 	var walk func(v *fastjson.Value) *fastjson.Value
 	walk = func(v *fastjson.Value) *fastjson.Value {
