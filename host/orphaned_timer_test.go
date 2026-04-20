@@ -204,9 +204,7 @@ func (s *OrphanedTimerSuite) isTimerTaskDeletedForRun(runID string) bool {
 	defer cancel()
 
 	tasks, err := s.TestCluster.testBase.GetTimerIndexTasks(ctx, 1000, true)
-	if err != nil {
-		return false
-	}
+	s.NoError(err)
 
 	for _, task := range tasks {
 		if task.GetRunID() == runID {
