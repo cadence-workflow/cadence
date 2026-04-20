@@ -6099,7 +6099,12 @@ func timeComparator(t1, t2 time.Time, timeTolerance time.Duration) bool {
 
 // TestWorkflowTimerTaskTracking verifies that workflow timer tasks are tracked on the
 // execution record at creation time and deserialized correctly on read-back.
+// Only applicable for Cassandra — SQL backends don't persist workflow_timer_tasks.
 func (s *ExecutionManagerSuite) TestWorkflowTimerTaskTracking() {
+	if s.ExecutionManager.GetName() != "cassandra" {
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
