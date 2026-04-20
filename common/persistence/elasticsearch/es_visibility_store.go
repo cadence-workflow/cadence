@@ -1108,7 +1108,7 @@ func replaceDummyWithWildcard(dsl *fastjson.Value, likes []likeClause) *fastjson
 						clause := likes[idx]
 						wildcardValue := strings.ReplaceAll(clause.Pattern, "%", "*")
 						wildcardValue = strings.ReplaceAll(wildcardValue, "_", "?")
-						wildcard := fmt.Sprintf(`{"wildcard":{"%s":{"value":"%s*","case_insensitive":true}}}`, clause.Field, wildcardValue)
+						wildcard := fmt.Sprintf(`{"wildcard":{"%s":{"value":"%s*"}}}`, clause.Field, wildcardValue)
 						return fastjson.MustParse(wildcard)
 					}
 				}
