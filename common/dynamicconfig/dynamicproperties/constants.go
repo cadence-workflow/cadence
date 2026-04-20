@@ -3273,7 +3273,7 @@ const (
 	// KeyName: history.historyTaskDLQProcessorInterval
 	// Value type: Duration
 	// Default value: 30m (30 * time.Minute)
-	// Allowed filters: domainName
+	// Allowed filters: ShardID
 	HistoryTaskDLQProcessorInterval
 
 	// LastDurationKey must be the last one in this const group
@@ -5898,7 +5898,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	},
 	HistoryTaskDLQProcessorInterval: {
 		KeyName:      "history.historyTaskDLQProcessorInterval",
-		Filters:      []Filter{DomainName},
+		Filters:      []Filter{ShardID},
 		Description:  "HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ",
 		DefaultValue: time.Minute * 30,
 	},
