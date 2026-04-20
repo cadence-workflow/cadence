@@ -1116,7 +1116,7 @@ func replaceDummyWithWildcard(dsl *fastjson.Value, likes []likeClause) *fastjson
 						if strings.TrimSpace(wildcardValue) == "" {
 							return skipNode
 						}
-						wildcard := fmt.Sprintf(`{"wildcard":{"%s":{"value":"%s*"}}}`, clause.Field, wildcardValue)
+						wildcard := fmt.Sprintf(`{"wildcard":{"%s":{"value":"%s*","case_insensitive":true}}}`, clause.Field, wildcardValue)
 						return fastjson.MustParse(wildcard)
 					}
 				}
