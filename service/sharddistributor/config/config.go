@@ -116,11 +116,11 @@ type (
 		HysteresisUpperBand float64 `yaml:"hysteresisUpperBand"`
 
 		// HysteresisLowerBand is the multiplier below mean load that qualifies an executor as a destination.
-		// Default: 0.95.
+		// Default: 0.90.
 		HysteresisLowerBand float64 `yaml:"hysteresisLowerBand"`
 
 		// SevereImbalanceRatio allows relaxing destination selection when maxLoad/meanLoad reaches this value.
-		// Default: 1.5.
+		// Default: 1.3.
 		SevereImbalanceRatio float64 `yaml:"severeImbalanceRatio"`
 	}
 

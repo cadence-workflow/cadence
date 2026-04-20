@@ -53,8 +53,8 @@ const (
 	_defaultPerShardCooldown     = time.Minute
 	_defaultMoveBudgetProportion = 0.01
 	_defaultHysteresisUpperBand  = 1.15
-	_defaultHysteresisLowerBand  = 0.95
-	_defaultSevereImbalanceRatio = 1.5
+	_defaultHysteresisLowerBand  = 0.90
+	_defaultSevereImbalanceRatio = 1.3
 )
 
 type processorFactory struct {
@@ -99,6 +99,19 @@ func NewProcessorFactory(
 	if cfg.Process.RebalanceCooldown == 0 {
 		cfg.Process.RebalanceCooldown = _defaultCooldown
 	}
+
+	setGreedyDefaults(&cfg)
+
+	return &processorFactory{
+		logger:        logger,
+		timeSource:    timeSource,
+		cfg:           cfg.Process,
+		metricsClient: metricsClient,
+		sdConfig:      sdConfig,
+	}
+}
+
+func setGreedyDefaults(cfg *config.ShardDistribution) {
 	if cfg.Process.LoadBalance.PerShardCooldown <= 0 {
 		cfg.Process.LoadBalance.PerShardCooldown = _defaultPerShardCooldown
 	}
@@ -113,14 +126,6 @@ func NewProcessorFactory(
 	}
 	if cfg.Process.LoadBalance.SevereImbalanceRatio <= 0 {
 		cfg.Process.LoadBalance.SevereImbalanceRatio = _defaultSevereImbalanceRatio
-	}
-
-	return &processorFactory{
-		logger:        logger,
-		timeSource:    timeSource,
-		cfg:           cfg.Process,
-		metricsClient: metricsClient,
-		sdConfig:      sdConfig,
 	}
 }
 
