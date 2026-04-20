@@ -51,7 +51,7 @@ func NewPingHandler(params Params) *PingHandler {
 
 // Ping handles ping requests to check shard ownership
 func (h *PingHandler) Ping(ctx context.Context, request *sharddistributorv1.PingRequest) (*sharddistributorv1.PingResponse, error) {
-	h.logger.Info("Received ping request",
+	h.logger.Debug("Received ping request",
 		zap.String("shard_key", request.GetShardKey()),
 		zap.String("namespace", request.GetNamespace()))
 
@@ -92,7 +92,7 @@ func checkOwnerShipAndLog[T executorclient.ShardProcessor](ctx context.Context, 
 		ShardKey:   request.GetShardKey(),
 	}
 
-	h.logger.Info("Responding to ping",
+	h.logger.Debug("Responding to ping",
 		zap.String("shard_key", request.GetShardKey()),
 		zap.Bool("owns_shard", ownshard),
 		zap.String("executor_id", executorID))

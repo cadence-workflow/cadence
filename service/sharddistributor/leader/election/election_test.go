@@ -34,7 +34,7 @@ var (
 )
 
 func TestElector_Run(t *testing.T) {
-	goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t)
 
 	ctrl := gomock.NewController(t)
 	logger := testlogger.New(t)
@@ -118,7 +118,7 @@ func TestElector_Run(t *testing.T) {
 }
 
 func TestElector_Run_Resign(t *testing.T) {
-	goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t)
 	t.Run("context_canceled", func(t *testing.T) {
 		leaderChan, p := prepareRun(t, nil, nil)
 		p.election.EXPECT().Resign(gomock.Any()).Return(nil)
@@ -305,7 +305,7 @@ func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runP
 }
 
 func TestOnLeader_Error(t *testing.T) {
-	goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t)
 
 	ctrl := gomock.NewController(t)
 	logger := testlogger.New(t)
