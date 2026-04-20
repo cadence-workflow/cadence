@@ -30,7 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
@@ -204,10 +203,9 @@ func TestAssignEphemeralBatch(t *testing.T) {
 			mockStorage := store.NewMockStore(ctrl)
 
 			h := &handlerImpl{
-				logger:     testlogger.New(t),
-				storage:    mockStorage,
-				cfg:        newTestShardDistributorConfig(config.LoadBalancingModeNAIVE),
-				timeSource: clock.NewRealTimeSource(),
+				logger:  testlogger.New(t),
+				storage: mockStorage,
+				cfg:     newTestShardDistributorConfig(config.LoadBalancingModeNAIVE),
 			}
 
 			if tt.setupMocks != nil {
@@ -238,10 +236,9 @@ func TestAssignEphemeralBatch_UsesSmoothedLoadForGreedyPlacement(t *testing.T) {
 
 	mockStorage := store.NewMockStore(ctrl)
 	h := &handlerImpl{
-		logger:     testlogger.New(t),
-		storage:    mockStorage,
-		timeSource: clock.NewMockedTimeSource(),
-		cfg:        newTestShardDistributorConfig(config.LoadBalancingModeGREEDY),
+		logger:  testlogger.New(t),
+		storage: mockStorage,
+		cfg:     newTestShardDistributorConfig(config.LoadBalancingModeGREEDY),
 	}
 
 	mockStorage.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
@@ -304,10 +301,9 @@ func TestAssignEphemeralBatch_InvalidLoadBalancingMode(t *testing.T) {
 
 	mockStorage := store.NewMockStore(ctrl)
 	h := &handlerImpl{
-		logger:     testlogger.New(t),
-		storage:    mockStorage,
-		timeSource: clock.NewMockedTimeSource(),
-		cfg:        newTestShardDistributorConfig("not-a-valid-mode"),
+		logger:  testlogger.New(t),
+		storage: mockStorage,
+		cfg:     newTestShardDistributorConfig("not-a-valid-mode"),
 	}
 
 	mockStorage.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
