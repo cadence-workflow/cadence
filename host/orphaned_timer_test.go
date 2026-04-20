@@ -72,7 +72,7 @@ func (s *OrphanedTimerSuite) SetupSuite() {
 }
 
 func (s *OrphanedTimerSuite) SetupTest() {
-	s.Assertions = require.New(s.T())
+	s.IntegrationBase.Assertions = require.New(s.T())
 }
 
 func (s *OrphanedTimerSuite) TearDownSuite() {
