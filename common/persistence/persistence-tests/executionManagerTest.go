@@ -6096,3 +6096,58 @@ func timeComparator(t1, t2 time.Time, timeTolerance time.Duration) bool {
 	diff := t2.Sub(t1)
 	return diff.Nanoseconds() <= timeTolerance.Nanoseconds()
 }
+
+// TestWorkflowTimerTaskTracking verifies that workflow timer tasks are tracked on the
+// execution record at creation time and deserialized correctly on read-back.
+func (s *ExecutionManagerSuite) TestWorkflowTimerTaskTracking() {
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	domainID := uuid.New()
+	workflowExecution := types.WorkflowExecution{
+		WorkflowID: "test-workflow-timer-task-tracking",
+		RunID:      uuid.New(),
+	}
+
+	visibilityTimestamp := time.Now().Add(24 * time.Hour)
+
+	timerTask := &p.WorkflowTimeoutTask{
+		WorkflowIdentifier: p.WorkflowIdentifier{
+			DomainID:   domainID,
+			WorkflowID: workflowExecution.WorkflowID,
+			RunID:      workflowExecution.RunID,
+		},
+		TaskData: p.TaskData{
+			VisibilityTimestamp: visibilityTimestamp,
+			TaskID:              s.GetNextSequenceNumber(),
+			Version:             constants.EmptyVersion,
+		},
+	}
+
+	_, err := s.CreateWorkflowExecution(
+		ctx,
+		domainID,
+		workflowExecution,
+		"taskList",
+		"wType",
+		20,
+		13,
+		nil,
+		3,
+		0,
+		2,
+		[]p.Task{timerTask},
+		nil,
+	)
+	s.NoError(err)
+
+	state, err := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
+	s.NoError(err)
+	s.Require().NotNil(state)
+
+	// Verify that the workflow timer task was tracked and round-tripped through persistence
+	s.Require().Len(state.WorkflowTimerTaskInfos, 1, "expected one tracked workflow timer task")
+	tracked := state.WorkflowTimerTaskInfos[0]
+	s.Equal(timerTask.TaskID, tracked.TaskID)
+	s.WithinDuration(timestampConvertor(visibilityTimestamp), tracked.VisibilityTimestamp, time.Millisecond)
+}

@@ -161,7 +161,7 @@ func NewTestBaseWithNoSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
 		DomainAuditLogTTL:                        func(domainID string) time.Duration { return time.Hour * 24 * 365 }, // 1 year default
 		HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
-		EnableOrphanedWorkflowTimerCleanup:       dynamicproperties.GetBoolPropertyFn(false),
+		EnableOrphanedWorkflowTimerCleanup:       dynamicproperties.GetBoolPropertyFn(true),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,
@@ -195,7 +195,7 @@ func NewTestBaseWithSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
 		DomainAuditLogTTL:                        func(domainID string) time.Duration { return time.Hour * 24 * 365 }, // 1 year default
 		HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
-		EnableOrphanedWorkflowTimerCleanup:       dynamicproperties.GetBoolPropertyFn(false),
+		EnableOrphanedWorkflowTimerCleanup:       dynamicproperties.GetBoolPropertyFn(true),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,
