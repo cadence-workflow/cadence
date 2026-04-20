@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	"go.etcd.io/etcd/api/v3/mvccpb"
+
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
-	"go.etcd.io/etcd/api/v3/mvccpb"
 )
 
 // ParseExecutorKVs parses a list of etcd key-value pairs into a map of ParsedExecutorData,
