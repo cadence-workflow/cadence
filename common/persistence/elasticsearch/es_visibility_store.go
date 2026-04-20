@@ -1082,9 +1082,14 @@ func extractLikeClauses(sql string) ([]likeClause, string) {
 	return clauses, strippedSQL
 }
 
+// skipNode is a sentinel returned by the walk function to signal that a node
+// should be removed from its parent array (e.g. empty LIKE pattern).
+var skipNode = &fastjson.Value{}
+
 // replaceDummyWithWildcard walks the fastjson DSL tree and replaces dummy
 // match_phrase nodes (produced by elasticsql from our indexed dummy expressions)
 // with the corresponding wildcard queries in-place.
+// Dummies whose LIKE pattern is whitespace-only are removed from their parent array entirely.
 func replaceDummyWithWildcard(dsl *fastjson.Value, likes []likeClause) *fastjson.Value {
 	dummyRe := regexp.MustCompile(`^__dummy_field_(\d+)__$`)
 
@@ -1108,6 +1113,9 @@ func replaceDummyWithWildcard(dsl *fastjson.Value, likes []likeClause) *fastjson
 						clause := likes[idx]
 						wildcardValue := strings.ReplaceAll(clause.Pattern, "%", "*")
 						wildcardValue = strings.ReplaceAll(wildcardValue, "_", "?")
+						if strings.TrimSpace(wildcardValue) == "" {
+							return skipNode
+						}
 						wildcard := fmt.Sprintf(`{"wildcard":{"%s":{"value":"%s*"}}}`, clause.Field, wildcardValue)
 						return fastjson.MustParse(wildcard)
 					}
@@ -1128,18 +1136,28 @@ func replaceDummyWithWildcard(dsl *fastjson.Value, likes []likeClause) *fastjson
 			}
 		case fastjson.TypeArray:
 			arr := v.GetArray()
-			for i, elem := range arr {
+			var kept []*fastjson.Value
+			changed := false
+			for _, elem := range arr {
 				replaced := walk(elem)
-				if replaced != elem {
-					arr[i] = replaced
+				if replaced == skipNode {
+					changed = true
+					continue
 				}
+				if replaced != elem {
+					changed = true
+				}
+				kept = append(kept, replaced)
 			}
-			// Rebuild the array in the parent by re-serializing
-			// fastjson arrays don't support in-place element replacement,
-			// so we rebuild via Set on index strings
-			for i, elem := range arr {
-				v.Set(strconv.Itoa(i), elem)
+			if !changed {
+				return v
 			}
+			// Rebuild the array without the removed elements
+			parts := make([]string, len(kept))
+			for i, k := range kept {
+				parts[i] = k.String()
+			}
+			return fastjson.MustParse("[" + strings.Join(parts, ",") + "]")
 		}
 		return v
 	}

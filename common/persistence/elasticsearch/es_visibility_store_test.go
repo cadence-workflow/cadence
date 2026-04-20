@@ -1200,4 +1200,34 @@ func (s *ESVisibilitySuite) TestGetCustomizedDSLFromSQL() {
 	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
 	s.NoError(err)
 	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"should":[{"bool":{"must":[{"wildcard":{"WorkflowID":{"value":"wid*"}}},{"wildcard":{"RunID":{"value":"rid*"}}}]}},{"wildcard":{"WorkflowType":{"value":"wt*"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	// Mixed LIKE and non-LIKE in OR: wildcard and match_phrase at the same level
+	sql = "select * from dummy where WorkflowID LIKE 'wid' OR RunID = 'rid'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"should":[{"wildcard":{"WorkflowID":{"value":"wid*"}}},{"match_phrase":{"RunID":{"query":"rid"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	// Whitespace-only LIKE pattern in OR: dummy is removed, leaving only the other clause
+	sql = "select * from dummy where WorkflowID LIKE '   ' OR RunID = 'rid'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"should":[{"match_phrase":{"RunID":{"query":"rid"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	// Whitespace-only LIKE pattern in AND: dummy is removed, leaving only the other clause
+	sql = "select * from dummy where WorkflowID LIKE '   ' AND RunID = 'rid'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"match_phrase":{"RunID":{"query":"rid"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	// Deeply nested parens: ((A OR B) AND C)
+	sql = "select * from dummy where ((WorkflowID LIKE 'wid' OR RunID LIKE 'rid') AND WorkflowType LIKE 'wt')"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"bool":{"should":[{"wildcard":{"WorkflowID":{"value":"wid*"}}},{"wildcard":{"RunID":{"value":"rid*"}}}]}},{"wildcard":{"WorkflowType":{"value":"wt*"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	// Deeply nested parens with additional clause after: ((A OR B) AND C) AND D
+	sql = "select * from dummy where ((WorkflowID LIKE 'wid' OR RunID LIKE 'rid') AND WorkflowType LIKE 'wt') AND StartTime > '1000'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"bool":{"should":[{"wildcard":{"WorkflowID":{"value":"wid*"}}},{"wildcard":{"RunID":{"value":"rid*"}}}]}},{"wildcard":{"WorkflowType":{"value":"wt*"}}},{"range":{"StartTime":{"gt":"1000"}}}]}}]}},"from":0,"size":1}`, dsl.String())
 }
