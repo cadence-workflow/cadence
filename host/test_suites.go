@@ -91,4 +91,9 @@ type (
 		*require.Assertions
 		*IntegrationBase
 	}
+
+	OrphanedTimerSuite struct {
+		*require.Assertions
+		*IntegrationBase
+	}
 )

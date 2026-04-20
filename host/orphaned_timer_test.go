@@ -33,12 +33,9 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
-
-type OrphanedTimerSuite struct {
-	*IntegrationBase
-}
 
 func TestOrphanedTimerIntegrationSuite(t *testing.T) {
 	flag.Parse()
@@ -72,7 +69,7 @@ func (s *OrphanedTimerSuite) SetupSuite() {
 }
 
 func (s *OrphanedTimerSuite) SetupTest() {
-	s.IntegrationBase.Assertions = require.New(s.T())
+	s.Assertions = require.New(s.T())
 }
 
 func (s *OrphanedTimerSuite) TearDownSuite() {
@@ -167,7 +164,7 @@ func (s *OrphanedTimerSuite) TestOrphanedTimerCleanupAtRetention() {
 	domainID := domainResp.DomainInfo.GetUUID()
 
 	execution := &types.WorkflowExecution{WorkflowID: id, RunID: runID}
-	s.True(s.isMutableStateDeleted(domainID, execution),
+	s.True(s.isWorkflowDeleted(domainID, execution),
 		"expected workflow execution to be deleted after retention")
 
 	// By this point either close-time or retention-time cleanup deleted the timer.
@@ -217,4 +214,23 @@ func (s *OrphanedTimerSuite) isTimerTaskDeletedForRun(runID string) bool {
 		}
 	}
 	return true
+}
+
+// isWorkflowDeleted polls until GetWorkflowExecution returns EntityNotExistsError,
+// indicating the retention-based deletion has completed.
+func (s *OrphanedTimerSuite) isWorkflowDeleted(domainID string, execution *types.WorkflowExecution) bool {
+	request := &persistence.GetWorkflowExecutionRequest{
+		DomainID:  domainID,
+		Execution: *execution,
+	}
+	for i := 0; i < 20; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
+		_, err := s.TestCluster.testBase.ExecutionManager.GetWorkflowExecution(ctx, request)
+		cancel()
+		if _, ok := err.(*types.EntityNotExistsError); ok {
+			return true
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	return false
 }
