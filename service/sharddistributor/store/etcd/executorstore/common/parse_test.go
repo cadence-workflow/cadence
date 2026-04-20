@@ -7,10 +7,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/api/v3/mvccpb"
+
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdtypes"
-	"go.etcd.io/etcd/api/v3/mvccpb"
 )
 
 func TestParseExecutorKVs(t *testing.T) {
