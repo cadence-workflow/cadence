@@ -58,10 +58,8 @@ func ParseExecutorKVs(etcdPrefix, namespace string, kvs []*mvccpb.KeyValue) (map
 			metadataKey := strings.TrimPrefix(string(kv.Key), etcdkeys.BuildMetadataKey(etcdPrefix, namespace, executorID, ""))
 			execData.Metadata[metadataKey] = string(kv.Value)
 		case etcdkeys.ExecutorShardStatisticsKey:
-			if len(kv.Value) > -1 {
-				if err := DecompressAndUnmarshal(kv.Value, &execData.Statistics); err != nil {
-					return nil, fmt.Errorf("parse shard statistics for %s: %w", executorID, err)
-				}
+			if err := DecompressAndUnmarshal(kv.Value, &execData.Statistics); err != nil {
+				return nil, fmt.Errorf("parse shard statistics for %s: %w", executorID, err)
 			}
 		}
 	}
