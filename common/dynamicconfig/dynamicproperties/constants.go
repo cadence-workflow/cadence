@@ -3269,6 +3269,13 @@ const (
 	// Allowed filters: DomainID
 	DomainAuditLogTTL
 
+	// HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ
+	// KeyName: history.historyTaskDLQProcessorInterval
+	// Value type: Duration
+	// Default value: 30m (30 * time.Minute)
+	// Allowed filters: domainName
+	HistoryTaskDLQProcessorInterval
+
 	// LastDurationKey must be the last one in this const group
 	LastDurationKey
 )
@@ -5888,6 +5895,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName},
 		Description:  "CorruptionRepairTimeout is the timeout for corruption repair operations",
 		DefaultValue: time.Second * 30,
+	},
+	HistoryTaskDLQProcessorInterval: {
+		KeyName:      "history.historyTaskDLQProcessorInterval",
+		Filters:      []Filter{DomainName},
+		Description:  "HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ",
+		DefaultValue: time.Minute * 30,
 	},
 }
 
