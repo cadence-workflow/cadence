@@ -238,8 +238,8 @@ func TestRefreshWorkers_StopsWorkerWhenDomainDisabled(t *testing.T) {
 	defer cancel()
 
 	wm := &WorkerManager{
-		enabledFn: func(domain string) bool { return false },
-		logger:    testlogger.New(t),
+		enabledFn:          func(domain string) bool { return false },
+		logger:             testlogger.New(t),
 		domainCache:        mockDomainCache,
 		membershipResolver: mockResolver,
 		hostInfo:           selfHost,

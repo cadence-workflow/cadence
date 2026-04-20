@@ -85,7 +85,7 @@ type (
 		PersistenceGlobalMaxQPS             dynamicproperties.IntPropertyFn
 		PersistenceMaxQPS                   dynamicproperties.IntPropertyFn
 		EnableBatcher                       dynamicproperties.BoolPropertyFn
-		EnableScheduler            dynamicproperties.BoolPropertyFnWithDomainFilter
+		EnableScheduler                     dynamicproperties.BoolPropertyFnWithDomainFilter
 		EnableParentClosePolicyWorker       dynamicproperties.BoolPropertyFn
 		NumParentClosePolicySystemWorkflows dynamicproperties.IntPropertyFn
 		EnableFailoverManager               dynamicproperties.BoolPropertyFn
@@ -183,7 +183,7 @@ func NewConfig(params *resource.Params) *Config {
 			ESAnalyzerWorkflowTypeDomains:            dc.GetStringProperty(dynamicproperties.ESAnalyzerWorkflowTypeMetricDomains),
 		},
 		EnableBatcher:                       dc.GetBoolProperty(dynamicproperties.EnableBatcher),
-		EnableScheduler:            dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler),
+		EnableScheduler:                     dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler),
 		EnableParentClosePolicyWorker:       dc.GetBoolProperty(dynamicproperties.EnableParentClosePolicyWorker),
 		NumParentClosePolicySystemWorkflows: dc.GetIntProperty(dynamicproperties.NumParentClosePolicySystemWorkflows),
 		EnableESAnalyzer:                    dc.GetBoolProperty(dynamicproperties.EnableESAnalyzer),
