@@ -625,14 +625,14 @@ func TestSelectWorkflowExecution(t *testing.T) {
 				}).Times(1)
 			},
 			wantResp: &nosqlplugin.WorkflowExecution{
-				ExecutionInfo:      &persistence.InternalWorkflowExecutionInfo{},
-				ActivityInfos:      map[int64]*persistence.InternalActivityInfo{},
-				TimerInfos:         map[string]*persistence.TimerInfo{},
+				ExecutionInfo:       &persistence.InternalWorkflowExecutionInfo{},
+				ActivityInfos:       map[int64]*persistence.InternalActivityInfo{},
+				TimerInfos:          map[string]*persistence.TimerInfo{},
 				ChildExecutionInfos: map[int64]*persistence.InternalChildExecutionInfo{},
-				RequestCancelInfos: map[int64]*persistence.RequestCancelInfo{},
-				SignalInfos:        map[int64]*persistence.SignalInfo{},
-				SignalRequestedIDs: map[string]struct{}{},
-				BufferedEvents:     []*persistence.DataBlob{},
+				RequestCancelInfos:  map[int64]*persistence.RequestCancelInfo{},
+				SignalInfos:         map[int64]*persistence.SignalInfo{},
+				SignalRequestedIDs:  map[string]struct{}{},
+				BufferedEvents:      []*persistence.DataBlob{},
 				WorkflowTimerTasks: &persistence.DataBlob{
 					Encoding: constants.EncodingTypeThriftRW,
 					Data:     []byte("test-workflow-timer-tasks"),
