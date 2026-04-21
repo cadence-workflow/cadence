@@ -1719,9 +1719,10 @@ const (
 	// Allowed filters: N/A
 	EnableGRPCOutbound
 	// EnableTimerCleanupOnWorkflowClose enables cleanup of workflow timer tasks when a workflow
-	// closes before its timers fire. When enabled, tracked timer tasks are deleted at workflow close
-	// time and again at retention-based deletion. This is a feature flag intended to be defaulted
-	// to true once validated.
+	// closes before its timers fire. When enabled, tracked timer tasks are deleted on a
+	// best-effort basis at workflow close time (async, errors are logged but do not block
+	// the close), and again at retention-based deletion as a safety net. This is a feature
+	// flag intended to be defaulted to true once validated.
 	// KeyName: system.enableTimerCleanupOnWorkflowClose
 	// Value type: Bool
 	// Default value: false
@@ -2923,8 +2924,7 @@ const (
 	StandbyClusterDelay
 	// TimerDeletionOnWorkflowCloseMinTTL is the minimum remaining time before a timer task
 	// is worth explicitly deleting. Timers scheduled to fire within this window are skipped —
-	// they will fire and clean up naturally. Currently applies to workflow-level timers only;
-	// user timer cleanup requires the timer_task_id IDL addition (deferred).
+	// they will fire and clean up naturally. Currently applies to workflow-level timers only.
 	// KeyName: history.timerDeletionOnWorkflowCloseMinTTL
 	// Value type: Duration
 	// Default value: 24h
@@ -4608,7 +4608,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	},
 	EnableTimerCleanupOnWorkflowClose: {
 		KeyName:      "system.enableTimerCleanupOnWorkflowClose",
-		Description:  "Enables cleanup of workflow timer tasks when a workflow closes before its timers fire. Feature flag, intended to be defaulted to true once validated.",
+		Description:  "Enables cleanup of workflow timer tasks when a workflow closes before its timers fire. Deletion at close time is best-effort (async, errors logged but do not block the close); retention-based deletion serves as a safety net. Feature flag, intended to be defaulted to true once validated.",
 		DefaultValue: false,
 	},
 	EnableSQLAsyncTransaction: {
@@ -5619,7 +5619,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	},
 	TimerDeletionOnWorkflowCloseMinTTL: {
 		KeyName:      "history.timerDeletionOnWorkflowCloseMinTTL",
-		Description:  "Minimum remaining time before a timer task is worth explicitly deleting on workflow close. Timers firing within this window are skipped and will clean up naturally. Currently applies to workflow-level timers only; user timer cleanup requires a future IDL addition.",
+		Description:  "Minimum remaining time before a timer task is worth explicitly deleting on workflow close. Timers firing within this window are skipped and will clean up naturally. Currently applies to workflow-level timers only.",
 		DefaultValue: time.Hour * 24,
 	},
 	StandbyTaskMissingEventsResendDelay: {

@@ -273,10 +273,9 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	}
 	state.BufferedEvents = bufferedEventsBlobs
 
-	if workflowTimerTasksData, ok := result["workflow_timer_tasks"].([]byte); ok && len(workflowTimerTasksData) > 0 {
-		encoding, _ := result["workflow_timer_tasks_encoding"].(string)
-		state.WorkflowTimerTasks = persistence.NewDataBlob(workflowTimerTasksData, constants.EncodingType(encoding))
-	}
+	workflowTimerTasksData, _ := result["workflow_timer_tasks"].([]byte)
+	encoding, _ := result["workflow_timer_tasks_encoding"].(string)
+	state.WorkflowTimerTasks = persistence.NewDataBlob(workflowTimerTasksData, constants.EncodingType(encoding))
 
 	state.Checksum = parseChecksum(result["checksum"].(map[string]interface{}))
 	return state, nil

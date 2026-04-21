@@ -902,7 +902,7 @@ type (
 		DeleteActivityInfos       []int64
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
-		WorkflowTimerTasks        []*WorkflowTimerTaskInfo
+		WorkflowTimerTaskInfos     []*WorkflowTimerTaskInfo
 		UpsertChildExecutionInfos []*ChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
@@ -928,11 +928,11 @@ type (
 		ExecutionStats   *ExecutionStats
 		VersionHistories *VersionHistories
 
-		ActivityInfos       []*ActivityInfo
-		TimerInfos          []*TimerInfo
-		WorkflowTimerTasks  []*WorkflowTimerTaskInfo
-		ChildExecutionInfos []*ChildExecutionInfo
-		RequestCancelInfos  []*RequestCancelInfo
+		ActivityInfos          []*ActivityInfo
+		TimerInfos             []*TimerInfo
+		WorkflowTimerTaskInfos []*WorkflowTimerTaskInfo
+		ChildExecutionInfos    []*ChildExecutionInfo
+		RequestCancelInfos     []*RequestCancelInfo
 		SignalInfos         []*SignalInfo
 		SignalRequestedIDs  []string
 
