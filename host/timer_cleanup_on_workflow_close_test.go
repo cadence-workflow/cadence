@@ -37,10 +37,10 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-func TestOrphanedTimerIntegrationSuite(t *testing.T) {
+func TestTimerCleanupOnWorkflowCloseIntegrationSuite(t *testing.T) {
 	flag.Parse()
 
-	clusterConfig, err := GetTestClusterConfig("testdata/integration_orphaned_timer_cluster.yaml")
+	clusterConfig, err := GetTestClusterConfig("testdata/integration_timer_cleanup_cluster.yaml")
 	if err != nil {
 		t.Fatalf("failed to get cluster config: %v", err)
 	}
@@ -48,13 +48,13 @@ func TestOrphanedTimerIntegrationSuite(t *testing.T) {
 	// Enable the feature and set threshold to 1 hour so our 48h timeout workflows
 	// are above the threshold and get cleaned up, while any short-lived timers are skipped.
 	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
-		dynamicproperties.EnableOrphanedWorkflowTimerCleanup: true,
-		dynamicproperties.OrphanedTimerDeletionMinTTL:        time.Hour,
+		dynamicproperties.EnableTimerCleanupOnWorkflowClose: true,
+		dynamicproperties.TimerDeletionOnWorkflowCloseMinTTL:        time.Hour,
 	}
 
 	testCluster := NewPersistenceTestCluster(t, clusterConfig)
 
-	s := &OrphanedTimerSuite{}
+	s := &TimerCleanupOnWorkflowCloseSuite{}
 	params := IntegrationBaseParams{
 		DefaultTestCluster:    testCluster,
 		VisibilityTestCluster: testCluster,
@@ -64,32 +64,32 @@ func TestOrphanedTimerIntegrationSuite(t *testing.T) {
 	suite.Run(t, s)
 }
 
-func (s *OrphanedTimerSuite) SetupSuite() {
+func (s *TimerCleanupOnWorkflowCloseSuite) SetupSuite() {
 	s.setupSuite()
 }
 
-func (s *OrphanedTimerSuite) SetupTest() {
+func (s *TimerCleanupOnWorkflowCloseSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 }
 
-func (s *OrphanedTimerSuite) TearDownSuite() {
+func (s *TimerCleanupOnWorkflowCloseSuite) TearDownSuite() {
 	s.TearDownBaseSuite()
 }
 
-// TestOrphanedTimerCleanupAtWorkflowClose verifies that when a workflow with a long
+// TestTimerCleanupAtWorkflowClose verifies that when a workflow with a long
 // execution timeout completes early, its pending timer task is deleted at close time
 // by deleteWorkflowTimerTasksBestEffortAsync.
-func (s *OrphanedTimerSuite) TestOrphanedTimerCleanupAtWorkflowClose() {
+func (s *TimerCleanupOnWorkflowCloseSuite) TestTimerCleanupAtWorkflowClose() {
 	if TestFlags.PersistenceType != config.StoreTypeCassandra {
-		s.T().Skip("orphaned timer cleanup only implemented for Cassandra")
+		s.T().Skip("timer cleanup on workflow close only implemented for Cassandra")
 	}
 
-	id := "integration-orphaned-timer-close-test-" + uuid.New()
-	wt := "integration-orphaned-timer-close-test-type"
-	tl := "integration-orphaned-timer-close-test-tasklist"
+	id := "integration-timer-cleanup-close-test-" + uuid.New()
+	wt := "integration-timer-cleanup-close-test-type"
+	tl := "integration-timer-cleanup-close-test-tasklist"
 	identity := "worker1"
 
-	// 48h execution timeout — well above the 1h OrphanedTimerDeletionMinTTL,
+	// 48h execution timeout — well above the 1h TimerDeletionOnWorkflowCloseMinTTL,
 	// so close-time cleanup will delete it rather than skip it.
 	ctx, cancel := createContext()
 	defer cancel()
@@ -119,21 +119,21 @@ func (s *OrphanedTimerSuite) TestOrphanedTimerCleanupAtWorkflowClose() {
 		"expected 48h workflow timeout timer task to be deleted after workflow close")
 }
 
-// TestOrphanedTimerCleanupAtRetention verifies the end state after the full lifecycle:
+// TestTimerCleanupAtRetention verifies the end state after the full lifecycle:
 // the workflow closes (triggering async cleanup) and retention fires (triggering the
 // safety-net cleanup). By the time the execution record is gone, the timer must also be gone.
-func (s *OrphanedTimerSuite) TestOrphanedTimerCleanupAtRetention() {
+func (s *TimerCleanupOnWorkflowCloseSuite) TestTimerCleanupAtRetention() {
 	if TestFlags.PersistenceType != config.StoreTypeCassandra {
-		s.T().Skip("orphaned timer cleanup only implemented for Cassandra")
+		s.T().Skip("timer cleanup on workflow close only implemented for Cassandra")
 	}
 
-	id := "integration-orphaned-timer-retention-test-" + uuid.New()
-	wt := "integration-orphaned-timer-retention-test-type"
-	tl := "integration-orphaned-timer-retention-test-tasklist"
+	id := "integration-timer-cleanup-retention-test-" + uuid.New()
+	wt := "integration-timer-cleanup-retention-test-type"
+	tl := "integration-timer-cleanup-retention-test-tasklist"
 	identity := "worker1"
 
 	// Domain with 1-day retention so DeleteHistoryEventTask fires quickly in tests.
-	domainName := s.RandomizeStr("orphaned-timer-retention-domain")
+	domainName := s.RandomizeStr("timer-cleanup-retention-domain")
 	s.NoError(s.RegisterDomain(domainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
 	ctx, cancel := createContext()
@@ -174,7 +174,7 @@ func (s *OrphanedTimerSuite) TestOrphanedTimerCleanupAtRetention() {
 
 // newCompleteImmediatelyPoller returns a TaskPoller whose decision handler immediately
 // completes the workflow.
-func (s *OrphanedTimerSuite) newCompleteImmediatelyPoller(taskList, identity, domain string) *TaskPoller {
+func (s *TimerCleanupOnWorkflowCloseSuite) newCompleteImmediatelyPoller(taskList, identity, domain string) *TaskPoller {
 	return &TaskPoller{
 		Engine:   s.Engine,
 		Domain:   domain,
@@ -199,7 +199,7 @@ func (s *OrphanedTimerSuite) newCompleteImmediatelyPoller(taskList, identity, do
 }
 
 // isTimerTaskDeletedForRun returns true if no timer task for the given runID exists in the queue.
-func (s *OrphanedTimerSuite) isTimerTaskDeletedForRun(runID string) bool {
+func (s *TimerCleanupOnWorkflowCloseSuite) isTimerTaskDeletedForRun(runID string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 	defer cancel()
 
@@ -216,7 +216,7 @@ func (s *OrphanedTimerSuite) isTimerTaskDeletedForRun(runID string) bool {
 
 // isWorkflowDeleted polls until GetWorkflowExecution returns EntityNotExistsError,
 // indicating the retention-based deletion has completed.
-func (s *OrphanedTimerSuite) isWorkflowDeleted(domainID string, execution *types.WorkflowExecution) bool {
+func (s *TimerCleanupOnWorkflowCloseSuite) isWorkflowDeleted(domainID string, execution *types.WorkflowExecution) bool {
 	request := &persistence.GetWorkflowExecutionRequest{
 		DomainID:  domainID,
 		Execution: *execution,

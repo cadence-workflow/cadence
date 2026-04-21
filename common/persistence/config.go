@@ -28,7 +28,7 @@ import (
 type (
 	// DynamicConfiguration represents dynamic configuration for persistence layer
 	DynamicConfiguration struct {
-		EnableOrphanedWorkflowTimerCleanup       dynamicproperties.BoolPropertyFn
+		EnableTimerCleanupOnWorkflowClose       dynamicproperties.BoolPropertyFn
 		EnableSQLAsyncTransaction                dynamicproperties.BoolPropertyFn
 		EnableCassandraAllConsistencyLevelDelete dynamicproperties.BoolPropertyFn
 		EnableShardIDMetrics                     dynamicproperties.BoolPropertyFn
@@ -45,7 +45,7 @@ type (
 // NewDynamicConfiguration returns new config with default values
 func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration {
 	return &DynamicConfiguration{
-		EnableOrphanedWorkflowTimerCleanup:       dc.GetBoolProperty(dynamicproperties.EnableOrphanedWorkflowTimerCleanup),
+		EnableTimerCleanupOnWorkflowClose:       dc.GetBoolProperty(dynamicproperties.EnableTimerCleanupOnWorkflowClose),
 		EnableSQLAsyncTransaction:                dc.GetBoolProperty(dynamicproperties.EnableSQLAsyncTransaction),
 		EnableCassandraAllConsistencyLevelDelete: dc.GetBoolProperty(dynamicproperties.EnableCassandraAllConsistencyLevelDelete),
 		EnableShardIDMetrics:                     dc.GetBoolProperty(dynamicproperties.EnableShardIDMetrics),

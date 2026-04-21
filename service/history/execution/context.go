@@ -939,7 +939,7 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 // the number of tracked tasks grows (e.g. once user-timer tracking is added via the IDL work).
 func (c *contextImpl) deleteWorkflowTimerTasksBestEffortAsync(executionInfo *persistence.WorkflowExecutionInfo) {
 	cfg := c.shard.GetConfig()
-	if cfg.EnableOrphanedWorkflowTimerCleanup == nil || !cfg.EnableOrphanedWorkflowTimerCleanup() {
+	if cfg.EnableTimerCleanupOnWorkflowClose == nil || !cfg.EnableTimerCleanupOnWorkflowClose() {
 		return
 	}
 	timerTasks := c.mutableState.GetPendingWorkflowTimerTaskInfos()
@@ -952,7 +952,7 @@ func (c *contextImpl) deleteWorkflowTimerTasksBestEffortAsync(executionInfo *per
 	tasksCopy := make([]*persistence.WorkflowTimerTaskInfo, len(timerTasks))
 	copy(tasksCopy, timerTasks)
 
-	threshold := c.shard.GetConfig().OrphanedTimerDeletionMinTTL()
+	threshold := c.shard.GetConfig().TimerDeletionOnWorkflowCloseMinTTL()
 	now := c.shard.GetTimeSource().Now()
 	executionMgr := c.shard.GetExecutionManager()
 	logger := c.logger

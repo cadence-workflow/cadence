@@ -1718,15 +1718,15 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableGRPCOutbound
-	// EnableOrphanedWorkflowTimerCleanup enables cleanup of orphaned workflow timer tasks when a workflow
+	// EnableTimerCleanupOnWorkflowClose enables cleanup of workflow timer tasks when a workflow
 	// closes before its timers fire. When enabled, tracked timer tasks are deleted at workflow close
 	// time and again at retention-based deletion. This is a feature flag intended to be defaulted
 	// to true once validated.
-	// KeyName: system.enableOrphanedWorkflowTimerCleanup
+	// KeyName: system.enableTimerCleanupOnWorkflowClose
 	// Value type: Bool
 	// Default value: false
 	// Allowed filters: N/A
-	EnableOrphanedWorkflowTimerCleanup
+	EnableTimerCleanupOnWorkflowClose
 	// EnableSQLAsyncTransaction is the key for enabling async transaction
 	// KeyName: system.enableSQLAsyncTransaction
 	// Value type: Bool
@@ -2921,14 +2921,14 @@ const (
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: N/A
 	StandbyClusterDelay
-	// OrphanedTimerDeletionMinTTL is the minimum remaining time before an orphaned timer task
+	// TimerDeletionOnWorkflowCloseMinTTL is the minimum remaining time before an timer task
 	// is worth explicitly deleting. Timers scheduled to fire within this window are skipped —
 	// they will fire and clean up naturally. Applies to both workflow-level and user timers.
-	// KeyName: history.orphanedTimerDeletionMinTTL
+	// KeyName: history.timerDeletionOnWorkflowCloseMinTTL
 	// Value type: Duration
 	// Default value: 24h
 	// Allowed filters: N/A
-	OrphanedTimerDeletionMinTTL
+	TimerDeletionOnWorkflowCloseMinTTL
 	// StandbyTaskMissingEventsResendDelay is the amount of time standby cluster's will wait (if events are missing)before calling remote for missing events
 	// KeyName: history.standbyTaskMissingEventsResendDelay
 	// Value type: Duration
@@ -4605,9 +4605,9 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableGRPCOutbound is the key for enabling outbound GRPC traffic",
 		DefaultValue: true,
 	},
-	EnableOrphanedWorkflowTimerCleanup: {
-		KeyName:      "system.enableOrphanedWorkflowTimerCleanup",
-		Description:  "Enables cleanup of orphaned workflow timer tasks when a workflow closes before its timers fire. Feature flag, intended to be defaulted to true once validated.",
+	EnableTimerCleanupOnWorkflowClose: {
+		KeyName:      "system.enableTimerCleanupOnWorkflowClose",
+		Description:  "Enables cleanup of workflow timer tasks when a workflow closes before its timers fire. Feature flag, intended to be defaulted to true once validated.",
 		DefaultValue: false,
 	},
 	EnableSQLAsyncTransaction: {
@@ -5616,9 +5616,9 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Description:  "StandbyClusterDelay is the artificial delay added to standby cluster's view of active cluster's time",
 		DefaultValue: time.Minute * 5,
 	},
-	OrphanedTimerDeletionMinTTL: {
-		KeyName:      "history.orphanedTimerDeletionMinTTL",
-		Description:  "Minimum remaining time before an orphaned timer task is worth explicitly deleting. Timers firing within this window are skipped and will clean up naturally. Applies to both workflow-level and user timers.",
+	TimerDeletionOnWorkflowCloseMinTTL: {
+		KeyName:      "history.timerDeletionOnWorkflowCloseMinTTL",
+		Description:  "Minimum remaining time before an timer task is worth explicitly deleting. Timers firing within this window are skipped and will clean up naturally. Applies to both workflow-level and user timers.",
 		DefaultValue: time.Hour * 24,
 	},
 	StandbyTaskMissingEventsResendDelay: {

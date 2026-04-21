@@ -368,13 +368,13 @@ func (t *timerTaskExecutorBase) deleteWorkflowTimerTasksBestEffort(
 	msBuilder execution.MutableState,
 ) {
 	cfg := t.shard.GetConfig()
-	if cfg.EnableOrphanedWorkflowTimerCleanup == nil || !cfg.EnableOrphanedWorkflowTimerCleanup() {
+	if cfg.EnableTimerCleanupOnWorkflowClose == nil || !cfg.EnableTimerCleanupOnWorkflowClose() {
 		// feature-flag: to remove once this is defaulted to true
 		// there's nothing to run if the data's not tracked, but just out of caution, bail out if not enabled
 		return
 	}
 	workflowTimerTasks := msBuilder.GetPendingWorkflowTimerTaskInfos()
-	threshold := t.shard.GetConfig().OrphanedTimerDeletionMinTTL()
+	threshold := t.shard.GetConfig().TimerDeletionOnWorkflowCloseMinTTL()
 	now := t.shard.GetTimeSource().Now()
 
 	for _, taskInfo := range workflowTimerTasks {

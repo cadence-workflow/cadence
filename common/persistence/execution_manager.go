@@ -679,7 +679,7 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 func (m *executionManagerImpl) syncExecutionInfoWithTasks(workflowSnapshot *WorkflowSnapshot) {
 	// for now, this is only a best effort thing. It might change for more rigourously
 	// tracking these.
-	if m.dc == nil || m.dc.EnableOrphanedWorkflowTimerCleanup == nil || !m.dc.EnableOrphanedWorkflowTimerCleanup() {
+	if m.dc == nil || m.dc.EnableTimerCleanupOnWorkflowClose == nil || !m.dc.EnableTimerCleanupOnWorkflowClose() {
 		return
 	}
 
