@@ -477,7 +477,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	loadBalancingMode := p.sdConfig.GetLoadBalancingMode(p.namespaceCfg.Name)
 	switch loadBalancingMode {
 	case types.LoadBalancingModeGREEDY:
-		isRebalancedByShardLoad, err = p.rebalanceGreedyBySmoothedLoad(currentAssignments, namespaceState, deletedShards, metricsLoopScope)
+		isRebalancedByShardLoad, err = p.rebalanceGreedyBySmoothedLoad(namespaceState, currentAssignments, metricsLoopScope)
 		if err != nil {
 			return fmt.Errorf("load balance: %w", err)
 		}

@@ -12,9 +12,8 @@ import (
 )
 
 func (p *namespaceProcessor) rebalanceGreedyBySmoothedLoad(
-	currentAssignments map[string][]string,
 	namespaceState *store.NamespaceState,
-	deletedShards map[string]store.ShardState,
+	currentAssignments map[string][]string,
 	metricsScope metrics.Scope,
 ) (bool, error) {
 	loads, totalLoad := computeExecutorLoads(currentAssignments, namespaceState)
@@ -23,8 +22,11 @@ func (p *namespaceProcessor) rebalanceGreedyBySmoothedLoad(
 	}
 
 	meanLoad := totalLoad / float64(len(loads))
-	allShards := getShards(p.namespaceCfg, namespaceState, deletedShards)
-	moveBudget := computeMoveBudget(len(allShards), p.cfg.LoadBalance.MoveBudgetProportion)
+	totalShards := 0
+	for _, shards := range currentAssignments {
+		totalShards += len(shards)
+	}
+	moveBudget := computeMoveBudget(totalShards, p.cfg.LoadBalance.MoveBudgetProportion)
 	if moveBudget <= 0 {
 		return false, nil
 	}
