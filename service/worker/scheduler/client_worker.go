@@ -81,7 +81,7 @@ type workerFactory func(domainName string) (workerHandle, error)
 // workerRedundancyFactor hosts simultaneously so that a single host failure
 // does not cause a scheduling gap.
 type WorkerManager struct {
-	enabledFn          dynamicproperties.BoolPropertyFn
+	enabledFn          dynamicproperties.BoolPropertyFnWithDomainFilter
 	serviceClient      workflowserviceclient.Interface
 	frontendClient     frontend.Client
 	logger             log.Logger
@@ -100,7 +100,7 @@ type WorkerManager struct {
 }
 
 // NewWorkerManager creates a new per-domain scheduler worker manager.
-func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolPropertyFn) *WorkerManager {
+func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolPropertyFnWithDomainFilter) *WorkerManager {
 	ctx, cancel := context.WithCancel(context.Background())
 	wm := &WorkerManager{
 		enabledFn:          enabledFn,
@@ -153,39 +153,17 @@ func (m *WorkerManager) run() {
 	ticker := m.timeSrc.NewTicker(m.refreshInterval)
 	defer ticker.Stop()
 
-	enabled := m.enabledFn()
-	if enabled {
-		m.refreshWorkers()
-	} else {
-		m.logger.Info("scheduler worker manager is disabled, skipping initial refresh")
-	}
+	m.refreshWorkers()
 
 	for {
 		select {
 		case <-ticker.Chan():
-			previouslyEnabled := enabled
-			enabled = m.enabledFn()
-			if enabled != previouslyEnabled {
-				m.logger.Info("scheduler worker manager enabled state changed",
-					tag.Dynamic("enabled", enabled),
-				)
-			}
-
-			if enabled {
-				m.refreshWorkers()
-			} else {
-				m.stopAllWorkers()
-			}
+			m.refreshWorkers()
 
 		case <-m.membershipChangeCh:
 			drainMembershipCh(m.membershipChangeCh)
-			enabled = m.enabledFn()
-			if enabled {
-				m.logger.Debug("membership ring changed, refreshing scheduler workers")
-				m.refreshWorkers()
-			} else {
-				m.stopAllWorkers()
-			}
+			m.logger.Debug("membership ring changed, refreshing scheduler workers")
+			m.refreshWorkers()
 
 		case <-m.ctx.Done():
 			m.logger.Info("scheduler worker manager background loop stopped")
@@ -225,6 +203,10 @@ func (m *WorkerManager) refreshWorkers() {
 		}
 
 		if !containsHost(owners, m.hostInfo) {
+			continue
+		}
+
+		if !m.enabledFn(domainName) {
 			continue
 		}
 

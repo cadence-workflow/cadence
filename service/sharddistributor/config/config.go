@@ -111,20 +111,16 @@ const (
 )
 
 const (
-	MigrationModeINVALID                = "invalid"
-	MigrationModeLOCALPASSTHROUGH       = "local_pass"
-	MigrationModeLOCALPASSTHROUGHSHADOW = "local_pass_shadow"
-	MigrationModeDISTRIBUTEDPASSTHROUGH = "distributed_pass"
-	MigrationModeONBOARDED              = "onboarded"
+	MigrationModeINVALID          = "invalid"
+	MigrationModeLOCALPASSTHROUGH = "local_pass"
+	MigrationModeONBOARDED        = "onboarded"
 )
 
 // MigrationMode maps string migration mode values to types.MigrationMode
 var MigrationMode = map[string]types.MigrationMode{
-	MigrationModeINVALID:                types.MigrationModeINVALID,
-	MigrationModeLOCALPASSTHROUGH:       types.MigrationModeLOCALPASSTHROUGH,
-	MigrationModeLOCALPASSTHROUGHSHADOW: types.MigrationModeLOCALPASSTHROUGHSHADOW,
-	MigrationModeDISTRIBUTEDPASSTHROUGH: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
-	MigrationModeONBOARDED:              types.MigrationModeONBOARDED,
+	MigrationModeINVALID:          types.MigrationModeINVALID,
+	MigrationModeLOCALPASSTHROUGH: types.MigrationModeLOCALPASSTHROUGH,
+	MigrationModeONBOARDED:        types.MigrationModeONBOARDED,
 }
 
 // NewConfig returns a new instance of Config

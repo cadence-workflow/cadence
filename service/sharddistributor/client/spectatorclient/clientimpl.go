@@ -15,6 +15,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient/metricsconstants"
 	csync "github.com/uber/cadence/service/sharddistributor/client/spectatorclient/sync"
 )
 
@@ -43,9 +44,9 @@ type spectatorImpl struct {
 	scope      tally.Scope
 	logger     log.Logger
 	timeSource clock.TimeSource
-	stream     sharddistributor.WatchNamespaceStateClient
 
 	cancel context.CancelFunc
+	stream *spectatorStream
 	stopWG sync.WaitGroup
 
 	// State storage with lock for thread-safe access
@@ -104,10 +105,7 @@ func (s *spectatorImpl) connectState(ctx context.Context) stateFn {
 		return s.disabledState
 	}
 
-	stream, err := s.client.WatchNamespaceState(ctx, &types.WatchNamespaceStateRequest{
-		Namespace: s.namespace,
-	})
-
+	stream, err := newSpectatorStream(ctx, s.client, s.timeSource, s.namespace)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil
@@ -127,11 +125,7 @@ func (s *spectatorImpl) connectState(ctx context.Context) stateFn {
 
 func (s *spectatorImpl) enabledState(ctx context.Context) stateFn {
 	defer s.logger.Info("Exiting enabled state", tag.ShardNamespace(s.namespace))
-	defer func() {
-		if err := s.stream.CloseSend(); err != nil {
-			s.logger.Warn("Failed to close stream", tag.Error(err), tag.ShardNamespace(s.namespace))
-		}
-	}()
+	defer s.stream.Close()
 
 	s.logger.Info("Starting enabled state for namespace", tag.ShardNamespace(s.namespace))
 
@@ -147,7 +141,13 @@ func (s *spectatorImpl) enabledState(ctx context.Context) stateFn {
 				return nil
 			}
 
-			s.logger.Warn("Stream error (server issue), will reconnect", tag.Error(err), tag.ShardNamespace(s.namespace))
+			if s.stream.ctx.Err() != nil {
+				s.streamReconnectCounter(metricsconstants.StreamReconnectReasonTimeout).Inc(1)
+			} else {
+				s.streamReconnectCounter(metricsconstants.StreamReconnectReasonError).Inc(1)
+				s.logger.Warn("Stream recv error, will reconnect", tag.Error(err), tag.ShardNamespace(s.namespace))
+			}
+
 			if err := s.timeSource.SleepWithContext(ctx, backoff.JitDuration(streamRetryInterval, streamRetryJitterCoeff)); err != nil {
 				return nil
 			}
@@ -244,4 +244,10 @@ func (s *spectatorImpl) GetShardOwner(ctx context.Context, shardKey string) (*Sh
 		ExecutorID: response.Owner,
 		Metadata:   response.Metadata,
 	}, nil
+}
+
+func (s *spectatorImpl) streamReconnectCounter(reason string) tally.Counter {
+	return s.scope.Tagged(map[string]string{
+		metricsconstants.StreamReconnectReasonTagName: reason,
+	}).Counter(metricsconstants.ShardDistributorSpectatorStreamReconnects)
 }

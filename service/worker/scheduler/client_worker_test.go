@@ -173,7 +173,7 @@ func TestRefreshWorkers(t *testing.T) {
 			defer cancel()
 
 			wm := &WorkerManager{
-				enabledFn:          dynamicproperties.GetBoolPropertyFn(true),
+				enabledFn:          dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 				logger:             testlogger.New(t),
 				domainCache:        mockDomainCache,
 				membershipResolver: mockResolver,
@@ -215,6 +215,52 @@ func TestRefreshWorkers(t *testing.T) {
 	}
 }
 
+func TestRefreshWorkers_StopsWorkerWhenDomainDisabled(t *testing.T) {
+	selfHost := membership.NewDetailedHostInfo("10.0.0.1:7933", "self", nil)
+	otherHost := membership.NewDetailedHostInfo("10.0.0.2:7933", "other", nil)
+	ctrl := gomock.NewController(t)
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetAllDomain().Return(map[string]*cache.DomainCacheEntry{
+		"domain-a": cache.NewDomainCacheEntryForTest(
+			&persistence.DomainInfo{Name: "domain-a"},
+			nil, false, nil, 0, nil, 0, 0, 0,
+		),
+	})
+
+	mockResolver := membership.NewMockResolver(ctrl)
+	mockResolver.EXPECT().LookupN(service.Worker, "domain-a", workerRedundancyFactor).Return(
+		[]membership.HostInfo{selfHost, otherHost}, nil,
+	)
+
+	stopped := make(map[string]bool)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	wm := &WorkerManager{
+		enabledFn:          func(domain string) bool { return false },
+		logger:             testlogger.New(t),
+		domainCache:        mockDomainCache,
+		membershipResolver: mockResolver,
+		hostInfo:           selfHost,
+		activeWorkers:      make(map[string]workerHandle),
+		ctx:                ctx,
+		createWorker: func(domainName string) (workerHandle, error) {
+			t.Fatal("should not start a worker for a disabled domain")
+			return nil, nil
+		},
+	}
+
+	wm.activeWorkers["domain-a"] = &fakeWorker{
+		stopFn: func() { stopped["domain-a"] = true },
+	}
+
+	wm.refreshWorkers()
+
+	assert.Empty(t, wm.activeWorkers, "worker should be removed for disabled domain")
+	assert.True(t, stopped["domain-a"], "worker for disabled domain should have been stopped")
+}
+
 func TestRefreshWorkersHandlesCreateWorkerError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	selfHost := membership.NewDetailedHostInfo("10.0.0.1:7933", "self", nil)
@@ -234,7 +280,7 @@ func TestRefreshWorkersHandlesCreateWorkerError(t *testing.T) {
 	defer cancel()
 
 	wm := &WorkerManager{
-		enabledFn:          dynamicproperties.GetBoolPropertyFn(true),
+		enabledFn:          dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 		logger:             testlogger.New(t),
 		domainCache:        mockDomainCache,
 		membershipResolver: mockResolver,
@@ -315,7 +361,7 @@ func TestMembershipChangeTriggersRefresh(t *testing.T) {
 		DomainCache:        mockDomainCache,
 		MembershipResolver: mockResolver,
 		HostInfo:           selfHost,
-	}, dynamicproperties.GetBoolPropertyFn(true))
+	}, dynamicproperties.GetBoolPropertyFnFilteredByDomain(true))
 
 	wm.createWorker = func(domainName string) (workerHandle, error) {
 		return &fakeWorker{}, nil

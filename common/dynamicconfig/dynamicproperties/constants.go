@@ -2068,11 +2068,12 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableBatcher
-	// EnableScheduler decides whether to start the scheduler worker for cron-based scheduling
+	// EnableScheduler decides whether to start the scheduler worker for cron-based scheduling.
+	// Can be filtered by domain to enable/disable per domain.
 	// KeyName: worker.enableScheduler
 	// Value type: Bool
-	// Default value: false
-	// Allowed filters: N/A
+	// Default value: true
+	// Allowed filters: DomainName
 	EnableScheduler
 	// EnableParentClosePolicyWorker decides whether or not enable system workers for processing parent close policy task
 	// KeyName: system.enableParentClosePolicyWorker
@@ -2701,8 +2702,6 @@ const (
 	//
 	// "invalid" invalid mode for the migration, not expected to be used
 	// "local_pass" the executor library is integrated but no external call to the SD happening
-	// "local_pass_shadow" heartbeat calls to the SD to update the sharding state in SD
-	// "distributed_pass" the local sharding mechanism is sent to SD, returned by SD and applied in the onboarded service
 	// "onboarded" the sharding logic in SD is used
 	//
 	// KeyName: shardDistributor.migrationMode
@@ -4856,8 +4855,9 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	},
 	EnableScheduler: {
 		KeyName:      "worker.enableScheduler",
-		Description:  "EnableScheduler decides whether to start the scheduler worker for cron-based scheduling",
-		DefaultValue: false,
+		Filters:      []Filter{DomainName},
+		Description:  "EnableScheduler decides whether to start the scheduler worker for cron-based scheduling. Can be filtered by domain to enable/disable per domain.",
+		DefaultValue: true,
 	},
 	EnableParentClosePolicyWorker: {
 		KeyName:      "system.enableParentClosePolicyWorker",

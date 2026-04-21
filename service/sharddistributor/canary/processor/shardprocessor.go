@@ -12,6 +12,7 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/canary/latencykind"
 	canarymetrics "github.com/uber/cadence/service/sharddistributor/canary/metrics"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
@@ -24,12 +25,15 @@ const (
 
 // NewShardProcessor creates a new ShardProcessor.
 func NewShardProcessor(shardID string, timeSource clock.TimeSource, logger *zap.Logger, metricsScope tally.Scope) *ShardProcessor {
+	kind := latencykind.ShardIDToKind(shardID)
+	scope := metricsScope.Tagged(map[string]string{"latency_kind": kind.String()})
 	p := &ShardProcessor{
 		shardID:      shardID,
 		shardLoad:    shardLoadFromID(shardID),
+		kind:         kind,
 		timeSource:   timeSource,
 		logger:       logger,
-		metricsScope: metricsScope,
+		metricsScope: scope,
 		stopChan:     make(chan struct{}),
 	}
 	p.status.Store(int32(types.ShardStatusREADY))
@@ -40,6 +44,7 @@ func NewShardProcessor(shardID string, timeSource clock.TimeSource, logger *zap.
 type ShardProcessor struct {
 	shardID      string
 	shardLoad    float64
+	kind         latencykind.Kind
 	timeSource   clock.TimeSource
 	logger       *zap.Logger
 	metricsScope tally.Scope
@@ -62,6 +67,18 @@ func (p *ShardProcessor) GetShardReport() executorclient.ShardReport {
 
 // Start implements executorclient.ShardProcessor.
 func (p *ShardProcessor) Start(_ context.Context) error {
+	start := p.timeSource.Now()
+	defer func() {
+		p.metricsScope.Histogram(canarymetrics.CanaryShardStartLatency, canarymetrics.CanaryPingLatencyBuckets).
+			RecordDuration(p.timeSource.Since(start))
+	}()
+
+	if delay := p.kind.StartDelay(); delay > 0 {
+		p.metricsScope.Tagged(map[string]string{"lifecycle": "start"}).
+			Counter(canarymetrics.CanaryShardLifecycleInjected).Inc(1)
+		p.timeSource.Sleep(delay)
+	}
+
 	p.metricsScope.Counter(canarymetrics.CanaryShardStarted).Inc(1)
 	p.logger.Debug("Starting shard processor", zap.String("shardID", p.shardID))
 	p.goRoutineWg.Add(1)
@@ -71,6 +88,18 @@ func (p *ShardProcessor) Start(_ context.Context) error {
 
 // Stop implements executorclient.ShardProcessor.
 func (p *ShardProcessor) Stop() {
+	start := p.timeSource.Now()
+	defer func() {
+		p.metricsScope.Histogram(canarymetrics.CanaryShardStopLatency, canarymetrics.CanaryPingLatencyBuckets).
+			RecordDuration(p.timeSource.Since(start))
+	}()
+
+	if delay := p.kind.StopDelay(); delay > 0 {
+		p.metricsScope.Tagged(map[string]string{"lifecycle": "stop"}).
+			Counter(canarymetrics.CanaryShardLifecycleInjected).Inc(1)
+		p.timeSource.Sleep(delay)
+	}
+
 	p.metricsScope.Counter(canarymetrics.CanaryShardStopped).Inc(1)
 	p.logger.Debug("Stopping shard processor", zap.String("shardID", p.shardID))
 	close(p.stopChan)

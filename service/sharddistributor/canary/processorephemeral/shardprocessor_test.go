@@ -9,10 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/canary/testhelper"
 )
 
 func TestNewShardProcessor(t *testing.T) {
@@ -63,4 +65,12 @@ func TestShardProcessor_Start_Process_Stop(t *testing.T) {
 
 	// Assert that the processor has processed at least once
 	assert.Greater(t, processor.processSteps, 0)
+}
+
+// TestShardProcessor_InjectsLifecycleDelay verifies the ephemeral processor
+// also sleeps and emits the lifecycle_injected counter for non-normal kinds.
+func TestShardProcessor_InjectsLifecycleDelay(t *testing.T) {
+	testhelper.AssertInjectsLifecycleDelay(t, func(id string, ts clock.TimeSource, logger *zap.Logger, scope tally.Scope) testhelper.Lifecycler {
+		return NewShardProcessor(id, ts, logger, scope)
+	})
 }
