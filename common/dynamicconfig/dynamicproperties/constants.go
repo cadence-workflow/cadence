@@ -2921,7 +2921,7 @@ const (
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: N/A
 	StandbyClusterDelay
-	// TimerDeletionOnWorkflowCloseMinTTL is the minimum remaining time before an timer task
+	// TimerDeletionOnWorkflowCloseMinTTL is the minimum remaining time before a timer task
 	// is worth explicitly deleting. Timers scheduled to fire within this window are skipped —
 	// they will fire and clean up naturally. Applies to both workflow-level and user timers.
 	// KeyName: history.timerDeletionOnWorkflowCloseMinTTL
