@@ -1549,6 +1549,9 @@ const (
 	// ShardDistributorWatchScope tracks etcd watch stream processing
 	ShardDistributorWatchScope
 
+	// ShardDistributorLeaderScope tracks leader election state
+	ShardDistributorLeaderScope
+
 	NumShardDistributorScopes
 )
 
@@ -2264,6 +2267,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		ShardDistributorStoreSubscribeToAssignmentChangesScope:     {operation: "StoreSubscribeToAssignmentChanges"},
 		ShardDistributorStoreDeleteAssignedStatesScope:             {operation: "StoreDeleteAssignedStates"},
 		ShardDistributorWatchScope:                                 {operation: "Watch"},
+		ShardDistributorLeaderScope:                                {operation: "Leader"},
 	},
 }
 
@@ -3142,6 +3146,8 @@ const (
 	ShardDistributorAssignmentSmoothedLoadMissingRatio
 	// ShardDistributorAssignmentSmoothedLoadStaleRatio measures the fraction of assigned shards with stale smoothed load
 	ShardDistributorAssignmentSmoothedLoadStaleRatio
+	// ShardDistributorIsLeader reports whether this instance is currently the leader (1) or not (0) for a namespace
+	ShardDistributorIsLeader
 
 	NumShardDistributorMetrics
 )
@@ -4002,6 +4008,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 			metricName: "shard_distributor_assignment_smoothed_load_stale_ratio",
 			metricType: Gauge,
 		},
+		ShardDistributorIsLeader: {metricName: "shard_distributor_is_leader", metricType: Gauge},
 	},
 }
 

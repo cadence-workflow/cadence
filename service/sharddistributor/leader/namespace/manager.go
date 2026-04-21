@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/election"
@@ -29,6 +31,7 @@ type stateFn func(ctx context.Context) stateFn
 type Manager struct {
 	cfg             config.ShardDistribution
 	logger          log.Logger
+	metricsClient   metrics.Client
 	electionFactory election.Factory
 	drainObserver   clientcommon.DrainSignalObserver
 	namespaces      map[string]*namespaceHandler
@@ -38,6 +41,7 @@ type Manager struct {
 
 type namespaceHandler struct {
 	logger          log.Logger
+	leaderScope     metrics.Scope
 	electionFactory election.Factory
 	namespaceCfg    config.Namespace
 	drainObserver   clientcommon.DrainSignalObserver
@@ -49,6 +53,7 @@ type ManagerParams struct {
 
 	Cfg             config.ShardDistribution
 	Logger          log.Logger
+	MetricsClient   metrics.Client
 	ElectionFactory election.Factory
 	Lifecycle       fx.Lifecycle
 	DrainObserver   clientcommon.DrainSignalObserver `optional:"true"`
@@ -59,6 +64,7 @@ func NewManager(p ManagerParams) *Manager {
 	manager := &Manager{
 		cfg:             p.Cfg,
 		logger:          p.Logger.WithTags(tag.ComponentNamespaceManager),
+		metricsClient:   p.MetricsClient,
 		electionFactory: p.ElectionFactory,
 		drainObserver:   p.DrainObserver,
 		namespaces:      make(map[string]*namespaceHandler),
@@ -108,7 +114,11 @@ func (m *Manager) handleNamespace(namespaceCfg config.Namespace) error {
 	}
 
 	handler := &namespaceHandler{
-		logger:          m.logger.WithTags(tag.ShardNamespace(namespaceCfg.Name)),
+		logger: m.logger.WithTags(tag.ShardNamespace(namespaceCfg.Name)),
+		leaderScope: m.metricsClient.Scope(
+			metrics.ShardDistributorLeaderScope,
+			metrics.NamespaceTag(namespaceCfg.Name),
+		),
 		electionFactory: m.electionFactory,
 		namespaceCfg:    namespaceCfg,
 		drainObserver:   m.drainObserver,
@@ -155,6 +165,8 @@ func (h *namespaceHandler) startElection(ctx context.Context) (<-chan bool, cont
 func (h *namespaceHandler) campaigning(ctx context.Context) stateFn {
 	h.logger.Info("Entering campaigning state")
 
+	defer h.leaderScope.UpdateGauge(metrics.ShardDistributorIsLeader, 0)
+
 	drainCh := h.drainChannel()
 
 	select {
@@ -171,6 +183,10 @@ func (h *namespaceHandler) campaigning(ctx context.Context) stateFn {
 	}
 	defer cancel()
 
+	var isLeader, ok bool
+	metricsTicker := time.NewTicker(10 * time.Second)
+	defer metricsTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -178,15 +194,23 @@ func (h *namespaceHandler) campaigning(ctx context.Context) stateFn {
 		case <-drainCh:
 			h.logger.Info("Drain signal received, resigning from election")
 			return h.idle
-		case isLeader, ok := <-leaderCh:
+		case isLeader, ok = <-leaderCh:
 			if !ok {
 				h.logger.Error("Election channel closed unexpectedly")
 				return h.campaigning
 			}
 			if isLeader {
 				h.logger.Info("Became leader for namespace")
+				h.leaderScope.UpdateGauge(metrics.ShardDistributorIsLeader, 1)
 			} else {
 				h.logger.Info("Lost leadership for namespace")
+				h.leaderScope.UpdateGauge(metrics.ShardDistributorIsLeader, 0)
+			}
+		case <-metricsTicker.C:
+			if isLeader {
+				h.leaderScope.UpdateGauge(metrics.ShardDistributorIsLeader, 1)
+			} else {
+				h.leaderScope.UpdateGauge(metrics.ShardDistributorIsLeader, 0)
 			}
 		}
 	}
@@ -202,11 +226,18 @@ func (h *namespaceHandler) idle(ctx context.Context) stateFn {
 		undrainCh = h.drainObserver.Undrain()
 	}
 
-	select {
-	case <-ctx.Done():
-		return nil
-	case <-undrainCh:
-		h.logger.Info("Undrain signal received, resuming election")
-		return h.campaigning
+	metricsTicker := time.NewTicker(10 * time.Second)
+	defer metricsTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-undrainCh:
+			h.logger.Info("Undrain signal received, resuming election")
+			return h.campaigning
+		case <-metricsTicker.C:
+			h.leaderScope.UpdateGauge(metrics.ShardDistributorIsLeader, 0)
+		}
 	}
 }

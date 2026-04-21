@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
+	"github.com/uber/cadence/service/sharddistributor/canary/latencykind"
 	canarymetrics "github.com/uber/cadence/service/sharddistributor/canary/metrics"
 	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 )
@@ -18,6 +19,12 @@ const (
 )
 
 func PingShard(ctx context.Context, canaryClient sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCClient, metricsScope tally.Scope, logger *zap.Logger, namespace, shardKey string) {
+	// Tag by latency_kind so ping failures on intentionally-slow shards do
+	// not blend into the alertable normal-kind signal.
+	metricsScope = metricsScope.Tagged(map[string]string{
+		"latency_kind": latencykind.ShardIDToKind(shardKey).String(),
+	})
+
 	request := &sharddistributorv1.PingRequest{
 		ShardKey:  shardKey,
 		Namespace: namespace,

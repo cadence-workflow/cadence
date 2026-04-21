@@ -34,16 +34,6 @@ func TestGetMigrationMode(t *testing.T) {
 			expectedMode: types.MigrationModeLOCALPASSTHROUGH,
 		},
 		{
-			name:         "LocalPassthroughShadow",
-			configValue:  MigrationModeLOCALPASSTHROUGHSHADOW,
-			expectedMode: types.MigrationModeLOCALPASSTHROUGHSHADOW,
-		},
-		{
-			name:         "DistributedPassthrough",
-			configValue:  MigrationModeDISTRIBUTEDPASSTHROUGH,
-			expectedMode: types.MigrationModeDISTRIBUTEDPASSTHROUGH,
-		},
-		{
 			name:         "Onboarded",
 			configValue:  MigrationModeONBOARDED,
 			expectedMode: types.MigrationModeONBOARDED,

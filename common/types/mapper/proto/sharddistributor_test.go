@@ -87,9 +87,9 @@ func AssignmentStatusFuzzer(e *types.AssignmentStatus, c fuzz.Continue) {
 }
 
 // MigrationModeFuzzer generates valid MigrationMode enum values
-// (0-4: INVALID, LOCAL_PASSTHROUGH, LOCAL_PASSTHROUGH_SHADOW, DISTRIBUTED_PASSTHROUGH, ONBOARDED).
+// (0-2: INVALID, LOCAL_PASSTHROUGH, ONBOARDED).
 func MigrationModeFuzzer(e *types.MigrationMode, c fuzz.Continue) {
-	*e = types.MigrationMode(c.Intn(5)) // 0-4
+	*e = types.MigrationMode(c.Intn(3)) // 0-2
 }
 
 // ExecutorHeartbeatRequestFuzzer avoids nil map values: the mapper constructs a new
