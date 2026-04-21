@@ -48,8 +48,8 @@ func TestTimerCleanupOnWorkflowCloseIntegrationSuite(t *testing.T) {
 	// Enable the feature and set threshold to 1 hour so our 48h timeout workflows
 	// are above the threshold and get cleaned up, while any short-lived timers are skipped.
 	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
-		dynamicproperties.EnableTimerCleanupOnWorkflowClose: true,
-		dynamicproperties.TimerDeletionOnWorkflowCloseMinTTL:        time.Hour,
+		dynamicproperties.EnableTimerCleanupOnWorkflowClose:  true,
+		dynamicproperties.TimerDeletionOnWorkflowCloseMinTTL: time.Hour,
 	}
 
 	testCluster := NewPersistenceTestCluster(t, clusterConfig)

@@ -31,37 +31,37 @@ import (
 
 // Config represents configuration for cadence-history service
 type Config struct {
-	NumberOfShards                     int
-	IsAdvancedVisConfigExist           bool
-	RPS                                dynamicproperties.IntPropertyFn
-	MaxIDLengthWarnLimit               dynamicproperties.IntPropertyFn
-	DomainNameMaxLength                dynamicproperties.IntPropertyFnWithDomainFilter
-	IdentityMaxLength                  dynamicproperties.IntPropertyFnWithDomainFilter
-	WorkflowIDMaxLength                dynamicproperties.IntPropertyFnWithDomainFilter
-	SignalNameMaxLength                dynamicproperties.IntPropertyFnWithDomainFilter
-	WorkflowTypeMaxLength              dynamicproperties.IntPropertyFnWithDomainFilter
-	RequestIDMaxLength                 dynamicproperties.IntPropertyFnWithDomainFilter
-	TaskListNameMaxLength              dynamicproperties.IntPropertyFnWithDomainFilter
-	ActivityIDMaxLength                dynamicproperties.IntPropertyFnWithDomainFilter
-	ActivityTypeMaxLength              dynamicproperties.IntPropertyFnWithDomainFilter
-	MarkerNameMaxLength                dynamicproperties.IntPropertyFnWithDomainFilter
-	TimerIDMaxLength                   dynamicproperties.IntPropertyFnWithDomainFilter
-	PersistenceMaxQPS                  dynamicproperties.IntPropertyFn
-	PersistenceGlobalMaxQPS            dynamicproperties.IntPropertyFn
-	EnableVisibilitySampling           dynamicproperties.BoolPropertyFn
-	EnableReadFromClosedExecutionV2    dynamicproperties.BoolPropertyFn
-	VisibilityOpenMaxQPS               dynamicproperties.IntPropertyFnWithDomainFilter
-	VisibilityClosedMaxQPS             dynamicproperties.IntPropertyFnWithDomainFilter
-	WriteVisibilityStoreName           dynamicproperties.StringPropertyFn
-	EmitShardDiffLog                   dynamicproperties.BoolPropertyFn
-	MaxAutoResetPoints                 dynamicproperties.IntPropertyFnWithDomainFilter
-	ThrottledLogRPS                    dynamicproperties.IntPropertyFn
-	EnableStickyQuery                  dynamicproperties.BoolPropertyFnWithDomainFilter
-	ShutdownDrainDuration              dynamicproperties.DurationPropertyFn
-	WorkflowDeletionJitterRange        dynamicproperties.IntPropertyFnWithDomainFilter
-	DeleteHistoryEventContextTimeout   dynamicproperties.IntPropertyFn
+	NumberOfShards                    int
+	IsAdvancedVisConfigExist          bool
+	RPS                               dynamicproperties.IntPropertyFn
+	MaxIDLengthWarnLimit              dynamicproperties.IntPropertyFn
+	DomainNameMaxLength               dynamicproperties.IntPropertyFnWithDomainFilter
+	IdentityMaxLength                 dynamicproperties.IntPropertyFnWithDomainFilter
+	WorkflowIDMaxLength               dynamicproperties.IntPropertyFnWithDomainFilter
+	SignalNameMaxLength               dynamicproperties.IntPropertyFnWithDomainFilter
+	WorkflowTypeMaxLength             dynamicproperties.IntPropertyFnWithDomainFilter
+	RequestIDMaxLength                dynamicproperties.IntPropertyFnWithDomainFilter
+	TaskListNameMaxLength             dynamicproperties.IntPropertyFnWithDomainFilter
+	ActivityIDMaxLength               dynamicproperties.IntPropertyFnWithDomainFilter
+	ActivityTypeMaxLength             dynamicproperties.IntPropertyFnWithDomainFilter
+	MarkerNameMaxLength               dynamicproperties.IntPropertyFnWithDomainFilter
+	TimerIDMaxLength                  dynamicproperties.IntPropertyFnWithDomainFilter
+	PersistenceMaxQPS                 dynamicproperties.IntPropertyFn
+	PersistenceGlobalMaxQPS           dynamicproperties.IntPropertyFn
+	EnableVisibilitySampling          dynamicproperties.BoolPropertyFn
+	EnableReadFromClosedExecutionV2   dynamicproperties.BoolPropertyFn
+	VisibilityOpenMaxQPS              dynamicproperties.IntPropertyFnWithDomainFilter
+	VisibilityClosedMaxQPS            dynamicproperties.IntPropertyFnWithDomainFilter
+	WriteVisibilityStoreName          dynamicproperties.StringPropertyFn
+	EmitShardDiffLog                  dynamicproperties.BoolPropertyFn
+	MaxAutoResetPoints                dynamicproperties.IntPropertyFnWithDomainFilter
+	ThrottledLogRPS                   dynamicproperties.IntPropertyFn
+	EnableStickyQuery                 dynamicproperties.BoolPropertyFnWithDomainFilter
+	ShutdownDrainDuration             dynamicproperties.DurationPropertyFn
+	WorkflowDeletionJitterRange       dynamicproperties.IntPropertyFnWithDomainFilter
+	DeleteHistoryEventContextTimeout  dynamicproperties.IntPropertyFn
 	EnableTimerCleanupOnWorkflowClose dynamicproperties.BoolPropertyFn
-	MaxResponseSize                    int
+	MaxResponseSize                   int
 
 	// HistoryCache settings
 	// Change of these configs require shard restart
@@ -406,7 +406,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		StandbyTaskMissingEventsDiscardDelay: dc.GetDurationProperty(dynamicproperties.StandbyTaskMissingEventsDiscardDelay),
 		WorkflowDeletionJitterRange:          dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowDeletionJitterRange),
 		DeleteHistoryEventContextTimeout:     dc.GetIntProperty(dynamicproperties.DeleteHistoryEventContextTimeout),
-		EnableTimerCleanupOnWorkflowClose:   dc.GetBoolProperty(dynamicproperties.EnableTimerCleanupOnWorkflowClose),
+		EnableTimerCleanupOnWorkflowClose:    dc.GetBoolProperty(dynamicproperties.EnableTimerCleanupOnWorkflowClose),
 		MaxResponseSize:                      maxMessageSize,
 
 		TaskProcessRPS:                                    dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskProcessRPS),
@@ -587,7 +587,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		MutableStateChecksumGenProbability:    dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumGenProbability),
 		MutableStateChecksumVerifyProbability: dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumVerifyProbability),
 		MutableStateChecksumInvalidateBefore:  dc.GetFloat64Property(dynamicproperties.MutableStateChecksumInvalidateBefore),
-		TimerDeletionOnWorkflowCloseMinTTL:           dc.GetDurationProperty(dynamicproperties.TimerDeletionOnWorkflowCloseMinTTL),
+		TimerDeletionOnWorkflowCloseMinTTL:    dc.GetDurationProperty(dynamicproperties.TimerDeletionOnWorkflowCloseMinTTL),
 
 		EnableCorruptionAutoRepair:             dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCorruptionAutoRepair),
 		CorruptionRepairTimeout:                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.CorruptionRepairTimeout),
