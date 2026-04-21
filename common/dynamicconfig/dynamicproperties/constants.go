@@ -2923,7 +2923,8 @@ const (
 	StandbyClusterDelay
 	// TimerDeletionOnWorkflowCloseMinTTL is the minimum remaining time before a timer task
 	// is worth explicitly deleting. Timers scheduled to fire within this window are skipped —
-	// they will fire and clean up naturally. Applies to both workflow-level and user timers.
+	// they will fire and clean up naturally. Currently applies to workflow-level timers only;
+	// user timer cleanup requires the timer_task_id IDL addition (deferred).
 	// KeyName: history.timerDeletionOnWorkflowCloseMinTTL
 	// Value type: Duration
 	// Default value: 24h
@@ -5618,7 +5619,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	},
 	TimerDeletionOnWorkflowCloseMinTTL: {
 		KeyName:      "history.timerDeletionOnWorkflowCloseMinTTL",
-		Description:  "Minimum remaining time before an timer task is worth explicitly deleting. Timers firing within this window are skipped and will clean up naturally. Applies to both workflow-level and user timers.",
+		Description:  "Minimum remaining time before a timer task is worth explicitly deleting on workflow close. Timers firing within this window are skipped and will clean up naturally. Currently applies to workflow-level timers only; user timer cleanup requires a future IDL addition.",
 		DefaultValue: time.Hour * 24,
 	},
 	StandbyTaskMissingEventsResendDelay: {
