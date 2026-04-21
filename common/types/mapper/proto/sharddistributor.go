@@ -248,10 +248,6 @@ func getMigrationModeFromProto(protoMigrationMode sharddistributorv1.MigrationMo
 	switch protoMigrationMode {
 	case sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH:
 		mode = types.MigrationModeLOCALPASSTHROUGH
-	case sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH_SHADOW:
-		mode = types.MigrationModeLOCALPASSTHROUGHSHADOW
-	case sharddistributorv1.MigrationMode_MIGRATION_MODE_DISTRIBUTED_PASSTHROUGH:
-		mode = types.MigrationModeDISTRIBUTEDPASSTHROUGH
 	case sharddistributorv1.MigrationMode_MIGRATION_MODE_ONBOARDED:
 		mode = types.MigrationModeONBOARDED
 	default:
@@ -267,10 +263,6 @@ func toMigrationMode(modeSD types.MigrationMode) sharddistributorv1.MigrationMod
 		mode = sharddistributorv1.MigrationMode_MIGRATION_MODE_INVALID
 	case types.MigrationModeLOCALPASSTHROUGH:
 		mode = sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH
-	case types.MigrationModeLOCALPASSTHROUGHSHADOW:
-		mode = sharddistributorv1.MigrationMode_MIGRATION_MODE_LOCAL_PASSTHROUGH_SHADOW
-	case types.MigrationModeDISTRIBUTEDPASSTHROUGH:
-		mode = sharddistributorv1.MigrationMode_MIGRATION_MODE_DISTRIBUTED_PASSTHROUGH
 	case types.MigrationModeONBOARDED:
 		mode = sharddistributorv1.MigrationMode_MIGRATION_MODE_ONBOARDED
 	default:

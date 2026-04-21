@@ -16,9 +16,20 @@ const (
 	CanaryShardStopped          = "canary_shard_stopped"
 	CanaryShardDone             = "canary_shard_done"
 	CanaryShardProcessStep      = "canary_shard_process_step"
+	// CanaryShardLifecycleInjected counts every Start/Stop call where the
+	// canary intentionally injected a delay. Tagged by lifecycle ("start" or
+	// "stop") and bucket ("slow_start", "stuck_stop", ...). Use it to confirm
+	// the canary is actually exercising the slow paths.
+	CanaryShardLifecycleInjected = "canary_shard_lifecycle_injected"
 
 	// Histogram metrics
 	CanaryPingLatency = "canary_ping_latency"
+	// CanaryShardStartLatency is the wall-clock duration of a shard
+	// processor's Start() call, tagged by bucket. The "normal" bucket should
+	// stay near zero; alert if it climbs.
+	CanaryShardStartLatency = "canary_shard_start_latency"
+	// CanaryShardStopLatency mirrors CanaryShardStartLatency for Stop().
+	CanaryShardStopLatency = "canary_shard_stop_latency"
 )
 
 var (

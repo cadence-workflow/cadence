@@ -1549,6 +1549,9 @@ const (
 	// ShardDistributorWatchScope tracks etcd watch stream processing
 	ShardDistributorWatchScope
 
+	// ShardDistributorLeaderScope tracks leader election state
+	ShardDistributorLeaderScope
+
 	NumShardDistributorScopes
 )
 
@@ -2264,6 +2267,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		ShardDistributorStoreSubscribeToAssignmentChangesScope:     {operation: "StoreSubscribeToAssignmentChanges"},
 		ShardDistributorStoreDeleteAssignedStatesScope:             {operation: "StoreDeleteAssignedStates"},
 		ShardDistributorWatchScope:                                 {operation: "Watch"},
+		ShardDistributorLeaderScope:                                {operation: "Leader"},
 	},
 }
 
@@ -3130,6 +3134,9 @@ const (
 	// ShardDistributorAssignLoopMovedShardLoad tracks the load of a shard that was moved due to load rebalancing
 	ShardDistributorAssignLoopMovedShardLoad
 
+	// ShardDistributorIsLeader reports whether this instance is currently the leader (1) or not (0) for a namespace
+	ShardDistributorIsLeader
+
 	NumShardDistributorMetrics
 )
 
@@ -3976,6 +3983,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ShardDistributorAssignLoopLoadBasedMoves: {metricName: "shard_distributor_shard_assign_load_based_moves", metricType: Counter},
 		ShardDistributorAssignLoopDeletedShards:  {metricName: "shard_distributor_shard_assign_deleted_shards", metricType: Gauge},
 		ShardDistributorAssignLoopMovedShardLoad: {metricName: "shard_distributor_shard_assign_moved_shard_load", metricType: Gauge},
+
+		ShardDistributorIsLeader: {metricName: "shard_distributor_is_leader", metricType: Gauge},
 	},
 }
 

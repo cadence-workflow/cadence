@@ -9,10 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/canary/testhelper"
 )
 
 func TestNewShardProcessor(t *testing.T) {
@@ -83,4 +85,13 @@ func Test_shardLoadFromID(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestShardProcessor_InjectsLifecycleDelay verifies that when a shardID hashes
+// to a non-normal latency kind the processor sleeps before completing the
+// matching lifecycle call and emits the lifecycle_injected counter.
+func TestShardProcessor_InjectsLifecycleDelay(t *testing.T) {
+	testhelper.AssertInjectsLifecycleDelay(t, func(id string, ts clock.TimeSource, logger *zap.Logger, scope tally.Scope) testhelper.Lifecycler {
+		return NewShardProcessor(id, ts, logger, scope)
+	})
 }

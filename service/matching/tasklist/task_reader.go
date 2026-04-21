@@ -50,7 +50,11 @@ import (
 var epochStartTime = time.Unix(0, 0)
 
 const (
-	defaultTaskBufferIsolationGroup = "" // a task buffer which is not using an isolation group
+	// a task buffer which is not using an isolation group
+	defaultTaskBufferIsolationGroup = ""
+
+	// a buffer to add to the dispatch timeout to have some room even task waits for the whole rate-limit period
+	taskDispatchTimeoutBuffer = 100 * time.Millisecond
 )
 
 type (
@@ -430,7 +434,8 @@ func (tr *taskReader) newDispatchContext(isolationGroup string, isolationDuratio
 func (tr *taskReader) getDispatchTimeout(rps float64, isolationDuration time.Duration) time.Duration {
 	// this is the minimum timeout required to dispatch a task, if the timeout value is smaller than this
 	// async task dispatch can be completely throttled, which could happen when ratePerSecond is pretty low
-	minTimeout := time.Duration(float64(len(tr.taskBuffers))/rps) * time.Second
+	minTimeout := time.Duration((float64)(time.Second*time.Duration(len(tr.taskBuffers)))/rps) + taskDispatchTimeoutBuffer
+
 	// timeout = max (min(asyncDispatchTimeout, isolationDuration), minTimeout)
 	timeout := tr.config.AsyncTaskDispatchTimeout()
 	if timeout > isolationDuration && isolationDuration != noIsolationTimeout {

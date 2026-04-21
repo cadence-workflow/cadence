@@ -270,7 +270,8 @@ func TestGetDispatchTimeout(t *testing.T) {
 			isolationDuration: noIsolationTimeout,
 			dispatchRps:       0.1,
 			// rate is divided by 4 isolation groups (plus default buffer) and only one task gets dispatched per 10 seconds
-			expected: 50 * time.Second,
+			// taskDispatchTimeoutBuffer is added to ensure there is room for the rate-limiter wait
+			expected: 50*time.Second + taskDispatchTimeoutBuffer,
 		},
 		{
 			name:              "with isolation - low dispatch rps extends timeout",
@@ -279,7 +280,8 @@ func TestGetDispatchTimeout(t *testing.T) {
 			// rate is divided by 4 isolation groups (plus default buffer) and only one task gets dispatched per 10 seconds
 			// This means taskIsolationDuration is extended, and we don't leak tasks as quickly if the
 			// task list has a very low RPS
-			expected: 50 * time.Second,
+			// taskDispatchTimeoutBuffer is added to ensure there is room for the rate-limiter wait
+			expected: 50*time.Second + taskDispatchTimeoutBuffer,
 		},
 	}
 
@@ -293,7 +295,6 @@ func TestGetDispatchTimeout(t *testing.T) {
 
 			actual := reader.getDispatchTimeout(tc.dispatchRps, tc.isolationDuration)
 			assert.Equal(t, tc.expected, actual)
-
 		})
 	}
 }

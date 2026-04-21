@@ -13,6 +13,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/election"
 )
@@ -85,6 +86,7 @@ func TestNewManager(t *testing.T) {
 	manager := NewManager(ManagerParams{
 		Cfg:             cfg,
 		Logger:          logger,
+		MetricsClient:   metrics.NewNoopMetricsClient(),
 		ElectionFactory: electionFactory,
 		Lifecycle:       fxtest.NewLifecycle(t),
 	})
@@ -113,6 +115,7 @@ func TestStartManager(t *testing.T) {
 	manager := &Manager{
 		cfg:             cfg,
 		logger:          logger,
+		metricsClient:   metrics.NewNoopMetricsClient(),
 		electionFactory: electionFactory,
 		namespaces:      make(map[string]*namespaceHandler),
 	}
@@ -148,6 +151,7 @@ func TestStartManagerWithElectorError(t *testing.T) {
 	manager := &Manager{
 		cfg:             cfg,
 		logger:          logger,
+		metricsClient:   metrics.NewNoopMetricsClient(),
 		electionFactory: electionFactory,
 		namespaces:      make(map[string]*namespaceHandler),
 	}
@@ -182,6 +186,7 @@ func TestStopManager(t *testing.T) {
 	manager := &Manager{
 		cfg:             cfg,
 		logger:          logger,
+		metricsClient:   metrics.NewNoopMetricsClient(),
 		electionFactory: electionFactory,
 		namespaces:      make(map[string]*namespaceHandler),
 	}
@@ -201,6 +206,7 @@ func TestHandleNamespaceAlreadyExists(t *testing.T) {
 	manager := &Manager{
 		cfg:             config.ShardDistribution{},
 		logger:          logger,
+		metricsClient:   metrics.NewNoopMetricsClient(),
 		electionFactory: electionFactory,
 		namespaces:      make(map[string]*namespaceHandler),
 	}
@@ -233,6 +239,7 @@ func TestRunElection_LeadershipEvents(t *testing.T) {
 	manager := &Manager{
 		cfg:             cfg,
 		logger:          logger,
+		metricsClient:   metrics.NewNoopMetricsClient(),
 		electionFactory: electionFactory,
 		namespaces:      make(map[string]*namespaceHandler),
 	}
@@ -271,6 +278,7 @@ func TestDrainSignal_TriggersResign(t *testing.T) {
 	manager := &Manager{
 		cfg:             cfg,
 		logger:          logger,
+		metricsClient:   metrics.NewNoopMetricsClient(),
 		electionFactory: electionFactory,
 		drainObserver:   observer,
 		namespaces:      make(map[string]*namespaceHandler),
@@ -311,6 +319,7 @@ func TestDrainSignal_NilDrainObserver(t *testing.T) {
 	manager := &Manager{
 		cfg:             cfg,
 		logger:          logger,
+		metricsClient:   metrics.NewNoopMetricsClient(),
 		electionFactory: electionFactory,
 		namespaces:      make(map[string]*namespaceHandler),
 	}
@@ -345,6 +354,7 @@ func TestDrainSignal_ManagerStopsBeforeDrain(t *testing.T) {
 	manager := &Manager{
 		cfg:             cfg,
 		logger:          logger,
+		metricsClient:   metrics.NewNoopMetricsClient(),
 		electionFactory: electionFactory,
 		drainObserver:   observer,
 		namespaces:      make(map[string]*namespaceHandler),
@@ -386,6 +396,7 @@ func TestDrainThenUndrain_ResumesElection(t *testing.T) {
 	manager := &Manager{
 		cfg:             cfg,
 		logger:          logger,
+		metricsClient:   metrics.NewNoopMetricsClient(),
 		electionFactory: electionFactory,
 		drainObserver:   observer,
 		namespaces:      make(map[string]*namespaceHandler),
