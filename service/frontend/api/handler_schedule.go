@@ -30,6 +30,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/validate"
 	"github.com/uber/cadence/service/worker/scheduler"
@@ -55,6 +56,24 @@ func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 		return &types.BadRequestError{
 			Message: "SKIP_NEW overlap policy with CATCH_UP_ALL catch-up policy is invalid: " +
 				"caught-up fires would be immediately skipped due to overlap with the previous run.",
+		}
+	}
+	return nil
+}
+
+// validateUserSearchAttributes rejects user search attribute keys that collide
+// with scheduler-reserved keys (CadenceSchedule* prefix). Without this check,
+// user values would be silently overwritten by the scheduler workflow's
+// UpsertSearchAttributes calls on start and on state change.
+func validateUserSearchAttributes(sa *types.SearchAttributes) error {
+	if sa == nil {
+		return nil
+	}
+	for k := range sa.IndexedFields {
+		if strings.HasPrefix(k, "CadenceSchedule") {
+			return &types.BadRequestError{
+				Message: fmt.Sprintf("search attribute key %q is reserved for internal use", k),
+			}
 		}
 	}
 	return nil
@@ -89,6 +108,9 @@ func (wh *WorkflowHandler) CreateSchedule(
 		return nil, &types.BadRequestError{Message: "Action.StartWorkflow is not set on request."}
 	}
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
+		return nil, err
+	}
+	if err := validateUserSearchAttributes(request.GetSearchAttributes()); err != nil {
 		return nil, err
 	}
 
@@ -395,11 +417,10 @@ func (wh *WorkflowHandler) ListSchedules(
 		pageSize = defaultListSchedulesPageSize
 	}
 
-	// TODO: populate ScheduleListEntry.WorkflowType, State, and CronExpression once
-	// CreateSchedule stores schedule metadata in the scheduler workflow's Memo.
-	// Currently only ScheduleID is returned (derived from the workflow ID).
-	// Follow-up: store metadata in Memo at create time, update via UpsertMemo on
-	// pause/unpause/update signals, and read Memo from visibility results here.
+	// NOTE: this calls wh.ListWorkflowExecutions directly (not via frontend client),
+	// which skips the cluster redirection middleware. For global (XDC) domains, the
+	// passive region may return stale visibility data. This applies to all schedule
+	// read APIs (Describe, List) and will be addressed when adding XDC support.
 	listResp, err := wh.ListWorkflowExecutions(ctx, &types.ListWorkflowExecutionsRequest{
 		Domain:        domainName,
 		PageSize:      pageSize,
@@ -415,9 +436,30 @@ func (wh *WorkflowHandler) ListSchedules(
 		wfID := exec.GetExecution().GetWorkflowID()
 		scheduleID := strings.TrimPrefix(wfID, scheduleWorkflowIDPrefix)
 
-		entries = append(entries, &types.ScheduleListEntry{
+		entry := &types.ScheduleListEntry{
 			ScheduleID: scheduleID,
-		})
+		}
+
+		// CronExpression and WorkflowType are populated in a follow-up PR that
+		// stores them as search attributes (so they can be updated on UpdateSchedule).
+
+		// Default to not paused. The scheduler workflow upserts this search attribute
+		// on start and on state change, so a missing value means the workflow hasn't
+		// run its first decision task yet (brief window after CreateSchedule).
+		paused := false
+		if exec.SearchAttributes != nil {
+			if pausedBytes, ok := exec.SearchAttributes.IndexedFields[scheduler.SearchAttrSchedulePaused]; ok {
+				if err := json.Unmarshal(pausedBytes, &paused); err != nil {
+					wh.GetLogger().Warn("failed to unmarshal CadenceSchedulePaused search attribute, defaulting to false",
+						tag.WorkflowID(scheduleWorkflowID(scheduleID)),
+						tag.Error(err),
+					)
+				}
+			}
+		}
+		entry.State = &types.ScheduleState{Paused: paused}
+
+		entries = append(entries, entry)
 	}
 
 	return &types.ListSchedulesResponse{

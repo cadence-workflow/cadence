@@ -67,6 +67,16 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		return fmt.Errorf("failed to register query handler: %w", err)
 	}
 
+	// Re-upsert the paused search attribute on every execution (including after
+	// ContinueAsNew). Search attributes set via UpsertSearchAttributes in a prior
+	// execution are not automatically carried over, so we must refresh them here
+	// to keep ListSchedules visibility results in sync with the current state.
+	if err := workflow.UpsertSearchAttributes(ctx, map[string]interface{}{
+		SearchAttrSchedulePaused: state.Paused,
+	}); err != nil {
+		logger.Warn("failed to upsert schedule paused search attribute", zap.Error(err))
+	}
+
 	chs := signalChannels{
 		pause:    workflow.GetSignalChannel(ctx, SignalNamePause),
 		unpause:  workflow.GetSignalChannel(ctx, SignalNameUnpause),
@@ -120,10 +130,19 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 			timerFuture = workflow.NewTimer(timerCtx, dur)
 		}
 
+		previousPaused := state.Paused
 		changed, timerFired := applyAllInputs(ctx, logger, timerFuture, chs, state, &input)
 
 		if timerCancel != nil {
 			timerCancel()
+		}
+
+		if state.Paused != previousPaused {
+			if err := workflow.UpsertSearchAttributes(ctx, map[string]interface{}{
+				SearchAttrSchedulePaused: state.Paused,
+			}); err != nil {
+				logger.Warn("failed to upsert schedule paused search attribute", zap.Error(err))
+			}
 		}
 
 		if state.Deleted {

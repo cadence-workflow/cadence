@@ -183,6 +183,24 @@ func TestCreateSchedule(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		"user search attributes use reserved key": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "my-schedule",
+				Spec:       &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
+						TaskList:     &types.TaskList{Name: "my-tasklist"},
+					},
+				},
+				SearchAttributes: &types.SearchAttributes{IndexedFields: map[string][]byte{
+					"CadenceSchedulePaused": []byte("true"),
+				}},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
 		"history error": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -680,6 +698,8 @@ func TestListSchedules(t *testing.T) {
 
 		f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
 
+		pausedBytes, _ := json.Marshal(true)
+
 		f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.MatchedBy(func(req *persistence.ListWorkflowExecutionsByQueryRequest) bool {
 			return req.Domain == testDomain && req.Query == "WorkflowType = 'cadence-scheduler'"
 		})).Return(&persistence.ListWorkflowExecutionsResponse{
@@ -690,6 +710,9 @@ func TestListSchedules(t *testing.T) {
 						RunID:      "run-1",
 					},
 					Type: &types.WorkflowType{Name: scheduler.WorkflowTypeName},
+					SearchAttributes: &types.SearchAttributes{IndexedFields: map[string][]byte{
+						scheduler.SearchAttrSchedulePaused: pausedBytes,
+					}},
 				},
 				{
 					Execution: &types.WorkflowExecution{
@@ -709,11 +732,15 @@ func TestListSchedules(t *testing.T) {
 		assert.NoError(t, err)
 		require.NotNil(t, resp)
 		assert.Len(t, resp.Schedules, 2)
+
 		assert.Equal(t, "sched-1", resp.Schedules[0].ScheduleID)
-		assert.Nil(t, resp.Schedules[0].WorkflowType)
-		assert.Nil(t, resp.Schedules[0].State)
-		assert.Empty(t, resp.Schedules[0].CronExpression)
+		require.NotNil(t, resp.Schedules[0].State)
+		assert.True(t, resp.Schedules[0].State.Paused)
+
 		assert.Equal(t, "sched-2", resp.Schedules[1].ScheduleID)
+		require.NotNil(t, resp.Schedules[1].State)
+		assert.False(t, resp.Schedules[1].State.Paused, "missing search attribute should default to not paused")
+
 		assert.Equal(t, []byte("next"), resp.NextPageToken)
 	})
 }

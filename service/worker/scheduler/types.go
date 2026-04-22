@@ -43,6 +43,9 @@ const (
 	SearchAttrScheduleTime = "CadenceScheduleTime"
 	SearchAttrIsBackfill   = "CadenceScheduleIsBackfill"
 
+	// Search attribute keys set on the scheduler workflow itself for ListSchedules.
+	SearchAttrSchedulePaused = "CadenceSchedulePaused"
+
 	maxIterationsBeforeContinueAsNew = 500
 	maxCatchUpFiresPerExecution      = 10
 	maxBackfillFiresPerExecution     = 10
