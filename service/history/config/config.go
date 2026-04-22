@@ -310,6 +310,7 @@ type Config struct {
 	EnableCorruptionAutoRepair             dynamicproperties.BoolPropertyFnWithDomainFilter
 	CorruptionRepairTimeout                dynamicproperties.DurationPropertyFnWithDomainFilter
 	RequireChecksumMatchAfterRebuildRepair dynamicproperties.BoolPropertyFnWithDomainFilter
+	EnableCorruptionForcedTermination      dynamicproperties.BoolPropertyFnWithDomainFilter
 
 	// History check for corruptions
 	EnableHistoryCorruptionCheck dynamicproperties.BoolPropertyFnWithDomainFilter
@@ -583,6 +584,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		EnableCorruptionAutoRepair:             dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCorruptionAutoRepair),
 		CorruptionRepairTimeout:                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.CorruptionRepairTimeout),
 		RequireChecksumMatchAfterRebuildRepair: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.RequireChecksumMatchAfterRebuildRepair),
+		EnableCorruptionForcedTermination:      dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCorruptionForcedTermination),
 
 		EnableHistoryCorruptionCheck: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableHistoryCorruptionCheck),
 

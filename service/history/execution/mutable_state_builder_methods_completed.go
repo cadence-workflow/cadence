@@ -113,7 +113,10 @@ func (e *mutableStateBuilder) GetCompletionEvent(
 		return nil, ErrMissingWorkflowCompletionEvent
 	}
 
-	// Needed for backward compatibility reason
+	// CompletionEvent may be stored inline in ExecutionInfo in two cases:
+	// 1. Backward compatibility: old workflows written before the CompletionEventBatchID scheme.
+	// 2. Force-closed workflows: when proper termination fails and no history event is written,
+	//    the completion event is stored inline so callers can retrieve it without a history read.
 	if e.executionInfo.CompletionEvent != nil {
 		return e.executionInfo.CompletionEvent, nil
 	}

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
@@ -25,6 +26,14 @@ import (
 var (
 	// ErrChecksumMismatchAfterRebuild indicates the rebuilt state has a different checksum than the original
 	ErrChecksumMismatchAfterRebuild = errors.New("rebuilt mutable state checksum does not match original - checksum or history may be corrupted")
+	// ErrWorkflowTerminatedDueToCorruption indicates the workflow was terminated because it could not be repaired
+	ErrWorkflowTerminatedDueToCorruption = errors.New("workflow terminated due to unrecoverable corruption")
+	// ErrRepairAndTerminationFailed indicates both repair and termination failed
+	ErrRepairAndTerminationFailed = errors.New("workflow repair failed and termination also failed")
+	// ErrUnknownCorruptionType indicates a corruption type with no registered repair strategy.
+	// This is a programming error (missing switch case) and is treated as transient to avoid
+	// terminating workflows due to a code bug.
+	ErrUnknownCorruptionType = errors.New("unknown corruption type")
 )
 
 type (
@@ -212,14 +221,52 @@ func (r *workflowRepairerImpl) repairWorkflow(
 		tag.Dynamic("corruptionType", corruptionType.String()),
 	)
 
-	if corruptionType == CorruptionTypeChecksumMismatch {
-		// Checksum mismatch - try to rebuild from local history
-		return r.repairViaRebuild(repairCtx, mutableState, persistedChecksum)
+	repairErr := r.attemptRepairByType(repairCtx, mutableState, corruptionType, persistedChecksum)
+	if repairErr != nil {
+		if r.shard.GetConfig().EnableCorruptionForcedTermination(domainName) && !isRepairErrorTransient(repairErr) {
+			if termErr := r.terminateCorruptedWorkflow(repairCtx, mutableState, workflowTags, repairErr); termErr != nil {
+				return termErr
+			}
+			return ErrWorkflowTerminatedDueToCorruption
+		}
+		return repairErr
 	}
+	return nil
+}
 
-	// Unknown corruption type - should not happen
-	return &types.InternalServiceError{
-		Message: fmt.Sprintf("unknown corruption type: %v", corruptionType),
+// isRepairErrorTransient returns true if the repair error is due to a transient infrastructure
+// issue (timeout, DB unavailability, service busy) rather than permanent corruption.
+// Transient errors should not trigger workflow termination — the repair will be retried on the
+// next workflow load. Only permanent errors (unreadable history, checksum mismatch after rebuild)
+// justify termination.
+func isRepairErrorTransient(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+	if errors.Is(err, ErrUnknownCorruptionType) {
+		return true
+	}
+	var timeoutErr *persistence.TimeoutError
+	var busyErr *types.ServiceBusyError
+	var condErr *persistence.ConditionFailedError
+	var shardErr *types.ShardOwnershipLostError
+	return errors.As(err, &timeoutErr) || errors.As(err, &busyErr) ||
+		errors.As(err, &condErr) || errors.As(err, &shardErr)
+}
+
+// attemptRepairByType dispatches to the appropriate repair strategy for the given corruption type.
+// Adding a new CorruptionType only requires adding a case here.
+func (r *workflowRepairerImpl) attemptRepairByType(
+	ctx context.Context,
+	mutableState MutableState,
+	corruptionType CorruptionType,
+	persistedChecksum checksum.Checksum,
+) error {
+	switch corruptionType {
+	case CorruptionTypeChecksumMismatch:
+		return r.repairViaRebuild(ctx, mutableState, persistedChecksum)
+	default:
+		return fmt.Errorf("%w: %v", ErrUnknownCorruptionType, corruptionType)
 	}
 }
 
@@ -440,6 +487,202 @@ func (r *workflowRepairerImpl) logChecksumMismatchDetected(
 	)
 
 	r.logger.Warn("Mutable state corruption detected: checksum mismatch", logTags...)
+}
+
+// terminateCorruptedWorkflow attempts to terminate a workflow that cannot be repaired.
+// It first tries proper termination (writing a history event), and falls back to
+// force-closing (direct DB state update without a history event) if that fails.
+// Returns nil on success (either path), ErrRepairAndTerminationFailed if both paths fail.
+func (r *workflowRepairerImpl) terminateCorruptedWorkflow(
+	ctx context.Context,
+	mutableState MutableState,
+	workflowTags []tag.Tag,
+	repairErr error,
+) error {
+	r.scope.IncCounter(metrics.WorkflowCorruptionTerminationAttempted)
+
+	// Capture the DB condition before terminateWithHistoryEvent mutates in-memory state
+	// (e.g. AddWorkflowExecutionTerminatedEvent increments NextEventID). If proper termination
+	// fails after that mutation, forceCloseWorkflow must use the original value — the DB still
+	// has the pre-mutation NextEventID and will reject a condition that doesn't match.
+	originalNextEventID := mutableState.GetNextEventID()
+
+	if err := r.terminateWithHistoryEvent(ctx, mutableState); err != nil {
+		r.logger.Warn("termination via history event of corrupted workflow failed, falling back to force-close",
+			append(workflowTags, tag.Error(err))...)
+		r.scope.IncCounter(metrics.WorkflowCorruptionTerminationFailure)
+		r.scope.IncCounter(metrics.WorkflowCorruptionForcedCloseAttempted)
+
+		if forceErr := r.forceCloseWorkflow(ctx, mutableState, originalNextEventID); forceErr != nil {
+			r.scope.IncCounter(metrics.WorkflowCorruptionForcedCloseFailure)
+			r.logger.Error("repair failed and termination also failed",
+				append(workflowTags, tag.Error(repairErr), tag.Dynamic("terminationError", forceErr))...)
+			return ErrRepairAndTerminationFailed
+		}
+
+		r.logger.Error("corrupted workflow force-closed due to unrecoverable corruption", workflowTags...)
+		r.scope.IncCounter(metrics.WorkflowCorruptionForcedCloseSuccess)
+		return nil
+	}
+
+	r.logger.Error("corrupted workflow terminated due to unrecoverable corruption", workflowTags...)
+	r.scope.IncCounter(metrics.WorkflowCorruptionTerminationSuccess)
+	return nil
+}
+
+// terminateWithHistoryEvent terminates a workflow by writing a WorkflowExecutionTerminated
+// history event and persisting the updated state.
+func (r *workflowRepairerImpl) terminateWithHistoryEvent(
+	ctx context.Context,
+	mutableState MutableState,
+) error {
+	domainName := mutableState.GetDomainEntry().GetInfo().Name
+	// Capture the first event ID in this batch before any events are added
+	eventBatchFirstEventID := mutableState.GetNextEventID()
+
+	if err := TerminateWorkflow(
+		mutableState,
+		eventBatchFirstEventID,
+		"workflow state is corrupted and could not be repaired",
+		nil,
+		"cadence-system",
+	); err != nil {
+		return err
+	}
+
+	// Use TransactionPolicyPassive to avoid generating transfer/timer tasks locally.
+	// Determining the correct policy requires knowing whether this specific workflow run
+	// is active on the current cluster — which is non-trivial for active-active (NDC) domains
+	// where ownership is per-run, not per-domain. Since this is an emergency termination path
+	// for a workflow that is already corrupted, skipping local task generation is acceptable:
+	// the terminated state is written to the DB and replication will propagate it. On the active
+	// cluster any pending tasks for this run will naturally expire or be cleaned up by the timer/
+	// transfer queue once the workflow is seen as completed.
+	// Note: CloseExecutionTask and DeleteHistoryEventTask are already enqueued into mutable state's
+	// pending task list by TerminateWorkflow → AddWorkflowExecutionTerminatedEvent →
+	// ReplicateWorkflowExecutionTerminatedEvent → GenerateWorkflowCloseTasks.
+	// CloseTransactionAsMutation then includes them in the WorkflowMutation regardless of policy,
+	// so they will be persisted by the UpdateWorkflowExecution call below.
+	mutation, eventsSeq, err := mutableState.CloseTransactionAsMutation(time.Now(), TransactionPolicyPassive)
+	if err != nil {
+		return err
+	}
+	mutation.ExecutionStats = &persistence.ExecutionStats{HistorySize: mutableState.GetHistorySize()}
+
+	executionInfo := mutableState.GetExecutionInfo()
+	execution := types.WorkflowExecution{
+		WorkflowID: executionInfo.WorkflowID,
+		RunID:      executionInfo.RunID,
+	}
+	for _, workflowEvents := range eventsSeq {
+		if _, err := r.shard.AppendHistoryV2Events(ctx, &persistence.AppendHistoryNodesRequest{
+			IsNewBranch: false,
+			BranchToken: workflowEvents.BranchToken,
+			Events:      workflowEvents.Events,
+			DomainName:  domainName,
+		}, executionInfo.DomainID, execution); err != nil {
+			return err
+		}
+	}
+
+	_, err = r.shard.UpdateWorkflowExecution(ctx, &persistence.UpdateWorkflowExecutionRequest{
+		Mode:                   persistence.UpdateWorkflowModeIgnoreCurrent,
+		UpdateWorkflowMutation: *mutation,
+		DomainName:             domainName,
+	})
+	return err
+}
+
+// forceCloseWorkflow directly writes a terminated state to the DB without creating a history event.
+// Used as a last resort when proper termination fails (e.g. history is unreadable).
+// expectedNextEventID must be the NextEventID from the DB before any in-memory mutations by
+// terminateWithHistoryEvent, so the persistence condition check matches the current DB state.
+func (r *workflowRepairerImpl) forceCloseWorkflow(
+	ctx context.Context,
+	mutableState MutableState,
+	expectedNextEventID int64,
+) error {
+	domainName := mutableState.GetDomainEntry().GetInfo().Name
+	info := mutableState.GetExecutionInfo()
+	info.State = persistence.WorkflowStateCompleted
+	info.CloseStatus = persistence.WorkflowCloseStatusTerminated
+
+	// Unlike terminateWithHistoryEvent, this path writes no history event. When the CloseExecutionTask
+	// fires later, the transfer executor calls GetCompletionEvent to read the close timestamp for
+	// visibility. GetCompletionEvent normally reads CompletionEventBatchID to locate the event in
+	// history — which we never wrote — so it would return ErrMissingWorkflowCompletionEvent and the
+	// task would fail and retry forever. We store the completion event inline in ExecutionInfo so
+	// GetCompletionEvent can return it without a history read. This is the same mechanism used for
+	// workflows written before the batch ID scheme was introduced.
+	closeTime := time.Now()
+	info.CompletionEvent = &types.HistoryEvent{
+		EventType: types.EventTypeWorkflowExecutionTerminated.Ptr(),
+		Version:   mutableState.GetCurrentVersion(),
+		Timestamp: common.Int64Ptr(closeTime.UnixNano()),
+		WorkflowExecutionTerminatedEventAttributes: &types.WorkflowExecutionTerminatedEventAttributes{
+			Reason:   "workflow state is corrupted and could not be repaired",
+			Identity: "cadence-system",
+		},
+	}
+	mutation := persistence.WorkflowMutation{
+		ExecutionInfo:    info,
+		VersionHistories: mutableState.GetVersionHistories(),
+		ExecutionStats:   &persistence.ExecutionStats{HistorySize: mutableState.GetHistorySize()},
+		Condition:        expectedNextEventID,
+		TasksByCategory:  map[persistence.HistoryTaskCategory][]persistence.Task{},
+	}
+	r.addRetentionTasksToMutation(&mutation, info, mutableState.GetCurrentVersion(), closeTime)
+
+	_, err := r.shard.UpdateWorkflowExecution(ctx, &persistence.UpdateWorkflowExecutionRequest{
+		Mode:                   persistence.UpdateWorkflowModeIgnoreCurrent,
+		UpdateWorkflowMutation: mutation,
+		DomainName:             domainName,
+	})
+	return err
+}
+
+// addRetentionTasksToMutation appends a CloseExecutionTask and a DeleteHistoryEventTask to the
+// mutation's TasksByCategory map. This is needed for forceCloseWorkflow, which writes no history
+// event and therefore never goes through GenerateWorkflowCloseTasks. Without these tasks the
+// workflow would be left in a completed state indefinitely with no retention cleanup.
+// If the domain cache lookup fails a 1-day fallback is used so termination is never blocked.
+func (r *workflowRepairerImpl) addRetentionTasksToMutation(
+	mutation *persistence.WorkflowMutation,
+	executionInfo *persistence.WorkflowExecutionInfo,
+	version int64,
+	closeTime time.Time,
+) {
+	retentionDays := int32(1)
+	if domainEntry, err := r.shard.GetDomainCache().GetDomainByID(executionInfo.DomainID); err == nil {
+		retentionDays = domainEntry.GetRetentionDays(executionInfo.WorkflowID)
+	}
+
+	workflowIdentifier := persistence.WorkflowIdentifier{
+		DomainID:   executionInfo.DomainID,
+		WorkflowID: executionInfo.WorkflowID,
+		RunID:      executionInfo.RunID,
+	}
+	// CloseExecutionTask triggers the transfer queue to update visibility and run post-close logic.
+	mutation.TasksByCategory[persistence.HistoryTaskCategoryTransfer] = append(
+		mutation.TasksByCategory[persistence.HistoryTaskCategoryTransfer],
+		&persistence.CloseExecutionTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           persistence.TaskData{Version: version},
+			TaskList:           executionInfo.TaskList,
+		},
+	)
+	// DeleteHistoryEventTask triggers the timer queue to delete history after the retention period.
+	mutation.TasksByCategory[persistence.HistoryTaskCategoryTimer] = append(
+		mutation.TasksByCategory[persistence.HistoryTaskCategoryTimer],
+		&persistence.DeleteHistoryEventTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData: persistence.TaskData{
+				Version:             version,
+				VisibilityTimestamp: closeTime.Add(time.Duration(retentionDays) * 24 * time.Hour),
+			},
+			TaskList: executionInfo.TaskList,
+		},
+	)
 }
 
 // checksumMatches returns true if both checksums are non-empty and equal

@@ -2246,6 +2246,15 @@ const (
 	// Allowed filters: DomainName
 	RequireChecksumMatchAfterRebuildRepair
 
+	// EnableCorruptionForcedTermination enables force-termination of workflows that cannot be repaired.
+	// When enabled and repair fails, the workflow is terminated (with a history event if possible,
+	// or force-closed directly in DB if history is unreadable).
+	// KeyName: history.enableCorruptionForcedTermination
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableCorruptionForcedTermination
+
 	// EnableStrongIdempotency enables strong idempotency for APIs
 	// KeyName: history.enableStrongIdempotency
 	// Value type: Bool
@@ -5009,6 +5018,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Filters:      []Filter{DomainName},
 		Description:  "RequireChecksumMatchAfterRebuildRepair requires that rebuilt state produces same checksum as original",
 		DefaultValue: true,
+	},
+	EnableCorruptionForcedTermination: {
+		KeyName:      "history.enableCorruptionForcedTermination",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableCorruptionForcedTermination enables force-termination of workflows that cannot be repaired",
+		DefaultValue: false,
 	},
 	EnableStrongIdempotency: {
 		KeyName:      "history.enableStrongIdempotency",
