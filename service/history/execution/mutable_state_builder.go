@@ -111,7 +111,7 @@ type (
 		updateSignalRequestedIDs  map[string]struct{} // Set of signaled requestIds since last update
 		deleteSignalRequestedIDs  map[string]struct{} // Deleted signaled requestIds
 
-		workflowTimerTaskInfos []*persistence.WorkflowTimerTaskInfo // Workflow timer task infos loaded from persistence
+		workflowTimerTaskInfos map[int64]*persistence.WorkflowTimerTaskInfo // Workflow timer task infos loaded from persistence
 
 		bufferedEvents       []*types.HistoryEvent // buffered history events that are already persisted
 		updateBufferedEvents []*types.HistoryEvent // buffered history events that needs to be persisted
@@ -1477,11 +1477,8 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 			persistence.HistoryTaskCategoryReplication: e.insertReplicationTasks,
 			persistence.HistoryTaskCategoryTimer:       e.insertTimerTasks,
 		},
-		// Note: WorkflowTimerTasks is intentionally not set here. Timer task tracking
-		// for workflow mutations is handled by execution_manager.syncExecutionInfoWithTasks,
-		// which currently only runs at workflow creation. To extend tracking to cover
-		// tasks added during updates, include e.workflowTimerTaskInfos here and call a
-		// corresponding sync in UpdateWorkflowExecution.
+
+		WorkflowTimerTaskInfos: e.workflowTimerTaskInfos,
 
 		WorkflowRequests: convertWorkflowRequests(e.workflowRequests),
 

@@ -6152,7 +6152,8 @@ func (s *ExecutionManagerSuite) TestWorkflowTimerTaskTracking() {
 
 	// Verify that the workflow timer task was tracked and round-tripped through persistence
 	s.Require().Len(state.WorkflowTimerTaskInfos, 1, "expected one tracked workflow timer task")
-	tracked := state.WorkflowTimerTaskInfos[0]
+	tracked := state.WorkflowTimerTaskInfos[timerTask.TaskID]
+	s.Require().NotNil(tracked)
 	s.Equal(timerTask.TaskID, tracked.TaskID)
 	s.WithinDuration(timestampConvertor(visibilityTimestamp), tracked.VisibilityTimestamp, time.Millisecond)
 }

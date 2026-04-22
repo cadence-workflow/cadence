@@ -103,8 +103,8 @@ type (
 		DeserializeActiveClusterSelectionPolicy(data *DataBlob) (*types.ActiveClusterSelectionPolicy, error)
 
 		// serialize/deserialize workflow timer tasks
-		SerializeWorkflowTimerTasks(tasks []*WorkflowTimerTaskInfo, encodingType constants.EncodingType) (*DataBlob, error)
-		DeserializeWorkflowTimerTasks(data *DataBlob) ([]*WorkflowTimerTaskInfo, error)
+		SerializeWorkflowTimerTasks(tasks map[int64]*WorkflowTimerTaskInfo, encodingType constants.EncodingType) (*DataBlob, error)
+		DeserializeWorkflowTimerTasks(data *DataBlob) (map[int64]*WorkflowTimerTaskInfo, error)
 	}
 
 	// CadenceSerializationError is an error type for cadence serialization
@@ -383,23 +383,34 @@ func (t *serializerImpl) DeserializeActiveClusterSelectionPolicy(data *DataBlob)
 	return &policy, err
 }
 
-func (t *serializerImpl) SerializeWorkflowTimerTasks(tasks []*WorkflowTimerTaskInfo, encodingType constants.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) SerializeWorkflowTimerTasks(tasks map[int64]*WorkflowTimerTaskInfo, encodingType constants.EncodingType) (*DataBlob, error) {
 	if len(tasks) == 0 {
 		return nil, nil
 	}
-	return t.serialize(tasks, encodingType)
+	slice := make([]*WorkflowTimerTaskInfo, 0, len(tasks))
+	for _, task := range tasks {
+		slice = append(slice, task)
+	}
+	return t.serialize(slice, encodingType)
 }
 
-func (t *serializerImpl) DeserializeWorkflowTimerTasks(data *DataBlob) ([]*WorkflowTimerTaskInfo, error) {
+func (t *serializerImpl) DeserializeWorkflowTimerTasks(data *DataBlob) (map[int64]*WorkflowTimerTaskInfo, error) {
 	if data == nil {
 		return nil, nil
 	}
-	var tasks []*WorkflowTimerTaskInfo
 	if len(data.Data) == 0 {
-		return tasks, nil
+		return nil, nil
 	}
+	var tasks []*WorkflowTimerTaskInfo
 	err := t.deserialize(data, &tasks)
-	return tasks, err
+	if err != nil || len(tasks) == 0 {
+		return nil, err
+	}
+	result := make(map[int64]*WorkflowTimerTaskInfo, len(tasks))
+	for _, task := range tasks {
+		result[task.TaskID] = task
+	}
+	return result, nil
 }
 
 func (t *serializerImpl) serialize(input interface{}, encodingType constants.EncodingType) (*DataBlob, error) {

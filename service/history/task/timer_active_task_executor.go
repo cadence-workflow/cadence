@@ -161,6 +161,8 @@ func (t *timerActiveTaskExecutor) executeUserTimerTimeoutTask(
 		return nil
 	}
 
+	mutableState.RemoveTrackedTimerTask(task.GetTaskID())
+
 	timerSequence := execution.NewTimerSequence(mutableState)
 	referenceTime := t.shard.GetTimeSource().Now()
 	resurrectionCheckMinDelay := t.config.ResurrectionCheckMinDelay(mutableState.GetDomainEntry().GetInfo().Name)
@@ -302,6 +304,8 @@ func (t *timerActiveTaskExecutor) executeActivityTimeoutTask(
 	if mutableState == nil || !mutableState.IsWorkflowExecutionRunning() {
 		return nil
 	}
+
+	mutableState.RemoveTrackedTimerTask(task.GetTaskID())
 
 	wfType := mutableState.GetWorkflowType()
 	if wfType == nil {
@@ -486,6 +490,8 @@ func (t *timerActiveTaskExecutor) executeDecisionTimeoutTask(
 	if mutableState == nil || !mutableState.IsWorkflowExecutionRunning() {
 		return nil
 	}
+
+	mutableState.RemoveTrackedTimerTask(task.GetTaskID())
 
 	wfType := mutableState.GetWorkflowType()
 	if wfType == nil {
@@ -683,6 +689,8 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 	if mutableState == nil || !mutableState.IsWorkflowExecutionRunning() {
 		return nil
 	}
+
+	mutableState.RemoveTrackedTimerTask(task.GetTaskID())
 
 	// generate activity task
 	scheduledID := task.EventID

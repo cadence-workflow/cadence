@@ -1697,3 +1697,68 @@ func sampleInternalChildExecutionInfo(initEventID, startedEventID int64) *Intern
 func sampleEventDataWithVersion(i int64) *DataBlob {
 	return NewDataBlob([]byte(fmt.Sprintf("test-event-%d", i)), constants.EncodingTypeThriftRW)
 }
+
+func TestSyncMutationWithTasks(t *testing.T) {
+	dc := &DynamicConfiguration{
+		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(true),
+	}
+	manager := &executionManagerImpl{
+		logger: testlogger.New(t),
+		dc:     dc,
+	}
+
+	taskID1 := int64(101)
+	taskID2 := int64(102)
+	visTS1 := time.Now().Add(24 * time.Hour)
+	visTS2 := time.Now().Add(48 * time.Hour)
+
+	existing := map[int64]*WorkflowTimerTaskInfo{
+		taskID1: {TaskID: taskID1, VisibilityTimestamp: visTS1, TimeoutType: 0},
+	}
+
+	mutation := &WorkflowMutation{
+		WorkflowTimerTaskInfos: existing,
+		TasksByCategory: map[HistoryTaskCategory][]Task{
+			HistoryTaskCategoryTimer: {
+				&WorkflowTimeoutTask{
+					WorkflowIdentifier: WorkflowIdentifier{DomainID: "d1", WorkflowID: "w1", RunID: "r1"},
+					TaskData:           TaskData{TaskID: taskID2, VisibilityTimestamp: visTS2},
+				},
+			},
+		},
+	}
+
+	manager.syncMutationWithTasks(mutation)
+
+	assert.Len(t, mutation.WorkflowTimerTaskInfos, 2)
+	assert.Equal(t, taskID1, mutation.WorkflowTimerTaskInfos[taskID1].TaskID)
+	assert.Equal(t, taskID2, mutation.WorkflowTimerTaskInfos[taskID2].TaskID)
+	assert.WithinDuration(t, visTS2, mutation.WorkflowTimerTaskInfos[taskID2].VisibilityTimestamp, time.Millisecond)
+}
+
+func TestSyncMutationWithTasksFeatureFlagOff(t *testing.T) {
+	dc := &DynamicConfiguration{
+		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(false),
+	}
+	manager := &executionManagerImpl{
+		logger: testlogger.New(t),
+		dc:     dc,
+	}
+
+	mutation := &WorkflowMutation{
+		TasksByCategory: map[HistoryTaskCategory][]Task{
+			HistoryTaskCategoryTimer: {
+				&WorkflowTimeoutTask{
+					WorkflowIdentifier: WorkflowIdentifier{DomainID: "d1", WorkflowID: "w1", RunID: "r1"},
+					TaskData:           TaskData{TaskID: 101, VisibilityTimestamp: time.Now().Add(48 * time.Hour)},
+				},
+			},
+		},
+	}
+
+	manager.syncMutationWithTasks(mutation)
+
+	assert.Empty(t, mutation.WorkflowTimerTaskInfos, "should not track when flag is off")
+}

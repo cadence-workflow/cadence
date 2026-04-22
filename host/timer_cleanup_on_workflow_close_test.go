@@ -232,3 +232,96 @@ func (s *TimerCleanupOnWorkflowCloseSuite) isWorkflowDeleted(domainID string, ex
 	}
 	return false
 }
+
+// TestUserTimerCleanupAtWorkflowClose verifies that a long-duration user timer scheduled
+// during workflow execution is also tracked and deleted when the workflow closes early.
+// Flow: start workflow → schedule 48h user timer → signal to trigger second decision
+// → complete workflow → verify both execution timeout and user timer tasks are deleted.
+func (s *TimerCleanupOnWorkflowCloseSuite) TestUserTimerCleanupAtWorkflowClose() {
+	if TestFlags.PersistenceType != config.StoreTypeCassandra {
+		s.T().Skip("timer cleanup on workflow close only implemented for Cassandra")
+	}
+
+	id := "integration-timer-cleanup-user-timer-test-" + uuid.New()
+	wt := "integration-timer-cleanup-user-timer-test-type"
+	tl := "integration-timer-cleanup-user-timer-test-tasklist"
+	identity := "worker1"
+	signalName := "trigger-complete"
+
+	ctx, cancel := createContext()
+	defer cancel()
+
+	we, err := s.Engine.StartWorkflowExecution(ctx, &types.StartWorkflowExecutionRequest{
+		RequestID:                           uuid.New(),
+		Domain:                              s.DomainName,
+		WorkflowID:                          id,
+		WorkflowType:                        &types.WorkflowType{Name: wt},
+		TaskList:                            &types.TaskList{Name: tl},
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32(48 * 60 * 60)),
+		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(10),
+		Identity:                            identity,
+	})
+	s.NoError(err)
+	runID := we.RunID
+
+	// First decision: schedule a 48h user timer.
+	timerScheduled := false
+	poller := &TaskPoller{
+		Engine:   s.Engine,
+		Domain:   s.DomainName,
+		TaskList: &types.TaskList{Name: tl},
+		Identity: identity,
+		DecisionHandler: func(
+			_ *types.WorkflowExecution,
+			_ *types.WorkflowType,
+			_, _ int64,
+			history *types.History,
+		) ([]byte, []*types.Decision, error) {
+			if !timerScheduled {
+				timerScheduled = true
+				return nil, []*types.Decision{{
+					DecisionType: types.DecisionTypeStartTimer.Ptr(),
+					StartTimerDecisionAttributes: &types.StartTimerDecisionAttributes{
+						TimerID:                   "long-timer",
+						StartToFireTimeoutSeconds: common.Int64Ptr(48 * 60 * 60),
+					},
+				}}, nil
+			}
+			// Second decision (after signal): complete the workflow.
+			return nil, []*types.Decision{{
+				DecisionType: types.DecisionTypeCompleteWorkflowExecution.Ptr(),
+				CompleteWorkflowExecutionDecisionAttributes: &types.CompleteWorkflowExecutionDecisionAttributes{
+					Result: []byte("done"),
+				},
+			}}, nil
+		},
+		Logger: s.Logger,
+		T:      s.T(),
+	}
+
+	// Process first decision — schedules the user timer.
+	_, err = poller.PollAndProcessDecisionTask(false, false)
+	s.NoError(err)
+
+	// Signal the workflow to force a second decision.
+	ctx2, cancel2 := createContext()
+	defer cancel2()
+	err = s.Engine.SignalWorkflowExecution(ctx2, &types.SignalWorkflowExecutionRequest{
+		Domain:            s.DomainName,
+		WorkflowExecution: &types.WorkflowExecution{WorkflowID: id, RunID: runID},
+		SignalName:        signalName,
+		Identity:          identity,
+	})
+	s.NoError(err)
+
+	// Process second decision — completes the workflow.
+	_, err = poller.PollAndProcessDecisionTask(false, false)
+	s.NoError(err)
+
+	// Give the close-time goroutine time to run.
+	time.Sleep(10 * time.Second)
+
+	// Both the execution timeout timer and the user timer task should be deleted.
+	s.True(s.isTimerTaskDeletedForRun(runID),
+		"expected all timer tasks (execution timeout + user timer) to be deleted after workflow close")
+}

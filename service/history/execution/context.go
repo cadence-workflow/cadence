@@ -926,18 +926,17 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 			taskList := currentWorkflow.ExecutionInfo.TaskList
 			c.emitWorkflowCompletionStatsFn(domain, workflowType, c.workflowExecution.GetWorkflowID(), c.workflowExecution.GetRunID(), taskList, event)
 		}
-		c.deleteWorkflowTimerTasksBestEffortAsync(currentWorkflow.ExecutionInfo)
+		c.deleteTrackedTimerTasksOnWorkflowCloseAsync(currentWorkflow.ExecutionInfo)
 	}
 
 	return nil
 }
 
-// deleteWorkflowTimerTasksBestEffortAsync spawns a goroutine to delete tracked workflow timer tasks
-// that are still pending (i.e. the workflow closed before they fired). This is a best-effort
-// cleanup that runs in addition to the retention-time cleanup in timer_task_executor_base.go.
-// A goroutine is used so that workflow close latency is not affected, and to be safe when
-// the number of tracked tasks grows (e.g. once user-timer tracking is added via the IDL work).
-func (c *contextImpl) deleteWorkflowTimerTasksBestEffortAsync(executionInfo *persistence.WorkflowExecutionInfo) {
+// deleteTrackedTimerTasksOnWorkflowCloseAsync spawns a goroutine to delete timer tasks
+// that were tracked but not yet fired when the workflow closed. Runs best-effort at
+// close time so workflow close latency is not affected. A safety-net deletion also runs
+// at retention time via deleteTrackedTimerTasksOnWorkflowDeletion.
+func (c *contextImpl) deleteTrackedTimerTasksOnWorkflowCloseAsync(executionInfo *persistence.WorkflowExecutionInfo) {
 	cfg := c.shard.GetConfig()
 	if cfg.EnableTimerCleanupOnWorkflowClose == nil || !cfg.EnableTimerCleanupOnWorkflowClose() {
 		return
@@ -946,11 +945,13 @@ func (c *contextImpl) deleteWorkflowTimerTasksBestEffortAsync(executionInfo *per
 	if len(timerTasks) == 0 {
 		return
 	}
-	// Defensive copy: the goroutine outlives the mutable state lock. If mutation-time
-	// tracking is added later (see CloseTransactionAsMutation), the slice backing array
-	// could be modified concurrently without this copy.
-	tasksCopy := make([]*persistence.WorkflowTimerTaskInfo, len(timerTasks))
-	copy(tasksCopy, timerTasks)
+	// Defensive copy: the goroutine outlives the mutable state lock. If the map is modified
+	// concurrently (e.g. via RemoveTrackedTimerTask during timer processing), the goroutine
+	// must work on a stable snapshot.
+	tasksCopy := make(map[int64]*persistence.WorkflowTimerTaskInfo, len(timerTasks))
+	for k, v := range timerTasks {
+		tasksCopy[k] = v
+	}
 
 	threshold := c.shard.GetConfig().TimerDeletionOnWorkflowCloseMinTTL()
 	now := c.shard.GetTimeSource().Now()

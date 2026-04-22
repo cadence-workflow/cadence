@@ -170,7 +170,7 @@ func (t *timerTaskExecutorBase) deleteWorkflow(
 		return err
 	}
 
-	t.deleteWorkflowTimerTasksBestEffort(ctx, task, msBuilder)
+	t.deleteTrackedTimerTasksOnWorkflowDeletion(ctx, task, msBuilder)
 
 	// it must be the last one due to the nature of workflow execution deletion
 	if err := t.deleteWorkflowExecution(ctx, task); err != nil {
@@ -248,7 +248,7 @@ func (t *timerTaskExecutorBase) archiveWorkflow(
 		return err
 	}
 
-	t.deleteWorkflowTimerTasksBestEffort(ctx, task, msBuilder)
+	t.deleteTrackedTimerTasksOnWorkflowDeletion(ctx, task, msBuilder)
 
 	if err := t.deleteWorkflowExecution(ctx, task); err != nil {
 		return err
@@ -362,7 +362,7 @@ func (t *timerTaskExecutorBase) deleteWorkflowVisibility(
 	return t.throttleRetry.Do(ctx, op)
 }
 
-func (t *timerTaskExecutorBase) deleteWorkflowTimerTasksBestEffort(
+func (t *timerTaskExecutorBase) deleteTrackedTimerTasksOnWorkflowDeletion(
 	ctx context.Context,
 	task *persistence.DeleteHistoryEventTask,
 	msBuilder execution.MutableState,

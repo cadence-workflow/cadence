@@ -144,7 +144,8 @@ type (
 		GetPendingChildExecutionInfos() map[int64]*persistence.ChildExecutionInfo
 		GetPendingRequestCancelExternalInfos() map[int64]*persistence.RequestCancelInfo
 		GetPendingSignalExternalInfos() map[int64]*persistence.SignalInfo
-		GetPendingWorkflowTimerTaskInfos() []*persistence.WorkflowTimerTaskInfo
+		GetPendingWorkflowTimerTaskInfos() map[int64]*persistence.WorkflowTimerTaskInfo
+		RemoveTrackedTimerTask(taskID int64)
 		GetRequestCancelInfo(int64) (*persistence.RequestCancelInfo, bool)
 		GetRetryBackoffDuration(errReason string) time.Duration
 		GetCronBackoffDuration(context.Context) (time.Duration, error)

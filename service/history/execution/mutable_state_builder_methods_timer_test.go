@@ -198,3 +198,36 @@ func Test__GetPendingTimerInfos(t *testing.T) {
 	result := mb.GetPendingTimerInfos()
 	assert.Equal(t, pendingTimerInfo, result)
 }
+
+func TestRemoveTrackedTimerTask(t *testing.T) {
+	mb := testMutableStateBuilder(t)
+
+	mb.workflowTimerTaskInfos = map[int64]*persistence.WorkflowTimerTaskInfo{
+		101: {TaskID: 101},
+		102: {TaskID: 102},
+		103: {TaskID: 103},
+	}
+
+	mb.RemoveTrackedTimerTask(102)
+
+	assert.Len(t, mb.workflowTimerTaskInfos, 2)
+	assert.Contains(t, mb.workflowTimerTaskInfos, int64(101))
+	assert.NotContains(t, mb.workflowTimerTaskInfos, int64(102))
+	assert.Contains(t, mb.workflowTimerTaskInfos, int64(103))
+
+	// removing a non-existent task is a no-op
+	mb.RemoveTrackedTimerTask(999)
+	assert.Len(t, mb.workflowTimerTaskInfos, 2)
+}
+
+func TestGetPendingWorkflowTimerTaskInfos(t *testing.T) {
+	mb := testMutableStateBuilder(t)
+
+	assert.Empty(t, mb.GetPendingWorkflowTimerTaskInfos())
+
+	infos := map[int64]*persistence.WorkflowTimerTaskInfo{
+		101: {TaskID: 101},
+	}
+	mb.workflowTimerTaskInfos = infos
+	assert.Equal(t, infos, mb.GetPendingWorkflowTimerTaskInfos())
+}

@@ -289,7 +289,7 @@ func (m *executionManagerImpl) DeserializeChildExecutionInfos(
 
 func (m *executionManagerImpl) DeserializeWorkflowTimerTasks(
 	blob *DataBlob,
-) ([]*WorkflowTimerTaskInfo, error) {
+) (map[int64]*WorkflowTimerTaskInfo, error) {
 	if blob == nil || len(blob.Data) == 0 {
 		return nil, nil
 	}
@@ -358,10 +358,7 @@ func (m *executionManagerImpl) UpdateWorkflowExecution(
 	ctx context.Context,
 	request *UpdateWorkflowExecutionRequest,
 ) (*UpdateWorkflowExecutionResponse, error) {
-	// Note: syncExecutionInfoWithTasks is intentionally not called here. Timer task
-	// tracking currently only covers tasks created at workflow creation. To extend
-	// tracking to update mutations, call a sync here that appends new tasks from
-	// request.UpdateWorkflowMutation.TasksByCategory to the existing WorkflowTimerTasks.
+	m.syncMutationWithTasks(&request.UpdateWorkflowMutation)
 
 	serializedWorkflowMutation, err := m.SerializeWorkflowMutation(&request.UpdateWorkflowMutation, request.Encoding)
 	if err != nil {
@@ -433,7 +430,7 @@ func (m *executionManagerImpl) SerializeUpsertChildExecutionInfos(
 }
 
 func (m *executionManagerImpl) SerializeWorkflowTimerTasks(
-	tasks []*WorkflowTimerTaskInfo,
+	tasks map[int64]*WorkflowTimerTaskInfo,
 	encoding constants.EncodingType,
 ) (*DataBlob, error) {
 	return m.serializer.SerializeWorkflowTimerTasks(tasks, encoding)
@@ -687,18 +684,57 @@ func (m *executionManagerImpl) syncExecutionInfoWithTasks(workflowSnapshot *Work
 			case HistoryTaskCategoryIDTimer:
 				timerTaskInfo, err := task.ToTimerTaskInfo()
 				if err != nil {
-					m.logger.Warn("Failed to convert timer task info for tracking; task will not be cleaned up on workflow deletion",
+					m.logger.Warn("Failed to convert timer task info for tracking; task will not be cleaned up when the workflow closes",
 						tag.TaskID(task.GetTaskID()),
 						tag.Error(err),
 					)
 					continue
 				}
-				workflowSnapshot.WorkflowTimerTaskInfos = append(workflowSnapshot.WorkflowTimerTaskInfos, &WorkflowTimerTaskInfo{
+				if workflowSnapshot.WorkflowTimerTaskInfos == nil {
+					workflowSnapshot.WorkflowTimerTaskInfos = make(map[int64]*WorkflowTimerTaskInfo)
+				}
+				workflowSnapshot.WorkflowTimerTaskInfos[task.GetTaskID()] = &WorkflowTimerTaskInfo{
 					TaskID:              task.GetTaskID(),
 					VisibilityTimestamp: task.GetVisibilityTimestamp(),
 					TimeoutType:         timerTaskInfo.TimeoutType,
-				})
-			// not tracking any other types of tasks at present, although this may be reasonable in the future
+				}
+			// only timer tasks are tracked; other task categories (transfer, replication) are ignored
+			default:
+				continue
+			}
+		}
+	}
+}
+
+// syncMutationWithTasks appends timer task IDs from a workflow mutation to the accumulated
+// tracking list. Works the same as syncExecutionInfoWithTasks but for update mutations —
+// the existing list (carried from mutable state via CloseTransactionAsMutation) is extended
+// with any new timer tasks created in this mutation.
+func (m *executionManagerImpl) syncMutationWithTasks(mutation *WorkflowMutation) {
+	if m.dc == nil || m.dc.EnableTimerCleanupOnWorkflowClose == nil || !m.dc.EnableTimerCleanupOnWorkflowClose() {
+		return
+	}
+
+	for category, tasks := range mutation.TasksByCategory {
+		for _, task := range tasks {
+			switch category.categoryID {
+			case HistoryTaskCategoryIDTimer:
+				timerTaskInfo, err := task.ToTimerTaskInfo()
+				if err != nil {
+					m.logger.Warn("Failed to convert timer task info for tracking; task will not be cleaned up on workflow close",
+						tag.TaskID(task.GetTaskID()),
+						tag.Error(err),
+					)
+					continue
+				}
+				if mutation.WorkflowTimerTaskInfos == nil {
+					mutation.WorkflowTimerTaskInfos = make(map[int64]*WorkflowTimerTaskInfo)
+				}
+				mutation.WorkflowTimerTaskInfos[task.GetTaskID()] = &WorkflowTimerTaskInfo{
+					TaskID:              task.GetTaskID(),
+					VisibilityTimestamp: task.GetVisibilityTimestamp(),
+					TimeoutType:         timerTaskInfo.TimeoutType,
+				}
 			default:
 				continue
 			}

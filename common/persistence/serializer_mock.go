@@ -254,10 +254,10 @@ func (mr *MockPayloadSerializerMockRecorder) DeserializeVisibilityMemo(data any)
 }
 
 // DeserializeWorkflowTimerTasks mocks base method.
-func (m *MockPayloadSerializer) DeserializeWorkflowTimerTasks(data *DataBlob) ([]*WorkflowTimerTaskInfo, error) {
+func (m *MockPayloadSerializer) DeserializeWorkflowTimerTasks(data *DataBlob) (map[int64]*WorkflowTimerTaskInfo, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeserializeWorkflowTimerTasks", data)
-	ret0, _ := ret[0].([]*WorkflowTimerTaskInfo)
+	ret0, _ := ret[0].(map[int64]*WorkflowTimerTaskInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -479,7 +479,7 @@ func (mr *MockPayloadSerializerMockRecorder) SerializeVisibilityMemo(memo, encod
 }
 
 // SerializeWorkflowTimerTasks mocks base method.
-func (m *MockPayloadSerializer) SerializeWorkflowTimerTasks(tasks []*WorkflowTimerTaskInfo, encodingType constants.EncodingType) (*DataBlob, error) {
+func (m *MockPayloadSerializer) SerializeWorkflowTimerTasks(tasks map[int64]*WorkflowTimerTaskInfo, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SerializeWorkflowTimerTasks", tasks, encodingType)
 	ret0, _ := ret[0].(*DataBlob)

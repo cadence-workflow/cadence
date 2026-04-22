@@ -611,7 +611,7 @@ type (
 		RequestCancelInfos     map[int64]*RequestCancelInfo
 		SignalInfos            map[int64]*SignalInfo
 		SignalRequestedIDs     map[string]struct{}
-		WorkflowTimerTaskInfos []*WorkflowTimerTaskInfo
+		WorkflowTimerTaskInfos map[int64]*WorkflowTimerTaskInfo
 		ExecutionInfo          *WorkflowExecutionInfo
 		ExecutionStats         *ExecutionStats
 		BufferedEvents         []*types.HistoryEvent
@@ -706,9 +706,10 @@ type (
 		Control               []byte
 	}
 
-	// WorkflowTimerTaskInfo contains metadata about workflow-level timer tasks.
-	// These are timer tasks that are associated with the workflow execution itself
-	// rather than user-created timers or activities (e.g., WorkflowTimeoutTask).
+	// WorkflowTimerTaskInfo contains metadata about a timer task associated with a workflow
+	// execution, used to track and clean up pending timers when the workflow closes early.
+	// Timer tasks are tracked at workflow creation and update time; fired timers are removed
+	// from the map as they fire so only unfired tasks remain at workflow close.
 	WorkflowTimerTaskInfo struct {
 		TimeoutType         int
 		TaskID              int64
@@ -902,7 +903,7 @@ type (
 		DeleteActivityInfos       []int64
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
-		WorkflowTimerTaskInfos     []*WorkflowTimerTaskInfo
+		WorkflowTimerTaskInfos    map[int64]*WorkflowTimerTaskInfo
 		UpsertChildExecutionInfos []*ChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
@@ -930,11 +931,11 @@ type (
 
 		ActivityInfos          []*ActivityInfo
 		TimerInfos             []*TimerInfo
-		WorkflowTimerTaskInfos []*WorkflowTimerTaskInfo
+		WorkflowTimerTaskInfos map[int64]*WorkflowTimerTaskInfo
 		ChildExecutionInfos    []*ChildExecutionInfo
 		RequestCancelInfos     []*RequestCancelInfo
-		SignalInfos         []*SignalInfo
-		SignalRequestedIDs  []string
+		SignalInfos            []*SignalInfo
+		SignalRequestedIDs     []string
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 
