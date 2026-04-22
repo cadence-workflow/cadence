@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
@@ -38,6 +39,7 @@ import (
 	dc "github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
@@ -654,36 +656,66 @@ func TestBackfillSchedule(t *testing.T) {
 }
 
 func TestListSchedules(t *testing.T) {
-	tests := map[string]struct {
-		request *types.ListSchedulesRequest
-		mockFn  func(*scheduleTestFixture)
-		wantErr bool
-	}{
-		"nil request": {
-			request: nil,
-			mockFn:  func(f *scheduleTestFixture) {},
-			wantErr: true,
-		},
-		"unimplemented": {
-			request: &types.ListSchedulesRequest{Domain: testDomain},
-			mockFn:  func(f *scheduleTestFixture) {},
-			wantErr: true,
-		},
-	}
+	t.Run("nil request", func(t *testing.T) {
+		f := newScheduleTestFixture(t)
+		defer f.finish()
 
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			f := newScheduleTestFixture(t)
-			defer f.finish()
-			tt.mockFn(f)
+		resp, err := f.handler.ListSchedules(context.Background(), nil)
+		assert.Error(t, err)
+		assert.Nil(t, resp)
+	})
 
-			resp, err := f.handler.ListSchedules(context.Background(), tt.request)
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, resp)
-			}
+	t.Run("empty domain", func(t *testing.T) {
+		f := newScheduleTestFixture(t)
+		defer f.finish()
+
+		resp, err := f.handler.ListSchedules(context.Background(), &types.ListSchedulesRequest{})
+		assert.Error(t, err)
+		assert.Nil(t, resp)
+	})
+
+	t.Run("success with results", func(t *testing.T) {
+		f := newScheduleTestFixture(t)
+		defer f.finish()
+
+		f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+
+		f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.MatchedBy(func(req *persistence.ListWorkflowExecutionsByQueryRequest) bool {
+			return req.Domain == testDomain && req.Query == "WorkflowType = 'cadence-scheduler'"
+		})).Return(&persistence.ListWorkflowExecutionsResponse{
+			Executions: []*types.WorkflowExecutionInfo{
+				{
+					Execution: &types.WorkflowExecution{
+						WorkflowID: "cadence-scheduler:sched-1",
+						RunID:      "run-1",
+					},
+					Type: &types.WorkflowType{Name: scheduler.WorkflowTypeName},
+				},
+				{
+					Execution: &types.WorkflowExecution{
+						WorkflowID: "cadence-scheduler:sched-2",
+						RunID:      "run-2",
+					},
+					Type: &types.WorkflowType{Name: scheduler.WorkflowTypeName},
+				},
+			},
+			NextPageToken: []byte("next"),
+		}, nil).Once()
+
+		resp, err := f.handler.ListSchedules(context.Background(), &types.ListSchedulesRequest{
+			Domain:   testDomain,
+			PageSize: 10,
 		})
-	}
+		assert.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.Len(t, resp.Schedules, 2)
+		assert.Equal(t, "sched-1", resp.Schedules[0].ScheduleID)
+		assert.Nil(t, resp.Schedules[0].WorkflowType)
+		assert.Nil(t, resp.Schedules[0].State)
+		assert.Empty(t, resp.Schedules[0].CronExpression)
+		assert.Equal(t, "sched-2", resp.Schedules[1].ScheduleID)
+		assert.Equal(t, []byte("next"), resp.NextPageToken)
+	})
 }
 
 func TestNormalizeScheduleError(t *testing.T) {
