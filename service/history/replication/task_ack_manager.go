@@ -173,7 +173,7 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 	t.scope.RecordTimer(metrics.ReplicationTasksLagRaw, time.Duration(lagRaw))
 	t.scope.RecordHistogramValue(metrics.ReplicationTasksLagRawHistogram, float64(lagRaw))
 	t.scope.UpdateGauge(metrics.ReplicationTasksLagRawGauge, float64(lagRaw))
-	t.scope.RecordHistogramDuration(metrics.ReplicationTasksDelay, time.Duration(oldestUnprocessedTaskTimestamp-t.timeSource.Now().UnixNano()))
+	t.scope.RecordHistogramDuration(metrics.ReplicationTasksDelay, time.Duration(t.timeSource.Now().UnixNano()-oldestUnprocessedTaskTimestamp))
 
 	// hydrate the tasks
 	for _, info := range taskInfos {
