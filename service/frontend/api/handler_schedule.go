@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,6 +39,7 @@ const (
 	scheduleWorkflowIDPrefix          = "cadence-scheduler:"
 	schedulerWorkflowExecutionTimeout = 10 * 365 * 24 * time.Hour // ~10 years
 	schedulerWorkflowDecisionTimeout  = 10 * time.Second
+	defaultListSchedulesPageSize      = 10
 )
 
 func scheduleWorkflowID(scheduleID string) string {
@@ -388,7 +390,40 @@ func (wh *WorkflowHandler) ListSchedules(
 		return nil, validate.ErrDomainNotSet
 	}
 
-	return nil, &types.BadRequestError{Message: "ListSchedules is not yet implemented."}
+	pageSize := request.GetPageSize()
+	if pageSize <= 0 {
+		pageSize = defaultListSchedulesPageSize
+	}
+
+	// TODO: populate ScheduleListEntry.WorkflowType, State, and CronExpression once
+	// CreateSchedule stores schedule metadata in the scheduler workflow's Memo.
+	// Currently only ScheduleID is returned (derived from the workflow ID).
+	// Follow-up: store metadata in Memo at create time, update via UpsertMemo on
+	// pause/unpause/update signals, and read Memo from visibility results here.
+	listResp, err := wh.ListWorkflowExecutions(ctx, &types.ListWorkflowExecutionsRequest{
+		Domain:        domainName,
+		PageSize:      pageSize,
+		NextPageToken: request.GetNextPageToken(),
+		Query:         fmt.Sprintf("WorkflowType = '%s'", scheduler.WorkflowTypeName),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]*types.ScheduleListEntry, 0, len(listResp.GetExecutions()))
+	for _, exec := range listResp.GetExecutions() {
+		wfID := exec.GetExecution().GetWorkflowID()
+		scheduleID := strings.TrimPrefix(wfID, scheduleWorkflowIDPrefix)
+
+		entries = append(entries, &types.ScheduleListEntry{
+			ScheduleID: scheduleID,
+		})
+	}
+
+	return &types.ListSchedulesResponse{
+		Schedules:     entries,
+		NextPageToken: listResp.GetNextPageToken(),
+	}, nil
 }
 
 func (wh *WorkflowHandler) signalScheduleWorkflow(
