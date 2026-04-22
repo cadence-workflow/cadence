@@ -67,14 +67,14 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		return fmt.Errorf("failed to register query handler: %w", err)
 	}
 
-	// Re-upsert the paused search attribute on every execution (including after
+	// Re-upsert the state search attribute on every execution (including after
 	// ContinueAsNew). Search attributes set via UpsertSearchAttributes in a prior
 	// execution are not automatically carried over, so we must refresh them here
 	// to keep ListSchedules visibility results in sync with the current state.
 	if err := workflow.UpsertSearchAttributes(ctx, map[string]interface{}{
-		SearchAttrSchedulePaused: state.Paused,
+		SearchAttrScheduleState: scheduleStateFromPaused(state.Paused),
 	}); err != nil {
-		logger.Warn("failed to upsert schedule paused search attribute", zap.Error(err))
+		logger.Warn("failed to upsert schedule state search attribute", zap.Error(err))
 	}
 
 	chs := signalChannels{
@@ -139,12 +139,16 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 
 		if state.Paused != previousPaused {
 			if err := workflow.UpsertSearchAttributes(ctx, map[string]interface{}{
-				SearchAttrSchedulePaused: state.Paused,
+				SearchAttrScheduleState: scheduleStateFromPaused(state.Paused),
 			}); err != nil {
-				logger.Warn("failed to upsert schedule paused search attribute", zap.Error(err))
+				logger.Warn("failed to upsert schedule state search attribute", zap.Error(err))
 			}
 		}
 
+		// Deleted schedules terminate the workflow here. Any further signals
+		// (pause, unpause, update, backfill) sent after this point fail with
+		// EntityNotExistsError at the RPC layer because the workflow is closed;
+		// the frontend normalizes that to a user-friendly "schedule not found".
 		if state.Deleted {
 			logger.Info("schedule deleted")
 			return nil
@@ -287,6 +291,15 @@ func drainBufferedSignals(
 	}
 
 	return stateChanged
+}
+
+// scheduleStateFromPaused maps the workflow's boolean Paused flag to the
+// keyword value stored in the CadenceScheduleState search attribute.
+func scheduleStateFromPaused(paused bool) string {
+	if paused {
+		return ScheduleStatePaused
+	}
+	return ScheduleStateActive
 }
 
 func handlePause(logger *zap.Logger, sig PauseSignal, state *SchedulerWorkflowState) bool {

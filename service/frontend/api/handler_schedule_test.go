@@ -195,7 +195,7 @@ func TestCreateSchedule(t *testing.T) {
 					},
 				},
 				SearchAttributes: &types.SearchAttributes{IndexedFields: map[string][]byte{
-					"CadenceSchedulePaused": []byte("true"),
+					"CadenceScheduleState": []byte(`"paused"`),
 				}},
 			},
 			mockFn:  func(f *scheduleTestFixture) {},
@@ -698,7 +698,7 @@ func TestListSchedules(t *testing.T) {
 
 		f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
 
-		pausedBytes, _ := json.Marshal(true)
+		pausedStateBytes, _ := json.Marshal(scheduler.ScheduleStatePaused)
 
 		f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.MatchedBy(func(req *persistence.ListWorkflowExecutionsByQueryRequest) bool {
 			return req.Domain == testDomain && req.Query == "WorkflowType = 'cadence-scheduler'"
@@ -711,7 +711,7 @@ func TestListSchedules(t *testing.T) {
 					},
 					Type: &types.WorkflowType{Name: scheduler.WorkflowTypeName},
 					SearchAttributes: &types.SearchAttributes{IndexedFields: map[string][]byte{
-						scheduler.SearchAttrSchedulePaused: pausedBytes,
+						scheduler.SearchAttrScheduleState: pausedStateBytes,
 					}},
 				},
 				{

@@ -448,12 +448,15 @@ func (wh *WorkflowHandler) ListSchedules(
 		// run its first decision task yet (brief window after CreateSchedule).
 		paused := false
 		if exec.SearchAttributes != nil {
-			if pausedBytes, ok := exec.SearchAttributes.IndexedFields[scheduler.SearchAttrSchedulePaused]; ok {
-				if err := json.Unmarshal(pausedBytes, &paused); err != nil {
-					wh.GetLogger().Warn("failed to unmarshal CadenceSchedulePaused search attribute, defaulting to false",
+			if stateBytes, ok := exec.SearchAttributes.IndexedFields[scheduler.SearchAttrScheduleState]; ok {
+				var stateStr string
+				if err := json.Unmarshal(stateBytes, &stateStr); err != nil {
+					wh.GetLogger().Warn("failed to unmarshal CadenceScheduleState search attribute, defaulting to active",
 						tag.WorkflowID(scheduleWorkflowID(scheduleID)),
 						tag.Error(err),
 					)
+				} else {
+					paused = stateStr == scheduler.ScheduleStatePaused
 				}
 			}
 		}

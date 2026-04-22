@@ -44,7 +44,15 @@ const (
 	SearchAttrIsBackfill   = "CadenceScheduleIsBackfill"
 
 	// Search attribute keys set on the scheduler workflow itself for ListSchedules.
-	SearchAttrSchedulePaused = "CadenceSchedulePaused"
+	// CadenceScheduleState is a Keyword SA holding the current lifecycle state
+	// ("active" or "paused"). Modeled as a string rather than a boolean so it can
+	// be extended to additional states (e.g. "expired") without introducing new
+	// search attributes. "Deleted" is not a value because a deleted schedule's
+	// workflow is closed and filtered by workflow status instead.
+	SearchAttrScheduleState = "CadenceScheduleState"
+
+	ScheduleStateActive = "active"
+	ScheduleStatePaused = "paused"
 
 	maxIterationsBeforeContinueAsNew = 500
 	maxCatchUpFiresPerExecution      = 10
