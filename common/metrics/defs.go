@@ -2653,16 +2653,6 @@ const (
 	QueueValidatorValidationCounter
 	QueueValidatorValidationFailure
 
-	CrossClusterFetchLatency
-	CrossClusterFetchRequests
-	CrossClusterFetchFailures
-	CrossClusterFetchServiceBusyFailures
-	CrossClusterTaskRespondLatency
-	CrossClusterTaskRespondRequests
-	CrossClusterTaskRespondFailures
-	CrossClusterTaskFetchedTimer
-	CrossClusterTaskPendingTimer
-
 	ClusterMetadataFailureToResolveCounter
 	ClusterMetadataGettingMinFailoverVersionCounter
 	ClusterMetadataGettingFailoverVersionCounter
@@ -2754,9 +2744,6 @@ const (
 	EmptyReplicationEventsCounter
 	DuplicateReplicationEventsCounter
 	StaleReplicationEventsCounter
-	ReplicationEventsSizeTimer
-	BufferReplicationTaskTimer
-	UnbufferReplicationTaskTimer
 	HistoryConflictsCounter
 	CompleteTaskFailedCounter
 	CacheSize
@@ -3576,15 +3563,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		QueueValidatorInvalidLoadCounter:                              {metricName: "queue_validator_invalid_load_counter", metricType: Counter},
 		QueueValidatorValidationCounter:                               {metricName: "queue_validator_validation_counter", metricType: Counter},
 		QueueValidatorValidationFailure:                               {metricName: "queue_validator_validation_error", metricType: Counter},
-		CrossClusterFetchLatency:                                      {metricName: "cross_cluster_fetch_latency", metricType: Timer},
-		CrossClusterFetchRequests:                                     {metricName: "cross_cluster_fetch_requests", metricType: Counter},
-		CrossClusterFetchFailures:                                     {metricName: "cross_cluster_fetch_errors", metricType: Counter},
-		CrossClusterFetchServiceBusyFailures:                          {metricName: "cross_cluster_fetch_errors_service_busy", metricType: Counter},
-		CrossClusterTaskRespondLatency:                                {metricName: "cross_cluster_respond_latency", metricType: Timer},
-		CrossClusterTaskRespondRequests:                               {metricName: "cross_cluster_respond_requests", metricType: Counter},
-		CrossClusterTaskRespondFailures:                               {metricName: "cross_cluster_fetch_errors", metricType: Counter},
-		CrossClusterTaskFetchedTimer:                                  {metricName: "cross_cluster_task_fetched", metricType: Timer},
-		CrossClusterTaskPendingTimer:                                  {metricName: "cross_cluster_task_pending", metricType: Timer},
 		ClusterMetadataFailureToResolveCounter:                        {metricName: "failed_to_resolve_failover_version", metricType: Counter},
 		ClusterMetadataGettingMinFailoverVersionCounter:               {metricName: "getting_min_failover_version_counter", metricType: Counter},
 		ClusterMetadataGettingFailoverVersionCounter:                  {metricName: "getting_failover_version_counter", metricType: Counter},
@@ -3675,9 +3653,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		EmptyReplicationEventsCounter:                                 {metricName: "empty_replication_events", metricType: Counter},
 		DuplicateReplicationEventsCounter:                             {metricName: "duplicate_replication_events", metricType: Counter},
 		StaleReplicationEventsCounter:                                 {metricName: "stale_replication_events", metricType: Counter},
-		ReplicationEventsSizeTimer:                                    {metricName: "replication_events_size", metricType: Timer},
-		BufferReplicationTaskTimer:                                    {metricName: "buffer_replication_tasks", metricType: Timer},
-		UnbufferReplicationTaskTimer:                                  {metricName: "unbuffer_replication_tasks", metricType: Timer},
 		HistoryConflictsCounter:                                       {metricName: "history_conflicts", metricType: Counter},
 		CompleteTaskFailedCounter:                                     {metricName: "complete_task_fail_count", metricType: Counter},
 		CacheSize:                                                     {metricName: "cache_size", metricType: Timer},
