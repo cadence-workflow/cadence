@@ -42,6 +42,20 @@ func (m *MockHistoryTaskDLQStore) EXPECT() *MockHistoryTaskDLQStoreMockRecorder 
 	return m.recorder
 }
 
+// AddTask mocks base method.
+func (m *MockHistoryTaskDLQStore) AddTask(ctx context.Context, request AddTaskRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddTask", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddTask indicates an expected call of AddTask.
+func (mr *MockHistoryTaskDLQStoreMockRecorder) AddTask(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTask", reflect.TypeOf((*MockHistoryTaskDLQStore)(nil).AddTask), ctx, request)
+}
+
 // DeleteTasks mocks base method.
 func (m *MockHistoryTaskDLQStore) DeleteTasks(ctx context.Context, request DeleteTasksRequest) error {
 	m.ctrl.T.Helper()

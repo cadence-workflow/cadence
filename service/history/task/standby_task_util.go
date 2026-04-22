@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
+	"github.com/uber/cadence/service/history/taskdlq"
 )
 
 type (
@@ -40,6 +41,12 @@ type (
 	standbyPostActionFn func(context.Context, persistence.Task, interface{}, log.Logger) error
 
 	standbyCurrentTimeFn func(persistence.Task) (time.Time, error)
+
+	// TaskDLQWriter is the subset of taskdlq.HistoryTaskDLQStore used by standby task executors.
+	// Importing the full store avoids duplicating the AddTaskRequest type.
+	TaskDLQWriter interface {
+		AddTask(ctx context.Context, request taskdlq.AddTaskRequest) error
+	}
 )
 
 var (
@@ -89,6 +96,39 @@ func standbyTaskPostActionTaskDiscarded(
 		tag.FailoverVersion(task.GetVersion()),
 		tag.Timestamp(task.GetVisibilityTimestamp()))
 	return ErrTaskDiscarded
+}
+
+// standbyTaskPostActionWriteToDLQ returns a standbyPostActionFn that writes the task to the DLQ.
+// If writer is nil, it falls back to standbyTaskPostActionTaskDiscarded (preserving the old discard
+// behavior until the DLQ persistence backend is wired up).
+func standbyTaskPostActionWriteToDLQ(
+	writer TaskDLQWriter,
+	shardID int,
+	clusterAttributeScope, clusterAttributeName string,
+) standbyPostActionFn {
+	if writer == nil {
+		return standbyTaskPostActionTaskDiscarded
+	}
+	return func(ctx context.Context, task persistence.Task, postActionInfo interface{}, logger log.Logger) error {
+		if postActionInfo == nil {
+			return nil
+		}
+		logger.Warn("Writing standby task to DLQ due to task being pending for too long.",
+			tag.WorkflowID(task.GetWorkflowID()),
+			tag.WorkflowRunID(task.GetRunID()),
+			tag.WorkflowDomainID(task.GetDomainID()),
+			tag.TaskID(task.GetTaskID()),
+			tag.TaskType(task.GetTaskType()),
+			tag.FailoverVersion(task.GetVersion()),
+			tag.Timestamp(task.GetVisibilityTimestamp()))
+		return writer.AddTask(ctx, taskdlq.AddTaskRequest{
+			ShardID:               shardID,
+			DomainID:              task.GetDomainID(),
+			ClusterAttributeScope: clusterAttributeScope,
+			ClusterAttributeName:  clusterAttributeName,
+			Task:                  task,
+		})
+	}
 }
 
 type (

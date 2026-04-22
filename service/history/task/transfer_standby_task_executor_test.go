@@ -169,6 +169,7 @@ func (s *transferStandbyTaskExecutorSuite) SetupTest() {
 		s.logger,
 		s.clusterName,
 		testConfig,
+		nil, // no DLQ writer — falls back to discard behavior
 	).(*transferStandbyTaskExecutor)
 	s.transferStandbyTaskExecutor.getRemoteClusterNameFn = func(ctx context.Context, taskInfo persistence.Task) (string, error) {
 		return s.clusterName, nil

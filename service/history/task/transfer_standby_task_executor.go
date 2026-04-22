@@ -47,6 +47,7 @@ type (
 		clusterName            string
 		historyResender        ndc.HistoryResender
 		getRemoteClusterNameFn func(context.Context, persistence.Task) (string, error)
+		dlqWriter              TaskDLQWriter
 	}
 )
 
@@ -59,6 +60,7 @@ func NewTransferStandbyTaskExecutor(
 	logger log.Logger,
 	clusterName string,
 	config *config.Config,
+	dlqWriter TaskDLQWriter,
 ) Executor {
 	return &transferStandbyTaskExecutor{
 		transferTaskExecutorBase: newTransferTaskExecutorBase(
@@ -76,6 +78,7 @@ func NewTransferStandbyTaskExecutor(
 			}
 			return clusterName, nil
 		},
+		dlqWriter: dlqWriter,
 	}
 }
 
@@ -388,7 +391,7 @@ func (t *transferStandbyTaskExecutor) processCancelExecution(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard.GetShardID(), t.clusterName, t.clusterName),
 		),
 	)
 }
@@ -427,7 +430,7 @@ func (t *transferStandbyTaskExecutor) processSignalExecution(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard.GetShardID(), t.clusterName, t.clusterName),
 		),
 	)
 }
@@ -470,7 +473,7 @@ func (t *transferStandbyTaskExecutor) processStartChildExecution(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard.GetShardID(), t.clusterName, t.clusterName),
 		),
 	)
 }

@@ -150,6 +150,7 @@ func (s *timerStandbyTaskExecutorSuite) SetupTest() {
 		s.mockShard.GetMetricsClient(),
 		s.clusterName,
 		config,
+		nil, // no DLQ writer — falls back to discard behavior
 	).(*timerStandbyTaskExecutor)
 	s.timerStandbyTaskExecutor.getRemoteClusterNameFn = func(ctx context.Context, taskInfo persistence.Task) (string, error) {
 		return s.clusterName, nil

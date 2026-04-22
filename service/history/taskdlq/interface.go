@@ -47,6 +47,9 @@ type (
 
 		// DeleteTasks removes tasks up to and including the given key from a DLQ partition.
 		DeleteTasks(ctx context.Context, request DeleteTasksRequest) error
+
+		// AddTask writes a task to the DLQ partition identified by the request fields.
+		AddTask(ctx context.Context, request AddTaskRequest) error
 	}
 
 	// TaskExecutor executes a single DLQ task synchronously.
@@ -106,5 +109,14 @@ type (
 		ClusterAttributeName  string
 		TaskType              int
 		InclusiveMaxTaskKey   persistence.HistoryTaskKey
+	}
+
+	// AddTaskRequest specifies the task to write to the DLQ.
+	AddTaskRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		Task                  persistence.Task
 	}
 )
