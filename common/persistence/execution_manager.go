@@ -727,9 +727,6 @@ func (m *executionManagerImpl) syncMutationWithTasks(mutation *WorkflowMutation)
 					)
 					continue
 				}
-				if mutation.WorkflowTimerTaskInfos == nil {
-					mutation.WorkflowTimerTaskInfos = make(map[int64]*WorkflowTimerTaskInfo)
-				}
 				mutation.WorkflowTimerTaskInfos[task.GetTaskID()] = &WorkflowTimerTaskInfo{
 					TaskID:              task.GetTaskID(),
 					VisibilityTimestamp: task.GetVisibilityTimestamp(),

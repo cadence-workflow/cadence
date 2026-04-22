@@ -1478,7 +1478,14 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 			persistence.HistoryTaskCategoryTimer:       e.insertTimerTasks,
 		},
 
-		WorkflowTimerTaskInfos: e.workflowTimerTaskInfos,
+		// Ensure the map is initialized so syncMutationWithTasks can accumulate entries
+		// across updates within the same cache lifetime via the shared reference.
+		WorkflowTimerTaskInfos: func() map[int64]*persistence.WorkflowTimerTaskInfo {
+			if e.workflowTimerTaskInfos == nil {
+				e.workflowTimerTaskInfos = make(map[int64]*persistence.WorkflowTimerTaskInfo)
+			}
+			return e.workflowTimerTaskInfos
+		}(),
 
 		WorkflowRequests: convertWorkflowRequests(e.workflowRequests),
 
