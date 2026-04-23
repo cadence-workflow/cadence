@@ -26,7 +26,9 @@ import (
 
 	"github.com/robfig/cron/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/cadence/testsuite"
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/types"
@@ -772,6 +774,73 @@ func TestProcessBackfillsRespectsPause(t *testing.T) {
 	moreWork := processBackfills(nil, testLogger, sched, input, state)
 	assert.False(t, moreWork, "paused schedule should not process backfills")
 	assert.Len(t, state.PendingBackfills, 1, "pending backfills should be preserved while paused")
+}
+
+func TestSchedulerWorkflowBackfillUsesBackfillOverlapPolicy(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(SchedulerWorkflow)
+
+	backfillTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	env.SetStartTime(backfillTime.Add(time.Hour))
+
+	input := SchedulerWorkflowInput{
+		Domain:     "test-domain",
+		ScheduleID: "sched-1",
+		Spec: types.ScheduleSpec{
+			CronExpression: "0 * * * *",
+			EndTime:        backfillTime,
+		},
+		Action: types.ScheduleAction{
+			StartWorkflow: &types.StartWorkflowAction{
+				WorkflowType: &types.WorkflowType{Name: "my-workflow"},
+				TaskList:     &types.TaskList{Name: "my-tasklist"},
+			},
+		},
+		Policies: types.SchedulePolicies{
+			OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
+		},
+		State: SchedulerWorkflowState{
+			PendingBackfills: []BackfillRequest{
+				{
+					StartTime:     backfillTime,
+					EndTime:       backfillTime,
+					OverlapPolicy: types.ScheduleOverlapPolicyConcurrent,
+					BackfillID:    "bf-1",
+				},
+			},
+		},
+	}
+
+	env.OnActivity(processScheduleFireActivity, mock.Anything, mock.MatchedBy(func(req ProcessFireRequest) bool {
+		assert.Equal(t, TriggerSourceBackfill, req.TriggerSource)
+		assert.Equal(t, types.ScheduleOverlapPolicyConcurrent, req.OverlapPolicy)
+		assert.Equal(t, backfillTime, req.ScheduledTime)
+		return true
+	})).Return(&ProcessFireResult{TotalDelta: 1}, nil).Once()
+
+	env.ExecuteWorkflow(SchedulerWorkflow, input)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+}
+
+func TestBackfillOverlapPolicy(t *testing.T) {
+	assert.Equal(t,
+		types.ScheduleOverlapPolicyConcurrent,
+		backfillOverlapPolicy(
+			BackfillRequest{OverlapPolicy: types.ScheduleOverlapPolicyConcurrent},
+			types.ScheduleOverlapPolicySkipNew,
+		),
+	)
+	assert.Equal(t,
+		types.ScheduleOverlapPolicyTerminatePrevious,
+		backfillOverlapPolicy(
+			BackfillRequest{OverlapPolicy: types.ScheduleOverlapPolicyInvalid},
+			types.ScheduleOverlapPolicyTerminatePrevious,
+		),
+	)
 }
 
 func TestBackfillFireComputation(t *testing.T) {

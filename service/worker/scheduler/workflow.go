@@ -403,6 +403,18 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 // a single activity so that the overlap logic can evolve without introducing
 // nondeterminism in the workflow history.
 func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource) {
+	processScheduleFireWithOverlapPolicy(ctx, logger, input, state, scheduledTime, trigger, input.Policies.OverlapPolicy)
+}
+
+func processScheduleFireWithOverlapPolicy(
+	ctx workflow.Context,
+	logger *zap.Logger,
+	input *SchedulerWorkflowInput,
+	state *SchedulerWorkflowState,
+	scheduledTime time.Time,
+	trigger TriggerSource,
+	overlapPolicy types.ScheduleOverlapPolicy,
+) {
 	state.LastRunTime = scheduledTime
 
 	logger.Info("schedule fired",
@@ -423,7 +435,7 @@ func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *Schedu
 		Action:              *input.Action.StartWorkflow,
 		ScheduledTime:       scheduledTime,
 		TriggerSource:       trigger,
-		OverlapPolicy:       input.Policies.OverlapPolicy,
+		OverlapPolicy:       overlapPolicy,
 		LastStartedWorkflow: state.LastStartedWorkflow,
 	}
 
@@ -645,7 +657,7 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, sched cron.Sched
 				)
 				return true
 			}
-			processScheduleFire(ctx, logger, input, state, t, TriggerSourceBackfill)
+			processScheduleFireWithOverlapPolicy(ctx, logger, input, state, t, TriggerSourceBackfill, backfillOverlapPolicy(*bf, input.Policies.OverlapPolicy))
 			fired++
 		}
 
@@ -670,6 +682,13 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, sched cron.Sched
 	}
 
 	return false
+}
+
+func backfillOverlapPolicy(bf BackfillRequest, schedulePolicy types.ScheduleOverlapPolicy) types.ScheduleOverlapPolicy {
+	if bf.OverlapPolicy == types.ScheduleOverlapPolicyInvalid {
+		return schedulePolicy
+	}
+	return bf.OverlapPolicy
 }
 
 // buildScheduleDescription creates a snapshot of the current schedule
