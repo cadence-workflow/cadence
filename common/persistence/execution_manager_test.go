@@ -1698,67 +1698,184 @@ func sampleEventDataWithVersion(i int64) *DataBlob {
 	return NewDataBlob([]byte(fmt.Sprintf("test-event-%d", i)), constants.EncodingTypeThriftRW)
 }
 
-func TestSyncMutationWithTasks(t *testing.T) {
-	dc := &DynamicConfiguration{
+// TestUpdateWorkflowExecution_TimerTaskTracking verifies that UpdateWorkflowExecution
+// tracks timer tasks when EnableTimerCleanupOnWorkflowClose is enabled.
+func TestUpdateWorkflowExecution_TimerTaskTracking(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockedStore := NewMockExecutionStore(ctrl)
+	mockedSerializer := NewMockPayloadSerializer(ctrl)
+
+	timerTaskID := int64(999)
+	visTS := time.Now().Add(48 * time.Hour)
+
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
 		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(true),
-	}
-	manager := &executionManagerImpl{
-		logger: testlogger.New(t),
-		dc:     dc,
-	}
+	})
 
-	taskID1 := int64(101)
-	taskID2 := int64(102)
-	visTS1 := time.Now().Add(24 * time.Hour)
-	visTS2 := time.Now().Add(48 * time.Hour)
-
-	existing := map[int64]*WorkflowTimerTaskInfo{
-		taskID1: {TaskID: taskID1, VisibilityTimestamp: visTS1, TimeoutType: 0},
-	}
-
-	mutation := &WorkflowMutation{
-		WorkflowTimerTaskInfos: existing,
-		TasksByCategory: map[HistoryTaskCategory][]Task{
-			HistoryTaskCategoryTimer: {
-				&WorkflowTimeoutTask{
-					WorkflowIdentifier: WorkflowIdentifier{DomainID: "d1", WorkflowID: "w1", RunID: "r1"},
-					TaskData:           TaskData{TaskID: taskID2, VisibilityTimestamp: visTS2},
-				},
+	mutation := sampleWorkflowMutation()
+	mutation.TasksByCategory = map[HistoryTaskCategory][]Task{
+		HistoryTaskCategoryTimer: {
+			&WorkflowTimeoutTask{
+				WorkflowIdentifier: WorkflowIdentifier{DomainID: testDomainID, WorkflowID: "w1", RunID: "r1"},
+				TaskData:           TaskData{TaskID: timerTaskID, VisibilityTimestamp: visTS},
 			},
 		},
 	}
 
-	manager.syncMutationWithTasks(mutation)
+	mockedSerializer.EXPECT().SerializeWorkflowTimerTasks(
+		gomock.Any(), constants.EncodingTypeThriftRW,
+	).DoAndReturn(func(tasks map[int64]*WorkflowTimerTaskInfo, _ constants.EncodingType) (*DataBlob, error) {
+		assert.Contains(t, tasks, timerTaskID, "expected timer task to be tracked")
+		assert.WithinDuration(t, visTS, tasks[timerTaskID].VisibilityTimestamp, time.Millisecond)
+		return sampleEventData(), nil
+	}).Times(1)
 
-	assert.Len(t, mutation.WorkflowTimerTaskInfos, 2)
-	assert.Equal(t, taskID1, mutation.WorkflowTimerTaskInfos[taskID1].TaskID)
-	assert.Equal(t, taskID2, mutation.WorkflowTimerTaskInfos[taskID2].TaskID)
-	assert.WithinDuration(t, visTS2, mutation.WorkflowTimerTaskInfos[taskID2].VisibilityTimestamp, time.Millisecond)
+	mockedSerializer.EXPECT().SerializeEvent(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(sampleActiveClusterSelectionPolicyData(), nil).AnyTimes()
+	mockedStore.EXPECT().UpdateWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	_, err := manager.UpdateWorkflowExecution(context.Background(), &UpdateWorkflowExecutionRequest{
+		RangeID:                1,
+		Mode:                   UpdateWorkflowModeBypassCurrent,
+		UpdateWorkflowMutation: *mutation,
+		Encoding:               constants.EncodingTypeThriftRW,
+	})
+	assert.NoError(t, err)
 }
 
-func TestSyncMutationWithTasksFeatureFlagOff(t *testing.T) {
-	dc := &DynamicConfiguration{
-		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(false),
-	}
-	manager := &executionManagerImpl{
-		logger: testlogger.New(t),
-		dc:     dc,
-	}
+// TestCreateWorkflowExecution_TimerTaskTracking verifies that CreateWorkflowExecution
+// tracks timer tasks when EnableTimerCleanupOnWorkflowClose is enabled.
+func TestCreateWorkflowExecution_TimerTaskTracking(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockedStore := NewMockExecutionStore(ctrl)
+	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	mutation := &WorkflowMutation{
-		TasksByCategory: map[HistoryTaskCategory][]Task{
-			HistoryTaskCategoryTimer: {
-				&WorkflowTimeoutTask{
-					WorkflowIdentifier: WorkflowIdentifier{DomainID: "d1", WorkflowID: "w1", RunID: "r1"},
-					TaskData:           TaskData{TaskID: 101, VisibilityTimestamp: time.Now().Add(48 * time.Hour)},
-				},
+	timerTaskID := int64(888)
+	visTS := time.Now().Add(24 * time.Hour)
+
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(true),
+	})
+
+	snapshot := sampleWorkflowSnapshot()
+	snapshot.TasksByCategory = map[HistoryTaskCategory][]Task{
+		HistoryTaskCategoryTimer: {
+			&WorkflowTimeoutTask{
+				WorkflowIdentifier: WorkflowIdentifier{DomainID: testDomainID, WorkflowID: "w1", RunID: "r1"},
+				TaskData:           TaskData{TaskID: timerTaskID, VisibilityTimestamp: visTS},
 			},
 		},
 	}
 
-	manager.syncMutationWithTasks(mutation)
+	mockedSerializer.EXPECT().SerializeWorkflowTimerTasks(
+		gomock.Any(), constants.EncodingTypeThriftRW,
+	).DoAndReturn(func(tasks map[int64]*WorkflowTimerTaskInfo, _ constants.EncodingType) (*DataBlob, error) {
+		assert.Contains(t, tasks, timerTaskID, "expected timer task to be tracked")
+		assert.WithinDuration(t, visTS, tasks[timerTaskID].VisibilityTimestamp, time.Millisecond)
+		return sampleEventData(), nil
+	}).Times(1)
 
-	assert.Empty(t, mutation.WorkflowTimerTaskInfos, "should not track when flag is off")
+	mockedSerializer.EXPECT().SerializeEvent(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(sampleActiveClusterSelectionPolicyData(), nil).AnyTimes()
+	mockedStore.EXPECT().CreateWorkflowExecution(gomock.Any(), gomock.Any()).Return(&CreateWorkflowExecutionResponse{}, nil).Times(1)
+
+	_, err := manager.CreateWorkflowExecution(context.Background(), &CreateWorkflowExecutionRequest{
+		RangeID:             1,
+		NewWorkflowSnapshot: *snapshot,
+	})
+	assert.NoError(t, err)
+}
+
+// TestUpdateWorkflowExecution_TimerTaskTrackingFlagOff verifies that timer tasks are not
+// tracked when EnableTimerCleanupOnWorkflowClose is disabled.
+func TestUpdateWorkflowExecution_TimerTaskTrackingFlagOff(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockedStore := NewMockExecutionStore(ctrl)
+	mockedSerializer := NewMockPayloadSerializer(ctrl)
+
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(false),
+	})
+
+	mutation := sampleWorkflowMutation()
+	mutation.TasksByCategory = map[HistoryTaskCategory][]Task{
+		HistoryTaskCategoryTimer: {
+			&WorkflowTimeoutTask{
+				WorkflowIdentifier: WorkflowIdentifier{DomainID: testDomainID, WorkflowID: "w1", RunID: "r1"},
+				TaskData:           TaskData{TaskID: 999, VisibilityTimestamp: time.Now().Add(48 * time.Hour)},
+			},
+		},
+	}
+
+	mockedSerializer.EXPECT().SerializeWorkflowTimerTasks(
+		gomock.Any(), constants.EncodingTypeThriftRW,
+	).DoAndReturn(func(tasks map[int64]*WorkflowTimerTaskInfo, _ constants.EncodingType) (*DataBlob, error) {
+		assert.Empty(t, tasks, "should not track timer tasks when flag is off")
+		return nil, nil
+	}).Times(1)
+
+	mockedSerializer.EXPECT().SerializeEvent(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(sampleActiveClusterSelectionPolicyData(), nil).AnyTimes()
+	mockedStore.EXPECT().UpdateWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	_, err := manager.UpdateWorkflowExecution(context.Background(), &UpdateWorkflowExecutionRequest{
+		RangeID:                1,
+		Mode:                   UpdateWorkflowModeBypassCurrent,
+		UpdateWorkflowMutation: *mutation,
+		Encoding:               constants.EncodingTypeThriftRW,
+	})
+	assert.NoError(t, err)
+}
+
+// TestCreateWorkflowExecution_TimerTaskTrackingFlagOff verifies that timer tasks are not
+// tracked when EnableTimerCleanupOnWorkflowClose is disabled.
+func TestCreateWorkflowExecution_TimerTaskTrackingFlagOff(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockedStore := NewMockExecutionStore(ctrl)
+	mockedSerializer := NewMockPayloadSerializer(ctrl)
+
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(false),
+	})
+
+	snapshot := sampleWorkflowSnapshot()
+	snapshot.TasksByCategory = map[HistoryTaskCategory][]Task{
+		HistoryTaskCategoryTimer: {
+			&WorkflowTimeoutTask{
+				WorkflowIdentifier: WorkflowIdentifier{DomainID: testDomainID, WorkflowID: "w1", RunID: "r1"},
+				TaskData:           TaskData{TaskID: 888, VisibilityTimestamp: time.Now().Add(24 * time.Hour)},
+			},
+		},
+	}
+
+	mockedSerializer.EXPECT().SerializeWorkflowTimerTasks(
+		gomock.Any(), constants.EncodingTypeThriftRW,
+	).DoAndReturn(func(tasks map[int64]*WorkflowTimerTaskInfo, _ constants.EncodingType) (*DataBlob, error) {
+		assert.Empty(t, tasks, "should not track timer tasks when flag is off")
+		return nil, nil
+	}).Times(1)
+
+	mockedSerializer.EXPECT().SerializeEvent(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(sampleActiveClusterSelectionPolicyData(), nil).AnyTimes()
+	mockedStore.EXPECT().CreateWorkflowExecution(gomock.Any(), gomock.Any()).Return(&CreateWorkflowExecutionResponse{}, nil).Times(1)
+
+	_, err := manager.CreateWorkflowExecution(context.Background(), &CreateWorkflowExecutionRequest{
+		RangeID:             1,
+		NewWorkflowSnapshot: *snapshot,
+	})
+	assert.NoError(t, err)
 }

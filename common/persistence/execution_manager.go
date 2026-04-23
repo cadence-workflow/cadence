@@ -677,33 +677,8 @@ func (m *executionManagerImpl) syncExecutionInfoWithTasks(workflowSnapshot *Work
 	if m.dc == nil || m.dc.EnableTimerCleanupOnWorkflowClose == nil || !m.dc.EnableTimerCleanupOnWorkflowClose() {
 		return
 	}
-
-	for category, tasks := range workflowSnapshot.TasksByCategory {
-		for _, task := range tasks {
-			switch category.categoryID {
-			case HistoryTaskCategoryIDTimer:
-				timerTaskInfo, err := task.ToTimerTaskInfo()
-				if err != nil {
-					m.logger.Warn("Failed to convert timer task info for tracking; task will not be cleaned up when the workflow closes",
-						tag.TaskID(task.GetTaskID()),
-						tag.Error(err),
-					)
-					continue
-				}
-				if workflowSnapshot.WorkflowTimerTaskInfos == nil {
-					workflowSnapshot.WorkflowTimerTaskInfos = make(map[int64]*WorkflowTimerTaskInfo)
-				}
-				workflowSnapshot.WorkflowTimerTaskInfos[task.GetTaskID()] = &WorkflowTimerTaskInfo{
-					TaskID:              task.GetTaskID(),
-					VisibilityTimestamp: task.GetVisibilityTimestamp(),
-					TimeoutType:         timerTaskInfo.TimeoutType,
-				}
-			// only timer tasks are tracked; other task categories (transfer, replication) are ignored
-			default:
-				continue
-			}
-		}
-	}
+	workflowSnapshot.WorkflowTimerTaskInfos = m.syncTimerTaskTracking(
+		workflowSnapshot.TasksByCategory, workflowSnapshot.WorkflowTimerTaskInfos)
 }
 
 // syncMutationWithTasks appends timer task IDs from a workflow mutation to the accumulated
@@ -714,32 +689,40 @@ func (m *executionManagerImpl) syncMutationWithTasks(mutation *WorkflowMutation)
 	if m.dc == nil || m.dc.EnableTimerCleanupOnWorkflowClose == nil || !m.dc.EnableTimerCleanupOnWorkflowClose() {
 		return
 	}
+	mutation.WorkflowTimerTaskInfos = m.syncTimerTaskTracking(
+		mutation.TasksByCategory, mutation.WorkflowTimerTaskInfos)
+}
 
-	for category, tasks := range mutation.TasksByCategory {
+// syncTimerTaskTracking extracts timer tasks from tasksByCategory and adds them to the
+// tracking map, initializing it if nil. Returns the (possibly newly created) map.
+func (m *executionManagerImpl) syncTimerTaskTracking(
+	tasksByCategory map[HistoryTaskCategory][]Task,
+	trackedTasks map[int64]*WorkflowTimerTaskInfo,
+) map[int64]*WorkflowTimerTaskInfo {
+	for category, tasks := range tasksByCategory {
 		for _, task := range tasks {
-			switch category.categoryID {
-			case HistoryTaskCategoryIDTimer:
-				timerTaskInfo, err := task.ToTimerTaskInfo()
-				if err != nil {
-					m.logger.Warn("Failed to convert timer task info for tracking; task will not be cleaned up on workflow close",
-						tag.TaskID(task.GetTaskID()),
-						tag.Error(err),
-					)
-					continue
-				}
-				if mutation.WorkflowTimerTaskInfos == nil {
-					mutation.WorkflowTimerTaskInfos = make(map[int64]*WorkflowTimerTaskInfo)
-				}
-				mutation.WorkflowTimerTaskInfos[task.GetTaskID()] = &WorkflowTimerTaskInfo{
-					TaskID:              task.GetTaskID(),
-					VisibilityTimestamp: task.GetVisibilityTimestamp(),
-					TimeoutType:         timerTaskInfo.TimeoutType,
-				}
-			default:
+			if category.categoryID != HistoryTaskCategoryIDTimer {
 				continue
+			}
+			timerTaskInfo, err := task.ToTimerTaskInfo()
+			if err != nil {
+				m.logger.Warn("Failed to convert timer task info for tracking; task will not be cleaned up when the workflow closes",
+					tag.TaskID(task.GetTaskID()),
+					tag.Error(err),
+				)
+				continue
+			}
+			if trackedTasks == nil {
+				trackedTasks = make(map[int64]*WorkflowTimerTaskInfo)
+			}
+			trackedTasks[task.GetTaskID()] = &WorkflowTimerTaskInfo{
+				TaskID:              task.GetTaskID(),
+				VisibilityTimestamp: task.GetVisibilityTimestamp(),
+				TimeoutType:         timerTaskInfo.TimeoutType,
 			}
 		}
 	}
+	return trackedTasks
 }
 
 func (m *executionManagerImpl) SerializeWorkflowMutation(
