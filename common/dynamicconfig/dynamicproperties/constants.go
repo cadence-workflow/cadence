@@ -2371,6 +2371,14 @@ const (
 	// Allowed filters: DomainName
 	EnableTaskListAwareTaskSchedulerByDomain
 
+	// EnforceMinCronInterval controls whether cron schedules with an interval below
+	// MinCronInterval are rejected. When false, violating schedules are only logged.
+	// KeyName: history.enforceMinCronInterval
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnforceMinCronInterval
+
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
 )
@@ -3281,6 +3289,16 @@ const (
 	// Default value: 30m (30 * time.Minute)
 	// Allowed filters: ShardID
 	HistoryTaskDLQProcessorInterval
+
+	// MinCronInterval is the minimum allowed interval between cron firings. Start
+	// workflow requests whose cron schedule fires more frequently than this are
+	// logged, and rejected when EnforceMinCronInterval is also true. A value of 0
+	// disables the check entirely.
+	// KeyName: history.minCronInterval
+	// Value type: Duration
+	// Default value: 0 (disabled)
+	// Allowed filters: DomainName
+	MinCronInterval
 
 	// LastDurationKey must be the last one in this const group
 	LastDurationKey
@@ -5121,6 +5139,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Filters:      []Filter{DomainName},
 		DefaultValue: false,
 	},
+	EnforceMinCronInterval: {
+		KeyName:      "history.enforceMinCronInterval",
+		Filters:      []Filter{DomainName},
+		Description:  "EnforceMinCronInterval controls whether cron schedules below MinCronInterval are rejected. When false, violating schedules are only logged.",
+		DefaultValue: false,
+	},
 }
 
 var FloatKeys = map[FloatKey]DynamicFloat{
@@ -5914,6 +5938,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{ShardID},
 		Description:  "HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ",
 		DefaultValue: time.Minute * 30,
+	},
+	MinCronInterval: {
+		KeyName:      "history.minCronInterval",
+		Filters:      []Filter{DomainName},
+		Description:  "MinCronInterval is the minimum allowed interval between cron firings. A value of 0 disables the check entirely.",
+		DefaultValue: time.Duration(0),
 	},
 }
 

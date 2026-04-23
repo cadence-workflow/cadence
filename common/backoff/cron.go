@@ -121,3 +121,36 @@ func GetBackoffForNextScheduleInSeconds(
 	}
 	return int32(math.Ceil(backoffDuration.Seconds())), nil
 }
+
+// minIntervalProbeCount is the number of consecutive firings to sample when
+// computing the minimum interval of a cron schedule. Sampling more than two
+// firings lets us handle schedules whose gaps are not uniform (e.g.
+// "0 9,17 * * *"), while still bounding the cost of the probe.
+const minIntervalProbeCount = 10
+
+// MinScheduleInterval returns the smallest gap between any two consecutive
+// firings within the next minIntervalProbeCount firings after startTime. It
+// returns (0, nil) if the schedule has fewer than two future firings (this
+// should not normally happen for a schedule that has passed ValidateSchedule).
+func MinScheduleInterval(sched cron.Schedule, startTime time.Time) (time.Duration, error) {
+	if sched == nil {
+		return 0, fmt.Errorf("nil cron schedule")
+	}
+	prev := sched.Next(startTime.In(time.UTC))
+	if prev.IsZero() {
+		return 0, fmt.Errorf("invalid CronSchedule, no next firing time found")
+	}
+	minInterval := time.Duration(0)
+	for i := 0; i < minIntervalProbeCount; i++ {
+		next := sched.Next(prev)
+		if next.IsZero() {
+			break
+		}
+		interval := next.Sub(prev)
+		if i == 0 || interval < minInterval {
+			minInterval = interval
+		}
+		prev = next
+	}
+	return minInterval, nil
+}

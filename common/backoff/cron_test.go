@@ -254,3 +254,60 @@ func TestCronWithBufferOneCronWorkflow(t *testing.T) {
 		})
 	}
 }
+
+func TestMinScheduleInterval(t *testing.T) {
+	start, err := time.Parse(time.RFC3339, "2026-01-01T00:00:00Z")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		cron     string
+		expected time.Duration
+	}{
+		{
+			name:     "every minute star syntax",
+			cron:     "* * * * *",
+			expected: time.Minute,
+		},
+		{
+			name:     "every 10 minutes",
+			cron:     "*/10 * * * *",
+			expected: 10 * time.Minute,
+		},
+		{
+			name:     "hourly",
+			cron:     "0 * * * *",
+			expected: time.Hour,
+		},
+		{
+			name:     "every 5 seconds via @every",
+			cron:     "@every 5s",
+			expected: 5 * time.Second,
+		},
+		{
+			name:     "daily at 10am",
+			cron:     "0 10 * * *",
+			expected: 24 * time.Hour,
+		},
+		{
+			// fires at 9:00 and 17:00 daily; minimum gap is 8h (17->9 next day is 16h)
+			name:     "non-uniform intervals take the smallest gap",
+			cron:     "0 9,17 * * *",
+			expected: 8 * time.Hour,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sched, err := ValidateSchedule(tt.cron)
+			require.NoError(t, err)
+			got, err := MinScheduleInterval(sched, start)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestMinScheduleIntervalNilSchedule(t *testing.T) {
+	_, err := MinScheduleInterval(nil, time.Now())
+	assert.Error(t, err)
+}

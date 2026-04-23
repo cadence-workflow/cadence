@@ -263,6 +263,13 @@ type Config struct {
 	NormalDecisionScheduleToStartMaxAttempts dynamicproperties.IntPropertyFnWithDomainFilter
 	NormalDecisionScheduleToStartTimeout     dynamicproperties.DurationPropertyFnWithDomainFilter
 
+	// MinCronInterval is the minimum allowed interval between cron firings. When a
+	// StartWorkflow request has a cron schedule that fires more frequently than
+	// this, it is logged and, if EnforceMinCronInterval is true, rejected.
+	// A zero value disables the check.
+	MinCronInterval        dynamicproperties.DurationPropertyFnWithDomainFilter
+	EnforceMinCronInterval dynamicproperties.BoolPropertyFnWithDomainFilter
+
 	// The following is used by the new RPC replication stack
 	ReplicationTaskFetcherParallelism                    dynamicproperties.IntPropertyFn
 	ReplicationTaskFetcherAggregationInterval            dynamicproperties.DurationPropertyFn
@@ -544,6 +551,9 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		EnforceDecisionTaskAttempts:              dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnforceDecisionTaskAttempts),
 		NormalDecisionScheduleToStartMaxAttempts: dc.GetIntPropertyFilteredByDomain(dynamicproperties.NormalDecisionScheduleToStartMaxAttempts),
 		NormalDecisionScheduleToStartTimeout:     dc.GetDurationPropertyFilteredByDomain(dynamicproperties.NormalDecisionScheduleToStartTimeout),
+
+		MinCronInterval:        dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MinCronInterval),
+		EnforceMinCronInterval: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnforceMinCronInterval),
 
 		ReplicationTaskFetcherParallelism:                    dc.GetIntProperty(dynamicproperties.ReplicationTaskFetcherParallelism),
 		ReplicationTaskFetcherAggregationInterval:            dc.GetDurationProperty(dynamicproperties.ReplicationTaskFetcherAggregationInterval),

@@ -209,6 +209,8 @@ func TestNewConfig(t *testing.T) {
 		"EnforceDecisionTaskAttempts":                          {dynamicproperties.EnforceDecisionTaskAttempts, true},
 		"NormalDecisionScheduleToStartMaxAttempts":             {dynamicproperties.NormalDecisionScheduleToStartMaxAttempts, 84},
 		"NormalDecisionScheduleToStartTimeout":                 {dynamicproperties.NormalDecisionScheduleToStartTimeout, time.Second},
+		"MinCronInterval":                                      {dynamicproperties.MinCronInterval, time.Second},
+		"EnforceMinCronInterval":                               {dynamicproperties.EnforceMinCronInterval, true},
 		"ReplicationTaskFetcherParallelism":                    {dynamicproperties.ReplicationTaskFetcherParallelism, 85},
 		"ReplicationTaskFetcherAggregationInterval":            {dynamicproperties.ReplicationTaskFetcherAggregationInterval, time.Second},
 		"ReplicationTaskFetcherTimerJitterCoefficient":         {dynamicproperties.ReplicationTaskFetcherTimerJitterCoefficient, 9.0},

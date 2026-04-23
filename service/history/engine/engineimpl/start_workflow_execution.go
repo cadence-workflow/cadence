@@ -31,6 +31,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -739,7 +740,60 @@ func (e *historyEngineImpl) validateStartWorkflowExecutionRequest(request *types
 		return &types.BadRequestError{Message: "WorkflowType exceeds length limit."}
 	}
 
+	if err := e.validateCronSchedule(request); err != nil {
+		return err
+	}
+
 	return common.ValidateRetryPolicy(request.RetryPolicy)
+}
+
+// validateCronSchedule enforces the MinCronInterval policy for a StartWorkflow
+// request. When the request has a cron schedule whose minimum firing interval
+// is below the configured minimum, the violation is always logged with the
+// domain name. If EnforceMinCronInterval is true for the domain, the request
+// is rejected with a BadRequestError.
+func (e *historyEngineImpl) validateCronSchedule(request *types.StartWorkflowExecutionRequest) error {
+	cronSchedule := request.GetCronSchedule()
+	if cronSchedule == "" {
+		return nil
+	}
+	domainName := request.GetDomain()
+	minAllowed := e.config.MinCronInterval(domainName)
+	if minAllowed <= 0 {
+		return nil
+	}
+	sched, err := backoff.ValidateSchedule(cronSchedule)
+	if err != nil {
+		// Invalid schedules are caught by the existing validator paths; treat
+		// them as not-a-cron-restriction issue here and let downstream code
+		// surface the original parse error.
+		return nil
+	}
+	minInterval, err := backoff.MinScheduleInterval(sched, time.Now())
+	if err != nil || minInterval <= 0 {
+		return nil
+	}
+	if minInterval >= minAllowed {
+		return nil
+	}
+	e.logger.Warn(
+		"Cron schedule fires more frequently than the configured minimum interval",
+		tag.WorkflowDomainName(domainName),
+		tag.WorkflowID(request.GetWorkflowID()),
+		tag.WorkflowType(request.WorkflowType.GetName()),
+		tag.WorkflowCronSchedule(cronSchedule),
+		tag.Dynamic("cron-min-interval", minInterval.String()),
+		tag.Dynamic("cron-min-interval-allowed", minAllowed.String()),
+	)
+	if e.config.EnforceMinCronInterval(domainName) {
+		return &types.BadRequestError{
+			Message: fmt.Sprintf(
+				"CronSchedule %q fires every %s, which is below the minimum allowed interval of %s for this domain.",
+				cronSchedule, minInterval, minAllowed,
+			),
+		}
+	}
+	return nil
 }
 
 func (e *historyEngineImpl) overrideTaskStartToCloseTimeoutSeconds(
