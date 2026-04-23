@@ -1950,3 +1950,51 @@ func TestConflictResolveWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	assert.True(t, trackedIDs[currentTaskID], "current mutation timer task should be tracked")
 	assert.True(t, trackedIDs[newTaskID], "new snapshot timer task should be tracked")
 }
+
+// TestConflictResolveWorkflowExecution_TimerTaskTrackingFlagOff verifies that timer tasks are
+// not tracked when EnableTimerCleanupOnWorkflowClose is disabled.
+func TestConflictResolveWorkflowExecution_TimerTaskTrackingFlagOff(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockedStore := NewMockExecutionStore(ctrl)
+	mockedSerializer := NewMockPayloadSerializer(ctrl)
+
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(false),
+	})
+
+	makeTimerTask := func(taskID int64) Task {
+		return &WorkflowTimeoutTask{
+			WorkflowIdentifier: WorkflowIdentifier{DomainID: testDomainID, WorkflowID: "w1", RunID: "r1"},
+			TaskData:           TaskData{TaskID: taskID, VisibilityTimestamp: time.Now().Add(48 * time.Hour)},
+		}
+	}
+
+	resetSnapshot := sampleWorkflowSnapshot()
+	resetSnapshot.TasksByCategory = map[HistoryTaskCategory][]Task{
+		HistoryTaskCategoryTimer: {makeTimerTask(111)},
+	}
+
+	// SerializeWorkflowTimerTasks is called once per snapshot (only reset here, no mutation/new).
+	mockedSerializer.EXPECT().SerializeWorkflowTimerTasks(
+		gomock.Any(), constants.EncodingTypeThriftRW,
+	).DoAndReturn(func(tasks map[int64]*WorkflowTimerTaskInfo, _ constants.EncodingType) (*DataBlob, error) {
+		assert.Empty(t, tasks, "should not track timer tasks when flag is off")
+		return nil, nil
+	}).Times(1)
+
+	mockedSerializer.EXPECT().SerializeEvent(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).AnyTimes()
+	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(sampleActiveClusterSelectionPolicyData(), nil).AnyTimes()
+	mockedStore.EXPECT().ConflictResolveWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	_, err := manager.ConflictResolveWorkflowExecution(context.Background(), &ConflictResolveWorkflowExecutionRequest{
+		RangeID:               1,
+		Mode:                  ConflictResolveWorkflowModeBypassCurrent,
+		ResetWorkflowSnapshot: *resetSnapshot,
+		Encoding:              constants.EncodingTypeThriftRW,
+	})
+	assert.NoError(t, err)
+}
