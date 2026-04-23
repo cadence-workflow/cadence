@@ -50,6 +50,13 @@ const (
 	// search attributes. "Deleted" is not a value because a deleted schedule's
 	// workflow is closed and filtered by workflow status instead.
 	SearchAttrScheduleState = "CadenceScheduleState"
+	// CadenceScheduleCron holds the current cron expression so ListSchedules
+	// can display it without querying each scheduler workflow. Refreshed on
+	// workflow start (including after ContinueAsNew triggered by UpdateSchedule).
+	SearchAttrScheduleCron = "CadenceScheduleCron"
+	// CadenceScheduleWorkflowType holds the target workflow type name that the
+	// schedule starts on each fire. Same refresh semantics as the cron SA.
+	SearchAttrScheduleWorkflowType = "CadenceScheduleWorkflowType"
 
 	ScheduleStateActive = "active"
 	ScheduleStatePaused = "paused"

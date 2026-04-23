@@ -816,3 +816,112 @@ func TestBackfillFireComputation(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildScheduleSearchAttributes(t *testing.T) {
+	tests := []struct {
+		name  string
+		input *SchedulerWorkflowInput
+		state *SchedulerWorkflowState
+		want  map[string]interface{}
+	}{
+		{
+			name: "active schedule with cron and workflow type",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "0 6 * * *"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
+					},
+				},
+			},
+			state: &SchedulerWorkflowState{Paused: false},
+			want: map[string]interface{}{
+				SearchAttrScheduleState:        ScheduleStateActive,
+				SearchAttrScheduleCron:         "0 6 * * *",
+				SearchAttrScheduleWorkflowType: "my-workflow",
+			},
+		},
+		{
+			name: "paused schedule",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "*/5 * * * *"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "wf-a"},
+					},
+				},
+			},
+			state: &SchedulerWorkflowState{Paused: true},
+			want: map[string]interface{}{
+				SearchAttrScheduleState:        ScheduleStatePaused,
+				SearchAttrScheduleCron:         "*/5 * * * *",
+				SearchAttrScheduleWorkflowType: "wf-a",
+			},
+		},
+		{
+			name: "missing start-workflow action omits workflow type SA",
+			input: &SchedulerWorkflowInput{
+				Spec:   types.ScheduleSpec{CronExpression: "@hourly"},
+				Action: types.ScheduleAction{}, // no StartWorkflow
+			},
+			state: &SchedulerWorkflowState{},
+			want: map[string]interface{}{
+				SearchAttrScheduleState: ScheduleStateActive,
+				SearchAttrScheduleCron:  "@hourly",
+			},
+		},
+		{
+			name: "nil workflow type omits workflow type SA",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "@daily"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{WorkflowType: nil},
+				},
+			},
+			state: &SchedulerWorkflowState{},
+			want: map[string]interface{}{
+				SearchAttrScheduleState: ScheduleStateActive,
+				SearchAttrScheduleCron:  "@daily",
+			},
+		},
+		{
+			name: "empty-name workflow type omits workflow type SA",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "@daily"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: ""},
+					},
+				},
+			},
+			state: &SchedulerWorkflowState{},
+			want: map[string]interface{}{
+				SearchAttrScheduleState: ScheduleStateActive,
+				SearchAttrScheduleCron:  "@daily",
+			},
+		},
+		{
+			name: "empty cron expression omits cron SA",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: ""},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "wf"},
+					},
+				},
+			},
+			state: &SchedulerWorkflowState{},
+			want: map[string]interface{}{
+				SearchAttrScheduleState:        ScheduleStateActive,
+				SearchAttrScheduleWorkflowType: "wf",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildScheduleSearchAttributes(tt.input, tt.state)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

@@ -699,6 +699,8 @@ func TestListSchedules(t *testing.T) {
 		f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
 
 		pausedStateBytes, _ := json.Marshal(scheduler.ScheduleStatePaused)
+		cronBytes, _ := json.Marshal("0 6 * * *")
+		typeBytes, _ := json.Marshal("my-target-workflow")
 
 		f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.MatchedBy(func(req *persistence.ListWorkflowExecutionsByQueryRequest) bool {
 			return req.Domain == testDomain && req.Query == "WorkflowType = 'cadence-scheduler'"
@@ -711,7 +713,9 @@ func TestListSchedules(t *testing.T) {
 					},
 					Type: &types.WorkflowType{Name: scheduler.WorkflowTypeName},
 					SearchAttributes: &types.SearchAttributes{IndexedFields: map[string][]byte{
-						scheduler.SearchAttrScheduleState: pausedStateBytes,
+						scheduler.SearchAttrScheduleState:        pausedStateBytes,
+						scheduler.SearchAttrScheduleCron:         cronBytes,
+						scheduler.SearchAttrScheduleWorkflowType: typeBytes,
 					}},
 				},
 				{
@@ -736,10 +740,15 @@ func TestListSchedules(t *testing.T) {
 		assert.Equal(t, "sched-1", resp.Schedules[0].ScheduleID)
 		require.NotNil(t, resp.Schedules[0].State)
 		assert.True(t, resp.Schedules[0].State.Paused)
+		assert.Equal(t, "0 6 * * *", resp.Schedules[0].CronExpression)
+		require.NotNil(t, resp.Schedules[0].WorkflowType)
+		assert.Equal(t, "my-target-workflow", resp.Schedules[0].WorkflowType.Name)
 
 		assert.Equal(t, "sched-2", resp.Schedules[1].ScheduleID)
 		require.NotNil(t, resp.Schedules[1].State)
 		assert.False(t, resp.Schedules[1].State.Paused, "missing search attribute should default to not paused")
+		assert.Empty(t, resp.Schedules[1].CronExpression, "missing cron search attribute should yield empty string")
+		assert.Nil(t, resp.Schedules[1].WorkflowType, "missing workflow type search attribute should yield nil")
 
 		assert.Equal(t, []byte("next"), resp.NextPageToken)
 	})

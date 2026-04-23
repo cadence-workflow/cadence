@@ -440,15 +440,15 @@ func (wh *WorkflowHandler) ListSchedules(
 			ScheduleID: scheduleID,
 		}
 
-		// CronExpression and WorkflowType are populated in a follow-up PR that
-		// stores them as search attributes (so they can be updated on UpdateSchedule).
-
-		// Default to not paused. The scheduler workflow upserts this search attribute
-		// on start and on state change, so a missing value means the workflow hasn't
-		// run its first decision task yet (brief window after CreateSchedule).
+		// Default to not paused. The scheduler workflow upserts these search
+		// attributes on start (and ContinueAsNew) and on state change, so a missing
+		// value means the workflow hasn't run its first decision task yet (brief
+		// window after CreateSchedule).
 		paused := false
+		var cronExpr, workflowTypeName string
 		if exec.SearchAttributes != nil {
-			if stateBytes, ok := exec.SearchAttributes.IndexedFields[scheduler.SearchAttrScheduleState]; ok {
+			idx := exec.SearchAttributes.IndexedFields
+			if stateBytes, ok := idx[scheduler.SearchAttrScheduleState]; ok {
 				var stateStr string
 				if err := json.Unmarshal(stateBytes, &stateStr); err != nil {
 					wh.GetLogger().Warn("failed to unmarshal CadenceScheduleState search attribute, defaulting to active",
@@ -459,8 +459,28 @@ func (wh *WorkflowHandler) ListSchedules(
 					paused = stateStr == scheduler.ScheduleStatePaused
 				}
 			}
+			if cronBytes, ok := idx[scheduler.SearchAttrScheduleCron]; ok {
+				if err := json.Unmarshal(cronBytes, &cronExpr); err != nil {
+					wh.GetLogger().Warn("failed to unmarshal CadenceScheduleCron search attribute, defaulting to empty",
+						tag.WorkflowID(scheduleWorkflowID(scheduleID)),
+						tag.Error(err),
+					)
+				}
+			}
+			if typeBytes, ok := idx[scheduler.SearchAttrScheduleWorkflowType]; ok {
+				if err := json.Unmarshal(typeBytes, &workflowTypeName); err != nil {
+					wh.GetLogger().Warn("failed to unmarshal CadenceScheduleWorkflowType search attribute, defaulting to empty",
+						tag.WorkflowID(scheduleWorkflowID(scheduleID)),
+						tag.Error(err),
+					)
+				}
+			}
 		}
 		entry.State = &types.ScheduleState{Paused: paused}
+		entry.CronExpression = cronExpr
+		if workflowTypeName != "" {
+			entry.WorkflowType = &types.WorkflowType{Name: workflowTypeName}
+		}
 
 		entries = append(entries, entry)
 	}

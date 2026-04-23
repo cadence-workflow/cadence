@@ -67,14 +67,13 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		return fmt.Errorf("failed to register query handler: %w", err)
 	}
 
-	// Re-upsert the state search attribute on every execution (including after
-	// ContinueAsNew). Search attributes set via UpsertSearchAttributes in a prior
-	// execution are not automatically carried over, so we must refresh them here
-	// to keep ListSchedules visibility results in sync with the current state.
-	if err := workflow.UpsertSearchAttributes(ctx, map[string]interface{}{
-		SearchAttrScheduleState: scheduleStateFromPaused(state.Paused),
-	}); err != nil {
-		logger.Warn("failed to upsert schedule state search attribute", zap.Error(err))
+	// Re-upsert search attributes on every execution (including after ContinueAsNew).
+	// Values set via UpsertSearchAttributes in a prior execution are not automatically
+	// carried over, so we must refresh them here to keep ListSchedules visibility
+	// results in sync with the current state/spec/action. UpdateSchedule triggers
+	// ContinueAsNew, so the new cron and workflow type land here on the next start.
+	if err := workflow.UpsertSearchAttributes(ctx, buildScheduleSearchAttributes(&input, state)); err != nil {
+		logger.Warn("failed to upsert schedule search attributes", zap.Error(err))
 	}
 
 	chs := signalChannels{
@@ -144,6 +143,9 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 				logger.Warn("failed to upsert schedule state search attribute", zap.Error(err))
 			}
 		}
+		// Note: cron and workflow type search attributes are refreshed at the top
+		// of the next workflow execution after UpdateSchedule triggers ContinueAsNew,
+		// so no inline upsert is needed here.
 
 		// Deleted schedules terminate the workflow here. Any further signals
 		// (pause, unpause, update, backfill) sent after this point fail with
@@ -300,6 +302,24 @@ func scheduleStateFromPaused(paused bool) string {
 		return ScheduleStatePaused
 	}
 	return ScheduleStateActive
+}
+
+// buildScheduleSearchAttributes returns the search attributes that describe a
+// scheduler workflow for ListSchedules: lifecycle state, cron expression, and
+// target workflow type. The state SA is always written (the boolean Paused has
+// a meaningful default). Optional fields (cron, workflow type) are omitted when
+// empty so visibility queries can distinguish "absent" from "empty string".
+func buildScheduleSearchAttributes(input *SchedulerWorkflowInput, state *SchedulerWorkflowState) map[string]interface{} {
+	sa := map[string]interface{}{
+		SearchAttrScheduleState: scheduleStateFromPaused(state.Paused),
+	}
+	if cron := input.Spec.CronExpression; cron != "" {
+		sa[SearchAttrScheduleCron] = cron
+	}
+	if sw := input.Action.StartWorkflow; sw != nil && sw.WorkflowType != nil && sw.WorkflowType.Name != "" {
+		sa[SearchAttrScheduleWorkflowType] = sw.WorkflowType.Name
+	}
+	return sa
 }
 
 func handlePause(logger *zap.Logger, sig PauseSignal, state *SchedulerWorkflowState) bool {
