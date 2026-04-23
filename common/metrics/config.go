@@ -308,12 +308,9 @@ func (g *GaugeMigration) UnmarshalYAML(read func(any) error) error {
 // This is likely best done in an `init` func, to ensure it happens early enough
 // and does not race with config reading.
 var GaugeMigrationMetrics = map[string]struct{}{
-	"cache_size_gauge":                      {},
-	"replication_tasks_lag_gauge":           {},
-	"replication_tasks_lag_raw_gauge":       {},
-	"replication_tasks_fetched_gauge":       {},
-	"replication_tasks_returned_gauge":      {},
-	"replication_tasks_returned_diff_gauge": {},
+	"cache_size_gauge":                {},
+	"replication_tasks_lag_gauge":     {},
+	"replication_tasks_lag_raw_gauge": {},
 }
 
 func (g GaugeMigration) EmitTimer(name string) bool {
@@ -417,7 +414,11 @@ func (c *CounterMigration) UnmarshalYAML(read func(any) error) error {
 // loading config, in case they have any custom migrations to perform.
 // This is likely best done in an `init` func, to ensure it happens early enough
 // and does not race with config reading.
-var CounterMigrationMetrics = map[string]struct{}{}
+var CounterMigrationMetrics = map[string]struct{}{
+	"replication_tasks_fetched_counter":       {},
+	"replication_tasks_returned_counter":      {},
+	"replication_tasks_returned_diff_counter": {},
+}
 
 func (c CounterMigration) EmitTimer(name string) bool {
 	if _, ok := CounterMigrationMetrics[name]; !ok {
