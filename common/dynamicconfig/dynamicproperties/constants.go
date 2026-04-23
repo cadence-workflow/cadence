@@ -2927,7 +2927,7 @@ const (
 	// they will fire and clean up naturally.
 	// KeyName: history.timerDeletionOnWorkflowCloseMinTTL
 	// Value type: Duration
-	// Default value: 24h
+	// Default value: 240h (10 days)
 	// Allowed filters: N/A
 	TimerDeletionOnWorkflowCloseMinTTL
 	// StandbyTaskMissingEventsResendDelay is the amount of time standby cluster's will wait (if events are missing)before calling remote for missing events
@@ -5620,7 +5620,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	TimerDeletionOnWorkflowCloseMinTTL: {
 		KeyName:      "history.timerDeletionOnWorkflowCloseMinTTL",
 		Description:  "Minimum remaining time before a timer task is worth explicitly deleting on workflow close. Timers firing within this window are skipped and will clean up naturally.",
-		DefaultValue: time.Hour * 24,
+		DefaultValue: time.Hour * 24 * 10,
 	},
 	StandbyTaskMissingEventsResendDelay: {
 		KeyName:      "history.standbyTaskMissingEventsResendDelay",

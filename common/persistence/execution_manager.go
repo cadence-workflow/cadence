@@ -588,6 +588,14 @@ func (m *executionManagerImpl) ConflictResolveWorkflowExecution(
 	request *ConflictResolveWorkflowExecutionRequest,
 ) (*ConflictResolveWorkflowExecutionResponse, error) {
 
+	m.syncExecutionInfoWithTasks(&request.ResetWorkflowSnapshot)
+	if request.CurrentWorkflowMutation != nil {
+		m.syncMutationWithTasks(request.CurrentWorkflowMutation)
+	}
+	if request.NewWorkflowSnapshot != nil {
+		m.syncExecutionInfoWithTasks(request.NewWorkflowSnapshot)
+	}
+
 	serializedResetWorkflowSnapshot, err := m.SerializeWorkflowSnapshot(&request.ResetWorkflowSnapshot, request.Encoding)
 	if err != nil {
 		return nil, err
