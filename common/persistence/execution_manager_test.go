@@ -1699,7 +1699,7 @@ func sampleEventDataWithVersion(i int64) *DataBlob {
 }
 
 // TestUpdateWorkflowExecution_TimerTaskTracking verifies that UpdateWorkflowExecution
-// tracks timer tasks when EnableTimerCleanupOnWorkflowClose is enabled.
+// tracks timer tasks when EnableWorkflowTimerTaskCleanup is enabled.
 func TestUpdateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
@@ -1709,8 +1709,8 @@ func TestUpdateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	visTS := time.Now().Add(48 * time.Hour)
 
 	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(true),
+		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(true),
 	})
 
 	mutation := sampleWorkflowMutation()
@@ -1747,7 +1747,7 @@ func TestUpdateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 }
 
 // TestCreateWorkflowExecution_TimerTaskTracking verifies that CreateWorkflowExecution
-// tracks timer tasks when EnableTimerCleanupOnWorkflowClose is enabled.
+// tracks timer tasks when EnableWorkflowTimerTaskCleanup is enabled.
 func TestCreateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
@@ -1757,8 +1757,8 @@ func TestCreateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	visTS := time.Now().Add(24 * time.Hour)
 
 	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(true),
+		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(true),
 	})
 
 	snapshot := sampleWorkflowSnapshot()
@@ -1794,15 +1794,15 @@ func TestCreateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 }
 
 // TestUpdateWorkflowExecution_TimerTaskTrackingFlagOff verifies that timer tasks are not
-// tracked when EnableTimerCleanupOnWorkflowClose is disabled.
+// tracked when EnableWorkflowTimerTaskCleanup is disabled.
 func TestUpdateWorkflowExecution_TimerTaskTrackingFlagOff(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
 	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(false),
+		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(false),
 	})
 
 	mutation := sampleWorkflowMutation()
@@ -1838,15 +1838,15 @@ func TestUpdateWorkflowExecution_TimerTaskTrackingFlagOff(t *testing.T) {
 }
 
 // TestCreateWorkflowExecution_TimerTaskTrackingFlagOff verifies that timer tasks are not
-// tracked when EnableTimerCleanupOnWorkflowClose is disabled.
+// tracked when EnableWorkflowTimerTaskCleanup is disabled.
 func TestCreateWorkflowExecution_TimerTaskTrackingFlagOff(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
 	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(false),
+		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(false),
 	})
 
 	snapshot := sampleWorkflowSnapshot()
@@ -1893,8 +1893,8 @@ func TestConflictResolveWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	visTS := time.Now().Add(48 * time.Hour)
 
 	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(true),
+		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(true),
 	})
 
 	makeTimerTask := func(taskID int64) Task {
@@ -1952,15 +1952,15 @@ func TestConflictResolveWorkflowExecution_TimerTaskTracking(t *testing.T) {
 }
 
 // TestConflictResolveWorkflowExecution_TimerTaskTrackingFlagOff verifies that timer tasks are
-// not tracked when EnableTimerCleanupOnWorkflowClose is disabled.
+// not tracked when EnableWorkflowTimerTaskCleanup is disabled.
 func TestConflictResolveWorkflowExecution_TimerTaskTrackingFlagOff(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
 	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding:             dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-		EnableTimerCleanupOnWorkflowClose: dynamicproperties.GetBoolPropertyFn(false),
+		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(false),
 	})
 
 	makeTimerTask := func(taskID int64) Task {

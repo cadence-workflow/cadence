@@ -1773,7 +1773,6 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 				mockMutableState.EXPECT().GetCompletionEvent(gomock.Any()).Return(&types.HistoryEvent{
 					ID: 123,
 				}, nil)
-				mockShard.EXPECT().GetConfig().Return(&config.Config{}).AnyTimes()
 			},
 			mockPersistNonStartWorkflowBatchEventsFn: func(_ context.Context, history *persistence.WorkflowEvents) (events.PersistedBlob, error) {
 				assert.Equal(t, &persistence.WorkflowEvents{

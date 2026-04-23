@@ -92,7 +92,7 @@ type (
 		*IntegrationBase
 	}
 
-	TimerCleanupOnWorkflowCloseSuite struct {
+	WorkflowTimerTaskCleanupSuite struct {
 		*require.Assertions
 		*IntegrationBase
 	}

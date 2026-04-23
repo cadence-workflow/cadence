@@ -617,6 +617,8 @@ func (t *timerActiveTaskExecutor) executeWorkflowBackoffTimerTask(
 		return nil
 	}
 
+	mutableState.RemoveTrackedTimerTask(task.GetTaskID())
+
 	if task.TimeoutType == persistence.WorkflowBackoffTimeoutTypeRetry {
 		t.metricsClient.IncCounter(metrics.TimerActiveTaskWorkflowBackoffTimerScope, metrics.WorkflowRetryBackoffTimerCount)
 	} else {

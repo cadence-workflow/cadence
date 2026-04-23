@@ -707,9 +707,9 @@ type (
 	}
 
 	// WorkflowTimerTaskInfo contains metadata about a timer task associated with a workflow
-	// execution, used to track and clean up pending timers when the workflow closes early.
-	// Timer tasks are tracked at workflow creation and update time; fired timers are removed
-	// from the map as they fire so only unfired tasks remain at workflow close.
+	// execution, tracked so unfired timers can be deleted when the execution record is cleaned up
+	// at the end of the retention period. Timer tasks are recorded at creation and update time;
+	// fired timers are removed from the map as they fire so only unfired tasks remain.
 	WorkflowTimerTaskInfo struct {
 		TimeoutType         int
 		TaskID              int64

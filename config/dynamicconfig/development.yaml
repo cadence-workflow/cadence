@@ -102,5 +102,5 @@ shardDistributor.migrationMode:
 system.workflowDeletionJitterRange:
 - value: 1
   constraints: {}
-system.enableTimerCleanupOnWorkflowClose:
+system.enableWorkflowTimerTaskCleanup:
 - value: true

@@ -47,10 +47,9 @@ import (
 )
 
 const (
-	defaultRemoteCallTimeout    = 30 * time.Second
-	checksumErrorRetryCount     = 3
-	maxLockDuration             = 1 * time.Second
-	workflowTimerCleanupTimeout = 5 * time.Second
+	defaultRemoteCallTimeout = 30 * time.Second
+	checksumErrorRetryCount  = 3
+	maxLockDuration          = 1 * time.Second
 )
 
 type conflictError struct {
@@ -926,72 +925,9 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 			taskList := currentWorkflow.ExecutionInfo.TaskList
 			c.emitWorkflowCompletionStatsFn(domain, workflowType, c.workflowExecution.GetWorkflowID(), c.workflowExecution.GetRunID(), taskList, event)
 		}
-		c.deleteTrackedTimerTasksOnWorkflowCloseAsync(currentWorkflow.ExecutionInfo)
 	}
 
 	return nil
-}
-
-// deleteTrackedTimerTasksOnWorkflowCloseAsync spawns a goroutine to delete timer tasks
-// that were tracked but not yet fired when the workflow closed. Runs best-effort at
-// close time so workflow close latency is not affected. A safety-net deletion also runs
-// at retention time via deleteTrackedTimerTasksOnWorkflowDeletion.
-func (c *contextImpl) deleteTrackedTimerTasksOnWorkflowCloseAsync(executionInfo *persistence.WorkflowExecutionInfo) {
-	cfg := c.shard.GetConfig()
-	if cfg.EnableTimerCleanupOnWorkflowClose == nil || !cfg.EnableTimerCleanupOnWorkflowClose() {
-		return
-	}
-	timerTasks := c.mutableState.GetPendingWorkflowTimerTaskInfos()
-	if len(timerTasks) == 0 {
-		return
-	}
-	// Defensive copy: the goroutine outlives the mutable state lock. If the map is modified
-	// concurrently (e.g. via RemoveTrackedTimerTask during timer processing), the goroutine
-	// must work on a stable snapshot.
-	tasksCopy := make(map[int64]*persistence.WorkflowTimerTaskInfo, len(timerTasks))
-	for k, v := range timerTasks {
-		tasksCopy[k] = v
-	}
-
-	threshold := c.shard.GetConfig().TimerDeletionOnWorkflowCloseMinTTL()
-	now := c.shard.GetTimeSource().Now()
-	executionMgr := c.shard.GetExecutionManager()
-	logger := c.logger
-	domainID := executionInfo.DomainID
-	workflowID := executionInfo.WorkflowID
-	runID := c.workflowExecution.GetRunID()
-
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), workflowTimerCleanupTimeout)
-		defer cancel()
-
-		for _, taskInfo := range tasksCopy {
-			if taskInfo.VisibilityTimestamp.Sub(now) < threshold {
-				// Timer fires soon — let it fire naturally.
-				continue
-			}
-			err := executionMgr.DeleteTimerTask(ctx, &persistence.DeleteTimerTaskRequest{
-				DomainID:            domainID,
-				WorkflowID:          workflowID,
-				RunID:               runID,
-				TaskID:              taskInfo.TaskID,
-				VisibilityTimestamp: taskInfo.VisibilityTimestamp,
-			})
-			if err != nil {
-				if errors.As(err, new(*types.EntityNotExistsError)) {
-					// Timer already fired — expected.
-					continue
-				}
-				logger.Warn("Failed to delete workflow timer task on workflow close",
-					tag.WorkflowDomainID(domainID),
-					tag.WorkflowID(workflowID),
-					tag.WorkflowRunID(runID),
-					tag.TaskID(taskInfo.TaskID),
-					tag.Error(err),
-				)
-			}
-		}
-	}()
 }
 
 func notifyTasksFromWorkflowSnapshot(

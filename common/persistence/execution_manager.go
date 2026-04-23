@@ -676,13 +676,13 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 }
 
 // syncExecutionInfoWithTasks records timer task IDs on the workflow snapshot so they can be
-// cleaned up when the workflow closes before its timers fire.
+// deleted when the workflow execution record is cleaned up at the end of the retention period.
 //
 // This runs inside CreateWorkflowExecution rather than at snapshot creation time because
 // task IDs are not assigned until the execution manager processes the snapshot. All workflow
 // creation paths (normal start, NdC replication, reset) pass through this single method.
 func (m *executionManagerImpl) syncExecutionInfoWithTasks(workflowSnapshot *WorkflowSnapshot) {
-	if m.dc == nil || m.dc.EnableTimerCleanupOnWorkflowClose == nil || !m.dc.EnableTimerCleanupOnWorkflowClose() {
+	if m.dc == nil || m.dc.EnableWorkflowTimerTaskCleanup == nil || !m.dc.EnableWorkflowTimerTaskCleanup() {
 		return
 	}
 	workflowSnapshot.WorkflowTimerTaskInfos = m.syncTimerTaskTracking(
@@ -690,11 +690,11 @@ func (m *executionManagerImpl) syncExecutionInfoWithTasks(workflowSnapshot *Work
 }
 
 // syncMutationWithTasks appends timer task IDs from a workflow mutation to the accumulated
-// tracking list. Works the same as syncExecutionInfoWithTasks but for update mutations —
-// the existing list (carried from mutable state via CloseTransactionAsMutation) is extended
+// tracking map. Works the same as syncExecutionInfoWithTasks but for update mutations —
+// the existing map (carried from mutable state via CloseTransactionAsMutation) is extended
 // with any new timer tasks created in this mutation.
 func (m *executionManagerImpl) syncMutationWithTasks(mutation *WorkflowMutation) {
-	if m.dc == nil || m.dc.EnableTimerCleanupOnWorkflowClose == nil || !m.dc.EnableTimerCleanupOnWorkflowClose() {
+	if m.dc == nil || m.dc.EnableWorkflowTimerTaskCleanup == nil || !m.dc.EnableWorkflowTimerTaskCleanup() {
 		return
 	}
 	mutation.WorkflowTimerTaskInfos = m.syncTimerTaskTracking(
@@ -718,6 +718,11 @@ func (m *executionManagerImpl) syncTimerTaskTracking(
 					tag.TaskID(task.GetTaskID()),
 					tag.Error(err),
 				)
+				continue
+			}
+			// DeleteHistoryEventTask is the retention-based deletion trigger — never track it,
+			// as deleting it would prevent the workflow execution record from being cleaned up.
+			if timerTaskInfo.TaskType == TaskTypeDeleteHistoryEvent {
 				continue
 			}
 			if trackedTasks == nil {
