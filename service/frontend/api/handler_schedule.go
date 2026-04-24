@@ -61,6 +61,29 @@ func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 	return nil
 }
 
+// warnIfBufferLimitExceedsSafetyCap logs a warning when the user-supplied
+// buffer_limit for the BUFFER overlap policy exceeds the scheduler's hard
+// safety cap. In that case, drops at the safety cap will be attributed to
+// reason=safety_cap rather than reason=buffer_limit, which surprises operators
+// monitoring the per-domain buffer overflow metric. We don't reject the value
+// (it's not invalid; the policy still queues fires up to the safety cap),
+// but we surface the discrepancy at write time so it isn't only discovered
+// later by reading metrics.
+func (wh *WorkflowHandler) warnIfBufferLimitExceedsSafetyCap(scheduleID, domainName string, policies *types.SchedulePolicies) {
+	if policies == nil ||
+		policies.OverlapPolicy != types.ScheduleOverlapPolicyBuffer ||
+		int(policies.BufferLimit) <= scheduler.MaxBufferedFiresHardCap {
+		return
+	}
+	wh.GetLogger().Warn(
+		"buffer_limit exceeds scheduler safety cap; drops will be attributed to safety_cap",
+		tag.WorkflowDomainName(domainName),
+		tag.WorkflowID(scheduleWorkflowID(scheduleID)),
+		tag.Dynamic("bufferLimit", int(policies.BufferLimit)),
+		tag.Dynamic("safetyCap", scheduler.MaxBufferedFiresHardCap),
+	)
+}
+
 // validateUserSearchAttributes rejects user search attribute keys that collide
 // with scheduler-reserved keys (CadenceSchedule* prefix). Without this check,
 // user values would be silently overwritten by the scheduler workflow's
@@ -110,6 +133,7 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
 		return nil, err
 	}
+	wh.warnIfBufferLimitExceedsSafetyCap(scheduleID, domainName, request.GetPolicies())
 	if err := validateUserSearchAttributes(request.GetSearchAttributes()); err != nil {
 		return nil, err
 	}
@@ -253,6 +277,7 @@ func (wh *WorkflowHandler) UpdateSchedule(
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
 		return nil, err
 	}
+	wh.warnIfBufferLimitExceedsSafetyCap(scheduleID, domainName, request.GetPolicies())
 
 	signal := scheduler.UpdateSignal{
 		Spec:     request.GetSpec(),

@@ -1103,3 +1103,257 @@ func TestBuildScheduleSearchAttributes(t *testing.T) {
 		})
 	}
 }
+
+func TestEnqueueBufferedFire(t *testing.T) {
+	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name            string
+		bufferLimit     int32
+		initialFires    []BufferedFire
+		initialSkipped  int64
+		enqueueTime     time.Time
+		trigger         TriggerSource
+		wantFires       []BufferedFire
+		wantSkippedRuns int64
+		// wantOverflowReason is "" when no overflow metric is expected;
+		// otherwise it is the expected reason tag value (buffer_limit / safety_cap).
+		wantOverflowReason string
+	}{
+		{
+			name:         "unlimited buffer accepts fire when bufferLimit=0",
+			bufferLimit:  0,
+			initialFires: []BufferedFire{{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule}},
+			enqueueTime:  t0.Add(time.Minute),
+			trigger:      TriggerSourceSchedule,
+			wantFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+			},
+		},
+		{
+			name:        "enqueue below limit appends to tail",
+			bufferLimit: 3,
+			initialFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+			},
+			enqueueTime: t0.Add(2 * time.Minute),
+			trigger:     TriggerSourceSchedule,
+			wantFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0.Add(2 * time.Minute), TriggerSource: TriggerSourceSchedule},
+			},
+		},
+		{
+			name:        "enqueue at user limit drops fire and emits buffer_limit metric",
+			bufferLimit: 2,
+			initialFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+			},
+			initialSkipped: 5,
+			enqueueTime:    t0.Add(2 * time.Minute),
+			trigger:        TriggerSourceSchedule,
+			// Buffer unchanged (limit was 2, already at 2).
+			wantFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+			},
+			wantSkippedRuns:    6,
+			wantOverflowReason: BufferOverflowReasonBufferLimit,
+		},
+		{
+			name:               "enqueue at safety cap drops fire and emits safety_cap metric",
+			bufferLimit:        0, // unlimited per user, but safety cap still enforces
+			initialFires:       largeBufferedFires(MaxBufferedFiresHardCap, t0),
+			initialSkipped:     0,
+			enqueueTime:        t0.Add(time.Hour),
+			trigger:            TriggerSourceSchedule,
+			wantFires:          largeBufferedFires(MaxBufferedFiresHardCap, t0),
+			wantSkippedRuns:    1,
+			wantOverflowReason: BufferOverflowReasonSafetyCap,
+		},
+		{
+			// buffer_limit > safety cap: drops at the safety cap should be
+			// attributed to safety_cap (not buffer_limit), because the user's
+			// limit was never the binding constraint. CreateSchedule/UpdateSchedule
+			// warn at write time so this attribution isn't surprising.
+			name:               "enqueue at safety cap when user buffer_limit exceeds it attributes to safety_cap",
+			bufferLimit:        int32(MaxBufferedFiresHardCap * 2),
+			initialFires:       largeBufferedFires(MaxBufferedFiresHardCap, t0),
+			enqueueTime:        t0.Add(time.Hour),
+			trigger:            TriggerSourceSchedule,
+			wantFires:          largeBufferedFires(MaxBufferedFiresHardCap, t0),
+			wantSkippedRuns:    1,
+			wantOverflowReason: BufferOverflowReasonSafetyCap,
+		},
+		{
+			name:         "backfill trigger source is preserved",
+			bufferLimit:  0,
+			initialFires: nil,
+			enqueueTime:  t0,
+			trigger:      TriggerSourceBackfill,
+			wantFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceBackfill},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := &SchedulerWorkflowInput{
+				Policies: types.SchedulePolicies{BufferLimit: tt.bufferLimit},
+			}
+			state := &SchedulerWorkflowState{
+				BufferedFires: append([]BufferedFire(nil), tt.initialFires...),
+				SkippedRuns:   tt.initialSkipped,
+			}
+			scope := tally.NewTestScope("", nil)
+			enqueueBufferedFire(testLogger, scope, input, state, tt.enqueueTime, tt.trigger)
+			assert.Equal(t, tt.wantFires, state.BufferedFires)
+			assert.Equal(t, tt.wantSkippedRuns, state.SkippedRuns)
+
+			counters := scope.Snapshot().Counters()
+			if tt.wantOverflowReason != "" {
+				c, ok := findCounter(counters, SchedulerBufferOverflowCountPerDomain, map[string]string{ReasonTag: tt.wantOverflowReason})
+				require.True(t, ok, "overflow metric should be emitted with reason=%s", tt.wantOverflowReason)
+				assert.Equal(t, int64(1), c.Value())
+			} else {
+				_, ok := findCounter(counters, SchedulerBufferOverflowCountPerDomain, map[string]string{})
+				assert.False(t, ok, "overflow metric should not be emitted on successful enqueue")
+			}
+		})
+	}
+}
+
+// largeBufferedFires builds a slice of n synthetic BufferedFire entries
+// starting at the given base time, used to exercise the safety-cap path
+// without each test case having to construct ~1000 entries inline.
+func largeBufferedFires(n int, base time.Time) []BufferedFire {
+	out := make([]BufferedFire, n)
+	for i := 0; i < n; i++ {
+		out[i] = BufferedFire{
+			ScheduledTime: base.Add(time.Duration(i) * time.Second),
+			TriggerSource: TriggerSourceSchedule,
+		}
+	}
+	return out
+}
+
+func TestEffectiveBufferLimit(t *testing.T) {
+	tests := []struct {
+		name       string
+		userLimit  int32
+		wantLimit  int
+		wantReason string
+	}{
+		{
+			name:       "userLimit=0 (unlimited) yields safety cap",
+			userLimit:  0,
+			wantLimit:  MaxBufferedFiresHardCap,
+			wantReason: BufferOverflowReasonSafetyCap,
+		},
+		{
+			name:       "negative userLimit treated as unlimited yields safety cap",
+			userLimit:  -1,
+			wantLimit:  MaxBufferedFiresHardCap,
+			wantReason: BufferOverflowReasonSafetyCap,
+		},
+		{
+			name:       "userLimit below safety cap is honored",
+			userLimit:  100,
+			wantLimit:  100,
+			wantReason: BufferOverflowReasonBufferLimit,
+		},
+		{
+			name:       "userLimit equal to safety cap is honored as buffer_limit",
+			userLimit:  int32(MaxBufferedFiresHardCap),
+			wantLimit:  MaxBufferedFiresHardCap,
+			wantReason: BufferOverflowReasonBufferLimit,
+		},
+		{
+			name:       "userLimit above safety cap is clamped to safety cap",
+			userLimit:  int32(MaxBufferedFiresHardCap * 2),
+			wantLimit:  MaxBufferedFiresHardCap,
+			wantReason: BufferOverflowReasonSafetyCap,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotLimit, gotReason := effectiveBufferLimit(tt.userLimit)
+			assert.Equal(t, tt.wantLimit, gotLimit)
+			assert.Equal(t, tt.wantReason, gotReason)
+		})
+	}
+}
+
+func TestHandleUpdate_BufferedFiresClearedOnOverlapPolicyChange(t *testing.T) {
+	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	initialFires := []BufferedFire{
+		{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+		{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+	}
+
+	tests := []struct {
+		name            string
+		fromOverlap     types.ScheduleOverlapPolicy
+		toOverlap       types.ScheduleOverlapPolicy
+		initialFires    []BufferedFire
+		wantFiresLen    int
+		wantSkippedRuns int64
+	}{
+		{
+			name:            "BUFFER -> SKIP_NEW clears queue and counts drops as skipped",
+			fromOverlap:     types.ScheduleOverlapPolicyBuffer,
+			toOverlap:       types.ScheduleOverlapPolicySkipNew,
+			initialFires:    initialFires,
+			wantFiresLen:    0,
+			wantSkippedRuns: 2,
+		},
+		{
+			name:            "BUFFER -> TERMINATE_PREVIOUS clears queue",
+			fromOverlap:     types.ScheduleOverlapPolicyBuffer,
+			toOverlap:       types.ScheduleOverlapPolicyTerminatePrevious,
+			initialFires:    initialFires,
+			wantFiresLen:    0,
+			wantSkippedRuns: 2,
+		},
+		{
+			name:         "BUFFER -> BUFFER preserves queue (no-op policy change)",
+			fromOverlap:  types.ScheduleOverlapPolicyBuffer,
+			toOverlap:    types.ScheduleOverlapPolicyBuffer,
+			initialFires: initialFires,
+			wantFiresLen: 2,
+		},
+		{
+			name:         "SKIP_NEW -> BUFFER leaves queue unchanged (was already empty)",
+			fromOverlap:  types.ScheduleOverlapPolicySkipNew,
+			toOverlap:    types.ScheduleOverlapPolicyBuffer,
+			initialFires: nil,
+			wantFiresLen: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := &SchedulerWorkflowInput{
+				Spec:     types.ScheduleSpec{CronExpression: "0 * * * *"},
+				Policies: types.SchedulePolicies{OverlapPolicy: tt.fromOverlap},
+			}
+			state := &SchedulerWorkflowState{
+				BufferedFires: append([]BufferedFire(nil), tt.initialFires...),
+			}
+			sig := UpdateSignal{
+				Policies: &types.SchedulePolicies{OverlapPolicy: tt.toOverlap},
+			}
+
+			changed := handleUpdate(testLogger, sig, input, state)
+
+			assert.True(t, changed, "policy change should always report as changed")
+			assert.Equal(t, tt.toOverlap, input.Policies.OverlapPolicy)
+			assert.Len(t, state.BufferedFires, tt.wantFiresLen)
+			assert.Equal(t, tt.wantSkippedRuns, state.SkippedRuns)
+		})
+	}
+}

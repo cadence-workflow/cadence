@@ -210,6 +210,34 @@ func TestCreateSchedule(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		// buffer_limit > safety cap is allowed (the BUFFER policy still functions,
+		// it's just capped at MaxBufferedFiresHardCap), so CreateSchedule should
+		// succeed. The handler logs a warning so operators aren't surprised when
+		// buffer overflow drops are tagged reason=safety_cap rather than
+		// reason=buffer_limit.
+		"BUFFER with buffer_limit above safety cap succeeds (warns)": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "my-schedule",
+				Spec:       &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
+						TaskList:     &types.TaskList{Name: "my-tasklist"},
+					},
+				},
+				Policies: &types.SchedulePolicies{
+					OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
+					BufferLimit:   int32(scheduler.MaxBufferedFiresHardCap * 2),
+				},
+			},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.StartWorkflowExecutionResponse{RunID: "test-run-id"}, nil)
+			},
+			wantErr: false,
+		},
 		"success": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
