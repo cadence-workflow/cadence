@@ -263,6 +263,11 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) TestTimerNotCleanedWhenDisabled(
 	_, err = poller.PollAndProcessDecisionTask(false, false)
 	s.NoError(err)
 
+	// Confirm the 48h timer task exists immediately after completion, before retention fires.
+	// If this fails, the timer was never written or was deleted during workflow completion.
+	s.False(s.isTimerTaskDeletedForRun(runID),
+		"expected 48h timer task to exist right after workflow completion")
+
 	domainResp, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{
 		Name: common.StringPtr(domainName),
 	})
