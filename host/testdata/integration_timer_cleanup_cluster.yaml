@@ -3,7 +3,7 @@ clusterno: 0
 messagingclientconfig:
   usemock: true
 historyconfig:
-  numhistoryshards: 4
+  numhistoryshards: 1
   numhistoryhosts: 1
 matchingconfig:
   nummatchinghosts: 1
