@@ -263,6 +263,20 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) TestTimerNotCleanedWhenDisabled(
 	_, err = poller.PollAndProcessDecisionTask(false, false)
 	s.NoError(err)
 
+	// Verify testBase can see the workflow execution record (confirms same Cassandra).
+	{
+		domainResp2, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(domainName)})
+		s.NoError(err)
+		domainID2 := domainResp2.DomainInfo.GetUUID()
+		ctx3, cancel3 := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
+		_, execErr := s.TestCluster.testBase.ExecutionManager.GetWorkflowExecution(ctx3, &persistence.GetWorkflowExecutionRequest{
+			DomainID:  domainID2,
+			Execution: types.WorkflowExecution{WorkflowID: id, RunID: runID},
+		})
+		cancel3()
+		s.NoError(execErr, "testBase.ExecutionManager should see the workflow execution record")
+	}
+
 	// Confirm the 48h timer task exists immediately after completion, before retention fires.
 	// If this fails, the timer was never written or was deleted during workflow completion.
 	{
@@ -276,20 +290,6 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) TestTimerNotCleanedWhenDisabled(
 		}
 		s.Contains(foundRunIDs, runID,
 			"expected 48h timer task for runID %s to exist right after completion; runIDs in queue: %v", runID, foundRunIDs)
-	}
-
-	// Also verify testBase can see the workflow execution record (confirms same Cassandra).
-	{
-		domainResp2, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(domainName)})
-		s.NoError(err)
-		domainID2 := domainResp2.DomainInfo.GetUUID()
-		ctx3, cancel3 := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
-		_, execErr := s.TestCluster.testBase.ExecutionManager.GetWorkflowExecution(ctx3, &persistence.GetWorkflowExecutionRequest{
-			DomainID:  domainID2,
-			Execution: types.WorkflowExecution{WorkflowID: id, RunID: runID},
-		})
-		cancel3()
-		s.NoError(execErr, "testBase.ExecutionManager should see the workflow execution record")
 	}
 
 	domainResp, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{
