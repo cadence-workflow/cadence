@@ -23,6 +23,7 @@ package task
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
@@ -42,6 +43,8 @@ import (
 var (
 	taskRetryPolicy = common.CreateTaskProcessingRetryPolicy()
 )
+
+const workflowTimerTaskCleanupTimeout = 30 * time.Second
 
 type (
 	timerTaskExecutorBase struct {
@@ -170,7 +173,8 @@ func (t *timerTaskExecutorBase) deleteWorkflow(
 		return err
 	}
 
-	t.deleteTrackedTimerTasksOnWorkflowDeletion(ctx, task, msBuilder)
+	timerTaskInfos := msBuilder.GetPendingWorkflowTimerTaskInfos()
+	go t.deleteTrackedTimerTasksOnWorkflowDeletion(task, timerTaskInfos)
 
 	// it must be the last one due to the nature of workflow execution deletion
 	if err := t.deleteWorkflowExecution(ctx, task); err != nil {
@@ -248,7 +252,8 @@ func (t *timerTaskExecutorBase) archiveWorkflow(
 		return err
 	}
 
-	t.deleteTrackedTimerTasksOnWorkflowDeletion(ctx, task, msBuilder)
+	timerTaskInfos := msBuilder.GetPendingWorkflowTimerTaskInfos()
+	go t.deleteTrackedTimerTasksOnWorkflowDeletion(task, timerTaskInfos)
 
 	if err := t.deleteWorkflowExecution(ctx, task); err != nil {
 		return err
@@ -363,20 +368,23 @@ func (t *timerTaskExecutorBase) deleteWorkflowVisibility(
 }
 
 func (t *timerTaskExecutorBase) deleteTrackedTimerTasksOnWorkflowDeletion(
-	ctx context.Context,
 	task *persistence.DeleteHistoryEventTask,
-	msBuilder execution.MutableState,
+	timerTaskInfos map[int64]*persistence.WorkflowTimerTaskInfo,
 ) {
 	cfg := t.shard.GetConfig()
 	if cfg.EnableWorkflowTimerTaskCleanup == nil || !cfg.EnableWorkflowTimerTaskCleanup() {
 		// feature-flag guard: safe to remove once this is defaulted to true
 		return
 	}
-	workflowTimerTasks := msBuilder.GetPendingWorkflowTimerTaskInfos()
-	threshold := t.shard.GetConfig().WorkflowTimerTaskCleanupMinTTL()
+	threshold := cfg.WorkflowTimerTaskCleanupMinTTL()
 	now := t.shard.GetTimeSource().Now()
 
-	for _, taskInfo := range workflowTimerTasks {
+	// Derive from the executor's lifetime context so the goroutine is cancelled
+	// on shard shutdown, with a hard cap to prevent it running indefinitely.
+	ctx, cancel := context.WithTimeout(t.ctx, workflowTimerTaskCleanupTimeout)
+	defer cancel()
+
+	for _, taskInfo := range timerTaskInfos {
 		if taskInfo.VisibilityTimestamp.Sub(now) < threshold {
 			// Timer fires soon — not worth an explicit delete; it will fire and be cleaned up naturally.
 			continue
