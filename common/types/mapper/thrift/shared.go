@@ -5986,10 +5986,14 @@ func FromTaskList(t *types.TaskList) *shared.TaskList {
 	if t == nil {
 		return nil
 	}
-	return &shared.TaskList{
+	result := &shared.TaskList{
 		Name: &t.Name,
 		Kind: FromTaskListKind(t.Kind),
 	}
+	if t.BaseName != "" {
+		result.BaseName = &t.BaseName
+	}
+	return result
 }
 
 func MigrateTaskList(name string, t *shared.TaskList) *types.TaskList {
@@ -6005,8 +6009,9 @@ func ToTaskList(t *shared.TaskList) *types.TaskList {
 		return nil
 	}
 	return &types.TaskList{
-		Name: t.GetName(),
-		Kind: ToTaskListKind(t.Kind),
+		Name:     t.GetName(),
+		Kind:     ToTaskListKind(t.Kind),
+		BaseName: t.GetBaseName(),
 	}
 }
 
