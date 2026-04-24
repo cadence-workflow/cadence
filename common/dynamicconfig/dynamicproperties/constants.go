@@ -2722,6 +2722,13 @@ const (
 	// Allowed filters: namespace
 	ShardDistributorLoadBalancingMode
 
+	// HistoryTaskDeadLetterQueueMode is the key to enable history task dead letter queue
+	// KeyName: history.historyTaskDeadLetterQueueMode
+	// Value type: string ["disabled","shadow","enabled"]
+	// Default value: "disabled"
+	// Allowed filters: domainName
+	HistoryTaskDeadLetterQueueMode
+
 	// LastStringKey must be the last one in this const group
 	LastStringKey
 )
@@ -3267,6 +3274,13 @@ const (
 	// Default value: 365 days (1 year)
 	// Allowed filters: DomainID
 	DomainAuditLogTTL
+
+	// HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ
+	// KeyName: history.historyTaskDLQProcessorInterval
+	// Value type: Duration
+	// Default value: 30m (30 * time.Minute)
+	// Allowed filters: ShardID
+	HistoryTaskDLQProcessorInterval
 
 	// LastDurationKey must be the last one in this const group
 	LastDurationKey
@@ -5385,6 +5399,12 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "ShardDistributorLoadBalancingMode is the load balancing mode for the shard distributor. Depending on the mode, the shard distributor will use different ways to distribute the shards",
 		DefaultValue: "naive",
 	},
+	HistoryTaskDeadLetterQueueMode: {
+		KeyName:      "history.historyTaskDeadLetterQueueMode",
+		Description:  "HistoryTaskDeadLetterQueueMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
+		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
+		Filters:      []Filter{DomainName},
+	},
 }
 
 var DurationKeys = map[DurationKey]DynamicDuration{
@@ -5888,6 +5908,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName},
 		Description:  "CorruptionRepairTimeout is the timeout for corruption repair operations",
 		DefaultValue: time.Second * 30,
+	},
+	HistoryTaskDLQProcessorInterval: {
+		KeyName:      "history.historyTaskDLQProcessorInterval",
+		Filters:      []Filter{ShardID},
+		Description:  "HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ",
+		DefaultValue: time.Minute * 30,
 	},
 }
 

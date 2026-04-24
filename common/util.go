@@ -283,6 +283,7 @@ func CheckDecisionResultLimit(
 	scope metrics.Scope,
 ) error {
 	scope.RecordTimer(metrics.DecisionResultCount, time.Duration(actualSize))
+	scope.IntExponentialHistogram(metrics.DecisionResultCountHistogram, actualSize)
 	if limit > 0 && actualSize > limit {
 		return ErrDecisionResultCountTooLarge
 	}
@@ -586,6 +587,7 @@ func CheckEventBlobSizeLimit(
 ) error {
 
 	scope.RecordTimer(metrics.EventBlobSize, time.Duration(actualSize))
+	scope.IntExponentialHistogram(metrics.EventBlobSizeHistogram, actualSize)
 
 	if errorLimit < warnLimit {
 		logger.Warn("Error limit is less than warn limit.", tag.WorkflowDomainName(domainName), tag.WorkflowDomainID(domainID))

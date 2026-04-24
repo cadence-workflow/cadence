@@ -43,6 +43,24 @@ const (
 	SearchAttrScheduleTime = "CadenceScheduleTime"
 	SearchAttrIsBackfill   = "CadenceScheduleIsBackfill"
 
+	// Search attribute keys set on the scheduler workflow itself for ListSchedules.
+	// CadenceScheduleState is a Keyword SA holding the current lifecycle state
+	// ("active" or "paused"). Modeled as a string rather than a boolean so it can
+	// be extended to additional states (e.g. "expired") without introducing new
+	// search attributes. "Deleted" is not a value because a deleted schedule's
+	// workflow is closed and filtered by workflow status instead.
+	SearchAttrScheduleState = "CadenceScheduleState"
+	// CadenceScheduleCron holds the current cron expression so ListSchedules
+	// can display it without querying each scheduler workflow. Refreshed on
+	// workflow start (including after ContinueAsNew triggered by UpdateSchedule).
+	SearchAttrScheduleCron = "CadenceScheduleCron"
+	// CadenceScheduleWorkflowType holds the target workflow type name that the
+	// schedule starts on each fire. Same refresh semantics as the cron SA.
+	SearchAttrScheduleWorkflowType = "CadenceScheduleWorkflowType"
+
+	ScheduleStateActive = "active"
+	ScheduleStatePaused = "paused"
+
 	maxIterationsBeforeContinueAsNew = 500
 	maxCatchUpFiresPerExecution      = 10
 	maxBackfillFiresPerExecution     = 10

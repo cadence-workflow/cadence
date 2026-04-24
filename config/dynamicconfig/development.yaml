@@ -34,6 +34,9 @@ frontend.validSearchAttributes:
     CadenceScheduleID: 1
     CadenceScheduleTime: 5
     CadenceScheduleIsBackfill: 4
+    CadenceScheduleState: 1
+    CadenceScheduleCron: 1
+    CadenceScheduleWorkflowType: 1
     CloseStatus: 2
     CloseTime: 2
     CustomBoolField: 4
