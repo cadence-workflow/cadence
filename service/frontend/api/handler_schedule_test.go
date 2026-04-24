@@ -703,7 +703,7 @@ func TestListSchedules(t *testing.T) {
 		typeBytes, _ := json.Marshal("my-target-workflow")
 
 		f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.MatchedBy(func(req *persistence.ListWorkflowExecutionsByQueryRequest) bool {
-			return req.Domain == testDomain && req.Query == "WorkflowType = 'cadence-scheduler'"
+			return req.Domain == testDomain && req.Query == "WorkflowType = 'cadence-scheduler' and CloseTime = missing"
 		})).Return(&persistence.ListWorkflowExecutionsResponse{
 			Executions: []*types.WorkflowExecutionInfo{
 				{

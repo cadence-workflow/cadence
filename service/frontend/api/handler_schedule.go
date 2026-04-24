@@ -421,11 +421,16 @@ func (wh *WorkflowHandler) ListSchedules(
 	// which skips the cluster redirection middleware. For global (XDC) domains, the
 	// passive region may return stale visibility data. This applies to all schedule
 	// read APIs (Describe, List) and will be addressed when adding XDC support.
+	//
+	// CloseTime = missing restricts results to open scheduler workflows, so deleted
+	// schedules (closed workflows with state.Deleted=true returned nil) no longer
+	// surface here. This is the canonical "open only" filter used across the
+	// visibility layer (ES, Pinot, SQL-backed stores all recognize it).
 	listResp, err := wh.ListWorkflowExecutions(ctx, &types.ListWorkflowExecutionsRequest{
 		Domain:        domainName,
 		PageSize:      pageSize,
 		NextPageToken: request.GetNextPageToken(),
-		Query:         fmt.Sprintf("WorkflowType = '%s'", scheduler.WorkflowTypeName),
+		Query:         fmt.Sprintf("WorkflowType = '%s' and CloseTime = missing", scheduler.WorkflowTypeName),
 	})
 	if err != nil {
 		return nil, err
