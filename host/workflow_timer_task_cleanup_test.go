@@ -188,3 +188,148 @@ func (s *WorkflowTimerTaskCleanupSuite) isWorkflowDeleted(domainID string, execu
 	}
 	return false
 }
+
+func TestWorkflowTimerTaskCleanupDisabledIntegrationSuite(t *testing.T) {
+	flag.Parse()
+
+	clusterConfig, err := GetTestClusterConfig("testdata/integration_timer_cleanup_cluster.yaml")
+	if err != nil {
+		t.Fatalf("failed to get cluster config: %v", err)
+	}
+
+	// Explicitly disable the feature so we can verify the positive test is not
+	// passing due to some incidental cleanup path.
+	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
+		dynamicproperties.EnableWorkflowTimerTaskCleanup: false,
+	}
+
+	testCluster := NewPersistenceTestCluster(t, clusterConfig)
+
+	s := &WorkflowTimerTaskCleanupDisabledSuite{}
+	params := IntegrationBaseParams{
+		DefaultTestCluster:    testCluster,
+		VisibilityTestCluster: testCluster,
+		TestClusterConfig:     clusterConfig,
+	}
+	s.IntegrationBase = NewIntegrationBase(params)
+	suite.Run(t, s)
+}
+
+func (s *WorkflowTimerTaskCleanupDisabledSuite) SetupSuite() {
+	s.setupSuite()
+}
+
+func (s *WorkflowTimerTaskCleanupDisabledSuite) SetupTest() {
+	s.Assertions = require.New(s.T())
+}
+
+func (s *WorkflowTimerTaskCleanupDisabledSuite) TearDownSuite() {
+	s.TearDownBaseSuite()
+}
+
+// TestTimerNotCleanedWhenDisabled verifies that with the feature flag off, timer tasks
+// persist after the workflow execution record is deleted — confirming that
+// TestTimerCleanupAtRetention passes because of the feature, not incidental cleanup.
+func (s *WorkflowTimerTaskCleanupDisabledSuite) TestTimerNotCleanedWhenDisabled() {
+	if TestFlags.PersistenceType != config.StoreTypeCassandra {
+		s.T().Skip("workflow timer task cleanup only implemented for Cassandra")
+	}
+
+	id := "integration-timer-cleanup-disabled-test-" + uuid.New()
+	wt := "integration-timer-cleanup-disabled-test-type"
+	tl := "integration-timer-cleanup-disabled-test-tasklist"
+	identity := "worker1"
+
+	domainName := s.RandomizeStr("timer-cleanup-disabled-domain")
+	s.NoError(s.RegisterDomain(domainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
+
+	ctx, cancel := createContext()
+	defer cancel()
+
+	we, err := s.Engine.StartWorkflowExecution(ctx, &types.StartWorkflowExecutionRequest{
+		RequestID:                           uuid.New(),
+		Domain:                              domainName,
+		WorkflowID:                          id,
+		WorkflowType:                        &types.WorkflowType{Name: wt},
+		TaskList:                            &types.TaskList{Name: tl},
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32(48 * 60 * 60)),
+		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(10),
+		Identity:                            identity,
+	})
+	s.NoError(err)
+	runID := we.RunID
+
+	poller := s.newCompleteImmediatelyPoller(tl, identity, domainName)
+	_, err = poller.PollAndProcessDecisionTask(false, false)
+	s.NoError(err)
+
+	domainResp, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{
+		Name: common.StringPtr(domainName),
+	})
+	s.NoError(err)
+	domainID := domainResp.DomainInfo.GetUUID()
+
+	execution := &types.WorkflowExecution{WorkflowID: id, RunID: runID}
+	s.True(s.isWorkflowDeleted(domainID, execution),
+		"expected workflow execution to be deleted after retention")
+
+	// Flag is off: deletion never runs, so the 48h timer task should still be present.
+	s.False(s.isTimerTaskDeletedForRun(runID),
+		"expected 48h timer task to remain when feature flag is disabled")
+}
+
+func (s *WorkflowTimerTaskCleanupDisabledSuite) newCompleteImmediatelyPoller(taskList, identity, domain string) *TaskPoller {
+	return &TaskPoller{
+		Engine:   s.Engine,
+		Domain:   domain,
+		TaskList: &types.TaskList{Name: taskList},
+		Identity: identity,
+		DecisionHandler: func(
+			_ *types.WorkflowExecution,
+			_ *types.WorkflowType,
+			_, _ int64,
+			_ *types.History,
+		) ([]byte, []*types.Decision, error) {
+			return nil, []*types.Decision{{
+				DecisionType: types.DecisionTypeCompleteWorkflowExecution.Ptr(),
+				CompleteWorkflowExecutionDecisionAttributes: &types.CompleteWorkflowExecutionDecisionAttributes{
+					Result: []byte("done"),
+				},
+			}}, nil
+		},
+		Logger: s.Logger,
+		T:      s.T(),
+	}
+}
+
+func (s *WorkflowTimerTaskCleanupDisabledSuite) isTimerTaskDeletedForRun(runID string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
+	defer cancel()
+
+	tasks, err := s.TestCluster.testBase.GetTimerIndexTasks(ctx, 1000, true)
+	s.NoError(err)
+
+	for _, task := range tasks {
+		if task.GetRunID() == runID {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *WorkflowTimerTaskCleanupDisabledSuite) isWorkflowDeleted(domainID string, execution *types.WorkflowExecution) bool {
+	request := &persistence.GetWorkflowExecutionRequest{
+		DomainID:  domainID,
+		Execution: *execution,
+	}
+	for i := 0; i < 20; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
+		_, err := s.TestCluster.testBase.ExecutionManager.GetWorkflowExecution(ctx, request)
+		cancel()
+		if _, ok := err.(*types.EntityNotExistsError); ok {
+			return true
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	return false
+}
