@@ -235,6 +235,12 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) TestTimerNotCleanedWhenDisabled(
 		s.T().Skip("workflow timer task cleanup only implemented for Cassandra")
 	}
 
+	// Sanity check: confirm the cluster was configured with the flag off.
+	// If this fails, HistoryDynamicConfigOverrides wasn't applied correctly.
+	val, ok := s.TestClusterConfig.HistoryDynamicConfigOverrides[dynamicproperties.EnableWorkflowTimerTaskCleanup]
+	s.True(ok, "expected EnableWorkflowTimerTaskCleanup override to be present in cluster config")
+	s.Equal(false, val, "expected EnableWorkflowTimerTaskCleanup to be false in cluster config")
+
 	id := "integration-timer-cleanup-disabled-test-" + uuid.New()
 	wt := "integration-timer-cleanup-disabled-test-type"
 	tl := "integration-timer-cleanup-disabled-test-tasklist"
