@@ -265,8 +265,18 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) TestTimerNotCleanedWhenDisabled(
 
 	// Confirm the 48h timer task exists immediately after completion, before retention fires.
 	// If this fails, the timer was never written or was deleted during workflow completion.
-	s.False(s.isTimerTaskDeletedForRun(runID),
-		"expected 48h timer task to exist right after workflow completion")
+	{
+		ctx2, cancel2 := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
+		tasks, err := s.TestCluster.testBase.GetTimerIndexTasks(ctx2, 1000, true)
+		cancel2()
+		s.NoError(err)
+		var foundRunIDs []string
+		for _, task := range tasks {
+			foundRunIDs = append(foundRunIDs, task.GetRunID())
+		}
+		s.Contains(foundRunIDs, runID,
+			"expected 48h timer task for runID %s to exist right after completion; runIDs in queue: %v", runID, foundRunIDs)
+	}
 
 	domainResp, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{
 		Name: common.StringPtr(domainName),
