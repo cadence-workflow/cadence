@@ -91,9 +91,9 @@ func (s *WorkflowTimerTaskCleanupSuite) TestTimerCleanupAtRetention() {
 	tl := "integration-timer-cleanup-retention-test-tasklist"
 	identity := "worker1"
 
-	// Domain with 1-day retention so DeleteHistoryEventTask fires quickly in tests.
+	// Domain with 0-day retention so DeleteHistoryEventTask fires on workflow close.
 	domainName := s.RandomizeStr("timer-cleanup-retention-domain")
-	s.NoError(s.RegisterDomain(domainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
+	s.NoError(s.RegisterDomain(domainName, 0, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
 	ctx, cancel := createContext()
 	defer cancel()
@@ -159,13 +159,19 @@ func (s *WorkflowTimerTaskCleanupSuite) newCompleteImmediatelyPoller(taskList, i
 
 // isTimerTaskDeletedForRun returns true if no timer task for the given runID exists in the queue.
 func (s *WorkflowTimerTaskCleanupSuite) isTimerTaskDeletedForRun(runID string) bool {
+	execMgr := s.newExecutionManager()
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 	defer cancel()
 
-	tasks, err := s.TestCluster.testBase.GetTimerIndexTasks(ctx, 1000, true)
+	resp, err := execMgr.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, math.MaxInt64), 0),
+		PageSize:            1000,
+	})
 	s.NoError(err)
 
-	for _, task := range tasks {
+	for _, task := range resp.Tasks {
 		if task.GetRunID() == runID {
 			return false
 		}
@@ -180,9 +186,10 @@ func (s *WorkflowTimerTaskCleanupSuite) isWorkflowDeleted(domainID string, execu
 		DomainID:  domainID,
 		Execution: *execution,
 	}
+	execMgr := s.newExecutionManager()
 	for i := 0; i < 20; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
-		_, err := s.TestCluster.testBase.ExecutionManager.GetWorkflowExecution(ctx, request)
+		_, err := execMgr.GetWorkflowExecution(ctx, request)
 		cancel()
 		if _, ok := err.(*types.EntityNotExistsError); ok {
 			return true
@@ -190,6 +197,23 @@ func (s *WorkflowTimerTaskCleanupSuite) isWorkflowDeleted(domainID string, execu
 		time.Sleep(200 * time.Millisecond)
 	}
 	return false
+}
+
+// newExecutionManager creates a fresh ExecutionManager from the test cluster's
+// persistence config — the same keyspace the history service uses.
+func (s *WorkflowTimerTaskCleanupSuite) newExecutionManager() persistence.ExecutionManager {
+	pConfig := s.TestCluster.testBase.DefaultTestCluster.Config()
+	factory := client.NewFactory(
+		&pConfig,
+		func() float64 { return 1000 },
+		s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName(),
+		metrics.NewNoopMetricsClient(),
+		s.Logger,
+		&s.TestCluster.testBase.DynamicConfiguration,
+	)
+	execMgr, err := factory.NewExecutionManager(0)
+	s.Require().NoError(err)
+	return execMgr
 }
 
 func TestWorkflowTimerTaskCleanupDisabledIntegrationSuite(t *testing.T) {
@@ -243,8 +267,9 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) TestTimerNotCleanedWhenDisabled(
 	tl := "integration-timer-cleanup-disabled-test-tasklist"
 	identity := "worker1"
 
+	// Domain with 0-day retention so DeleteHistoryEventTask fires on workflow close.
 	domainName := s.RandomizeStr("timer-cleanup-disabled-domain")
-	s.NoError(s.RegisterDomain(domainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
+	s.NoError(s.RegisterDomain(domainName, 0, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
 	ctx, cancel := createContext()
 	defer cancel()
