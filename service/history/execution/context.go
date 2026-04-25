@@ -488,6 +488,12 @@ func (c *contextImpl) CreateWorkflowExecution(
 		return err
 	}
 
+	// Propagate tracking data written to Cassandra back into the in-memory mutable state
+	// so subsequent mutations carry it forward correctly.
+	if c.mutableState != nil && len(createRequest.NewWorkflowSnapshot.WorkflowTimerTaskInfos) > 0 {
+		c.mutableState.SetWorkflowTimerTaskInfos(createRequest.NewWorkflowSnapshot.WorkflowTimerTaskInfos)
+	}
+
 	c.notifyTasksFromWorkflowSnapshotFn(newWorkflow, events.PersistedBlobs{persistedHistory}, false)
 
 	// finally emit session stats
@@ -760,6 +766,10 @@ func (c *contextImpl) UpdateWorkflowExecutionTasks(
 		}
 		return err
 	}
+	// Propagate tracking data written to Cassandra back into the in-memory mutable state.
+	if c.mutableState != nil && len(currentWorkflow.WorkflowTimerTaskInfos) > 0 {
+		c.mutableState.SetWorkflowTimerTaskInfos(currentWorkflow.WorkflowTimerTaskInfos)
+	}
 	// notify current workflow tasks
 	c.notifyTasksFromWorkflowMutationFn(currentWorkflow, nil, false)
 	c.emitSessionUpdateStatsFn(domainName, resp.MutableStateUpdateSessionStats)
@@ -894,6 +904,11 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 			c.notifyTasksFromWorkflowSnapshotFn(newWorkflow, persistedBlobs, true)
 		}
 		return err
+	}
+
+	// Propagate tracking data written to Cassandra back into the in-memory mutable state.
+	if c.mutableState != nil && len(currentWorkflow.WorkflowTimerTaskInfos) > 0 {
+		c.mutableState.SetWorkflowTimerTaskInfos(currentWorkflow.WorkflowTimerTaskInfos)
 	}
 
 	// for any change in the workflow, send a event

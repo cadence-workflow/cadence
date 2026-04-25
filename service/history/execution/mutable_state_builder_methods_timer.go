@@ -287,6 +287,10 @@ func (e *mutableStateBuilder) GetPendingWorkflowTimerTaskInfos() map[int64]*pers
 	return e.workflowTimerTaskInfos
 }
 
+func (e *mutableStateBuilder) SetWorkflowTimerTaskInfos(infos map[int64]*persistence.WorkflowTimerTaskInfo) {
+	e.workflowTimerTaskInfos = infos
+}
+
 // RemoveTrackedTimerTask removes a timer task from the tracking map when it fires naturally,
 // keeping the blob lean. Called by timer processors after handling a timer task.
 func (e *mutableStateBuilder) RemoveTrackedTimerTask(taskID int64) {

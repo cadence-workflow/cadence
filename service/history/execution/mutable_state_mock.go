@@ -2507,6 +2507,18 @@ func (mr *MockMutableStateMockRecorder) SetVersionHistories(arg0 any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVersionHistories", reflect.TypeOf((*MockMutableState)(nil).SetVersionHistories), arg0)
 }
 
+// SetWorkflowTimerTaskInfos mocks base method.
+func (m *MockMutableState) SetWorkflowTimerTaskInfos(arg0 map[int64]*persistence.WorkflowTimerTaskInfo) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetWorkflowTimerTaskInfos", arg0)
+}
+
+// SetWorkflowTimerTaskInfos indicates an expected call of SetWorkflowTimerTaskInfos.
+func (mr *MockMutableStateMockRecorder) SetWorkflowTimerTaskInfos(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWorkflowTimerTaskInfos", reflect.TypeOf((*MockMutableState)(nil).SetWorkflowTimerTaskInfos), arg0)
+}
+
 // StartTransaction mocks base method.
 func (m *MockMutableState) StartTransaction(ctx context.Context, entry *cache.DomainCacheEntry, incomingTaskVersion int64) (bool, error) {
 	m.ctrl.T.Helper()
