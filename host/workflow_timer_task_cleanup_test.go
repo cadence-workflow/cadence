@@ -259,6 +259,21 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) TestTimerNotCleanedWhenDisabled(
 	s.NoError(err)
 	runID := we.RunID
 
+	// Check if testBase.ExecutionManager can see the workflow immediately after creation
+	// (before any timers fire). If this fails, testBase is on a different Cassandra keyspace.
+	{
+		domainResp2, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(domainName)})
+		s.NoError(err)
+		domainID2 := domainResp2.DomainInfo.GetUUID()
+		ctx3, cancel3 := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
+		_, execErr := s.TestCluster.testBase.ExecutionManager.GetWorkflowExecution(ctx3, &persistence.GetWorkflowExecutionRequest{
+			DomainID:  domainID2,
+			Execution: types.WorkflowExecution{WorkflowID: id, RunID: runID},
+		})
+		cancel3()
+		s.NoError(execErr, "testBase.ExecutionManager should see the workflow immediately after creation")
+	}
+
 	poller := s.newCompleteImmediatelyPoller(tl, identity, domainName)
 	_, err = poller.PollAndProcessDecisionTask(false, false)
 	s.NoError(err)
@@ -268,7 +283,7 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) TestTimerNotCleanedWhenDisabled(
 		// First confirm the workflow still exists via the frontend API.
 		ctx3, cancel3 := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 		_, feErr := s.Engine.DescribeWorkflowExecution(ctx3, &types.DescribeWorkflowExecutionRequest{
-			Domain: domainName,
+			Domain:    domainName,
 			Execution: &types.WorkflowExecution{WorkflowID: id, RunID: runID},
 		})
 		cancel3()
