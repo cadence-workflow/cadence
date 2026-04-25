@@ -265,15 +265,24 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) TestTimerNotCleanedWhenDisabled(
 
 	// Verify testBase can see the workflow execution record (confirms same Cassandra).
 	{
+		// First confirm the workflow still exists via the frontend API.
+		ctx3, cancel3 := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
+		_, feErr := s.Engine.DescribeWorkflowExecution(ctx3, &types.DescribeWorkflowExecutionRequest{
+			Domain: domainName,
+			Execution: &types.WorkflowExecution{WorkflowID: id, RunID: runID},
+		})
+		cancel3()
+		s.NoError(feErr, "frontend DescribeWorkflowExecution should find the workflow")
+
 		domainResp2, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(domainName)})
 		s.NoError(err)
 		domainID2 := domainResp2.DomainInfo.GetUUID()
-		ctx3, cancel3 := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
-		_, execErr := s.TestCluster.testBase.ExecutionManager.GetWorkflowExecution(ctx3, &persistence.GetWorkflowExecutionRequest{
+		ctx4, cancel4 := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
+		_, execErr := s.TestCluster.testBase.ExecutionManager.GetWorkflowExecution(ctx4, &persistence.GetWorkflowExecutionRequest{
 			DomainID:  domainID2,
 			Execution: types.WorkflowExecution{WorkflowID: id, RunID: runID},
 		})
-		cancel3()
+		cancel4()
 		s.NoError(execErr, "testBase.ExecutionManager should see the workflow execution record")
 	}
 
