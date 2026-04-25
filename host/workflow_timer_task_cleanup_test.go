@@ -160,6 +160,7 @@ func (s *WorkflowTimerTaskCleanupSuite) newCompleteImmediatelyPoller(taskList, i
 // isTimerTaskDeletedForRun returns true if no timer task for the given runID exists in the queue.
 func (s *WorkflowTimerTaskCleanupSuite) isTimerTaskDeletedForRun(runID string) bool {
 	execMgr := s.newExecutionManager()
+	defer execMgr.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 	defer cancel()
 
@@ -187,6 +188,7 @@ func (s *WorkflowTimerTaskCleanupSuite) isWorkflowDeleted(domainID string, execu
 		Execution: *execution,
 	}
 	execMgr := s.newExecutionManager()
+	defer execMgr.Close()
 	for i := 0; i < 20; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 		_, err := execMgr.GetWorkflowExecution(ctx, request)
@@ -332,6 +334,7 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) newCompleteImmediatelyPoller(tas
 
 func (s *WorkflowTimerTaskCleanupDisabledSuite) isTimerTaskDeletedForRun(runID string) bool {
 	execMgr := s.newExecutionManager()
+	defer execMgr.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 	defer cancel()
 
@@ -357,6 +360,7 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) isWorkflowDeleted(domainID strin
 		Execution: *execution,
 	}
 	execMgr := s.newExecutionManager()
+	defer execMgr.Close()
 	for i := 0; i < 20; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 		_, err := execMgr.GetWorkflowExecution(ctx, request)
