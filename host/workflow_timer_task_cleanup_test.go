@@ -157,27 +157,35 @@ func (s *WorkflowTimerTaskCleanupSuite) newCompleteImmediatelyPoller(taskList, i
 	}
 }
 
-// isTimerTaskDeletedForRun returns true if no timer task for the given runID exists in the queue.
+// isTimerTaskDeletedForRun polls until no timer task for the given runID exists in the queue.
 func (s *WorkflowTimerTaskCleanupSuite) isTimerTaskDeletedForRun(runID string) bool {
 	execMgr := s.newExecutionManager()
 	defer execMgr.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
-	defer cancel()
 
-	resp, err := execMgr.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
-		TaskCategory:        persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
-		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, math.MaxInt64), 0),
-		PageSize:            1000,
-	})
-	s.NoError(err)
+	for i := 0; i < 20; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
+		resp, err := execMgr.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+			TaskCategory:        persistence.HistoryTaskCategoryTimer,
+			InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+			ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, math.MaxInt64), 0),
+			PageSize:            1000,
+		})
+		cancel()
+		s.NoError(err)
 
-	for _, task := range resp.Tasks {
-		if task.GetRunID() == runID {
-			return false
+		found := false
+		for _, task := range resp.Tasks {
+			if task.GetRunID() == runID {
+				found = true
+				break
+			}
 		}
+		if !found {
+			return true
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
-	return true
+	return false
 }
 
 // isWorkflowDeleted polls until GetWorkflowExecution returns EntityNotExistsError,
