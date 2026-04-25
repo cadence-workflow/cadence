@@ -23,12 +23,16 @@ package host
 import (
 	"context"
 	"flag"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence/client"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
@@ -259,62 +263,9 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) TestTimerNotCleanedWhenDisabled(
 	s.NoError(err)
 	runID := we.RunID
 
-	// Check if testBase.ExecutionManager can see the workflow immediately after creation
-	// (before any timers fire). If this fails, testBase is on a different Cassandra keyspace.
-	{
-		domainResp2, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(domainName)})
-		s.NoError(err)
-		domainID2 := domainResp2.DomainInfo.GetUUID()
-		ctx3, cancel3 := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
-		_, execErr := s.TestCluster.testBase.ExecutionManager.GetWorkflowExecution(ctx3, &persistence.GetWorkflowExecutionRequest{
-			DomainID:  domainID2,
-			Execution: types.WorkflowExecution{WorkflowID: id, RunID: runID},
-		})
-		cancel3()
-		s.NoError(execErr, "testBase.ExecutionManager should see the workflow immediately after creation")
-	}
-
 	poller := s.newCompleteImmediatelyPoller(tl, identity, domainName)
 	_, err = poller.PollAndProcessDecisionTask(false, false)
 	s.NoError(err)
-
-	// Verify testBase can see the workflow execution record (confirms same Cassandra).
-	{
-		// First confirm the workflow still exists via the frontend API.
-		ctx3, cancel3 := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
-		_, feErr := s.Engine.DescribeWorkflowExecution(ctx3, &types.DescribeWorkflowExecutionRequest{
-			Domain:    domainName,
-			Execution: &types.WorkflowExecution{WorkflowID: id, RunID: runID},
-		})
-		cancel3()
-		s.NoError(feErr, "frontend DescribeWorkflowExecution should find the workflow")
-
-		domainResp2, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(domainName)})
-		s.NoError(err)
-		domainID2 := domainResp2.DomainInfo.GetUUID()
-		ctx4, cancel4 := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
-		_, execErr := s.TestCluster.testBase.ExecutionManager.GetWorkflowExecution(ctx4, &persistence.GetWorkflowExecutionRequest{
-			DomainID:  domainID2,
-			Execution: types.WorkflowExecution{WorkflowID: id, RunID: runID},
-		})
-		cancel4()
-		s.NoError(execErr, "testBase.ExecutionManager should see the workflow execution record")
-	}
-
-	// Confirm the 48h timer task exists immediately after completion, before retention fires.
-	// If this fails, the timer was never written or was deleted during workflow completion.
-	{
-		ctx2, cancel2 := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
-		tasks, err := s.TestCluster.testBase.GetTimerIndexTasks(ctx2, 1000, true)
-		cancel2()
-		s.NoError(err)
-		var foundRunIDs []string
-		for _, task := range tasks {
-			foundRunIDs = append(foundRunIDs, task.GetRunID())
-		}
-		s.Contains(foundRunIDs, runID,
-			"expected 48h timer task for runID %s to exist right after completion; runIDs in queue: %v", runID, foundRunIDs)
-	}
 
 	domainResp, err := s.Engine.DescribeDomain(ctx, &types.DescribeDomainRequest{
 		Name: common.StringPtr(domainName),
@@ -356,13 +307,19 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) newCompleteImmediatelyPoller(tas
 }
 
 func (s *WorkflowTimerTaskCleanupDisabledSuite) isTimerTaskDeletedForRun(runID string) bool {
+	execMgr := s.newExecutionManager()
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 	defer cancel()
 
-	tasks, err := s.TestCluster.testBase.GetTimerIndexTasks(ctx, 1000, true)
+	resp, err := execMgr.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, math.MaxInt64), 0),
+		PageSize:            1000,
+	})
 	s.NoError(err)
 
-	for _, task := range tasks {
+	for _, task := range resp.Tasks {
 		if task.GetRunID() == runID {
 			return false
 		}
@@ -375,9 +332,10 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) isWorkflowDeleted(domainID strin
 		DomainID:  domainID,
 		Execution: *execution,
 	}
+	execMgr := s.newExecutionManager()
 	for i := 0; i < 20; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
-		_, err := s.TestCluster.testBase.ExecutionManager.GetWorkflowExecution(ctx, request)
+		_, err := execMgr.GetWorkflowExecution(ctx, request)
 		cancel()
 		if _, ok := err.(*types.EntityNotExistsError); ok {
 			return true
@@ -385,4 +343,21 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) isWorkflowDeleted(domainID strin
 		time.Sleep(200 * time.Millisecond)
 	}
 	return false
+}
+
+// newExecutionManager creates a fresh ExecutionManager from the test cluster's
+// persistence config — the same keyspace the history service uses.
+func (s *WorkflowTimerTaskCleanupDisabledSuite) newExecutionManager() persistence.ExecutionManager {
+	pConfig := s.TestCluster.testBase.DefaultTestCluster.Config()
+	factory := client.NewFactory(
+		&pConfig,
+		func() float64 { return 1000 },
+		s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName(),
+		metrics.NewNoopMetricsClient(),
+		s.Logger,
+		&s.TestCluster.testBase.DynamicConfiguration,
+	)
+	execMgr, err := factory.NewExecutionManager(0)
+	s.Require().NoError(err)
+	return execMgr
 }
