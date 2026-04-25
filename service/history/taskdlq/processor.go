@@ -110,7 +110,6 @@ func NewProcessor(
 	timeSource clock.TimeSource,
 	logger log.Logger,
 ) *ProcessorImpl {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &ProcessorImpl{
 		shardID:    shardID,
 		store:      store,
@@ -120,8 +119,7 @@ func NewProcessor(
 		timeSource: timeSource,
 		logger:     logger,
 		status:     common.DaemonStatusInitialized,
-		ctx:        ctx,
-		cancel:     cancel,
+		cancel:     func() {}, // no-op until Start() sets the real cancel
 	}
 }
 
@@ -130,6 +128,7 @@ func (p *ProcessorImpl) Start() {
 	if !atomic.CompareAndSwapInt32(&p.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
+	p.ctx, p.cancel = context.WithCancel(context.Background())
 	p.logger.Debug("DLQ processor starting", tag.ShardID(p.shardID))
 	p.wg.Add(1)
 	go p.processLoop()
@@ -176,6 +175,9 @@ func (p *ProcessorImpl) processLoop() {
 func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 	p.processMu.Lock()
 	defer p.processMu.Unlock()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	ackLevels, err := p.store.GetAckLevels(ctx, p.shardID)
 	if err != nil {
 		return fmt.Errorf("get DLQ ack levels for shard %d: %w", p.shardID, err)
@@ -186,6 +188,9 @@ func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error {
 	p.processMu.Lock()
 	defer p.processMu.Unlock()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	ackLevels, err := p.store.GetAckLevelsForPartition(ctx, p.shardID, domainID, clusterAttributeScope, clusterAttributeName)
 	if err != nil {
 		return fmt.Errorf("get DLQ ack levels for partition (shard=%d domain=%s scope=%s name=%s): %w",
@@ -229,6 +234,10 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error 
 	)
 	// Start just past the current ack position.
 	minKey := nextKey(al)
+	maxKey := al.ExclusiveMaxTaskKey
+	if maxKey.IsZero() {
+		maxKey = persistence.MaximumHistoryTaskKey
+	}
 
 	for {
 		resp, err := p.store.GetTasks(ctx, GetTasksRequest{
@@ -238,7 +247,7 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error 
 			ClusterAttributeName:  al.ClusterAttributeName,
 			TaskType:              al.TaskType,
 			InclusiveMinTaskKey:   minKey,
-			ExclusiveMaxTaskKey:   persistence.MaximumHistoryTaskKey,
+			ExclusiveMaxTaskKey:   maxKey,
 			PageSize:              p.pageSize,
 			NextPageToken:         pageToken,
 		})
@@ -249,8 +258,15 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error 
 
 		for _, t := range resp.Tasks {
 			if err := executor.Execute(ctx, t); err != nil {
-				firstErr = err
-				break
+				if handledErr := executor.HandleErr(err); handledErr != nil {
+					firstErr = handledErr
+					break
+				}
+				// ackable error: log and skip this task, advance past it
+				p.logger.Warn("skipping ackable DLQ task execution error",
+					tag.WorkflowDomainID(al.DomainID),
+					tag.Error(err),
+				)
 			}
 			k := t.GetTaskKey()
 			lastGoodKey = &k
@@ -291,7 +307,7 @@ func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al AckLevel, newKey
 		ClusterAttributeScope: al.ClusterAttributeScope,
 		ClusterAttributeName:  al.ClusterAttributeName,
 		TaskType:              al.TaskType,
-		InclusiveMaxTaskKey:   newKey,
+		ExclusiveMaxTaskKey:   newKey.Next(),
 	}); err != nil {
 		p.logger.Error("failed to delete acknowledged DLQ tasks",
 			tag.WorkflowDomainID(al.DomainID),

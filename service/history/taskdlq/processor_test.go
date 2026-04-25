@@ -161,6 +161,7 @@ func TestProcessShard_WhenExecutionFailsMidPage_AdvancesAckLevelToLastSuccess(t 
 	)
 	executor.EXPECT().Execute(gomock.Any(), task0).Return(nil)
 	executor.EXPECT().Execute(gomock.Any(), task1).Return(execErr)
+	executor.EXPECT().HandleErr(execErr).Return(execErr)
 	store.EXPECT().UpdateAckLevel(gomock.Any(), UpdateAckLevelRequest{
 		ShardID:               al.ShardID,
 		DomainID:              al.DomainID,
@@ -191,10 +192,34 @@ func TestProcessShard_WhenFirstTaskFails_DoesNotAdvanceAckLevel(t *testing.T) {
 		GetTasksResponse{Tasks: []persistence.Task{task0}}, nil,
 	)
 	executor.EXPECT().Execute(gomock.Any(), task0).Return(execErr)
+	executor.EXPECT().HandleErr(execErr).Return(execErr)
 
 	err := proc.ProcessShard(context.Background())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, execErr)
+}
+
+func TestProcessShard_WhenTaskIsAckable_SkipsAndAdvancesPastIt(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	proc, store, executor := setupProcessor(t, ctrl)
+	al := baseAckLevel(1)
+	task0 := newMockTask(ctrl, 0) // will fail with ackable error
+	task1 := newMockTask(ctrl, 1) // succeeds
+	ackableErr := errors.New("entity not found")
+
+	store.EXPECT().GetAckLevels(gomock.Any(), 1).Return([]AckLevel{al}, nil)
+	store.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(
+		GetTasksResponse{Tasks: []persistence.Task{task0, task1}}, nil,
+	)
+	executor.EXPECT().Execute(gomock.Any(), task0).Return(ackableErr)
+	executor.EXPECT().HandleErr(ackableErr).Return(nil) // ackable: skip and continue
+	executor.EXPECT().Execute(gomock.Any(), task1).Return(nil)
+	store.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().DeleteTasks(gomock.Any(), gomock.Any()).Return(nil)
+
+	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
 
 func TestProcessShard_WhenOnePartitionFails_ReturnsErrorButProcessesRemainingPartitions(t *testing.T) {
@@ -356,6 +381,7 @@ func TestProcessShard_WhenExecutionAndAdvanceAckLevelBothFail_ReturnsBothErrors(
 	)
 	executor.EXPECT().Execute(gomock.Any(), task0).Return(nil)
 	executor.EXPECT().Execute(gomock.Any(), task1).Return(execErr)
+	executor.EXPECT().HandleErr(execErr).Return(execErr)
 	store.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Any()).Return(updateErr)
 
 	err := proc.ProcessShard(context.Background())

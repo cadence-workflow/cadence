@@ -360,6 +360,10 @@ func (a HistoryTaskKey) Next() HistoryTaskKey {
 	}
 }
 
+func (a HistoryTaskKey) IsZero() bool {
+	return a.scheduledTime.IsZero() && a.taskID == 0
+}
+
 func MinHistoryTaskKey(a, b HistoryTaskKey) HistoryTaskKey {
 	if a.Compare(b) < 0 {
 		return a

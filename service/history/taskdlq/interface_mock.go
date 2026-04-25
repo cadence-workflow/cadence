@@ -166,3 +166,17 @@ func (mr *MockTaskExecutorMockRecorder) Execute(ctx, task any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockTaskExecutor)(nil).Execute), ctx, task)
 }
+
+// HandleErr mocks base method.
+func (m *MockTaskExecutor) HandleErr(err error) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HandleErr", err)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// HandleErr indicates an expected call of HandleErr.
+func (mr *MockTaskExecutorMockRecorder) HandleErr(err any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleErr", reflect.TypeOf((*MockTaskExecutor)(nil).HandleErr), err)
+}

@@ -33,10 +33,14 @@ type (
 	// HistoryTaskDLQStore defines the methods required from the persistence layer for the History Task DLQ Processor.
 	HistoryTaskDLQStore interface {
 		// GetAckLevels returns all DLQ partitions for a shard with their current ack levels.
+		// Implementations must populate AckLevel.ExclusiveMaxTaskKey with the current ack level
+		// of the source (normal) queue so that the processor does not scan tasks that may still
+		// be in-flight in that queue.
 		GetAckLevels(ctx context.Context, shardID int) ([]AckLevel, error)
 
 		// GetAckLevelsForPartition returns ack levels for all task types within a specific
 		// (domain, clusterAttributeScope, clusterAttributeName) partition.
+		// Implementations must populate AckLevel.ExclusiveMaxTaskKey as described in GetAckLevels.
 		GetAckLevelsForPartition(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string) ([]AckLevel, error)
 
 		// GetTasks returns tasks from a DLQ partition starting at the inclusive min key.
@@ -56,6 +60,11 @@ type (
 	// Callers should implement this using the historyqueuev2 executor machinery.
 	TaskExecutor interface {
 		Execute(ctx context.Context, task persistence.Task) error
+		// HandleErr classifies the error returned by Execute. It returns nil if the error
+		// is ackable (the task can be skipped and processing continues to the next task),
+		// or a non-nil error if execution must stop and the ack level must not advance past
+		// this task.
+		HandleErr(err error) error
 	}
 
 	// AckLevel identifies one DLQ partition and its current processing watermark.
@@ -69,6 +78,12 @@ type (
 		TaskType             int
 		AckLevelVisibilityTS time.Time
 		AckLevelTaskID       int64
+		// ExclusiveMaxTaskKey bounds the DLQ scan to tasks that were committed to the DLQ
+		// before the source queue had processed this far. Populated by the store from the
+		// source queue's current ack level. Tasks at or beyond this key may still be
+		// in-flight in the source queue and must not be processed.
+		// If zero-value, the processor falls back to persistence.MaximumHistoryTaskKey.
+		ExclusiveMaxTaskKey persistence.HistoryTaskKey
 	}
 
 	// GetTasksRequest specifies what tasks to fetch from a DLQ partition.
@@ -101,14 +116,14 @@ type (
 		AckLevelTaskID        int64
 	}
 
-	// DeleteTasksRequest asks the store to remove tasks up to a given key.
+	// DeleteTasksRequest asks the store to remove tasks with key < ExclusiveMaxTaskKey from a DLQ partition.
 	DeleteTasksRequest struct {
 		ShardID               int
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
 		TaskType              int
-		InclusiveMaxTaskKey   persistence.HistoryTaskKey
+		ExclusiveMaxTaskKey   persistence.HistoryTaskKey
 	}
 
 	// AddTaskRequest specifies the task to write to the DLQ.
