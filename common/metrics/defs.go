@@ -2862,13 +2862,13 @@ const (
 	ReplicationTasksDelay
 	ReplicationTasksFetched
 	ReplicationTasksFetchedHistogram
-	ReplicationTasksFetchedGauge
+	ReplicationTasksFetchedCounter
 	ReplicationTasksReturned
 	ReplicationTasksReturnedHistogram
-	ReplicationTasksReturnedGauge
+	ReplicationTasksReturnedCounter
 	ReplicationTasksReturnedDiff
 	ReplicationTasksReturnedDiffHistogram
-	ReplicationTasksReturnedDiffGauge
+	ReplicationTasksReturnedDiffCounter
 	ReplicationTasksAppliedLatency
 	ReplicationTasksAppliedLatencyHistogram
 	ReplicationTasksBatchSize
@@ -3795,13 +3795,13 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ReplicationTasksDelay:                                         {metricName: "replication_tasks_delay", metricType: Histogram, buckets: ReplicationTaskDelayBucket},
 		ReplicationTasksFetched:                                       {metricName: "replication_tasks_fetched", metricType: Timer},
 		ReplicationTasksFetchedHistogram:                              {metricName: "replication_tasks_fetched_counts", metricType: Histogram, buckets: ResponseRowSizeBuckets},
-		ReplicationTasksFetchedGauge:                                  {metricName: "replication_tasks_fetched_gauge", metricType: Gauge},
+		ReplicationTasksFetchedCounter:                                {metricName: "replication_tasks_fetched_counter", metricType: Counter},
 		ReplicationTasksReturned:                                      {metricName: "replication_tasks_returned", metricType: Timer},
 		ReplicationTasksReturnedHistogram:                             {metricName: "replication_tasks_returned_counts", metricType: Histogram, buckets: ResponseRowSizeBuckets},
-		ReplicationTasksReturnedGauge:                                 {metricName: "replication_tasks_returned_gauge", metricType: Gauge},
+		ReplicationTasksReturnedCounter:                               {metricName: "replication_tasks_returned_counter", metricType: Counter},
 		ReplicationTasksReturnedDiff:                                  {metricName: "replication_tasks_returned_diff", metricType: Timer},
 		ReplicationTasksReturnedDiffHistogram:                         {metricName: "replication_tasks_returned_diff_counts", metricType: Histogram, buckets: ResponseRowSizeBuckets},
-		ReplicationTasksReturnedDiffGauge:                             {metricName: "replication_tasks_returned_diff_gauge", metricType: Gauge},
+		ReplicationTasksReturnedDiffCounter:                           {metricName: "replication_tasks_returned_diff_counter", metricType: Counter},
 		ReplicationTasksAppliedLatency:                                {metricName: "replication_tasks_applied_latency", metricType: Timer},
 		ReplicationTasksAppliedLatencyHistogram:                       {metricName: "replication_tasks_applied_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		ReplicationTasksBatchSize:                                     {metricName: "replication_tasks_batch_size", metricType: Gauge},
