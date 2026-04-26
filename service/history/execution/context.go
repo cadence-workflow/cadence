@@ -636,6 +636,17 @@ func (c *contextImpl) ConflictResolveWorkflowExecution(
 		return err
 	}
 
+	// Propagate tracking data written to Cassandra back into the in-memory mutable states.
+	if len(resetWorkflow.WorkflowTimerTaskInfos) > 0 {
+		resetMutableState.SetWorkflowTimerTaskInfos(resetWorkflow.WorkflowTimerTaskInfos)
+	}
+	if currentWorkflow != nil && len(currentWorkflow.WorkflowTimerTaskInfos) > 0 {
+		currentMutableState.SetWorkflowTimerTaskInfos(currentWorkflow.WorkflowTimerTaskInfos)
+	}
+	if newWorkflow != nil && newMutableState != nil && len(newWorkflow.WorkflowTimerTaskInfos) > 0 {
+		newMutableState.SetWorkflowTimerTaskInfos(newWorkflow.WorkflowTimerTaskInfos)
+	}
+
 	workflowState, workflowCloseState := resetMutableState.GetWorkflowStateCloseStatus()
 	// Current branch changed and notify the watchers
 	c.shard.GetEngine().NotifyNewHistoryEvent(events.NewNotification(
