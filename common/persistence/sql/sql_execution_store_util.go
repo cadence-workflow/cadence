@@ -411,7 +411,17 @@ func applyWorkflowSnapshotTxAsNew(
 	workflowID := executionInfo.WorkflowID
 	runID := serialization.MustParseUUID(executionInfo.RunID)
 
-	// TODO(active-active): store active cluster selection policy row. It requires a new table in sql DB schemas.
+	if err := insertActiveClusterSelectionPolicy(
+		ctx,
+		tx,
+		shardID,
+		domainID,
+		workflowID,
+		runID,
+		executionInfo.ActiveClusterSelectionPolicy,
+	); err != nil {
+		return err
+	}
 
 	if err := createExecution(
 		ctx,
@@ -1139,5 +1149,30 @@ func updateExecution(
 		}
 	}
 
+	return nil
+}
+
+func insertActiveClusterSelectionPolicy(
+	ctx context.Context,
+	tx sqlplugin.Tx,
+	shardID int,
+	domainID serialization.UUID,
+	workflowID string,
+	runID serialization.UUID,
+	policy *p.DataBlob,
+) error {
+	if policy == nil {
+		return nil
+	}
+	if _, err := tx.InsertIntoActiveClusterSelectionPolicy(ctx, &sqlplugin.ActiveClusterSelectionPolicyRow{
+		ShardID:      shardID,
+		DomainID:     domainID,
+		WorkflowID:   workflowID,
+		RunID:        runID,
+		Data:         policy.Data,
+		DataEncoding: policy.GetEncodingString(),
+	}); err != nil {
+		return convertCommonErrors(tx, "InsertIntoActiveClusterSelectionPolicy", "", err)
+	}
 	return nil
 }

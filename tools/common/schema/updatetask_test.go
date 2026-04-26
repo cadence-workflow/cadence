@@ -129,7 +129,7 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	s.NoError(err)
 	ans, err = readSchemaDir(fsys, "0.3", "")
 	s.NoError(err)
-	s.Equal([]string{"v0.4", "v0.5", "v0.6", "v0.7"}, ans)
+	s.Equal([]string{"v0.4", "v0.5", "v0.6", "v0.7", "v0.8"}, ans)
 
 	fsys, err = fs.Sub(mysql.SchemaFS, "v8/visibility/versioned")
 	s.NoError(err)

@@ -192,6 +192,25 @@ type (
 		RunID      serialization.UUID
 	}
 
+	// ActiveClusterSelectionPolicyRow represents a row in active_cluster_selection_policy table
+	ActiveClusterSelectionPolicyRow struct {
+		ShardID      int
+		DomainID     serialization.UUID
+		WorkflowID   string
+		RunID        serialization.UUID
+		Data         []byte
+		DataEncoding string
+	}
+
+	// ActiveClusterSelectionPolicyFilter contains the column names within
+	// active_cluster_selection_policy table that can be used to filter results
+	ActiveClusterSelectionPolicyFilter struct {
+		ShardID    int
+		DomainID   serialization.UUID
+		WorkflowID string
+		RunID      serialization.UUID
+	}
+
 	// TasksRow represents a row in tasks table
 	TasksRow struct {
 		ShardID      int // this is DBShardID, not historyShardID (TODO: maybe rename it for clarification)
@@ -728,6 +747,14 @@ type (
 		InsertIntoBufferedEvents(ctx context.Context, rows []BufferedEventsRow) (sql.Result, error)
 		SelectFromBufferedEvents(ctx context.Context, filter *BufferedEventsFilter) ([]BufferedEventsRow, error)
 		DeleteFromBufferedEvents(ctx context.Context, filter *BufferedEventsFilter) (sql.Result, error)
+
+		InsertIntoActiveClusterSelectionPolicy(ctx context.Context, row *ActiveClusterSelectionPolicyRow) (sql.Result, error)
+		// SelectFromActiveClusterSelectionPolicy returns 0 or 1 row from active_cluster_selection_policy table
+		// Required filter Params: {shardID, domainID, workflowID, runID}
+		SelectFromActiveClusterSelectionPolicy(ctx context.Context, filter *ActiveClusterSelectionPolicyFilter) (*ActiveClusterSelectionPolicyRow, error)
+		// DeleteFromActiveClusterSelectionPolicy deletes 0 or 1 row from active_cluster_selection_policy table
+		// Required filter Params: {shardID, domainID, workflowID, runID}
+		DeleteFromActiveClusterSelectionPolicy(ctx context.Context, filter *ActiveClusterSelectionPolicyFilter) (sql.Result, error)
 
 		InsertIntoReplicationTasks(ctx context.Context, rows []ReplicationTasksRow) (sql.Result, error)
 		// SelectFromReplicationTasks returns one or more rows from replication_tasks table

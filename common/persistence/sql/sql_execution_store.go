@@ -1421,16 +1421,41 @@ func (m *sqlExecutionStore) GetActiveClusterSelectionPolicy(
 	ctx context.Context,
 	request *p.GetActiveClusterSelectionPolicyRequest,
 ) (*p.DataBlob, error) {
-	// TODO(active-active): Active cluster selection policy for SQL stores is not yet implemented
-	// It requires creating a new table in the database to store the active cluster selection policy
-	return nil, &types.InternalServiceError{Message: "Not yet implemented"}
+	domainID := serialization.MustParseUUID(request.DomainID)
+	runID := serialization.MustParseUUID(request.RunID)
+	row, err := m.db.SelectFromActiveClusterSelectionPolicy(ctx, &sqlplugin.ActiveClusterSelectionPolicyFilter{
+		ShardID:    m.shardID,
+		DomainID:   domainID,
+		WorkflowID: request.WorkflowID,
+		RunID:      runID,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, &types.EntityNotExistsError{
+				Message: fmt.Sprintf(
+					"Active cluster selection policy not found. DomainId: %v, WorkflowId: %v, RunId: %v",
+					request.DomainID, request.WorkflowID, request.RunID,
+				),
+			}
+		}
+		return nil, convertCommonErrors(m.db, "GetActiveClusterSelectionPolicy", "", err)
+	}
+	return p.NewDataBlob(row.Data, constants.EncodingType(row.DataEncoding)), nil
 }
 
 func (m *sqlExecutionStore) DeleteActiveClusterSelectionPolicy(
 	ctx context.Context,
 	request *p.DeleteActiveClusterSelectionPolicyRequest,
 ) error {
-	// TODO(active-active): Active cluster selection policy for SQL stores is not yet implemented
-	// It requires creating a new table in the database to store the active cluster selection policy
+	domainID := serialization.MustParseUUID(request.DomainID)
+	runID := serialization.MustParseUUID(request.RunID)
+	if _, err := m.db.DeleteFromActiveClusterSelectionPolicy(ctx, &sqlplugin.ActiveClusterSelectionPolicyFilter{
+		ShardID:    m.shardID,
+		DomainID:   domainID,
+		WorkflowID: request.WorkflowID,
+		RunID:      runID,
+	}); err != nil {
+		return convertCommonErrors(m.db, "DeleteActiveClusterSelectionPolicy", "", err)
+	}
 	return nil
 }
