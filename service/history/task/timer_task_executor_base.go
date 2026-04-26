@@ -379,26 +379,13 @@ func (t *timerTaskExecutorBase) deleteTrackedTimerTasksOnWorkflowDeletion(
 	threshold := cfg.WorkflowTimerTaskCleanupMinTTL()
 	now := t.shard.GetTimeSource().Now()
 
-	t.logger.Info("deleteTrackedTimerTasksOnWorkflowDeletion",
-		tag.WorkflowRunID(task.RunID),
-		tag.Dynamic("trackedTimerCount", len(timerTaskInfos)),
-		tag.Dynamic("threshold", threshold.String()),
-	)
-
 	// Derive from the executor's lifetime context so the goroutine is cancelled
 	// on shard shutdown, with a hard cap to prevent it running indefinitely.
 	ctx, cancel := context.WithTimeout(t.ctx, workflowTimerTaskCleanupTimeout)
 	defer cancel()
 
 	for _, taskInfo := range timerTaskInfos {
-		remaining := taskInfo.VisibilityTimestamp.Sub(now)
-		t.logger.Info("deleteTrackedTimerTasksOnWorkflowDeletion: considering task",
-			tag.WorkflowRunID(task.RunID),
-			tag.TaskID(taskInfo.TaskID),
-			tag.Dynamic("remaining", remaining.String()),
-			tag.Dynamic("aboveThreshold", remaining >= threshold),
-		)
-		if remaining < threshold {
+		if taskInfo.VisibilityTimestamp.Sub(now) < threshold {
 			// Timer fires soon — not worth an explicit delete; it will fire and be cleaned up naturally.
 			continue
 		}

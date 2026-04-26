@@ -157,12 +157,16 @@ func (s *WorkflowTimerTaskCleanupSuite) newCompleteImmediatelyPoller(taskList, i
 	}
 }
 
-// isTimerTaskDeletedForRun polls until no timer task for the given runID exists in the queue.
+// isTimerTaskDeletedForRun polls until no long-lived timer task (above the cleanup threshold)
+// for the given runID exists in the queue. Short-lived timers below the threshold are ignored
+// since the feature deliberately skips them.
 func (s *WorkflowTimerTaskCleanupSuite) isTimerTaskDeletedForRun(runID string) bool {
 	execMgr := s.newExecutionManager()
 	defer execMgr.Close()
+	threshold := time.Hour // matches WorkflowTimerTaskCleanupMinTTL in the test config
 
 	for i := 0; i < 20; i++ {
+		now := time.Now()
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 		resp, err := execMgr.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
 			TaskCategory:        persistence.HistoryTaskCategoryTimer,
@@ -175,7 +179,7 @@ func (s *WorkflowTimerTaskCleanupSuite) isTimerTaskDeletedForRun(runID string) b
 
 		found := false
 		for _, task := range resp.Tasks {
-			if task.GetRunID() == runID {
+			if task.GetRunID() == runID && task.GetVisibilityTimestamp().Sub(now) >= threshold {
 				found = true
 				break
 			}
@@ -343,6 +347,9 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) newCompleteImmediatelyPoller(tas
 func (s *WorkflowTimerTaskCleanupDisabledSuite) isTimerTaskDeletedForRun(runID string) bool {
 	execMgr := s.newExecutionManager()
 	defer execMgr.Close()
+	threshold := time.Hour // matches WorkflowTimerTaskCleanupMinTTL in the test config
+	now := time.Now()
+
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 	defer cancel()
 
@@ -355,7 +362,7 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) isTimerTaskDeletedForRun(runID s
 	s.NoError(err)
 
 	for _, task := range resp.Tasks {
-		if task.GetRunID() == runID {
+		if task.GetRunID() == runID && task.GetVisibilityTimestamp().Sub(now) >= threshold {
 			return false
 		}
 	}
