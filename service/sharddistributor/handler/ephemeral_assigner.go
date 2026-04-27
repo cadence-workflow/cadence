@@ -82,13 +82,12 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 // buildAssignedCounts returns a map of executorID -> current shard count for
 // all ACTIVE executors in the given namespace state.
 func buildAssignedCounts(state *store.NamespaceState) (map[string]int, error) {
-	counts := make(map[string]int, len(state.ShardAssignments))
-	for executorID, assignment := range state.ShardAssignments {
-		executorState, ok := state.Executors[executorID]
-		if !ok || executorState.Status != types.ExecutorStatusACTIVE {
+	counts := make(map[string]int, len(state.Executors))
+	for executorID, executorState := range state.Executors {
+		if executorState.Status != types.ExecutorStatusACTIVE {
 			continue
 		}
-		counts[executorID] = len(assignment.AssignedShards)
+		counts[executorID] = len(state.ShardAssignments[executorID].AssignedShards)
 	}
 	return counts, nil
 }

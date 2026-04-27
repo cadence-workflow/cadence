@@ -163,6 +163,30 @@ func TestAssignEphemeralBatch(t *testing.T) {
 			expectedErrMsg: "no active executors available for namespace",
 		},
 		{
+			// An executor that has heartbeated (ACTIVE in state.Executors) but has
+			// never been assigned a shard yet (absent from state.ShardAssignments)
+			// must still be eligible for assignment. This covers the bootstrap case
+			// where the very first shard creation would otherwise always fail.
+			name:      "AssignsToExecutorWithNoExistingAssignments",
+			namespace: _testNamespaceEphemeral,
+			shardKeys: []string{"NEW-SHARD"},
+			setupMocks: func(mockStore *store.MockStore) {
+				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+					Executors: map[string]store.HeartbeatState{
+						"owner1": {Status: types.ExecutorStatusACTIVE},
+					},
+					// No ShardAssignments entry for owner1 — fresh executor.
+					ShardAssignments: map[string]store.AssignedState{},
+				}, nil)
+				mockStore.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
+				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner1").Return(&store.ShardOwner{
+					ExecutorID: "owner1",
+					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
+				}, nil)
+			},
+			expectedOwners: map[string]string{"NEW-SHARD": "owner1"},
+		},
+		{
 			name:      "AssignShardsFailure",
 			namespace: _testNamespaceEphemeral,
 			shardKeys: []string{"NON-EXISTING-SHARD"},
