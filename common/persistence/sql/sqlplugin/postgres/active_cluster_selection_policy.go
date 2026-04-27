@@ -23,21 +23,19 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
 
-var errActiveClusterSelectionPolicyNotImplemented = errors.New("ActiveClusterSelectionPolicy is not implemented for postgres")
-
 func (pdb *db) InsertIntoActiveClusterSelectionPolicy(ctx context.Context, row *sqlplugin.ActiveClusterSelectionPolicyRow) (sql.Result, error) {
-	return nil, errActiveClusterSelectionPolicyNotImplemented
+	// TODO(active-active): Implement postgres support for ActiveClusterSelectionPolicy
+	return nil, nil
 }
 
 func (pdb *db) SelectFromActiveClusterSelectionPolicy(ctx context.Context, filter *sqlplugin.ActiveClusterSelectionPolicyFilter) (*sqlplugin.ActiveClusterSelectionPolicyRow, error) {
-	return nil, errActiveClusterSelectionPolicyNotImplemented
+	return nil, sql.ErrNoRows
 }
 
 func (pdb *db) DeleteFromActiveClusterSelectionPolicy(ctx context.Context, filter *sqlplugin.ActiveClusterSelectionPolicyFilter) (sql.Result, error) {
-	return nil, errActiveClusterSelectionPolicyNotImplemented
+	return nil, nil
 }

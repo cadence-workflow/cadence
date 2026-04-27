@@ -23,21 +23,19 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"errors"
 
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
 
-var errActiveClusterSelectionPolicyNotImplemented = errors.New("ActiveClusterSelectionPolicy is not implemented for sqlite")
-
 func (mdb *DB) InsertIntoActiveClusterSelectionPolicy(ctx context.Context, row *sqlplugin.ActiveClusterSelectionPolicyRow) (sql.Result, error) {
-	return nil, errActiveClusterSelectionPolicyNotImplemented
+	// TODO(active-active): Implement sqlite support for ActiveClusterSelectionPolicy
+	return nil, nil
 }
 
 func (mdb *DB) SelectFromActiveClusterSelectionPolicy(ctx context.Context, filter *sqlplugin.ActiveClusterSelectionPolicyFilter) (*sqlplugin.ActiveClusterSelectionPolicyRow, error) {
-	return nil, errActiveClusterSelectionPolicyNotImplemented
+	return nil, sql.ErrNoRows
 }
 
 func (mdb *DB) DeleteFromActiveClusterSelectionPolicy(ctx context.Context, filter *sqlplugin.ActiveClusterSelectionPolicyFilter) (sql.Result, error) {
-	return nil, errActiveClusterSelectionPolicyNotImplemented
+	return nil, nil
 }
