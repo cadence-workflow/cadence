@@ -99,20 +99,20 @@ func computeExecutorLoads(state *store.NamespaceState) (map[string]executorPlace
 		if executorState.Status != types.ExecutorStatusACTIVE {
 			continue
 		}
-
 		assignment := state.ShardAssignments[executorID]
-		executorLoad := executorPlacementLoad{shardCount: len(assignment.AssignedShards), smoothedLoad: 0}
-		totalShardCount += executorLoad.shardCount
+		shardCount := len(assignment.AssignedShards)
+		smoothedLoad := 0.0
 
 		for shardID := range assignment.AssignedShards {
 			stats, ok := state.ShardStats[shardID]
 			if !ok {
 				continue
 			}
-			executorLoad.smoothedLoad += stats.SmoothedLoad
-			totalSmoothedLoad += stats.SmoothedLoad
+			smoothedLoad += stats.SmoothedLoad
 		}
-		assignmentLoadsByExecutor[executorID] = executorLoad
+		totalShardCount += shardCount
+		totalSmoothedLoad += smoothedLoad
+		assignmentLoadsByExecutor[executorID] = executorPlacementLoad{shardCount: shardCount, smoothedLoad: smoothedLoad}
 	}
 	if totalShardCount == 0 {
 		return assignmentLoadsByExecutor, 0
