@@ -178,8 +178,8 @@ func (l *executorPlacementLoad) AddShardLoad(averageSmoothedShardLoad float64, m
 	}
 }
 
-// pickExecutorByMinimum returns the executor whose field value, extracted by
-// getLoadValue, is smallest. Returns "" when executorIDs is empty.
+// pickExecutorByMinimum returns the executor with the minimum load, as determined by the isLess function.
+// Returns "" when executorIDs is empty.
 func pickExecutorByMinimum(executorIDs []string, loads map[string]executorPlacementLoad, isLess func(executorPlacementLoad, executorPlacementLoad) bool) string {
 	chosenExecutor := ""
 	var minVal executorPlacementLoad
