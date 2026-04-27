@@ -36,6 +36,11 @@ type executorPlacementLoad struct {
 	shardCount   int
 }
 
+func (l *executorPlacementLoad) AddShardLoad(averageSmoothedShardLoad float64) {
+	l.shardCount++
+	l.smoothedLoad += averageSmoothedShardLoad
+}
+
 // assignEphemeralBatch is the ephemeralAssignmentBatchFn wired into the shardBatcher.
 // It processes a whole batch of unassigned shard keys for a single ephemeral
 // namespace using two storage operations:
@@ -163,19 +168,10 @@ func pickExecutors(
 		}
 		chosenExecutors[shardKey] = chosenExecutor
 		load := assignmentLoadsByExecutor[chosenExecutor]
-		load.AddShardLoad(averageSmoothedShardLoad, loadBalancingMode)
+		load.AddShardLoad(averageSmoothedShardLoad)
 		assignmentLoadsByExecutor[chosenExecutor] = load
 	}
 	return chosenExecutors, nil
-}
-
-func (l *executorPlacementLoad) AddShardLoad(averageSmoothedShardLoad float64, mode types.LoadBalancingMode) {
-	l.shardCount++
-	if mode == types.LoadBalancingModeGREEDY {
-		// We increase the total load by the average shard load in the namespace
-		// This helps avoid placing all shards in the batch on the same executor
-		l.smoothedLoad += averageSmoothedShardLoad
-	}
 }
 
 // pickExecutorByMinimum returns the executor with the minimum load, as determined by the isLess function.
