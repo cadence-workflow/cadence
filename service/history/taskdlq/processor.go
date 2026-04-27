@@ -24,6 +24,7 @@ package taskdlq
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -236,7 +237,13 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error 
 	minKey := nextKey(al)
 	maxKey := al.ExclusiveMaxTaskKey
 	if maxKey.IsZero() {
-		maxKey = persistence.MaximumHistoryTaskKey
+		p.logger.Warn("ExclusiveMaxTaskKey provided is zero, this prevents the scanner from scanning the DLQ",
+			tag.WorkflowDomainID(al.DomainID),
+			tag.Dynamic("cluster-attribute-scope", al.ClusterAttributeScope),
+			tag.Dynamic("cluster-attribute-name", al.ClusterAttributeName),
+			tag.TaskType(al.TaskType))
+
+		return ErrInvalidExclusiveMaxTaskKey
 	}
 
 	for {
@@ -322,3 +329,5 @@ func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al AckLevel, newKey
 func nextKey(al AckLevel) persistence.HistoryTaskKey {
 	return persistence.NewHistoryTaskKey(al.AckLevelVisibilityTS, al.AckLevelTaskID).Next()
 }
+
+var ErrInvalidExclusiveMaxTaskKey = errors.New("ExclusiveMaxTaskKey provided is invalid")

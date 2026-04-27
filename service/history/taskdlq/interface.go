@@ -79,10 +79,7 @@ type (
 		AckLevelVisibilityTS time.Time
 		AckLevelTaskID       int64
 		// ExclusiveMaxTaskKey bounds the DLQ scan to tasks that were committed to the DLQ
-		// before the source queue had processed this far. Populated by the store from the
-		// source queue's current ack level. Tasks at or beyond this key may still be
-		// in-flight in the source queue and must not be processed.
-		// If zero-value, the processor falls back to persistence.MaximumHistoryTaskKey.
+		// before the source queue had processed this far.
 		ExclusiveMaxTaskKey persistence.HistoryTaskKey
 	}
 

@@ -73,6 +73,7 @@ func baseAckLevel(shardID int) AckLevel {
 		TaskType:              persistence.HistoryTaskCategoryIDTransfer,
 		AckLevelVisibilityTS:  time.Unix(0, 0).UTC(),
 		AckLevelTaskID:        -1,
+		ExclusiveMaxTaskKey:   persistence.MaximumHistoryTaskKey,
 	}
 }
 
@@ -227,8 +228,8 @@ func TestProcessShard_WhenOnePartitionFails_ReturnsErrorButProcessesRemainingPar
 	defer ctrl.Finish()
 
 	proc, store, _ := setupProcessor(t, ctrl)
-	al1 := baseAckLevel(1)
-	al2 := AckLevel{
+	ackLevel1 := baseAckLevel(1)
+	ackLevel2 := AckLevel{
 		ShardID:               1,
 		DomainID:              "other-domain",
 		ClusterAttributeScope: "scope",
@@ -236,10 +237,11 @@ func TestProcessShard_WhenOnePartitionFails_ReturnsErrorButProcessesRemainingPar
 		TaskType:              persistence.HistoryTaskCategoryIDTransfer,
 		AckLevelVisibilityTS:  time.Unix(0, 0).UTC(),
 		AckLevelTaskID:        -1,
+		ExclusiveMaxTaskKey:   persistence.MaximumHistoryTaskKey,
 	}
 	getTasksErr := errors.New("partition error")
 
-	store.EXPECT().GetAckLevels(gomock.Any(), 1).Return([]AckLevel{al1, al2}, nil)
+	store.EXPECT().GetAckLevels(gomock.Any(), 1).Return([]AckLevel{ackLevel1, ackLevel2}, nil)
 	store.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(GetTasksResponse{}, getTasksErr)
 	store.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(GetTasksResponse{}, nil)
 
@@ -287,11 +289,13 @@ func TestProcessPartition_WhenMultipleTaskTypes_ProcessesAll(t *testing.T) {
 		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
 		TaskType:             persistence.HistoryTaskCategoryIDTransfer,
 		AckLevelVisibilityTS: time.Unix(0, 0).UTC(), AckLevelTaskID: -1,
+		ExclusiveMaxTaskKey: persistence.MaximumHistoryTaskKey,
 	}
 	timerAL := AckLevel{
 		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
 		TaskType:             persistence.HistoryTaskCategoryIDTimer,
 		AckLevelVisibilityTS: time.Unix(0, 0).UTC(), AckLevelTaskID: -1,
+		ExclusiveMaxTaskKey: persistence.MaximumHistoryTaskKey,
 	}
 
 	store.EXPECT().
@@ -362,6 +366,21 @@ func TestProcessShard_WhenNoExecutorForTaskType_ReturnsError(t *testing.T) {
 	err := proc.ProcessShard(context.Background())
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "no executor registered for task type")
+}
+
+func TestProcessShard_WhenExclusiveMaxTaskKeyIsZero_ReturnsErrInvalidExclusiveMaxTaskKey(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	proc, store, _ := setupProcessor(t, ctrl)
+	al := baseAckLevel(1)
+	al.ExclusiveMaxTaskKey = persistence.HistoryTaskKey{} // zero value
+
+	store.EXPECT().GetAckLevels(gomock.Any(), 1).Return([]AckLevel{al}, nil)
+
+	err := proc.ProcessShard(context.Background())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidExclusiveMaxTaskKey)
 }
 
 func TestProcessShard_WhenExecutionAndAdvanceAckLevelBothFail_ReturnsBothErrors(t *testing.T) {
@@ -521,7 +540,7 @@ func TestProcessShard_WhenDeleteTasksFailsAndDLQBecomesEmpty_OrphanedRowsNotClea
 	// Second run: ack level is now at task0's key; DLQ is empty beyond that point.
 	// GetTasks returns nothing, so advanceAckLevel is never called and DeleteTasks
 	// is never invoked — the orphaned rows from the first run remain.
-	al2 := AckLevel{
+	ackLevel2 := AckLevel{
 		ShardID:               al.ShardID,
 		DomainID:              al.DomainID,
 		ClusterAttributeScope: al.ClusterAttributeScope,
@@ -529,8 +548,9 @@ func TestProcessShard_WhenDeleteTasksFailsAndDLQBecomesEmpty_OrphanedRowsNotClea
 		TaskType:              al.TaskType,
 		AckLevelVisibilityTS:  task0Key.GetScheduledTime(),
 		AckLevelTaskID:        task0Key.GetTaskID(),
+		ExclusiveMaxTaskKey:   persistence.MaximumHistoryTaskKey,
 	}
-	store.EXPECT().GetAckLevels(gomock.Any(), 1).Return([]AckLevel{al2}, nil)
+	store.EXPECT().GetAckLevels(gomock.Any(), 1).Return([]AckLevel{ackLevel2}, nil)
 	store.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(GetTasksResponse{}, nil)
 	// UpdateAckLevel and DeleteTasks must NOT be called.
 
