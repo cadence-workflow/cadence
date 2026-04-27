@@ -754,6 +754,7 @@ func TestQueryWorkflow(t *testing.T) {
 				executor:             executor,
 				config: &config.Config{
 					ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
+					EmergencyOffboardingFromShardManager:       func(opts ...dynamicproperties.FilterOption) bool { return false },
 					PercentageOnboardedToShardManager:          func(opts ...dynamicproperties.FilterOption) int { return 100 },
 				},
 			}
