@@ -23,9 +23,12 @@
 package handler
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -135,9 +138,9 @@ func pickExecutors(
 	loadBalancingMode types.LoadBalancingMode,
 	averageSmoothedShardLoad float64,
 ) (map[string]string, error) {
-	executorIDs := make([]string, 0, len(assignmentLoadsByExecutor))
-	for executorID := range assignmentLoadsByExecutor {
-		executorIDs = append(executorIDs, executorID)
+	executorList := slices.Collect(maps.Keys(assignmentLoadsByExecutor))
+	if len(executorList) == 0 {
+		return nil, &types.InternalServiceError{Message: "no active executors available for namespace: " + namespace}
 	}
 
 	chosenExecutors := make(map[string]string, len(shardKeys))
@@ -145,47 +148,28 @@ func pickExecutors(
 		var chosenExecutor string
 		switch loadBalancingMode {
 		case types.LoadBalancingModeNAIVE:
-			chosenExecutor = pickExecutorByMinimum(
-				executorIDs,
-				assignmentLoadsByExecutor,
-				func(load, minLoad executorPlacementLoad) bool { return load.shardCount < minLoad.shardCount },
-			)
+			chosenExecutor = slices.MinFunc(executorList, func(a, b string) int {
+				return cmp.Compare(assignmentLoadsByExecutor[a].shardCount, assignmentLoadsByExecutor[b].shardCount)
+			})
 		case types.LoadBalancingModeGREEDY:
-			chosenExecutor = pickExecutorByMinimum(
-				executorIDs,
-				assignmentLoadsByExecutor,
-				func(load, minLoad executorPlacementLoad) bool {
-					return load.smoothedLoad < minLoad.smoothedLoad ||
-						(load.smoothedLoad == minLoad.smoothedLoad && load.shardCount < minLoad.shardCount)
-				},
-			)
+			chosenExecutor = slices.MinFunc(executorList, func(a, b string) int {
+				la := assignmentLoadsByExecutor[a]
+				lb := assignmentLoadsByExecutor[b]
+				return cmp.Or(
+					cmp.Compare(la.smoothedLoad, lb.smoothedLoad),
+					cmp.Compare(la.shardCount, lb.shardCount),
+				)
+			})
 		default:
 			return nil, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", loadBalancingMode)}
 		}
 
-		if chosenExecutor == "" {
-			return nil, &types.InternalServiceError{Message: "no active executors available for namespace: " + namespace}
-		}
 		chosenExecutors[shardKey] = chosenExecutor
 		load := assignmentLoadsByExecutor[chosenExecutor]
 		load.AddShardLoad(averageSmoothedShardLoad)
 		assignmentLoadsByExecutor[chosenExecutor] = load
 	}
 	return chosenExecutors, nil
-}
-
-// pickExecutorByMinimum returns the executor with the minimum load, as determined by the isLess function.
-// Returns "" when executorIDs is empty.
-func pickExecutorByMinimum(executorIDs []string, loads map[string]executorPlacementLoad, isLess func(executorPlacementLoad, executorPlacementLoad) bool) string {
-	chosenExecutor := ""
-	var minVal executorPlacementLoad
-	for i, executorID := range executorIDs {
-		if i == 0 || isLess(loads[executorID], minVal) {
-			minVal = loads[executorID]
-			chosenExecutor = executorID
-		}
-	}
-	return chosenExecutor
 }
 
 // mergeAssignments folds the chosen shard→executor assignments back into state.
