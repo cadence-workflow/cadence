@@ -316,3 +316,49 @@ func TestAssignEphemeralBatch_InvalidLoadBalancingMode(t *testing.T) {
 	require.Contains(t, err.Error(), "unsupported load balancing mode")
 	require.Nil(t, results)
 }
+
+func TestAssignEphemeralBatch_GreedyTiesBrokenByShardCount(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockStorage := store.NewMockStore(ctrl)
+	h := &handlerImpl{
+		logger:  testlogger.New(t),
+		storage: mockStorage,
+		cfg:     newTestShardDistributorConfig(config.LoadBalancingModeGREEDY),
+	}
+
+	mockStorage.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
+		Executors: map[string]store.HeartbeatState{
+			"owner1": {Status: types.ExecutorStatusACTIVE},
+			"owner2": {Status: types.ExecutorStatusACTIVE},
+		},
+		ShardAssignments: map[string]store.AssignedState{
+			"owner1": {
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard1": {Status: types.AssignmentStatusREADY},
+					"shard2": {Status: types.AssignmentStatusREADY},
+				},
+			},
+			"owner2": {
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard3": {Status: types.AssignmentStatusREADY},
+				},
+			},
+		},
+		// No ShardStats provided, so smoothedLoad will be 0.0 for all shards/executors.
+	}, nil)
+
+	// owner2 has fewer shards (1) than owner1 (2).
+	// Both have 0.0 smoothedLoad because ShardStats is empty.
+	// GREEDY should pick owner2 based on shardCount tie-breaker.
+	mockStorage.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
+	mockStorage.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner2").Return(&store.ShardOwner{
+		ExecutorID: "owner2",
+		Metadata:   map[string]string{"ip": "127.0.0.2", "port": "1234"},
+	}, nil)
+
+	results, err := h.assignEphemeralBatch(context.Background(), _testNamespaceEphemeral, []string{"new-shard-1"})
+	require.NoError(t, err)
+	require.Equal(t, "owner2", results["new-shard-1"].Owner)
+}
