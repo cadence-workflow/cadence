@@ -39,6 +39,7 @@ type (
 	visibilityArchiver struct {
 		container   *archiver.VisibilityBootstrapContainer
 		s3cli       s3iface.S3API
+		region      string
 		queryParser QueryParser
 	}
 
@@ -90,6 +91,7 @@ func newVisibilityArchiver(
 	return &visibilityArchiver{
 		container:   container,
 		s3cli:       s3.New(sess),
+		region:      config.Region,
 		queryParser: NewQueryParser(),
 	}, nil
 }
@@ -139,8 +141,8 @@ func (v *visibilityArchiver) Archive(
 	indexes := createIndexesToArchive(request)
 	// Upload archive to all indexes
 	for _, element := range indexes {
-		key := constructTimestampIndex(URI.Path(), request.DomainID, element.primaryIndex, element.primaryIndexValue, element.secondaryIndex, element.secondaryIndexTimestamp, request.RunID)
-		if err := upload(ctx, v.s3cli, URI, key, encodedVisibilityRecord); err != nil {
+		key := constructTimestampIndex(s3KeyPath(URI), request.DomainID, element.primaryIndex, element.primaryIndexValue, element.secondaryIndex, element.secondaryIndexTimestamp, request.RunID)
+		if err := upload(ctx, v.s3cli, URI, v.region, key, encodedVisibilityRecord); err != nil {
 			archiveFailReason = errWriteKey
 			return err
 		}
@@ -200,16 +202,21 @@ func (v *visibilityArchiver) query(
 		primaryIndex = primaryIndexKeyWorkflowID
 		primaryIndexValue = request.parsedQuery.workflowID
 	}
-	var prefix = constructVisibilitySearchPrefix(URI.Path(), request.domainID, primaryIndex, *primaryIndexValue, secondaryIndexKeyCloseTimeout) + "/"
+	keyPath := s3KeyPath(URI)
+	var prefix = constructVisibilitySearchPrefix(keyPath, request.domainID, primaryIndex, *primaryIndexValue, secondaryIndexKeyCloseTimeout) + "/"
 	if request.parsedQuery.closeTime != nil {
-		prefix = constructTimeBasedSearchKey(URI.Path(), request.domainID, primaryIndex, *primaryIndexValue, secondaryIndexKeyCloseTimeout, *request.parsedQuery.closeTime, *request.parsedQuery.searchPrecision)
+		prefix = constructTimeBasedSearchKey(keyPath, request.domainID, primaryIndex, *primaryIndexValue, secondaryIndexKeyCloseTimeout, *request.parsedQuery.closeTime, *request.parsedQuery.searchPrecision)
 	}
 	if request.parsedQuery.startTime != nil {
-		prefix = constructTimeBasedSearchKey(URI.Path(), request.domainID, primaryIndex, *primaryIndexValue, secondaryIndexKeyStartTimeout, *request.parsedQuery.startTime, *request.parsedQuery.searchPrecision)
+		prefix = constructTimeBasedSearchKey(keyPath, request.domainID, primaryIndex, *primaryIndexValue, secondaryIndexKeyStartTimeout, *request.parsedQuery.startTime, *request.parsedQuery.searchPrecision)
 	}
 
+	bucket, err := s3Bucket(URI, v.region)
+	if err != nil {
+		return nil, &types.BadRequestError{Message: err.Error()}
+	}
 	results, err := v.s3cli.ListObjectsV2WithContext(ctx, &s3.ListObjectsV2Input{
-		Bucket:            aws.String(URI.Hostname()),
+		Bucket:            aws.String(bucket),
 		Prefix:            aws.String(prefix),
 		MaxKeys:           aws.Int64(int64(request.pageSize)),
 		ContinuationToken: token,
@@ -229,7 +236,7 @@ func (v *visibilityArchiver) query(
 		response.NextPageToken = serializeQueryVisibilityToken(*results.NextContinuationToken)
 	}
 	for _, item := range results.Contents {
-		encodedRecord, err := download(ctx, v.s3cli, URI, *item.Key)
+		encodedRecord, err := download(ctx, v.s3cli, URI, v.region, *item.Key)
 		if err != nil {
 			return nil, &types.InternalServiceError{Message: err.Error()}
 		}
@@ -248,5 +255,5 @@ func (v *visibilityArchiver) ValidateURI(URI archiver.URI) error {
 	if err != nil {
 		return err
 	}
-	return bucketExists(context.TODO(), v.s3cli, URI)
+	return bucketExists(context.TODO(), v.s3cli, URI, v.region)
 }

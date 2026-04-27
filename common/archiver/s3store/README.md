@@ -28,6 +28,59 @@ domainDefaults:
       URI: "s3://<bucket-name>"
 ```
 
+## URI schemes
+Two URI schemes are supported:
+
+- `s3://<bucket-name>[/<path>]` — plain S3 bucket. The hostname is the bucket
+  name and is passed directly to the AWS SDK. This is the original scheme.
+- `s3-ap://<account-id>/<access-point-name>[/<path>]` — S3
+  [access point](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points.html).
+  The region is taken from the archiver's configured `region`, so the **same URI
+  works in every region**. This is useful for global domains where the archival
+  URI must be identical across clusters.
+
+At request time, an `s3-ap` URI is reconstructed into an access point ARN of
+the form `arn:aws:s3:<region>:<account-id>:accesspoint/<access-point-name>` and
+passed as the `Bucket` parameter to S3 SDK calls. Each cluster contributes its
+own region to the ARN.
+
+Example — registering a global domain with an access point archival URI:
+
+```
+cadence --do my-domain domain register \
+  --history_uri    "s3-ap://710914175400/cadence-archival/prod" \
+  --visibility_uri "s3-ap://710914175400/cadence-archival/prod" \
+  --history_archival_status enabled \
+  --visibility_archival_status enabled \
+  --gd true --cl primary,secondary --ac primary --rd 7
+```
+
+In `us-east-1` this resolves to the bucket
+`arn:aws:s3:us-east-1:710914175400:accesspoint/cadence-archival`; in
+`eu-west-1` the same URI resolves to
+`arn:aws:s3:eu-west-1:710914175400:accesspoint/cadence-archival`.
+
+### Access point IAM and `HeadBucket`
+At domain-registration time the frontend calls `HeadBucket` against the
+constructed ARN to verify the URI. `HeadBucket` on an access point is evaluated
+against the **underlying bucket's** policy, not the access point policy — so
+granting `s3:*` on the access point alone is not enough. The role used by the
+Cadence services needs `s3:ListBucket` on the underlying bucket
+(`arn:aws:s3:::<underlying-bucket-name>`) for the validation check to pass.
+
+The ARN partition is inferred from the region prefix, so the same URI works
+across `aws`, `aws-cn` (China), `aws-us-gov` (GovCloud), and `aws-iso`/
+`aws-iso-b` (Secret/Top-Secret) partitions.
+
+### Limitations
+- The `s3-ap` scheme requires the archiver's `region` config to be set. Plain
+  `s3://` URIs work without it (the SDK falls back to environment / instance
+  metadata).
+- `s3ForcePathStyle: true` is incompatible with access points. Leave it unset
+  (the default) when using `s3-ap://`.
+- Multi-Region Access Points (MRAP) are not currently supported. MRAP ARNs have
+  no region component and require SigV4A signing, which is a separate scheme.
+
 ## Visibility query syntax
 You can query the visibility store by using the `cadence workflow listarchived` command
 
@@ -69,6 +122,11 @@ s3://<bucket-name>/<domain-id>/
                 startTimeout/2020-01-21T16:16:11Z/<run-id>
                 closeTimeout/2020-01-21T16:16:11Z/<run-id>
 ```
+
+For `s3-ap://` URIs, the path component after the access point name plays the
+same role as the path under a bucket name. For example,
+`s3-ap://710914175400/cadence-archival/prod` produces objects under
+`prod/<domain-id>/history/...` inside the underlying bucket.
 
 ## Using localstack for local development
 1. Install awscli from [here](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
