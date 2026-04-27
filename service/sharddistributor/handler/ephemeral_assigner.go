@@ -59,7 +59,16 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 	}
 
 	loadBalancingMode := h.cfg.GetLoadBalancingMode(namespace)
-	assignmentLoadsByExecutor, averageSmoothedShardLoad := computeExecutorLoads(state)
+	var assignmentLoadsByExecutor map[string]executorPlacementLoad
+	var averageSmoothedShardLoad float64
+	switch loadBalancingMode {
+	case types.LoadBalancingModeNAIVE:
+		assignmentLoadsByExecutor = computeNaiveInitialPlacementLoads(state)
+	case types.LoadBalancingModeGREEDY:
+		assignmentLoadsByExecutor, averageSmoothedShardLoad = computeGreedyInitialPlacementLoads(state)
+	default:
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", loadBalancingMode)}
+	}
 
 	chosenExecutors, err := pickExecutors(
 		namespace,
@@ -91,9 +100,24 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 	return buildResults(namespace, shardKeys, chosenExecutors, executorOwners), nil
 }
 
-// computeExecutorLoads returns current shard count and smoothed load
-// for all ACTIVE executors, and the namespace average smoothed shard load.
-func computeExecutorLoads(state *store.NamespaceState) (map[string]executorPlacementLoad, float64) {
+// computeNaiveInitialPlacementLoads returns current shard count for all ACTIVE executors.
+func computeNaiveInitialPlacementLoads(state *store.NamespaceState) map[string]executorPlacementLoad {
+	assignmentLoadsByExecutor := make(map[string]executorPlacementLoad, len(state.Executors))
+	for executorID, executorState := range state.Executors {
+		if executorState.Status != types.ExecutorStatusACTIVE {
+			continue
+		}
+
+		assignment := state.ShardAssignments[executorID]
+		shardCount := len(assignment.AssignedShards)
+		assignmentLoadsByExecutor[executorID] = executorPlacementLoad{shardCount: shardCount}
+	}
+	return assignmentLoadsByExecutor
+}
+
+// computeGreedyInitialPlacementLoads returns current shard count and smoothed load
+// for all ACTIVE executors, plus the namespace average smoothed shard load.
+func computeGreedyInitialPlacementLoads(state *store.NamespaceState) (map[string]executorPlacementLoad, float64) {
 	assignmentLoadsByExecutor := make(map[string]executorPlacementLoad, len(state.Executors))
 	totalSmoothedLoad := 0.0
 	totalShardCount := 0
