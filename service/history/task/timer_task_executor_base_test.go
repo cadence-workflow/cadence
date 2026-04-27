@@ -457,7 +457,7 @@ func TestDeleteTrackedTimerTasksOnWorkflowDeletion(t *testing.T) {
 			},
 		},
 		{
-			name:        "EntityNotExistsError is silently ignored",
+			name:        "EntityNotExistsError does not abort iteration",
 			flagEnabled: true,
 			threshold:   time.Hour,
 			timerInfos: map[int64]*persistence.WorkflowTimerTaskInfo{
@@ -468,7 +468,7 @@ func TestDeleteTrackedTimerTasksOnWorkflowDeletion(t *testing.T) {
 			},
 		},
 		{
-			name:        "delete error is logged and does not stop remaining deletions",
+			name:        "delete error does not abort remaining deletions",
 			flagEnabled: true,
 			threshold:   time.Hour,
 			timerInfos: map[int64]*persistence.WorkflowTimerTaskInfo{
