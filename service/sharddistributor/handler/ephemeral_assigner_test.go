@@ -53,7 +53,7 @@ func TestAssignEphemeralBatch(t *testing.T) {
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
 					Executors: map[string]store.HeartbeatState{
 						"owner1": {Status: types.ExecutorStatusACTIVE},
-						"owner2": {Status: types.ExecutorStatusACTIVE},
+						"owner2": {Status: types.ExecutorStatusACTIVE, Metadata: map[string]string{"ip": "127.0.0.1", "port": "1234"}},
 					},
 					ShardAssignments: map[string]store.AssignedState{
 						"owner1": {
@@ -72,10 +72,6 @@ func TestAssignEphemeralBatch(t *testing.T) {
 				}, nil)
 				// owner2 has the fewest shards; expect a single batch AssignShards call.
 				mockStore.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
-				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner2").Return(&store.ShardOwner{
-					ExecutorID: "owner2",
-					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
-				}, nil)
 			},
 			expectedOwners: map[string]string{"NON-EXISTING-SHARD": "owner2"},
 		},
@@ -86,7 +82,7 @@ func TestAssignEphemeralBatch(t *testing.T) {
 			setupMocks: func(mockStore *store.MockStore) {
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
 					Executors: map[string]store.HeartbeatState{
-						"owner1": {Status: types.ExecutorStatusACTIVE},
+						"owner1": {Status: types.ExecutorStatusACTIVE, Metadata: map[string]string{"ip": "127.0.0.1", "port": "1234"}},
 						// owner2 is DRAINING, should be skipped even though it has fewer shards
 						"owner2": {Status: types.ExecutorStatusDRAINING},
 					},
@@ -108,10 +104,6 @@ func TestAssignEphemeralBatch(t *testing.T) {
 				}, nil)
 				// owner1 should be selected; single batch write
 				mockStore.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
-				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner1").Return(&store.ShardOwner{
-					ExecutorID: "owner1",
-					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
-				}, nil)
 			},
 			expectedOwners: map[string]string{"NON-EXISTING-SHARD": "owner1"},
 		},
@@ -205,6 +197,53 @@ func TestAssignEphemeralBatch(t *testing.T) {
 					require.Equal(t, map[string]string{"ip": "127.0.0.1", "port": "1234"}, results[shardKey].Metadata)
 				}
 			}
+		})
+	}
+}
+
+func TestBuildExecutorOwners(t *testing.T) {
+	tests := []struct {
+		name            string
+		state           *store.NamespaceState
+		chosenExecutors map[string]string
+		expected        map[string]*store.ShardOwner
+	}{
+		{
+			name: "DerivesMetadataFromHeartbeatState",
+			state: &store.NamespaceState{
+				Executors: map[string]store.HeartbeatState{
+					"exec1": {Metadata: map[string]string{"ip": "10.0.0.1"}},
+					"exec2": {Metadata: map[string]string{"ip": "10.0.0.2"}},
+				},
+			},
+			chosenExecutors: map[string]string{
+				"shard1": "exec1",
+				"shard2": "exec2",
+				"shard3": "exec1", // duplicate — should not produce a second ShardOwner
+			},
+			expected: map[string]*store.ShardOwner{
+				"exec1": {ExecutorID: "exec1", Metadata: map[string]string{"ip": "10.0.0.1"}},
+				"exec2": {ExecutorID: "exec2", Metadata: map[string]string{"ip": "10.0.0.2"}},
+			},
+		},
+		{
+			name: "NilMetadataWhenExecutorHasNone",
+			state: &store.NamespaceState{
+				Executors: map[string]store.HeartbeatState{
+					"exec1": {Status: types.ExecutorStatusACTIVE},
+				},
+			},
+			chosenExecutors: map[string]string{"shard1": "exec1"},
+			expected: map[string]*store.ShardOwner{
+				"exec1": {ExecutorID: "exec1", Metadata: nil},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildExecutorOwners(tt.state, tt.chosenExecutors)
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }
