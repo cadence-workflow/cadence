@@ -60,7 +60,9 @@ func (handler *clusterRedirectionHandler) afterCall(
 
 	scope = scope.Tagged(metrics.TargetClusterTag(cluster))
 	scope.IncCounter(metrics.CadenceDcRedirectionClientRequests)
-	scope.RecordTimer(metrics.CadenceDcRedirectionClientLatency, handler.GetTimeSource().Now().Sub(startTime))
+	elapsed := handler.GetTimeSource().Now().Sub(startTime)
+	scope.RecordTimer(metrics.CadenceDcRedirectionClientLatency, elapsed)
+	scope.RecordHistogramDuration(metrics.CadenceDcRedirectionClientLatencyHistogram, elapsed)
 	if *retError != nil {
 		scope.IncCounter(metrics.CadenceDcRedirectionClientFailures)
 	}

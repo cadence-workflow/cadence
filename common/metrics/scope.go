@@ -123,9 +123,14 @@ func (m *metricsScope) RecordHistogramDuration(id MetricIdx, value time.Duration
 	if m.migrationConfig.Histogram.EmitHistogram(def.metricName.String()) {
 		m.scope.Histogram(def.metricName.String(), m.getBuckets(id)).RecordDuration(value)
 	}
-	if !def.metricRollupName.Empty() {
+	switch {
+	case !def.metricRollupName.Empty():
 		if m.migrationConfig.Histogram.EmitHistogram(def.metricRollupName.String()) {
 			m.rootScope.Histogram(def.metricRollupName.String(), m.getBuckets(id)).RecordDuration(value)
+		}
+	case m.isDomainTagged:
+		if m.migrationConfig.Histogram.EmitHistogram(def.metricName.String()) {
+			m.scope.Tagged(map[string]string{domain: allValue}).Histogram(def.metricName.String(), m.getBuckets(id)).RecordDuration(value)
 		}
 	}
 }

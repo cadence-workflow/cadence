@@ -6,6 +6,7 @@ package metered
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/yarpc"
 
@@ -40,9 +41,11 @@ func (c *frontendClient) BackfillSchedule(ctx context.Context, bp1 *types.Backfi
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	bp2, err = c.client.BackfillSchedule(ctx, bp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -62,9 +65,11 @@ func (c *frontendClient) CountWorkflowExecutions(ctx context.Context, cp1 *types
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	cp2, err = c.client.CountWorkflowExecutions(ctx, cp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -84,9 +89,11 @@ func (c *frontendClient) CreateSchedule(ctx context.Context, cp1 *types.CreateSc
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	cp2, err = c.client.CreateSchedule(ctx, cp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -106,9 +113,11 @@ func (c *frontendClient) DeleteDomain(ctx context.Context, dp1 *types.DeleteDoma
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.DeleteDomain(ctx, dp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -128,9 +137,11 @@ func (c *frontendClient) DeleteSchedule(ctx context.Context, dp1 *types.DeleteSc
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	dp2, err = c.client.DeleteSchedule(ctx, dp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -150,9 +161,11 @@ func (c *frontendClient) DeprecateDomain(ctx context.Context, dp1 *types.Depreca
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.DeprecateDomain(ctx, dp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -172,9 +185,11 @@ func (c *frontendClient) DescribeDomain(ctx context.Context, dp1 *types.Describe
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	dp2, err = c.client.DescribeDomain(ctx, dp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -194,9 +209,11 @@ func (c *frontendClient) DescribeSchedule(ctx context.Context, dp1 *types.Descri
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	dp2, err = c.client.DescribeSchedule(ctx, dp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -216,9 +233,11 @@ func (c *frontendClient) DescribeTaskList(ctx context.Context, dp1 *types.Descri
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	dp2, err = c.client.DescribeTaskList(ctx, dp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -238,9 +257,11 @@ func (c *frontendClient) DescribeWorkflowExecution(ctx context.Context, dp1 *typ
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	dp2, err = c.client.DescribeWorkflowExecution(ctx, dp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -260,9 +281,11 @@ func (c *frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *typ
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	dp2, err = c.client.DiagnoseWorkflowExecution(ctx, dp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -282,9 +305,11 @@ func (c *frontendClient) FailoverDomain(ctx context.Context, fp1 *types.Failover
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	fp2, err = c.client.FailoverDomain(ctx, fp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -304,9 +329,11 @@ func (c *frontendClient) GetClusterInfo(ctx context.Context, p1 ...yarpc.CallOpt
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	cp1, err = c.client.GetClusterInfo(ctx, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -326,9 +353,11 @@ func (c *frontendClient) GetSearchAttributes(ctx context.Context, p1 ...yarpc.Ca
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	gp1, err = c.client.GetSearchAttributes(ctx, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -348,9 +377,11 @@ func (c *frontendClient) GetTaskListsByDomain(ctx context.Context, gp1 *types.Ge
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	gp2, err = c.client.GetTaskListsByDomain(ctx, gp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -370,9 +401,11 @@ func (c *frontendClient) GetWorkflowExecutionHistory(ctx context.Context, gp1 *t
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	gp2, err = c.client.GetWorkflowExecutionHistory(ctx, gp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -392,9 +425,11 @@ func (c *frontendClient) ListArchivedWorkflowExecutions(ctx context.Context, lp1
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	lp2, err = c.client.ListArchivedWorkflowExecutions(ctx, lp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -414,9 +449,11 @@ func (c *frontendClient) ListClosedWorkflowExecutions(ctx context.Context, lp1 *
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	lp2, err = c.client.ListClosedWorkflowExecutions(ctx, lp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -436,9 +473,11 @@ func (c *frontendClient) ListDomains(ctx context.Context, lp1 *types.ListDomains
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	lp2, err = c.client.ListDomains(ctx, lp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -458,9 +497,11 @@ func (c *frontendClient) ListFailoverHistory(ctx context.Context, lp1 *types.Lis
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	lp2, err = c.client.ListFailoverHistory(ctx, lp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -480,9 +521,11 @@ func (c *frontendClient) ListOpenWorkflowExecutions(ctx context.Context, lp1 *ty
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	lp2, err = c.client.ListOpenWorkflowExecutions(ctx, lp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -502,9 +545,11 @@ func (c *frontendClient) ListSchedules(ctx context.Context, lp1 *types.ListSched
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	lp2, err = c.client.ListSchedules(ctx, lp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -524,9 +569,11 @@ func (c *frontendClient) ListTaskListPartitions(ctx context.Context, lp1 *types.
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	lp2, err = c.client.ListTaskListPartitions(ctx, lp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -546,9 +593,11 @@ func (c *frontendClient) ListWorkflowExecutions(ctx context.Context, lp1 *types.
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	lp2, err = c.client.ListWorkflowExecutions(ctx, lp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -568,9 +617,11 @@ func (c *frontendClient) PauseSchedule(ctx context.Context, pp1 *types.PauseSche
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	pp2, err = c.client.PauseSchedule(ctx, pp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -590,9 +641,11 @@ func (c *frontendClient) PollForActivityTask(ctx context.Context, pp1 *types.Pol
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	pp2, err = c.client.PollForActivityTask(ctx, pp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -612,9 +665,11 @@ func (c *frontendClient) PollForDecisionTask(ctx context.Context, pp1 *types.Pol
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	pp2, err = c.client.PollForDecisionTask(ctx, pp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -634,9 +689,11 @@ func (c *frontendClient) QueryWorkflow(ctx context.Context, qp1 *types.QueryWork
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	qp2, err = c.client.QueryWorkflow(ctx, qp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -656,9 +713,11 @@ func (c *frontendClient) RecordActivityTaskHeartbeat(ctx context.Context, rp1 *t
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	rp2, err = c.client.RecordActivityTaskHeartbeat(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -678,9 +737,11 @@ func (c *frontendClient) RecordActivityTaskHeartbeatByID(ctx context.Context, rp
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	rp2, err = c.client.RecordActivityTaskHeartbeatByID(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -700,9 +761,11 @@ func (c *frontendClient) RefreshWorkflowTasks(ctx context.Context, rp1 *types.Re
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RefreshWorkflowTasks(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -722,9 +785,11 @@ func (c *frontendClient) RegisterDomain(ctx context.Context, rp1 *types.Register
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RegisterDomain(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -744,9 +809,11 @@ func (c *frontendClient) RequestCancelWorkflowExecution(ctx context.Context, rp1
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RequestCancelWorkflowExecution(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -766,9 +833,11 @@ func (c *frontendClient) ResetStickyTaskList(ctx context.Context, rp1 *types.Res
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	rp2, err = c.client.ResetStickyTaskList(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -788,9 +857,11 @@ func (c *frontendClient) ResetWorkflowExecution(ctx context.Context, rp1 *types.
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	rp2, err = c.client.ResetWorkflowExecution(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -810,9 +881,11 @@ func (c *frontendClient) RespondActivityTaskCanceled(ctx context.Context, rp1 *t
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RespondActivityTaskCanceled(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -832,9 +905,11 @@ func (c *frontendClient) RespondActivityTaskCanceledByID(ctx context.Context, rp
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RespondActivityTaskCanceledByID(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -854,9 +929,11 @@ func (c *frontendClient) RespondActivityTaskCompleted(ctx context.Context, rp1 *
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RespondActivityTaskCompleted(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -876,9 +953,11 @@ func (c *frontendClient) RespondActivityTaskCompletedByID(ctx context.Context, r
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RespondActivityTaskCompletedByID(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -898,9 +977,11 @@ func (c *frontendClient) RespondActivityTaskFailed(ctx context.Context, rp1 *typ
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RespondActivityTaskFailed(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -920,9 +1001,11 @@ func (c *frontendClient) RespondActivityTaskFailedByID(ctx context.Context, rp1 
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RespondActivityTaskFailedByID(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -942,9 +1025,11 @@ func (c *frontendClient) RespondDecisionTaskCompleted(ctx context.Context, rp1 *
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	rp2, err = c.client.RespondDecisionTaskCompleted(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -964,9 +1049,11 @@ func (c *frontendClient) RespondDecisionTaskFailed(ctx context.Context, rp1 *typ
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RespondDecisionTaskFailed(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -986,9 +1073,11 @@ func (c *frontendClient) RespondQueryTaskCompleted(ctx context.Context, rp1 *typ
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RespondQueryTaskCompleted(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -1008,9 +1097,11 @@ func (c *frontendClient) RestartWorkflowExecution(ctx context.Context, rp1 *type
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	rp2, err = c.client.RestartWorkflowExecution(ctx, rp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -1030,9 +1121,11 @@ func (c *frontendClient) ScanWorkflowExecutions(ctx context.Context, lp1 *types.
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	lp2, err = c.client.ScanWorkflowExecutions(ctx, lp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -1052,9 +1145,11 @@ func (c *frontendClient) SignalWithStartWorkflowExecution(ctx context.Context, s
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	sp2, err = c.client.SignalWithStartWorkflowExecution(ctx, sp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -1074,9 +1169,11 @@ func (c *frontendClient) SignalWithStartWorkflowExecutionAsync(ctx context.Conte
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	sp2, err = c.client.SignalWithStartWorkflowExecutionAsync(ctx, sp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -1096,9 +1193,11 @@ func (c *frontendClient) SignalWorkflowExecution(ctx context.Context, sp1 *types
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.SignalWorkflowExecution(ctx, sp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -1118,9 +1217,11 @@ func (c *frontendClient) StartWorkflowExecution(ctx context.Context, sp1 *types.
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	sp2, err = c.client.StartWorkflowExecution(ctx, sp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -1140,9 +1241,11 @@ func (c *frontendClient) StartWorkflowExecutionAsync(ctx context.Context, sp1 *t
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	sp2, err = c.client.StartWorkflowExecutionAsync(ctx, sp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -1162,9 +1265,11 @@ func (c *frontendClient) TerminateWorkflowExecution(ctx context.Context, tp1 *ty
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.TerminateWorkflowExecution(ctx, tp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -1184,9 +1289,11 @@ func (c *frontendClient) UnpauseSchedule(ctx context.Context, up1 *types.Unpause
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	up2, err = c.client.UnpauseSchedule(ctx, up1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -1206,9 +1313,11 @@ func (c *frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDoma
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	up2, err = c.client.UpdateDomain(ctx, up1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -1228,9 +1337,11 @@ func (c *frontendClient) UpdateSchedule(ctx context.Context, up1 *types.UpdateSc
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	up2, err = c.client.UpdateSchedule(ctx, up1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
