@@ -133,7 +133,7 @@ type SchedulerWorkflowState struct {
 	PauseReason       string            `json:"pauseReason,omitempty"`
 	PausedBy          string            `json:"pausedBy,omitempty"`
 	Deleted           bool              `json:"-"`                           // transient flag, not persisted across ContinueAsNew
-	LastRunTime       time.Time         `json:"lastRunTime,omitempty"`       // most recent scheduled run time the workflow has processed (clamped monotonically increasing; matches ERD semantics)
+	LastRunTime       time.Time         `json:"lastRunTime,omitempty"`       // most recent scheduled run time the workflow has processed
 	LastProcessedTime time.Time         `json:"lastProcessedTime,omitempty"` // catch-up watermark: latest missed fire we've processed (fired or skipped)
 	NextRunTime       time.Time         `json:"nextRunTime,omitempty"`
 	TotalRuns         int64             `json:"totalRuns"`
