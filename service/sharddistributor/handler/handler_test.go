@@ -159,14 +159,10 @@ func TestGetShardOwner(t *testing.T) {
 			setupMocks: func(mockStore *store.MockStore) {
 				mockStore.EXPECT().GetShardOwner(gomock.Any(), _testNamespaceEphemeral, "NON-EXISTING-SHARD").Return(nil, store.ErrShardNotFound)
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
-					Executors:        map[string]store.HeartbeatState{"owner1": {Status: types.ExecutorStatusACTIVE}},
+					Executors:        map[string]store.HeartbeatState{"owner1": {Status: types.ExecutorStatusACTIVE, Metadata: map[string]string{"ip": "127.0.0.1", "port": "1234"}}},
 					ShardAssignments: map[string]store.AssignedState{"owner1": {AssignedShards: map[string]*types.ShardAssignment{}}},
 				}, nil)
 				mockStore.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
-				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner1").Return(&store.ShardOwner{
-					ExecutorID: "owner1",
-					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
-				}, nil)
 			},
 			expectedOwner: "owner1",
 			expectedError: false,
@@ -233,14 +229,10 @@ func TestGetShardOwner(t *testing.T) {
 
 				// Second batcher attempt: succeeds.
 				mockStore.EXPECT().GetState(gomock.Any(), _testNamespaceEphemeral).Return(&store.NamespaceState{
-					Executors:        map[string]store.HeartbeatState{"owner1": {Status: types.ExecutorStatusACTIVE}},
+					Executors:        map[string]store.HeartbeatState{"owner1": {Status: types.ExecutorStatusACTIVE, Metadata: map[string]string{"ip": "127.0.0.1", "port": "1234"}}},
 					ShardAssignments: map[string]store.AssignedState{"owner1": {AssignedShards: map[string]*types.ShardAssignment{}}},
 				}, nil)
 				mockStore.EXPECT().AssignShards(gomock.Any(), _testNamespaceEphemeral, gomock.Any(), gomock.Any()).Return(nil)
-				mockStore.EXPECT().GetExecutor(gomock.Any(), _testNamespaceEphemeral, "owner1").Return(&store.ShardOwner{
-					ExecutorID: "owner1",
-					Metadata:   map[string]string{"ip": "127.0.0.1", "port": "1234"},
-				}, nil)
 			},
 			expectedOwner: "owner1",
 			expectedError: false,

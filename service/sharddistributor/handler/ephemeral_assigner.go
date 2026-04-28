@@ -38,9 +38,8 @@ import (
 //  1. GetState     — read current namespace state once for the whole batch.
 //  2. AssignShards — write all new assignments atomically in one operation.
 //
-// After the write, GetExecutor is called once per unique chosen executor (not
-// per shard) to fetch metadata for the response, since metadata is stored
-// separately in the shard cache and is not returned by GetState.
+// Executor metadata for the response is derived directly from the HeartbeatState
+// already present in the GetState result, avoiding an extra storage round-trip.
 //
 // Within the batch the least-loaded ACTIVE executor is chosen per shard, with
 // the in-batch running count updated after each pick so load is spread evenly.
@@ -71,10 +70,7 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("assign ephemeral shards: %v", err)}
 	}
 
-	executorOwners, err := h.fetchExecutorMetadata(ctx, namespace, chosenExecutors)
-	if err != nil {
-		return nil, err
-	}
+	executorOwners := buildExecutorOwners(state, chosenExecutors)
 
 	return buildResults(namespace, shardKeys, chosenExecutors, executorOwners), nil
 }
@@ -134,22 +130,22 @@ func mergeAssignments(state *store.NamespaceState, chosenExecutors map[string]st
 	}
 }
 
-// fetchExecutorMetadata calls GetExecutor once per unique chosen executor to
-// retrieve metadata. Metadata is stored separately from HeartbeatState and is
-// not returned by GetState.
-func (h *handlerImpl) fetchExecutorMetadata(ctx context.Context, namespace string, chosenExecutors map[string]string) (map[string]*store.ShardOwner, error) {
-	executorOwners := make(map[string]*store.ShardOwner, len(chosenExecutors))
+// buildExecutorOwners derives ShardOwner metadata for each chosen executor
+// directly from the HeartbeatState already present in state, avoiding an
+// extra storage round-trip.
+func buildExecutorOwners(state *store.NamespaceState, chosenExecutors map[string]string) map[string]*store.ShardOwner {
+	owners := make(map[string]*store.ShardOwner, len(chosenExecutors))
 	for _, executorID := range chosenExecutors {
-		if _, already := executorOwners[executorID]; already {
+		if _, already := owners[executorID]; already {
 			continue
 		}
-		owner, err := h.storage.GetExecutor(ctx, namespace, executorID)
-		if err != nil {
-			return nil, &types.InternalServiceError{Message: fmt.Sprintf("get executor %q: %v", executorID, err)}
+		heartbeat := state.Executors[executorID]
+		owners[executorID] = &store.ShardOwner{
+			ExecutorID: executorID,
+			Metadata:   heartbeat.Metadata,
 		}
-		executorOwners[executorID] = owner
 	}
-	return executorOwners, nil
+	return owners
 }
 
 // buildResults constructs the shardKey -> GetShardOwnerResponse map from the
