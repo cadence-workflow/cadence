@@ -85,7 +85,7 @@ type (
 		PersistenceGlobalMaxQPS             dynamicproperties.IntPropertyFn
 		PersistenceMaxQPS                   dynamicproperties.IntPropertyFn
 		EnableBatcher                       dynamicproperties.BoolPropertyFn
-		EnableScheduler                     dynamicproperties.BoolPropertyFn
+		EnableScheduler                     dynamicproperties.BoolPropertyFnWithDomainFilter
 		EnableParentClosePolicyWorker       dynamicproperties.BoolPropertyFn
 		NumParentClosePolicySystemWorkflows dynamicproperties.IntPropertyFn
 		EnableFailoverManager               dynamicproperties.BoolPropertyFn
@@ -183,7 +183,7 @@ func NewConfig(params *resource.Params) *Config {
 			ESAnalyzerWorkflowTypeDomains:            dc.GetStringProperty(dynamicproperties.ESAnalyzerWorkflowTypeMetricDomains),
 		},
 		EnableBatcher:                       dc.GetBoolProperty(dynamicproperties.EnableBatcher),
-		EnableScheduler:                     dc.GetBoolProperty(dynamicproperties.EnableScheduler),
+		EnableScheduler:                     dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler),
 		EnableParentClosePolicyWorker:       dc.GetBoolProperty(dynamicproperties.EnableParentClosePolicyWorker),
 		NumParentClosePolicySystemWorkflows: dc.GetIntProperty(dynamicproperties.NumParentClosePolicySystemWorkflows),
 		EnableESAnalyzer:                    dc.GetBoolProperty(dynamicproperties.EnableESAnalyzer),
@@ -248,10 +248,8 @@ func (s *Service) Start() {
 		s.ensureDomainExists(constants.BatcherLocalDomainName)
 		s.startBatcher()
 	}
-	if s.config.EnableScheduler() {
-		sm := s.startSchedulerWorkerManager()
-		defer sm.Stop()
-	}
+	sm := s.startSchedulerWorkerManager()
+	defer sm.Stop()
 	if s.config.EnableParentClosePolicyWorker() {
 		s.startParentClosePolicyProcessor()
 	}
@@ -349,6 +347,7 @@ func (s *Service) startSchedulerWorkerManager() *scheduler.WorkerManager {
 	params := &scheduler.BootstrapParams{
 		ServiceClient:      s.params.PublicClient,
 		FrontendClient:     s.GetClientBean().GetFrontendClient(),
+		MetricsClient:      s.GetMetricsClient(),
 		Logger:             s.GetLogger(),
 		DomainCache:        s.GetDomainCache(),
 		MembershipResolver: s.GetMembershipResolver(),

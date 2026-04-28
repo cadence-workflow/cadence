@@ -281,11 +281,11 @@ func (i *AssignmentStatus) UnmarshalJSON(data []byte) error {
 	return err
 }
 
-const _MigrationModeName = "MigrationModeINVALIDMigrationModeLOCALPASSTHROUGHMigrationModeLOCALPASSTHROUGHSHADOWMigrationModeDISTRIBUTEDPASSTHROUGHMigrationModeONBOARDED"
+const _MigrationModeName = "MigrationModeINVALIDMigrationModeLOCALPASSTHROUGHMigrationModeONBOARDED"
 
-var _MigrationModeIndex = [...]uint8{0, 20, 49, 84, 119, 141}
+var _MigrationModeIndex = [...]uint8{0, 20, 49, 71}
 
-const _MigrationModeLowerName = "migrationmodeinvalidmigrationmodelocalpassthroughmigrationmodelocalpassthroughshadowmigrationmodedistributedpassthroughmigrationmodeonboarded"
+const _MigrationModeLowerName = "migrationmodeinvalidmigrationmodelocalpassthroughmigrationmodeonboarded"
 
 func (i MigrationMode) String() string {
 	if i < 0 || i >= MigrationMode(len(_MigrationModeIndex)-1) {
@@ -300,32 +300,24 @@ func _MigrationModeNoOp() {
 	var x [1]struct{}
 	_ = x[MigrationModeINVALID-(0)]
 	_ = x[MigrationModeLOCALPASSTHROUGH-(1)]
-	_ = x[MigrationModeLOCALPASSTHROUGHSHADOW-(2)]
-	_ = x[MigrationModeDISTRIBUTEDPASSTHROUGH-(3)]
-	_ = x[MigrationModeONBOARDED-(4)]
+	_ = x[MigrationModeONBOARDED-(2)]
 }
 
-var _MigrationModeValues = []MigrationMode{MigrationModeINVALID, MigrationModeLOCALPASSTHROUGH, MigrationModeLOCALPASSTHROUGHSHADOW, MigrationModeDISTRIBUTEDPASSTHROUGH, MigrationModeONBOARDED}
+var _MigrationModeValues = []MigrationMode{MigrationModeINVALID, MigrationModeLOCALPASSTHROUGH, MigrationModeONBOARDED}
 
 var _MigrationModeNameToValueMap = map[string]MigrationMode{
-	_MigrationModeName[0:20]:         MigrationModeINVALID,
-	_MigrationModeLowerName[0:20]:    MigrationModeINVALID,
-	_MigrationModeName[20:49]:        MigrationModeLOCALPASSTHROUGH,
-	_MigrationModeLowerName[20:49]:   MigrationModeLOCALPASSTHROUGH,
-	_MigrationModeName[49:84]:        MigrationModeLOCALPASSTHROUGHSHADOW,
-	_MigrationModeLowerName[49:84]:   MigrationModeLOCALPASSTHROUGHSHADOW,
-	_MigrationModeName[84:119]:       MigrationModeDISTRIBUTEDPASSTHROUGH,
-	_MigrationModeLowerName[84:119]:  MigrationModeDISTRIBUTEDPASSTHROUGH,
-	_MigrationModeName[119:141]:      MigrationModeONBOARDED,
-	_MigrationModeLowerName[119:141]: MigrationModeONBOARDED,
+	_MigrationModeName[0:20]:       MigrationModeINVALID,
+	_MigrationModeLowerName[0:20]:  MigrationModeINVALID,
+	_MigrationModeName[20:49]:      MigrationModeLOCALPASSTHROUGH,
+	_MigrationModeLowerName[20:49]: MigrationModeLOCALPASSTHROUGH,
+	_MigrationModeName[49:71]:      MigrationModeONBOARDED,
+	_MigrationModeLowerName[49:71]: MigrationModeONBOARDED,
 }
 
 var _MigrationModeNames = []string{
 	_MigrationModeName[0:20],
 	_MigrationModeName[20:49],
-	_MigrationModeName[49:84],
-	_MigrationModeName[84:119],
-	_MigrationModeName[119:141],
+	_MigrationModeName[49:71],
 }
 
 // MigrationModeString retrieves an enum value from the enum constants string name.

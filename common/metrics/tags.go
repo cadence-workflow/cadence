@@ -80,6 +80,10 @@ const (
 	globalRatelimitIsPrimary      = "is_primary"
 	globalRatelimitCollectionName = "global_ratelimit_collection"
 
+	// scheduler-specific tags
+	overlapPolicy = "overlap_policy"
+	triggerSource = "trigger_source"
+
 	allValue     = "all"
 	unknownValue = "_unknown_"
 )
@@ -392,6 +396,16 @@ func ActiveClusterLookupFnTag(fn string) Tag {
 // ActiveClusterSelectionStrategyTag returns a new active cluster selection strategy tag.
 func ActiveClusterSelectionStrategyTag(strategy string) Tag {
 	return metricWithUnknown("strategy", strategy)
+}
+
+// OverlapPolicyTag returns a new overlap_policy tag for scheduler metrics.
+func OverlapPolicyTag(value string) Tag {
+	return metricWithUnknown(overlapPolicy, value)
+}
+
+// TriggerSourceTag returns a new trigger_source tag for scheduler metrics.
+func TriggerSourceTag(value string) Tag {
+	return metricWithUnknown(triggerSource, value)
 }
 
 // QueryConsistencyLevelTag returns a new query consistency level tag.

@@ -120,10 +120,151 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"persistence_latency_per_shard":    {},
 	"persistence_latency_per_shard_ns": {},
 
+	"history_size":         {},
+	"history_size_counts":  {},
+	"history_count":        {},
+	"history_count_counts": {},
+
+	"mutable_state_size":               {},
+	"mutable_state_size_counts":        {},
+	"execution_info_size":              {},
+	"execution_info_size_counts":       {},
+	"activity_info_size":               {},
+	"activity_info_size_counts":        {},
+	"timer_info_size":                  {},
+	"timer_info_size_counts":           {},
+	"child_info_size":                  {},
+	"child_info_size_counts":           {},
+	"signal_info_size":                 {},
+	"signal_info_size_counts":          {},
+	"buffered_events_size":             {},
+	"buffered_events_size_counts":      {},
+	"activity_info_count":              {},
+	"activity_info_count_counts":       {},
+	"timer_info_count":                 {},
+	"timer_info_count_counts":          {},
+	"child_info_count":                 {},
+	"child_info_count_counts":          {},
+	"signal_info_count":                {},
+	"signal_info_count_counts":         {},
+	"request_cancel_info_count":        {},
+	"request_cancel_info_count_counts": {},
+	"buffered_events_count":            {},
+	"buffered_events_count_counts":     {},
+
 	"elasticsearch_latency_per_domain":    {},
 	"elasticsearch_latency_per_domain_ns": {},
 	"elasticsearch_latency":               {},
 	"elasticsearch_latency_ns":            {},
+
+	"event_blob_size":        {},
+	"event_blob_size_counts": {},
+
+	"paralleltask_submit_latency":             {},
+	"paralleltask_submit_latency_ns":          {},
+	"paralleltask_task_processing_latency":    {},
+	"paralleltask_task_processing_latency_ns": {},
+
+	"decision_attempt":        {},
+	"decision_attempt_counts": {},
+
+	"acquire_shards_latency":    {},
+	"acquire_shards_latency_ns": {},
+
+	"transfer_tasks_count":           {},
+	"transfer_tasks_count_counts":    {},
+	"timer_tasks_count":              {},
+	"timer_tasks_count_counts":       {},
+	"replication_tasks_count":        {},
+	"replication_tasks_count_counts": {},
+
+	"delete_activity_info":              {},
+	"delete_activity_info_counts":       {},
+	"delete_timer_info":                 {},
+	"delete_timer_info_counts":          {},
+	"delete_child_info":                 {},
+	"delete_child_info_counts":          {},
+	"delete_signal_info":                {},
+	"delete_signal_info_counts":         {},
+	"delete_request_cancel_info":        {},
+	"delete_request_cancel_info_counts": {},
+
+	"workflow_id_external_requests_max_requests_per_seconds":        {},
+	"workflow_id_external_requests_max_requests_per_seconds_counts": {},
+	"workflow_id_internal_requests_max_requests_per_seconds":        {},
+	"workflow_id_internal_requests_max_requests_per_seconds_counts": {},
+
+	"decision_result_count":        {},
+	"decision_result_count_counts": {},
+
+	"sharditem_acquisition_latency":    {},
+	"sharditem_acquisition_latency_ns": {},
+
+	"get_engine_for_shard_latency":       {},
+	"get_engine_for_shard_latency_ns":    {},
+	"remove_engine_for_shard_latency":    {},
+	"remove_engine_for_shard_latency_ns": {},
+
+	"domain_cache_prepare_callbacks_latency":    {},
+	"domain_cache_prepare_callbacks_latency_ns": {},
+	"domain_cache_callbacks_latency":            {},
+	"domain_cache_callbacks_latency_ns":         {},
+
+	"history_archiver_total_upload_size":        {},
+	"history_archiver_total_upload_size_counts": {},
+	"history_archiver_history_size":             {},
+	"history_archiver_history_size_counts":      {},
+	"history_archiver_blob_size":                {},
+	"history_archiver_blob_size_counts":         {},
+
+	"shardinfo_replication_pending_task":             {},
+	"shardinfo_replication_pending_task_counts":      {},
+	"shardinfo_transfer_active_pending_task":         {},
+	"shardinfo_transfer_active_pending_task_counts":  {},
+	"shardinfo_transfer_standby_pending_task":        {},
+	"shardinfo_transfer_standby_pending_task_counts": {},
+	"shardinfo_timer_active_pending_task":            {},
+	"shardinfo_timer_active_pending_task_counts":     {},
+	"shardinfo_timer_standby_pending_task":           {},
+	"shardinfo_timer_standby_pending_task_counts":    {},
+	"shardinfo_cross_cluster_pending_task":           {},
+	"shardinfo_cross_cluster_pending_task_counts":    {},
+
+	"shardinfo_replication_lag":        {},
+	"shardinfo_replication_lag_counts": {},
+	"shardinfo_transfer_lag":           {},
+	"shardinfo_transfer_lag_counts":    {},
+	"shardinfo_timer_lag":              {},
+	"shardinfo_timer_lag_ns":           {},
+
+	"shardinfo_transfer_diff":        {},
+	"shardinfo_transfer_diff_counts": {},
+	"shardinfo_timer_diff":           {},
+	"shardinfo_timer_diff_ns":        {},
+
+	"shardinfo_transfer_failover_in_progress":        {},
+	"shardinfo_transfer_failover_in_progress_counts": {},
+	"shardinfo_timer_failover_in_progress":           {},
+	"shardinfo_timer_failover_in_progress_counts":    {},
+
+	"shardinfo_transfer_failover_latency":    {},
+	"shardinfo_transfer_failover_latency_ns": {},
+	"shardinfo_timer_failover_latency":       {},
+	"shardinfo_timer_failover_latency_ns":    {},
+
+	"history_event_notification_queueing_latency":    {},
+	"history_event_notification_queueing_latency_ns": {},
+	"history_event_notification_fanout_latency":      {},
+	"history_event_notification_fanout_latency_ns":   {},
+
+	"direct_query_dispatch_latency":                     {},
+	"direct_query_dispatch_latency_ns":                  {},
+	"direct_query_dispatch_sticky_latency":              {},
+	"direct_query_dispatch_sticky_latency_ns":           {},
+	"direct_query_dispatch_non_sticky_latency":          {},
+	"direct_query_dispatch_non_sticky_latency_ns":       {},
+	"direct_query_dispatch_clear_stickiness_latency":    {},
+	"direct_query_dispatch_clear_stickiness_latency_ns": {},
 }
 
 func (h HistogramMigration) EmitTimer(name string) bool {
@@ -227,7 +368,11 @@ func (g *GaugeMigration) UnmarshalYAML(read func(any) error) error {
 // loading config, in case they have any custom migrations to perform.
 // This is likely best done in an `init` func, to ensure it happens early enough
 // and does not race with config reading.
-var GaugeMigrationMetrics = map[string]struct{}{}
+var GaugeMigrationMetrics = map[string]struct{}{
+	"cache_size_gauge":                {},
+	"replication_tasks_lag_gauge":     {},
+	"replication_tasks_lag_raw_gauge": {},
+}
 
 func (g GaugeMigration) EmitTimer(name string) bool {
 	if _, ok := GaugeMigrationMetrics[name]; !ok {
@@ -330,7 +475,11 @@ func (c *CounterMigration) UnmarshalYAML(read func(any) error) error {
 // loading config, in case they have any custom migrations to perform.
 // This is likely best done in an `init` func, to ensure it happens early enough
 // and does not race with config reading.
-var CounterMigrationMetrics = map[string]struct{}{}
+var CounterMigrationMetrics = map[string]struct{}{
+	"replication_tasks_fetched_counter":       {},
+	"replication_tasks_returned_counter":      {},
+	"replication_tasks_returned_diff_counter": {},
+}
 
 func (c CounterMigration) EmitTimer(name string) bool {
 	if _, ok := CounterMigrationMetrics[name]; !ok {

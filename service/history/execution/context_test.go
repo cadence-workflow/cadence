@@ -597,6 +597,7 @@ func TestCreateWorkflowExecutionWithRetry(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			mockShard := shard.NewMockContext(mockCtrl)
+			mockShard.EXPECT().GetShardID().Return(7).AnyTimes()
 			policy := backoff.NewExponentialRetryPolicy(time.Millisecond)
 			policy.SetMaximumAttempts(1)
 			if tc.mockSetup != nil {
@@ -698,6 +699,7 @@ func TestUpdateWorkflowExecutionWithRetry(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			mockShard := shard.NewMockContext(mockCtrl)
+			mockShard.EXPECT().GetShardID().Return(7).AnyTimes()
 			policy := backoff.NewExponentialRetryPolicy(time.Millisecond)
 			policy.SetMaximumAttempts(1)
 			if tc.mockSetup != nil {
@@ -3185,6 +3187,7 @@ func TestGetWorkflowExecutionWithRetry(t *testing.T) {
 			mockLogger.EXPECT().Helper().Return(mockLogger)
 			timeSource := clock.NewMockedTimeSource()
 			mockShard.EXPECT().GetTimeSource().Return(timeSource).AnyTimes()
+			mockShard.EXPECT().GetShardID().Return(7).AnyTimes()
 			policy := backoff.NewExponentialRetryPolicy(time.Millisecond)
 			policy.SetMaximumAttempts(1)
 			if tc.mockSetup != nil {
@@ -3208,6 +3211,7 @@ func expectLog(mockLogger *log.MockLogger, err error) *gomock.Call {
 	return mockLogger.EXPECT().Error(
 		"Persistent fetch operation failure",
 		[]tag.Tag{
+			tag.ShardID(7),
 			tag.StoreOperationGetWorkflowExecution,
 			tag.Error(err),
 		})

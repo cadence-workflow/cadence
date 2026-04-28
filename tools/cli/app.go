@@ -146,6 +146,12 @@ func NewCliApp(cf ClientFactory, opts ...CLIAppOptions) *cli.App {
 			Subcommands: newTaskListCommands(),
 		},
 		{
+			Name:        "schedule",
+			Aliases:     []string{"sched"},
+			Usage:       "Operate cadence schedules",
+			Subcommands: newScheduleCommands(),
+		},
+		{
 			Name:    "admin",
 			Aliases: []string{"adm"},
 			Usage:   "Run admin operation",

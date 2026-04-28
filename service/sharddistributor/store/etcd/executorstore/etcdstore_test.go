@@ -21,6 +21,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/statistics"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdkeys"
@@ -153,6 +154,114 @@ func TestRecordHeartbeat_NoCompression(t *testing.T) {
 	reportedJSON, err := json.Marshal(req.ReportedShards)
 	require.NoError(t, err)
 	assert.Equal(t, string(reportedJSON), string(reportedResp.Kvs[0].Value))
+}
+
+func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {
+	tc := testhelper.SetupStoreTestCluster(t)
+	executorStore := createStore(t, tc)
+	setLoadBalancingMode(executorStore, config.LoadBalancingModeGREEDY)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	executorID := "executor-shard-stats"
+	shardID := "shard-with-load"
+
+	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
+	require.NoError(t, executorStore.AssignShard(ctx, tc.Namespace, shardID, executorID))
+
+	impl := executorStore.(*executorStoreImpl)
+	assert.Eventually(t, func() bool {
+		owner, err := impl.shardCache.GetShardOwner(ctx, tc.Namespace, shardID)
+		return err == nil && owner.ExecutorID == executorID
+	}, 5*time.Second, 50*time.Millisecond)
+
+	stateBeforeHeartbeat, err := executorStore.GetState(ctx, tc.Namespace)
+	require.NoError(t, err)
+	beforeStats, ok := stateBeforeHeartbeat.ShardStats[shardID]
+	require.True(t, ok)
+
+	impl.timeSource.(clock.MockedTimeSource).Advance(5 * time.Second)
+
+	req := store.HeartbeatState{
+		LastHeartbeat: impl.timeSource.Now().UTC(),
+		Status:        types.ExecutorStatusACTIVE,
+		ReportedShards: map[string]*types.ShardStatusReport{
+			shardID: {
+				Status:    types.ShardStatusREADY,
+				ShardLoad: 45.6,
+			},
+		},
+	}
+
+	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, req))
+
+	nsState, err := executorStore.GetState(ctx, tc.Namespace)
+	require.NoError(t, err)
+
+	updated, ok := nsState.ShardStats[shardID]
+	require.True(t, ok)
+	assert.True(t, updated.LastUpdateTime.After(beforeStats.LastUpdateTime))
+	expectedLoad, err := statistics.CalculateSmoothedLoad(beforeStats.SmoothedLoad, req.ReportedShards[shardID].ShardLoad, beforeStats.LastUpdateTime, updated.LastUpdateTime)
+	require.NoError(t, err)
+	assert.InDelta(t, expectedLoad, updated.SmoothedLoad, 1e-9)
+	assert.Equal(t, beforeStats.LastMoveTime, updated.LastMoveTime)
+}
+
+func TestRecordHeartbeatSkipsShardStatisticsWithNilReport(t *testing.T) {
+	tc := testhelper.SetupStoreTestCluster(t)
+	executorStore := createStore(t, tc)
+	setLoadBalancingMode(executorStore, config.LoadBalancingModeGREEDY)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	executorID := "executor-missing-load"
+	validShardID := "shard-with-valid-load"
+	skippedShardID := "shard-missing-load"
+
+	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
+	require.NoError(t, executorStore.AssignShard(ctx, tc.Namespace, validShardID, executorID))
+
+	impl := executorStore.(*executorStoreImpl)
+	assert.Eventually(t, func() bool {
+		owner, err := impl.shardCache.GetShardOwner(ctx, tc.Namespace, validShardID)
+		return err == nil && owner.ExecutorID == executorID
+	}, 5*time.Second, 50*time.Millisecond)
+
+	stateBeforeHeartbeat, err := executorStore.GetState(ctx, tc.Namespace)
+	require.NoError(t, err)
+	beforeStats, ok := stateBeforeHeartbeat.ShardStats[validShardID]
+	require.True(t, ok)
+
+	impl.timeSource.(clock.MockedTimeSource).Advance(5 * time.Second)
+
+	req := store.HeartbeatState{
+		LastHeartbeat: impl.timeSource.Now().UTC(),
+		Status:        types.ExecutorStatusACTIVE,
+		ReportedShards: map[string]*types.ShardStatusReport{
+			validShardID: {
+				Status:    types.ShardStatusREADY,
+				ShardLoad: 3.21,
+			},
+			skippedShardID: nil,
+		},
+	}
+
+	require.NoError(t, executorStore.RecordHeartbeat(ctx, tc.Namespace, executorID, req))
+
+	nsState, err := executorStore.GetState(ctx, tc.Namespace)
+	require.NoError(t, err)
+
+	validStats, ok := nsState.ShardStats[validShardID]
+	require.True(t, ok)
+	expectedLoad, err := statistics.CalculateSmoothedLoad(beforeStats.SmoothedLoad, req.ReportedShards[validShardID].ShardLoad, beforeStats.LastUpdateTime, validStats.LastUpdateTime)
+	require.NoError(t, err)
+	assert.InDelta(t, expectedLoad, validStats.SmoothedLoad, 1e-9)
+	assert.False(t, validStats.LastUpdateTime.IsZero())
+	assert.Equal(t, beforeStats.LastMoveTime, validStats.LastMoveTime)
+
+	assert.NotContains(t, nsState.ShardStats, skippedShardID)
 }
 
 func TestGetHeartbeat(t *testing.T) {
@@ -678,8 +787,12 @@ func TestShardStatisticsPersistence(t *testing.T) {
 	payload, err := json.Marshal(executorStats)
 	require.NoError(t, err)
 	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
+	writer, err := common.NewRecordWriter(tc.Compression)
+	require.NoError(t, err)
+	compressedPayload, err := writer.Write(payload)
+	require.NoError(t, err)
 	// Write those stats to etcd under the executor (exec-stats) stats key
-	_, err = tc.Client.Put(ctx, statsKey, string(payload))
+	_, err = tc.Client.Put(ctx, statsKey, string(compressedPayload))
 	require.NoError(t, err)
 
 	// 3. Assign the shard via AssignShard (should not clobber existing metrics)
@@ -716,6 +829,7 @@ func TestGetShardStatisticsForMissingShard(t *testing.T) {
 func TestDeleteShardStatsDeletesAllStats(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
+	setLoadBalancingMode(executorStore, config.LoadBalancingModeGREEDY)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -746,7 +860,11 @@ func TestDeleteShardStatsDeletesAllStats(t *testing.T) {
 	statsKey := etcdkeys.BuildExecutorKey(tc.EtcdPrefix, tc.Namespace, executorID, etcdkeys.ExecutorShardStatisticsKey)
 	payload, err := json.Marshal(executorStats)
 	require.NoError(t, err)
-	_, err = tc.Client.Put(ctx, statsKey, string(payload))
+	writer, err := common.NewRecordWriter(tc.Compression)
+	require.NoError(t, err)
+	compressedPayload, err := writer.Write(payload)
+	require.NoError(t, err)
+	_, err = tc.Client.Put(ctx, statsKey, string(compressedPayload))
 	require.NoError(t, err)
 
 	require.NoError(t, executorStore.DeleteShardStats(ctx, tc.Namespace, shardIDs, store.NopGuard()))
@@ -773,6 +891,14 @@ func recordHeartbeats(ctx context.Context, t *testing.T, executorStore store.Sto
 	for _, executorID := range executorIDs {
 		require.NoError(t, executorStore.RecordHeartbeat(ctx, namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
 	}
+}
+
+func setLoadBalancingMode(executorStore store.Store, mode string) {
+	impl := executorStore.(*executorStoreImpl)
+	if impl.cfg == nil {
+		impl.cfg = &config.Config{}
+	}
+	impl.cfg.LoadBalancingMode = func(string) string { return mode }
 }
 
 // trackingTxn implements clientv3.Txn to record operations per batch for testing.

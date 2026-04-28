@@ -38,10 +38,53 @@ const (
 
 	QueryTypeDescribe = "scheduler-describe"
 
+	// Metric name strings emitted via tally.Scope (workflow.GetMetricsScope).
+	SchedulerSignalReceivedCountPerDomain = "scheduler_signal_received_count_per_domain"
+	SchedulerMissedFiredCountPerDomain    = "scheduler_missed_fired_count_per_domain"
+	SchedulerMissedSkippedCountPerDomain  = "scheduler_missed_skipped_count_per_domain"
+	SchedulerBackfillFiredCountPerDomain  = "scheduler_backfill_fired_count_per_domain"
+	SchedulerContinueAsNewCountPerDomain  = "scheduler_continue_as_new_count_per_domain"
+
+	// Tag key strings for scheduler workflow metrics.
+	SignalTypeTag    = "signal_type"
+	CatchUpPolicyTag = "catch_up_policy"
+	ReasonTag        = "reason"
+
+	// ContinueAsNew reason tag values for scheduler_continue_as_new_count metric.
+	ContinueAsNewReasonMissedRun    = "missed_run"
+	ContinueAsNewReasonBackfill     = "back_fill"
+	ContinueAsNewReasonSignal       = "signal"
+	ContinueAsNewReasonIterationCap = "iteration_cap"
+
+	// signal_type tag values for scheduler_signal_received_count metric.
+	signalTypeTagPause    = "pause"
+	signalTypeTagUnpause  = "unpause"
+	signalTypeTagUpdate   = "update"
+	signalTypeTagBackfill = "backfill"
+	signalTypeTagDelete   = "delete"
+
 	// Search attribute keys set on target workflows started by the scheduler.
 	SearchAttrScheduleID   = "CadenceScheduleID"
 	SearchAttrScheduleTime = "CadenceScheduleTime"
 	SearchAttrIsBackfill   = "CadenceScheduleIsBackfill"
+
+	// Search attribute keys set on the scheduler workflow itself for ListSchedules.
+	// CadenceScheduleState is a Keyword SA holding the current lifecycle state
+	// ("active" or "paused"). Modeled as a string rather than a boolean so it can
+	// be extended to additional states (e.g. "expired") without introducing new
+	// search attributes. "Deleted" is not a value because a deleted schedule's
+	// workflow is closed and filtered by workflow status instead.
+	SearchAttrScheduleState = "CadenceScheduleState"
+	// CadenceScheduleCron holds the current cron expression so ListSchedules
+	// can display it without querying each scheduler workflow. Refreshed on
+	// workflow start (including after ContinueAsNew triggered by UpdateSchedule).
+	SearchAttrScheduleCron = "CadenceScheduleCron"
+	// CadenceScheduleWorkflowType holds the target workflow type name that the
+	// schedule starts on each fire. Same refresh semantics as the cron SA.
+	SearchAttrScheduleWorkflowType = "CadenceScheduleWorkflowType"
+
+	ScheduleStateActive = "active"
+	ScheduleStatePaused = "paused"
 
 	maxIterationsBeforeContinueAsNew = 500
 	maxCatchUpFiresPerExecution      = 10

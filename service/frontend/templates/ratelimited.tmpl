@@ -159,7 +159,7 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
             // but we still accept it even if RPS is exceeded
             h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, quotas.Info{Domain: {{$domain}}})
         {{- else}}
-            if limitErr := h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, quotas.Info{Domain: {{$domain}}{{if has $method.Name $taskListAPIs}}, TaskList: {{(index $method.Params 1).Name}}.GetTaskList().GetName(){{end}}}); limitErr != nil {
+            if limitErr := h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, quotas.Info{Domain: {{$domain}}{{if has $method.Name $taskListAPIs}}, TaskList: getTaskListName({{(index $method.Params 1).Name}}.GetTaskList()){{end}}}); limitErr != nil {
                 err = limitErr
                 return
             }

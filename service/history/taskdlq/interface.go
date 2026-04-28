@@ -122,6 +122,7 @@ type (
 		TaskType              int
 		ExclusiveMaxTaskKey   persistence.HistoryTaskKey
 	}
+<<<<<<< HEAD
 
 	// AddTaskRequest specifies the task to write to the DLQ.
 	AddTaskRequest struct {
@@ -131,4 +132,6 @@ type (
 		ClusterAttributeName  string
 		Task                  persistence.Task
 	}
+=======
+>>>>>>> master
 )

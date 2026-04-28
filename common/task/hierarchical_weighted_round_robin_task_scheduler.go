@@ -102,6 +102,13 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) Stop() {
 		w.logger.Warn("Hierarchical weighted round robin task scheduler timedout on shutdown.")
 	}
 
+	// Acquire and immediately release the write lock to ensure all Submit/TrySubmit calls
+	// that passed the isStopped() check have finished enqueueing before we drain.
+	// Without this, a Submit that slipped past isStopped() could write to a channel
+	// after drainAndNackTasks() completes, leaving that task permanently unprocessed.
+	w.Lock()
+	w.Unlock()
+
 	w.drainAndNackTasks()
 
 	w.logger.Info("Hierarchical weighted round robin task scheduler stopped.")
@@ -111,6 +118,9 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) Submit(task T) e
 	w.metricsScope.IncCounter(metrics.PriorityTaskSubmitRequest)
 	sw := w.metricsScope.StartTimer(metrics.PriorityTaskSubmitLatency)
 	defer sw.Stop()
+
+	w.RLock()
+	defer w.RUnlock()
 
 	if w.isStopped() {
 		return ErrTaskSchedulerClosed
@@ -129,6 +139,9 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) TrySubmit(
 	w.metricsScope.IncCounter(metrics.PriorityTaskSubmitRequest)
 	sw := w.metricsScope.StartTimer(metrics.PriorityTaskSubmitLatency)
 	defer sw.Stop()
+
+	w.RLock()
+	defer w.RUnlock()
 
 	if w.isStopped() {
 		return false, ErrTaskSchedulerClosed

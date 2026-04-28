@@ -21,16 +21,6 @@ func TestNamespaceConfig_GetMigrationMode(t *testing.T) {
 			expected:      types.MigrationModeLOCALPASSTHROUGH,
 		},
 		{
-			name:          "local_passthrough_shadow",
-			migrationMode: "local_pass_shadow",
-			expected:      types.MigrationModeLOCALPASSTHROUGHSHADOW,
-		},
-		{
-			name:          "distributed_passthrough",
-			migrationMode: "distributed_pass",
-			expected:      types.MigrationModeDISTRIBUTEDPASSTHROUGH,
-		},
-		{
 			name:          "onboarded",
 			migrationMode: "onboarded",
 			expected:      types.MigrationModeONBOARDED,

@@ -382,7 +382,7 @@ func (h *apiHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollFor
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if limitErr := h.allowDomain(ctx, ratelimitTypeWorkerPoll, quotas.Info{Domain: pp1.GetDomain(), TaskList: pp1.GetTaskList().GetName()}); limitErr != nil {
+	if limitErr := h.allowDomain(ctx, ratelimitTypeWorkerPoll, quotas.Info{Domain: pp1.GetDomain(), TaskList: getTaskListName(pp1.GetTaskList())}); limitErr != nil {
 		err = limitErr
 		return
 	}
@@ -398,7 +398,7 @@ func (h *apiHandler) PollForDecisionTask(ctx context.Context, pp1 *types.PollFor
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if limitErr := h.allowDomain(ctx, ratelimitTypeWorkerPoll, quotas.Info{Domain: pp1.GetDomain(), TaskList: pp1.GetTaskList().GetName()}); limitErr != nil {
+	if limitErr := h.allowDomain(ctx, ratelimitTypeWorkerPoll, quotas.Info{Domain: pp1.GetDomain(), TaskList: getTaskListName(pp1.GetTaskList())}); limitErr != nil {
 		err = limitErr
 		return
 	}
@@ -778,7 +778,7 @@ func (h *apiHandler) SignalWithStartWorkflowExecution(ctx context.Context, sp1 *
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: sp1.GetDomain(), TaskList: sp1.GetTaskList().GetName()}); limitErr != nil {
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: sp1.GetDomain(), TaskList: getTaskListName(sp1.GetTaskList())}); limitErr != nil {
 		err = limitErr
 		return
 	}
@@ -794,7 +794,7 @@ func (h *apiHandler) SignalWithStartWorkflowExecutionAsync(ctx context.Context, 
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if limitErr := h.allowDomain(ctx, ratelimitTypeAsync, quotas.Info{Domain: sp1.GetDomain(), TaskList: sp1.GetTaskList().GetName()}); limitErr != nil {
+	if limitErr := h.allowDomain(ctx, ratelimitTypeAsync, quotas.Info{Domain: sp1.GetDomain(), TaskList: getTaskListName(sp1.GetTaskList())}); limitErr != nil {
 		err = limitErr
 		return
 	}
@@ -826,7 +826,7 @@ func (h *apiHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.Star
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: sp1.GetDomain(), TaskList: sp1.GetTaskList().GetName()}); limitErr != nil {
+	if limitErr := h.allowDomain(ctx, ratelimitTypeUser, quotas.Info{Domain: sp1.GetDomain(), TaskList: getTaskListName(sp1.GetTaskList())}); limitErr != nil {
 		err = limitErr
 		return
 	}
@@ -842,7 +842,7 @@ func (h *apiHandler) StartWorkflowExecutionAsync(ctx context.Context, sp1 *types
 		err = validate.ErrDomainNotSet
 		return
 	}
-	if limitErr := h.allowDomain(ctx, ratelimitTypeAsync, quotas.Info{Domain: sp1.GetDomain(), TaskList: sp1.GetTaskList().GetName()}); limitErr != nil {
+	if limitErr := h.allowDomain(ctx, ratelimitTypeAsync, quotas.Info{Domain: sp1.GetDomain(), TaskList: getTaskListName(sp1.GetTaskList())}); limitErr != nil {
 		err = limitErr
 		return
 	}
