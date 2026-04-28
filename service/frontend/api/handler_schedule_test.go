@@ -210,11 +210,6 @@ func TestCreateSchedule(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		// buffer_limit > safety cap is allowed (the BUFFER policy still functions,
-		// it's just capped at MaxBufferedFiresHardCap), so CreateSchedule should
-		// succeed. The handler logs a warning so operators aren't surprised when
-		// buffer overflow drops are tagged reason=safety_cap rather than
-		// reason=buffer_limit.
 		"BUFFER with buffer_limit above safety cap succeeds (warns)": {
 			request: &types.CreateScheduleRequest{
 				Domain:     testDomain,

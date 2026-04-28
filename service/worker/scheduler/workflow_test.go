@@ -1113,10 +1113,8 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		initialSkipped  int64
 		enqueueTime     time.Time
 		trigger         TriggerSource
-		wantFires       []BufferedFire
-		wantSkippedRuns int64
-		// wantOverflowReason is "" when no overflow metric is expected;
-		// otherwise it is the expected reason tag value (buffer_limit / safety_cap).
+		wantFires          []BufferedFire
+		wantSkippedRuns    int64
 		wantOverflowReason string
 	}{
 		{
@@ -1155,7 +1153,6 @@ func TestEnqueueBufferedFire(t *testing.T) {
 			initialSkipped: 5,
 			enqueueTime:    t0.Add(2 * time.Minute),
 			trigger:        TriggerSourceSchedule,
-			// Buffer unchanged (limit was 2, already at 2).
 			wantFires: []BufferedFire{
 				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
 				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
@@ -1164,8 +1161,8 @@ func TestEnqueueBufferedFire(t *testing.T) {
 			wantOverflowReason: BufferOverflowReasonBufferLimit,
 		},
 		{
-			name:               "enqueue at safety cap drops fire and emits safety_cap metric",
-			bufferLimit:        0, // unlimited per user, but safety cap still enforces
+			name:               "enqueue at safety cap with unlimited buffer_limit attributes to safety_cap",
+			bufferLimit:        0,
 			initialFires:       largeBufferedFires(MaxBufferedFiresHardCap, t0),
 			initialSkipped:     0,
 			enqueueTime:        t0.Add(time.Hour),
@@ -1175,10 +1172,6 @@ func TestEnqueueBufferedFire(t *testing.T) {
 			wantOverflowReason: BufferOverflowReasonSafetyCap,
 		},
 		{
-			// buffer_limit > safety cap: drops at the safety cap should be
-			// attributed to safety_cap (not buffer_limit), because the user's
-			// limit was never the binding constraint. CreateSchedule/UpdateSchedule
-			// warn at write time so this attribution isn't surprising.
 			name:               "enqueue at safety cap when user buffer_limit exceeds it attributes to safety_cap",
 			bufferLimit:        int32(MaxBufferedFiresHardCap * 2),
 			initialFires:       largeBufferedFires(MaxBufferedFiresHardCap, t0),
@@ -1227,9 +1220,8 @@ func TestEnqueueBufferedFire(t *testing.T) {
 	}
 }
 
-// largeBufferedFires builds a slice of n synthetic BufferedFire entries
-// starting at the given base time, used to exercise the safety-cap path
-// without each test case having to construct ~1000 entries inline.
+// largeBufferedFires builds a slice of n BufferedFire entries with one-second
+// spacing starting at base.
 func largeBufferedFires(n int, base time.Time) []BufferedFire {
 	out := make([]BufferedFire, n)
 	for i := 0; i < n; i++ {
@@ -1242,16 +1234,7 @@ func largeBufferedFires(n int, base time.Time) []BufferedFire {
 }
 
 // TestDrainBufferedFiresFIFO verifies that drainBufferedFires consumes the
-// queue in FIFO order. This is the building block that, together with the
-// startup-phase ordering in SchedulerWorkflow (drain before processMissedRuns),
-// preserves chronological order across ContinueAsNew when older fires were
-// buffered in the previous execution and missed runs accrued in the gap.
-//
-// Uses the nil-StartWorkflow + nil-ctx trick (see TestProcessMissedRunsAtMetrics
-// for the same pattern): processScheduleFire short-circuits via the
-// "schedule action has no StartWorkflow configuration" branch, mutating state
-// without touching the workflow environment, so we can assert the queue
-// shrinks in head-to-tail order without spinning up a workflow runtime.
+// queue in chronological order.
 func TestDrainBufferedFiresFIFO(t *testing.T) {
 	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	queue := []BufferedFire{
@@ -1261,9 +1244,9 @@ func TestDrainBufferedFiresFIFO(t *testing.T) {
 	}
 	input := &SchedulerWorkflowInput{
 		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
-		// Action.StartWorkflow intentionally nil so processScheduleFire returns
-		// early via the missing-action branch (incrementing MissedRuns) without
-		// touching the workflow environment.
+		// StartWorkflow nil makes processScheduleFire short-circuit on the
+		// missing-action branch, so each fire is consumed without invoking the
+		// activity.
 	}
 	state := &SchedulerWorkflowState{
 		BufferedFires: append([]BufferedFire(nil), queue...),
@@ -1271,15 +1254,9 @@ func TestDrainBufferedFiresFIFO(t *testing.T) {
 
 	drainBufferedFires(nil, testLogger, input, state)
 
-	// All three fires processed (each via the missing-action short-circuit) and
-	// the queue is now empty. MissedRuns is incremented per fire, demonstrating
-	// each was actually consumed.
-	assert.Empty(t, state.BufferedFires, "drain should consume the full queue when each fire short-circuits")
-	assert.Equal(t, int64(3), state.MissedRuns, "each consumed fire should increment MissedRuns via the missing-action branch")
-	// LastRunTime advanced to the latest scheduledTime: with the monotonic clamp,
-	// this proves the drain processed entries in increasing-time order rather
-	// than tail-first.
-	assert.Equal(t, t0.Add(2*time.Minute), state.LastRunTime, "LastRunTime should advance monotonically as drain processes the queue")
+	assert.Empty(t, state.BufferedFires)
+	assert.Equal(t, int64(3), state.MissedRuns)
+	assert.Equal(t, t0.Add(2*time.Minute), state.LastRunTime)
 }
 
 func TestEffectiveBufferLimit(t *testing.T) {
@@ -1361,14 +1338,14 @@ func TestHandleUpdate_BufferedFiresClearedOnOverlapPolicyChange(t *testing.T) {
 			wantSkippedRuns: 2,
 		},
 		{
-			name:         "BUFFER -> BUFFER preserves queue (no-op policy change)",
+			name:         "BUFFER -> BUFFER preserves queue",
 			fromOverlap:  types.ScheduleOverlapPolicyBuffer,
 			toOverlap:    types.ScheduleOverlapPolicyBuffer,
 			initialFires: initialFires,
 			wantFiresLen: 2,
 		},
 		{
-			name:         "SKIP_NEW -> BUFFER leaves queue unchanged (was already empty)",
+			name:         "SKIP_NEW -> BUFFER leaves empty queue empty",
 			fromOverlap:  types.ScheduleOverlapPolicySkipNew,
 			toOverlap:    types.ScheduleOverlapPolicyBuffer,
 			initialFires: nil,

@@ -65,14 +65,10 @@ const (
 	BufferOverflowReasonBufferLimit = "buffer_limit"
 	BufferOverflowReasonSafetyCap   = "safety_cap"
 
-	// MaxBufferedFiresHardCap is a defense-in-depth cap on the BUFFER overlap
-	// policy queue that applies even when buffer_limit=0 (unlimited). It exists
-	// to keep the ContinueAsNew payload size bounded: each BufferedFire is ~50
-	// bytes JSON, so 1000 entries fits comfortably within Cadence's workflow
-	// input size limit (~256 KB) with headroom for the rest of the state.
-	// Exported so the frontend handler can warn at CreateSchedule/UpdateSchedule
-	// time when a user-supplied buffer_limit exceeds it (drops in that range
-	// will be attributed to safety_cap, which would otherwise be surprising).
+	// MaxBufferedFiresHardCap caps the BUFFER overlap policy queue regardless
+	// of buffer_limit (including buffer_limit=0 meaning unlimited). It bounds
+	// the ContinueAsNew payload size: each BufferedFire is ~50 bytes JSON, so
+	// 1000 entries stays well within the workflow input size limit.
 	MaxBufferedFiresHardCap = 1000
 
 	// signal_type tag values for scheduler_signal_received_count metric.
@@ -153,11 +149,9 @@ type SchedulerWorkflowState struct {
 	LastStartedWorkflow *RunningWorkflowInfo `json:"lastStartedWorkflow,omitempty"`
 }
 
-// BufferedFire represents a schedule fire that has been queued for later
-// sequential execution by the BUFFER overlap policy. The scheduled time is
-// preserved so that the eventual target workflow keeps its original workflow
-// ID (derived from scheduledTime) and RequestID (derived from scheduledTime +
-// triggerSource), matching the non-BUFFER semantics.
+// BufferedFire is a schedule fire queued for sequential execution by the BUFFER
+// overlap policy. ScheduledTime and TriggerSource are preserved so the deferred
+// start uses the same WorkflowID and RequestID it would have used at fire time.
 type BufferedFire struct {
 	ScheduledTime time.Time     `json:"scheduledTime"`
 	TriggerSource TriggerSource `json:"triggerSource"`

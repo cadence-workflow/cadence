@@ -88,9 +88,7 @@ func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (r
 				result.StartedWorkflow = req.LastStartedWorkflow
 				return result, nil
 			case types.ScheduleOverlapPolicyBuffer:
-				// Previous workflow is still running: defer this fire. The workflow
-				// will append it to state.BufferedFires and retry on the next
-				// timer/signal wakeup. The activity does not mutate state itself.
+				// Defer the fire; the workflow enqueues it in state.BufferedFires.
 				scope.Tagged(metrics.OverlapPolicyTag(policy.String()), metrics.TriggerSourceTag(string(req.TriggerSource))).IncCounter(metrics.SchedulerFireBufferedCountPerDomain)
 				result.Buffered = true
 				result.StartedWorkflow = req.LastStartedWorkflow

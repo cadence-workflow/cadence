@@ -61,14 +61,10 @@ func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 	return nil
 }
 
-// warnIfBufferLimitExceedsSafetyCap logs a warning when the user-supplied
-// buffer_limit for the BUFFER overlap policy exceeds the scheduler's hard
-// safety cap. In that case, drops at the safety cap will be attributed to
-// reason=safety_cap rather than reason=buffer_limit, which surprises operators
-// monitoring the per-domain buffer overflow metric. We don't reject the value
-// (it's not invalid; the policy still queues fires up to the safety cap),
-// but we surface the discrepancy at write time so it isn't only discovered
-// later by reading metrics.
+// warnIfBufferLimitExceedsSafetyCap logs a warning when buffer_limit exceeds
+// MaxBufferedFiresHardCap. The value is accepted (the policy still queues
+// up to the safety cap), but drops at that cap will be tagged
+// reason=safety_cap rather than reason=buffer_limit.
 func (wh *WorkflowHandler) warnIfBufferLimitExceedsSafetyCap(scheduleID, domainName string, policies *types.SchedulePolicies) {
 	if policies == nil ||
 		policies.OverlapPolicy != types.ScheduleOverlapPolicyBuffer ||
