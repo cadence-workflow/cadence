@@ -3012,7 +3012,6 @@ const (
 	SyncMatchLatencyPerTaskListHistogram
 	AsyncMatchLatencyPerTaskList
 	AsyncMatchLatencyPerTaskListHistogram
-	AsyncMatchDispatchLatencyPerTaskList
 	AsyncMatchDispatchTimeoutCounterPerTaskList
 	ExpiredTasksPerTaskListCounter
 	ForwardedPerTaskListCounter
@@ -4010,7 +4009,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		SyncMatchLatencyPerTaskListHistogram:                             {metricName: "syncmatch_latency_per_tl_ns", metricRollupName: "syncmatch_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		AsyncMatchLatencyPerTaskList:                                     {metricName: "asyncmatch_latency_per_tl", metricRollupName: "asyncmatch_latency", metricType: Timer},
 		AsyncMatchLatencyPerTaskListHistogram:                            {metricName: "asyncmatch_latency_per_tl_ns", metricRollupName: "asyncmatch_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
-		AsyncMatchDispatchLatencyPerTaskList:                             {metricName: "asyncmatch_dispatch_latency_per_tl", metricRollupName: "asyncmatch_dispatch_latency", metricType: Timer},
 		AsyncMatchDispatchTimeoutCounterPerTaskList:                      {metricName: "asyncmatch_dispatch_timeouts_per_tl", metricRollupName: "asyncmatch_dispatch_timeouts"},
 		ForwardTaskLatencyPerTaskList:                                    {metricName: "forward_task_latency_per_tl", metricRollupName: "forward_task_latency"},
 		ForwardQueryLatencyPerTaskList:                                   {metricName: "forward_query_latency_per_tl", metricRollupName: "forward_query_latency"},
