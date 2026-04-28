@@ -474,8 +474,7 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 // BufferLimit and MaxBufferedFiresHardCap) and retried on the next loop
 // iteration by drainBufferedFires.
 func processScheduleFire(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource) {
-	switch tryStartFire(ctx, logger, input, state, scheduledTime, trigger) {
-	case fireOutcomeBuffered:
+	if tryStartFire(ctx, logger, input, state, scheduledTime, trigger) == fireOutcomeBuffered {
 		enqueueBufferedFire(logger, scope, input, state, scheduledTime, trigger)
 	}
 }
@@ -560,7 +559,7 @@ func enqueueBufferedFire(logger *zap.Logger, scope tally.Scope, input *Scheduler
 			zap.Time("scheduledTime", scheduledTime),
 			zap.String("reason", reason),
 			zap.Int("effectiveLimit", effective),
-			zap.Int("userBufferLimit", int(input.Policies.BufferLimit)),
+			zap.Int32("userBufferLimit", input.Policies.BufferLimit),
 			zap.Int("safetyCap", MaxBufferedFiresHardCap),
 			zap.Int("bufferSize", len(state.BufferedFires)),
 		)
