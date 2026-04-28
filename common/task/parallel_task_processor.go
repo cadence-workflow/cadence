@@ -119,8 +119,12 @@ func (p *parallelTaskProcessorImpl) Stop() {
 
 func (p *parallelTaskProcessorImpl) Submit(task Task) error {
 	p.metricsScope.IncCounter(metrics.ParallelTaskSubmitRequest)
+	submitStart := time.Now()
 	sw := p.metricsScope.StartTimer(metrics.ParallelTaskSubmitLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		p.metricsScope.RecordHistogramDuration(metrics.ParallelTaskSubmitLatencyHistogram, time.Since(submitStart))
+	}()
 
 	if p.isStopped() {
 		return ErrTaskProcessorClosed
@@ -151,8 +155,12 @@ func (p *parallelTaskProcessorImpl) taskWorker(shutdownCh chan struct{}) {
 }
 
 func (p *parallelTaskProcessorImpl) executeTask(task Task, shutdownCh chan struct{}) {
+	processStart := time.Now()
 	sw := p.metricsScope.StartTimer(metrics.ParallelTaskTaskProcessingLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		p.metricsScope.RecordHistogramDuration(metrics.ParallelTaskTaskProcessingLatencyHistogram, time.Since(processStart))
+	}()
 
 	defer func() {
 		if r := recover(); r != nil {

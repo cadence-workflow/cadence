@@ -25,10 +25,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/validate"
 	"github.com/uber/cadence/service/worker/scheduler"
@@ -38,6 +40,7 @@ const (
 	scheduleWorkflowIDPrefix          = "cadence-scheduler:"
 	schedulerWorkflowExecutionTimeout = 10 * 365 * 24 * time.Hour // ~10 years
 	schedulerWorkflowDecisionTimeout  = 10 * time.Second
+	defaultListSchedulesPageSize      = 10
 )
 
 func scheduleWorkflowID(scheduleID string) string {
@@ -53,6 +56,24 @@ func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 		return &types.BadRequestError{
 			Message: "SKIP_NEW overlap policy with CATCH_UP_ALL catch-up policy is invalid: " +
 				"caught-up fires would be immediately skipped due to overlap with the previous run.",
+		}
+	}
+	return nil
+}
+
+// validateUserSearchAttributes rejects user search attribute keys that collide
+// with scheduler-reserved keys (CadenceSchedule* prefix). Without this check,
+// user values would be silently overwritten by the scheduler workflow's
+// UpsertSearchAttributes calls on start and on state change.
+func validateUserSearchAttributes(sa *types.SearchAttributes) error {
+	if sa == nil {
+		return nil
+	}
+	for k := range sa.IndexedFields {
+		if strings.HasPrefix(k, "CadenceSchedule") {
+			return &types.BadRequestError{
+				Message: fmt.Sprintf("search attribute key %q is reserved for internal use", k),
+			}
 		}
 	}
 	return nil
@@ -87,6 +108,9 @@ func (wh *WorkflowHandler) CreateSchedule(
 		return nil, &types.BadRequestError{Message: "Action.StartWorkflow is not set on request."}
 	}
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
+		return nil, err
+	}
+	if err := validateUserSearchAttributes(request.GetSearchAttributes()); err != nil {
 		return nil, err
 	}
 
@@ -388,7 +412,88 @@ func (wh *WorkflowHandler) ListSchedules(
 		return nil, validate.ErrDomainNotSet
 	}
 
-	return nil, &types.BadRequestError{Message: "ListSchedules is not yet implemented."}
+	pageSize := request.GetPageSize()
+	if pageSize <= 0 {
+		pageSize = defaultListSchedulesPageSize
+	}
+
+	// NOTE: this calls wh.ListWorkflowExecutions directly (not via frontend client),
+	// which skips the cluster redirection middleware. For global (XDC) domains, the
+	// passive region may return stale visibility data. This applies to all schedule
+	// read APIs (Describe, List) and will be addressed when adding XDC support.
+	//
+	// CloseTime = missing restricts results to open scheduler workflows, so deleted
+	// schedules (closed workflows with state.Deleted=true returned nil) no longer
+	// surface here. This is the canonical "open only" filter used across the
+	// visibility layer (ES, Pinot, SQL-backed stores all recognize it).
+	listResp, err := wh.ListWorkflowExecutions(ctx, &types.ListWorkflowExecutionsRequest{
+		Domain:        domainName,
+		PageSize:      pageSize,
+		NextPageToken: request.GetNextPageToken(),
+		Query:         fmt.Sprintf("WorkflowType = '%s' and CloseTime = missing", scheduler.WorkflowTypeName),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]*types.ScheduleListEntry, 0, len(listResp.GetExecutions()))
+	for _, exec := range listResp.GetExecutions() {
+		wfID := exec.GetExecution().GetWorkflowID()
+		scheduleID := strings.TrimPrefix(wfID, scheduleWorkflowIDPrefix)
+
+		entry := &types.ScheduleListEntry{
+			ScheduleID: scheduleID,
+		}
+
+		// Default to not paused. The scheduler workflow upserts these search
+		// attributes on start (and ContinueAsNew) and on state change, so a missing
+		// value means the workflow hasn't run its first decision task yet (brief
+		// window after CreateSchedule).
+		paused := false
+		var cronExpr, workflowTypeName string
+		if exec.SearchAttributes != nil {
+			idx := exec.SearchAttributes.IndexedFields
+			if stateBytes, ok := idx[scheduler.SearchAttrScheduleState]; ok {
+				var stateStr string
+				if err := json.Unmarshal(stateBytes, &stateStr); err != nil {
+					wh.GetLogger().Warn("failed to unmarshal CadenceScheduleState search attribute, defaulting to active",
+						tag.WorkflowID(scheduleWorkflowID(scheduleID)),
+						tag.Error(err),
+					)
+				} else {
+					paused = stateStr == scheduler.ScheduleStatePaused
+				}
+			}
+			if cronBytes, ok := idx[scheduler.SearchAttrScheduleCron]; ok {
+				if err := json.Unmarshal(cronBytes, &cronExpr); err != nil {
+					wh.GetLogger().Warn("failed to unmarshal CadenceScheduleCron search attribute, defaulting to empty",
+						tag.WorkflowID(scheduleWorkflowID(scheduleID)),
+						tag.Error(err),
+					)
+				}
+			}
+			if typeBytes, ok := idx[scheduler.SearchAttrScheduleWorkflowType]; ok {
+				if err := json.Unmarshal(typeBytes, &workflowTypeName); err != nil {
+					wh.GetLogger().Warn("failed to unmarshal CadenceScheduleWorkflowType search attribute, defaulting to empty",
+						tag.WorkflowID(scheduleWorkflowID(scheduleID)),
+						tag.Error(err),
+					)
+				}
+			}
+		}
+		entry.State = &types.ScheduleState{Paused: paused}
+		entry.CronExpression = cronExpr
+		if workflowTypeName != "" {
+			entry.WorkflowType = &types.WorkflowType{Name: workflowTypeName}
+		}
+
+		entries = append(entries, entry)
+	}
+
+	return &types.ListSchedulesResponse{
+		Schedules:     entries,
+		NextPageToken: listResp.GetNextPageToken(),
+	}, nil
 }
 
 func (wh *WorkflowHandler) signalScheduleWorkflow(

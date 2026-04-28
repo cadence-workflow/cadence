@@ -110,8 +110,12 @@ func (f *fifoTaskSchedulerImpl[T]) Stop() {
 
 func (f *fifoTaskSchedulerImpl[T]) Submit(task T) error {
 	f.metricsScope.IncCounter(metrics.ParallelTaskSubmitRequest)
+	submitStart := time.Now()
 	sw := f.metricsScope.StartTimer(metrics.ParallelTaskSubmitLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		f.metricsScope.RecordHistogramDuration(metrics.ParallelTaskSubmitLatencyHistogram, time.Since(submitStart))
+	}()
 
 	if f.isStopped() {
 		return ErrTaskSchedulerClosed

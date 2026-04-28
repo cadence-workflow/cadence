@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap/zaptest"
@@ -39,6 +40,7 @@ func TestShardCreator_PingsShards(t *testing.T) {
 		Logger:       logger,
 		TimeSource:   timeSource,
 		CanaryClient: mockCanaryClient,
+		MetricsScope: tally.NoopScope,
 	}
 
 	creator := NewShardCreator(params, []string{namespace})

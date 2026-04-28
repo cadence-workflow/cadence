@@ -213,12 +213,15 @@ func (e *cacheImpl) GetEvent(
 
 	if err != nil {
 		e.metricsClient.IncCounter(metrics.EventsCacheGetEventScope, metrics.CacheFailures)
-		e.logger.Error("EventsCache unable to retrieve event from store",
+		logTags := []tag.Tag{
+			tag.ShardID(shardID),
 			tag.Error(err),
 			tag.WorkflowID(workflowID),
 			tag.WorkflowRunID(runID),
 			tag.WorkflowDomainID(domainID),
-			tag.WorkflowEventID(eventID))
+			tag.WorkflowEventID(eventID),
+		}
+		e.logger.Error("EventsCache unable to retrieve event from store", logTags...)
 		return nil, err
 	}
 

@@ -192,6 +192,7 @@ func TestEmitWorkflowHistoryStats(t *testing.T) {
 	mockMetricsClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope)
 
 	mockScope.On("RecordTimer", mock.Anything, mock.Anything).Return()
+	mockScope.On("IntExponentialHistogram", mock.Anything, mock.Anything).Return()
 
 	domainName := "testDomain"
 	historySize := 2048
@@ -241,6 +242,7 @@ func TestEmitWorkflowExecutionStats(t *testing.T) {
 				mockMetricsClient.On("Scope", metrics.ExecutionSizeStatsScope, mock.Anything).Return(mockScope)
 				mockMetricsClient.On("Scope", metrics.ExecutionCountStatsScope, mock.Anything).Return(mockScope)
 				mockScope.On("RecordTimer", mock.AnythingOfType("metrics.MetricIdx"), mock.AnythingOfType("time.Duration")).Return().Times(14)
+				mockScope.On("IntExponentialHistogram", mock.AnythingOfType("metrics.MetricIdx"), mock.AnythingOfType("int")).Return().Times(14)
 			} else {
 				mockScope.AssertNotCalled(t, "RecordTimer")
 			}

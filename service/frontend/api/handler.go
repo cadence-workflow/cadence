@@ -2860,6 +2860,7 @@ func (wh *WorkflowHandler) getHistory(
 	}
 
 	scope.RecordTimer(metrics.HistorySize, time.Duration(size))
+	scope.IntExponentialHistogram(metrics.HistorySizeHistogram, size)
 
 	isLastPage := len(nextPageToken) == 0
 	if err := verifyHistoryIsComplete(

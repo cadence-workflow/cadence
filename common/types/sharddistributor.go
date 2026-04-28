@@ -247,11 +247,9 @@ func (t HandoverType) Ptr() *HandoverType {
 type MigrationMode int32
 
 const (
-	MigrationModeINVALID                MigrationMode = 0
-	MigrationModeLOCALPASSTHROUGH       MigrationMode = 1
-	MigrationModeLOCALPASSTHROUGHSHADOW MigrationMode = 2
-	MigrationModeDISTRIBUTEDPASSTHROUGH MigrationMode = 3
-	MigrationModeONBOARDED              MigrationMode = 4
+	MigrationModeINVALID          MigrationMode = 0
+	MigrationModeLOCALPASSTHROUGH MigrationMode = 1
+	MigrationModeONBOARDED        MigrationMode = 2
 )
 
 type LoadBalancingMode int32

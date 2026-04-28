@@ -429,7 +429,7 @@ func (e *historyEngineImpl) handleCreateWorkflowExecutionFailureCleanup(
 
 	// The key here is to delete the additational branch, since it has just been created earlier in this call
 	// and is not used. However, we must be careful, there may be other existing branches that we must not touch
-	e.logger.Info("Deleting orphaned history branch during cleanup after identified failure during creation",
+	e.logger.Debug("Deleting orphaned history branch during cleanup after identified failure during creation",
 		tag.WorkflowDomainID(domainEntry.GetInfo().ID),
 		tag.WorkflowID(workflowExecution.WorkflowID),
 		tag.WorkflowRunID(workflowExecution.RunID),

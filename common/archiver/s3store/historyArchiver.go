@@ -215,6 +215,7 @@ func (h *historyArchiver) Archive(
 			}
 			progress.uploadedSize += blobSize
 			scope.RecordTimer(metrics.HistoryArchiverBlobSize, time.Duration(blobSize))
+			scope.IntExponentialHistogram(metrics.HistoryArchiverBlobSizeHistogram, int(blobSize))
 		}
 
 		progress.historySize += blobSize
@@ -223,7 +224,11 @@ func (h *historyArchiver) Archive(
 	}
 
 	scope.RecordTimer(metrics.HistoryArchiverTotalUploadSize, time.Duration(progress.uploadedSize))
+	scope.IntExponentialHistogram(metrics.HistoryArchiverTotalUploadSizeHistogram, int(progress.uploadedSize))
+
 	scope.RecordTimer(metrics.HistoryArchiverHistorySize, time.Duration(progress.historySize))
+	scope.IntExponentialHistogram(metrics.HistoryArchiverHistorySizeHistogram, int(progress.historySize))
+
 	scope.IncCounter(metrics.HistoryArchiverArchiveSuccessCount)
 	return nil
 }

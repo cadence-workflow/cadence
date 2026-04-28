@@ -7,10 +7,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/canary/latencykind"
+	canarymetrics "github.com/uber/cadence/service/sharddistributor/canary/metrics"
 	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
@@ -21,13 +24,17 @@ const (
 )
 
 // NewShardProcessor creates a new ShardProcessor.
-func NewShardProcessor(shardID string, timeSource clock.TimeSource, logger *zap.Logger) *ShardProcessor {
+func NewShardProcessor(shardID string, timeSource clock.TimeSource, logger *zap.Logger, metricsScope tally.Scope) *ShardProcessor {
+	kind := latencykind.ShardIDToKind(shardID)
+	scope := metricsScope.Tagged(map[string]string{"latency_kind": kind.String()})
 	p := &ShardProcessor{
-		shardID:    shardID,
-		shardLoad:  shardLoadFromID(shardID),
-		timeSource: timeSource,
-		logger:     logger,
-		stopChan:   make(chan struct{}),
+		shardID:      shardID,
+		shardLoad:    shardLoadFromID(shardID),
+		kind:         kind,
+		timeSource:   timeSource,
+		logger:       logger,
+		metricsScope: scope,
+		stopChan:     make(chan struct{}),
 	}
 	p.status.Store(int32(types.ShardStatusREADY))
 	return p
@@ -37,8 +44,10 @@ func NewShardProcessor(shardID string, timeSource clock.TimeSource, logger *zap.
 type ShardProcessor struct {
 	shardID      string
 	shardLoad    float64
+	kind         latencykind.Kind
 	timeSource   clock.TimeSource
 	logger       *zap.Logger
+	metricsScope tally.Scope
 	stopChan     chan struct{}
 	goRoutineWg  sync.WaitGroup
 	processSteps int
@@ -58,7 +67,20 @@ func (p *ShardProcessor) GetShardReport() executorclient.ShardReport {
 
 // Start implements executorclient.ShardProcessor.
 func (p *ShardProcessor) Start(_ context.Context) error {
-	p.logger.Info("Starting shard processor", zap.String("shardID", p.shardID))
+	start := p.timeSource.Now()
+	defer func() {
+		p.metricsScope.Histogram(canarymetrics.CanaryShardStartLatency, canarymetrics.CanaryPingLatencyBuckets).
+			RecordDuration(p.timeSource.Since(start))
+	}()
+
+	if delay := p.kind.StartDelay(); delay > 0 {
+		p.metricsScope.Tagged(map[string]string{"lifecycle": "start"}).
+			Counter(canarymetrics.CanaryShardLifecycleInjected).Inc(1)
+		p.timeSource.Sleep(delay)
+	}
+
+	p.metricsScope.Counter(canarymetrics.CanaryShardStarted).Inc(1)
+	p.logger.Debug("Starting shard processor", zap.String("shardID", p.shardID))
 	p.goRoutineWg.Add(1)
 	go p.process()
 	return nil
@@ -66,7 +88,20 @@ func (p *ShardProcessor) Start(_ context.Context) error {
 
 // Stop implements executorclient.ShardProcessor.
 func (p *ShardProcessor) Stop() {
-	p.logger.Info("Stopping shard processor", zap.String("shardID", p.shardID))
+	start := p.timeSource.Now()
+	defer func() {
+		p.metricsScope.Histogram(canarymetrics.CanaryShardStopLatency, canarymetrics.CanaryPingLatencyBuckets).
+			RecordDuration(p.timeSource.Since(start))
+	}()
+
+	if delay := p.kind.StopDelay(); delay > 0 {
+		p.metricsScope.Tagged(map[string]string{"lifecycle": "stop"}).
+			Counter(canarymetrics.CanaryShardLifecycleInjected).Inc(1)
+		p.timeSource.Sleep(delay)
+	}
+
+	p.metricsScope.Counter(canarymetrics.CanaryShardStopped).Inc(1)
+	p.logger.Debug("Stopping shard processor", zap.String("shardID", p.shardID))
 	close(p.stopChan)
 	p.goRoutineWg.Wait()
 }
@@ -84,11 +119,12 @@ func (p *ShardProcessor) process() {
 	for {
 		select {
 		case <-p.stopChan:
-			p.logger.Info("Stopping shard processor", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps))
+			p.logger.Debug("Stopping shard processor", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps))
 			return
 		case <-ticker.Chan():
 			p.processSteps++
-			p.logger.Info("Processing shard", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps))
+			p.metricsScope.Counter(canarymetrics.CanaryShardProcessStep).Inc(1)
+			p.logger.Debug("Processing shard", zap.String("shardID", p.shardID), zap.Int("steps", p.processSteps))
 		}
 	}
 }

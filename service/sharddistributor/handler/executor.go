@@ -57,7 +57,6 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 
 	heartbeatTime := h.timeSource.Now().UTC()
 	mode := h.cfg.GetMigrationMode(request.Namespace)
-	shardAssignedInBackground := true
 
 	switch mode {
 	case types.MigrationModeINVALID:
@@ -65,13 +64,6 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 	case types.MigrationModeLOCALPASSTHROUGH:
 		h.logger.Info("Migration mode is local passthrough, no calls to heartbeat should be allowed", tag.ShardNamespace(request.Namespace), tag.ShardExecutor(request.ExecutorID))
 		return _convertResponse(nil, mode), nil
-	// From SD perspective the behaviour is the same
-	case types.MigrationModeLOCALPASSTHROUGHSHADOW, types.MigrationModeDISTRIBUTEDPASSTHROUGH:
-		assignedShards, err = h.assignShardsInCurrentHeartbeat(ctx, request, assignedShards)
-		if err != nil {
-			return nil, err
-		}
-		shardAssignedInBackground = false
 	}
 
 	newHeartbeat := store.HeartbeatState{
@@ -94,9 +86,7 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 	// shard assignment in heartbeat doesn't involve any assignment changes happening in the background
 	// thus there was no shard handover and no assignment distribution latency
 	// to measure, so don't need to emit metrics in that case
-	if shardAssignedInBackground {
-		h.emitShardAssignmentMetrics(request.Namespace, heartbeatTime, previousHeartbeat, assignedShards)
-	}
+	h.emitShardAssignmentMetrics(request.Namespace, heartbeatTime, previousHeartbeat, assignedShards)
 
 	return _convertResponse(assignedShards, mode), nil
 }
@@ -131,37 +121,6 @@ func (h *executor) emitShardAssignmentMetrics(namespace string, heartbeatTime ti
 			RecordHistogramDuration(metrics.ShardDistributorShardHandoverLatency, handoverLatency)
 
 	}
-}
-
-// assignShardsInCurrentHeartbeat is used during the migration phase to assign the shards to the executors according to what is reported during the heartbeat
-func (h *executor) assignShardsInCurrentHeartbeat(ctx context.Context, request *types.ExecutorHeartbeatRequest, assignedShards *store.AssignedState) (*store.AssignedState, error) {
-	modRevision := int64(0)
-	if assignedShards != nil {
-		modRevision = assignedShards.ModRevision
-	}
-	newState := store.AssignedState{
-		AssignedShards: make(map[string]*types.ShardAssignment),
-		LastUpdated:    h.timeSource.Now().UTC(),
-		ModRevision:    modRevision,
-	}
-
-	for shard := range request.GetShardStatusReports() {
-		newState.AssignedShards[shard] = &types.ShardAssignment{
-			Status: types.AssignmentStatusREADY,
-		}
-	}
-	assignShardsRequest := store.AssignShardsRequest{
-		NewState: &store.NamespaceState{
-			ShardAssignments: map[string]store.AssignedState{
-				request.GetExecutorID(): newState,
-			},
-		},
-	}
-	err := h.storage.AssignShards(ctx, request.GetNamespace(), assignShardsRequest, store.NopGuard())
-	if err != nil {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to assign shards in the current heartbeat: %v", err)}
-	}
-	return &newState, nil
 }
 
 func _convertResponse(shards *store.AssignedState, mode types.MigrationMode) *types.ExecutorHeartbeatResponse {

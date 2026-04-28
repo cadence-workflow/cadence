@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/service"
 )
 
@@ -58,6 +59,7 @@ const (
 type BootstrapParams struct {
 	ServiceClient      workflowserviceclient.Interface
 	FrontendClient     frontend.Client
+	MetricsClient      metrics.Client
 	Logger             log.Logger
 	DomainCache        cache.DomainCache
 	MembershipResolver membership.Resolver
@@ -81,9 +83,10 @@ type workerFactory func(domainName string) (workerHandle, error)
 // workerRedundancyFactor hosts simultaneously so that a single host failure
 // does not cause a scheduling gap.
 type WorkerManager struct {
-	enabledFn          dynamicproperties.BoolPropertyFn
+	enabledFn          dynamicproperties.BoolPropertyFnWithDomainFilter
 	serviceClient      workflowserviceclient.Interface
 	frontendClient     frontend.Client
+	metricsClient      metrics.Client
 	logger             log.Logger
 	domainCache        cache.DomainCache
 	membershipResolver membership.Resolver
@@ -100,12 +103,13 @@ type WorkerManager struct {
 }
 
 // NewWorkerManager creates a new per-domain scheduler worker manager.
-func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolPropertyFn) *WorkerManager {
+func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolPropertyFnWithDomainFilter) *WorkerManager {
 	ctx, cancel := context.WithCancel(context.Background())
 	wm := &WorkerManager{
 		enabledFn:          enabledFn,
 		serviceClient:      params.ServiceClient,
 		frontendClient:     params.FrontendClient,
+		metricsClient:      params.MetricsClient,
 		logger:             params.Logger.WithTags(tag.ComponentScheduler),
 		domainCache:        params.DomainCache,
 		membershipResolver: params.MembershipResolver,
@@ -153,39 +157,17 @@ func (m *WorkerManager) run() {
 	ticker := m.timeSrc.NewTicker(m.refreshInterval)
 	defer ticker.Stop()
 
-	enabled := m.enabledFn()
-	if enabled {
-		m.refreshWorkers()
-	} else {
-		m.logger.Info("scheduler worker manager is disabled, skipping initial refresh")
-	}
+	m.refreshWorkers()
 
 	for {
 		select {
 		case <-ticker.Chan():
-			previouslyEnabled := enabled
-			enabled = m.enabledFn()
-			if enabled != previouslyEnabled {
-				m.logger.Info("scheduler worker manager enabled state changed",
-					tag.Dynamic("enabled", enabled),
-				)
-			}
-
-			if enabled {
-				m.refreshWorkers()
-			} else {
-				m.stopAllWorkers()
-			}
+			m.refreshWorkers()
 
 		case <-m.membershipChangeCh:
 			drainMembershipCh(m.membershipChangeCh)
-			enabled = m.enabledFn()
-			if enabled {
-				m.logger.Debug("membership ring changed, refreshing scheduler workers")
-				m.refreshWorkers()
-			} else {
-				m.stopAllWorkers()
-			}
+			m.logger.Debug("membership ring changed, refreshing scheduler workers")
+			m.refreshWorkers()
 
 		case <-m.ctx.Done():
 			m.logger.Info("scheduler worker manager background loop stopped")
@@ -197,6 +179,13 @@ func (m *WorkerManager) run() {
 // refreshWorkers scans all domains and reconciles the set of active workers
 // with the domains this host owns via the membership hashring.
 func (m *WorkerManager) refreshWorkers() {
+	scope := m.metricsClient.Scope(metrics.SchedulerWorkerScope)
+	startTime := time.Now()
+	defer func() {
+		scope.ExponentialHistogram(metrics.SchedulerWorkerRefreshLatencyHistogram, time.Since(startTime))
+		scope.UpdateGauge(metrics.SchedulerWorkerActiveGauge, float64(len(m.activeWorkers)))
+	}()
+
 	domains := m.domainCache.GetAllDomain()
 	ownedDomains := make(map[string]struct{}, len(domains))
 	lookupFailed := make(map[string]struct{})
@@ -220,11 +209,16 @@ func (m *WorkerManager) refreshWorkers() {
 				tag.WorkflowDomainName(domainName),
 				tag.Error(err),
 			)
+			scope.IncCounter(metrics.SchedulerWorkerLookupFailuresCount)
 			lookupFailed[domainName] = struct{}{}
 			continue
 		}
 
 		if !containsHost(owners, m.hostInfo) {
+			continue
+		}
+
+		if !m.enabledFn(domainName) {
 			continue
 		}
 
@@ -234,11 +228,12 @@ func (m *WorkerManager) refreshWorkers() {
 			continue
 		}
 
-		m.startWorkerForDomain(domainName)
+		m.startWorkerForDomain(scope, domainName)
 	}
 
 	for domainName, w := range m.activeWorkers {
 		if _, owned := ownedDomains[domainName]; owned {
+			scope.Tagged(metrics.DomainTag(domainName)).IncCounter(metrics.SchedulerWorkerDomainCoverageCount)
 			continue
 		}
 		// Keep workers running for domains where lookup failed to avoid
@@ -250,6 +245,7 @@ func (m *WorkerManager) refreshWorkers() {
 			tag.WorkflowDomainName(domainName),
 		)
 		w.Stop()
+		scope.IncCounter(metrics.SchedulerWorkerStoppedCount)
 		delete(m.activeWorkers, domainName)
 	}
 
@@ -258,17 +254,19 @@ func (m *WorkerManager) refreshWorkers() {
 	)
 }
 
-func (m *WorkerManager) startWorkerForDomain(domainName string) {
+func (m *WorkerManager) startWorkerForDomain(scope metrics.Scope, domainName string) {
 	w, err := m.createWorker(domainName)
 	if err != nil {
 		m.logger.Error("failed to start scheduler worker for domain",
 			tag.WorkflowDomainName(domainName),
 			tag.Error(err),
 		)
+		scope.Tagged(metrics.DomainTag(domainName)).IncCounter(metrics.SchedulerWorkerStartErrorsCountPerDomain)
 		return
 	}
 
 	m.activeWorkers[domainName] = w
+	scope.IncCounter(metrics.SchedulerWorkerStartedCount)
 	m.logger.Info("started scheduler worker for domain",
 		tag.WorkflowDomainName(domainName),
 	)
@@ -277,6 +275,7 @@ func (m *WorkerManager) startWorkerForDomain(domainName string) {
 func (m *WorkerManager) defaultCreateWorker(domainName string) (workerHandle, error) {
 	actCtx := context.WithValue(context.Background(), schedulerContextKey, schedulerContext{
 		FrontendClient: m.frontendClient,
+		MetricsClient:  m.metricsClient,
 	})
 
 	w := cadenceworker.New(m.serviceClient, domainName, TaskListName, cadenceworker.Options{

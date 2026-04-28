@@ -820,6 +820,7 @@ func (adh *adminHandlerImpl) GetWorkflowExecutionRawHistoryV2(
 	pageToken.PersistenceToken = rawHistoryResponse.NextPageToken
 	size := rawHistoryResponse.Size
 	scope.RecordTimer(metrics.HistorySize, time.Duration(size))
+	scope.IntExponentialHistogram(metrics.HistorySizeHistogram, size)
 
 	rawBlobs := rawHistoryResponse.HistoryEventBlobs
 	blobs := []*types.DataBlob{}

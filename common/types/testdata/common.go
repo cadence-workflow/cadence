@@ -152,8 +152,9 @@ var (
 		Name: ActivityTypeName,
 	}
 	TaskList = types.TaskList{
-		Name: TaskListName,
-		Kind: types.TaskListKindNormal.Ptr(),
+		Name:     TaskListName,
+		Kind:     types.TaskListKindNormal.Ptr(),
+		BaseName: "BaseTaskListName",
 	}
 	RetryPolicy = types.RetryPolicy{
 		InitialIntervalInSeconds:    1,

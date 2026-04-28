@@ -354,8 +354,10 @@ func TestGetDomainAuditLogs(t *testing.T) {
 				dbMock.EXPECT().SelectFromDomainAuditLogs(ctx, gomock.Any()).Return(rows, nil).Times(1)
 			},
 			request: &persistence.GetDomainAuditLogsRequest{
-				DomainID: "d2222222-2222-2222-2222-222222222222",
-				PageSize: 10,
+				DomainID:       "d2222222-2222-2222-2222-222222222222",
+				MinCreatedTime: &minTime,
+				MaxCreatedTime: &maxTime,
+				PageSize:       10,
 			},
 			expectError:   false,
 			expectedCount: 1,
@@ -371,8 +373,10 @@ func TestGetDomainAuditLogs(t *testing.T) {
 				dbMock.EXPECT().SelectFromDomainAuditLogs(ctx, gomock.Any()).Return([]*sqlplugin.DomainAuditLogRow{}, nil).Times(1)
 			},
 			request: &persistence.GetDomainAuditLogsRequest{
-				DomainID: "d3333333-3333-3333-3333-333333333333",
-				PageSize: 10,
+				DomainID:       "d3333333-3333-3333-3333-333333333333",
+				MinCreatedTime: &minTime,
+				MaxCreatedTime: &maxTime,
+				PageSize:       10,
 			},
 			expectError:   false,
 			expectedCount: 0,
@@ -381,14 +385,26 @@ func TestGetDomainAuditLogs(t *testing.T) {
 				assert.Nil(t, resp.NextPageToken)
 			},
 		},
+		"missing time bounds": {
+			setupMock: func(dbMock *sqlplugin.MockDB) {
+				// No DB call expected because the store should reject nil bounds.
+			},
+			request: &persistence.GetDomainAuditLogsRequest{
+				DomainID: "d3333333-3333-3333-3333-333333333333",
+				PageSize: 10,
+			},
+			expectError: true,
+		},
 		"invalid page token": {
 			setupMock: func(dbMock *sqlplugin.MockDB) {
 				// No DB call expected since deserialization should fail first
 			},
 			request: &persistence.GetDomainAuditLogsRequest{
-				DomainID:      "d3333333-3333-3333-3333-333333333333",
-				PageSize:      10,
-				NextPageToken: []byte("invalid-token-data"),
+				DomainID:       "d3333333-3333-3333-3333-333333333333",
+				MinCreatedTime: &minTime,
+				MaxCreatedTime: &maxTime,
+				PageSize:       10,
+				NextPageToken:  []byte("invalid-token-data"),
 			},
 			expectError: true,
 		},
@@ -402,8 +418,10 @@ func TestGetDomainAuditLogs(t *testing.T) {
 				dbMock.EXPECT().IsDupEntryError(err).Return(false).AnyTimes()
 			},
 			request: &persistence.GetDomainAuditLogsRequest{
-				DomainID: "d3333333-3333-3333-3333-333333333333",
-				PageSize: 10,
+				DomainID:       "d3333333-3333-3333-3333-333333333333",
+				MinCreatedTime: &minTime,
+				MaxCreatedTime: &maxTime,
+				PageSize:       10,
 			},
 			expectError: true,
 		},

@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/uber-go/tally"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
 	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
+	canarymetrics "github.com/uber/cadence/service/sharddistributor/canary/metrics"
 	"github.com/uber/cadence/service/sharddistributor/canary/pinger"
 )
 
@@ -25,6 +27,7 @@ type ShardCreator struct {
 	logger       *zap.Logger
 	timeSource   clock.TimeSource
 	canaryClient sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCClient
+	metricsScope tally.Scope
 	namespaces   []string
 
 	stopChan    chan struct{}
@@ -38,6 +41,7 @@ type ShardCreatorParams struct {
 	Logger       *zap.Logger
 	TimeSource   clock.TimeSource
 	CanaryClient sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCClient
+	MetricsScope tally.Scope
 }
 
 // NewShardCreator creates a new ShardCreator instance with the given parameters and namespace
@@ -46,6 +50,7 @@ func NewShardCreator(params ShardCreatorParams, namespaces []string) *ShardCreat
 		logger:       params.Logger,
 		timeSource:   params.TimeSource,
 		canaryClient: params.CanaryClient,
+		metricsScope: params.MetricsScope,
 		stopChan:     make(chan struct{}),
 		goRoutineWg:  sync.WaitGroup{},
 		namespaces:   namespaces,
@@ -56,14 +61,14 @@ func NewShardCreator(params ShardCreatorParams, namespaces []string) *ShardCreat
 func (s *ShardCreator) Start() {
 	s.goRoutineWg.Add(1)
 	go s.process(context.Background())
-	s.logger.Info("Shard creator started")
+	s.logger.Debug("Shard creator started")
 }
 
 // Stop stops the shard creation process and waits for the goroutine to finish
 func (s *ShardCreator) Stop() {
 	close(s.stopChan)
 	s.goRoutineWg.Wait()
-	s.logger.Info("Shard creator stopped")
+	s.logger.Debug("Shard creator stopped")
 }
 
 // ShardCreatorModule creates an fx module for the shard creator with the given namespace
@@ -93,9 +98,11 @@ func (s *ShardCreator) process(ctx context.Context) {
 		case <-ticker.Chan():
 			for _, namespace := range s.namespaces {
 				shardKey := uuid.New().String()
-				s.logger.Info("Creating shard", zap.String("shardKey", shardKey), zap.String("namespace", namespace))
+				scope := s.metricsScope.Tagged(map[string]string{"namespace": namespace})
+				scope.Counter(canarymetrics.CanaryShardCreated).Inc(1)
+				s.logger.Debug("Creating shard", zap.String("shardKey", shardKey), zap.String("namespace", namespace))
 
-				pinger.PingShard(ctx, s.canaryClient, s.logger, namespace, shardKey)
+				pinger.PingShard(ctx, s.canaryClient, scope, s.logger, namespace, shardKey)
 			}
 		}
 	}

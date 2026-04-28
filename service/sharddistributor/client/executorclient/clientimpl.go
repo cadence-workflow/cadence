@@ -24,10 +24,6 @@ import (
 var (
 	// ErrLocalPassthroughMode indicates that the heartbeat loop should stop due to local passthrough mode
 	ErrLocalPassthroughMode = errors.New("local passthrough mode: stopping heartbeat loop")
-	// ErrAssignmentDivergenceLocalShard indicates that the local shard is not reported back from the heartbeat
-	ErrAssignmentDivergenceLocalShard = errors.New("assignment divergence: local shard not in heartbeat or not ready")
-	// ErrAssignmentDivergenceHeartbeatShard indicates that the shard in the heartbeat is not present in the local assignment
-	ErrAssignmentDivergenceHeartbeatShard = errors.New("assignment divergence: heartbeat shard not in local")
 )
 
 type processorState int32
@@ -309,24 +305,9 @@ func (e *executorImpl[SP]) heartbeatAndHandleMigrationMode(ctx context.Context) 
 		// LOCAL_PASSTHROUGH: statically assigned, stop heartbeating
 		return nil, ErrLocalPassthroughMode
 
-	case types.MigrationModeLOCALPASSTHROUGHSHADOW:
-		// LOCAL_PASSTHROUGH_SHADOW: check response but don't apply it
-		err = e.compareAssignments(shardAssignment)
-		return nil, err
-
-	case types.MigrationModeDISTRIBUTEDPASSTHROUGH:
-		// DISTRIBUTED_PASSTHROUGH: validate then apply the assignment
-		err = e.compareAssignments(shardAssignment)
-		if err != nil {
-			return nil, err
-		}
-		return shardAssignment, nil
-		// Continue with applying the assignment from heartbeat
-
 	case types.MigrationModeONBOARDED:
 		// ONBOARDED: normal flow, apply the assignment from heartbeat
 		return shardAssignment, nil
-		// Continue with normal assignment logic below
 
 	default:
 		e.logger.Warn("unknown migration mode, skipping assignment",
@@ -574,53 +555,6 @@ func (e *executorImpl[SP]) shardCleanUpLoop(ctx context.Context) {
 			})
 			shardCleanUpTimer.Reset(backoff.JitDuration(e.ttlShard, heartbeatJitterCoeff))
 		}
-	}
-}
-
-// compareAssignments compares the local assignments with the heartbeat response assignments
-// return error if the assignment are not the same and emits convergence or divergence metrics
-func (e *executorImpl[SP]) compareAssignments(heartbeatAssignments map[string]*types.ShardAssignment) error {
-	// Get current local assignments
-	localAssignments := make(map[string]bool)
-	e.managedProcessors.Range(func(shardID string, managedProcessor *managedProcessor[SP]) bool {
-		if managedProcessor.getState() == processorStateStarted {
-			localAssignments[shardID] = true
-		}
-		return true
-	})
-
-	// Check if all local assignments are in heartbeat assignments with READY status
-	for shardID := range localAssignments {
-		assignment, exists := heartbeatAssignments[shardID]
-		if !exists || assignment.Status != types.AssignmentStatusREADY {
-			e.logger.Warn("assignment divergence: local shard not in heartbeat or not ready",
-				tag.ShardKey(shardID))
-			e.emitMetricsConvergence(false)
-			return ErrAssignmentDivergenceLocalShard
-		}
-	}
-
-	// Check if all heartbeat READY assignments are in local assignments
-	for shardID, assignment := range heartbeatAssignments {
-		if assignment.Status == types.AssignmentStatusREADY {
-			if !localAssignments[shardID] {
-				e.logger.Warn("assignment divergence: heartbeat shard not in local",
-					tag.ShardKey(shardID))
-				e.emitMetricsConvergence(false)
-				return ErrAssignmentDivergenceHeartbeatShard
-			}
-		}
-	}
-
-	e.emitMetricsConvergence(true)
-	return nil
-}
-
-func (e *executorImpl[SP]) emitMetricsConvergence(converged bool) {
-	if converged {
-		e.metrics.Counter(metricsconstants.ShardDistributorExecutorAssignmentConvergence).Inc(1)
-	} else {
-		e.metrics.Counter(metricsconstants.ShardDistributorExecutorAssignmentDivergence).Inc(1)
 	}
 }
 

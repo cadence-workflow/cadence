@@ -25,7 +25,10 @@ import (
 	"time"
 
 	gogo "github.com/gogo/protobuf/types"
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/uber/cadence/common/types/mapper/testutils"
 )
 
 func TestTimeToTimestamp(t *testing.T) {
@@ -37,4 +40,65 @@ func TestTimeToTimestamp(t *testing.T) {
 func TestTimeToTimestampNil(t *testing.T) {
 	result := timeToTimestamp(nil)
 	assert.Nil(t, result)
+}
+
+// SafeUnixNanoFuzzer constrains unix nanoseconds to [0, MaxSafeTimestampSeconds * 1e9)
+// to prevent UnixNano() panicking for dates outside [year 1678, year 2262].
+func SafeUnixNanoFuzzer(n *int64, c fuzz.Continue) {
+	*n = c.Int63n(int64(testutils.MaxSafeTimestampSeconds) * int64(testutils.NanosecondsPerSecond))
+}
+
+// LocalTimeFuzzer generates local-timezone times because timestampToTime returns
+// time.Unix() (local TZ), so UTC input would fail reflect.DeepEqual after round-trip.
+func LocalTimeFuzzer(t *time.Time, c fuzz.Continue) {
+	*t = time.Unix(c.Int63n(testutils.MaxSafeTimestampSeconds), c.Int63n(int64(testutils.NanosecondsPerSecond)))
+}
+
+// SafeDaysFuzzer constrains days to [-100000, 100000) to prevent int64 overflow:
+// DaysToDuration multiplies by 86400e9 ns/day, which overflows for large int32 values.
+func SafeDaysFuzzer(d *int32, c fuzz.Continue) {
+	const maxSafeDays = 100000
+	*d = int32(c.Intn(2*maxSafeDays)) - maxSafeDays
+}
+
+func TestFromDoubleValueFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, fromDoubleValue, toDoubleValue)
+}
+
+func TestFromInt64ValueFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, fromInt64Value, toInt64Value)
+}
+
+func TestUnixNanoToTimeFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, unixNanoToTime, timeToUnixNano,
+		testutils.WithCustomFuncs(SafeUnixNanoFuzzer),
+	)
+}
+
+func TestTimeToTimestampFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, timeToTimestamp, timestampToTime,
+		testutils.WithCustomFuncs(LocalTimeFuzzer),
+	)
+}
+
+func TestDurationToDurationProtoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, durationToDurationProto, durationProtoToDuration)
+}
+
+func TestDaysToDurationFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, daysToDuration, durationToDays,
+		testutils.WithCustomFuncs(SafeDaysFuzzer),
+	)
+}
+
+func TestSecondsToDurationFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, secondsToDuration, durationToSeconds)
+}
+
+func TestInt32To64Fuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, int32To64, int64To32)
+}
+
+func TestInt32ToStringFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, int32ToString, stringToInt32)
 }
