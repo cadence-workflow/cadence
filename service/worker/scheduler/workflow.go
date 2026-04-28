@@ -93,11 +93,22 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		return fmt.Errorf("invalid cron expression %q: %w", input.Spec.CronExpression, err)
 	}
 
-	// On the first iteration (after ContinueAsNew or fresh start), check for
-	// fires that were missed during the transition gap or prior pause period.
-	// Subsequent iterations don't need this because the timer handles fire times.
-	// If more missed fires remain beyond the per-execution cap, ContinueAsNew
-	// immediately so each batch runs in its own decision task.
+	// On the first iteration (after ContinueAsNew or fresh start), drain any
+	// fires buffered by the BUFFER overlap policy in the previous execution
+	// before processing missed runs and backfills. Buffered fires are
+	// chronologically older than anything processMissedRuns can compute (their
+	// scheduledTime predates the watermark used for catch-up), so draining them
+	// first preserves FIFO order. Without this, a missed-run fire from the
+	// ContinueAsNew gap could start a workflow before older buffered fires get
+	// a chance to drain.
+	if !state.Paused {
+		drainBufferedFires(ctx, logger, &input, state)
+	}
+
+	// Check for fires that were missed during the transition gap or prior pause
+	// period. Subsequent loop iterations don't need this because the timer
+	// handles fire times. If more missed fires remain beyond the per-execution
+	// cap, ContinueAsNew immediately so each batch runs in its own decision task.
 	if moreMissed := processMissedRuns(ctx, logger, scope, sched, &input, state); moreMissed {
 		return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonMissedRun, chs.delete, input, state)
 	}

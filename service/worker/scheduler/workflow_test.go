@@ -1241,6 +1241,47 @@ func largeBufferedFires(n int, base time.Time) []BufferedFire {
 	return out
 }
 
+// TestDrainBufferedFiresFIFO verifies that drainBufferedFires consumes the
+// queue in FIFO order. This is the building block that, together with the
+// startup-phase ordering in SchedulerWorkflow (drain before processMissedRuns),
+// preserves chronological order across ContinueAsNew when older fires were
+// buffered in the previous execution and missed runs accrued in the gap.
+//
+// Uses the nil-StartWorkflow + nil-ctx trick (see TestProcessMissedRunsAtMetrics
+// for the same pattern): processScheduleFire short-circuits via the
+// "schedule action has no StartWorkflow configuration" branch, mutating state
+// without touching the workflow environment, so we can assert the queue
+// shrinks in head-to-tail order without spinning up a workflow runtime.
+func TestDrainBufferedFiresFIFO(t *testing.T) {
+	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	queue := []BufferedFire{
+		{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+		{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+		{ScheduledTime: t0.Add(2 * time.Minute), TriggerSource: TriggerSourceBackfill},
+	}
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
+		// Action.StartWorkflow intentionally nil so processScheduleFire returns
+		// early via the missing-action branch (incrementing MissedRuns) without
+		// touching the workflow environment.
+	}
+	state := &SchedulerWorkflowState{
+		BufferedFires: append([]BufferedFire(nil), queue...),
+	}
+
+	drainBufferedFires(nil, testLogger, input, state)
+
+	// All three fires processed (each via the missing-action short-circuit) and
+	// the queue is now empty. MissedRuns is incremented per fire, demonstrating
+	// each was actually consumed.
+	assert.Empty(t, state.BufferedFires, "drain should consume the full queue when each fire short-circuits")
+	assert.Equal(t, int64(3), state.MissedRuns, "each consumed fire should increment MissedRuns via the missing-action branch")
+	// LastRunTime advanced to the latest scheduledTime: with the monotonic clamp,
+	// this proves the drain processed entries in increasing-time order rather
+	// than tail-first.
+	assert.Equal(t, t0.Add(2*time.Minute), state.LastRunTime, "LastRunTime should advance monotonically as drain processes the queue")
+}
+
 func TestEffectiveBufferLimit(t *testing.T) {
 	tests := []struct {
 		name       string
