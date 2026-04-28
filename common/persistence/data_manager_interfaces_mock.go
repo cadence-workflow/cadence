@@ -423,6 +423,20 @@ func (m *MockExecutionManager) EXPECT() *MockExecutionManagerMockRecorder {
 	return m.recorder
 }
 
+// CleanupWorkflowTimerTasks mocks base method.
+func (m *MockExecutionManager) CleanupWorkflowTimerTasks(ctx context.Context, request *CleanupWorkflowTimerTasksRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CleanupWorkflowTimerTasks", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanupWorkflowTimerTasks indicates an expected call of CleanupWorkflowTimerTasks.
+func (mr *MockExecutionManagerMockRecorder) CleanupWorkflowTimerTasks(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupWorkflowTimerTasks", reflect.TypeOf((*MockExecutionManager)(nil).CleanupWorkflowTimerTasks), ctx, request)
+}
+
 // Close mocks base method.
 func (m *MockExecutionManager) Close() {
 	m.ctrl.T.Helper()
@@ -768,6 +782,20 @@ func (m *MockExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context.Con
 func (mr *MockExecutionManagerMockRecorder) RangeDeleteReplicationTaskFromDLQ(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationTaskFromDLQ", reflect.TypeOf((*MockExecutionManager)(nil).RangeDeleteReplicationTaskFromDLQ), ctx, request)
+}
+
+// RemoveWorkflowTimerTaskTracking mocks base method.
+func (m *MockExecutionManager) RemoveWorkflowTimerTaskTracking(ctx context.Context, request *RemoveWorkflowTimerTaskTrackingRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveWorkflowTimerTaskTracking", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveWorkflowTimerTaskTracking indicates an expected call of RemoveWorkflowTimerTaskTracking.
+func (mr *MockExecutionManagerMockRecorder) RemoveWorkflowTimerTaskTracking(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveWorkflowTimerTaskTracking", reflect.TypeOf((*MockExecutionManager)(nil).RemoveWorkflowTimerTaskTracking), ctx, request)
 }
 
 // UpdateWorkflowExecution mocks base method.

@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -1056,4 +1057,29 @@ func (d *nosqlExecutionStore) GetActiveClusterSelectionPolicy(
 	}
 
 	return row.Policy, nil
+}
+
+func (d *nosqlExecutionStore) SelectWorkflowTimerTasks(
+	ctx context.Context,
+	shardID int,
+	domainID, workflowID, runID string,
+) (map[int64]time.Time, error) {
+	result, err := d.db.SelectWorkflowTimerTasks(ctx, shardID, domainID, workflowID, runID)
+	if err != nil {
+		return nil, convertCommonErrors(d.db, "SelectWorkflowTimerTasks", err)
+	}
+	return result, nil
+}
+
+func (d *nosqlExecutionStore) DeleteWorkflowTimerTaskEntry(
+	ctx context.Context,
+	shardID int,
+	domainID, workflowID, runID string,
+	taskID int64,
+) error {
+	err := d.db.DeleteWorkflowTimerTaskEntry(ctx, shardID, domainID, workflowID, runID, taskID)
+	if err != nil {
+		return convertCommonErrors(d.db, "DeleteWorkflowTimerTaskEntry", err)
+	}
+	return nil
 }

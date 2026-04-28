@@ -605,19 +605,18 @@ type (
 
 	// WorkflowMutableState indicates workflow related state
 	WorkflowMutableState struct {
-		ActivityInfos          map[int64]*ActivityInfo
-		TimerInfos             map[string]*TimerInfo
-		ChildExecutionInfos    map[int64]*ChildExecutionInfo
-		RequestCancelInfos     map[int64]*RequestCancelInfo
-		SignalInfos            map[int64]*SignalInfo
-		SignalRequestedIDs     map[string]struct{}
-		WorkflowTimerTaskInfos map[int64]*WorkflowTimerTaskInfo
-		ExecutionInfo          *WorkflowExecutionInfo
-		ExecutionStats         *ExecutionStats
-		BufferedEvents         []*types.HistoryEvent
-		VersionHistories       *VersionHistories
-		ReplicationState       *ReplicationState // TODO: remove this after all 2DC workflows complete
-		Checksum               checksum.Checksum
+		ActivityInfos       map[int64]*ActivityInfo
+		TimerInfos          map[string]*TimerInfo
+		ChildExecutionInfos map[int64]*ChildExecutionInfo
+		RequestCancelInfos  map[int64]*RequestCancelInfo
+		SignalInfos         map[int64]*SignalInfo
+		SignalRequestedIDs  map[string]struct{}
+		ExecutionInfo       *WorkflowExecutionInfo
+		ExecutionStats      *ExecutionStats
+		BufferedEvents      []*types.HistoryEvent
+		VersionHistories    *VersionHistories
+		ReplicationState    *ReplicationState // TODO: remove this after all 2DC workflows complete
+		Checksum            checksum.Checksum
 	}
 
 	// ActivityInfo details.
@@ -704,16 +703,6 @@ type (
 		SignalName            string
 		Input                 []byte
 		Control               []byte
-	}
-
-	// WorkflowTimerTaskInfo contains metadata about a timer task associated with a workflow
-	// execution, tracked so unfired timers can be deleted when the execution record is cleaned up
-	// at the end of the retention period. Timer tasks are recorded at creation and update time;
-	// fired timers are removed from the map as they fire so only unfired tasks remain.
-	WorkflowTimerTaskInfo struct {
-		TimeoutType         int
-		TaskID              int64
-		VisibilityTimestamp time.Time
 	}
 
 	// CreateShardRequest is used to create a shard in executions table
@@ -903,7 +892,6 @@ type (
 		DeleteActivityInfos       []int64
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
-		WorkflowTimerTaskInfos    map[int64]*WorkflowTimerTaskInfo
 		UpsertChildExecutionInfos []*ChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
@@ -929,13 +917,12 @@ type (
 		ExecutionStats   *ExecutionStats
 		VersionHistories *VersionHistories
 
-		ActivityInfos          []*ActivityInfo
-		TimerInfos             []*TimerInfo
-		WorkflowTimerTaskInfos map[int64]*WorkflowTimerTaskInfo
-		ChildExecutionInfos    []*ChildExecutionInfo
-		RequestCancelInfos     []*RequestCancelInfo
-		SignalInfos            []*SignalInfo
-		SignalRequestedIDs     []string
+		ActivityInfos       []*ActivityInfo
+		TimerInfos          []*TimerInfo
+		ChildExecutionInfos []*ChildExecutionInfo
+		RequestCancelInfos  []*RequestCancelInfo
+		SignalInfos         []*SignalInfo
+		SignalRequestedIDs  []string
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 
@@ -986,6 +973,26 @@ type (
 		RunID               string
 		VisibilityTimestamp time.Time
 		TaskID              int64
+	}
+
+	// CleanupWorkflowTimerTasksRequest is used to delete unfired timer tasks tracked in workflow_timer_tasks
+	// at the end of the retention period. Best-effort: errors are logged but don't fail the deletion.
+	CleanupWorkflowTimerTasksRequest struct {
+		DomainID   string
+		WorkflowID string
+		RunID      string
+		// Now is the reference time; only tasks whose visibility timestamp is before Now minus MinTTL are deleted.
+		Now    time.Time
+		MinTTL time.Duration
+	}
+
+	// RemoveWorkflowTimerTaskTrackingRequest is used to remove a single entry from workflow_timer_tasks
+	// when a timer fires naturally so it is not double-deleted at retention time.
+	RemoveWorkflowTimerTaskTrackingRequest struct {
+		DomainID   string
+		WorkflowID string
+		RunID      string
+		TaskID     int64
 	}
 
 	// PutReplicationTaskToDLQRequest is used to put a replication task to dlq
@@ -1680,6 +1687,15 @@ type (
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 		DeleteTimerTask(ctx context.Context, request *DeleteTimerTaskRequest) error
+
+		// CleanupWorkflowTimerTasks reads the workflow_timer_tasks tracking map and deletes unfired
+		// timer tasks above the minimum-TTL threshold. Called at workflow deletion (retention) time.
+		// Best-effort: implementations should log errors but not propagate them.
+		CleanupWorkflowTimerTasks(ctx context.Context, request *CleanupWorkflowTimerTasksRequest) error
+
+		// RemoveWorkflowTimerTaskTracking removes a single entry from the workflow_timer_tasks map.
+		// Called when a timer fires naturally so it is not double-deleted at retention time.
+		RemoveWorkflowTimerTaskTracking(ctx context.Context, request *RemoveWorkflowTimerTaskTrackingRequest) error
 
 		// Scan operations
 

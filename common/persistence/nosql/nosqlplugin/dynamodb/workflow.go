@@ -73,6 +73,14 @@ func (db *ddb) DeleteWorkflowExecution(ctx context.Context, shardID int, domainI
 	panic("TODO")
 }
 
+func (db *ddb) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) (map[int64]time.Time, error) {
+	panic("TODO")
+}
+
+func (db *ddb) DeleteWorkflowTimerTaskEntry(ctx context.Context, shardID int, domainID, workflowID, runID string, taskID int64) error {
+	panic("TODO")
+}
+
 func (db *ddb) SelectAllCurrentWorkflows(ctx context.Context, shardID int, pageToken []byte, pageSize int) ([]*persistence.CurrentWorkflowExecution, []byte, error) {
 	panic("TODO")
 }

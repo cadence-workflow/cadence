@@ -327,6 +327,10 @@ const (
 	PersistenceGetActiveClusterSelectionPolicyScope
 	// PersistenceDeleteActiveClusterSelectionPolicyScope tracks DeleteActiveClusterSelectionPolicy calls made by service to persistence layer
 	PersistenceDeleteActiveClusterSelectionPolicyScope
+	// PersistenceCleanupWorkflowTimerTasksScope tracks CleanupWorkflowTimerTasks calls made by service to persistence layer
+	PersistenceCleanupWorkflowTimerTasksScope
+	// PersistenceRemoveWorkflowTimerTaskTrackingScope tracks RemoveWorkflowTimerTaskTracking calls made by service to persistence layer
+	PersistenceRemoveWorkflowTimerTaskTrackingScope
 
 	// ResolverHostNotFoundScope is a simple low level error indicating a lookup failed in the membership resolver
 	ResolverHostNotFoundScope
@@ -1662,6 +1666,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistencePerHostScope:                                  {operation: "persistence_operations"},
 		PersistenceGetActiveClusterSelectionPolicyScope:          {operation: "GetActiveClusterSelectionPolicy"},
 		PersistenceDeleteActiveClusterSelectionPolicyScope:       {operation: "DeleteActiveClusterSelectionPolicy"},
+		PersistenceCleanupWorkflowTimerTasksScope:                {operation: "CleanupWorkflowTimerTasks"},
+		PersistenceRemoveWorkflowTimerTaskTrackingScope:          {operation: "RemoveWorkflowTimerTaskTracking"},
 		ResolverHostNotFoundScope:                                {operation: "ResolverHostNotFound"},
 
 		ClusterMetadataArchivalConfigScope: {operation: "ArchivalConfig"},

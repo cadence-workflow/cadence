@@ -465,6 +465,10 @@ type (
 		IsWorkflowExecutionExists(ctx context.Context, shardID int, domainID, workflowID, runID string) (bool, error)
 		// Delete the workflow execution row
 		DeleteWorkflowExecution(ctx context.Context, shardID int, domainID, workflowID, runID string) error
+		// Read the workflow_timer_tasks map from the execution row
+		SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) (map[int64]time.Time, error)
+		// Remove a single entry from the workflow_timer_tasks map
+		DeleteWorkflowTimerTaskEntry(ctx context.Context, shardID int, domainID, workflowID, runID string, taskID int64) error
 
 		// transfer_task table
 		// within a shard, paging through transfer tasks order by taskID(ASC), filtered by minTaskID(inclusive) and maxTaskID(exclusive)

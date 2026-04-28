@@ -36,6 +36,21 @@ func NewExecutionManager(
 	}
 }
 
+func (c *injectorExecutionManager) CleanupWorkflowTimerTasks(ctx context.Context, request *persistence.CleanupWorkflowTimerTasksRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		err = c.wrapped.CleanupWorkflowTimerTasks(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.CleanupWorkflowTimerTasks", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorExecutionManager) Close() {
 	c.wrapped.Close()
 	return
@@ -358,6 +373,21 @@ func (c *injectorExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context
 
 	if fakeErr != nil {
 		logErr(c.logger, "ExecutionManager.RangeDeleteReplicationTaskFromDLQ", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *injectorExecutionManager) RemoveWorkflowTimerTaskTracking(ctx context.Context, request *persistence.RemoveWorkflowTimerTaskTrackingRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		err = c.wrapped.RemoveWorkflowTimerTaskTracking(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.RemoveWorkflowTimerTaskTracking", fakeErr, forwardCall, err)
 		err = fakeErr
 		return
 	}

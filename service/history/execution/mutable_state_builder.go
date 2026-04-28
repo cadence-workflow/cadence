@@ -111,8 +111,6 @@ type (
 		updateSignalRequestedIDs  map[string]struct{} // Set of signaled requestIds since last update
 		deleteSignalRequestedIDs  map[string]struct{} // Deleted signaled requestIds
 
-		workflowTimerTaskInfos map[int64]*persistence.WorkflowTimerTaskInfo // Workflow timer task infos loaded from persistence
-
 		bufferedEvents       []*types.HistoryEvent // buffered history events that are already persisted
 		updateBufferedEvents []*types.HistoryEvent // buffered history events that needs to be persisted
 		clearBufferedEvents  bool                  // delete buffered events from persistence
@@ -324,7 +322,6 @@ func (e *mutableStateBuilder) CopyToPersistence() *persistence.WorkflowMutableSt
 	state.Checksum = e.checksum
 	state.ReplicationState = e.replicationState
 	state.ExecutionStats = e.executionStats
-	state.WorkflowTimerTaskInfos = e.workflowTimerTaskInfos
 
 	return state
 }
@@ -346,7 +343,6 @@ func (e *mutableStateBuilder) Load(
 	e.pendingRequestCancelInfoIDs = state.RequestCancelInfos
 	e.pendingSignalInfoIDs = state.SignalInfos
 	e.pendingSignalRequestedIDs = state.SignalRequestedIDs
-	e.workflowTimerTaskInfos = state.WorkflowTimerTaskInfos
 	e.executionInfo = state.ExecutionInfo
 	e.bufferedEvents = e.reorderAndFilterDuplicateEvents(state.BufferedEvents, "load")
 
@@ -1477,8 +1473,6 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 			persistence.HistoryTaskCategoryReplication: e.insertReplicationTasks,
 			persistence.HistoryTaskCategoryTimer:       e.insertTimerTasks,
 		},
-
-		WorkflowTimerTaskInfos: e.workflowTimerTaskInfos,
 
 		WorkflowRequests: convertWorkflowRequests(e.workflowRequests),
 

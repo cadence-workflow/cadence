@@ -139,6 +139,10 @@ type (
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 		DeleteTimerTask(ctx context.Context, request *DeleteTimerTaskRequest) error
 
+		// Workflow timer task tracking methods
+		SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) (map[int64]time.Time, error)
+		DeleteWorkflowTimerTaskEntry(ctx context.Context, shardID int, domainID, workflowID, runID string, taskID int64) error
+
 		// Scan related methods
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*InternalListConcreteExecutionsResponse, error)
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
@@ -435,7 +439,6 @@ type (
 		SignalInfos         map[int64]*SignalInfo
 		SignalRequestedIDs  map[string]struct{}
 		BufferedEvents      []*DataBlob
-		WorkflowTimerTasks  *DataBlob
 
 		// Checksum field is used by Cassandra storage
 		// ChecksumData is used by All SQL storage
@@ -549,7 +552,7 @@ type (
 		DeleteActivityInfos       []int64
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
-		WorkflowTimerTasks        *DataBlob
+		WorkflowTimerTasks        map[int64]time.Time // taskID → visibilityTimestamp; appended to native Cassandra map
 		UpsertChildExecutionInfos []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
@@ -580,7 +583,7 @@ type (
 
 		ActivityInfos       []*InternalActivityInfo
 		TimerInfos          []*TimerInfo
-		WorkflowTimerTasks  *DataBlob
+		WorkflowTimerTasks  map[int64]time.Time // taskID → visibilityTimestamp; appended to native Cassandra map
 		ChildExecutionInfos []*InternalChildExecutionInfo
 		RequestCancelInfos  []*RequestCancelInfo
 		SignalInfos         []*SignalInfo

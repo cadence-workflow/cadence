@@ -1529,3 +1529,22 @@ func (m *sqlExecutionStore) DeleteActiveClusterSelectionPolicy(
 	}
 	return nil
 }
+
+func (m *sqlExecutionStore) SelectWorkflowTimerTasks(
+	ctx context.Context,
+	shardID int,
+	domainID, workflowID, runID string,
+) (map[int64]time.Time, error) {
+	// TODO: workflow_timer_tasks tracking is not yet implemented for SQL stores
+	return nil, nil
+}
+
+func (m *sqlExecutionStore) DeleteWorkflowTimerTaskEntry(
+	ctx context.Context,
+	shardID int,
+	domainID, workflowID, runID string,
+	taskID int64,
+) error {
+	// TODO: workflow_timer_tasks tracking is not yet implemented for SQL stores
+	return nil
+}

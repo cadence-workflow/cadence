@@ -273,12 +273,48 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	}
 	state.BufferedEvents = bufferedEventsBlobs
 
-	workflowTimerTasksData, _ := result["workflow_timer_tasks"].([]byte)
-	encoding, _ := result["workflow_timer_tasks_encoding"].(string)
-	state.WorkflowTimerTasks = persistence.NewDataBlob(workflowTimerTasksData, constants.EncodingType(encoding))
-
 	state.Checksum = parseChecksum(result["checksum"].(map[string]interface{}))
 	return state, nil
+}
+
+// SelectWorkflowTimerTasks reads the workflow_timer_tasks map from the execution row.
+func (db *CDB) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) (map[int64]time.Time, error) {
+	query := db.session.Query(templateGetWorkflowTimerTasksQuery,
+		shardID,
+		rowTypeExecution,
+		domainID,
+		workflowID,
+		runID,
+		defaultVisibilityTimestamp,
+		rowTypeExecutionTaskID,
+	).WithContext(ctx)
+
+	result := make(map[string]interface{})
+	if err := query.MapScan(result); err != nil {
+		if db.client.IsNotFoundError(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if m, ok := result["workflow_timer_tasks"].(map[int64]time.Time); ok {
+		return m, nil
+	}
+	return nil, nil
+}
+
+// DeleteWorkflowTimerTaskEntry removes a single entry from the workflow_timer_tasks map.
+func (db *CDB) DeleteWorkflowTimerTaskEntry(ctx context.Context, shardID int, domainID, workflowID, runID string, taskID int64) error {
+	query := db.session.Query(templateDeleteWorkflowTimerTaskEntryQuery,
+		taskID,
+		shardID,
+		rowTypeExecution,
+		domainID,
+		workflowID,
+		runID,
+		defaultVisibilityTimestamp,
+		rowTypeExecutionTaskID,
+	).WithContext(ctx)
+	return db.executeWithConsistencyAll(query)
 }
 
 func (db *CDB) DeleteCurrentWorkflow(ctx context.Context, shardID int, domainID, workflowID, currentRunIDCondition string) error {

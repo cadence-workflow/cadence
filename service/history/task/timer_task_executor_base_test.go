@@ -32,7 +32,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -100,6 +99,8 @@ func (s *timerQueueTaskExecutorBaseSuite) SetupTest() {
 	s.mockVisibilityManager = s.mockShard.Resource.VisibilityMgr
 	s.mockHistoryV2Manager = s.mockShard.Resource.HistoryMgr
 	s.mockArchivalClient = archiver.NewMockClient(s.controller)
+	// best-effort timer task cleanup — allow but don't require in any test
+	s.mockExecutionManager.On("CleanupWorkflowTimerTasks", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	logger := s.mockShard.GetLogger()
 
@@ -141,7 +142,6 @@ func (s *timerQueueTaskExecutorBaseSuite) TestDeleteWorkflow_NoErr() {
 	s.mockVisibilityManager.On("DeleteWorkflowExecution", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockMutableState.EXPECT().GetCurrentBranchToken().Return([]byte{1, 2, 3}, nil).Times(1)
 	s.mockMutableState.EXPECT().GetLastWriteVersion().Return(int64(1234), nil).AnyTimes()
-	s.mockMutableState.EXPECT().GetPendingWorkflowTimerTaskInfos().Return(nil).Times(1)
 
 	err := s.timerQueueTaskExecutorBase.deleteWorkflow(context.Background(), task, wfContext, s.mockMutableState)
 	s.NoError(err)
@@ -158,7 +158,6 @@ func (s *timerQueueTaskExecutorBaseSuite) TestArchiveHistory_NoErr_InlineArchiva
 	s.mockMutableState.EXPECT().GetCurrentBranchToken().Return([]byte{1, 2, 3}, nil).Times(1)
 	s.mockMutableState.EXPECT().GetLastWriteVersion().Return(int64(1234), nil).Times(1)
 	s.mockMutableState.EXPECT().GetNextEventID().Return(int64(101)).Times(1)
-	s.mockMutableState.EXPECT().GetPendingWorkflowTimerTaskInfos().Return(nil).Times(1)
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(gomock.Any()).Return("Sample", nil).AnyTimes()
 	s.mockExecutionManager.On("DeleteCurrentWorkflowExecution", mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockExecutionManager.On("DeleteWorkflowExecution", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
@@ -400,124 +399,6 @@ func TestExecuteDeleteHistoryEventTask(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-		})
-	}
-}
-
-func TestDeleteTrackedTimerTasksOnWorkflowDeletion(t *testing.T) {
-	task := &persistence.DeleteHistoryEventTask{
-		WorkflowIdentifier: persistence.WorkflowIdentifier{
-			DomainID:   "test-domain-id",
-			WorkflowID: "test-workflow-id",
-			RunID:      "test-run-id",
-		},
-	}
-	now := time.Now()
-
-	tests := []struct {
-		name        string
-		flagEnabled bool
-		threshold   time.Duration
-		timerInfos  map[int64]*persistence.WorkflowTimerTaskInfo
-		setupMocks  func(*mocks.ExecutionManager)
-	}{
-		{
-			name:        "flag disabled — no deletions",
-			flagEnabled: false,
-			timerInfos: map[int64]*persistence.WorkflowTimerTaskInfo{
-				1: {TaskID: 1, VisibilityTimestamp: now.Add(48 * time.Hour)},
-			},
-			setupMocks: func(m *mocks.ExecutionManager) {},
-		},
-		{
-			name:        "nil timer infos — no deletions",
-			flagEnabled: true,
-			threshold:   time.Hour,
-			timerInfos:  nil,
-			setupMocks:  func(m *mocks.ExecutionManager) {},
-		},
-		{
-			name:        "timer below threshold is skipped",
-			flagEnabled: true,
-			threshold:   time.Hour,
-			timerInfos: map[int64]*persistence.WorkflowTimerTaskInfo{
-				1: {TaskID: 1, VisibilityTimestamp: now.Add(30 * time.Minute)},
-			},
-			setupMocks: func(m *mocks.ExecutionManager) {},
-		},
-		{
-			name:        "timer above threshold is deleted",
-			flagEnabled: true,
-			threshold:   time.Hour,
-			timerInfos: map[int64]*persistence.WorkflowTimerTaskInfo{
-				1: {TaskID: 1, VisibilityTimestamp: now.Add(48 * time.Hour)},
-			},
-			setupMocks: func(m *mocks.ExecutionManager) {
-				m.On("DeleteTimerTask", mock.Anything, mock.Anything).Return(nil).Once()
-			},
-		},
-		{
-			name:        "EntityNotExistsError does not abort iteration",
-			flagEnabled: true,
-			threshold:   time.Hour,
-			timerInfos: map[int64]*persistence.WorkflowTimerTaskInfo{
-				1: {TaskID: 1, VisibilityTimestamp: now.Add(48 * time.Hour)},
-			},
-			setupMocks: func(m *mocks.ExecutionManager) {
-				m.On("DeleteTimerTask", mock.Anything, mock.Anything).Return(&types.EntityNotExistsError{}).Once()
-			},
-		},
-		{
-			name:        "delete error does not abort remaining deletions",
-			flagEnabled: true,
-			threshold:   time.Hour,
-			timerInfos: map[int64]*persistence.WorkflowTimerTaskInfo{
-				1: {TaskID: 1, VisibilityTimestamp: now.Add(48 * time.Hour)},
-				2: {TaskID: 2, VisibilityTimestamp: now.Add(72 * time.Hour)},
-			},
-			setupMocks: func(m *mocks.ExecutionManager) {
-				m.On("DeleteTimerTask", mock.Anything, mock.Anything).Return(errors.New("some error")).Twice()
-			},
-		},
-		{
-			name:        "only timers above threshold are deleted",
-			flagEnabled: true,
-			threshold:   time.Hour,
-			timerInfos: map[int64]*persistence.WorkflowTimerTaskInfo{
-				1: {TaskID: 1, VisibilityTimestamp: now.Add(30 * time.Minute)}, // below
-				2: {TaskID: 2, VisibilityTimestamp: now.Add(48 * time.Hour)},   // above
-			},
-			setupMocks: func(m *mocks.ExecutionManager) {
-				m.On("DeleteTimerTask", mock.Anything, mock.Anything).Return(nil).Once()
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-
-			cfg := config.NewForTest()
-			cfg.EnableWorkflowTimerTaskCleanup = dynamicproperties.GetBoolPropertyFn(tc.flagEnabled)
-			cfg.WorkflowTimerTaskCleanupMinTTL = dynamicproperties.GetDurationPropertyFn(tc.threshold)
-
-			mockShard := shard.NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: 0, RangeID: 1}, cfg)
-			tc.setupMocks(mockShard.Resource.ExecutionMgr)
-
-			executor := newTimerTaskExecutorBase(
-				mockShard,
-				&archiver.MockClient{},
-				nil,
-				mockShard.GetLogger(),
-				mockShard.GetMetricsClient(),
-				cfg,
-			)
-			defer executor.Stop()
-
-			executor.deleteTrackedTimerTasksOnWorkflowDeletion(task, tc.timerInfos)
-
-			mockShard.Resource.ExecutionMgr.AssertExpectations(t)
-			mockShard.Finish(t)
 		})
 	}
 }

@@ -60,7 +60,6 @@ type Config struct {
 	ShutdownDrainDuration            dynamicproperties.DurationPropertyFn
 	WorkflowDeletionJitterRange      dynamicproperties.IntPropertyFnWithDomainFilter
 	DeleteHistoryEventContextTimeout dynamicproperties.IntPropertyFn
-	EnableWorkflowTimerTaskCleanup   dynamicproperties.BoolPropertyFn
 	MaxResponseSize                  int
 
 	// HistoryCache settings
@@ -297,6 +296,7 @@ type Config struct {
 	EnableConsistentQueryByDomain dynamicproperties.BoolPropertyFnWithDomainFilter
 	MaxBufferedQueryCount         dynamicproperties.IntPropertyFn
 
+	EnableWorkflowTimerTaskCleanup dynamicproperties.BoolPropertyFn
 	WorkflowTimerTaskCleanupMinTTL dynamicproperties.DurationPropertyFn
 
 	// EnableContextHeaderInVisibility whether to enable indexing context header in visibility
@@ -406,7 +406,6 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		StandbyTaskMissingEventsDiscardDelay: dc.GetDurationProperty(dynamicproperties.StandbyTaskMissingEventsDiscardDelay),
 		WorkflowDeletionJitterRange:          dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowDeletionJitterRange),
 		DeleteHistoryEventContextTimeout:     dc.GetIntProperty(dynamicproperties.DeleteHistoryEventContextTimeout),
-		EnableWorkflowTimerTaskCleanup:       dc.GetBoolProperty(dynamicproperties.EnableWorkflowTimerTaskCleanup),
 		MaxResponseSize:                      maxMessageSize,
 
 		TaskProcessRPS:                                    dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskProcessRPS),
@@ -587,6 +586,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		MutableStateChecksumGenProbability:    dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumGenProbability),
 		MutableStateChecksumVerifyProbability: dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumVerifyProbability),
 		MutableStateChecksumInvalidateBefore:  dc.GetFloat64Property(dynamicproperties.MutableStateChecksumInvalidateBefore),
+		EnableWorkflowTimerTaskCleanup:        dc.GetBoolProperty(dynamicproperties.EnableWorkflowTimerTaskCleanup),
 		WorkflowTimerTaskCleanupMinTTL:        dc.GetDurationProperty(dynamicproperties.WorkflowTimerTaskCleanupMinTTL),
 
 		EnableCorruptionAutoRepair:             dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCorruptionAutoRepair),

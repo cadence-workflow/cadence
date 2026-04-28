@@ -595,7 +595,6 @@ func TestSelectWorkflowExecution(t *testing.T) {
 				BufferedEvents: []*persistence.DataBlob{
 					{Encoding: constants.EncodingTypeThriftRW, Data: []byte("test-buffered-events-1")},
 				},
-				WorkflowTimerTasks: nil,
 			},
 		},
 		{
@@ -633,10 +632,6 @@ func TestSelectWorkflowExecution(t *testing.T) {
 				SignalInfos:         map[int64]*persistence.SignalInfo{},
 				SignalRequestedIDs:  map[string]struct{}{},
 				BufferedEvents:      []*persistence.DataBlob{},
-				WorkflowTimerTasks: &persistence.DataBlob{
-					Encoding: constants.EncodingTypeThriftRW,
-					Data:     []byte("test-workflow-timer-tasks"),
-				},
 			},
 		},
 	}

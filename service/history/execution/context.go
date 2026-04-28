@@ -488,12 +488,6 @@ func (c *contextImpl) CreateWorkflowExecution(
 		return err
 	}
 
-	// Propagate tracking data written to Cassandra back into the in-memory mutable state
-	// so subsequent mutations carry it forward correctly.
-	if c.mutableState != nil && len(createRequest.NewWorkflowSnapshot.WorkflowTimerTaskInfos) > 0 {
-		c.mutableState.SetWorkflowTimerTaskInfos(createRequest.NewWorkflowSnapshot.WorkflowTimerTaskInfos)
-	}
-
 	c.notifyTasksFromWorkflowSnapshotFn(newWorkflow, events.PersistedBlobs{persistedHistory}, false)
 
 	// finally emit session stats
@@ -636,17 +630,6 @@ func (c *contextImpl) ConflictResolveWorkflowExecution(
 		return err
 	}
 
-	// Propagate tracking data written to Cassandra back into the in-memory mutable states.
-	if len(resetWorkflow.WorkflowTimerTaskInfos) > 0 {
-		resetMutableState.SetWorkflowTimerTaskInfos(resetWorkflow.WorkflowTimerTaskInfos)
-	}
-	if currentWorkflow != nil && len(currentWorkflow.WorkflowTimerTaskInfos) > 0 {
-		currentMutableState.SetWorkflowTimerTaskInfos(currentWorkflow.WorkflowTimerTaskInfos)
-	}
-	if newWorkflow != nil && newMutableState != nil && len(newWorkflow.WorkflowTimerTaskInfos) > 0 {
-		newMutableState.SetWorkflowTimerTaskInfos(newWorkflow.WorkflowTimerTaskInfos)
-	}
-
 	workflowState, workflowCloseState := resetMutableState.GetWorkflowStateCloseStatus()
 	// Current branch changed and notify the watchers
 	c.shard.GetEngine().NotifyNewHistoryEvent(events.NewNotification(
@@ -776,10 +759,6 @@ func (c *contextImpl) UpdateWorkflowExecutionTasks(
 			c.notifyTasksFromWorkflowMutationFn(currentWorkflow, nil, true)
 		}
 		return err
-	}
-	// Propagate tracking data written to Cassandra back into the in-memory mutable state.
-	if c.mutableState != nil && len(currentWorkflow.WorkflowTimerTaskInfos) > 0 {
-		c.mutableState.SetWorkflowTimerTaskInfos(currentWorkflow.WorkflowTimerTaskInfos)
 	}
 	// notify current workflow tasks
 	c.notifyTasksFromWorkflowMutationFn(currentWorkflow, nil, false)
@@ -915,11 +894,6 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 			c.notifyTasksFromWorkflowSnapshotFn(newWorkflow, persistedBlobs, true)
 		}
 		return err
-	}
-
-	// Propagate tracking data written to Cassandra back into the in-memory mutable state.
-	if c.mutableState != nil && len(currentWorkflow.WorkflowTimerTaskInfos) > 0 {
-		c.mutableState.SetWorkflowTimerTaskInfos(currentWorkflow.WorkflowTimerTaskInfos)
 	}
 
 	// for any change in the workflow, send a event

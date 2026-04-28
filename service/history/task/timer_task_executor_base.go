@@ -22,8 +22,6 @@ package task
 
 import (
 	"context"
-	"errors"
-	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
@@ -43,8 +41,6 @@ import (
 var (
 	taskRetryPolicy = common.CreateTaskProcessingRetryPolicy()
 )
-
-const workflowTimerTaskCleanupTimeout = 30 * time.Second
 
 type (
 	timerTaskExecutorBase struct {
@@ -173,8 +169,7 @@ func (t *timerTaskExecutorBase) deleteWorkflow(
 		return err
 	}
 
-	timerTaskInfos := msBuilder.GetPendingWorkflowTimerTaskInfos()
-	go t.deleteTrackedTimerTasksOnWorkflowDeletion(task, timerTaskInfos)
+	t.cleanupWorkflowTimerTasks(ctx, task)
 
 	// it must be the last one due to the nature of workflow execution deletion
 	if err := t.deleteWorkflowExecution(ctx, task); err != nil {
@@ -252,8 +247,7 @@ func (t *timerTaskExecutorBase) archiveWorkflow(
 		return err
 	}
 
-	timerTaskInfos := msBuilder.GetPendingWorkflowTimerTaskInfos()
-	go t.deleteTrackedTimerTasksOnWorkflowDeletion(task, timerTaskInfos)
+	t.cleanupWorkflowTimerTasks(ctx, task)
 
 	if err := t.deleteWorkflowExecution(ctx, task); err != nil {
 		return err
@@ -367,52 +361,20 @@ func (t *timerTaskExecutorBase) deleteWorkflowVisibility(
 	return t.throttleRetry.Do(ctx, op)
 }
 
-func (t *timerTaskExecutorBase) deleteTrackedTimerTasksOnWorkflowDeletion(
-	task *persistence.DeleteHistoryEventTask,
-	timerTaskInfos map[int64]*persistence.WorkflowTimerTaskInfo,
-) {
-	cfg := t.shard.GetConfig()
-	if cfg.EnableWorkflowTimerTaskCleanup == nil || !cfg.EnableWorkflowTimerTaskCleanup() {
-		// feature-flag guard: safe to remove once this is defaulted to true
+// cleanupWorkflowTimerTasks deletes tracked timer tasks from the workflow_timer_tasks
+// Cassandra map. Must be called before deleteWorkflowExecution so the execution row
+// (which holds the tracking map) is still present.
+func (t *timerTaskExecutorBase) cleanupWorkflowTimerTasks(ctx context.Context, task *persistence.DeleteHistoryEventTask) {
+	if !t.shard.GetConfig().EnableWorkflowTimerTaskCleanup() {
 		return
 	}
-	threshold := cfg.WorkflowTimerTaskCleanupMinTTL()
-	now := t.shard.GetTimeSource().Now()
-
-	// Derive from the executor's lifetime context so the goroutine is cancelled
-	// on shard shutdown, with a hard cap to prevent it running indefinitely.
-	ctx, cancel := context.WithTimeout(t.ctx, workflowTimerTaskCleanupTimeout)
-	defer cancel()
-
-	for _, taskInfo := range timerTaskInfos {
-		if taskInfo.VisibilityTimestamp.Sub(now) < threshold {
-			// Timer fires soon — not worth an explicit delete; it will fire and be cleaned up naturally.
-			continue
-		}
-		op := func(ctx context.Context) error {
-			return t.shard.GetExecutionManager().DeleteTimerTask(ctx, &persistence.DeleteTimerTaskRequest{
-				DomainID:            task.DomainID,
-				WorkflowID:          task.WorkflowID,
-				RunID:               task.RunID,
-				TaskID:              taskInfo.TaskID,
-				VisibilityTimestamp: taskInfo.VisibilityTimestamp,
-			})
-		}
-		if err := t.throttleRetry.Do(ctx, op); err != nil {
-			if errors.As(err, new(*types.EntityNotExistsError)) {
-				// in perhaps a significant minority of cases, it's likely the timer's already fired
-				continue
-			}
-			t.logger.Error("Failed to delete workflow timer task during workflow deletion",
-				tag.ShardID(t.shard.GetShardID()),
-				tag.WorkflowDomainID(task.DomainID),
-				tag.WorkflowID(task.WorkflowID),
-				tag.WorkflowRunID(task.RunID),
-				tag.TaskID(taskInfo.TaskID),
-				tag.Error(err),
-			)
-		}
-	}
+	_ = t.shard.GetExecutionManager().CleanupWorkflowTimerTasks(ctx, &persistence.CleanupWorkflowTimerTasksRequest{
+		DomainID:   task.DomainID,
+		WorkflowID: task.WorkflowID,
+		RunID:      task.RunID,
+		Now:        t.shard.GetTimeSource().Now(),
+		MinTTL:     t.shard.GetConfig().WorkflowTimerTaskCleanupMinTTL(),
+	})
 }
 
 func (t *timerTaskExecutorBase) Stop() {

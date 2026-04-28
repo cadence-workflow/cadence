@@ -100,10 +100,6 @@ func (m *executionManagerImpl) GetWorkflowExecution(
 		},
 	}
 
-	newResponse.State.WorkflowTimerTaskInfos, err = m.DeserializeWorkflowTimerTasks(response.State.WorkflowTimerTasks)
-	if err != nil {
-		return nil, err
-	}
 	newResponse.State.ActivityInfos, err = m.DeserializeActivityInfos(response.State.ActivityInfos)
 	if err != nil {
 		return nil, err
@@ -287,16 +283,6 @@ func (m *executionManagerImpl) DeserializeChildExecutionInfos(
 	return newInfos, nil
 }
 
-func (m *executionManagerImpl) DeserializeWorkflowTimerTasks(
-	blob *DataBlob,
-) (map[int64]*WorkflowTimerTaskInfo, error) {
-	if blob == nil || len(blob.Data) == 0 {
-		return nil, nil
-	}
-
-	return m.serializer.DeserializeWorkflowTimerTasks(blob)
-}
-
 func (m *executionManagerImpl) DeserializeActivityInfos(
 	infos map[int64]*InternalActivityInfo,
 ) (map[int64]*ActivityInfo, error) {
@@ -358,7 +344,6 @@ func (m *executionManagerImpl) UpdateWorkflowExecution(
 	ctx context.Context,
 	request *UpdateWorkflowExecutionRequest,
 ) (*UpdateWorkflowExecutionResponse, error) {
-	m.syncMutationWithTasks(&request.UpdateWorkflowMutation)
 
 	serializedWorkflowMutation, err := m.SerializeWorkflowMutation(&request.UpdateWorkflowMutation, request.Encoding)
 	if err != nil {
@@ -427,13 +412,6 @@ func (m *executionManagerImpl) SerializeUpsertChildExecutionInfos(
 		newInfos = append(newInfos, i)
 	}
 	return newInfos, nil
-}
-
-func (m *executionManagerImpl) SerializeWorkflowTimerTasks(
-	tasks map[int64]*WorkflowTimerTaskInfo,
-	encoding constants.EncodingType,
-) (*DataBlob, error) {
-	return m.serializer.SerializeWorkflowTimerTasks(tasks, encoding)
 }
 
 func (m *executionManagerImpl) SerializeUpsertActivityInfos(
@@ -588,14 +566,6 @@ func (m *executionManagerImpl) ConflictResolveWorkflowExecution(
 	request *ConflictResolveWorkflowExecutionRequest,
 ) (*ConflictResolveWorkflowExecutionResponse, error) {
 
-	m.syncExecutionInfoWithTasks(&request.ResetWorkflowSnapshot)
-	if request.CurrentWorkflowMutation != nil {
-		m.syncMutationWithTasks(request.CurrentWorkflowMutation)
-	}
-	if request.NewWorkflowSnapshot != nil {
-		m.syncExecutionInfoWithTasks(request.NewWorkflowSnapshot)
-	}
-
 	serializedResetWorkflowSnapshot, err := m.SerializeWorkflowSnapshot(&request.ResetWorkflowSnapshot, request.Encoding)
 	if err != nil {
 		return nil, err
@@ -644,8 +614,6 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 	request *CreateWorkflowExecutionRequest,
 ) (*CreateWorkflowExecutionResponse, error) {
 
-	m.syncExecutionInfoWithTasks(&request.NewWorkflowSnapshot)
-
 	serializedNewWorkflowSnapshot, err := m.SerializeWorkflowSnapshot(&request.NewWorkflowSnapshot, constants.EncodingType(m.dc.SerializationEncoding()))
 	if err != nil {
 		return nil, err
@@ -675,38 +643,17 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 	return &CreateWorkflowExecutionResponse{MutableStateUpdateSessionStats: msuss}, nil
 }
 
-// syncExecutionInfoWithTasks records timer task IDs on the workflow snapshot so they can be
-// deleted when the workflow execution record is cleaned up at the end of the retention period.
-//
-// This runs inside CreateWorkflowExecution rather than at snapshot creation time because
-// task IDs are not assigned until the execution manager processes the snapshot. All workflow
-// creation paths (normal start, NdC replication, reset) pass through this single method.
-func (m *executionManagerImpl) syncExecutionInfoWithTasks(workflowSnapshot *WorkflowSnapshot) {
-	if m.dc == nil || m.dc.EnableWorkflowTimerTaskCleanup == nil || !m.dc.EnableWorkflowTimerTaskCleanup() {
-		return
-	}
-	workflowSnapshot.WorkflowTimerTaskInfos = m.syncTimerTaskTracking(
-		workflowSnapshot.TasksByCategory, workflowSnapshot.WorkflowTimerTaskInfos)
-}
-
-// syncMutationWithTasks appends timer task IDs from a workflow mutation to the accumulated
-// tracking map. Works the same as syncExecutionInfoWithTasks but for update mutations —
-// the existing map (carried from mutable state via CloseTransactionAsMutation) is extended
-// with any new timer tasks created in this mutation.
-func (m *executionManagerImpl) syncMutationWithTasks(mutation *WorkflowMutation) {
-	if m.dc == nil || m.dc.EnableWorkflowTimerTaskCleanup == nil || !m.dc.EnableWorkflowTimerTaskCleanup() {
-		return
-	}
-	mutation.WorkflowTimerTaskInfos = m.syncTimerTaskTracking(
-		mutation.TasksByCategory, mutation.WorkflowTimerTaskInfos)
-}
-
-// syncTimerTaskTracking extracts timer tasks from tasksByCategory and adds them to the
-// tracking map, initializing it if nil. Returns the (possibly newly created) map.
-func (m *executionManagerImpl) syncTimerTaskTracking(
+// syncTimerTaskTrackingAsMap extracts timer tasks from tasksByCategory and returns them as a
+// map[int64]time.Time (taskID → visibilityTimestamp) for storage in the native Cassandra map column.
+// Returns nil when the feature flag is disabled or no eligible tasks are found.
+// DeleteHistoryEventTask is always excluded — deleting it would prevent retention-based cleanup.
+func (m *executionManagerImpl) syncTimerTaskTrackingAsMap(
 	tasksByCategory map[HistoryTaskCategory][]Task,
-	trackedTasks map[int64]*WorkflowTimerTaskInfo,
-) map[int64]*WorkflowTimerTaskInfo {
+) map[int64]time.Time {
+	if m.dc == nil || m.dc.EnableWorkflowTimerTaskCleanup == nil || !m.dc.EnableWorkflowTimerTaskCleanup() {
+		return nil
+	}
+	var result map[int64]time.Time
 	for category, tasks := range tasksByCategory {
 		for _, task := range tasks {
 			if category.categoryID != HistoryTaskCategoryIDTimer {
@@ -725,17 +672,13 @@ func (m *executionManagerImpl) syncTimerTaskTracking(
 			if timerTaskInfo.TaskType == TaskTypeDeleteHistoryEvent {
 				continue
 			}
-			if trackedTasks == nil {
-				trackedTasks = make(map[int64]*WorkflowTimerTaskInfo)
+			if result == nil {
+				result = make(map[int64]time.Time)
 			}
-			trackedTasks[task.GetTaskID()] = &WorkflowTimerTaskInfo{
-				TaskID:              task.GetTaskID(),
-				VisibilityTimestamp: task.GetVisibilityTimestamp(),
-				TimeoutType:         timerTaskInfo.TimeoutType,
-			}
+			result[task.GetTaskID()] = task.GetVisibilityTimestamp()
 		}
 	}
-	return trackedTasks
+	return result
 }
 
 func (m *executionManagerImpl) SerializeWorkflowMutation(
@@ -760,10 +703,6 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		return nil, err
 	}
 	serializedUpsertChildExecutionInfos, err := m.SerializeUpsertChildExecutionInfos(input.UpsertChildExecutionInfos, encoding)
-	if err != nil {
-		return nil, err
-	}
-	serializedWorkflowTimerTasks, err := m.SerializeWorkflowTimerTasks(input.WorkflowTimerTaskInfos, encoding)
 	if err != nil {
 		return nil, err
 	}
@@ -798,7 +737,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		DeleteActivityInfos:       input.DeleteActivityInfos,
 		UpsertTimerInfos:          input.UpsertTimerInfos,
 		DeleteTimerInfos:          input.DeleteTimerInfos,
-		WorkflowTimerTasks:        serializedWorkflowTimerTasks,
+		WorkflowTimerTasks:        m.syncTimerTaskTrackingAsMap(input.TasksByCategory),
 		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
 		DeleteChildExecutionInfos: input.DeleteChildExecutionInfos,
 		UpsertRequestCancelInfos:  input.UpsertRequestCancelInfos,
@@ -845,10 +784,6 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 	if err != nil {
 		return nil, err
 	}
-	serializedWorkflowTimerTasks, err := m.SerializeWorkflowTimerTasks(input.WorkflowTimerTaskInfos, encoding)
-	if err != nil {
-		return nil, err
-	}
 
 	startVersion, err := getStartVersion(input.VersionHistories)
 	if err != nil {
@@ -872,7 +807,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 
 		ActivityInfos:       serializedActivityInfos,
 		TimerInfos:          input.TimerInfos,
-		WorkflowTimerTasks:  serializedWorkflowTimerTasks,
+		WorkflowTimerTasks:  m.syncTimerTaskTrackingAsMap(input.TasksByCategory),
 		ChildExecutionInfos: serializedChildExecutionInfos,
 		RequestCancelInfos:  input.RequestCancelInfos,
 		SignalInfos:         input.SignalInfos,
@@ -1134,6 +1069,50 @@ func (m *executionManagerImpl) DeleteTimerTask(
 	request *DeleteTimerTaskRequest,
 ) error {
 	return m.persistence.DeleteTimerTask(ctx, request)
+}
+
+// CleanupWorkflowTimerTasks reads the workflow_timer_tasks tracking map and deletes any unfired
+// timer tasks whose visibility timestamp is at least MinTTL before Now. Best-effort: individual
+// delete failures are logged but do not abort the operation or return an error.
+func (m *executionManagerImpl) CleanupWorkflowTimerTasks(
+	ctx context.Context,
+	request *CleanupWorkflowTimerTasksRequest,
+) error {
+	trackingMap, err := m.persistence.SelectWorkflowTimerTasks(
+		ctx, m.persistence.GetShardID(), request.DomainID, request.WorkflowID, request.RunID)
+	if err != nil || len(trackingMap) == 0 {
+		return err
+	}
+	for taskID, visibilityTs := range trackingMap {
+		// Skip timers scheduled to fire within MinTTL — they'll clean up naturally.
+		// Delete timers far enough in the future (remaining time >= MinTTL).
+		if visibilityTs.Sub(request.Now) < request.MinTTL {
+			continue
+		}
+		if delErr := m.DeleteTimerTask(ctx, &DeleteTimerTaskRequest{
+			DomainID:            request.DomainID,
+			WorkflowID:          request.WorkflowID,
+			RunID:               request.RunID,
+			TaskID:              taskID,
+			VisibilityTimestamp: visibilityTs,
+		}); delErr != nil {
+			m.logger.Warn("Failed to delete tracked workflow timer task during cleanup; skipping",
+				tag.TaskID(taskID),
+				tag.Error(delErr),
+			)
+		}
+	}
+	return nil
+}
+
+// RemoveWorkflowTimerTaskTracking removes a single entry from the workflow_timer_tasks map.
+// Called when a timer fires naturally so it is not double-deleted at retention time.
+func (m *executionManagerImpl) RemoveWorkflowTimerTaskTracking(
+	ctx context.Context,
+	request *RemoveWorkflowTimerTaskTrackingRequest,
+) error {
+	return m.persistence.DeleteWorkflowTimerTaskEntry(
+		ctx, m.persistence.GetShardID(), request.DomainID, request.WorkflowID, request.RunID, request.TaskID)
 }
 
 func getStartVersion(

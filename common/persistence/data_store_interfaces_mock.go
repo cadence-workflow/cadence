@@ -12,6 +12,7 @@ package persistence
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 )
@@ -177,6 +178,20 @@ func (m *MockExecutionStore) DeleteWorkflowExecution(ctx context.Context, reques
 func (mr *MockExecutionStoreMockRecorder) DeleteWorkflowExecution(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MockExecutionStore)(nil).DeleteWorkflowExecution), ctx, request)
+}
+
+// DeleteWorkflowTimerTaskEntry mocks base method.
+func (m *MockExecutionStore) DeleteWorkflowTimerTaskEntry(ctx context.Context, shardID int, domainID, workflowID, runID string, taskID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWorkflowTimerTaskEntry", ctx, shardID, domainID, workflowID, runID, taskID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWorkflowTimerTaskEntry indicates an expected call of DeleteWorkflowTimerTaskEntry.
+func (mr *MockExecutionStoreMockRecorder) DeleteWorkflowTimerTaskEntry(ctx, shardID, domainID, workflowID, runID, taskID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowTimerTaskEntry", reflect.TypeOf((*MockExecutionStore)(nil).DeleteWorkflowTimerTaskEntry), ctx, shardID, domainID, workflowID, runID, taskID)
 }
 
 // GetActiveClusterSelectionPolicy mocks base method.
@@ -384,6 +399,21 @@ func (m *MockExecutionStore) RangeDeleteReplicationTaskFromDLQ(ctx context.Conte
 func (mr *MockExecutionStoreMockRecorder) RangeDeleteReplicationTaskFromDLQ(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationTaskFromDLQ", reflect.TypeOf((*MockExecutionStore)(nil).RangeDeleteReplicationTaskFromDLQ), ctx, request)
+}
+
+// SelectWorkflowTimerTasks mocks base method.
+func (m *MockExecutionStore) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) (map[int64]time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectWorkflowTimerTasks", ctx, shardID, domainID, workflowID, runID)
+	ret0, _ := ret[0].(map[int64]time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectWorkflowTimerTasks indicates an expected call of SelectWorkflowTimerTasks.
+func (mr *MockExecutionStoreMockRecorder) SelectWorkflowTimerTasks(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowTimerTasks", reflect.TypeOf((*MockExecutionStore)(nil).SelectWorkflowTimerTasks), ctx, shardID, domainID, workflowID, runID)
 }
 
 // UpdateWorkflowExecution mocks base method.

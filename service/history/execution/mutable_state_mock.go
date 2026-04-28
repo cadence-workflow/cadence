@@ -1397,20 +1397,6 @@ func (mr *MockMutableStateMockRecorder) GetPendingTimerInfos() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingTimerInfos", reflect.TypeOf((*MockMutableState)(nil).GetPendingTimerInfos))
 }
 
-// GetPendingWorkflowTimerTaskInfos mocks base method.
-func (m *MockMutableState) GetPendingWorkflowTimerTaskInfos() map[int64]*persistence.WorkflowTimerTaskInfo {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPendingWorkflowTimerTaskInfos")
-	ret0, _ := ret[0].(map[int64]*persistence.WorkflowTimerTaskInfo)
-	return ret0
-}
-
-// GetPendingWorkflowTimerTaskInfos indicates an expected call of GetPendingWorkflowTimerTaskInfos.
-func (mr *MockMutableStateMockRecorder) GetPendingWorkflowTimerTaskInfos() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingWorkflowTimerTaskInfos", reflect.TypeOf((*MockMutableState)(nil).GetPendingWorkflowTimerTaskInfos))
-}
-
 // GetPreviousStartedEventID mocks base method.
 func (m *MockMutableState) GetPreviousStartedEventID() int64 {
 	m.ctrl.T.Helper()
@@ -1807,18 +1793,6 @@ func (m *MockMutableState) Load(arg0 context.Context, arg1 *persistence.Workflow
 func (mr *MockMutableStateMockRecorder) Load(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockMutableState)(nil).Load), arg0, arg1)
-}
-
-// RemoveTrackedTimerTask mocks base method.
-func (m *MockMutableState) RemoveTrackedTimerTask(taskID int64) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RemoveTrackedTimerTask", taskID)
-}
-
-// RemoveTrackedTimerTask indicates an expected call of RemoveTrackedTimerTask.
-func (mr *MockMutableStateMockRecorder) RemoveTrackedTimerTask(taskID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveTrackedTimerTask", reflect.TypeOf((*MockMutableState)(nil).RemoveTrackedTimerTask), taskID)
 }
 
 // ReplicateActivityInfo mocks base method.
@@ -2505,18 +2479,6 @@ func (m *MockMutableState) SetVersionHistories(arg0 *persistence.VersionHistorie
 func (mr *MockMutableStateMockRecorder) SetVersionHistories(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVersionHistories", reflect.TypeOf((*MockMutableState)(nil).SetVersionHistories), arg0)
-}
-
-// SetWorkflowTimerTaskInfos mocks base method.
-func (m *MockMutableState) SetWorkflowTimerTaskInfos(arg0 map[int64]*persistence.WorkflowTimerTaskInfo) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetWorkflowTimerTaskInfos", arg0)
-}
-
-// SetWorkflowTimerTaskInfos indicates an expected call of SetWorkflowTimerTaskInfos.
-func (mr *MockMutableStateMockRecorder) SetWorkflowTimerTaskInfos(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWorkflowTimerTaskInfos", reflect.TypeOf((*MockMutableState)(nil).SetWorkflowTimerTaskInfos), arg0)
 }
 
 // StartTransaction mocks base method.

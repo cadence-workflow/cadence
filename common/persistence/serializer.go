@@ -23,7 +23,6 @@ package persistence
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/golang/snappy"
 
@@ -31,8 +30,6 @@ import (
 	"github.com/uber/cadence/.gen/go/history"
 	"github.com/uber/cadence/.gen/go/replicator"
 	workflow "github.com/uber/cadence/.gen/go/shared"
-	"github.com/uber/cadence/.gen/go/sqlblobs"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/codec"
 	"github.com/uber/cadence/common/constants"
@@ -101,10 +98,6 @@ type (
 		// serialize/deserialize active cluster selection policy
 		SerializeActiveClusterSelectionPolicy(policy *types.ActiveClusterSelectionPolicy, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeActiveClusterSelectionPolicy(data *DataBlob) (*types.ActiveClusterSelectionPolicy, error)
-
-		// serialize/deserialize workflow timer tasks
-		SerializeWorkflowTimerTasks(tasks map[int64]*WorkflowTimerTaskInfo, encodingType constants.EncodingType) (*DataBlob, error)
-		DeserializeWorkflowTimerTasks(data *DataBlob) (map[int64]*WorkflowTimerTaskInfo, error)
 	}
 
 	// CadenceSerializationError is an error type for cadence serialization
@@ -383,36 +376,6 @@ func (t *serializerImpl) DeserializeActiveClusterSelectionPolicy(data *DataBlob)
 	return &policy, err
 }
 
-func (t *serializerImpl) SerializeWorkflowTimerTasks(tasks map[int64]*WorkflowTimerTaskInfo, encodingType constants.EncodingType) (*DataBlob, error) {
-	if len(tasks) == 0 {
-		return nil, nil
-	}
-	slice := make([]*WorkflowTimerTaskInfo, 0, len(tasks))
-	for _, task := range tasks {
-		slice = append(slice, task)
-	}
-	return t.serialize(slice, encodingType)
-}
-
-func (t *serializerImpl) DeserializeWorkflowTimerTasks(data *DataBlob) (map[int64]*WorkflowTimerTaskInfo, error) {
-	if data == nil {
-		return nil, nil
-	}
-	if len(data.Data) == 0 {
-		return nil, nil
-	}
-	var tasks []*WorkflowTimerTaskInfo
-	err := t.deserialize(data, &tasks)
-	if err != nil || len(tasks) == 0 {
-		return nil, err
-	}
-	result := make(map[int64]*WorkflowTimerTaskInfo, len(tasks))
-	for _, task := range tasks {
-		result[task.TaskID] = task
-	}
-	return result, nil
-}
-
 func (t *serializerImpl) serialize(input interface{}, encodingType constants.EncodingType) (*DataBlob, error) {
 	if input == nil {
 		return nil, nil
@@ -468,8 +431,6 @@ func (t *serializerImpl) thriftrwEncode(input interface{}) ([]byte, error) {
 		return t.thriftrwEncoder.Encode(thrift.FromActiveClusters(input))
 	case *types.ActiveClusterSelectionPolicy:
 		return t.thriftrwEncoder.Encode(thrift.FromActiveClusterSelectionPolicy(input))
-	case []*WorkflowTimerTaskInfo:
-		return t.thriftrwEncoder.Encode(workflowTimerTaskInfoToThrift(input))
 	default:
 		return nil, nil
 	}
@@ -594,13 +555,6 @@ func (t *serializerImpl) thriftrwDecode(data []byte, target interface{}) error {
 		}
 		*target = *thrift.ToActiveClusterSelectionPolicy(&thriftTarget)
 		return nil
-	case *[]*WorkflowTimerTaskInfo:
-		thriftTarget := sqlblobs.WorkflowTimerTaskInfo{}
-		if err := t.thriftrwEncoder.Decode(data, &thriftTarget); err != nil {
-			return err
-		}
-		*target = workflowTimerTaskInfoFromThrift(&thriftTarget)
-		return nil
 	default:
 		return nil
 	}
@@ -652,41 +606,4 @@ func NewCadenceDeserializationError(msg string) *CadenceDeserializationError {
 
 func (e *CadenceDeserializationError) Error() string {
 	return fmt.Sprintf("cadence deserialization error: %v", e.msg)
-}
-
-// workflowTimerTaskInfoToThrift converts persistence WorkflowTimerTaskInfo slice to thrift wrapper type
-func workflowTimerTaskInfoToThrift(tasks []*WorkflowTimerTaskInfo) *sqlblobs.WorkflowTimerTaskInfo {
-	refs := make([]*sqlblobs.TimerReference, 0, len(tasks))
-	for _, task := range tasks {
-		if task == nil {
-			continue
-		}
-		refs = append(refs, &sqlblobs.TimerReference{
-			TaskID:              common.Int64Ptr(task.TaskID),
-			VisibilityTimestamp: common.Int64Ptr(task.VisibilityTimestamp.UnixNano()),
-			TimeoutType:         common.Int16Ptr(int16(task.TimeoutType)),
-		})
-	}
-	return &sqlblobs.WorkflowTimerTaskInfo{
-		References: refs,
-	}
-}
-
-// workflowTimerTaskInfoFromThrift converts thrift wrapper type to persistence WorkflowTimerTaskInfo slice
-func workflowTimerTaskInfoFromThrift(info *sqlblobs.WorkflowTimerTaskInfo) []*WorkflowTimerTaskInfo {
-	if info == nil || info.References == nil {
-		return nil
-	}
-	tasks := make([]*WorkflowTimerTaskInfo, 0, len(info.References))
-	for _, ref := range info.References {
-		if ref == nil {
-			continue
-		}
-		tasks = append(tasks, &WorkflowTimerTaskInfo{
-			TaskID:              ref.GetTaskID(),
-			VisibilityTimestamp: time.Unix(0, ref.GetVisibilityTimestamp()),
-			TimeoutType:         int(ref.GetTimeoutType()),
-		})
-	}
-	return tasks
 }
