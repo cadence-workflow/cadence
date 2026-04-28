@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 
@@ -2943,6 +2944,90 @@ func TestIsRequestRowType(t *testing.T) {
 	assert.True(t, isRequestRowType(rowTypeWorkflowRequestSignal))
 	assert.True(t, isRequestRowType(rowTypeWorkflowRequestCancel))
 	assert.True(t, isRequestRowType(rowTypeWorkflowRequestReset))
+}
+
+func TestAppendWorkflowTimerTasks(t *testing.T) {
+	visTS := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		desc        string
+		timerTasks  map[int64]time.Time
+		wantQueries []string
+	}{
+		{
+			desc:        "nil map produces no queries",
+			timerTasks:  nil,
+			wantQueries: nil,
+		},
+		{
+			desc:        "empty map produces no queries",
+			timerTasks:  map[int64]time.Time{},
+			wantQueries: nil,
+		},
+		{
+			desc:       "single entry produces one UPDATE query",
+			timerTasks: map[int64]time.Time{100: visTS},
+			wantQueries: []string{
+				`UPDATE executions SET workflow_timer_tasks[ 100 ] = 2025-02-01T00:00:00Z ` +
+					`, last_updated_time = 2025-01-06T15:00:00Z ` +
+					`WHERE shard_id = 1 and type = 1 and domain_id = domain1 and ` +
+					`workflow_id = wf1 and run_id = run1 and visibility_ts = 946684800000 and task_id = -10 `,
+			},
+		},
+		{
+			desc: "multiple entries produce one query each",
+			timerTasks: map[int64]time.Time{
+				100: visTS,
+				200: visTS.Add(time.Hour),
+			},
+			wantQueries: []string{
+				`UPDATE executions SET workflow_timer_tasks[ 100 ] = 2025-02-01T00:00:00Z ` +
+					`, last_updated_time = 2025-01-06T15:00:00Z ` +
+					`WHERE shard_id = 1 and type = 1 and domain_id = domain1 and ` +
+					`workflow_id = wf1 and run_id = run1 and visibility_ts = 946684800000 and task_id = -10 `,
+				`UPDATE executions SET workflow_timer_tasks[ 200 ] = 2025-02-01T01:00:00Z ` +
+					`, last_updated_time = 2025-01-06T15:00:00Z ` +
+					`WHERE shard_id = 1 and type = 1 and domain_id = domain1 and ` +
+					`workflow_id = wf1 and run_id = run1 and visibility_ts = 946684800000 and task_id = -10 `,
+			},
+		},
+	}
+
+	sortStrings := cmpopts.SortSlices(func(a, b string) bool { return a < b })
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			batch := &fakeBatch{}
+			appendWorkflowTimerTasks(batch, 1, "domain1", "wf1", "run1", tc.timerTasks, FixedTime)
+			if diff := cmp.Diff(tc.wantQueries, batch.queries, sortStrings); diff != "" {
+				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestRemoveWorkflowTimerTaskEntry(t *testing.T) {
+	tests := []struct {
+		desc      string
+		taskID    int64
+		wantQuery string
+	}{
+		{
+			desc:   "produces DELETE map entry query",
+			taskID: 42,
+			wantQuery: `DELETE workflow_timer_tasks[ 42 ] FROM executions ` +
+				`WHERE shard_id = 1 and type = 1 and domain_id = domain1 and ` +
+				`workflow_id = wf1 and run_id = run1 and visibility_ts = 946684800000 and task_id = -10 `,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			batch := &fakeBatch{}
+			removeWorkflowTimerTaskEntry(batch, 1, "domain1", "wf1", "run1", tc.taskID)
+			if diff := cmp.Diff([]string{tc.wantQuery}, batch.queries); diff != "" {
+				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
 }
 
 func errDiff(want, got error) string {

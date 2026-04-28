@@ -617,8 +617,6 @@ func TestSelectWorkflowExecution(t *testing.T) {
 					m["signal_map"] = map[int64]map[string]interface{}{}
 					m["signal_requested"] = []interface{}{}
 					m["buffered_events_list"] = []map[string]interface{}{}
-					m["workflow_timer_tasks"] = []byte("test-workflow-timer-tasks")
-					m["workflow_timer_tasks_encoding"] = "thriftrw"
 					m["checksum"] = map[string]interface{}{}
 					return nil
 				}).Times(1)
@@ -2634,6 +2632,136 @@ func TestDeleteActiveClusterSelectionPolicy(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(tc.wantQuery, tc.session.queries[0]); diff != "" {
+				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestSelectWorkflowTimerTasks(t *testing.T) {
+	ts := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name       string
+		mapScan    map[string]interface{}
+		mapScanErr error
+		isNotFound bool
+		wantResult map[int64]time.Time
+		wantErr    bool
+	}{
+		{
+			name: "success - returns map",
+			mapScan: map[string]interface{}{
+				"workflow_timer_tasks": map[int64]time.Time{
+					100: ts,
+					200: ts.Add(time.Hour),
+				},
+			},
+			wantResult: map[int64]time.Time{
+				100: ts,
+				200: ts.Add(time.Hour),
+			},
+		},
+		{
+			name:       "success - column absent returns nil",
+			mapScan:    map[string]interface{}{},
+			wantResult: nil,
+		},
+		{
+			name:       "not found returns nil",
+			mapScan:    map[string]interface{}{},
+			mapScanErr: errors.New("not found"),
+			isNotFound: true,
+			wantResult: nil,
+		},
+		{
+			name:       "query error",
+			mapScan:    map[string]interface{}{},
+			mapScanErr: errors.New("cassandra unavailable"),
+			isNotFound: false,
+			wantErr:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			logger := testlogger.New(t)
+			cl := gocql.NewMockClient(ctrl)
+			if tc.mapScanErr != nil {
+				cl.EXPECT().IsNotFoundError(tc.mapScanErr).Return(tc.isNotFound).Times(1)
+			}
+			session := &fakeSession{
+				query: &fakeQuery{
+					mapScan: tc.mapScan,
+					err:     tc.mapScanErr,
+				},
+			}
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(cl))
+			got, err := db.SelectWorkflowTimerTasks(context.Background(), 1, "domain1", "wf1", "run1")
+
+			if tc.wantErr {
+				if err == nil {
+					t.Error("SelectWorkflowTimerTasks() expected error, got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("SelectWorkflowTimerTasks() unexpected error: %v", err)
+				}
+			}
+			if diff := cmp.Diff(tc.wantResult, got); diff != "" {
+				t.Fatalf("Result mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestDeleteWorkflowTimerTaskEntry(t *testing.T) {
+	tests := []struct {
+		name      string
+		taskID    int64
+		queryErr  error
+		wantQuery string
+		wantErr   bool
+	}{
+		{
+			name:   "success",
+			taskID: 42,
+			wantQuery: `DELETE workflow_timer_tasks[ 42 ] FROM executions ` +
+				`WHERE shard_id = 1 and type = 1 and domain_id = domain1 and ` +
+				`workflow_id = wf1 and run_id = run1 and visibility_ts = 946684800000 and task_id = -10 `,
+		},
+		{
+			name:     "query error",
+			taskID:   42,
+			queryErr: errors.New("write failed"),
+			wantQuery: `DELETE workflow_timer_tasks[ 42 ] FROM executions ` +
+				`WHERE shard_id = 1 and type = 1 and domain_id = domain1 and ` +
+				`workflow_id = wf1 and run_id = run1 and visibility_ts = 946684800000 and task_id = -10 `,
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			logger := testlogger.New(t)
+			cl := gocql.NewMockClient(ctrl)
+			session := &fakeSession{
+				query: &fakeQuery{err: tc.queryErr},
+			}
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(cl))
+			err := db.DeleteWorkflowTimerTaskEntry(context.Background(), 1, "domain1", "wf1", "run1", tc.taskID)
+
+			if tc.wantErr {
+				if err == nil {
+					t.Error("DeleteWorkflowTimerTaskEntry() expected error, got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("DeleteWorkflowTimerTaskEntry() unexpected error: %v", err)
+				}
+			}
+			if diff := cmp.Diff(tc.wantQuery, session.queries[0]); diff != "" {
 				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
 			}
 		})
