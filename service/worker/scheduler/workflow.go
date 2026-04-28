@@ -480,17 +480,6 @@ func processScheduleFire(ctx workflow.Context, logger *zap.Logger, scope tally.S
 	}
 }
 
-type fireOutcome int
-
-const (
-	// fireOutcomeDone means the fire was processed to completion (started, skipped,
-	// cancelled/terminated-then-started, already-running, or errored-and-logged).
-	fireOutcomeDone fireOutcome = iota
-	// fireOutcomeBuffered means the BUFFER overlap policy deferred the fire
-	// because the previous target workflow is still running.
-	fireOutcomeBuffered
-)
-
 // tryStartFire runs the scheduler activity for a single fire and applies the
 // result to state, returning whether the fire was buffered. Shared by the
 // live-fire and drain-buffered-fire paths; the caller decides how to handle

@@ -1107,12 +1107,12 @@ func TestBuildScheduleSearchAttributes(t *testing.T) {
 func TestEnqueueBufferedFire(t *testing.T) {
 	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tests := []struct {
-		name            string
-		bufferLimit     int32
-		initialFires    []BufferedFire
-		initialSkipped  int64
-		enqueueTime     time.Time
-		trigger         TriggerSource
+		name               string
+		bufferLimit        int32
+		initialFires       []BufferedFire
+		initialSkipped     int64
+		enqueueTime        time.Time
+		trigger            TriggerSource
 		wantFires          []BufferedFire
 		wantSkippedRuns    int64
 		wantOverflowReason string

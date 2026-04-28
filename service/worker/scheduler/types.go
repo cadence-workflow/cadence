@@ -227,6 +227,20 @@ const (
 	TriggerSourceBackfill TriggerSource = "backfill"
 )
 
+// fireOutcome is the result of attempting to fire a single schedule run. It
+// tells the workflow whether the fire was processed to completion or was
+// deferred by the BUFFER overlap policy and should be re-attempted later.
+type fireOutcome int
+
+const (
+	// fireOutcomeDone means the fire was processed to completion (started, skipped,
+	// cancelled/terminated-then-started, already-running, or errored-and-logged).
+	fireOutcomeDone fireOutcome = iota
+	// fireOutcomeBuffered means the BUFFER overlap policy deferred the fire
+	// because the previous target workflow is still running.
+	fireOutcomeBuffered
+)
+
 // ProcessFireRequest is the input to processScheduleFireActivity. It contains
 // everything the activity needs to resolve the overlap policy and start the
 // target workflow. All side effects (describe, cancel, terminate, start) happen
