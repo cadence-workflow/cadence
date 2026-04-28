@@ -339,6 +339,15 @@ var HistogramMigrationMetrics = map[string]struct{}{
 
 	"global_ratelimiter_update_latency":    {},
 	"global_ratelimiter_update_latency_ns": {},
+
+	"cadence_latency":                        {},
+	"cadence_latency_ns":                     {},
+	"cadence_client_latency":                 {},
+	"cadence_client_latency_ns":              {},
+	"cadence_client_latency_redirection":     {},
+	"cadence_client_latency_redirection_ns":  {},
+	"cadence_latency_per_tl":                 {},
+	"cadence_latency_per_tl_ns":              {},
 }
 
 func (h HistogramMigration) EmitTimer(name string) bool {

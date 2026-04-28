@@ -2282,6 +2282,7 @@ const (
 	CadenceRequests MetricIdx = iota
 	CadenceFailures
 	CadenceLatency
+	CadenceLatencyHistogram
 	CadenceErrBadRequestCounter
 	CadenceErrDomainNotActiveCounter
 	CadenceErrServiceBusyCounter
@@ -2366,12 +2367,14 @@ const (
 	CadenceClientRequests
 	CadenceClientFailures
 	CadenceClientLatency
+	CadenceClientLatencyHistogram
 
 	CadenceTasklistRequests
 
 	CadenceDcRedirectionClientRequests
 	CadenceDcRedirectionClientFailures
 	CadenceDcRedirectionClientLatency
+	CadenceDcRedirectionClientLatencyHistogram
 
 	CadenceAuthorizationLatency
 	CadenceAuthorizationLatencyHistogram
@@ -2490,6 +2493,7 @@ const (
 	CadenceRequestsPerTaskListWithoutRollup
 	CadenceFailuresPerTaskList
 	CadenceLatencyPerTaskList
+	CadenceLatencyPerTaskListHistogram
 	CadenceErrBadRequestPerTaskListCounter
 	CadenceErrDomainNotActivePerTaskListCounter
 	CadenceErrServiceBusyPerTaskListCounter
@@ -3265,6 +3269,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CadenceRequests:                                              {metricName: "cadence_requests", metricType: Counter},
 		CadenceFailures:                                              {metricName: "cadence_errors", metricType: Counter},
 		CadenceLatency:                                               {metricName: "cadence_latency", metricType: Timer},
+		CadenceLatencyHistogram:                                      {metricName: "cadence_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		CadenceErrBadRequestCounter:                                  {metricName: "cadence_errors_bad_request", metricType: Counter},
 		CadenceErrDomainNotActiveCounter:                             {metricName: "cadence_errors_domain_not_active", metricType: Counter},
 		CadenceErrServiceBusyCounter:                                 {metricName: "cadence_errors_service_busy", metricType: Counter},
@@ -3345,10 +3350,12 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CadenceClientRequests:                                        {metricName: "cadence_client_requests", metricType: Counter},
 		CadenceClientFailures:                                        {metricName: "cadence_client_errors", metricType: Counter},
 		CadenceClientLatency:                                         {metricName: "cadence_client_latency", metricType: Timer},
+		CadenceClientLatencyHistogram:                                {metricName: "cadence_client_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		CadenceTasklistRequests:                                      {metricName: "cadence_tasklist_request", metricType: Counter},
 		CadenceDcRedirectionClientRequests:                           {metricName: "cadence_client_requests_redirection", metricType: Counter},
 		CadenceDcRedirectionClientFailures:                           {metricName: "cadence_client_errors_redirection", metricType: Counter},
 		CadenceDcRedirectionClientLatency:                            {metricName: "cadence_client_latency_redirection", metricType: Timer},
+		CadenceDcRedirectionClientLatencyHistogram:                   {metricName: "cadence_client_latency_redirection_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		CadenceAuthorizationLatency:                                  {metricName: "cadence_authorization_latency", metricType: Timer},
 		CadenceAuthorizationLatencyHistogram:                         {metricName: "cadence_authorization_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		DomainCachePrepareCallbacksLatency:                           {metricName: "domain_cache_prepare_callbacks_latency", metricType: Timer},
@@ -3388,7 +3395,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		PinotRequestsPerDomain:                                       {metricName: "pinot_requests_per_domain", metricRollupName: "pinot_requests", metricType: Counter},
 		PinotFailuresPerDomain:                                       {metricName: "pinot_errors_per_domain", metricRollupName: "pinot_errors", metricType: Counter},
 		PinotLatencyPerDomain:                                        {metricName: "pinot_latency_per_domain", metricRollupName: "pinot_latency", metricType: Timer},
-		PinotLatencyPerDomainHistogram:                               {metricName: "pinot_latency_per_domain_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		PinotLatencyPerDomainHistogram:                               {metricName: "pinot_latency_per_domain_ns", metricRollupName: "pinot_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		PinotErrBadRequestCounterPerDomain:                           {metricName: "pinot_errors_bad_request_per_domain", metricRollupName: "pinot_errors_bad_request", metricType: Counter},
 		PinotErrBusyCounterPerDomain:                                 {metricName: "pinot_errors_busy_per_domain", metricRollupName: "pinot_errors_busy", metricType: Counter},
 		SequentialTaskSubmitRequest:                                  {metricName: "sequentialtask_submit_request", metricType: Counter},
@@ -3453,6 +3460,9 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		},
 		CadenceLatencyPerTaskList: {
 			metricName: "cadence_latency_per_tl", metricRollupName: "cadence_latency", metricType: Timer,
+		},
+		CadenceLatencyPerTaskListHistogram: {
+			metricName: "cadence_latency_per_tl_ns", metricRollupName: "cadence_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s,
 		},
 		CadenceErrBadRequestPerTaskListCounter: {
 			metricName: "cadence_errors_bad_request_per_tl", metricRollupName: "cadence_errors_bad_request", metricType: Counter,
@@ -3531,7 +3541,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		DescribeWorkflowStatusCount: {metricName: "describe_wf_status", metricType: Counter},
 
 		AsyncRequestPayloadSize:          {metricName: "async_request_payload_size_per_domain", metricRollupName: "async_request_payload_size", metricType: Timer},
-		AsyncRequestPayloadSizeHistogram: {metricName: "async_request_payload_size_per_domain_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
+		AsyncRequestPayloadSizeHistogram: {metricName: "async_request_payload_size_per_domain_counts", metricRollupName: "async_request_payload_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
 
 		GlobalRatelimiterStartupUsageHistogram:  {metricName: "global_ratelimiter_startup_usage_histogram", metricType: Histogram, buckets: GlobalRatelimiterUsageHistogram},
 		GlobalRatelimiterFailingUsageHistogram:  {metricName: "global_ratelimiter_failing_usage_histogram", metricType: Histogram, buckets: GlobalRatelimiterUsageHistogram},
@@ -3997,9 +4007,9 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ForwardPollCallsPerTaskList:                                      {metricName: "forward_poll_calls_per_tl", metricRollupName: "forward_poll_calls"},
 		ForwardPollErrorsPerTaskList:                                     {metricName: "forward_poll_errors_per_tl", metricRollupName: "forward_poll_errors"},
 		SyncMatchLatencyPerTaskList:                                      {metricName: "syncmatch_latency_per_tl", metricRollupName: "syncmatch_latency", metricType: Timer},
-		SyncMatchLatencyPerTaskListHistogram:                             {metricName: "syncmatch_latency_per_tl_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		SyncMatchLatencyPerTaskListHistogram:                             {metricName: "syncmatch_latency_per_tl_ns", metricRollupName: "syncmatch_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		AsyncMatchLatencyPerTaskList:                                     {metricName: "asyncmatch_latency_per_tl", metricRollupName: "asyncmatch_latency", metricType: Timer},
-		AsyncMatchLatencyPerTaskListHistogram:                            {metricName: "asyncmatch_latency_per_tl_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		AsyncMatchLatencyPerTaskListHistogram:                            {metricName: "asyncmatch_latency_per_tl_ns", metricRollupName: "asyncmatch_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		AsyncMatchDispatchLatencyPerTaskList:                             {metricName: "asyncmatch_dispatch_latency_per_tl", metricRollupName: "asyncmatch_dispatch_latency", metricType: Timer},
 		AsyncMatchDispatchTimeoutCounterPerTaskList:                      {metricName: "asyncmatch_dispatch_timeouts_per_tl", metricRollupName: "asyncmatch_dispatch_timeouts"},
 		ForwardTaskLatencyPerTaskList:                                    {metricName: "forward_task_latency_per_tl", metricRollupName: "forward_task_latency"},
@@ -4023,22 +4033,22 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		SyncMatchForwardPollLatencyPerTaskList:                           {metricName: "syncmatch_forward_poll_latency_per_tl", metricRollupName: "syncmatch_forward_poll_latency"},
 		AsyncMatchLocalPollCounterPerTaskList:                            {metricName: "asyncmatch_local_poll_per_tl", metricRollupName: "asyncmatch_local_poll"},
 		AsyncMatchLocalPollAttemptPerTaskList:                            {metricName: "asyncmatch_local_poll_attempt_per_tl", metricRollupName: "asyncmatch_local_poll_attempt", metricType: Timer},
-		AsyncMatchLocalPollAttemptPerTaskListHistogram:                   {metricName: "asyncmatch_local_poll_attempt_per_tl_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
+		AsyncMatchLocalPollAttemptPerTaskListHistogram:                   {metricName: "asyncmatch_local_poll_attempt_per_tl_counts", metricRollupName: "asyncmatch_local_poll_attempt_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		AsyncMatchLocalPollLatencyPerTaskList:                            {metricName: "asyncmatch_local_poll_latency_per_tl", metricRollupName: "asyncmatch_local_poll_latency"},
 		AsyncMatchForwardPollCounterPerTaskList:                          {metricName: "asyncmatch_forward_poll_per_tl", metricRollupName: "asyncmatch_forward_poll"},
 		AsyncMatchForwardPollAttemptPerTaskList:                          {metricName: "asyncmatch_forward_poll_attempt_per_tl", metricRollupName: "asyncmatch_forward_poll_attempt", metricType: Timer},
-		AsyncMatchForwardPollAttemptPerTaskListHistogram:                 {metricName: "asyncmatch_forward_poll_attempt_per_tl_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
+		AsyncMatchForwardPollAttemptPerTaskListHistogram:                 {metricName: "asyncmatch_forward_poll_attempt_per_tl_counts", metricRollupName: "asyncmatch_forward_poll_attempt_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		AsyncMatchForwardPollLatencyPerTaskList:                          {metricName: "asyncmatch_forward_poll_latency_per_tl", metricRollupName: "asyncmatch_forward_poll_latency"},
 		AsyncMatchLocalPollAfterForwardFailedCounterPerTaskList:          {metricName: "asyncmatch_local_poll_after_forward_failed_per_tl", metricRollupName: "asyncmatch_local_poll_after_forward_failed"},
 		AsyncMatchLocalPollAfterForwardFailedAttemptPerTaskList:          {metricName: "asyncmatch_local_poll_after_forward_failed_attempt_per_tl", metricRollupName: "asyncmatch_local_poll_after_forward_failed_attempt", metricType: Timer},
-		AsyncMatchLocalPollAfterForwardFailedAttemptPerTaskListHistogram: {metricName: "asyncmatch_local_poll_after_forward_failed_attempt_per_tl_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
+		AsyncMatchLocalPollAfterForwardFailedAttemptPerTaskListHistogram: {metricName: "asyncmatch_local_poll_after_forward_failed_attempt_per_tl_counts", metricRollupName: "asyncmatch_local_poll_after_forward_failed_attempt_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
 		AsyncMatchLocalPollAfterForwardFailedLatencyPerTaskList:          {metricName: "asyncmatch_local_poll_after_forward_failed_latency_per_tl", metricRollupName: "asyncmatch_local_poll_after_forward_failed_latency"},
 		PollLocalMatchLatencyPerTaskList:                                 {metricName: "poll_local_match_latency_per_tl", metricRollupName: "poll_local_match_latency", metricType: Timer},
-		PollLocalMatchLatencyPerTaskListHistogram:                        {metricName: "poll_local_match_latency_per_tl_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		PollLocalMatchLatencyPerTaskListHistogram:                        {metricName: "poll_local_match_latency_per_tl_ns", metricRollupName: "poll_local_match_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		PollForwardMatchLatencyPerTaskList:                               {metricName: "poll_forward_match_latency_per_tl", metricRollupName: "poll_forward_match_latency", metricType: Timer},
-		PollForwardMatchLatencyPerTaskListHistogram:                      {metricName: "poll_forward_match_latency_per_tl_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		PollForwardMatchLatencyPerTaskListHistogram:                      {metricName: "poll_forward_match_latency_per_tl_ns", metricRollupName: "poll_forward_match_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		PollLocalMatchAfterForwardFailedLatencyPerTaskList:               {metricName: "poll_local_match_after_forward_failed_latency_per_tl", metricRollupName: "poll_local_match_after_forward_failed_latency", metricType: Timer},
-		PollLocalMatchAfterForwardFailedLatencyPerTaskListHistogram:      {metricName: "poll_local_match_after_forward_failed_latency_per_tl_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		PollLocalMatchAfterForwardFailedLatencyPerTaskListHistogram:      {metricName: "poll_local_match_after_forward_failed_latency_per_tl_ns", metricRollupName: "poll_local_match_after_forward_failed_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		PollDecisionTaskAlreadyStartedCounterPerTaskList:                 {metricName: "poll_decision_task_already_started_per_tl", metricType: Counter},
 		PollActivityTaskAlreadyStartedCounterPerTaskList:                 {metricName: "poll_activity_task_already_started_per_tl", metricType: Counter},
 		TaskListReadWritePartitionMismatchGauge:                          {metricName: "tasklist_read_write_partition_mismatch", metricType: Gauge},
