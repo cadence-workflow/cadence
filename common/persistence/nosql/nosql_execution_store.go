@@ -64,28 +64,48 @@ func (d *nosqlExecutionStore) GetShardID() int {
 	return d.shardID
 }
 
-// getShardID returns the effective shard ID: request.ShardID if set, otherwise the store's own shardID.
-// This supports the incremental migration toward host-level ExecutionManager/ExecutionStore.
-func getShardID(requestShardID *int, storeShardID int) int {
-	if requestShardID != nil {
-		return *requestShardID
+// resolveShardID returns the shard ID to use for persistence along with a non-empty reason
+// describing any inconsistency between the request and the store. During the migration toward
+// a host-level ExecutionStore, the per-shard store still owns the canonical shard ID, so both
+// missing and mismatching request values fall back to storeShardID and are reported so that
+// missing/buggy call sites can be detected.
+//
+// reason is one of:
+//   - "missing":  requestShardID was nil
+//   - "mismatch": *requestShardID != storeShardID
+//   - "":         request and store agree
+func resolveShardID(requestShardID *int, storeShardID int) (shardID int, reason string) {
+	if requestShardID == nil {
+		return storeShardID, "missing"
 	}
-	return storeShardID
+	if *requestShardID != storeShardID {
+		return storeShardID, "mismatch"
+	}
+	return storeShardID, ""
 }
 
-// effectiveShardID returns the shard ID used for persistence. It prefers request.ShardID when set.
-// When the request omits ShardID, a debug log is emitted so callers missing the field can be found
-// during migration to host-level ExecutionStore.
+// effectiveShardID returns the shard ID used for persistence. During the migration toward a
+// host-level ExecutionStore the store's own shardID remains the source of truth; any request
+// that omits ShardID or carries a value different from the store's shardID is logged at Warn
+// level (deduped per operation) so the offending call sites can be found and fixed.
 func (d *nosqlExecutionStore) effectiveShardID(requestShardID *int, operation string) int {
-	if requestShardID == nil && d.logger != nil {
-		if _, loaded := d.missingShardIDLogs.LoadOrStore(operation, struct{}{}); !loaded {
-			d.logger.Debug("execution store request missing ShardID; using store shard ID",
-				tag.ShardID(d.shardID),
-				tag.OperationName(operation),
-			)
-		}
+	shardID, reason := resolveShardID(requestShardID, d.shardID)
+	if reason == "" || d.logger == nil {
+		return shardID
 	}
-	return getShardID(requestShardID, d.shardID)
+	if _, loaded := d.missingShardIDLogs.LoadOrStore(operation, struct{}{}); loaded {
+		return shardID
+	}
+	tags := []tag.Tag{
+		tag.ShardID(d.shardID),
+		tag.OperationName(operation),
+		tag.Dynamic("reason", reason),
+	}
+	if requestShardID != nil {
+		tags = append(tags, tag.Dynamic("request-shard-id", *requestShardID))
+	}
+	d.logger.Warn("execution store request inconsistent with store shard ID; using store shard ID", tags...)
+	return shardID
 }
 
 func (d *nosqlExecutionStore) CreateWorkflowExecution(

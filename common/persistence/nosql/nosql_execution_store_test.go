@@ -1957,33 +1957,39 @@ func TestCompleteHistoryTask(t *testing.T) {
 	}
 }
 
-func TestGetShardID(t *testing.T) {
+func TestResolveShardID(t *testing.T) {
 	tests := []struct {
-		name     string
-		reqID    *int
-		storeID  int
-		expected int
+		name           string
+		reqID          *int
+		storeID        int
+		expectedShard  int
+		expectedReason string
 	}{
-		{name: "nil uses store", reqID: nil, storeID: 5, expected: 5},
-		{name: "non-nil overrides", reqID: common.IntPtr(9), storeID: 5, expected: 9},
+		{name: "nil request shard id is reported as missing", reqID: nil, storeID: 5, expectedShard: 5, expectedReason: "missing"},
+		{name: "matching request shard id has no reason", reqID: common.IntPtr(5), storeID: 5, expectedShard: 5, expectedReason: ""},
+		{name: "differing request shard id falls back to store and is reported as mismatch", reqID: common.IntPtr(9), storeID: 5, expectedShard: 5, expectedReason: "mismatch"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, getShardID(tc.reqID, tc.storeID))
+			shard, reason := resolveShardID(tc.reqID, tc.storeID)
+			assert.Equal(t, tc.expectedShard, shard)
+			assert.Equal(t, tc.expectedReason, reason)
 		})
 	}
 }
 
-func TestGetWorkflowExecution_usesRequestShardIDWhenSet(t *testing.T) {
+func TestGetWorkflowExecution_usesStoreShardIDWhenRequestShardIDDiffers(t *testing.T) {
 	ctx := context.Background()
 	const storeShardID = 1
-	const overrideShardID = 9
+	const requestShardID = 9
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockDB := nosqlplugin.NewMockDB(ctrl)
+	// Even though the request carries a different ShardID, the store's shard ID
+	// is the source of truth during migration and must be the one that hits the DB.
 	mockDB.EXPECT().
-		SelectWorkflowExecution(ctx, overrideShardID, gomock.Any(), gomock.Any(), gomock.Any()).
+		SelectWorkflowExecution(ctx, storeShardID, gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&nosqlplugin.WorkflowExecution{}, nil).
 		Times(1)
 
@@ -1992,19 +1998,21 @@ func TestGetWorkflowExecution_usesRequestShardIDWhenSet(t *testing.T) {
 		nosqlStore: nosqlStore{logger: log.NewNoop(), db: mockDB},
 	}
 	req := newGetWorkflowExecutionRequest()
-	req.ShardID = common.IntPtr(overrideShardID)
+	req.ShardID = common.IntPtr(requestShardID)
 
 	_, err := store.GetWorkflowExecution(ctx, req)
 	require.NoError(t, err)
 }
 
-func TestEffectiveShardID_logsOncePerOperationWhenRequestShardIDMissing(t *testing.T) {
+func TestEffectiveShardID_logsOncePerOperationWhenRequestShardIDInconsistent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockLogger := log.NewMockLogger(ctrl)
+	// One Warn per distinct operation, regardless of how many calls hit the same operation
+	// or whether the inconsistency is "missing" or "mismatch".
 	mockLogger.EXPECT().
-		Debug("execution store request missing ShardID; using store shard ID", gomock.Any(), gomock.Any()).
+		Warn("execution store request inconsistent with store shard ID; using store shard ID", gomock.Any()).
 		Times(2)
 
 	store := &nosqlExecutionStore{
@@ -2014,8 +2022,13 @@ func TestEffectiveShardID_logsOncePerOperationWhenRequestShardIDMissing(t *testi
 		},
 	}
 
+	// nil request shard id (missing) - logs once for "GetWorkflowExecution".
 	assert.Equal(t, 123, store.effectiveShardID(nil, "GetWorkflowExecution"))
+	// Same operation, deduped - no additional log.
 	assert.Equal(t, 123, store.effectiveShardID(nil, "GetWorkflowExecution"))
-	assert.Equal(t, 123, store.effectiveShardID(nil, "UpdateWorkflowExecution"))
-	assert.Equal(t, 999, store.effectiveShardID(common.IntPtr(999), "GetWorkflowExecution"))
+	// Different operation with a mismatching shard id - logs once for "UpdateWorkflowExecution"
+	// and still falls back to the store's shard ID (123) rather than honoring the request value.
+	assert.Equal(t, 123, store.effectiveShardID(common.IntPtr(999), "UpdateWorkflowExecution"))
+	// Matching shard id - no log, returns store shard id.
+	assert.Equal(t, 123, store.effectiveShardID(common.IntPtr(123), "DeleteWorkflowExecution"))
 }
