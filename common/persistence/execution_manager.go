@@ -1072,12 +1072,17 @@ func (m *executionManagerImpl) DeleteTimerTask(
 }
 
 // CleanupWorkflowTimerTasks reads the workflow_timer_tasks tracking map and deletes any unfired
-// timer tasks whose visibility timestamp is at least MinTTL before Now. Best-effort: individual
-// delete failures are logged but do not abort the operation or return an error.
+// timer tasks whose remaining time until firing is at least WorkflowTimerTaskCleanupMinTTL.
+// Best-effort: individual delete failures are logged but do not abort the operation or return an error.
 func (m *executionManagerImpl) CleanupWorkflowTimerTasks(
 	ctx context.Context,
 	request *CleanupWorkflowTimerTasksRequest,
 ) error {
+	if m.dc == nil || m.dc.WorkflowTimerTaskCleanupMinTTL == nil {
+		return nil
+	}
+	minTTL := m.dc.WorkflowTimerTaskCleanupMinTTL()
+	now := time.Now()
 	trackingMap, err := m.persistence.SelectWorkflowTimerTasks(
 		ctx, m.persistence.GetShardID(), request.DomainID, request.WorkflowID, request.RunID)
 	if err != nil || len(trackingMap) == 0 {
@@ -1086,7 +1091,7 @@ func (m *executionManagerImpl) CleanupWorkflowTimerTasks(
 	for taskID, visibilityTs := range trackingMap {
 		// Skip timers scheduled to fire within MinTTL — they'll clean up naturally.
 		// Delete timers far enough in the future (remaining time >= MinTTL).
-		if visibilityTs.Sub(request.Now) < request.MinTTL {
+		if visibilityTs.Sub(now) < minTTL {
 			continue
 		}
 		if delErr := m.DeleteTimerTask(ctx, &DeleteTimerTaskRequest{

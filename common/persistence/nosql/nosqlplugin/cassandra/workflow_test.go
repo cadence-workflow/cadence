@@ -597,41 +597,6 @@ func TestSelectWorkflowExecution(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:       "success with workflow timer tasks",
-			shardID:    1,
-			domainID:   "test-domain-id",
-			workflowID: "test-workflow-id",
-			runID:      "test-run-id",
-			queryMockFn: func(query *gocql.MockQuery) {
-				query.EXPECT().WithContext(gomock.Any()).Return(query)
-				query.EXPECT().MapScan(gomock.Any()).DoAndReturn(func(m map[string]interface{}) error {
-					m["execution"] = map[string]interface{}{}
-					m["replication_state"] = map[string]interface{}{}
-					m["version_histories"] = []byte{}
-					m["version_histories_encoding"] = "thriftrw"
-					m["activity_map"] = map[int64]map[string]interface{}{}
-					m["timer_map"] = map[string]map[string]interface{}{}
-					m["child_executions_map"] = map[int64]map[string]interface{}{}
-					m["request_cancel_map"] = map[int64]map[string]interface{}{}
-					m["signal_map"] = map[int64]map[string]interface{}{}
-					m["signal_requested"] = []interface{}{}
-					m["buffered_events_list"] = []map[string]interface{}{}
-					m["checksum"] = map[string]interface{}{}
-					return nil
-				}).Times(1)
-			},
-			wantResp: &nosqlplugin.WorkflowExecution{
-				ExecutionInfo:       &persistence.InternalWorkflowExecutionInfo{},
-				ActivityInfos:       map[int64]*persistence.InternalActivityInfo{},
-				TimerInfos:          map[string]*persistence.TimerInfo{},
-				ChildExecutionInfos: map[int64]*persistence.InternalChildExecutionInfo{},
-				RequestCancelInfos:  map[int64]*persistence.RequestCancelInfo{},
-				SignalInfos:         map[int64]*persistence.SignalInfo{},
-				SignalRequestedIDs:  map[string]struct{}{},
-				BufferedEvents:      []*persistence.DataBlob{},
-			},
-		},
 	}
 
 	for _, tc := range tests {

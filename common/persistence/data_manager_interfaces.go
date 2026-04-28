@@ -981,9 +981,6 @@ type (
 		DomainID   string
 		WorkflowID string
 		RunID      string
-		// Now is the reference time; only tasks whose visibility timestamp is before Now minus MinTTL are deleted.
-		Now    time.Time
-		MinTTL time.Duration
 	}
 
 	// RemoveWorkflowTimerTaskTrackingRequest is used to remove a single entry from workflow_timer_tasks

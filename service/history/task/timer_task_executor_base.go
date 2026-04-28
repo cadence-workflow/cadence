@@ -372,8 +372,6 @@ func (t *timerTaskExecutorBase) cleanupWorkflowTimerTasks(ctx context.Context, t
 		DomainID:   task.DomainID,
 		WorkflowID: task.WorkflowID,
 		RunID:      task.RunID,
-		Now:        t.shard.GetTimeSource().Now(),
-		MinTTL:     t.shard.GetConfig().WorkflowTimerTaskCleanupMinTTL(),
 	})
 }
 

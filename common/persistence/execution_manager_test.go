@@ -1981,17 +1981,17 @@ func TestCleanupWorkflowTimerTasks_DeletesLongLivedTimers(t *testing.T) {
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	now := time.Now()
 	minTTL := time.Hour
 	longLivedID := int64(1)
-	longLivedTS := now.Add(48 * time.Hour)
+	longLivedTS := time.Now().Add(48 * time.Hour)
 	shortLivedID := int64(2)
-	shortLivedTS := now.Add(30 * time.Minute) // < MinTTL, should be skipped
+	shortLivedTS := time.Now().Add(30 * time.Minute) // < MinTTL, should be skipped
 	pastID := int64(3)
-	pastTS := now.Add(-5 * time.Minute) // already fired, should be skipped
+	pastTS := time.Now().Add(-5 * time.Minute) // already fired, should be skipped
 
 	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		WorkflowTimerTaskCleanupMinTTL: dynamicproperties.GetDurationPropertyFn(minTTL),
 	})
 
 	mockedStore.EXPECT().GetShardID().Return(0).AnyTimes()
@@ -2011,8 +2011,6 @@ func TestCleanupWorkflowTimerTasks_DeletesLongLivedTimers(t *testing.T) {
 		DomainID:   testDomainID,
 		WorkflowID: testWorkflowID,
 		RunID:      testRunID,
-		Now:        now,
-		MinTTL:     minTTL,
 	})
 	assert.NoError(t, err)
 }
@@ -2023,7 +2021,8 @@ func TestCleanupWorkflowTimerTasks_EmptyMap(t *testing.T) {
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
 	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		WorkflowTimerTaskCleanupMinTTL: dynamicproperties.GetDurationPropertyFn(time.Hour),
 	})
 
 	mockedStore.EXPECT().GetShardID().Return(0).AnyTimes()
@@ -2034,8 +2033,6 @@ func TestCleanupWorkflowTimerTasks_EmptyMap(t *testing.T) {
 		DomainID:   testDomainID,
 		WorkflowID: testWorkflowID,
 		RunID:      testRunID,
-		Now:        time.Now(),
-		MinTTL:     time.Hour,
 	})
 	assert.NoError(t, err)
 }
