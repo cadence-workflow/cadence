@@ -45,9 +45,10 @@ const (
 	SchedulerBackfillFiredCountPerDomain  = "scheduler_backfill_fired_count_per_domain"
 	SchedulerContinueAsNewCountPerDomain  = "scheduler_continue_as_new_count_per_domain"
 	// SchedulerBufferOverflowCountPerDomain measures fires dropped because the
-	// BUFFER overlap policy queue is at its configured buffer_limit. Tagged with
-	// the drop reason so operators can distinguish user-imposed limits
-	// (reason=buffer_limit) from the safety cap (reason=safety_cap).
+	// BUFFER overlap policy queue is full. Tagged with the drop reason so
+	// operators can distinguish drops driven by the user's buffer_limit
+	// (reason=user_limit) from drops driven by the server-side ceiling that
+	// protects ContinueAsNew payload size (reason=system_limit).
 	SchedulerBufferOverflowCountPerDomain = "scheduler_buffer_overflow_count_per_domain"
 
 	// Tag key strings for scheduler workflow metrics.
@@ -58,18 +59,21 @@ const (
 	// ContinueAsNew reason tag values for scheduler_continue_as_new_count metric.
 	ContinueAsNewReasonMissedRun    = "missed_run"
 	ContinueAsNewReasonBackfill     = "back_fill"
+	ContinueAsNewReasonBufferDrain  = "buffer_drain"
 	ContinueAsNewReasonSignal       = "signal"
 	ContinueAsNewReasonIterationCap = "iteration_cap"
 
 	// Buffer overflow reason tag values for scheduler_buffer_overflow_count metric.
-	BufferOverflowReasonBufferLimit = "buffer_limit"
-	BufferOverflowReasonSafetyCap   = "safety_cap"
+	// Distinguishes drops driven by the user's buffer_limit from drops driven by
+	// the server-side cap that protects ContinueAsNew payload size.
+	BufferOverflowReasonUserLimit   = "user_limit"
+	BufferOverflowReasonSystemLimit = "system_limit"
 
-	// MaxBufferedFiresHardCap caps the BUFFER overlap policy queue regardless
-	// of buffer_limit (including buffer_limit=0 meaning unlimited). It bounds
-	// the ContinueAsNew payload size: each BufferedFire is ~50 bytes JSON, so
-	// 1000 entries stays well within the workflow input size limit.
-	MaxBufferedFiresHardCap = 1000
+	// MaxBufferedFiresSystemLimit caps the BUFFER overlap policy queue regardless
+	// of buffer_limit (including buffer_limit=0 meaning unlimited). It bounds the
+	// ContinueAsNew payload size: each BufferedFire is ~50 bytes JSON, so 1000
+	// entries stays well within the workflow input size limit.
+	MaxBufferedFiresSystemLimit = 1000
 
 	// signal_type tag values for scheduler_signal_received_count metric.
 	signalTypeTagPause    = "pause"
@@ -104,6 +108,7 @@ const (
 	maxIterationsBeforeContinueAsNew = 500
 	maxCatchUpFiresPerExecution      = 10
 	maxBackfillFiresPerExecution     = 10
+	maxDrainFiresPerExecution        = 10
 	maxPendingBackfills              = 10
 
 	localActivityScheduleToCloseTimeout = 60 * time.Second

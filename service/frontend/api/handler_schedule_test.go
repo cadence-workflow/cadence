@@ -210,7 +210,7 @@ func TestCreateSchedule(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		"BUFFER with buffer_limit above safety cap succeeds (warns)": {
+		"BUFFER with buffer_limit above system limit succeeds (warns)": {
 			request: &types.CreateScheduleRequest{
 				Domain:     testDomain,
 				ScheduleID: "my-schedule",
@@ -223,7 +223,7 @@ func TestCreateSchedule(t *testing.T) {
 				},
 				Policies: &types.SchedulePolicies{
 					OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-					BufferLimit:   int32(scheduler.MaxBufferedFiresHardCap * 2),
+					BufferLimit:   int32(scheduler.MaxBufferedFiresSystemLimit * 2),
 				},
 			},
 			mockFn: func(f *scheduleTestFixture) {
