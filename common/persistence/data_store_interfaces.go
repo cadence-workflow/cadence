@@ -552,7 +552,7 @@ type (
 		DeleteActivityInfos       []int64
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
-		WorkflowTimerTasks        map[int64]time.Time // taskID → visibilityTimestamp; appended to native Cassandra map
+		WorkflowTimerTasks        map[int64]time.Time
 		UpsertChildExecutionInfos []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
@@ -583,7 +583,7 @@ type (
 
 		ActivityInfos       []*InternalActivityInfo
 		TimerInfos          []*TimerInfo
-		WorkflowTimerTasks  map[int64]time.Time // taskID → visibilityTimestamp; appended to native Cassandra map
+		WorkflowTimerTasks  map[int64]time.Time
 		ChildExecutionInfos []*InternalChildExecutionInfo
 		RequestCancelInfos  []*RequestCancelInfo
 		SignalInfos         []*SignalInfo

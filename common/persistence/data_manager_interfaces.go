@@ -1683,15 +1683,7 @@ type (
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
-		DeleteTimerTask(ctx context.Context, request *DeleteTimerTaskRequest) error
-
-		// CleanupWorkflowTimerTasks reads the workflow_timer_tasks tracking map and deletes unfired
-		// timer tasks above the minimum-TTL threshold. Called at workflow deletion (retention) time.
-		// Best-effort: implementations should log errors but not propagate them.
 		CleanupWorkflowTimerTasks(ctx context.Context, request *CleanupWorkflowTimerTasksRequest) error
-
-		// RemoveWorkflowTimerTaskTracking removes a single entry from the workflow_timer_tasks map.
-		// Called when a timer fires naturally so it is not double-deleted at retention time.
 		RemoveWorkflowTimerTaskTracking(ctx context.Context, request *RemoveWorkflowTimerTaskTrackingRequest) error
 
 		// Scan operations

@@ -280,7 +280,6 @@ func builderForPassThrough(t *testing.T, injector any, limiter quotas.Limiter, e
 			mocked.EXPECT().RangeDeleteReplicationTaskFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.RangeDeleteReplicationTaskFromDLQResponse{}, expectedErr)
 			mocked.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(&types.ActiveClusterSelectionPolicy{}, expectedErr)
 			mocked.EXPECT().DeleteActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(expectedErr)
-			mocked.EXPECT().DeleteTimerTask(gomock.Any(), gomock.Any()).Return(expectedErr)
 			mocked.EXPECT().CleanupWorkflowTimerTasks(gomock.Any(), gomock.Any()).Return(expectedErr)
 			mocked.EXPECT().RemoveWorkflowTimerTaskTracking(gomock.Any(), gomock.Any()).Return(expectedErr)
 		}
