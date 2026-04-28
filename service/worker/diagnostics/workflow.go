@@ -114,7 +114,7 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 	sw := scope.StartTimer(metrics.DiagnosticsWorkflowExecutionLatency)
 	defer func() {
 		sw.Stop()
-		scope.RecordHistogramDuration(metrics.DiagnosticsWorkflowExecutionLatencyHistogram, time.Since(diagStart))
+		scope.RecordHistogramDuration(metrics.DiagnosticsWorkflowExecutionLatencyHistogram, workflow.Now(ctx).Sub(diagStart))
 	}()
 
 	var timeoutsResult *timeoutDiagnostics
