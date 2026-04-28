@@ -1268,6 +1268,7 @@ func resetWorkflowExecutionAndMapsAndEventBuffer(
 	if err != nil {
 		return err
 	}
+	appendWorkflowTimerTasks(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTasks, timeStamp)
 	err = resetChildExecutionInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ChildWorkflowInfos, timeStamp)
 	if err != nil {
 		return err
