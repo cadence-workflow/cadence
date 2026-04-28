@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -183,8 +184,9 @@ func TestAssignEphemeralBatch(t *testing.T) {
 			mockStorage := store.NewMockStore(ctrl)
 
 			h := &handlerImpl{
-				logger:  testlogger.New(t),
-				storage: mockStorage,
+				logger:     testlogger.New(t),
+				storage:    mockStorage,
+				timeSource: clock.NewMockedTimeSource(),
 			}
 
 			if tt.setupMocks != nil {

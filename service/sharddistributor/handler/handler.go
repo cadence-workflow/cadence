@@ -63,6 +63,7 @@ func NewHandler(
 		logger:               logger,
 		shardDistributionCfg: shardDistributionCfg,
 		storage:              storage,
+		timeSource:           timeSource,
 	}
 
 	handler.batcher = newShardBatcher(timeSource, ephemeralBatchInterval, handler.assignEphemeralBatch)
@@ -79,6 +80,7 @@ type handlerImpl struct {
 
 	storage              store.Store
 	shardDistributionCfg config.ShardDistribution
+	timeSource           clock.TimeSource
 
 	batcher *shardBatcher
 }

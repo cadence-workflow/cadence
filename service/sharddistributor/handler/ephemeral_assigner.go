@@ -60,7 +60,7 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 		return nil, err
 	}
 
-	mergeAssignments(state, chosenExecutors)
+	h.mergeAssignments(state, chosenExecutors)
 
 	if err := h.storage.AssignShards(ctx, namespace, store.AssignShardsRequest{NewState: state}, store.NopGuard()); err != nil {
 		if errors.Is(err, store.ErrVersionConflict) {
@@ -77,6 +77,25 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 	}
 
 	return buildResults(namespace, shardKeys, chosenExecutors, executorOwners), nil
+}
+
+// mergeAssignments folds the chosen shard→executor assignments back into state.
+// The AssignedShards maps are copied to avoid mutating the object returned by
+// GetState.
+func (h *handlerImpl) mergeAssignments(state *store.NamespaceState, chosenExecutors map[string]string) {
+	for executorID, shardsForExecutor := range invertMap(chosenExecutors) {
+		existing := state.ShardAssignments[executorID]
+		newShards := make(map[string]*types.ShardAssignment, len(existing.AssignedShards)+len(shardsForExecutor))
+		for k, v := range existing.AssignedShards {
+			newShards[k] = v
+		}
+		for _, shardKey := range shardsForExecutor {
+			newShards[shardKey] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
+		}
+		existing.AssignedShards = newShards
+		existing.LastUpdated = h.timeSource.Now().UTC()
+		state.ShardAssignments[executorID] = existing
+	}
 }
 
 // buildAssignedCounts returns a map of executorID -> current shard count for
@@ -114,24 +133,6 @@ func pickExecutors(namespace string, shardKeys []string, assignedCounts map[stri
 		assignedCounts[chosenExecutor]++
 	}
 	return chosenExecutors, nil
-}
-
-// mergeAssignments folds the chosen shard→executor assignments back into state.
-// The AssignedShards maps are copied to avoid mutating the object returned by
-// GetState.
-func mergeAssignments(state *store.NamespaceState, chosenExecutors map[string]string) {
-	for executorID, shardsForExecutor := range invertMap(chosenExecutors) {
-		existing := state.ShardAssignments[executorID]
-		newShards := make(map[string]*types.ShardAssignment, len(existing.AssignedShards)+len(shardsForExecutor))
-		for k, v := range existing.AssignedShards {
-			newShards[k] = v
-		}
-		for _, shardKey := range shardsForExecutor {
-			newShards[shardKey] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
-		}
-		existing.AssignedShards = newShards
-		state.ShardAssignments[executorID] = existing
-	}
 }
 
 // fetchExecutorMetadata calls GetExecutor once per unique chosen executor to

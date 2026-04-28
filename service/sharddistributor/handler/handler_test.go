@@ -50,12 +50,14 @@ const (
 // ready to use; callers should call Stop() when done.
 func newTestHandler(t *testing.T, cfg config.ShardDistribution, mockStore *store.MockStore) *handlerImpl {
 	t.Helper()
+	ts := clock.NewRealTimeSource()
 	handler := &handlerImpl{
 		logger:               testlogger.New(t),
 		shardDistributionCfg: cfg,
 		storage:              mockStore,
+		timeSource:           ts,
 	}
-	handler.batcher = newShardBatcher(clock.NewRealTimeSource(), 10*time.Millisecond, handler.assignEphemeralBatch)
+	handler.batcher = newShardBatcher(ts, 10*time.Millisecond, handler.assignEphemeralBatch)
 	handler.batcher.Start()
 	t.Cleanup(handler.batcher.Stop)
 	return handler
