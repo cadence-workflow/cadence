@@ -27,15 +27,12 @@ import (
 )
 
 // HistoryDLQBackend is the persistence-layer contract for writing to the history task DLQ.
-// This interface will be satisfied by persistence.HistoryTaskDLQManager once Plan 1 is merged.
-// The method signature uses individual parameters (all primitive/existing types) to avoid
-// a compile-time dependency on persistence types that don't yet exist.
+// This interface will be satisfied by persistence.HistoryTaskDLQManager when the persistence layer
+// is written. TODO(c-warren): Remove this file once the persistence layer is written.
 type HistoryDLQBackend interface {
 	CreateHistoryDLQTask(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string, task persistence.Task) error
 }
 
-// storeImpl satisfies HistoryTaskDLQStore. AddTask is fully implemented; the read/ack methods
-// will be implemented when this store is wired into the DLQ processor (separate work).
 type storeImpl struct {
 	backend HistoryDLQBackend
 }
