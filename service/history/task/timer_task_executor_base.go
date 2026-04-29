@@ -376,7 +376,16 @@ func (t *timerTaskExecutorBase) cleanupWorkflowTimerTasks(ctx context.Context, t
 		WorkflowID: task.WorkflowID,
 		RunID:      task.RunID,
 	})
-	if err != nil || len(tasks) == 0 {
+	if err != nil {
+		t.logger.Warn("failed to fetch workflow timer tasks for cleanup",
+			tag.WorkflowDomainID(task.DomainID),
+			tag.WorkflowID(task.WorkflowID),
+			tag.WorkflowRunID(task.RunID),
+			tag.Error(err),
+		)
+		return
+	}
+	if len(tasks) == 0 {
 		return
 	}
 	go func() {
@@ -388,6 +397,7 @@ func (t *timerTaskExecutorBase) cleanupWorkflowTimerTasks(ctx context.Context, t
 			RunID:      task.RunID,
 			Tasks:      tasks,
 		})
+		t.metricsClient.AddCounter(metrics.HistoryProcessDeleteHistoryEventScope, metrics.WorkflowCleanupTimerTasksSentForDeletionCount, int64(len(tasks)))
 	}()
 }
 
