@@ -186,7 +186,7 @@ func (t *timerStandbyTaskExecutor) executeUserTimerTimeoutTask(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard.GetShardID(), t.clusterName, t.clusterName),
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
 		),
 	)
 }
@@ -294,7 +294,7 @@ func (t *timerStandbyTaskExecutor) executeActivityTimeoutTask(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard.GetShardID(), t.clusterName, t.clusterName),
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
 		),
 	)
 }
@@ -344,7 +344,7 @@ func (t *timerStandbyTaskExecutor) executeDecisionTimeoutTask(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard.GetShardID(), t.clusterName, t.clusterName),
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
 		),
 	)
 }
@@ -387,7 +387,7 @@ func (t *timerStandbyTaskExecutor) executeWorkflowBackoffTimerTask(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard.GetShardID(), t.clusterName, t.clusterName),
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
 		),
 	)
 }
@@ -426,7 +426,7 @@ func (t *timerStandbyTaskExecutor) executeWorkflowTimeoutTask(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard.GetShardID(), t.clusterName, t.clusterName),
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
 		),
 	)
 }

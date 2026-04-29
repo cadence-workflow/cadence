@@ -99,6 +99,7 @@ func NewTransferActiveTaskExecutor(
 			executionCache,
 			logger,
 			config,
+			nil, // ActiveTaskExecutor never needs a DLQ writer
 		),
 		historyClient: shard.GetService().GetHistoryClient(),
 		parentClosePolicyClient: parentclosepolicy.NewClient(

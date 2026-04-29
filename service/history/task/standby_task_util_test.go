@@ -10,9 +10,12 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/activecluster"
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/history/constants"
+	"github.com/uber/cadence/service/history/shard"
 	"github.com/uber/cadence/service/history/taskdlq"
 )
 
@@ -137,8 +140,15 @@ func (m *mockDLQWriter) AddTask(_ context.Context, req taskdlq.AddTaskRequest) e
 }
 
 func TestStandbyTaskPostActionWriteToDLQ_NilPostActionInfo_ReturnsNil(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	writer := &mockDLQWriter{}
-	fn := standbyTaskPostActionWriteToDLQ(writer, 1, "scope", "name")
+	mockShard := shard.NewMockContext(ctrl)
+	mockShard.EXPECT().GetShardID().Return(1)
+	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
+
+	fn := standbyTaskPostActionWriteToDLQ(writer, mockShard, enabled)
 	err := fn(context.Background(), &persistence.DecisionTask{}, nil, testlogger.New(t))
 	assert.NoError(t, err)
 	assert.Empty(t, writer.calls)
@@ -158,7 +168,24 @@ func TestStandbyTaskPostActionWriteToDLQ_WritesTaskToDLQ(t *testing.T) {
 	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
 	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
 
-	fn := standbyTaskPostActionWriteToDLQ(writer, 7, "my-scope", "my-name")
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, true), nil)
+
+	mockActiveClusterMgr := activecluster.NewMockManager(ctrl)
+	mockActiveClusterMgr.EXPECT().
+		GetActiveClusterSelectionPolicyForWorkflow(gomock.Any(), "domain-1", "wf-1", "run-1").
+		Return(&types.ActiveClusterSelectionPolicy{
+			ClusterAttribute: &types.ClusterAttribute{Scope: "my-scope", Name: "my-name"},
+		}, nil)
+
+	mockShard := shard.NewMockContext(ctrl)
+	mockShard.EXPECT().GetShardID().Return(7)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
+
+	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
+
+	fn := standbyTaskPostActionWriteToDLQ(writer, mockShard, enabled)
 	err := fn(context.Background(), mockTask, "some-post-action-info", testlogger.New(t))
 
 	assert.NoError(t, err)
@@ -186,7 +213,24 @@ func TestStandbyTaskPostActionWriteToDLQ_PropagatesWriterError(t *testing.T) {
 	mockTask.EXPECT().GetVersion().Return(int64(1)).AnyTimes()
 	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
 
-	fn := standbyTaskPostActionWriteToDLQ(writer, 1, "s", "n")
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetDomainByID("d").Return(getDomainCacheEntry(true, true), nil)
+
+	mockActiveClusterMgr := activecluster.NewMockManager(ctrl)
+	mockActiveClusterMgr.EXPECT().
+		GetActiveClusterSelectionPolicyForWorkflow(gomock.Any(), "d", "w", "r").
+		Return(&types.ActiveClusterSelectionPolicy{
+			ClusterAttribute: &types.ClusterAttribute{Scope: "s", Name: "n"},
+		}, nil)
+
+	mockShard := shard.NewMockContext(ctrl)
+	mockShard.EXPECT().GetShardID().Return(1)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
+
+	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
+
+	fn := standbyTaskPostActionWriteToDLQ(writer, mockShard, enabled)
 	err := fn(context.Background(), mockTask, "info", testlogger.New(t))
 
 	assert.ErrorIs(t, err, sentinel)
@@ -205,7 +249,11 @@ func TestStandbyTaskPostActionWriteToDLQ_NilWriter_FallsBackToDiscard(t *testing
 	mockTask.EXPECT().GetVersion().Return(int64(1)).AnyTimes()
 	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
 
-	fn := standbyTaskPostActionWriteToDLQ(nil, 1, "s", "n")
+	// nil writer returns standbyTaskPostActionTaskDiscarded before GetShardID is called
+	mockShard := shard.NewMockContext(ctrl)
+	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
+
+	fn := standbyTaskPostActionWriteToDLQ(nil, mockShard, enabled)
 	err := fn(context.Background(), mockTask, "info", testlogger.New(t))
 
 	assert.ErrorIs(t, err, ErrTaskDiscarded)

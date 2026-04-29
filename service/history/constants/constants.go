@@ -36,3 +36,12 @@ var (
 	ErrHistoryHostThrottle     = &types.ServiceBusyError{Message: "History host rps exceeded"}
 	ErrShuttingDown            = &types.InternalServiceError{Message: "Shutting down"}
 )
+
+const (
+	// ArchivalEnabled is the status for enabling archival
+	HistoryTaskDLQModeEnabled = "enabled"
+	// ArchivalDisabled is the status for disabling archival
+	HistoryTaskDLQModeDisabled = "disabled"
+	// HistoryTaskDLQModeShadow is the status for writing to the DLQ but not processing the task
+	HistoryTaskDLQModeShadow = "shadow"
+)

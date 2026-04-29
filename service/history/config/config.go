@@ -345,6 +345,10 @@ type Config struct {
 	GlobalRatelimiterDecayAfter     dynamicproperties.DurationPropertyFn
 	GlobalRatelimiterGCAfter        dynamicproperties.DurationPropertyFn
 
+	// History Task DLQ Configuration
+	HistoryTaskDLQMode            dynamicproperties.StringPropertyFnWithDomainFilter
+	HistoryTaskProcessingInterval dynamicproperties.DurationPropertyFnWithShardIDFilter
+
 	// HostName for machine running the service
 	HostName string
 }
@@ -611,6 +615,9 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		GlobalRatelimiterUpdateInterval: dc.GetDurationProperty(dynamicproperties.GlobalRatelimiterUpdateInterval),
 		GlobalRatelimiterDecayAfter:     dc.GetDurationProperty(dynamicproperties.HistoryGlobalRatelimiterDecayAfter),
 		GlobalRatelimiterGCAfter:        dc.GetDurationProperty(dynamicproperties.HistoryGlobalRatelimiterGCAfter),
+
+		HistoryTaskDLQMode:            dc.GetStringPropertyFilteredByDomain(dynamicproperties.HistoryTaskDeadLetterQueueMode),
+		HistoryTaskProcessingInterval: dc.GetDurationPropertyFilteredByShardID(dynamicproperties.HistoryTaskDLQProcessorInterval),
 
 		HostName: hostname,
 	}

@@ -282,6 +282,8 @@ func TestNewConfig(t *testing.T) {
 		"EnableCorruptionAutoRepair":                           {dynamicproperties.EnableCorruptionAutoRepair, true},
 		"CorruptionRepairTimeout":                              {dynamicproperties.CorruptionRepairTimeout, time.Duration(1)},
 		"RequireChecksumMatchAfterRebuildRepair":               {dynamicproperties.RequireChecksumMatchAfterRebuildRepair, true},
+		"HistoryTaskDLQMode":                                   {dynamicproperties.HistoryTaskDeadLetterQueueMode, "enabled"},
+		"HistoryTaskProcessingInterval":                        {dynamicproperties.HistoryTaskDLQProcessorInterval, time.Second},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {
