@@ -44,6 +44,23 @@ func setupProcessorTestGreedy(t *testing.T, namespaceType string) *testDependenc
 				return 2.0
 			},
 		},
+		LoadBalancingGreedy: config.LoadBalancingGreedyConfig{
+			PerShardCooldown: func(namespace string) time.Duration {
+				return time.Minute
+			},
+			MoveBudgetProportion: func(namespace string) float64 {
+				return 0.01
+			},
+			HysteresisUpperBand: func(namespace string) float64 {
+				return 1.15
+			},
+			HysteresisLowerBand: func(namespace string) float64 {
+				return 0.90
+			},
+			SevereImbalanceRatio: func(namespace string) float64 {
+				return 1.3
+			},
+		},
 		MigrationMode: migrationConfig.MigrationMode,
 	}
 
@@ -55,13 +72,6 @@ func setupProcessorTestGreedy(t *testing.T, namespaceType string) *testDependenc
 			Process: config.LeaderProcess{
 				Period:       time.Second,
 				HeartbeatTTL: time.Second,
-				LoadBalance: config.LoadBalance{
-					MoveBudgetProportion: 0.01,
-					HysteresisUpperBand:  1.15,
-					HysteresisLowerBand:  0.90,
-					SevereImbalanceRatio: 1.3,
-					PerShardCooldown:     time.Minute,
-				},
 			},
 		},
 		deps.sdConfig,
@@ -217,8 +227,12 @@ func TestLoadBalance_SevereImbalance_AllowsMoveWithoutDestinations(t *testing.T)
 	defer mocks.ctrl.Finish()
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
-	processor.cfg.LoadBalance.HysteresisLowerBand = 0.1 // make destinations strict
-	processor.cfg.LoadBalance.SevereImbalanceRatio = 2.0
+	processor.sdConfig.LoadBalancingGreedy.HysteresisLowerBand = func(namespace string) float64 {
+		return 0.1 // make destinations strict
+	}
+	processor.sdConfig.LoadBalancingGreedy.SevereImbalanceRatio = func(namespace string) float64 {
+		return 2.0
+	}
 
 	execA, execB, execC, execD, execE := "exec-A", "exec-B", "exec-C", "exec-D", "exec-E"
 	now := mocks.timeSource.Now()
@@ -268,7 +282,7 @@ func TestLoadBalance_SevereImbalance_AllowsMoveWithoutDestinations(t *testing.T)
 
 	initialA := len(currentAssignments[execA])
 	initialOther := len(currentAssignments[execB]) + len(currentAssignments[execC]) + len(currentAssignments[execD]) + len(currentAssignments[execE])
-	expectedBudget := computeMoveBudget(len(shardStats), processor.cfg.LoadBalance.MoveBudgetProportion)
+	expectedBudget := computeMoveBudget(len(shardStats), processor.sdConfig.LoadBalancingGreedy.MoveBudgetProportion(processor.namespaceCfg.Name))
 
 	changed, err := processor.rebalanceGreedyBySmoothedLoad(namespaceState, currentAssignments, metrics.NoopScope)
 	require.NoError(t, err)
@@ -285,8 +299,12 @@ func TestLoadBalance_NoDestinations_NotSevere(t *testing.T) {
 	defer mocks.ctrl.Finish()
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
-	processor.cfg.LoadBalance.HysteresisLowerBand = 0.1 // make destinations very strict
-	processor.cfg.LoadBalance.SevereImbalanceRatio = 10.0
+	processor.sdConfig.LoadBalancingGreedy.HysteresisLowerBand = func(namespace string) float64 {
+		return 0.1 // make destinations very strict
+	}
+	processor.sdConfig.LoadBalancingGreedy.SevereImbalanceRatio = func(namespace string) float64 {
+		return 10.0
+	}
 
 	execA, execB := "exec-A", "exec-B"
 	now := mocks.timeSource.Now()
@@ -364,7 +382,7 @@ func TestLoadBalance_BudgetConstraint(t *testing.T) {
 	}
 
 	totalShards := len(shardStats)
-	expectedBudget := computeMoveBudget(totalShards, processor.cfg.LoadBalance.MoveBudgetProportion)
+	expectedBudget := computeMoveBudget(totalShards, processor.sdConfig.LoadBalancingGreedy.MoveBudgetProportion(processor.namespaceCfg.Name))
 	initialHot := len(assignments[execA].AssignedShards) + len(assignments[execB].AssignedShards) + len(assignments[execC].AssignedShards)
 	initialD := len(assignments[execD].AssignedShards)
 	expectedHotAfter := initialHot - expectedBudget
@@ -441,7 +459,7 @@ func TestLoadBalance_MultiMovePerCycle(t *testing.T) {
 	}
 
 	totalShards := len(shardStats)
-	expectedBudget := computeMoveBudget(totalShards, processor.cfg.LoadBalance.MoveBudgetProportion)
+	expectedBudget := computeMoveBudget(totalShards, processor.sdConfig.LoadBalancingGreedy.MoveBudgetProportion(processor.namespaceCfg.Name))
 
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
 		Executors: map[string]store.HeartbeatState{
@@ -485,7 +503,7 @@ func TestLoadBalance_PerShardCooldownSkipsHotShard(t *testing.T) {
 
 	execA, execB := "exec-A", "exec-B"
 	now := mocks.timeSource.Now()
-	cooldown := processor.cfg.LoadBalance.PerShardCooldown
+	cooldown := processor.sdConfig.LoadBalancingGreedy.PerShardCooldown(processor.namespaceCfg.Name)
 	require.True(t, cooldown > 0, "PerShardCooldown should be configured")
 	recentMove := now.Add(-cooldown / 2)
 

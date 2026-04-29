@@ -328,6 +328,22 @@ func (c *Collection) GetDurationPropertyFilteredByDomainID(key dynamicproperties
 	}
 }
 
+// GetDurationPropertyFilteredByNamespace gets property with namespace filter and asserts that it's a duration
+func (c *Collection) GetDurationPropertyFilteredByNamespace(key dynamicproperties.DurationKey) dynamicproperties.DurationPropertyFnWithNamespaceFilters {
+	return func(namespace string) time.Duration {
+		filters := c.toFilterMap(dynamicproperties.NamespaceFilter(namespace))
+		val, err := c.client.GetDurationValue(
+			key,
+			filters,
+		)
+		if err != nil {
+			c.logError(key, filters, err)
+			return key.DefaultDuration()
+		}
+		return val
+	}
+}
+
 // GetDurationPropertyFilteredByTaskListInfo gets property with taskListInfo as filters and asserts that it's a duration
 func (c *Collection) GetDurationPropertyFilteredByTaskListInfo(key dynamicproperties.DurationKey) dynamicproperties.DurationPropertyFnWithTaskListInfoFilters {
 	return func(domain string, taskList string, taskType int) time.Duration {

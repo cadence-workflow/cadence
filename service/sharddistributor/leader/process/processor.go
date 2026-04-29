@@ -50,12 +50,6 @@ const (
 	_defaultHeartbeatTTL = 10 * time.Second
 	_defaultTimeout      = 1 * time.Second
 	_defaultCooldown     = 250 * time.Millisecond
-
-	_defaultPerShardCooldown     = time.Minute
-	_defaultMoveBudgetProportion = 0.01
-	_defaultHysteresisUpperBand  = 1.15
-	_defaultHysteresisLowerBand  = 0.90
-	_defaultSevereImbalanceRatio = 1.3
 )
 
 type processorFactory struct {
@@ -101,32 +95,12 @@ func NewProcessorFactory(
 		cfg.Process.RebalanceCooldown = _defaultCooldown
 	}
 
-	setGreedyDefaults(&cfg)
-
 	return &processorFactory{
 		logger:        logger,
 		timeSource:    timeSource,
 		cfg:           cfg.Process,
 		metricsClient: metricsClient,
 		sdConfig:      sdConfig,
-	}
-}
-
-func setGreedyDefaults(cfg *config.ShardDistribution) {
-	if cfg.Process.LoadBalance.PerShardCooldown <= 0 {
-		cfg.Process.LoadBalance.PerShardCooldown = _defaultPerShardCooldown
-	}
-	if cfg.Process.LoadBalance.MoveBudgetProportion <= 0 {
-		cfg.Process.LoadBalance.MoveBudgetProportion = _defaultMoveBudgetProportion
-	}
-	if cfg.Process.LoadBalance.HysteresisUpperBand <= 0 {
-		cfg.Process.LoadBalance.HysteresisUpperBand = _defaultHysteresisUpperBand
-	}
-	if cfg.Process.LoadBalance.HysteresisLowerBand <= 0 {
-		cfg.Process.LoadBalance.HysteresisLowerBand = _defaultHysteresisLowerBand
-	}
-	if cfg.Process.LoadBalance.SevereImbalanceRatio <= 0 {
-		cfg.Process.LoadBalance.SevereImbalanceRatio = _defaultSevereImbalanceRatio
 	}
 }
 

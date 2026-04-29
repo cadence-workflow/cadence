@@ -16,6 +16,9 @@ func (p *namespaceProcessor) rebalanceGreedyBySmoothedLoad(
 	currentAssignments map[string][]string,
 	metricsScope metrics.Scope,
 ) (bool, error) {
+	namespace := p.namespaceCfg.Name
+	greedyConfig := p.sdConfig.LoadBalancingGreedy
+
 	loads, totalLoad := computeExecutorLoads(currentAssignments, namespaceState)
 	if len(loads) == 0 {
 		return false, nil
@@ -26,7 +29,7 @@ func (p *namespaceProcessor) rebalanceGreedyBySmoothedLoad(
 	for _, shards := range currentAssignments {
 		totalShards += len(shards)
 	}
-	moveBudget := computeMoveBudget(totalShards, p.cfg.LoadBalance.MoveBudgetProportion)
+	moveBudget := computeMoveBudget(totalShards, greedyConfig.MoveBudgetProportion(namespace))
 	if moveBudget <= 0 {
 		return false, nil
 	}
@@ -42,8 +45,8 @@ func (p *namespaceProcessor) rebalanceGreedyBySmoothedLoad(
 			loads,
 			namespaceState,
 			meanLoad,
-			p.cfg.LoadBalance.HysteresisUpperBand,
-			p.cfg.LoadBalance.HysteresisLowerBand,
+			greedyConfig.HysteresisUpperBand(namespace),
+			greedyConfig.HysteresisLowerBand(namespace),
 		)
 
 		if len(sourceExecutors) == 0 {
@@ -53,7 +56,7 @@ func (p *namespaceProcessor) rebalanceGreedyBySmoothedLoad(
 		// If we have sources but no destinations under the normal lower band,
 		// allow moving to the least-loaded ACTIVE executor when imbalance is severe.
 		if len(destinationExecutors) == 0 {
-			if !isSevereImbalance(loads, meanLoad, p.cfg.LoadBalance.SevereImbalanceRatio) {
+			if !isSevereImbalance(loads, meanLoad, greedyConfig.SevereImbalanceRatio(namespace)) {
 				break
 			}
 			relaxed := make(map[string]struct{})
@@ -91,6 +94,7 @@ func (p *namespaceProcessor) rebalanceGreedyBySmoothedLoad(
 				loads,
 				movedShards,
 				now,
+				greedyConfig.PerShardCooldown(namespace),
 			)
 			if !found {
 				// No eligible shard for this source+destination (cooldown, or no beneficial move), try the next source.
@@ -232,9 +236,9 @@ func (p *namespaceProcessor) findShardToMove(
 	executorLoads map[string]float64,
 	movedShards map[string]struct{},
 	now time.Time,
+	perShardCooldown time.Duration,
 ) (string, int, bool) {
 	bestShard := ""
-	perShardCooldown := p.cfg.LoadBalance.PerShardCooldown
 
 	sourceLoad := executorLoads[source]
 	destLoad := executorLoads[destination]
