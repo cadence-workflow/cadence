@@ -26,7 +26,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/handler/loadbalance"
@@ -101,38 +100,6 @@ func pickExecutors(namespace string, balancer loadbalance.Balancer, shardKeys []
 		chosen[shardKey] = executor
 	}
 	return chosen, nil
-}
-
-// pickExecutorBySmoothedLoad returns the executor with the lowest smoothed load.
-// Ties are broken by shard count, then by sorted executorID order.
-func pickExecutorBySmoothedLoad(executorIDs []string, assignmentLoads map[string]executorAssignmentLoad) string {
-	chosenExecutor := ""
-	minLoad := math.MaxFloat64
-	minCount := math.MaxInt
-	for _, executorID := range executorIDs {
-		load := assignmentLoads[executorID]
-		if load.smoothedLoad < minLoad || (load.smoothedLoad == minLoad && load.shardCount < minCount) {
-			minLoad = load.smoothedLoad
-			minCount = load.shardCount
-			chosenExecutor = executorID
-		}
-	}
-	return chosenExecutor
-}
-
-// pickExecutorByShardCount returns the executor with the fewest assigned shards.
-// Ties are broken by sorted executorID order.
-func pickExecutorByShardCount(executorIDs []string, assignmentLoads map[string]executorAssignmentLoad) string {
-	chosenExecutor := ""
-	minCount := math.MaxInt
-	for _, executorID := range executorIDs {
-		load := assignmentLoads[executorID]
-		if load.shardCount < minCount {
-			minCount = load.shardCount
-			chosenExecutor = executorID
-		}
-	}
-	return chosenExecutor
 }
 
 // mergeAssignments folds the chosen shard→executor assignments back into state.
