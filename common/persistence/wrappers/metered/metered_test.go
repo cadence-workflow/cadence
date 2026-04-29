@@ -278,7 +278,6 @@ func prepareMockForTest(t *testing.T, input interface{}, expectedErr error) {
 		mocked.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(&types.ActiveClusterSelectionPolicy{}, expectedErr).Times(1)
 		mocked.EXPECT().DeleteActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 		mocked.EXPECT().CleanupWorkflowTimerTasks(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
-		mocked.EXPECT().RemoveWorkflowTimerTaskTracking(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 	default:
 		t.Errorf("unsupported type %v", reflect.TypeOf(input))
 		t.FailNow()

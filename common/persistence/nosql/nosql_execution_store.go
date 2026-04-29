@@ -1070,16 +1070,3 @@ func (d *nosqlExecutionStore) SelectWorkflowTimerTasks(
 	}
 	return result, nil
 }
-
-func (d *nosqlExecutionStore) DeleteWorkflowTimerTaskEntry(
-	ctx context.Context,
-	shardID int,
-	domainID, workflowID, runID string,
-	taskID int64,
-) error {
-	err := d.db.DeleteWorkflowTimerTaskEntry(ctx, shardID, domainID, workflowID, runID, taskID)
-	if err != nil {
-		return convertCommonErrors(d.db, "DeleteWorkflowTimerTaskEntry", err)
-	}
-	return nil
-}

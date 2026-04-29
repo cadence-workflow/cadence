@@ -6150,13 +6150,12 @@ func (s *ExecutionManagerSuite) TestWorkflowTimerTaskTracking() {
 	s.NoError(err)
 	s.Require().NotNil(state)
 
-	// Verify that the workflow timer task tracking entry was written by attempting to remove it.
-	// A nil error means the entry existed in the workflow_timer_tasks map.
-	err = s.ExecutionManager.RemoveWorkflowTimerTaskTracking(ctx, &p.RemoveWorkflowTimerTaskTrackingRequest{
+	// Verify that CleanupWorkflowTimerTasks runs without error, which exercises
+	// the SelectWorkflowTimerTasks path on the tracking map.
+	err = s.ExecutionManager.CleanupWorkflowTimerTasks(ctx, &p.CleanupWorkflowTimerTasksRequest{
 		DomainID:   domainID,
 		WorkflowID: workflowExecution.WorkflowID,
 		RunID:      workflowExecution.RunID,
-		TaskID:     timerTask.TaskID,
 	})
-	s.NoError(err, "expected RemoveWorkflowTimerTaskTracking to succeed, meaning the task was tracked")
+	s.NoError(err)
 }

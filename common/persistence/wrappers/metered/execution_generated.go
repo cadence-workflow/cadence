@@ -572,30 +572,6 @@ func (c *meteredExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context.
 	return
 }
 
-func (c *meteredExecutionManager) RemoveWorkflowTimerTaskTracking(ctx context.Context, request *persistence.RemoveWorkflowTimerTaskTrackingRequest) (err error) {
-	op := func() error {
-		err = c.wrapped.RemoveWorkflowTimerTaskTracking(ctx, request)
-		return err
-	}
-
-	retryCount := getRetryCountFromContext(ctx)
-	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
-		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
-		c.logger.Debug("Persistence RemoveWorkflowTimerTaskTracking called", logTags...)
-		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceRemoveWorkflowTimerTaskTrackingScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
-		} else {
-			err = c.call(metrics.PersistenceRemoveWorkflowTimerTaskTrackingScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
-		}
-		return
-	}
-
-	err = c.callWithoutDomainTag(metrics.PersistenceRemoveWorkflowTimerTaskTrackingScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
-
-	return
-}
-
 func (c *meteredExecutionManager) UpdateWorkflowExecution(ctx context.Context, request *persistence.UpdateWorkflowExecutionRequest) (up1 *persistence.UpdateWorkflowExecutionResponse, err error) {
 	op := func() error {
 		up1, err = c.wrapped.UpdateWorkflowExecution(ctx, request)

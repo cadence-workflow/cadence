@@ -130,20 +130,6 @@ func (t *timerActiveTaskExecutor) Execute(task Task) (ExecuteResponse, error) {
 	}
 }
 
-// removeTimerTaskTracking removes a fired timer from the workflow_timer_tasks tracking map.
-// Best-effort: errors are silently ignored since the timer has already fired naturally.
-func (t *timerActiveTaskExecutor) removeTimerTaskTracking(ctx context.Context, task persistence.Task) {
-	if !t.shard.GetConfig().EnableWorkflowTimerTaskCleanup() {
-		return
-	}
-	_ = t.shard.GetExecutionManager().RemoveWorkflowTimerTaskTracking(ctx, &persistence.RemoveWorkflowTimerTaskTrackingRequest{
-		DomainID:   task.GetDomainID(),
-		WorkflowID: task.GetWorkflowID(),
-		RunID:      task.GetRunID(),
-		TaskID:     task.GetTaskID(),
-	})
-}
-
 func (t *timerActiveTaskExecutor) executeUserTimerTimeoutTask(
 	ctx context.Context,
 	task *persistence.UserTimerTask,
@@ -174,8 +160,6 @@ func (t *timerActiveTaskExecutor) executeUserTimerTimeoutTask(
 	if mutableState == nil || !mutableState.IsWorkflowExecutionRunning() {
 		return nil
 	}
-
-	t.removeTimerTaskTracking(ctx, task)
 
 	timerSequence := execution.NewTimerSequence(mutableState)
 	referenceTime := t.shard.GetTimeSource().Now()
@@ -318,8 +302,6 @@ func (t *timerActiveTaskExecutor) executeActivityTimeoutTask(
 	if mutableState == nil || !mutableState.IsWorkflowExecutionRunning() {
 		return nil
 	}
-
-	t.removeTimerTaskTracking(ctx, task)
 
 	wfType := mutableState.GetWorkflowType()
 	if wfType == nil {
@@ -505,8 +487,6 @@ func (t *timerActiveTaskExecutor) executeDecisionTimeoutTask(
 		return nil
 	}
 
-	t.removeTimerTaskTracking(ctx, task)
-
 	wfType := mutableState.GetWorkflowType()
 	if wfType == nil {
 		return fmt.Errorf("unable to find workflow type, task %v", task)
@@ -631,8 +611,6 @@ func (t *timerActiveTaskExecutor) executeWorkflowBackoffTimerTask(
 		return nil
 	}
 
-	t.removeTimerTaskTracking(ctx, task)
-
 	if task.TimeoutType == persistence.WorkflowBackoffTimeoutTypeRetry {
 		t.metricsClient.IncCounter(metrics.TimerActiveTaskWorkflowBackoffTimerScope, metrics.WorkflowRetryBackoffTimerCount)
 	} else {
@@ -705,8 +683,6 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 	if mutableState == nil || !mutableState.IsWorkflowExecutionRunning() {
 		return nil
 	}
-
-	t.removeTimerTaskTracking(ctx, task)
 
 	// generate activity task
 	scheduledID := task.EventID
@@ -816,8 +792,6 @@ func (t *timerActiveTaskExecutor) executeWorkflowTimeoutTask(
 	if err != nil || !ok {
 		return err
 	}
-
-	t.removeTimerTaskTracking(ctx, task)
 
 	eventBatchFirstEventID := mutableState.GetNextEventID()
 

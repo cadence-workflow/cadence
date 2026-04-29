@@ -561,20 +561,6 @@ func (_m *ExecutionManager) CleanupWorkflowTimerTasks(ctx context.Context, reque
 	return r0
 }
 
-// RemoveWorkflowTimerTaskTracking provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) RemoveWorkflowTimerTaskTracking(ctx context.Context, request *persistence.RemoveWorkflowTimerTaskTrackingRequest) error {
-	ret := _m.Called(ctx, request)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.RemoveWorkflowTimerTaskTrackingRequest) error); ok {
-		r0 = rf(ctx, request)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // NewExecutionManager
 
 // NewExecutionManager creates a new instance of ExecutionManager. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -213,14 +213,6 @@ func (c *ratelimitedExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx cont
 	return c.wrapped.RangeDeleteReplicationTaskFromDLQ(ctx, request)
 }
 
-func (c *ratelimitedExecutionManager) RemoveWorkflowTimerTaskTracking(ctx context.Context, request *persistence.RemoveWorkflowTimerTaskTrackingRequest) (err error) {
-	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
-		err = ErrPersistenceLimitExceeded
-		return
-	}
-	return c.wrapped.RemoveWorkflowTimerTaskTracking(ctx, request)
-}
-
 func (c *ratelimitedExecutionManager) UpdateWorkflowExecution(ctx context.Context, request *persistence.UpdateWorkflowExecutionRequest) (up1 *persistence.UpdateWorkflowExecutionResponse, err error) {
 	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded

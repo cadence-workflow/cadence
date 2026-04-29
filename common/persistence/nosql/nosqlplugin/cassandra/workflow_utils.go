@@ -1012,26 +1012,6 @@ func appendWorkflowTimerTasks(
 	}
 }
 
-// removeWorkflowTimerTaskEntry removes a single entry from the workflow_timer_tasks map.
-func removeWorkflowTimerTaskEntry(
-	batch gocql.Batch,
-	shardID int,
-	domainID string,
-	workflowID string,
-	runID string,
-	taskID int64,
-) {
-	batch.Query(templateDeleteWorkflowTimerTaskEntryQuery,
-		taskID,
-		shardID,
-		rowTypeExecution,
-		domainID,
-		workflowID,
-		runID,
-		defaultVisibilityTimestamp,
-		rowTypeExecutionTaskID)
-}
-
 func resetActivityInfos(
 	batch gocql.Batch,
 	shardID int,

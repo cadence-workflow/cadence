@@ -2036,26 +2036,3 @@ func TestCleanupWorkflowTimerTasks_EmptyMap(t *testing.T) {
 	})
 	assert.NoError(t, err)
 }
-
-func TestRemoveWorkflowTimerTaskTracking(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockedStore := NewMockExecutionStore(ctrl)
-	mockedSerializer := NewMockPayloadSerializer(ctrl)
-
-	taskID := int64(42)
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
-		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
-	})
-
-	mockedStore.EXPECT().GetShardID().Return(0).AnyTimes()
-	mockedStore.EXPECT().DeleteWorkflowTimerTaskEntry(gomock.Any(), 0, testDomainID, testWorkflowID, testRunID, taskID).
-		Return(nil).Times(1)
-
-	err := manager.RemoveWorkflowTimerTaskTracking(context.Background(), &RemoveWorkflowTimerTaskTrackingRequest{
-		DomainID:   testDomainID,
-		WorkflowID: testWorkflowID,
-		RunID:      testRunID,
-		TaskID:     taskID,
-	})
-	assert.NoError(t, err)
-}

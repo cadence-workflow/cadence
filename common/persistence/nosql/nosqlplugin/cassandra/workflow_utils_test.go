@@ -3004,32 +3004,6 @@ func TestAppendWorkflowTimerTasks(t *testing.T) {
 	}
 }
 
-func TestRemoveWorkflowTimerTaskEntry(t *testing.T) {
-	tests := []struct {
-		desc      string
-		taskID    int64
-		wantQuery string
-	}{
-		{
-			desc:   "produces DELETE map entry query",
-			taskID: 42,
-			wantQuery: `DELETE workflow_timer_tasks[ 42 ] FROM executions ` +
-				`WHERE shard_id = 1 and type = 1 and domain_id = domain1 and ` +
-				`workflow_id = wf1 and run_id = run1 and visibility_ts = 946684800000 and task_id = -10 `,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.desc, func(t *testing.T) {
-			batch := &fakeBatch{}
-			removeWorkflowTimerTaskEntry(batch, 1, "domain1", "wf1", "run1", tc.taskID)
-			if diff := cmp.Diff([]string{tc.wantQuery}, batch.queries); diff != "" {
-				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
 func errDiff(want, got error) string {
 	wantCondFailure, wantOk := want.(*nosqlplugin.WorkflowOperationConditionFailure)
 	gotCondFailure, gotOk := got.(*nosqlplugin.WorkflowOperationConditionFailure)

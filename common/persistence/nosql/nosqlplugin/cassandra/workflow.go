@@ -302,21 +302,6 @@ func (db *CDB) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domain
 	return nil, nil
 }
 
-// DeleteWorkflowTimerTaskEntry removes a single entry from the workflow_timer_tasks map.
-func (db *CDB) DeleteWorkflowTimerTaskEntry(ctx context.Context, shardID int, domainID, workflowID, runID string, taskID int64) error {
-	query := db.session.Query(templateDeleteWorkflowTimerTaskEntryQuery,
-		taskID,
-		shardID,
-		rowTypeExecution,
-		domainID,
-		workflowID,
-		runID,
-		defaultVisibilityTimestamp,
-		rowTypeExecutionTaskID,
-	).WithContext(ctx)
-	return db.executeWithConsistencyAll(query)
-}
-
 func (db *CDB) DeleteCurrentWorkflow(ctx context.Context, shardID int, domainID, workflowID, currentRunIDCondition string) error {
 	query := db.session.Query(templateDeleteWorkflowExecutionCurrentRowQuery,
 		shardID,

@@ -180,20 +180,6 @@ func (mr *MockExecutionStoreMockRecorder) DeleteWorkflowExecution(ctx, request a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MockExecutionStore)(nil).DeleteWorkflowExecution), ctx, request)
 }
 
-// DeleteWorkflowTimerTaskEntry mocks base method.
-func (m *MockExecutionStore) DeleteWorkflowTimerTaskEntry(ctx context.Context, shardID int, domainID, workflowID, runID string, taskID int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteWorkflowTimerTaskEntry", ctx, shardID, domainID, workflowID, runID, taskID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteWorkflowTimerTaskEntry indicates an expected call of DeleteWorkflowTimerTaskEntry.
-func (mr *MockExecutionStoreMockRecorder) DeleteWorkflowTimerTaskEntry(ctx, shardID, domainID, workflowID, runID, taskID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowTimerTaskEntry", reflect.TypeOf((*MockExecutionStore)(nil).DeleteWorkflowTimerTaskEntry), ctx, shardID, domainID, workflowID, runID, taskID)
-}
-
 // GetActiveClusterSelectionPolicy mocks base method.
 func (m *MockExecutionStore) GetActiveClusterSelectionPolicy(ctx context.Context, request *GetActiveClusterSelectionPolicyRequest) (*DataBlob, error) {
 	m.ctrl.T.Helper()

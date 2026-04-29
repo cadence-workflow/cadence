@@ -701,16 +701,6 @@ const (
 		`and visibility_ts = ? ` +
 		`and task_id = ? `
 
-	templateDeleteWorkflowTimerTaskEntryQuery = `DELETE workflow_timer_tasks[ ? ] ` +
-		`FROM executions ` +
-		`WHERE shard_id = ? ` +
-		`and type = ? ` +
-		`and domain_id = ? ` +
-		`and workflow_id = ? ` +
-		`and run_id = ? ` +
-		`and visibility_ts = ? ` +
-		`and task_id = ? `
-
 	templateGetWorkflowTimerTasksQuery = `SELECT workflow_timer_tasks ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +

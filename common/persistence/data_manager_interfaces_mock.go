@@ -770,20 +770,6 @@ func (mr *MockExecutionManagerMockRecorder) RangeDeleteReplicationTaskFromDLQ(ct
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationTaskFromDLQ", reflect.TypeOf((*MockExecutionManager)(nil).RangeDeleteReplicationTaskFromDLQ), ctx, request)
 }
 
-// RemoveWorkflowTimerTaskTracking mocks base method.
-func (m *MockExecutionManager) RemoveWorkflowTimerTaskTracking(ctx context.Context, request *RemoveWorkflowTimerTaskTrackingRequest) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RemoveWorkflowTimerTaskTracking", ctx, request)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RemoveWorkflowTimerTaskTracking indicates an expected call of RemoveWorkflowTimerTaskTracking.
-func (mr *MockExecutionManagerMockRecorder) RemoveWorkflowTimerTaskTracking(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveWorkflowTimerTaskTracking", reflect.TypeOf((*MockExecutionManager)(nil).RemoveWorkflowTimerTaskTracking), ctx, request)
-}
-
 // UpdateWorkflowExecution mocks base method.
 func (m *MockExecutionManager) UpdateWorkflowExecution(ctx context.Context, request *UpdateWorkflowExecutionRequest) (*UpdateWorkflowExecutionResponse, error) {
 	m.ctrl.T.Helper()

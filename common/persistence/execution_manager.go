@@ -1109,16 +1109,6 @@ func (m *executionManagerImpl) CleanupWorkflowTimerTasks(
 	return nil
 }
 
-// RemoveWorkflowTimerTaskTracking removes a single entry from the workflow_timer_tasks map.
-// Called when a timer fires naturally so it is not double-deleted at retention time.
-func (m *executionManagerImpl) RemoveWorkflowTimerTaskTracking(
-	ctx context.Context,
-	request *RemoveWorkflowTimerTaskTrackingRequest,
-) error {
-	return m.persistence.DeleteWorkflowTimerTaskEntry(
-		ctx, m.persistence.GetShardID(), request.DomainID, request.WorkflowID, request.RunID, request.TaskID)
-}
-
 func getStartVersion(
 	versionHistories *VersionHistories,
 ) (int64, error) {

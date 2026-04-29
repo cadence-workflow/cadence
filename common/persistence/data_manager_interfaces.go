@@ -983,15 +983,6 @@ type (
 		RunID      string
 	}
 
-	// RemoveWorkflowTimerTaskTrackingRequest is used to remove a single entry from workflow_timer_tasks
-	// when a timer fires naturally so it is not double-deleted at retention time.
-	RemoveWorkflowTimerTaskTrackingRequest struct {
-		DomainID   string
-		WorkflowID string
-		RunID      string
-		TaskID     int64
-	}
-
 	// PutReplicationTaskToDLQRequest is used to put a replication task to dlq
 	PutReplicationTaskToDLQRequest struct {
 		ShardID           ShardID
@@ -1684,7 +1675,6 @@ type (
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 		CleanupWorkflowTimerTasks(ctx context.Context, request *CleanupWorkflowTimerTasksRequest) error
-		RemoveWorkflowTimerTaskTracking(ctx context.Context, request *RemoveWorkflowTimerTaskTrackingRequest) error
 
 		// Scan operations
 
