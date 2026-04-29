@@ -128,7 +128,7 @@ func (f *transferQueueFactory) createQueuev2(
 		logger,
 		shard.GetClusterMetadata().GetCurrentClusterName(),
 		shard.GetConfig(),
-		nil, // TODO: wire DLQ writer once persistence layer (Plan 1) is merged
+		nil, // TODO(c-warren): wire DLQ writer once persistence layer is written
 	)
 
 	executorWrapper := task.NewExecutorWrapper(

@@ -136,7 +136,7 @@ func NewTransferQueueProcessor(
 			standByLogger,
 			clusterName,
 			config,
-			nil, // TODO: wire DLQ writer once persistence layer (Plan 1) is merged
+			nil, // TODO(c-warren): wire DLQ writer once persistence layer is written
 		)
 		standbyQueueProcessors[clusterName] = newTransferQueueStandbyProcessor(
 			clusterName,

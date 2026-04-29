@@ -63,6 +63,7 @@ type (
 		mockNDCHistoryResender *ndc.MockHistoryResender
 
 		mockExecutionMgr *mocks.ExecutionManager
+		mockDLQWriter    *mockDLQWriter
 
 		logger               log.Logger
 		domainID             string
@@ -141,6 +142,7 @@ func (s *timerStandbyTaskExecutorSuite) SetupTest() {
 	s.mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(testActiveClusterInfo, nil).AnyTimes()
 
 	s.logger = s.mockShard.GetLogger()
+	s.mockDLQWriter = &mockDLQWriter{}
 	s.timerStandbyTaskExecutor = NewTimerStandbyTaskExecutor(
 		s.mockShard,
 		nil,
@@ -150,7 +152,7 @@ func (s *timerStandbyTaskExecutorSuite) SetupTest() {
 		s.mockShard.GetMetricsClient(),
 		s.clusterName,
 		config,
-		nil, // no DLQ writer — falls back to discard behavior
+		s.mockDLQWriter,
 	).(*timerStandbyTaskExecutor)
 	s.timerStandbyTaskExecutor.getRemoteClusterNameFn = func(ctx context.Context, taskInfo persistence.Task) (string, error) {
 		return s.clusterName, nil
@@ -205,7 +207,9 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessUserTimerTimeout_Pending() {
 
 	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.discardDuration))
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
-	s.Equal(ErrTaskDiscarded, err)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *timerStandbyTaskExecutorSuite) TestProcessUserTimerTimeout_Success() {
@@ -322,7 +326,9 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessActivityTimeout_Pending() {
 
 	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.discardDuration))
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
-	s.Equal(ErrTaskDiscarded, err)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *timerStandbyTaskExecutorSuite) TestProcessActivityTimeout_Success() {
@@ -548,7 +554,9 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessDecisionTimeout_Pending() {
 
 	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.discardDuration))
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
-	s.Equal(ErrTaskDiscarded, err)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *timerStandbyTaskExecutorSuite) TestProcessDecisionTimeout_ScheduleToStartTimer() {
@@ -653,7 +661,9 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowBackoffTimer_Pending(
 
 	s.mockShard.SetCurrentTime(s.clusterName, time.Now().Add(s.discardDuration))
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
-	s.Equal(ErrTaskDiscarded, err)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowBackoffTimer_Success() {
@@ -729,7 +739,9 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowTimeout_Pending() {
 
 	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.discardDuration))
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
-	s.Equal(ErrTaskDiscarded, err)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowTimeout_Success() {

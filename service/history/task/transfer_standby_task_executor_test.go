@@ -69,6 +69,7 @@ type (
 		mockArchivalClient   *warchiver.MockClient
 		mockArchivalMetadata *archiver.MockArchivalMetadata
 		mockArchiverProvider *provider.MockArchiverProvider
+		mockDLQWriter        *mockDLQWriter
 
 		logger      log.Logger
 		domainID    string
@@ -161,6 +162,7 @@ func (s *transferStandbyTaskExecutorSuite) SetupTest() {
 
 	s.logger = s.mockShard.GetLogger()
 	s.clusterName = cluster.TestAlternativeClusterName
+	s.mockDLQWriter = &mockDLQWriter{}
 	s.transferStandbyTaskExecutor = NewTransferStandbyTaskExecutor(
 		s.mockShard,
 		s.mockArchivalClient,
@@ -169,7 +171,7 @@ func (s *transferStandbyTaskExecutorSuite) SetupTest() {
 		s.logger,
 		s.clusterName,
 		testConfig,
-		nil, // no DLQ writer — falls back to discard behavior
+		s.mockDLQWriter,
 	).(*transferStandbyTaskExecutor)
 	s.transferStandbyTaskExecutor.getRemoteClusterNameFn = func(ctx context.Context, taskInfo persistence.Task) (string, error) {
 		return s.clusterName, nil
@@ -708,7 +710,9 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessCancelExecution_Pending() 
 
 	s.mockShard.SetCurrentTime(s.clusterName, now.Add(s.discardDuration))
 	_, err = s.transferStandbyTaskExecutor.Execute(transferTask)
-	s.Equal(ErrTaskDiscarded, err)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *transferStandbyTaskExecutorSuite) TestProcessCancelExecution_Success() {
@@ -820,7 +824,9 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessSignalExecution_Pending() 
 
 	s.mockShard.SetCurrentTime(s.clusterName, now.Add(s.discardDuration))
 	_, err = s.transferStandbyTaskExecutor.Execute(transferTask)
-	s.Equal(ErrTaskDiscarded, err)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *transferStandbyTaskExecutorSuite) TestProcessSignalExecution_Success() {
@@ -931,7 +937,9 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessStartChildExecution_Pendin
 
 	s.mockShard.SetCurrentTime(s.clusterName, now.Add(s.discardDuration))
 	_, err = s.transferStandbyTaskExecutor.Execute(transferTask)
-	s.Equal(ErrTaskDiscarded, err)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *transferStandbyTaskExecutorSuite) TestProcessStartChildExecution_Success() {

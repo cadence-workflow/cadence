@@ -43,7 +43,6 @@ type (
 	standbyCurrentTimeFn func(persistence.Task) (time.Time, error)
 
 	// TaskDLQWriter is the subset of taskdlq.HistoryTaskDLQStore used by standby task executors.
-	// Importing the full store avoids duplicating the AddTaskRequest type.
 	TaskDLQWriter interface {
 		AddTask(ctx context.Context, request taskdlq.AddTaskRequest) error
 	}
