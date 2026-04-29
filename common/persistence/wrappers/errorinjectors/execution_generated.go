@@ -36,21 +36,6 @@ func NewExecutionManager(
 	}
 }
 
-func (c *injectorExecutionManager) CleanupWorkflowTimerTasks(ctx context.Context, request *persistence.CleanupWorkflowTimerTasksRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate, c.starttime)
-	var forwardCall bool
-	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.CleanupWorkflowTimerTasks(ctx, request)
-	}
-
-	if fakeErr != nil {
-		logErr(c.logger, "ExecutionManager.CleanupWorkflowTimerTasks", fakeErr, forwardCall, err)
-		err = fakeErr
-		return
-	}
-	return
-}
-
 func (c *injectorExecutionManager) Close() {
 	c.wrapped.Close()
 	return
@@ -170,6 +155,36 @@ func (c *injectorExecutionManager) DeleteWorkflowExecution(ctx context.Context, 
 
 	if fakeErr != nil {
 		logErr(c.logger, "ExecutionManager.DeleteWorkflowExecution", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *injectorExecutionManager) DeleteWorkflowTimerTasks(ctx context.Context, request *persistence.DeleteWorkflowTimerTasksRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		err = c.wrapped.DeleteWorkflowTimerTasks(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.DeleteWorkflowTimerTasks", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *injectorExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) (m1 map[int64]time.Time, err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		m1, err = c.wrapped.FetchWorkflowTimerTasksForCleanup(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.FetchWorkflowTimerTasksForCleanup", fakeErr, forwardCall, err)
 		err = fakeErr
 		return
 	}

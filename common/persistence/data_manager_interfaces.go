@@ -975,12 +975,21 @@ type (
 		TaskID              int64
 	}
 
-	// CleanupWorkflowTimerTasksRequest is used to delete unfired timer tasks tracked in workflow_timer_tasks
-	// at the end of the retention period. Best-effort: errors are logged but don't fail the deletion.
-	CleanupWorkflowTimerTasksRequest struct {
+	// FetchWorkflowTimerTasksForCleanupRequest identifies the workflow whose timer tracking
+	// column should be read to find tasks eligible for cleanup.
+	FetchWorkflowTimerTasksForCleanupRequest struct {
 		DomainID   string
 		WorkflowID string
 		RunID      string
+	}
+
+	// DeleteWorkflowTimerTasksRequest carries the pre-fetched set of timer tasks to delete
+	// from the timer queue. Tasks map is keyed by taskID → visibilityTimestamp.
+	DeleteWorkflowTimerTasksRequest struct {
+		DomainID   string
+		WorkflowID string
+		RunID      string
+		Tasks      map[int64]time.Time
 	}
 
 	// PutReplicationTaskToDLQRequest is used to put a replication task to dlq
@@ -1674,7 +1683,8 @@ type (
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
-		CleanupWorkflowTimerTasks(ctx context.Context, request *CleanupWorkflowTimerTasksRequest) error
+		FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *FetchWorkflowTimerTasksForCleanupRequest) (map[int64]time.Time, error)
+		DeleteWorkflowTimerTasks(ctx context.Context, request *DeleteWorkflowTimerTasksRequest) error
 
 		// Scan operations
 

@@ -139,7 +139,6 @@ type (
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 		DeleteTimerTask(ctx context.Context, request *DeleteTimerTaskRequest) error
 
-		// Workflow timer task tracking methods
 		SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) (map[int64]time.Time, error)
 
 		// Scan related methods

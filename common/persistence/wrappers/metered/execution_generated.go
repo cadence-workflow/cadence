@@ -6,6 +6,7 @@ package metered
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -40,30 +41,6 @@ func NewExecutionManager(
 			hostName:                      cfg.HostName,
 		},
 	}
-}
-
-func (c *meteredExecutionManager) CleanupWorkflowTimerTasks(ctx context.Context, request *persistence.CleanupWorkflowTimerTasksRequest) (err error) {
-	op := func() error {
-		err = c.wrapped.CleanupWorkflowTimerTasks(ctx, request)
-		return err
-	}
-
-	retryCount := getRetryCountFromContext(ctx)
-	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
-		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
-		c.logger.Debug("Persistence CleanupWorkflowTimerTasks called", logTags...)
-		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceCleanupWorkflowTimerTasksScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
-		} else {
-			err = c.call(metrics.PersistenceCleanupWorkflowTimerTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
-		}
-		return
-	}
-
-	err = c.callWithoutDomainTag(metrics.PersistenceCleanupWorkflowTimerTasksScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
-
-	return
 }
 
 func (c *meteredExecutionManager) Close() {
@@ -261,6 +238,55 @@ func (c *meteredExecutionManager) DeleteWorkflowExecution(ctx context.Context, r
 	}
 
 	err = c.callWithoutDomainTag(metrics.PersistenceDeleteWorkflowExecutionScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+
+	return
+}
+
+func (c *meteredExecutionManager) DeleteWorkflowTimerTasks(ctx context.Context, request *persistence.DeleteWorkflowTimerTasksRequest) (err error) {
+	op := func() error {
+		err = c.wrapped.DeleteWorkflowTimerTasks(ctx, request)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		c.logger.Debug("Persistence DeleteWorkflowTimerTasks called", logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistenceDeleteWorkflowTimerTasksScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+		} else {
+			err = c.call(metrics.PersistenceDeleteWorkflowTimerTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+		}
+		return
+	}
+
+	err = c.callWithoutDomainTag(metrics.PersistenceDeleteWorkflowTimerTasksScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+
+	return
+}
+
+func (c *meteredExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) (m1 map[int64]time.Time, err error) {
+	op := func() error {
+		m1, err = c.wrapped.FetchWorkflowTimerTasksForCleanup(ctx, request)
+		c.emptyMetric("ExecutionManager.FetchWorkflowTimerTasksForCleanup", request, m1, err)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		c.logger.Debug("Persistence FetchWorkflowTimerTasksForCleanup called", logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistenceFetchWorkflowTimerTasksForCleanupScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+		} else {
+			err = c.call(metrics.PersistenceFetchWorkflowTimerTasksForCleanupScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+		}
+		return
+	}
+
+	err = c.callWithoutDomainTag(metrics.PersistenceFetchWorkflowTimerTasksForCleanupScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 
 	return
 }

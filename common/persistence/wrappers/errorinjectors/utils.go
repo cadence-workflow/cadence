@@ -264,8 +264,10 @@ func executionManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationGetActiveClusterSelectionPolicy
 	case "ExecutionManager.DeleteActiveClusterSelectionPolicy":
 		return &tag.StoreOperationDeleteActiveClusterSelectionPolicy
-	case "ExecutionManager.CleanupWorkflowTimerTasks":
-		return &tag.StoreOperationCleanupWorkflowTimerTasks
+	case "ExecutionManager.FetchWorkflowTimerTasksForCleanup":
+		return &tag.StoreOperationFetchWorkflowTimerTasksForCleanup
+	case "ExecutionManager.DeleteWorkflowTimerTasks":
+		return &tag.StoreOperationDeleteWorkflowTimerTasks
 	}
 	return nil
 }

@@ -130,7 +130,6 @@ func (s *timerActiveTaskExecutorSuite) SetupTest() {
 	s.mockMatchingClient = s.mockShard.Resource.MatchingClient
 	s.mockExecutionMgr = s.mockShard.Resource.ExecutionMgr
 	s.mockHistoryV2Mgr = s.mockShard.Resource.HistoryMgr
-	// best-effort timer task tracking removal — allow but don't require in any test
 	// ack manager will use the domain information
 	s.mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(constants.TestGlobalDomainEntry, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return(constants.TestDomainName, nil).AnyTimes()

@@ -6,6 +6,7 @@ package ratelimited
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
@@ -30,14 +31,6 @@ func NewExecutionManager(
 		rateLimiter:  rateLimiter,
 		callerBypass: callerBypass,
 	}
-}
-
-func (c *ratelimitedExecutionManager) CleanupWorkflowTimerTasks(ctx context.Context, request *persistence.CleanupWorkflowTimerTasksRequest) (err error) {
-	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
-		err = ErrPersistenceLimitExceeded
-		return
-	}
-	return c.wrapped.CleanupWorkflowTimerTasks(ctx, request)
 }
 
 func (c *ratelimitedExecutionManager) Close() {
@@ -107,6 +100,22 @@ func (c *ratelimitedExecutionManager) DeleteWorkflowExecution(ctx context.Contex
 		return
 	}
 	return c.wrapped.DeleteWorkflowExecution(ctx, request)
+}
+
+func (c *ratelimitedExecutionManager) DeleteWorkflowTimerTasks(ctx context.Context, request *persistence.DeleteWorkflowTimerTasksRequest) (err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.DeleteWorkflowTimerTasks(ctx, request)
+}
+
+func (c *ratelimitedExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) (m1 map[int64]time.Time, err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.FetchWorkflowTimerTasksForCleanup(ctx, request)
 }
 
 func (c *ratelimitedExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, request *persistence.GetActiveClusterSelectionPolicyRequest) (ap1 *types.ActiveClusterSelectionPolicy, err error) {

@@ -26,6 +26,7 @@ package mocks
 
 import (
 	context "context"
+	time "time"
 
 	mock "github.com/stretchr/testify/mock"
 
@@ -547,12 +548,33 @@ func (_m *ExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Conte
 	return r0
 }
 
-// CleanupWorkflowTimerTasks provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) CleanupWorkflowTimerTasks(ctx context.Context, request *persistence.CleanupWorkflowTimerTasksRequest) error {
+// FetchWorkflowTimerTasksForCleanup provides a mock function with given fields: ctx, request
+func (_m *ExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) (map[int64]time.Time, error) {
+	ret := _m.Called(ctx, request)
+
+	var r0 map[int64]time.Time
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.FetchWorkflowTimerTasksForCleanupRequest) map[int64]time.Time); ok {
+		r0 = rf(ctx, request)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(map[int64]time.Time)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *persistence.FetchWorkflowTimerTasksForCleanupRequest) error); ok {
+		r1 = rf(ctx, request)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// DeleteWorkflowTimerTasks provides a mock function with given fields: ctx, request
+func (_m *ExecutionManager) DeleteWorkflowTimerTasks(ctx context.Context, request *persistence.DeleteWorkflowTimerTasksRequest) error {
 	ret := _m.Called(ctx, request)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.CleanupWorkflowTimerTasksRequest) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.DeleteWorkflowTimerTasksRequest) error); ok {
 		r0 = rf(ctx, request)
 	} else {
 		r0 = ret.Error(0)

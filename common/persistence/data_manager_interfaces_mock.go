@@ -423,20 +423,6 @@ func (m *MockExecutionManager) EXPECT() *MockExecutionManagerMockRecorder {
 	return m.recorder
 }
 
-// CleanupWorkflowTimerTasks mocks base method.
-func (m *MockExecutionManager) CleanupWorkflowTimerTasks(ctx context.Context, request *CleanupWorkflowTimerTasksRequest) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CleanupWorkflowTimerTasks", ctx, request)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CleanupWorkflowTimerTasks indicates an expected call of CleanupWorkflowTimerTasks.
-func (mr *MockExecutionManagerMockRecorder) CleanupWorkflowTimerTasks(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupWorkflowTimerTasks", reflect.TypeOf((*MockExecutionManager)(nil).CleanupWorkflowTimerTasks), ctx, request)
-}
-
 // Close mocks base method.
 func (m *MockExecutionManager) Close() {
 	m.ctrl.T.Helper()
@@ -561,6 +547,35 @@ func (m *MockExecutionManager) DeleteWorkflowExecution(ctx context.Context, requ
 func (mr *MockExecutionManagerMockRecorder) DeleteWorkflowExecution(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MockExecutionManager)(nil).DeleteWorkflowExecution), ctx, request)
+}
+
+// DeleteWorkflowTimerTasks mocks base method.
+func (m *MockExecutionManager) DeleteWorkflowTimerTasks(ctx context.Context, request *DeleteWorkflowTimerTasksRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWorkflowTimerTasks", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWorkflowTimerTasks indicates an expected call of DeleteWorkflowTimerTasks.
+func (mr *MockExecutionManagerMockRecorder) DeleteWorkflowTimerTasks(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowTimerTasks", reflect.TypeOf((*MockExecutionManager)(nil).DeleteWorkflowTimerTasks), ctx, request)
+}
+
+// FetchWorkflowTimerTasksForCleanup mocks base method.
+func (m *MockExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *FetchWorkflowTimerTasksForCleanupRequest) (map[int64]time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchWorkflowTimerTasksForCleanup", ctx, request)
+	ret0, _ := ret[0].(map[int64]time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchWorkflowTimerTasksForCleanup indicates an expected call of FetchWorkflowTimerTasksForCleanup.
+func (mr *MockExecutionManagerMockRecorder) FetchWorkflowTimerTasksForCleanup(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWorkflowTimerTasksForCleanup", reflect.TypeOf((*MockExecutionManager)(nil).FetchWorkflowTimerTasksForCleanup), ctx, request)
 }
 
 // GetActiveClusterSelectionPolicy mocks base method.

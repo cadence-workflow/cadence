@@ -643,15 +643,22 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 }
 
 // syncTimerTaskTrackingAsMap extracts timer tasks from tasksByCategory and returns them as a
-// map[int64]time.Time (taskID → visibilityTimestamp) for storage in the native Cassandra map column.
-// Returns nil when the feature flag is disabled or no eligible tasks are found.
+// map[int64]time.Time (taskID → visibilityTimestamp) to be persisted in the workflow_timer_tasks
+// tracking column. Returns nil when the feature flag is disabled or no eligible tasks are found.
 // DeleteHistoryEventTask is always excluded — deleting it would prevent retention-based cleanup.
+// Timers firing within WorkflowTimerTaskCleanupMinTTL are also excluded — they will fire naturally
+// and CleanupWorkflowTimerTasks would skip them anyway.
 func (m *executionManagerImpl) syncTimerTaskTrackingAsMap(
 	tasksByCategory map[HistoryTaskCategory][]Task,
 ) map[int64]time.Time {
 	if m.dc == nil || m.dc.EnableWorkflowTimerTaskCleanup == nil || !m.dc.EnableWorkflowTimerTaskCleanup() {
 		return nil
 	}
+	minTTL := time.Duration(0)
+	if m.dc.WorkflowTimerTaskCleanupMinTTL != nil {
+		minTTL = m.dc.WorkflowTimerTaskCleanupMinTTL()
+	}
+	now := time.Now()
 	var result map[int64]time.Time
 	for category, tasks := range tasksByCategory {
 		for _, task := range tasks {
@@ -669,6 +676,11 @@ func (m *executionManagerImpl) syncTimerTaskTrackingAsMap(
 			// DeleteHistoryEventTask is the retention-based deletion trigger — never track it,
 			// as deleting it would prevent the workflow execution record from being cleaned up.
 			if timerTaskInfo.TaskType == TaskTypeDeleteHistoryEvent {
+				continue
+			}
+			// Skip timers firing within MinTTL — CleanupWorkflowTimerTasks would skip them too,
+			// so there is no point storing them in the tracking map.
+			if task.GetVisibilityTimestamp().Sub(now) < minTTL {
 				continue
 			}
 			if result == nil {
@@ -1063,37 +1075,43 @@ func (m *executionManagerImpl) RangeCompleteHistoryTask(
 	return m.persistence.RangeCompleteHistoryTask(ctx, request)
 }
 
-func (m *executionManagerImpl) deleteTimerTask(
+// FetchWorkflowTimerTasksForCleanup reads the workflow_timer_tasks tracking column and
+// returns tasks whose remaining time until firing is at least WorkflowTimerTaskCleanupMinTTL.
+// These are the tasks that need to be explicitly deleted from the timer queue at retention time.
+func (m *executionManagerImpl) FetchWorkflowTimerTasksForCleanup(
 	ctx context.Context,
-	request *DeleteTimerTaskRequest,
-) error {
-	return m.persistence.DeleteTimerTask(ctx, request)
-}
-
-// CleanupWorkflowTimerTasks reads the workflow_timer_tasks tracking map and deletes any unfired
-// timer tasks whose remaining time until firing is at least WorkflowTimerTaskCleanupMinTTL.
-// Best-effort: individual delete failures are logged but do not abort the operation or return an error.
-func (m *executionManagerImpl) CleanupWorkflowTimerTasks(
-	ctx context.Context,
-	request *CleanupWorkflowTimerTasksRequest,
-) error {
+	request *FetchWorkflowTimerTasksForCleanupRequest,
+) (map[int64]time.Time, error) {
 	if m.dc == nil || m.dc.WorkflowTimerTaskCleanupMinTTL == nil {
-		return nil
+		return nil, nil
 	}
 	minTTL := m.dc.WorkflowTimerTaskCleanupMinTTL()
 	now := time.Now()
 	trackingMap, err := m.persistence.SelectWorkflowTimerTasks(
 		ctx, m.persistence.GetShardID(), request.DomainID, request.WorkflowID, request.RunID)
 	if err != nil || len(trackingMap) == 0 {
-		return err
+		return nil, err
 	}
+	result := make(map[int64]time.Time)
 	for taskID, visibilityTs := range trackingMap {
-		// Skip timers scheduled to fire within MinTTL — they'll clean up naturally.
-		// Delete timers far enough in the future (remaining time >= MinTTL).
-		if visibilityTs.Sub(now) < minTTL {
-			continue
+		if visibilityTs.Sub(now) >= minTTL {
+			result[taskID] = visibilityTs
 		}
-		if delErr := m.deleteTimerTask(ctx, &DeleteTimerTaskRequest{
+	}
+	if len(result) == 0 {
+		return nil, nil
+	}
+	return result, nil
+}
+
+// DeleteWorkflowTimerTasks deletes the given timer tasks from the timer queue.
+// Best-effort: individual delete failures are logged but do not abort the operation.
+func (m *executionManagerImpl) DeleteWorkflowTimerTasks(
+	ctx context.Context,
+	request *DeleteWorkflowTimerTasksRequest,
+) error {
+	for taskID, visibilityTs := range request.Tasks {
+		if delErr := m.persistence.DeleteTimerTask(ctx, &DeleteTimerTaskRequest{
 			DomainID:            request.DomainID,
 			WorkflowID:          request.WorkflowID,
 			RunID:               request.RunID,

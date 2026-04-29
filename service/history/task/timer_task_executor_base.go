@@ -22,6 +22,7 @@ package task
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
@@ -41,6 +42,8 @@ import (
 var (
 	taskRetryPolicy = common.CreateTaskProcessingRetryPolicy()
 )
+
+const workflowTimerTaskCleanupTimeout = 30 * time.Second
 
 type (
 	timerTaskExecutorBase struct {
@@ -361,18 +364,31 @@ func (t *timerTaskExecutorBase) deleteWorkflowVisibility(
 	return t.throttleRetry.Do(ctx, op)
 }
 
-// cleanupWorkflowTimerTasks deletes tracked timer tasks from the workflow_timer_tasks
-// Cassandra map. Must be called before deleteWorkflowExecution so the execution row
-// (which holds the tracking map) is still present.
+// cleanupWorkflowTimerTasks reads the workflow_timer_tasks tracking column to find timer
+// tasks eligible for cleanup, then asynchronously deletes them from the timer queue.
+// Must be called before deleteWorkflowExecution so the execution row is still readable.
 func (t *timerTaskExecutorBase) cleanupWorkflowTimerTasks(ctx context.Context, task *persistence.DeleteHistoryEventTask) {
 	if !t.shard.GetConfig().EnableWorkflowTimerTaskCleanup() {
 		return
 	}
-	_ = t.shard.GetExecutionManager().CleanupWorkflowTimerTasks(ctx, &persistence.CleanupWorkflowTimerTasksRequest{
+	tasks, err := t.shard.GetExecutionManager().FetchWorkflowTimerTasksForCleanup(ctx, &persistence.FetchWorkflowTimerTasksForCleanupRequest{
 		DomainID:   task.DomainID,
 		WorkflowID: task.WorkflowID,
 		RunID:      task.RunID,
 	})
+	if err != nil || len(tasks) == 0 {
+		return
+	}
+	go func() {
+		deleteCtx, cancel := context.WithTimeout(t.ctx, workflowTimerTaskCleanupTimeout)
+		defer cancel()
+		_ = t.shard.GetExecutionManager().DeleteWorkflowTimerTasks(deleteCtx, &persistence.DeleteWorkflowTimerTasksRequest{
+			DomainID:   task.DomainID,
+			WorkflowID: task.WorkflowID,
+			RunID:      task.RunID,
+			Tasks:      tasks,
+		})
+	}()
 }
 
 func (t *timerTaskExecutorBase) Stop() {

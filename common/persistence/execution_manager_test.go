@@ -1692,18 +1692,22 @@ func sampleEventDataWithVersion(i int64) *DataBlob {
 }
 
 // TestUpdateWorkflowExecution_TimerTaskTracking verifies that UpdateWorkflowExecution
-// populates WorkflowTimerTasks in the internal mutation when EnableWorkflowTimerTaskCleanup is enabled.
+// populates WorkflowTimerTasks in the internal mutation when EnableWorkflowTimerTaskCleanup is enabled,
+// and that short-lived timers (within MinTTL) are excluded from tracking.
 func TestUpdateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	timerTaskID := int64(999)
-	visTS := time.Now().Add(48 * time.Hour)
+	minTTL := time.Hour
+	longLivedID := int64(999)
+	longLivedTS := time.Now().Add(48 * time.Hour)
+	shortLivedID := int64(888)
 
 	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
 		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(true),
+		WorkflowTimerTaskCleanupMinTTL: dynamicproperties.GetDurationPropertyFn(minTTL),
 	})
 
 	mutation := sampleWorkflowMutation()
@@ -1711,7 +1715,11 @@ func TestUpdateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 		HistoryTaskCategoryTimer: {
 			&WorkflowTimeoutTask{
 				WorkflowIdentifier: WorkflowIdentifier{DomainID: testDomainID, WorkflowID: "w1", RunID: "r1"},
-				TaskData:           TaskData{TaskID: timerTaskID, VisibilityTimestamp: visTS},
+				TaskData:           TaskData{TaskID: longLivedID, VisibilityTimestamp: longLivedTS},
+			},
+			&WorkflowTimeoutTask{
+				WorkflowIdentifier: WorkflowIdentifier{DomainID: testDomainID, WorkflowID: "w1", RunID: "r1"},
+				TaskData:           TaskData{TaskID: shortLivedID, VisibilityTimestamp: time.Now().Add(30 * time.Minute)},
 			},
 		},
 	}
@@ -1722,9 +1730,11 @@ func TestUpdateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(sampleActiveClusterSelectionPolicyData(), nil).AnyTimes()
 	mockedStore.EXPECT().UpdateWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, req *InternalUpdateWorkflowExecutionRequest) error {
-			assert.Contains(t, req.UpdateWorkflowMutation.WorkflowTimerTasks, timerTaskID,
-				"expected timer task to be tracked in WorkflowTimerTasks map")
-			assert.WithinDuration(t, visTS, req.UpdateWorkflowMutation.WorkflowTimerTasks[timerTaskID], time.Millisecond)
+			assert.Contains(t, req.UpdateWorkflowMutation.WorkflowTimerTasks, longLivedID,
+				"long-lived timer should be tracked")
+			assert.WithinDuration(t, longLivedTS, req.UpdateWorkflowMutation.WorkflowTimerTasks[longLivedID], time.Millisecond)
+			assert.NotContains(t, req.UpdateWorkflowMutation.WorkflowTimerTasks, shortLivedID,
+				"short-lived timer should not be tracked — it will fire naturally within MinTTL")
 			return nil
 		}).Times(1)
 
@@ -1744,12 +1754,15 @@ func TestCreateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
-	timerTaskID := int64(888)
-	visTS := time.Now().Add(24 * time.Hour)
+	minTTL := time.Hour
+	longLivedID := int64(888)
+	longLivedTS := time.Now().Add(24 * time.Hour)
+	shortLivedID := int64(777)
 
 	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
 		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(true),
+		WorkflowTimerTaskCleanupMinTTL: dynamicproperties.GetDurationPropertyFn(minTTL),
 	})
 
 	snapshot := sampleWorkflowSnapshot()
@@ -1757,7 +1770,11 @@ func TestCreateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 		HistoryTaskCategoryTimer: {
 			&WorkflowTimeoutTask{
 				WorkflowIdentifier: WorkflowIdentifier{DomainID: testDomainID, WorkflowID: "w1", RunID: "r1"},
-				TaskData:           TaskData{TaskID: timerTaskID, VisibilityTimestamp: visTS},
+				TaskData:           TaskData{TaskID: longLivedID, VisibilityTimestamp: longLivedTS},
+			},
+			&WorkflowTimeoutTask{
+				WorkflowIdentifier: WorkflowIdentifier{DomainID: testDomainID, WorkflowID: "w1", RunID: "r1"},
+				TaskData:           TaskData{TaskID: shortLivedID, VisibilityTimestamp: time.Now().Add(30 * time.Minute)},
 			},
 		},
 	}
@@ -1769,9 +1786,11 @@ func TestCreateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(sampleActiveClusterSelectionPolicyData(), nil).AnyTimes()
 	mockedStore.EXPECT().CreateWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, req *InternalCreateWorkflowExecutionRequest) (*CreateWorkflowExecutionResponse, error) {
-			assert.Contains(t, req.NewWorkflowSnapshot.WorkflowTimerTasks, timerTaskID,
-				"expected timer task to be tracked in WorkflowTimerTasks map")
-			assert.WithinDuration(t, visTS, req.NewWorkflowSnapshot.WorkflowTimerTasks[timerTaskID], time.Millisecond)
+			assert.Contains(t, req.NewWorkflowSnapshot.WorkflowTimerTasks, longLivedID,
+				"long-lived timer should be tracked")
+			assert.WithinDuration(t, longLivedTS, req.NewWorkflowSnapshot.WorkflowTimerTasks[longLivedID], time.Millisecond)
+			assert.NotContains(t, req.NewWorkflowSnapshot.WorkflowTimerTasks, shortLivedID,
+				"short-lived timer should not be tracked — it will fire naturally within MinTTL")
 			return &CreateWorkflowExecutionResponse{}, nil
 		}).Times(1)
 
@@ -1866,20 +1885,24 @@ func TestCreateWorkflowExecution_TimerTaskTrackingFlagOff(t *testing.T) {
 }
 
 // TestConflictResolveWorkflowExecution_TimerTaskTracking verifies that ConflictResolveWorkflowExecution
-// tracks timer tasks in all three snapshot/mutation components when the feature flag is enabled.
+// tracks timer tasks in all three snapshot/mutation components when the feature flag is enabled,
+// and that short-lived timers (within MinTTL) are excluded from tracking.
 func TestConflictResolveWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
 
+	minTTL := time.Hour
 	resetTaskID := int64(111)
 	currentTaskID := int64(222)
 	newTaskID := int64(333)
+	shortLivedID := int64(444)
 	visTS := time.Now().Add(48 * time.Hour)
 
 	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
 		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 		EnableWorkflowTimerTaskCleanup: dynamicproperties.GetBoolPropertyFn(true),
+		WorkflowTimerTaskCleanupMinTTL: dynamicproperties.GetDurationPropertyFn(minTTL),
 	})
 
 	makeTimerTask := func(taskID int64) Task {
@@ -1888,10 +1911,14 @@ func TestConflictResolveWorkflowExecution_TimerTaskTracking(t *testing.T) {
 			TaskData:           TaskData{TaskID: taskID, VisibilityTimestamp: visTS},
 		}
 	}
+	shortLivedTask := &WorkflowTimeoutTask{
+		WorkflowIdentifier: WorkflowIdentifier{DomainID: testDomainID, WorkflowID: "w1", RunID: "r1"},
+		TaskData:           TaskData{TaskID: shortLivedID, VisibilityTimestamp: time.Now().Add(30 * time.Minute)},
+	}
 
 	resetSnapshot := sampleWorkflowSnapshot()
 	resetSnapshot.TasksByCategory = map[HistoryTaskCategory][]Task{
-		HistoryTaskCategoryTimer: {makeTimerTask(resetTaskID)},
+		HistoryTaskCategoryTimer: {makeTimerTask(resetTaskID), shortLivedTask},
 	}
 
 	currentMutation := sampleWorkflowMutation()
@@ -1917,6 +1944,8 @@ func TestConflictResolveWorkflowExecution_TimerTaskTracking(t *testing.T) {
 				"current mutation timer task should be tracked")
 			assert.Contains(t, req.NewWorkflowSnapshot.WorkflowTimerTasks, newTaskID,
 				"new snapshot timer task should be tracked")
+			assert.NotContains(t, req.ResetWorkflowSnapshot.WorkflowTimerTasks, shortLivedID,
+				"short-lived timer should not be tracked — it will fire naturally within MinTTL")
 			return nil
 		}).Times(1)
 
@@ -1976,7 +2005,7 @@ func TestConflictResolveWorkflowExecution_TimerTaskTrackingFlagOff(t *testing.T)
 	assert.NoError(t, err)
 }
 
-func TestCleanupWorkflowTimerTasks_DeletesLongLivedTimers(t *testing.T) {
+func TestFetchWorkflowTimerTasksForCleanup_FiltersCorrectly(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
@@ -1985,9 +2014,9 @@ func TestCleanupWorkflowTimerTasks_DeletesLongLivedTimers(t *testing.T) {
 	longLivedID := int64(1)
 	longLivedTS := time.Now().Add(48 * time.Hour)
 	shortLivedID := int64(2)
-	shortLivedTS := time.Now().Add(30 * time.Minute) // < MinTTL, should be skipped
+	shortLivedTS := time.Now().Add(30 * time.Minute) // < MinTTL, should be excluded
 	pastID := int64(3)
-	pastTS := time.Now().Add(-5 * time.Minute) // already fired, should be skipped
+	pastTS := time.Now().Add(-5 * time.Minute) // already fired, should be excluded
 
 	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
 		SerializationEncoding:          dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
@@ -2002,20 +2031,18 @@ func TestCleanupWorkflowTimerTasks_DeletesLongLivedTimers(t *testing.T) {
 			pastID:       pastTS,
 		}, nil)
 
-	// Only the long-lived timer should be deleted.
-	mockedStore.EXPECT().DeleteTimerTask(gomock.Any(), gomock.Cond(func(req *DeleteTimerTaskRequest) bool {
-		return req.TaskID == longLivedID && req.DomainID == testDomainID
-	})).Return(nil).Times(1)
-
-	err := manager.CleanupWorkflowTimerTasks(context.Background(), &CleanupWorkflowTimerTasksRequest{
+	result, err := manager.FetchWorkflowTimerTasksForCleanup(context.Background(), &FetchWorkflowTimerTasksForCleanupRequest{
 		DomainID:   testDomainID,
 		WorkflowID: testWorkflowID,
 		RunID:      testRunID,
 	})
 	assert.NoError(t, err)
+	assert.Contains(t, result, longLivedID, "long-lived timer should be returned for cleanup")
+	assert.NotContains(t, result, shortLivedID, "short-lived timer should be excluded")
+	assert.NotContains(t, result, pastID, "past timer should be excluded")
 }
 
-func TestCleanupWorkflowTimerTasks_EmptyMap(t *testing.T) {
+func TestFetchWorkflowTimerTasksForCleanup_EmptyMap(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
@@ -2029,10 +2056,36 @@ func TestCleanupWorkflowTimerTasks_EmptyMap(t *testing.T) {
 	mockedStore.EXPECT().SelectWorkflowTimerTasks(gomock.Any(), 0, testDomainID, testWorkflowID, testRunID).
 		Return(nil, nil)
 
-	err := manager.CleanupWorkflowTimerTasks(context.Background(), &CleanupWorkflowTimerTasksRequest{
+	result, err := manager.FetchWorkflowTimerTasksForCleanup(context.Background(), &FetchWorkflowTimerTasksForCleanupRequest{
 		DomainID:   testDomainID,
 		WorkflowID: testWorkflowID,
 		RunID:      testRunID,
+	})
+	assert.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+func TestDeleteWorkflowTimerTasks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockedStore := NewMockExecutionStore(ctrl)
+	mockedSerializer := NewMockPayloadSerializer(ctrl)
+
+	taskID := int64(1)
+	visTS := time.Now().Add(48 * time.Hour)
+
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
+
+	mockedStore.EXPECT().DeleteTimerTask(gomock.Any(), gomock.Cond(func(req *DeleteTimerTaskRequest) bool {
+		return req.TaskID == taskID && req.DomainID == testDomainID
+	})).Return(nil).Times(1)
+
+	err := manager.DeleteWorkflowTimerTasks(context.Background(), &DeleteWorkflowTimerTasksRequest{
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      testRunID,
+		Tasks:      map[int64]time.Time{taskID: visTS},
 	})
 	assert.NoError(t, err)
 }

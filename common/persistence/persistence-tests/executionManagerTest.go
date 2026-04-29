@@ -6150,9 +6150,9 @@ func (s *ExecutionManagerSuite) TestWorkflowTimerTaskTracking() {
 	s.NoError(err)
 	s.Require().NotNil(state)
 
-	// Verify that CleanupWorkflowTimerTasks runs without error, which exercises
+	// Verify that FetchWorkflowTimerTasksForCleanup runs without error, which exercises
 	// the SelectWorkflowTimerTasks path on the tracking map.
-	err = s.ExecutionManager.CleanupWorkflowTimerTasks(ctx, &p.CleanupWorkflowTimerTasksRequest{
+	_, err = s.ExecutionManager.FetchWorkflowTimerTasksForCleanup(ctx, &p.FetchWorkflowTimerTasksForCleanupRequest{
 		DomainID:   domainID,
 		WorkflowID: workflowExecution.WorkflowID,
 		RunID:      workflowExecution.RunID,
