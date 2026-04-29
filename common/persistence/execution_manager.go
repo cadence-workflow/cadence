@@ -1113,7 +1113,13 @@ func (m *executionManagerImpl) DeleteWorkflowTimerTasks(
 	for taskID, visibilityTs := range request.Tasks {
 		select {
 		case <-ctx.Done():
-			return nil
+			m.logger.Warn("Context cancelled during workflow timer task cleanup; some timers may not have been deleted",
+				tag.WorkflowDomainID(request.DomainID),
+				tag.WorkflowID(request.WorkflowID),
+				tag.WorkflowRunID(request.RunID),
+				tag.Error(ctx.Err()),
+			)
+			return ctx.Err()
 		default:
 		}
 		if delErr := m.persistence.DeleteTimerTask(ctx, &DeleteTimerTaskRequest{
