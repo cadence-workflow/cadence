@@ -371,4 +371,13 @@ func (s *Service) stopRatelimiters() {
 	if err := s.ratelimiterCollections.async.OnStop(ctx); err != nil {
 		s.GetLogger().Error("failed to stop async global ratelimiter collection", tag.Error(err))
 	}
+	if err := s.ratelimiterCollections.userTaskList.OnStop(ctx); err != nil {
+		s.GetLogger().Error("failed to stop user task list global ratelimiter collection", tag.Error(err))
+	}
+	if err := s.ratelimiterCollections.workerTaskList.OnStop(ctx); err != nil {
+		s.GetLogger().Error("failed to stop worker task list global ratelimiter collection", tag.Error(err))
+	}
+	if err := s.ratelimiterCollections.asyncTaskList.OnStop(ctx); err != nil {
+		s.GetLogger().Error("failed to stop async task list global ratelimiter collection", tag.Error(err))
+	}
 }

@@ -27,12 +27,39 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	"go.uber.org/cadence/workflow"
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/types"
 )
 
 var testLogger = zap.NewNop()
+
+// findCounter returns the first counter in the snapshot with the given name and tags.
+func findCounter(counters map[string]tally.CounterSnapshot, name string, tags map[string]string) (tally.CounterSnapshot, bool) {
+	for _, c := range counters {
+		if c.Name() != name {
+			continue
+		}
+		if counterTagsMatch(c.Tags(), tags) {
+			return c, true
+		}
+	}
+	return nil, false
+}
+
+func counterTagsMatch(actual, want map[string]string) bool {
+	if len(actual) != len(want) {
+		return false
+	}
+	for k, v := range want {
+		if actual[k] != v {
+			return false
+		}
+	}
+	return true
+}
 
 func mustParseCron(t *testing.T, expr string) cron.Schedule {
 	t.Helper()
@@ -769,9 +796,38 @@ func TestProcessBackfillsRespectsPause(t *testing.T) {
 		},
 	}
 	// processBackfills should short-circuit without touching PendingBackfills
-	moreWork := processBackfills(nil, testLogger, sched, input, state)
+	scope := tally.NewTestScope("", nil)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
 	assert.False(t, moreWork, "paused schedule should not process backfills")
 	assert.Len(t, state.PendingBackfills, 1, "pending backfills should be preserved while paused")
+	assert.Empty(t, scope.Snapshot().Counters(), "no metrics should be emitted when paused")
+}
+
+func TestProcessBackfillsFiredMetric(t *testing.T) {
+	sched := mustParseCron(t, "0 * * * *")
+	// Backfill window [10:00, 12:00] produces 3 fires: 10:00, 11:00, 12:00
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+		// Action.StartWorkflow intentionally nil: processScheduleFire returns
+		// early before using ctx, so nil ctx is safe here.
+	}
+	state := &SchedulerWorkflowState{
+		PendingBackfills: []BackfillRequest{
+			{
+				StartTime:  time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
+				BackfillID: "bf-1",
+			},
+		},
+	}
+	scope := tally.NewTestScope("", nil)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
+	assert.False(t, moreWork)
+	assert.Empty(t, state.PendingBackfills, "completed backfill should be removed")
+
+	c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillFiredCountPerDomain, map[string]string{})
+	require.True(t, ok, "backfill fired metric should be emitted")
+	assert.Equal(t, int64(3), c.Value(), "expected 3 fires: 10:00, 11:00, 12:00")
 }
 
 func TestBackfillFireComputation(t *testing.T) {
@@ -813,6 +869,237 @@ func TestBackfillFireComputation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fires := computeMissedFireTimes(sched, tt.startTime.Add(-time.Second), tt.endTime, types.ScheduleSpec{})
 			assert.Equal(t, tt.wantFires, len(fires.times))
+		})
+	}
+}
+
+// TestProcessMissedRunsAtMetrics verifies that processMissedRunsAt emits
+// SchedulerMissedFiredCountPerDomain and SchedulerMissedSkippedCountPerDomain
+// with the correct values and tags for each catch-up policy.
+//
+// processScheduleFire is invoked with a nil ctx and no StartWorkflow action so
+// it returns early before touching the workflow environment; this lets us verify
+// the metrics without a full workflow test environment.
+func TestProcessMissedRunsAtMetrics(t *testing.T) {
+	// 4 fires missed: 11:00, 12:00, 13:00, 14:00
+	watermark := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name        string
+		policy      types.ScheduleCatchUpPolicy
+		window      time.Duration
+		wantFired   int64
+		wantSkipped int64
+	}{
+		{
+			name:        "Skip - all 4 fires skipped, skipped metric emitted with SKIP tag",
+			policy:      types.ScheduleCatchUpPolicySkip,
+			wantFired:   0,
+			wantSkipped: 4,
+		},
+		{
+			name:        "One - 1 fired (most recent), 3 skipped",
+			policy:      types.ScheduleCatchUpPolicyOne,
+			wantFired:   1,
+			wantSkipped: 3,
+		},
+		{
+			name:        "All - 4 fired, none skipped",
+			policy:      types.ScheduleCatchUpPolicyAll,
+			wantFired:   4,
+			wantSkipped: 0,
+		},
+		{
+			name:        "All with 90min window - 2 in window fired, 2 out-of-window skipped",
+			policy:      types.ScheduleCatchUpPolicyAll,
+			window:      90 * time.Minute,
+			wantFired:   2,
+			wantSkipped: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sched := mustParseCron(t, "0 * * * *")
+			scope := tally.NewTestScope("", nil)
+			input := &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+				Policies: types.SchedulePolicies{
+					CatchUpPolicy: tt.policy,
+					CatchUpWindow: tt.window,
+				},
+				// Action.StartWorkflow intentionally nil: processScheduleFire returns
+				// early before using ctx, so nil ctx is safe here.
+			}
+			state := &SchedulerWorkflowState{}
+
+			processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now)
+
+			counters := scope.Snapshot().Counters()
+
+			if tt.wantFired > 0 {
+				c, ok := findCounter(counters, SchedulerMissedFiredCountPerDomain, map[string]string{})
+				require.True(t, ok, "fired metric should be emitted")
+				assert.Equal(t, tt.wantFired, c.Value(), "fired count mismatch")
+			} else {
+				_, ok := findCounter(counters, SchedulerMissedFiredCountPerDomain, map[string]string{})
+				assert.False(t, ok, "fired metric should not be emitted when nothing is fired")
+			}
+
+			if tt.wantSkipped > 0 {
+				policyTag := tt.policy.String()
+				c, ok := findCounter(counters, SchedulerMissedSkippedCountPerDomain, map[string]string{CatchUpPolicyTag: policyTag})
+				require.True(t, ok, "skipped metric should be emitted with catch_up_policy=%s tag", policyTag)
+				assert.Equal(t, tt.wantSkipped, c.Value(), "skipped count mismatch")
+			} else {
+				_, ok := findCounter(counters, SchedulerMissedSkippedCountPerDomain, map[string]string{})
+				assert.False(t, ok, "skipped metric should not be emitted when nothing is skipped")
+			}
+		})
+	}
+}
+
+// noopChannel is a workflow.Channel whose ReceiveAsync always returns false (no pending signal).
+type noopChannel struct{}
+
+func (c *noopChannel) Receive(_ workflow.Context, _ interface{}) bool      { return false }
+func (c *noopChannel) ReceiveAsync(_ interface{}) bool                     { return false }
+func (c *noopChannel) ReceiveAsyncWithMoreFlag(_ interface{}) (bool, bool) { return false, false }
+func (c *noopChannel) Send(_ workflow.Context, _ interface{})              {}
+func (c *noopChannel) SendAsync(_ interface{}) bool                        { return false }
+func (c *noopChannel) Close()                                              {}
+
+func TestSafeContinueAsNewMetric(t *testing.T) {
+	tests := []struct {
+		name   string
+		reason string
+	}{
+		{"missed run", ContinueAsNewReasonMissedRun},
+		{"backfill", ContinueAsNewReasonBackfill},
+		{"signal", ContinueAsNewReasonSignal},
+		{"iteration cap", ContinueAsNewReasonIterationCap},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scope := tally.NewTestScope("", nil)
+			func() {
+				defer func() { recover() }() //nolint:errcheck
+				_ = safeContinueAsNew(nil, testLogger, scope, tt.reason, &noopChannel{}, SchedulerWorkflowInput{}, &SchedulerWorkflowState{})
+			}()
+			c, ok := findCounter(scope.Snapshot().Counters(), SchedulerContinueAsNewCountPerDomain, map[string]string{ReasonTag: tt.reason})
+			require.True(t, ok, "CAN metric should be emitted with reason=%s", tt.reason)
+			assert.Equal(t, int64(1), c.Value())
+
+		})
+	}
+}
+
+func TestBuildScheduleSearchAttributes(t *testing.T) {
+	tests := []struct {
+		name  string
+		input *SchedulerWorkflowInput
+		state *SchedulerWorkflowState
+		want  map[string]interface{}
+	}{
+		{
+			name: "active schedule with cron and workflow type",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "0 6 * * *"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
+					},
+				},
+			},
+			state: &SchedulerWorkflowState{Paused: false},
+			want: map[string]interface{}{
+				SearchAttrScheduleState:        ScheduleStateActive,
+				SearchAttrScheduleCron:         "0 6 * * *",
+				SearchAttrScheduleWorkflowType: "my-workflow",
+			},
+		},
+		{
+			name: "paused schedule",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "*/5 * * * *"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "wf-a"},
+					},
+				},
+			},
+			state: &SchedulerWorkflowState{Paused: true},
+			want: map[string]interface{}{
+				SearchAttrScheduleState:        ScheduleStatePaused,
+				SearchAttrScheduleCron:         "*/5 * * * *",
+				SearchAttrScheduleWorkflowType: "wf-a",
+			},
+		},
+		{
+			name: "missing start-workflow action omits workflow type SA",
+			input: &SchedulerWorkflowInput{
+				Spec:   types.ScheduleSpec{CronExpression: "@hourly"},
+				Action: types.ScheduleAction{}, // no StartWorkflow
+			},
+			state: &SchedulerWorkflowState{},
+			want: map[string]interface{}{
+				SearchAttrScheduleState: ScheduleStateActive,
+				SearchAttrScheduleCron:  "@hourly",
+			},
+		},
+		{
+			name: "nil workflow type omits workflow type SA",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "@daily"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{WorkflowType: nil},
+				},
+			},
+			state: &SchedulerWorkflowState{},
+			want: map[string]interface{}{
+				SearchAttrScheduleState: ScheduleStateActive,
+				SearchAttrScheduleCron:  "@daily",
+			},
+		},
+		{
+			name: "empty-name workflow type omits workflow type SA",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "@daily"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: ""},
+					},
+				},
+			},
+			state: &SchedulerWorkflowState{},
+			want: map[string]interface{}{
+				SearchAttrScheduleState: ScheduleStateActive,
+				SearchAttrScheduleCron:  "@daily",
+			},
+		},
+		{
+			name: "empty cron expression omits cron SA",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: ""},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "wf"},
+					},
+				},
+			},
+			state: &SchedulerWorkflowState{},
+			want: map[string]interface{}{
+				SearchAttrScheduleState:        ScheduleStateActive,
+				SearchAttrScheduleWorkflowType: "wf",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildScheduleSearchAttributes(tt.input, tt.state)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

@@ -103,3 +103,10 @@ func (h *apiHandler) waitForPolicy(ctx context.Context, waitTime time.Duration, 
 	}
 	return nil
 }
+
+func getTaskListName(t *types.TaskList) string {
+	if t.GetKind() == types.TaskListKindNormal {
+		return t.GetName()
+	}
+	return t.GetBaseName()
+}

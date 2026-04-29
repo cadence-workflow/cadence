@@ -288,8 +288,10 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 	pendingTaskCount := q.monitor.GetTotalPendingTaskCount()
 	if q.category == persistence.HistoryTaskCategoryTransfer {
 		q.metricsClient.RecordTimer(metrics.ShardInfoScope, metrics.ShardInfoTransferActivePendingTasksTimer, time.Duration(pendingTaskCount))
+		q.metricsClient.Scope(metrics.ShardInfoScope).IntExponentialHistogram(metrics.ShardInfoTransferActivePendingTasksHistogram, pendingTaskCount)
 	} else if q.category == persistence.HistoryTaskCategoryTimer {
 		q.metricsClient.RecordTimer(metrics.ShardInfoScope, metrics.ShardInfoTimerActivePendingTasksTimer, time.Duration(pendingTaskCount))
+		q.metricsClient.Scope(metrics.ShardInfoScope).IntExponentialHistogram(metrics.ShardInfoTimerActivePendingTasksHistogram, pendingTaskCount)
 	}
 
 	// we emit the metrics in the queue scope and experiment with gauge metrics

@@ -62,6 +62,8 @@ type (
 		GetClusterMetadata() cluster.Metadata
 		GetConfig() *config.Config
 		GetEventsCache() events.Cache
+		// GetLogger returns a logger tagged with this shard (history item includes shard-id).
+		// Prefer it for work scoped to a shard so logs remain attributable when downstream adds tags.
 		GetLogger() log.Logger
 		GetThrottledLogger() log.Logger
 		GetMetricsClient() metrics.Client
@@ -575,8 +577,10 @@ func (s *contextImpl) DeleteFailoverLevel(category persistence.HistoryTaskCatego
 			switch category {
 			case persistence.HistoryTaskCategoryTransfer:
 				s.GetMetricsClient().RecordTimer(metrics.ShardInfoScope, metrics.ShardInfoTransferFailoverLatencyTimer, time.Since(level.StartTime))
+				s.GetMetricsClient().Scope(metrics.ShardInfoScope).RecordHistogramDuration(metrics.ShardInfoTransferFailoverLatencyHistogram, time.Since(level.StartTime))
 			case persistence.HistoryTaskCategoryTimer:
 				s.GetMetricsClient().RecordTimer(metrics.ShardInfoScope, metrics.ShardInfoTimerFailoverLatencyTimer, time.Since(level.StartTime))
+				s.GetMetricsClient().Scope(metrics.ShardInfoScope).RecordHistogramDuration(metrics.ShardInfoTimerFailoverLatencyHistogram, time.Since(level.StartTime))
 			}
 			return nil
 		}
@@ -976,6 +980,8 @@ func (s *contextImpl) AppendHistoryV2Events(
 	defer func() {
 		s.GetMetricsClient().Scope(metrics.SessionSizeStatsScope, metrics.DomainTag(domainName)).
 			RecordTimer(metrics.HistorySize, time.Duration(size))
+		s.GetMetricsClient().Scope(metrics.SessionSizeStatsScope, metrics.DomainTag(domainName)).
+			IntExponentialHistogram(metrics.HistorySizeHistogram, size)
 		if size >= historySizeLogThreshold {
 			s.throttledLogger.Warn("history size threshold breached",
 				tag.WorkflowID(execution.GetWorkflowID()),
@@ -1235,14 +1241,25 @@ func (s *contextImpl) emitShardInfoMetricsLogsLocked() {
 
 	metricsScope := s.GetMetricsClient().Scope(metrics.ShardInfoScope)
 	metricsScope.RecordTimer(metrics.ShardInfoTransferDiffTimer, time.Duration(diffTransferLevel))
+	metricsScope.IntExponentialHistogram(metrics.ShardInfoTransferDiffHistogram, int(diffTransferLevel))
+
 	metricsScope.RecordTimer(metrics.ShardInfoTimerDiffTimer, diffTimerLevel)
+	metricsScope.RecordHistogramDuration(metrics.ShardInfoTimerDiffHistogram, diffTimerLevel)
 
 	metricsScope.RecordTimer(metrics.ShardInfoReplicationLagTimer, time.Duration(replicationLag))
+	metricsScope.IntExponentialHistogram(metrics.ShardInfoReplicationLagHistogram, int(replicationLag))
+
 	metricsScope.RecordTimer(metrics.ShardInfoTransferLagTimer, time.Duration(transferLag))
+	metricsScope.IntExponentialHistogram(metrics.ShardInfoTransferLagHistogram, int(transferLag))
+
 	metricsScope.RecordTimer(metrics.ShardInfoTimerLagTimer, timerLag)
+	metricsScope.RecordHistogramDuration(metrics.ShardInfoTimerLagHistogram, timerLag)
 
 	metricsScope.RecordTimer(metrics.ShardInfoTransferFailoverInProgressTimer, time.Duration(transferFailoverInProgress))
+	metricsScope.IntExponentialHistogram(metrics.ShardInfoTransferFailoverInProgressHistogram, transferFailoverInProgress)
+
 	metricsScope.RecordTimer(metrics.ShardInfoTimerFailoverInProgressTimer, time.Duration(timerFailoverInProgress))
+	metricsScope.IntExponentialHistogram(metrics.ShardInfoTimerFailoverInProgressHistogram, timerFailoverInProgress)
 }
 
 func (s *contextImpl) allocateTaskIDsLocked(

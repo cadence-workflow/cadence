@@ -160,6 +160,8 @@ func (n *namespaceShardToExecutor) populateExecutorStatisticsCacheOnMiss(ctx con
 	n.executorStatistics.Lock()
 	defer n.executorStatistics.Unlock()
 
+	// The watch loop may have populated the cache while reading etcd.
+	// In that case, do not overwrite the newer cached value.
 	if _, ok := n.executorStatistics.stats[executorID]; ok {
 		return nil
 	}

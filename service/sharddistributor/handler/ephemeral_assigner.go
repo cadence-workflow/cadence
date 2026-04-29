@@ -29,6 +29,7 @@ import (
 	"math"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/handler/loadbalance"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -48,32 +49,20 @@ type executorAssignmentLoad struct {
 // separately in the shard cache and is not returned by GetState.
 //
 // Within the batch, each shard is assigned to an ACTIVE executor according to
-// the configured load balancing mode. The in-batch load state is updated after
-// each pick so later picks account for earlier picks.
-
+// the configured load balancing mode. The balancer updates its in-batch load
+// state after every pick so later picks account for earlier picks.
 func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string, shardKeys []string) (map[string]*types.GetShardOwnerResponse, error) {
 	state, err := h.storage.GetState(ctx, namespace)
 	if err != nil {
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
 	}
 
-	loadBalancingMode := h.cfg.GetLoadBalancingMode(namespace)
-	if loadBalancingMode == types.LoadBalancingModeINVALID {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", loadBalancingMode)}
-	}
-
-	executorLoads, averageShardLoad, err := h.computeInitialPlacementLoads(loadBalancingMode, state)
+	balancer, err := loadbalance.New(h.cfg.GetLoadBalancingMode(namespace), state)
 	if err != nil {
-		return nil, err
+		return nil, &types.InternalServiceError{Message: err.Error()}
 	}
 
-	chosenExecutors, err := pickExecutors(
-		namespace,
-		shardKeys,
-		executorLoads,
-		loadBalancingMode,
-		averageShardLoad,
-	)
+	chosenExecutors, err := pickExecutors(namespace, balancer, shardKeys)
 	if err != nil {
 		return nil, err
 	}
@@ -97,91 +86,21 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 	return buildResults(namespace, shardKeys, chosenExecutors, executorOwners), nil
 }
 
-// computeInitialPlacementLoads returns current shard count for all ACTIVE executors.
-// In GREEDY mode it also includes smoothed shard and an average shard load
-func (h *handlerImpl) computeInitialPlacementLoads(loadBalancingMode types.LoadBalancingMode, state *store.NamespaceState) (map[string]executorAssignmentLoad, float64, error) {
-	var useSmoothedLoad bool
-	switch loadBalancingMode {
-	case types.LoadBalancingModeGREEDY:
-		useSmoothedLoad = true
-	case types.LoadBalancingModeNAIVE:
-		useSmoothedLoad = false
-	default:
-		return nil, 0, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", loadBalancingMode)}
-	}
-
-	executorsAssignmentLoad := make(map[string]executorAssignmentLoad, len(state.Executors))
-	totalSmoothedLoad := 0.0
-	totalShardCount := 0
-
-	for executorID, executorState := range state.Executors {
-		if executorState.Status != types.ExecutorStatusACTIVE {
-			continue
-		}
-
-		assignment := state.ShardAssignments[executorID]
-		executorLoad := executorAssignmentLoad{shardCount: len(assignment.AssignedShards)}
-		totalShardCount += executorLoad.shardCount
-		if useSmoothedLoad {
-			for shardID := range assignment.AssignedShards {
-				stats, ok := state.ShardStats[shardID]
-				if !ok {
-					continue
-				}
-				executorLoad.smoothedLoad += stats.SmoothedLoad
-				totalSmoothedLoad += stats.SmoothedLoad
-			}
-		}
-		executorsAssignmentLoad[executorID] = executorLoad
-	}
-	if !useSmoothedLoad || totalShardCount == 0 {
-		return executorsAssignmentLoad, 0, nil
-	}
-	return executorsAssignmentLoad, totalSmoothedLoad / float64(totalShardCount), nil
-}
-
-// pickExecutors assigns each shard key to an active executor,
-// updating the in-batch running count after every pick to spread load evenly when loads tie.
-// It returns a map of shardKey -> chosen executorID.
-func pickExecutors(
-	namespace string,
-	shardKeys []string,
-	assignmentLoads map[string]executorAssignmentLoad,
-	loadBalancingMode types.LoadBalancingMode,
-	averageShardLoad float64,
-) (map[string]string, error) {
-	executorIDs := make([]string, 0, len(assignmentLoads))
-	for executorID := range assignmentLoads {
-		executorIDs = append(executorIDs, executorID)
-	}
-
-	var pickExecutor func([]string, map[string]executorAssignmentLoad) string
-	switch loadBalancingMode {
-	case types.LoadBalancingModeNAIVE:
-		pickExecutor = pickExecutorByShardCount
-	case types.LoadBalancingModeGREEDY:
-		pickExecutor = pickExecutorBySmoothedLoad
-	default:
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", loadBalancingMode)}
-	}
-
-	chosenExecutors := make(map[string]string, len(shardKeys))
+// pickExecutors asks the balancer to choose an executor for each shard key.
+// Returns a map of shardKey -> chosen executorID.
+func pickExecutors(namespace string, balancer loadbalance.Balancer, shardKeys []string) (map[string]string, error) {
+	chosen := make(map[string]string, len(shardKeys))
 	for _, shardKey := range shardKeys {
-		chosenExecutor := pickExecutor(executorIDs, assignmentLoads)
-		if chosenExecutor == "" {
-			return nil, &types.InternalServiceError{Message: "no active executors available for namespace: " + namespace}
+		executor, err := balancer.Pick()
+		if err != nil {
+			if errors.Is(err, loadbalance.ErrNoActiveExecutors) {
+				return nil, &types.InternalServiceError{Message: "no active executors available for namespace: " + namespace}
+			}
+			return nil, &types.InternalServiceError{Message: fmt.Sprintf("pick executor: %v", err)}
 		}
-		chosenExecutors[shardKey] = chosenExecutor
-		load := assignmentLoads[chosenExecutor]
-		load.shardCount++
-		if loadBalancingMode == types.LoadBalancingModeGREEDY {
-			// We increase the total load by the average shard load in the namespace
-			// This helps avoid placing all shards in the batch on the same executor
-			load.smoothedLoad += averageShardLoad
-		}
-		assignmentLoads[chosenExecutor] = load
+		chosen[shardKey] = executor
 	}
-	return chosenExecutors, nil
+	return chosen, nil
 }
 
 // pickExecutorBySmoothedLoad returns the executor with the lowest smoothed load.

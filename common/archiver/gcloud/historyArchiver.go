@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"math"
 	"path/filepath"
 
 	"github.com/uber/cadence/common"
@@ -194,6 +195,12 @@ func (h *historyArchiver) Archive(ctx context.Context, URI archiver.URI, request
 
 	scope.AddCounter(metrics.HistoryArchiverTotalUploadSize, totalUploadSize)
 	scope.AddCounter(metrics.HistoryArchiverHistorySize, totalUploadSize)
+	uploadSize := totalUploadSize
+	if uploadSize > math.MaxInt {
+		uploadSize = math.MaxInt
+	}
+	scope.IntExponentialHistogram(metrics.HistoryArchiverTotalUploadSizeHistogram, int(uploadSize))
+	scope.IntExponentialHistogram(metrics.HistoryArchiverHistorySizeHistogram, int(uploadSize))
 	scope.IncCounter(metrics.HistoryArchiverArchiveSuccessCount)
 	return
 }

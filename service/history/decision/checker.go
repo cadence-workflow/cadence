@@ -163,7 +163,9 @@ func (c *workflowSizeChecker) failWorkflowSizeExceedsLimit() (bool, error) {
 
 	// metricsScope already has domainName and operation: "RespondDecisionTaskCompleted"
 	c.metricsScope.RecordTimer(metrics.HistorySize, time.Duration(historySize))
+	c.metricsScope.IntExponentialHistogram(metrics.HistorySizeHistogram, historySize)
 	c.metricsScope.RecordTimer(metrics.HistoryCount, time.Duration(historyCount))
+	c.metricsScope.IntExponentialHistogram(metrics.HistoryCountHistogram, historyCount)
 
 	if historySize > c.historySizeLimitError || historyCount > c.historyCountLimitError {
 		executionInfo := c.mutableState.GetExecutionInfo()

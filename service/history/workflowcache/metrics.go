@@ -63,4 +63,16 @@ func (cm *workflowIDCountMetric) updatePerDomainMaxWFRequestCount(
 	// We can just use the upper of the metric, so it is not an issue to emit all the counts
 	metricsClient.Scope(metrics.HistoryClientWfIDCacheScope, metrics.DomainTag(domainName)).
 		RecordTimer(metric, time.Duration(cm.count))
+
+	var histMetric metrics.MetricIdx
+	switch metric {
+	case metrics.WorkflowIDCacheRequestsExternalMaxRequestsPerSecondsTimer:
+		histMetric = metrics.WorkflowIDCacheRequestsExternalMaxRequestsPerSecondsHistogram
+	case metrics.WorkflowIDCacheRequestsInternalMaxRequestsPerSecondsTimer:
+		histMetric = metrics.WorkflowIDCacheRequestsInternalMaxRequestsPerSecondsHistogram
+	}
+	if histMetric != 0 {
+		metricsClient.Scope(metrics.HistoryClientWfIDCacheScope, metrics.DomainTag(domainName)).
+			IntExponentialHistogram(histMetric, cm.count)
+	}
 }

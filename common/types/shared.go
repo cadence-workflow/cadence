@@ -7632,8 +7632,9 @@ func (v *TaskIDBlock) GetEndID() (o int64) {
 
 // TaskList is an internal type (TBD...)
 type TaskList struct {
-	Name string        `json:"name,omitempty"`
-	Kind *TaskListKind `json:"kind,omitempty"`
+	Name     string        `json:"name,omitempty"`
+	Kind     *TaskListKind `json:"kind,omitempty"`
+	BaseName string        `json:"baseName,omitempty"`
 }
 
 // GetName is an internal getter (TBD...)
@@ -7648,6 +7649,14 @@ func (v *TaskList) GetName() (o string) {
 func (v *TaskList) GetKind() (o TaskListKind) {
 	if v != nil && v.Kind != nil {
 		return *v.Kind
+	}
+	return
+}
+
+// GetBaseName is an internal getter (TBD...)
+func (v *TaskList) GetBaseName() (o string) {
+	if v != nil {
+		return v.BaseName
 	}
 	return
 }

@@ -218,8 +218,12 @@ func (c *controller) GetEngine(workflowID string) (engine.Engine, error) {
 }
 
 func (c *controller) GetEngineForShard(shardID int) (engine.Engine, error) {
+	getEngineStart := time.Now()
 	sw := c.metricsScope.StartTimer(metrics.GetEngineForShardLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		c.metricsScope.RecordHistogramDuration(metrics.GetEngineForShardLatencyHistogram, time.Since(getEngineStart))
+	}()
 	item, err := c.getOrCreateHistoryShardItem(shardID)
 	if err != nil {
 		return nil, err
@@ -252,8 +256,12 @@ func (c *controller) ShardIDs() []int32 {
 }
 
 func (c *controller) removeEngineForShard(shardID int, shardItem *historyShardsItem) {
+	removeEngineStart := time.Now()
 	sw := c.metricsScope.StartTimer(metrics.RemoveEngineForShardLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		c.metricsScope.RecordHistogramDuration(metrics.RemoveEngineForShardLatencyHistogram, time.Since(removeEngineStart))
+	}()
 	c.logger.Info("removeEngineForShard called", tag.ShardID(shardID))
 	defer c.logger.Info("removeEngineForShard completed", tag.ShardID(shardID))
 
@@ -424,8 +432,12 @@ func (c *controller) acquireShards() {
 	defer c.logger.Info("Acquired shards", tag.ComponentShardController, tag.Number(int64(c.NumShards())))
 
 	c.metricsScope.IncCounter(metrics.AcquireShardsCounter)
+	acquireStart := time.Now()
 	sw := c.metricsScope.StartTimer(metrics.AcquireShardsLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		c.metricsScope.RecordHistogramDuration(metrics.AcquireShardsLatencyHistogram, time.Since(acquireStart))
+	}()
 
 	numShards := c.config.NumberOfShards
 	shardActionCh := make(chan int, numShards)
@@ -506,8 +518,9 @@ func (i *historyShardsItem) getOrCreateEngine(
 			return nil, err
 		}
 		if context.PreviousShardOwnerWasDifferent() {
-			i.GetMetricsClient().RecordTimer(metrics.ShardInfoScope, metrics.ShardItemAcquisitionLatency,
-				context.GetCurrentTime(i.GetClusterMetadata().GetCurrentClusterName()).Sub(context.GetLastUpdatedTime()))
+			acquisitionLatency := context.GetCurrentTime(i.GetClusterMetadata().GetCurrentClusterName()).Sub(context.GetLastUpdatedTime())
+			i.GetMetricsClient().RecordTimer(metrics.ShardInfoScope, metrics.ShardItemAcquisitionLatency, acquisitionLatency)
+			i.GetMetricsClient().Scope(metrics.ShardInfoScope).RecordHistogramDuration(metrics.ShardItemAcquisitionLatencyHistogram, acquisitionLatency)
 		}
 		i.engine = i.engineFactory.CreateEngine(context)
 		i.engine.Start()

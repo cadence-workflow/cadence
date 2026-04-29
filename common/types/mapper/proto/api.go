@@ -3996,8 +3996,9 @@ func FromTaskList(t *types.TaskList) *apiv1.TaskList {
 		return nil
 	}
 	return &apiv1.TaskList{
-		Name: t.Name,
-		Kind: FromTaskListKind(t.Kind),
+		Name:     t.Name,
+		Kind:     FromTaskListKind(t.Kind),
+		BaseName: t.BaseName,
 	}
 }
 
@@ -4006,8 +4007,9 @@ func ToTaskList(t *apiv1.TaskList) *types.TaskList {
 		return nil
 	}
 	return &types.TaskList{
-		Name: t.Name,
-		Kind: ToTaskListKind(t.Kind),
+		Name:     t.Name,
+		Kind:     ToTaskListKind(t.Kind),
+		BaseName: t.BaseName,
 	}
 }
 
