@@ -256,8 +256,6 @@ func executionManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationGetTimerIndexTasks
 	case "ExecutionManager.CompleteTimerTask":
 		return &tag.StoreOperationCompleteTimerTask
-	case "ExecutionManager.DeleteTimerTask":
-		return &tag.StoreOperationDeleteTimerTask
 	case "ExecutionManager.CreateFailoverMarkerTasks":
 		return &tag.StoreOperationCreateFailoverMarkerTasks
 	case "ExecutionManager.GetActiveClusterSelectionPolicy":
