@@ -38,10 +38,10 @@ var (
 )
 
 const (
-	// ArchivalEnabled is the status for enabling archival
+	// HistoryTaskDLQModeEnabled enables writing tasks to the DLQ.
 	HistoryTaskDLQModeEnabled = "enabled"
-	// ArchivalDisabled is the status for disabling archival
+	// HistoryTaskDLQModeDisabled disables writing tasks to the DLQ.
 	HistoryTaskDLQModeDisabled = "disabled"
-	// HistoryTaskDLQModeShadow is the status for writing to the DLQ but not processing the task
+	// HistoryTaskDLQModeShadow enables writing tasks to the DLQ but does not process the task.
 	HistoryTaskDLQModeShadow = "shadow"
 )
