@@ -170,11 +170,9 @@ func standbyTaskPostActionWriteToDLQ(
 				logger.Warn("Failed to write standby task to DLQ in shadow mode. Will discard the task.")
 			}
 			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
-		case constants.HistoryTaskDLQModeDisabled:
 		default:
 			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
 		}
-		return nil
 	}
 }
 
