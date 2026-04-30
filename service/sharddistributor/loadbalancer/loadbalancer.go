@@ -8,18 +8,19 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/loadbalancer/greedy"
-	"github.com/uber/cadence/service/sharddistributor/loadbalancer/naive"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/strategy/greedy"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/strategy/naive"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-// InitialPlacement returns shardID -> executorID assignments for a batch of unassigned shards.
+// InitialPlacement returns planned placements for a batch of unassigned shards.
 func InitialPlacement(
 	cfg *config.Config,
 	namespace string,
 	state *store.NamespaceState,
 	shardIDs []string,
-) (map[string]string, error) {
+) ([]plan.Placement, error) {
 	mode := cfg.GetLoadBalancingMode(namespace)
 	switch mode {
 	case types.LoadBalancingModeNAIVE:

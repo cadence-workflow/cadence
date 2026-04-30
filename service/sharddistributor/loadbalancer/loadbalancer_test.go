@@ -1,6 +1,7 @@
 package loadbalancer
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -29,14 +31,14 @@ func TestInitialPlacement(t *testing.T) {
 					return tt.mode
 				},
 			}
-			assignments, err := InitialPlacement(cfg, "test-namespace", &store.NamespaceState{}, nil)
+			placements, err := InitialPlacement(cfg, "test-namespace", &store.NamespaceState{}, nil)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Nil(t, assignments)
+				assert.Nil(t, placements)
 				return
 			}
 			require.NoError(t, err)
-			assert.Empty(t, assignments)
+			assert.Empty(t, placements)
 		})
 	}
 }
@@ -49,7 +51,7 @@ func TestInitialPlacement_NoActiveExecutors(t *testing.T) {
 	}
 
 	_, err := InitialPlacement(cfg, "test-namespace", &store.NamespaceState{}, []string{"shard-1"})
-	assert.ErrorContains(t, err, "no active executors available")
+	assert.True(t, errors.Is(err, plan.ErrNoActiveExecutors))
 }
 
 func TestRebalance(t *testing.T) {

@@ -2,11 +2,11 @@ package greedy
 
 import (
 	"cmp"
-	"fmt"
 	"maps"
 	"slices"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -15,18 +15,21 @@ type executorLoad struct {
 	smoothedLoad float64
 }
 
-// InitialPlacement returns shardID -> executorID assignments for a batch of unassigned shards.
-func InitialPlacement(state *store.NamespaceState, shardIDs []string) (map[string]string, error) {
+// InitialPlacement returns planned placements for a batch of unassigned shards.
+func InitialPlacement(state *store.NamespaceState, shardIDs []string) ([]plan.Placement, error) {
 	loads, averageShardLoad := executorLoads(state)
-	assignments := make(map[string]string, len(shardIDs))
+	placements := make([]plan.Placement, 0, len(shardIDs))
 	for _, shardID := range shardIDs {
 		executorID, err := chooseExecutor(loads, averageShardLoad)
 		if err != nil {
 			return nil, err
 		}
-		assignments[shardID] = executorID
+		placements = append(placements, plan.Placement{
+			ShardID:    shardID,
+			ExecutorID: executorID,
+		})
 	}
-	return assignments, nil
+	return placements, nil
 }
 
 func executorLoads(state *store.NamespaceState) (map[string]executorLoad, float64) {
@@ -59,7 +62,7 @@ func executorLoads(state *store.NamespaceState) (map[string]executorLoad, float6
 
 func chooseExecutor(loads map[string]executorLoad, averageShardLoad float64) (string, error) {
 	if len(loads) == 0 {
-		return "", fmt.Errorf("no active executors available")
+		return "", plan.ErrNoActiveExecutors
 	}
 	chosen := slices.MinFunc(slices.Collect(maps.Keys(loads)), func(a, b string) int {
 		la, lb := loads[a], loads[b]

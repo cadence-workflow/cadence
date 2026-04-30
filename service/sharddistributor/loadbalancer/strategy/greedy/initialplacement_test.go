@@ -1,12 +1,14 @@
 package greedy
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -32,14 +34,15 @@ func TestInitialPlacement(t *testing.T) {
 			},
 		}
 
-		assignments, err := InitialPlacement(state, []string{"new-1", "new-2"})
+		placements, err := InitialPlacement(state, []string{"new-1", "new-2"})
 		require.NoError(t, err)
 
-		// cold has the lowest smoothed load.
-		assert.Equal(t, "cold", assignments["new-1"])
-
-		// After bumping cold by the namespace average, warm becomes the lowest.
-		assert.Equal(t, "warm", assignments["new-2"])
+		// cold has the lowest smoothed load. After bumping cold by the
+		// namespace average, warm becomes the lowest.
+		assert.Equal(t, []plan.Placement{
+			{ShardID: "new-1", ExecutorID: "cold"},
+			{ShardID: "new-2", ExecutorID: "warm"},
+		}, placements)
 	})
 
 	t.Run("ties on smoothed load fall through to shard count", func(t *testing.T) {
@@ -54,11 +57,11 @@ func TestInitialPlacement(t *testing.T) {
 			},
 		}
 
-		assignments, err := InitialPlacement(state, []string{"new-1"})
+		placements, err := InitialPlacement(state, []string{"new-1"})
 		require.NoError(t, err)
 
 		// All shard stats are missing, so smoothed loads tie and shard count breaks the tie.
-		assert.Equal(t, "few", assignments["new-1"])
+		assert.Equal(t, []plan.Placement{{ShardID: "new-1", ExecutorID: "few"}}, placements)
 	})
 
 	t.Run("includes active executors with no assignments", func(t *testing.T) {
@@ -67,13 +70,13 @@ func TestInitialPlacement(t *testing.T) {
 			ShardAssignments: map[string]store.AssignedState{},
 		}
 
-		assignments, err := InitialPlacement(state, []string{"new-1"})
+		placements, err := InitialPlacement(state, []string{"new-1"})
 		require.NoError(t, err)
-		assert.Equal(t, "new", assignments["new-1"])
+		assert.Equal(t, []plan.Placement{{ShardID: "new-1", ExecutorID: "new"}}, placements)
 	})
 
 	t.Run("empty active executors returns error", func(t *testing.T) {
 		_, err := InitialPlacement(&store.NamespaceState{}, []string{"new-1"})
-		assert.ErrorContains(t, err, "no active executors available")
+		assert.True(t, errors.Is(err, plan.ErrNoActiveExecutors))
 	})
 }

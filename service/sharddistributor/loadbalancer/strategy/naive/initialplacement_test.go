@@ -1,12 +1,14 @@
 package naive
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -25,21 +27,22 @@ func TestInitialPlacement(t *testing.T) {
 			},
 		}
 
-		assignments, err := InitialPlacement(state, []string{"new-1", "new-2", "new-3"})
+		placements, err := InitialPlacement(state, []string{"new-1", "new-2", "new-3"})
 		require.NoError(t, err)
 
 		// b has fewer shards, so the first new shard goes there.
-		assert.Equal(t, "b", assignments["new-1"])
-
-		// Draining executor must never receive planned assignments.
-		assert.NotEqual(t, "c", assignments["new-2"])
-		assert.NotEqual(t, "c", assignments["new-3"])
+		// Draining executor c must never receive planned placements.
+		assert.Equal(t, []plan.Placement{
+			{ShardID: "new-1", ExecutorID: "b"},
+			{ShardID: "new-2", ExecutorID: "a"},
+			{ShardID: "new-3", ExecutorID: "b"},
+		}, placements)
 	})
 
 	t.Run("empty active executors returns error", func(t *testing.T) {
 		_, err := InitialPlacement(&store.NamespaceState{
 			Executors: map[string]store.HeartbeatState{"a": {Status: types.ExecutorStatusDRAINING}},
 		}, []string{"new-1"})
-		assert.ErrorContains(t, err, "no active executors available")
+		assert.True(t, errors.Is(err, plan.ErrNoActiveExecutors))
 	})
 }
