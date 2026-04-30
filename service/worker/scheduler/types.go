@@ -157,9 +157,13 @@ type SchedulerWorkflowState struct {
 // BufferedFire is a schedule fire queued for sequential execution by the BUFFER
 // overlap policy. ScheduledTime and TriggerSource are preserved so the deferred
 // start uses the same WorkflowID and RequestID it would have used at fire time.
+// OverlapPolicy is the overlap policy in effect for this fire (schedule default or
+// a backfill override). Zero (INVALID) means inherit input.Policies.OverlapPolicy
+// for compatibility with older persisted workflow state.
 type BufferedFire struct {
-	ScheduledTime time.Time     `json:"scheduledTime"`
-	TriggerSource TriggerSource `json:"triggerSource"`
+	ScheduledTime time.Time                   `json:"scheduledTime"`
+	TriggerSource TriggerSource               `json:"triggerSource"`
+	OverlapPolicy types.ScheduleOverlapPolicy `json:"overlapPolicy,omitempty"`
 }
 
 // RunningWorkflowInfo identifies a target workflow started by the scheduler,
