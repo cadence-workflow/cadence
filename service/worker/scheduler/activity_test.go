@@ -384,6 +384,144 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			},
 		},
 		{
+			name: "CONCURRENT bounded at capacity skips",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
+				r.ConcurrencyLimit = 2
+				r.RunningWorkflows = []RunningWorkflowInfo{
+					{WorkflowID: "wf-1", RunID: "run-1"},
+					{WorkflowID: "wf-2", RunID: "run-2"},
+				}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: nil},
+					}, nil).Times(2)
+			},
+			wantResult: &ProcessFireResult{
+				SkippedDelta: 1,
+				ActiveWorkflows: []RunningWorkflowInfo{
+					{WorkflowID: "wf-1", RunID: "run-1"},
+					{WorkflowID: "wf-2", RunID: "run-2"},
+				},
+			},
+		},
+		{
+			name: "CONCURRENT bounded with room starts",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
+				r.ConcurrencyLimit = 3
+				r.RunningWorkflows = []RunningWorkflowInfo{
+					{WorkflowID: "wf-1", RunID: "run-1"},
+					{WorkflowID: "wf-2", RunID: "run-2"},
+				}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: nil},
+					}, nil).Times(2)
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.StartWorkflowExecutionResponse{RunID: "new-run"}, nil)
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "new-run"},
+				ActiveWorkflows: []RunningWorkflowInfo{
+					{WorkflowID: "wf-1", RunID: "run-1"},
+					{WorkflowID: "wf-2", RunID: "run-2"},
+					{WorkflowID: expectedWfID, RunID: "new-run"},
+				},
+			},
+		},
+		{
+			name: "CONCURRENT bounded filters completed workflows",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
+				r.ConcurrencyLimit = 2
+				r.RunningWorkflows = []RunningWorkflowInfo{
+					{WorkflowID: "wf-1", RunID: "run-1"},
+					{WorkflowID: "wf-2", RunID: "run-2"},
+				}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				closed := types.WorkflowExecutionCloseStatus(0)
+				// wf-1 is closed; wf-2 is still running
+				gomock.InOrder(
+					m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+						Return(&types.DescribeWorkflowExecutionResponse{
+							WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: &closed},
+						}, nil),
+					m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+						Return(&types.DescribeWorkflowExecutionResponse{
+							WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: nil},
+						}, nil),
+				)
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.StartWorkflowExecutionResponse{RunID: "new-run"}, nil)
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "new-run"},
+				ActiveWorkflows: []RunningWorkflowInfo{
+					{WorkflowID: "wf-2", RunID: "run-2"},
+					{WorkflowID: expectedWfID, RunID: "new-run"},
+				},
+			},
+		},
+		{
+			name: "CONCURRENT bounded all completed starts new",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
+				r.ConcurrencyLimit = 1
+				r.RunningWorkflows = []RunningWorkflowInfo{
+					{WorkflowID: "wf-1", RunID: "run-1"},
+				}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				closed := types.WorkflowExecutionCloseStatus(0)
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: &closed},
+					}, nil)
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.StartWorkflowExecutionResponse{RunID: "new-run"}, nil)
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "new-run"},
+				ActiveWorkflows: []RunningWorkflowInfo{
+					{WorkflowID: expectedWfID, RunID: "new-run"},
+				},
+			},
+		},
+		{
+			name: "CONCURRENT bounded describe error returns error",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
+				r.ConcurrencyLimit = 2
+				r.RunningWorkflows = []RunningWorkflowInfo{
+					{WorkflowID: "wf-1", RunID: "run-1"},
+				}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("connection refused"))
+			},
+			wantErr: true,
+		},
+		{
 			name: "AlreadyStartedError returns skipped with RunID",
 			req:  baseReq,
 			setupMock: func(m *frontend.MockClient) {
@@ -645,6 +783,32 @@ func TestProcessScheduleFireActivityMetrics(t *testing.T) {
 				metrics.SchedulerFireStartedCountPerDomain,
 				metrics.SchedulerFireSkippedCountPerDomain,
 				metrics.SchedulerFireBufferedCountPerDomain,
+				metrics.SchedulerFireErrorCountPerDomain,
+			},
+		},
+		{
+			name: "CONCURRENT bounded at capacity emits skipped counter",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
+				r.ConcurrencyLimit = 2
+				r.RunningWorkflows = []RunningWorkflowInfo{
+					{WorkflowID: "wf-1", RunID: "run-1"},
+					{WorkflowID: "wf-2", RunID: "run-2"},
+				}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: nil},
+					}, nil).Times(2)
+			},
+			wantCounters: []metrics.MetricIdx{metrics.SchedulerFireSkippedCountPerDomain},
+			wantNoCounter: []metrics.MetricIdx{
+				metrics.SchedulerFireStartedCountPerDomain,
+				metrics.SchedulerFireBufferedCountPerDomain,
+				metrics.SchedulerFireAlreadyRunningCountPerDomain,
 				metrics.SchedulerFireErrorCountPerDomain,
 			},
 		},

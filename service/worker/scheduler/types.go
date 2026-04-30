@@ -152,6 +152,9 @@ type SchedulerWorkflowState struct {
 	// the overlap policy can check whether it is still running before starting
 	// the next one. Nil when no workflow has been started yet.
 	LastStartedWorkflow *RunningWorkflowInfo `json:"lastStartedWorkflow,omitempty"`
+	// RunningWorkflows holds in-flight target workflows under bounded CONCURRENT
+	// (ConcurrencyLimit > 0); completed entries are pruned by the activity on each fire.
+	RunningWorkflows []RunningWorkflowInfo `json:"runningWorkflows,omitempty"`
 }
 
 // BufferedFire is a schedule fire queued for sequential execution by the BUFFER
@@ -259,6 +262,11 @@ type ProcessFireRequest struct {
 	TriggerSource       TriggerSource               `json:"triggerSource"`
 	OverlapPolicy       types.ScheduleOverlapPolicy `json:"overlapPolicy"`
 	LastStartedWorkflow *RunningWorkflowInfo        `json:"lastStartedWorkflow,omitempty"`
+	// ConcurrencyLimit mirrors SchedulePolicies.ConcurrencyLimit; 0 = unlimited.
+	ConcurrencyLimit int32 `json:"concurrencyLimit,omitempty"`
+	// RunningWorkflows is the current in-flight set from workflow state; used
+	// only when OverlapPolicy==CONCURRENT and ConcurrencyLimit > 0.
+	RunningWorkflows []RunningWorkflowInfo `json:"runningWorkflows,omitempty"`
 }
 
 // ProcessFireResult is the output of processScheduleFireActivity. The workflow
@@ -272,4 +280,7 @@ type ProcessFireResult struct {
 	// appends the fire to state.BufferedFires and retries draining on the
 	// next loop iteration.
 	Buffered bool `json:"buffered,omitempty"`
+	// ActiveWorkflows is the updated in-flight set for bounded CONCURRENT; the workflow
+	// replaces state.RunningWorkflows with it after each fire. Nil for all other policies.
+	ActiveWorkflows []RunningWorkflowInfo `json:"activeWorkflows,omitempty"`
 }

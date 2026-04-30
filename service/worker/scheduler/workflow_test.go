@@ -1416,6 +1416,98 @@ func TestEffectiveBufferLimit(t *testing.T) {
 	}
 }
 
+func TestHandleUpdate_RunningWorkflowsClearedOnOverlapPolicyChange(t *testing.T) {
+	runningWFs := []RunningWorkflowInfo{
+		{WorkflowID: "wf-1", RunID: "run-1"},
+		{WorkflowID: "wf-2", RunID: "run-2"},
+	}
+
+	tests := []struct {
+		name              string
+		fromOverlap       types.ScheduleOverlapPolicy
+		fromLimit         int32
+		toOverlap         types.ScheduleOverlapPolicy
+		toLimit           int32
+		initialRunningWFs []RunningWorkflowInfo
+		wantNil           bool
+	}{
+		{
+			name:              "CONCURRENT(limit=2) -> SKIP_NEW clears running workflows",
+			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
+			fromLimit:         2,
+			toOverlap:         types.ScheduleOverlapPolicySkipNew,
+			toLimit:           0,
+			initialRunningWFs: runningWFs,
+			wantNil:           true,
+		},
+		{
+			name:              "CONCURRENT(limit=2) -> CONCURRENT(limit=0) clears running workflows",
+			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
+			fromLimit:         2,
+			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
+			toLimit:           0,
+			initialRunningWFs: runningWFs,
+			wantNil:           true,
+		},
+		{
+			name:              "CONCURRENT(limit=2) -> BUFFER clears running workflows",
+			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
+			fromLimit:         2,
+			toOverlap:         types.ScheduleOverlapPolicyBuffer,
+			toLimit:           0,
+			initialRunningWFs: runningWFs,
+			wantNil:           true,
+		},
+		{
+			name:              "CONCURRENT(limit=2) -> CONCURRENT(limit=5) preserves running workflows",
+			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
+			fromLimit:         2,
+			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
+			toLimit:           5,
+			initialRunningWFs: runningWFs,
+			wantNil:           false,
+		},
+		{
+			name:              "SKIP_NEW -> CONCURRENT(limit=2) does not clear (guard: previous was not CONCURRENT)",
+			fromOverlap:       types.ScheduleOverlapPolicySkipNew,
+			fromLimit:         0,
+			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
+			toLimit:           2,
+			initialRunningWFs: nil,
+			wantNil:           true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+				Policies: types.SchedulePolicies{
+					OverlapPolicy:    tt.fromOverlap,
+					ConcurrencyLimit: tt.fromLimit,
+				},
+			}
+			state := &SchedulerWorkflowState{
+				RunningWorkflows: append([]RunningWorkflowInfo(nil), tt.initialRunningWFs...),
+			}
+			sig := UpdateSignal{
+				Policies: &types.SchedulePolicies{
+					OverlapPolicy:    tt.toOverlap,
+					ConcurrencyLimit: tt.toLimit,
+				},
+			}
+
+			handleUpdate(testLogger, sig, input, state)
+
+			if tt.wantNil {
+				assert.Nil(t, state.RunningWorkflows)
+			} else {
+				assert.Equal(t, tt.initialRunningWFs, state.RunningWorkflows)
+			}
+		})
+	}
+}
+
 func TestHandleUpdate_BufferedFiresClearedOnOverlapPolicyChange(t *testing.T) {
 	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	initialFires := []BufferedFire{

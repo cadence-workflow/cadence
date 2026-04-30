@@ -422,6 +422,20 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 			state.SkippedRuns += int64(len(state.BufferedFires))
 			state.BufferedFires = nil
 		}
+		// Drop running-workflow tracking when leaving bounded CONCURRENT: the
+		// list is meaningless under any other policy or when limit becomes 0.
+		newOverlap := input.Policies.OverlapPolicy
+		newLimit := input.Policies.ConcurrencyLimit
+		if previousOverlap == types.ScheduleOverlapPolicyConcurrent &&
+			(newOverlap != types.ScheduleOverlapPolicyConcurrent || newLimit == 0) &&
+			len(state.RunningWorkflows) > 0 {
+			logger.Warn("policy change cleared running workflows tracking",
+				zap.String("from", previousOverlap.String()),
+				zap.String("to", newOverlap.String()),
+				zap.Int32("newLimit", newLimit),
+				zap.Int("clearedCount", len(state.RunningWorkflows)))
+			state.RunningWorkflows = nil
+		}
 	}
 	if changed {
 		logger.Info("schedule updated")
@@ -533,6 +547,8 @@ func tryStartFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWork
 		TriggerSource:       trigger,
 		OverlapPolicy:       input.Policies.OverlapPolicy,
 		LastStartedWorkflow: state.LastStartedWorkflow,
+		ConcurrencyLimit:    input.Policies.ConcurrencyLimit,
+		RunningWorkflows:    state.RunningWorkflows,
 	}
 
 	var result ProcessFireResult
@@ -553,6 +569,9 @@ func tryStartFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWork
 	state.SkippedRuns += result.SkippedDelta
 	if result.StartedWorkflow != nil {
 		state.LastStartedWorkflow = result.StartedWorkflow
+	}
+	if result.ActiveWorkflows != nil {
+		state.RunningWorkflows = result.ActiveWorkflows
 	}
 
 	if result.TotalDelta > 0 && result.StartedWorkflow != nil {
