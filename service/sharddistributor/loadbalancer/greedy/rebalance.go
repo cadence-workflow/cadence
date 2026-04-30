@@ -12,8 +12,8 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-// PlanRebalance updates currentAssignments with planned shard moves and returns whether the plan changed.
-func PlanRebalance(
+// Rebalance updates currentAssignments with planned shard moves and returns whether the plan changed.
+func Rebalance(
 	cfg config.LoadBalancingGreedyConfig,
 	namespace string,
 	namespaceState *store.NamespaceState,

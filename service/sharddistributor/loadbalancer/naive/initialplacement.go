@@ -10,8 +10,8 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-// PlanInitialPlacement returns shardID -> executorID assignments for a batch of unassigned shards.
-func PlanInitialPlacement(state *store.NamespaceState, shardIDs []string) (map[string]string, error) {
+// InitialPlacement returns shardID -> executorID assignments for a batch of unassigned shards.
+func InitialPlacement(state *store.NamespaceState, shardIDs []string) (map[string]string, error) {
 	counts := assignmentCounts(state)
 	assignments := make(map[string]string, len(shardIDs))
 	for _, shardID := range shardIDs {
