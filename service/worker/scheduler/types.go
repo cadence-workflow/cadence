@@ -75,6 +75,14 @@ const (
 	// entries stays well within the workflow input size limit.
 	MaxBufferedFiresSystemLimit = 1000
 
+	// MaxConcurrencyLimitSystemLimit caps ConcurrencyLimit for the bounded CONCURRENT
+	// overlap policy regardless of the user-configured value. It bounds the
+	// RunningWorkflows slice carried in ContinueAsNew payload: each RunningWorkflowInfo
+	// is ~110 bytes JSON, so 1000 entries adds ~107KB — well within the 2MB hard limit
+	// and leaving headroom for the rest of the workflow state. Exceeding the 2MB limit
+	// causes Cadence to fail the workflow entirely with no graceful degradation.
+	MaxConcurrencyLimitSystemLimit = 1000
+
 	// signal_type tag values for scheduler_signal_received_count metric.
 	signalTypeTagPause    = "pause"
 	signalTypeTagUnpause  = "unpause"

@@ -384,7 +384,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			},
 		},
 		{
-			name: "CONCURRENT bounded at capacity skips",
+			name: "CONCURRENT with cap: at capacity, skips new fire",
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
@@ -410,7 +410,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			},
 		},
 		{
-			name: "CONCURRENT bounded with room starts",
+			name: "CONCURRENT with cap: slot available, starts new workflow",
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
@@ -440,7 +440,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			},
 		},
 		{
-			name: "CONCURRENT bounded filters completed workflows",
+			name: "CONCURRENT with cap: completed workflows pruned, freed slot starts new workflow",
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
@@ -477,7 +477,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			},
 		},
 		{
-			name: "CONCURRENT bounded all completed starts new",
+			name: "CONCURRENT with cap: all tracked workflows completed, starts new workflow",
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
@@ -505,7 +505,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			},
 		},
 		{
-			name: "CONCURRENT bounded describe error returns error",
+			name: "CONCURRENT with cap: describe error during slot check propagates",
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
@@ -520,6 +520,37 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 					Return(nil, errors.New("connection refused"))
 			},
 			wantErr: true,
+		},
+		{
+			name: "CONCURRENT with cap: already-started includes workflow in active set",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
+				r.ConcurrencyLimit = 3
+				r.RunningWorkflows = []RunningWorkflowInfo{
+					{WorkflowID: "wf-1", RunID: "run-1"},
+				}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: nil},
+					}, nil)
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(nil, &types.WorkflowExecutionAlreadyStartedError{
+						Message: "already started",
+						RunID:   "existing-run",
+					})
+			},
+			wantResult: &ProcessFireResult{
+				SkippedDelta:    1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "existing-run"},
+				ActiveWorkflows: []RunningWorkflowInfo{
+					{WorkflowID: "wf-1", RunID: "run-1"},
+					{WorkflowID: expectedWfID, RunID: "existing-run"},
+				},
+			},
 		},
 		{
 			name: "AlreadyStartedError returns skipped with RunID",
@@ -787,7 +818,7 @@ func TestProcessScheduleFireActivityMetrics(t *testing.T) {
 			},
 		},
 		{
-			name: "CONCURRENT bounded at capacity emits skipped counter",
+			name: "CONCURRENT with cap at capacity: emits skipped counter",
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
@@ -980,6 +1011,25 @@ func TestProcessScheduleFireActivityLatency(t *testing.T) {
 
 			fired := scope.histograms[metrics.SchedulerFireLatencyPerDomainHistogram] > 0
 			assert.Equal(t, tc.wantLatency, fired)
+		})
+	}
+}
+
+func TestEffectiveConcurrencyLimit(t *testing.T) {
+	tests := []struct {
+		name      string
+		userLimit int32
+		want      int32
+	}{
+		{"below system limit returned as-is", 1, 1},
+		{"typical value returned as-is", 10, 10},
+		{"at system limit returned as-is", MaxConcurrencyLimitSystemLimit, MaxConcurrencyLimitSystemLimit},
+		{"one above system limit clamped", MaxConcurrencyLimitSystemLimit + 1, MaxConcurrencyLimitSystemLimit},
+		{"large value clamped to system limit", 10000, MaxConcurrencyLimitSystemLimit},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, effectiveConcurrencyLimit(tc.userLimit))
 		})
 	}
 }

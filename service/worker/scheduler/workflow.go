@@ -631,6 +631,18 @@ func effectiveBufferLimit(userLimit int32) (effective int, reason string) {
 	return int(userLimit), BufferOverflowReasonUserLimit
 }
 
+// effectiveConcurrencyLimit returns the concurrency cap enforced for the bounded
+// CONCURRENT overlap policy. Values above the system ceiling are silently clamped
+// so RunningWorkflows never grows large enough to bloat the ContinueAsNew payload
+// toward Cadence's BlobSizeLimitError (default 2MB). Only called when userLimit > 0
+// (i.e., isBoundedConcurrent is true).
+func effectiveConcurrencyLimit(userLimit int32) int32 {
+	if userLimit > MaxConcurrencyLimitSystemLimit {
+		return MaxConcurrencyLimitSystemLimit
+	}
+	return userLimit
+}
+
 // drainBufferedFires executes queued fires in FIFO order, stopping as soon as
 // one re-buffers (previous target workflow still running) or
 // maxDrainFiresPerExecution fires have been processed. Returns true when more

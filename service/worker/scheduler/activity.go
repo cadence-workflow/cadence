@@ -82,6 +82,7 @@ func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (r
 	isBoundedConcurrent := policy == types.ScheduleOverlapPolicyConcurrent && req.ConcurrencyLimit > 0
 	var stillRunning []RunningWorkflowInfo
 	if isBoundedConcurrent {
+		effectiveLimit := effectiveConcurrencyLimit(req.ConcurrencyLimit)
 		for _, wf := range req.RunningWorkflows {
 			running, err := isWorkflowRunning(ctx, sc.FrontendClient, req.Domain, &wf)
 			if err != nil {
@@ -91,7 +92,7 @@ func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (r
 				stillRunning = append(stillRunning, wf)
 			}
 		}
-		if int32(len(stillRunning)) >= req.ConcurrencyLimit {
+		if len(stillRunning) >= int(effectiveLimit) {
 			scope.Tagged(metrics.OverlapPolicyTag(policy.String()), metrics.TriggerSourceTag(string(req.TriggerSource))).
 				IncCounter(metrics.SchedulerFireSkippedCountPerDomain)
 			result.SkippedDelta = 1
