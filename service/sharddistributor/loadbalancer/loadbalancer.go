@@ -6,42 +6,24 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/loadbalancer/greedy"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/naive"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-type LoadBalance struct {
-	cfg *config.Config
-}
-
-// Top:
-// lb := LoadBalance{cfg: cfg}
-//
-//
-// Længere nede:
-// lb.Pick(state, namespace)
-
-func (l LoadBalance) Pick(state *store.NamespaceState, namespace string) (string, error) {
-	mode := l.cfg.GetLoadBalancingMode(namespace)
-
+// PlanInitialPlacement returns shardID -> executorID assignments for a batch of unassigned shards.
+func PlanInitialPlacement(
+	cfg *config.Config,
+	namespace string,
+	state *store.NamespaceState,
+	shardIDs []string,
+) (map[string]string, error) {
+	mode := cfg.GetLoadBalancingMode(namespace)
 	switch mode {
 	case types.LoadBalancingModeNAIVE:
-		chosen, err := naive.InitialPlacement(state)
-		if err != nil {
-			return "", fmt.Errorf("failed to pick naive placement: %w", err)
-		}
-
-		return chosen, nil
-
+		return naive.PlanInitialPlacement(state, shardIDs)
 	case types.LoadBalancingModeGREEDY:
-		chosen, err := greedy.InitialPlacement(state)
-		if err != nil {
-			return "", fmt.Errorf("failed to pick initial placement: %w", err)
-		}
-
-		return chosen, nil
+		return greedy.PlanInitialPlacement(state, shardIDs)
 	default:
-		return "", fmt.Errorf("unsupported load balancing mode: %s", mode)
-
+		return nil, fmt.Errorf("unsupported load balancing mode: %s", mode)
 	}
-
 }

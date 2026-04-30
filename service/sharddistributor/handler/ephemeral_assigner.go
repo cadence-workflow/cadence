@@ -28,14 +28,9 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/handler/loadbalance"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
-
-type executorAssignmentLoad struct {
-	smoothedLoad float64
-	shardCount   int
-}
 
 // assignEphemeralBatch is the ephemeralAssignmentBatchFn wired into the shardBatcher.
 // It processes a whole batch of unassigned shard keys for a single ephemeral
@@ -56,14 +51,9 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
 	}
 
-	balancer, err := loadbalance.New(h.cfg.GetLoadBalancingMode(namespace), state)
+	chosenExecutors, err := loadbalancer.PlanInitialPlacement(h.cfg, namespace, state, shardKeys)
 	if err != nil {
-		return nil, &types.InternalServiceError{Message: err.Error()}
-	}
-
-	chosenExecutors, err := pickExecutors(namespace, balancer, shardKeys)
-	if err != nil {
-		return nil, err
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("plan initial placement: %v", err)}
 	}
 
 	mergeAssignments(state, chosenExecutors)
@@ -83,23 +73,6 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 	}
 
 	return buildResults(namespace, shardKeys, chosenExecutors, executorOwners), nil
-}
-
-// pickExecutors asks the balancer to choose an executor for each shard key.
-// Returns a map of shardKey -> chosen executorID.
-func pickExecutors(namespace string, balancer loadbalance.Balancer, shardKeys []string) (map[string]string, error) {
-	chosen := make(map[string]string, len(shardKeys))
-	for _, shardKey := range shardKeys {
-		executor, err := balancer.Pick()
-		if err != nil {
-			if errors.Is(err, loadbalance.ErrNoActiveExecutors) {
-				return nil, &types.InternalServiceError{Message: "no active executors available for namespace: " + namespace}
-			}
-			return nil, &types.InternalServiceError{Message: fmt.Sprintf("pick executor: %v", err)}
-		}
-		chosen[shardKey] = executor
-	}
-	return chosen, nil
 }
 
 // mergeAssignments folds the chosen shard→executor assignments back into state.
