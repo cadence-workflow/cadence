@@ -449,7 +449,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	assignedToEmptyExecutors := assignShardsToEmptyExecutors(currentAssignments)
 	updatedAssignments := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
 
-	loadBalanceMoves, err := loadbalancer.Rebalance(
+	loadBalanceMoves, err := loadbalancer.PlanRebalance(
 		p.sdConfig,
 		p.namespaceCfg.Name,
 		namespaceState,

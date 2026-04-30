@@ -14,8 +14,8 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-// InitialPlacement returns planned placements for a batch of unassigned shards.
-func InitialPlacement(
+// PlanInitialPlacement returns planned placements for a batch of unassigned shards.
+func PlanInitialPlacement(
 	cfg *config.Config,
 	namespace string,
 	state *store.NamespaceState,
@@ -24,16 +24,16 @@ func InitialPlacement(
 	mode := cfg.GetLoadBalancingMode(namespace)
 	switch mode {
 	case types.LoadBalancingModeNAIVE:
-		return naive.InitialPlacement(state, shardIDs)
+		return naive.PlanInitialPlacement(state, shardIDs)
 	case types.LoadBalancingModeGREEDY:
-		return greedy.InitialPlacement(state, shardIDs)
+		return greedy.PlanInitialPlacement(state, shardIDs)
 	default:
 		return nil, fmt.Errorf("unsupported load balancing mode: %s", mode)
 	}
 }
 
-// Rebalance returns the planned shard moves for the current assignment state.
-func Rebalance(
+// PlanRebalance returns planned shard moves for the current assignment state.
+func PlanRebalance(
 	cfg *config.Config,
 	namespace string,
 	state *store.NamespaceState,
@@ -45,9 +45,9 @@ func Rebalance(
 	mode := cfg.GetLoadBalancingMode(namespace)
 	switch mode {
 	case types.LoadBalancingModeNAIVE:
-		return naive.Rebalance(cfg.LoadBalancingNaive, namespace, state, currentAssignments, logger, metricsScope)
+		return naive.PlanRebalance(cfg.LoadBalancingNaive, namespace, state, currentAssignments, logger, metricsScope)
 	case types.LoadBalancingModeGREEDY:
-		return greedy.Rebalance(cfg.LoadBalancingGreedy, namespace, state, currentAssignments, now, metricsScope)
+		return greedy.PlanRebalance(cfg.LoadBalancingGreedy, namespace, state, currentAssignments, now, metricsScope)
 	default:
 		return nil, fmt.Errorf("unsupported load balancing mode: %s", mode)
 	}

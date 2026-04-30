@@ -40,7 +40,7 @@ func testNamespaceState(shardLoad map[string]float64) *store.NamespaceState {
 	}
 }
 
-func TestRebalanceNaiveByReportedLoad(t *testing.T) {
+func TestPlanRebalanceNaiveByReportedLoad(t *testing.T) {
 	cases := []struct {
 		name                       string
 		shardLoad                  map[string]float64
@@ -228,7 +228,7 @@ func TestRebalanceNaiveByReportedLoad(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			originalAssignments := cloneAssignments(tc.currentAssignments)
 
-			moves, err := Rebalance(
+			moves, err := PlanRebalance(
 				testNaiveConfig(tc.maxDeviation),
 				testNamespace,
 				testNamespaceState(tc.shardLoad),

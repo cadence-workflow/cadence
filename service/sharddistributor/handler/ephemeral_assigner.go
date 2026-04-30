@@ -53,7 +53,7 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
 	}
 
-	placements, err := loadbalancer.InitialPlacement(h.cfg, namespace, state, shardKeys)
+	placements, err := loadbalancer.PlanInitialPlacement(h.cfg, namespace, state, shardKeys)
 	if err != nil {
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("plan initial placement: %v", err)}
 	}

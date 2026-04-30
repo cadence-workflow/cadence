@@ -12,7 +12,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-func TestInitialPlacement(t *testing.T) {
+func TestPlanInitialPlacement(t *testing.T) {
 	t.Run("picks fewest shards and increments after each pick", func(t *testing.T) {
 		state := &store.NamespaceState{
 			Executors: map[string]store.HeartbeatState{
@@ -27,7 +27,7 @@ func TestInitialPlacement(t *testing.T) {
 			},
 		}
 
-		placements, err := InitialPlacement(state, []string{"new-1", "new-2", "new-3"})
+		placements, err := PlanInitialPlacement(state, []string{"new-1", "new-2", "new-3"})
 		require.NoError(t, err)
 
 		// b has fewer shards, so the first new shard goes there.
@@ -40,7 +40,7 @@ func TestInitialPlacement(t *testing.T) {
 	})
 
 	t.Run("empty active executors returns error", func(t *testing.T) {
-		_, err := InitialPlacement(&store.NamespaceState{
+		_, err := PlanInitialPlacement(&store.NamespaceState{
 			Executors: map[string]store.HeartbeatState{"a": {Status: types.ExecutorStatusDRAINING}},
 		}, []string{"new-1"})
 		assert.True(t, errors.Is(err, plan.ErrNoActiveExecutors))

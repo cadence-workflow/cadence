@@ -12,7 +12,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-func TestInitialPlacement(t *testing.T) {
+func TestPlanInitialPlacement(t *testing.T) {
 	t.Run("picks lowest smoothed load and bumps by average after each pick", func(t *testing.T) {
 		state := &store.NamespaceState{
 			Executors: map[string]store.HeartbeatState{
@@ -34,7 +34,7 @@ func TestInitialPlacement(t *testing.T) {
 			},
 		}
 
-		placements, err := InitialPlacement(state, []string{"new-1", "new-2"})
+		placements, err := PlanInitialPlacement(state, []string{"new-1", "new-2"})
 		require.NoError(t, err)
 
 		// cold has the lowest smoothed load. After bumping cold by the
@@ -57,7 +57,7 @@ func TestInitialPlacement(t *testing.T) {
 			},
 		}
 
-		placements, err := InitialPlacement(state, []string{"new-1"})
+		placements, err := PlanInitialPlacement(state, []string{"new-1"})
 		require.NoError(t, err)
 
 		// All shard stats are missing, so smoothed loads tie and shard count breaks the tie.
@@ -70,13 +70,13 @@ func TestInitialPlacement(t *testing.T) {
 			ShardAssignments: map[string]store.AssignedState{},
 		}
 
-		placements, err := InitialPlacement(state, []string{"new-1"})
+		placements, err := PlanInitialPlacement(state, []string{"new-1"})
 		require.NoError(t, err)
 		assert.Equal(t, []plan.Placement{{ShardID: "new-1", ExecutorID: "new"}}, placements)
 	})
 
 	t.Run("empty active executors returns error", func(t *testing.T) {
-		_, err := InitialPlacement(&store.NamespaceState{}, []string{"new-1"})
+		_, err := PlanInitialPlacement(&store.NamespaceState{}, []string{"new-1"})
 		assert.True(t, errors.Is(err, plan.ErrNoActiveExecutors))
 	})
 }

@@ -14,7 +14,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-func TestInitialPlacement(t *testing.T) {
+func TestPlanInitialPlacement(t *testing.T) {
 	tests := []struct {
 		name    string
 		mode    string
@@ -31,7 +31,7 @@ func TestInitialPlacement(t *testing.T) {
 					return tt.mode
 				},
 			}
-			placements, err := InitialPlacement(cfg, "test-namespace", &store.NamespaceState{}, nil)
+			placements, err := PlanInitialPlacement(cfg, "test-namespace", &store.NamespaceState{}, nil)
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Nil(t, placements)
@@ -43,24 +43,24 @@ func TestInitialPlacement(t *testing.T) {
 	}
 }
 
-func TestInitialPlacement_NoActiveExecutors(t *testing.T) {
+func TestPlanInitialPlacement_NoActiveExecutors(t *testing.T) {
 	cfg := &config.Config{
 		LoadBalancingMode: func(namespace string) string {
 			return config.LoadBalancingModeNAIVE
 		},
 	}
 
-	_, err := InitialPlacement(cfg, "test-namespace", &store.NamespaceState{}, []string{"shard-1"})
+	_, err := PlanInitialPlacement(cfg, "test-namespace", &store.NamespaceState{}, []string{"shard-1"})
 	assert.True(t, errors.Is(err, plan.ErrNoActiveExecutors))
 }
 
-func TestRebalance(t *testing.T) {
+func TestPlanRebalance(t *testing.T) {
 	cfg := &config.Config{
 		LoadBalancingMode: func(namespace string) string {
 			return config.LoadBalancingModeINVALID
 		},
 	}
-	moves, err := Rebalance(cfg, "test-namespace", &store.NamespaceState{}, nil, time.Time{}, nil, metrics.NoopScope)
+	moves, err := PlanRebalance(cfg, "test-namespace", &store.NamespaceState{}, nil, time.Time{}, nil, metrics.NoopScope)
 	require.Error(t, err)
 	assert.Nil(t, moves)
 	assert.ErrorContains(t, err, "unsupported load balancing mode")

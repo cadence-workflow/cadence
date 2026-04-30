@@ -15,8 +15,8 @@ type executorLoad struct {
 	smoothedLoad float64
 }
 
-// InitialPlacement returns planned placements for a batch of unassigned shards.
-func InitialPlacement(state *store.NamespaceState, shardIDs []string) ([]plan.Placement, error) {
+// PlanInitialPlacement returns planned placements for a batch of unassigned shards.
+func PlanInitialPlacement(state *store.NamespaceState, shardIDs []string) ([]plan.Placement, error) {
 	loads, averageShardLoad := executorLoads(state)
 	placements := make([]plan.Placement, 0, len(shardIDs))
 	for _, shardID := range shardIDs {
