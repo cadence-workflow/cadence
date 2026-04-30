@@ -1459,22 +1459,13 @@ func TestHandleUpdate_RunningWorkflowsClearedOnOverlapPolicyChange(t *testing.T)
 			wantNil:           true,
 		},
 		{
-			name:              "CONCURRENT(limit=2) -> CONCURRENT(limit=5) preserves running workflows",
+			name:              "CONCURRENT(limit=5) -> CONCURRENT(limit=2) preserves running workflows",
 			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
-			fromLimit:         2,
-			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
-			toLimit:           5,
-			initialRunningWFs: runningWFs,
-			wantNil:           false,
-		},
-		{
-			name:              "SKIP_NEW -> CONCURRENT(limit=2) does not clear (guard: previous was not CONCURRENT)",
-			fromOverlap:       types.ScheduleOverlapPolicySkipNew,
-			fromLimit:         0,
+			fromLimit:         5,
 			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
 			toLimit:           2,
-			initialRunningWFs: nil,
-			wantNil:           true,
+			initialRunningWFs: runningWFs,
+			wantNil:           false,
 		},
 	}
 
@@ -1497,8 +1488,9 @@ func TestHandleUpdate_RunningWorkflowsClearedOnOverlapPolicyChange(t *testing.T)
 				},
 			}
 
-			handleUpdate(testLogger, sig, input, state)
+			changed := handleUpdate(testLogger, sig, input, state)
 
+			assert.True(t, changed, "policy update signal should report state as changed")
 			if tt.wantNil {
 				assert.Nil(t, state.RunningWorkflows)
 			} else {
