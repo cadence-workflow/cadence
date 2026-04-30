@@ -47,11 +47,7 @@ func Rebalance(
 	case types.LoadBalancingModeNAIVE:
 		return naive.Rebalance(cfg.LoadBalancingNaive, namespace, state, currentAssignments, logger, metricsScope)
 	case types.LoadBalancingModeGREEDY:
-		changed, err := greedy.Rebalance(cfg.LoadBalancingGreedy, namespace, state, currentAssignments, now, metricsScope)
-		if err != nil || !changed {
-			return nil, err
-		}
-		return nil, fmt.Errorf("greedy rebalance move planning is not implemented")
+		return greedy.Rebalance(cfg.LoadBalancingGreedy, namespace, state, currentAssignments, now, metricsScope)
 	default:
 		return nil, fmt.Errorf("unsupported load balancing mode: %s", mode)
 	}

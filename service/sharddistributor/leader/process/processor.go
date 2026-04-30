@@ -22,6 +22,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/loadbalancer"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -448,7 +449,7 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	assignedToEmptyExecutors := assignShardsToEmptyExecutors(currentAssignments)
 	updatedAssignments := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
 
-	isRebalancedByShardLoad, err := loadbalancer.Rebalance(
+	loadBalanceMoves, err := loadbalancer.Rebalance(
 		p.sdConfig,
 		p.namespaceCfg.Name,
 		namespaceState,
@@ -460,6 +461,10 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	if err != nil {
 		return fmt.Errorf("load balance: %w", err)
 	}
+	if err := applyMoves(currentAssignments, loadBalanceMoves); err != nil {
+		return fmt.Errorf("apply load balance moves: %w", err)
+	}
+	isRebalancedByShardLoad := len(loadBalanceMoves) > 0
 
 	p.emitExecutorMetric(namespaceState, metricsLoopScope)
 	p.emitAssignmentImbalanceMetrics(metricsLoopScope, currentAssignments, namespaceState)
@@ -604,6 +609,20 @@ func (*namespaceProcessor) updateAssignments(shardsToReassign []string, activeEx
 	}
 
 	return true
+}
+
+func applyMoves(currentAssignments map[string][]string, moves []plan.Move) error {
+	for _, move := range moves {
+		idx := slices.Index(currentAssignments[move.From], move.ShardID)
+		if idx == -1 {
+			return fmt.Errorf("shard %s not found in source executor %s", move.ShardID, move.From)
+		}
+
+		currentAssignments[move.From][idx] = currentAssignments[move.From][len(currentAssignments[move.From])-1]
+		currentAssignments[move.From] = currentAssignments[move.From][:len(currentAssignments[move.From])-1]
+		currentAssignments[move.To] = append(currentAssignments[move.To], move.ShardID)
+	}
+	return nil
 }
 
 func (p *namespaceProcessor) getNewAssignmentsState(namespaceState *store.NamespaceState, currentAssignments map[string][]string) map[string]store.AssignedState {
