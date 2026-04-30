@@ -2,10 +2,12 @@ package loadbalancer
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
@@ -51,26 +53,13 @@ func TestPlanInitialPlacement_NoActiveExecutors(t *testing.T) {
 }
 
 func TestPlanRebalance(t *testing.T) {
-	tests := []struct {
-		name       string
-		mode       string
-		wantErrMsg string
-	}{
-		{name: "naive", mode: config.LoadBalancingModeNAIVE, wantErrMsg: "naive rebalance planning is not implemented"},
-		{name: "greedy", mode: config.LoadBalancingModeGREEDY, wantErrMsg: "greedy rebalance planning is not implemented"},
-		{name: "invalid", mode: config.LoadBalancingModeINVALID, wantErrMsg: "unsupported load balancing mode"},
+	cfg := &config.Config{
+		LoadBalancingMode: func(namespace string) string {
+			return config.LoadBalancingModeINVALID
+		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.Config{
-				LoadBalancingMode: func(namespace string) string {
-					return tt.mode
-				},
-			}
-			changed, err := PlanRebalance(cfg, "test-namespace", &store.NamespaceState{}, nil)
-			require.Error(t, err)
-			assert.False(t, changed)
-			assert.ErrorContains(t, err, tt.wantErrMsg)
-		})
-	}
+	changed, err := PlanRebalance(cfg, "test-namespace", &store.NamespaceState{}, nil, time.Time{}, nil, metrics.NoopScope)
+	require.Error(t, err)
+	assert.False(t, changed)
+	assert.ErrorContains(t, err, "unsupported load balancing mode")
 }

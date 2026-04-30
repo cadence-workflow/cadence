@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
@@ -37,12 +38,13 @@ func PlanRebalance(
 	state *store.NamespaceState,
 	currentAssignments map[string][]string,
 	now time.Time,
+	logger log.Logger,
 	metricsScope metrics.Scope,
 ) (bool, error) {
 	mode := cfg.GetLoadBalancingMode(namespace)
 	switch mode {
 	case types.LoadBalancingModeNAIVE:
-		return naive.PlanRebalance(cfg.LoadBalancingNaive, namespace, state, currentAssignments, now, metricsScope)
+		return naive.PlanRebalance(cfg.LoadBalancingNaive, namespace, state, currentAssignments, logger, metricsScope)
 	case types.LoadBalancingModeGREEDY:
 		return greedy.PlanRebalance(cfg.LoadBalancingGreedy, namespace, state, currentAssignments, now, metricsScope)
 	default:

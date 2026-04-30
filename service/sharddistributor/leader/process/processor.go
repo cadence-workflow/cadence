@@ -21,6 +21,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -447,18 +448,17 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	assignedToEmptyExecutors := assignShardsToEmptyExecutors(currentAssignments)
 	updatedAssignments := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
 
-	var isRebalancedByShardLoad bool
-	loadBalancingMode := p.sdConfig.GetLoadBalancingMode(p.namespaceCfg.Name)
-	switch loadBalancingMode {
-	case types.LoadBalancingModeGREEDY:
-		isRebalancedByShardLoad, err = p.rebalanceGreedyBySmoothedLoad(namespaceState, currentAssignments, metricsLoopScope)
-		if err != nil {
-			return fmt.Errorf("load balance: %w", err)
-		}
-	case types.LoadBalancingModeNAIVE:
-		isRebalancedByShardLoad = p.rebalanceNaiveByReportedLoad(calcShardLoad(namespaceState), currentAssignments, metricsLoopScope)
-	default:
-		return &types.InternalServiceError{Message: fmt.Sprintf("unsupported load balancing mode: %s", loadBalancingMode)}
+	isRebalancedByShardLoad, err := loadbalancer.PlanRebalance(
+		p.sdConfig,
+		p.namespaceCfg.Name,
+		namespaceState,
+		currentAssignments,
+		p.timeSource.Now(),
+		p.logger,
+		metricsLoopScope,
+	)
+	if err != nil {
+		return fmt.Errorf("load balance: %w", err)
 	}
 
 	p.emitExecutorMetric(namespaceState, metricsLoopScope)

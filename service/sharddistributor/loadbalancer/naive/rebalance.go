@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/config"
@@ -16,6 +17,7 @@ func PlanRebalance(
 	namespace string,
 	state *store.NamespaceState,
 	currentAssignments map[string][]string,
+	logger log.Logger,
 	metricsScope metrics.Scope,
 ) (bool, error) {
 	shardLoad := calcShardLoad(state)
@@ -64,7 +66,7 @@ func PlanRebalance(
 	}
 
 	// no rebalance if a deviation between coldest and hottest executors less than maxDeviation
-	if hottestExecutorLoad/coldestExecutorLoad < p.sdConfig.LoadBalancingNaive.MaxDeviation(p.namespaceCfg.Name) {
+	if hottestExecutorLoad/coldestExecutorLoad < cfg.MaxDeviation(namespace) {
 		return false, nil
 	}
 
@@ -73,7 +75,7 @@ func PlanRebalance(
 		return false, nil
 	}
 
-	p.logger.Info("Load-based shard move",
+	logger.Info("Load-based shard move",
 		tag.ShardKey(hottestShardID),
 		tag.ShardExecutor(hottestExecutorID),
 		tag.Dynamic("destination_executor", coldestExecutorID),
@@ -97,12 +99,6 @@ func PlanRebalance(
 	currentAssignments[coldestExecutorID] = append(currentAssignments[coldestExecutorID], hottestShardID)
 
 	return true, nil
-
-}
-
-// rebalanceNaiveByReportedLoad does a rebalance if a difference between hottest and coldest executors' loads is more than maxDeviation
-// in this case the hottest shard will be moved to the coldest executor
-func (p *namespaceProcessor) rebalanceNaiveByReportedLoad(shardLoad map[string]float64, currentAssignments map[string][]string, metricsScope metrics.Scope) (distributedChanged bool) {
 }
 
 // calcShardLoad returns a map of shardID to its load based on the latest reported shard loads from executors
