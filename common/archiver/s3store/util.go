@@ -86,20 +86,110 @@ func serializeQueryVisibilityToken(token string) []byte {
 
 // Only validates the scheme and buckets are passed
 func softValidateURI(URI archiver.URI) error {
-	if URI.Scheme() != URIScheme {
+	switch URI.Scheme() {
+	case URIScheme:
+		if len(URI.Hostname()) == 0 {
+			return errNoBucketSpecified
+		}
+		return nil
+	case URISchemeAccessPoint:
+		return validateAccessPointURI(URI)
+	default:
 		return archiver.ErrURISchemeMismatch
 	}
-	if len(URI.Hostname()) == 0 {
-		return errNoBucketSpecified
+}
+
+// validateAccessPointURI checks that an s3-ap URI has a 12-digit account id
+// and a non-empty access point name. The region is not validated here because
+// it is supplied by the archiver's configuration at request time.
+func validateAccessPointURI(URI archiver.URI) error {
+	account := URI.Hostname()
+	if len(account) != 12 {
+		return errInvalidAccessPointAcct
+	}
+	for _, r := range account {
+		if r < '0' || r > '9' {
+			return errInvalidAccessPointAcct
+		}
+	}
+	if _, _, ok := splitAccessPointPath(URI.Path()); !ok {
+		return errInvalidAccessPointURI
 	}
 	return nil
 }
 
-func bucketExists(ctx context.Context, s3cli s3iface.S3API, URI archiver.URI) error {
+// splitAccessPointPath splits the URL path of an s3-ap URI into the access
+// point name and the remaining object-key prefix. Returns ok=false when no
+// non-empty access point name is present.
+func splitAccessPointPath(p string) (name, keyPath string, ok bool) {
+	p = strings.TrimPrefix(p, "/")
+	if p == "" {
+		return "", "", false
+	}
+	if idx := strings.Index(p, "/"); idx >= 0 {
+		return p[:idx], p[idx:], p[:idx] != ""
+	}
+	return p, "", true
+}
+
+// s3Bucket returns the string to pass as the S3 SDK Bucket parameter.
+// For s3:// URIs this is the hostname. For s3-ap:// URIs this is a full
+// access point ARN constructed from the configured region.
+// An empty region for an s3-ap URI returns errEmptyAwsRegion.
+func s3Bucket(URI archiver.URI, region string) (string, error) {
+	switch URI.Scheme() {
+	case URISchemeAccessPoint:
+		name, _, ok := splitAccessPointPath(URI.Path())
+		if !ok {
+			return "", errInvalidAccessPointURI
+		}
+		if region == "" {
+			return "", errEmptyAwsRegion
+		}
+		return fmt.Sprintf("arn:%s:s3:%s:%s:accesspoint/%s", partitionForRegion(region), region, URI.Hostname(), name), nil
+	default:
+		return URI.Hostname(), nil
+	}
+}
+
+// partitionForRegion returns the AWS ARN partition for the given region.
+// AWS partitions an account's resources by jurisdiction; ARNs in different
+// partitions use different prefixes. Defaults to the standard "aws" partition.
+func partitionForRegion(region string) string {
+	switch {
+	case strings.HasPrefix(region, "cn-"):
+		return "aws-cn"
+	case strings.HasPrefix(region, "us-gov-"):
+		return "aws-us-gov"
+	case strings.HasPrefix(region, "us-iso-"):
+		return "aws-iso"
+	case strings.HasPrefix(region, "us-isob-"):
+		return "aws-iso-b"
+	default:
+		return "aws"
+	}
+}
+
+// s3KeyPath returns the path component used for object-key construction.
+// For s3-ap URIs, the access point name is stripped from the URL path so the
+// remainder matches what users would get from an s3:// URI.
+func s3KeyPath(URI archiver.URI) string {
+	if URI.Scheme() == URISchemeAccessPoint {
+		_, keyPath, _ := splitAccessPointPath(URI.Path())
+		return keyPath
+	}
+	return URI.Path()
+}
+
+func bucketExists(ctx context.Context, s3cli s3iface.S3API, URI archiver.URI, region string) error {
 	ctx, cancel := ensureContextTimeout(ctx)
 	defer cancel()
-	_, err := s3cli.HeadBucketWithContext(ctx, &s3.HeadBucketInput{
-		Bucket: aws.String(URI.Hostname()),
+	bucket, err := s3Bucket(URI, region)
+	if err != nil {
+		return err
+	}
+	_, err = s3cli.HeadBucketWithContext(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(bucket),
 	})
 	if err == nil {
 		return nil
@@ -110,11 +200,15 @@ func bucketExists(ctx context.Context, s3cli s3iface.S3API, URI archiver.URI) er
 	return err
 }
 
-func keyExists(ctx context.Context, s3cli s3iface.S3API, URI archiver.URI, key string) (bool, error) {
+func keyExists(ctx context.Context, s3cli s3iface.S3API, URI archiver.URI, key, region string) (bool, error) {
 	ctx, cancel := ensureContextTimeout(ctx)
 	defer cancel()
-	_, err := s3cli.HeadObjectWithContext(ctx, &s3.HeadObjectInput{
-		Bucket: aws.String(URI.Hostname()),
+	bucket, err := s3Bucket(URI, region)
+	if err != nil {
+		return false, err
+	}
+	_, err = s3cli.HeadObjectWithContext(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
@@ -181,12 +275,16 @@ func ensureContextTimeout(ctx context.Context) (context.Context, context.CancelF
 	}
 	return context.WithTimeout(ctx, defaultBlobstoreTimeout)
 }
-func upload(ctx context.Context, s3cli s3iface.S3API, URI archiver.URI, key string, data []byte) error {
+func upload(ctx context.Context, s3cli s3iface.S3API, URI archiver.URI, region, key string, data []byte) error {
 	ctx, cancel := ensureContextTimeout(ctx)
 	defer cancel()
 
-	_, err := s3cli.PutObjectWithContext(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(URI.Hostname()),
+	bucket, err := s3Bucket(URI, region)
+	if err != nil {
+		return err
+	}
+	_, err = s3cli.PutObjectWithContext(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 		Body:   bytes.NewReader(data),
 	})
@@ -201,11 +299,15 @@ func upload(ctx context.Context, s3cli s3iface.S3API, URI archiver.URI, key stri
 	return nil
 }
 
-func download(ctx context.Context, s3cli s3iface.S3API, URI archiver.URI, key string) ([]byte, error) {
+func download(ctx context.Context, s3cli s3iface.S3API, URI archiver.URI, region, key string) ([]byte, error) {
 	ctx, cancel := ensureContextTimeout(ctx)
 	defer cancel()
+	bucket, err := s3Bucket(URI, region)
+	if err != nil {
+		return nil, err
+	}
 	result, err := s3cli.GetObjectWithContext(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(URI.Hostname()),
+		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
 

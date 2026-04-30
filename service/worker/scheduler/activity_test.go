@@ -229,6 +229,64 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			},
 		},
 		{
+			name: "BUFFER defers when previous is running",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyBuffer
+				r.LastStartedWorkflow = &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: nil},
+					}, nil)
+			},
+			wantResult: &ProcessFireResult{
+				Buffered:        true,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"},
+			},
+		},
+		{
+			name: "BUFFER starts when previous is closed",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyBuffer
+				r.LastStartedWorkflow = &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"}
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				status := types.WorkflowExecutionCloseStatusCompleted
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: &status},
+					}, nil)
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.StartWorkflowExecutionResponse{RunID: "new-run"}, nil)
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "new-run"},
+			},
+		},
+		{
+			name: "BUFFER starts when no previous",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyBuffer
+				// LastStartedWorkflow is nil (no previous fire yet)
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.StartWorkflowExecutionResponse{RunID: "run-abc"}, nil)
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "run-abc"},
+			},
+		},
+		{
 			name: "TERMINATE_PREVIOUS terminates then starts",
 			req: func() ProcessFireRequest {
 				r := baseReq

@@ -44,6 +44,12 @@ const (
 	SchedulerMissedSkippedCountPerDomain  = "scheduler_missed_skipped_count_per_domain"
 	SchedulerBackfillFiredCountPerDomain  = "scheduler_backfill_fired_count_per_domain"
 	SchedulerContinueAsNewCountPerDomain  = "scheduler_continue_as_new_count_per_domain"
+	// SchedulerBufferOverflowCountPerDomain measures fires dropped because the
+	// BUFFER overlap policy queue is full. Tagged with the drop reason so
+	// operators can distinguish drops driven by the user's buffer_limit
+	// (reason=user_limit) from drops driven by the server-side ceiling that
+	// protects ContinueAsNew payload size (reason=system_limit).
+	SchedulerBufferOverflowCountPerDomain = "scheduler_buffer_overflow_count_per_domain"
 
 	// Tag key strings for scheduler workflow metrics.
 	SignalTypeTag    = "signal_type"
@@ -53,8 +59,21 @@ const (
 	// ContinueAsNew reason tag values for scheduler_continue_as_new_count metric.
 	ContinueAsNewReasonMissedRun    = "missed_run"
 	ContinueAsNewReasonBackfill     = "back_fill"
+	ContinueAsNewReasonBufferDrain  = "buffer_drain"
 	ContinueAsNewReasonSignal       = "signal"
 	ContinueAsNewReasonIterationCap = "iteration_cap"
+
+	// Buffer overflow reason tag values for scheduler_buffer_overflow_count metric.
+	// Distinguishes drops driven by the user's buffer_limit from drops driven by
+	// the server-side cap that protects ContinueAsNew payload size.
+	BufferOverflowReasonUserLimit   = "user_limit"
+	BufferOverflowReasonSystemLimit = "system_limit"
+
+	// MaxBufferedFiresSystemLimit caps the BUFFER overlap policy queue regardless
+	// of buffer_limit (including buffer_limit=0 meaning unlimited). It bounds the
+	// ContinueAsNew payload size: each BufferedFire is ~50 bytes JSON, so 1000
+	// entries stays well within the workflow input size limit.
+	MaxBufferedFiresSystemLimit = 1000
 
 	// signal_type tag values for scheduler_signal_received_count metric.
 	signalTypeTagPause    = "pause"
@@ -89,6 +108,7 @@ const (
 	maxIterationsBeforeContinueAsNew = 500
 	maxCatchUpFiresPerExecution      = 10
 	maxBackfillFiresPerExecution     = 10
+	maxDrainFiresPerExecution        = 10
 	maxPendingBackfills              = 10
 
 	localActivityScheduleToCloseTimeout = 60 * time.Second
@@ -114,19 +134,32 @@ type SchedulerWorkflowState struct {
 	PauseReason       string            `json:"pauseReason,omitempty"`
 	PausedBy          string            `json:"pausedBy,omitempty"`
 	Deleted           bool              `json:"-"`                           // transient flag, not persisted across ContinueAsNew
-	LastRunTime       time.Time         `json:"lastRunTime,omitempty"`       // last time a workflow was actually started
+	LastRunTime       time.Time         `json:"lastRunTime,omitempty"`       // most recent scheduled run time the workflow has processed
 	LastProcessedTime time.Time         `json:"lastProcessedTime,omitempty"` // catch-up watermark: latest missed fire we've processed (fired or skipped)
 	NextRunTime       time.Time         `json:"nextRunTime,omitempty"`
 	TotalRuns         int64             `json:"totalRuns"`
 	MissedRuns        int64             `json:"missedRuns"`
 	SkippedRuns       int64             `json:"skippedRuns"`
 	Iterations        int               `json:"iterations"`
-	BufferedRuns      int               `json:"bufferedRuns"`
 	PendingBackfills  []BackfillRequest `json:"pendingBackfills,omitempty"`
+	// BufferedFires holds fires queued for sequential execution under the BUFFER
+	// overlap policy. Fires are appended when the previous target workflow is
+	// still running at fire time and drained in FIFO order on subsequent
+	// opportunities (timer wakeups, signal wakeups). Persisted across
+	// ContinueAsNew so buffered work isn't lost on workflow recycling.
+	BufferedFires []BufferedFire `json:"bufferedFires,omitempty"`
 	// LastStartedWorkflow tracks the most recently started target workflow so
 	// the overlap policy can check whether it is still running before starting
 	// the next one. Nil when no workflow has been started yet.
 	LastStartedWorkflow *RunningWorkflowInfo `json:"lastStartedWorkflow,omitempty"`
+}
+
+// BufferedFire is a schedule fire queued for sequential execution by the BUFFER
+// overlap policy. ScheduledTime and TriggerSource are preserved so the deferred
+// start uses the same WorkflowID and RequestID it would have used at fire time.
+type BufferedFire struct {
+	ScheduledTime time.Time     `json:"scheduledTime"`
+	TriggerSource TriggerSource `json:"triggerSource"`
 }
 
 // RunningWorkflowInfo identifies a target workflow started by the scheduler,
@@ -199,6 +232,20 @@ const (
 	TriggerSourceBackfill TriggerSource = "backfill"
 )
 
+// fireOutcome is the result of attempting to fire a single schedule run. It
+// tells the workflow whether the fire was processed to completion or was
+// deferred by the BUFFER overlap policy and should be re-attempted later.
+type fireOutcome int
+
+const (
+	// fireOutcomeDone means the fire was processed to completion (started, skipped,
+	// cancelled/terminated-then-started, already-running, or errored-and-logged).
+	fireOutcomeDone fireOutcome = iota
+	// fireOutcomeBuffered means the BUFFER overlap policy deferred the fire
+	// because the previous target workflow is still running.
+	fireOutcomeBuffered
+)
+
 // ProcessFireRequest is the input to processScheduleFireActivity. It contains
 // everything the activity needs to resolve the overlap policy and start the
 // target workflow. All side effects (describe, cancel, terminate, start) happen
@@ -220,4 +267,9 @@ type ProcessFireResult struct {
 	StartedWorkflow *RunningWorkflowInfo `json:"startedWorkflow,omitempty"`
 	TotalDelta      int64                `json:"totalDelta"`
 	SkippedDelta    int64                `json:"skippedDelta"`
+	// Buffered is true when the BUFFER overlap policy deferred this fire
+	// because the previous target workflow was still running. The workflow
+	// appends the fire to state.BufferedFires and retries draining on the
+	// next loop iteration.
+	Buffered bool `json:"buffered,omitempty"`
 }

@@ -1103,3 +1103,385 @@ func TestBuildScheduleSearchAttributes(t *testing.T) {
 		})
 	}
 }
+
+func TestEnqueueBufferedFire(t *testing.T) {
+	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name               string
+		bufferLimit        int32
+		initialFires       []BufferedFire
+		initialSkipped     int64
+		enqueueTime        time.Time
+		trigger            TriggerSource
+		wantFires          []BufferedFire
+		wantSkippedRuns    int64
+		wantOverflowReason string
+	}{
+		{
+			name:         "unlimited buffer accepts fire when bufferLimit=0",
+			bufferLimit:  0,
+			initialFires: []BufferedFire{{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule}},
+			enqueueTime:  t0.Add(time.Minute),
+			trigger:      TriggerSourceSchedule,
+			wantFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+			},
+		},
+		{
+			name:        "enqueue below limit appends to tail",
+			bufferLimit: 3,
+			initialFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+			},
+			enqueueTime: t0.Add(2 * time.Minute),
+			trigger:     TriggerSourceSchedule,
+			wantFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0.Add(2 * time.Minute), TriggerSource: TriggerSourceSchedule},
+			},
+		},
+		{
+			name:        "enqueue at user limit drops fire and emits user_limit metric",
+			bufferLimit: 2,
+			initialFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+			},
+			initialSkipped: 5,
+			enqueueTime:    t0.Add(2 * time.Minute),
+			trigger:        TriggerSourceSchedule,
+			wantFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+			},
+			wantSkippedRuns:    6,
+			wantOverflowReason: BufferOverflowReasonUserLimit,
+		},
+		{
+			name:               "enqueue at system limit with unlimited buffer_limit attributes to system_limit",
+			bufferLimit:        0,
+			initialFires:       largeBufferedFires(MaxBufferedFiresSystemLimit, t0),
+			initialSkipped:     0,
+			enqueueTime:        t0.Add(time.Hour),
+			trigger:            TriggerSourceSchedule,
+			wantFires:          largeBufferedFires(MaxBufferedFiresSystemLimit, t0),
+			wantSkippedRuns:    1,
+			wantOverflowReason: BufferOverflowReasonSystemLimit,
+		},
+		{
+			name:               "enqueue at system limit when user buffer_limit exceeds it attributes to system_limit",
+			bufferLimit:        int32(MaxBufferedFiresSystemLimit * 2),
+			initialFires:       largeBufferedFires(MaxBufferedFiresSystemLimit, t0),
+			enqueueTime:        t0.Add(time.Hour),
+			trigger:            TriggerSourceSchedule,
+			wantFires:          largeBufferedFires(MaxBufferedFiresSystemLimit, t0),
+			wantSkippedRuns:    1,
+			wantOverflowReason: BufferOverflowReasonSystemLimit,
+		},
+		{
+			name:         "backfill trigger source is preserved",
+			bufferLimit:  0,
+			initialFires: nil,
+			enqueueTime:  t0,
+			trigger:      TriggerSourceBackfill,
+			wantFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceBackfill},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := &SchedulerWorkflowInput{
+				Policies: types.SchedulePolicies{BufferLimit: tt.bufferLimit},
+			}
+			state := &SchedulerWorkflowState{
+				BufferedFires: append([]BufferedFire(nil), tt.initialFires...),
+				SkippedRuns:   tt.initialSkipped,
+			}
+			scope := tally.NewTestScope("", nil)
+			enqueueBufferedFire(testLogger, scope, input, state, tt.enqueueTime, tt.trigger)
+			assert.Equal(t, tt.wantFires, state.BufferedFires)
+			assert.Equal(t, tt.wantSkippedRuns, state.SkippedRuns)
+
+			counters := scope.Snapshot().Counters()
+			if tt.wantOverflowReason != "" {
+				c, ok := findCounter(counters, SchedulerBufferOverflowCountPerDomain, map[string]string{ReasonTag: tt.wantOverflowReason})
+				require.True(t, ok, "overflow metric should be emitted with reason=%s", tt.wantOverflowReason)
+				assert.Equal(t, int64(1), c.Value())
+			} else {
+				_, ok := findCounter(counters, SchedulerBufferOverflowCountPerDomain, map[string]string{})
+				assert.False(t, ok, "overflow metric should not be emitted on successful enqueue")
+			}
+		})
+	}
+}
+
+// largeBufferedFires builds a slice of n BufferedFire entries with one-second
+// spacing starting at base.
+func largeBufferedFires(n int, base time.Time) []BufferedFire {
+	out := make([]BufferedFire, n)
+	for i := 0; i < n; i++ {
+		out[i] = BufferedFire{
+			ScheduledTime: base.Add(time.Duration(i) * time.Second),
+			TriggerSource: TriggerSourceSchedule,
+		}
+	}
+	return out
+}
+
+// TestDrainBufferedFiresFIFO verifies that drainBufferedFires consumes the
+// queue in chronological order.
+func TestDrainBufferedFiresFIFO(t *testing.T) {
+	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	queue := []BufferedFire{
+		{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+		{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+		{ScheduledTime: t0.Add(2 * time.Minute), TriggerSource: TriggerSourceBackfill},
+	}
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
+		// StartWorkflow nil makes processScheduleFire short-circuit on the
+		// missing-action branch, so each fire is consumed without invoking the
+		// activity.
+	}
+	state := &SchedulerWorkflowState{
+		BufferedFires: append([]BufferedFire(nil), queue...),
+	}
+
+	moreToDrain := drainBufferedFires(nil, testLogger, input, state)
+
+	assert.False(t, moreToDrain, "queue smaller than cap should fully drain")
+	assert.Empty(t, state.BufferedFires)
+	assert.Equal(t, int64(3), state.MissedRuns)
+	assert.Equal(t, t0.Add(2*time.Minute), state.LastRunTime)
+}
+
+// TestProcessScheduleFireBufferEnqueuesWhenQueueNonEmpty verifies the
+// FIFO-preserving fast path: under BUFFER, if the queue already has waiters,
+// a new live fire is appended directly without invoking the scheduler
+// activity. This both saves a describe RPC and closes a race where the
+// previous target could complete between drain and live-fire, letting the
+// live fire jump ahead of older queued fires.
+func TestProcessScheduleFireBufferEnqueuesWhenQueueNonEmpty(t *testing.T) {
+	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
+		Action: types.ScheduleAction{
+			StartWorkflow: &types.StartWorkflowAction{
+				WorkflowType: &types.WorkflowType{Name: "wf"},
+				TaskList:     &types.TaskList{Name: "tl"},
+			},
+		},
+		Policies: types.SchedulePolicies{OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
+	}
+	state := &SchedulerWorkflowState{
+		BufferedFires: []BufferedFire{
+			{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+		},
+	}
+	scope := tally.NewTestScope("", nil)
+	liveFire := t0.Add(2 * time.Minute)
+
+	// nil ctx is safe because the BUFFER+non-empty-queue branch returns before
+	// touching workflow.ExecuteLocalActivity. If the fast path were ever
+	// removed, this call would panic — which is the property we want to lock in.
+	processScheduleFire(nil, testLogger, scope, input, state, liveFire, TriggerSourceSchedule)
+
+	require.Len(t, state.BufferedFires, 2, "live fire should be enqueued at the tail")
+	assert.Equal(t, t0, state.BufferedFires[0].ScheduledTime, "older queued fire stays at head")
+	assert.Equal(t, liveFire, state.BufferedFires[1].ScheduledTime, "live fire goes to tail")
+	assert.Equal(t, liveFire, state.LastRunTime, "LastRunTime should still advance even on the fast path")
+}
+
+// TestCatchUpWatermark verifies the catch-up watermark is the max of the
+// two relevant timestamps. LastProcessedTime advances only via catch-up;
+// LastRunTime advances on every fire (live or buffered). Picking only
+// LastProcessedTime would let catch-up rediscover fire times we already
+// attempted, double-counting TotalRuns / SkippedRuns on the next CAN.
+func TestCatchUpWatermark(t *testing.T) {
+	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name              string
+		lastProcessedTime time.Time
+		lastRunTime       time.Time
+		want              time.Time
+	}{
+		{
+			name: "both zero -> zero",
+			want: time.Time{},
+		},
+		{
+			name:        "only LastRunTime set (no catch-up has run yet) -> LastRunTime",
+			lastRunTime: t0,
+			want:        t0,
+		},
+		{
+			name:              "only LastProcessedTime set (catch-up ran but no live fires since) -> LastProcessedTime",
+			lastProcessedTime: t0,
+			want:              t0,
+		},
+		{
+			name:              "live fires happened after catch-up -> LastRunTime is newer",
+			lastProcessedTime: t0,
+			lastRunTime:       t0.Add(time.Hour),
+			want:              t0.Add(time.Hour),
+		},
+		{
+			name:              "catch-up ran after a quiet period (LastProcessedTime newer)",
+			lastProcessedTime: t0.Add(time.Hour),
+			lastRunTime:       t0,
+			want:              t0.Add(time.Hour),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := catchUpWatermark(&SchedulerWorkflowState{
+				LastProcessedTime: tt.lastProcessedTime,
+				LastRunTime:       tt.lastRunTime,
+			})
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestDrainBufferedFiresRespectsCap verifies drainBufferedFires processes at
+// most maxDrainFiresPerExecution fires per call and signals more remaining
+// work via the bool return so the caller ContinueAsNews. Mirrors the
+// existing per-execution caps on processMissedRuns and processBackfills.
+func TestDrainBufferedFiresRespectsCap(t *testing.T) {
+	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	queue := largeBufferedFires(maxDrainFiresPerExecution+5, t0)
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
+	}
+	state := &SchedulerWorkflowState{
+		BufferedFires: append([]BufferedFire(nil), queue...),
+	}
+
+	moreToDrain := drainBufferedFires(nil, testLogger, input, state)
+
+	assert.True(t, moreToDrain, "should signal more work when queue exceeds the cap")
+	assert.Len(t, state.BufferedFires, 5, "should leave the unprocessed remainder on the queue")
+	assert.Equal(t, int64(maxDrainFiresPerExecution), state.MissedRuns, "should consume exactly the cap on this execution")
+}
+
+func TestEffectiveBufferLimit(t *testing.T) {
+	tests := []struct {
+		name       string
+		userLimit  int32
+		wantLimit  int
+		wantReason string
+	}{
+		{
+			name:       "userLimit=0 (unlimited) yields system limit",
+			userLimit:  0,
+			wantLimit:  MaxBufferedFiresSystemLimit,
+			wantReason: BufferOverflowReasonSystemLimit,
+		},
+		{
+			name:       "negative userLimit treated as unlimited yields system limit",
+			userLimit:  -1,
+			wantLimit:  MaxBufferedFiresSystemLimit,
+			wantReason: BufferOverflowReasonSystemLimit,
+		},
+		{
+			name:       "userLimit below system limit is honored",
+			userLimit:  100,
+			wantLimit:  100,
+			wantReason: BufferOverflowReasonUserLimit,
+		},
+		{
+			name:       "userLimit equal to system limit is honored as user_limit",
+			userLimit:  int32(MaxBufferedFiresSystemLimit),
+			wantLimit:  MaxBufferedFiresSystemLimit,
+			wantReason: BufferOverflowReasonUserLimit,
+		},
+		{
+			name:       "userLimit above system limit is clamped to system limit",
+			userLimit:  int32(MaxBufferedFiresSystemLimit * 2),
+			wantLimit:  MaxBufferedFiresSystemLimit,
+			wantReason: BufferOverflowReasonSystemLimit,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotLimit, gotReason := effectiveBufferLimit(tt.userLimit)
+			assert.Equal(t, tt.wantLimit, gotLimit)
+			assert.Equal(t, tt.wantReason, gotReason)
+		})
+	}
+}
+
+func TestHandleUpdate_BufferedFiresClearedOnOverlapPolicyChange(t *testing.T) {
+	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	initialFires := []BufferedFire{
+		{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+		{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+	}
+
+	tests := []struct {
+		name            string
+		fromOverlap     types.ScheduleOverlapPolicy
+		toOverlap       types.ScheduleOverlapPolicy
+		initialFires    []BufferedFire
+		wantFiresLen    int
+		wantSkippedRuns int64
+	}{
+		{
+			name:            "BUFFER -> SKIP_NEW clears queue and counts drops as skipped",
+			fromOverlap:     types.ScheduleOverlapPolicyBuffer,
+			toOverlap:       types.ScheduleOverlapPolicySkipNew,
+			initialFires:    initialFires,
+			wantFiresLen:    0,
+			wantSkippedRuns: 2,
+		},
+		{
+			name:            "BUFFER -> TERMINATE_PREVIOUS clears queue",
+			fromOverlap:     types.ScheduleOverlapPolicyBuffer,
+			toOverlap:       types.ScheduleOverlapPolicyTerminatePrevious,
+			initialFires:    initialFires,
+			wantFiresLen:    0,
+			wantSkippedRuns: 2,
+		},
+		{
+			name:         "BUFFER -> BUFFER preserves queue",
+			fromOverlap:  types.ScheduleOverlapPolicyBuffer,
+			toOverlap:    types.ScheduleOverlapPolicyBuffer,
+			initialFires: initialFires,
+			wantFiresLen: 2,
+		},
+		{
+			name:         "SKIP_NEW -> BUFFER leaves empty queue empty",
+			fromOverlap:  types.ScheduleOverlapPolicySkipNew,
+			toOverlap:    types.ScheduleOverlapPolicyBuffer,
+			initialFires: nil,
+			wantFiresLen: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := &SchedulerWorkflowInput{
+				Spec:     types.ScheduleSpec{CronExpression: "0 * * * *"},
+				Policies: types.SchedulePolicies{OverlapPolicy: tt.fromOverlap},
+			}
+			state := &SchedulerWorkflowState{
+				BufferedFires: append([]BufferedFire(nil), tt.initialFires...),
+			}
+			sig := UpdateSignal{
+				Policies: &types.SchedulePolicies{OverlapPolicy: tt.toOverlap},
+			}
+
+			changed := handleUpdate(testLogger, sig, input, state)
+
+			assert.True(t, changed, "policy change should always report as changed")
+			assert.Equal(t, tt.toOverlap, input.Policies.OverlapPolicy)
+			assert.Len(t, state.BufferedFires, tt.wantFiresLen)
+			assert.Equal(t, tt.wantSkippedRuns, state.SkippedRuns)
+		})
+	}
+}

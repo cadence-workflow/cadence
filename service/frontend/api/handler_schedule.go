@@ -61,6 +61,25 @@ func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 	return nil
 }
 
+// warnIfBufferLimitExceedsSystemLimit logs a warning when buffer_limit exceeds
+// MaxBufferedFiresSystemLimit. The value is accepted (the policy still queues
+// up to the system limit), but drops at that cap will be tagged
+// reason=system_limit rather than reason=user_limit.
+func (wh *WorkflowHandler) warnIfBufferLimitExceedsSystemLimit(scheduleID, domainName string, policies *types.SchedulePolicies) {
+	if policies == nil ||
+		policies.OverlapPolicy != types.ScheduleOverlapPolicyBuffer ||
+		int(policies.BufferLimit) <= scheduler.MaxBufferedFiresSystemLimit {
+		return
+	}
+	wh.GetLogger().Warn(
+		"buffer_limit exceeds scheduler system limit; drops will be attributed to system_limit",
+		tag.WorkflowDomainName(domainName),
+		tag.WorkflowID(scheduleWorkflowID(scheduleID)),
+		tag.Dynamic("bufferLimit", int(policies.BufferLimit)),
+		tag.Dynamic("systemLimit", scheduler.MaxBufferedFiresSystemLimit),
+	)
+}
+
 // validateUserSearchAttributes rejects user search attribute keys that collide
 // with scheduler-reserved keys (CadenceSchedule* prefix). Without this check,
 // user values would be silently overwritten by the scheduler workflow's
@@ -110,6 +129,7 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
 		return nil, err
 	}
+	wh.warnIfBufferLimitExceedsSystemLimit(scheduleID, domainName, request.GetPolicies())
 	if err := validateUserSearchAttributes(request.GetSearchAttributes()); err != nil {
 		return nil, err
 	}
@@ -253,6 +273,7 @@ func (wh *WorkflowHandler) UpdateSchedule(
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
 		return nil, err
 	}
+	wh.warnIfBufferLimitExceedsSystemLimit(scheduleID, domainName, request.GetPolicies())
 
 	signal := scheduler.UpdateSignal{
 		Spec:     request.GetSpec(),

@@ -210,6 +210,29 @@ func TestCreateSchedule(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		"BUFFER with buffer_limit above system limit succeeds (warns)": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "my-schedule",
+				Spec:       &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
+						TaskList:     &types.TaskList{Name: "my-tasklist"},
+					},
+				},
+				Policies: &types.SchedulePolicies{
+					OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
+					BufferLimit:   int32(scheduler.MaxBufferedFiresSystemLimit * 2),
+				},
+			},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.StartWorkflowExecutionResponse{RunID: "test-run-id"}, nil)
+			},
+			wantErr: false,
+		},
 		"success": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
