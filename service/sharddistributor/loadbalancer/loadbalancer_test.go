@@ -49,3 +49,28 @@ func TestPlanInitialPlacement_NoActiveExecutors(t *testing.T) {
 	_, err := PlanInitialPlacement(cfg, "test-namespace", &store.NamespaceState{}, []string{"shard-1"})
 	assert.ErrorContains(t, err, "no active executors available")
 }
+
+func TestPlanRebalance(t *testing.T) {
+	tests := []struct {
+		name       string
+		mode       string
+		wantErrMsg string
+	}{
+		{name: "naive", mode: config.LoadBalancingModeNAIVE, wantErrMsg: "naive rebalance planning is not implemented"},
+		{name: "greedy", mode: config.LoadBalancingModeGREEDY, wantErrMsg: "greedy rebalance planning is not implemented"},
+		{name: "invalid", mode: config.LoadBalancingModeINVALID, wantErrMsg: "unsupported load balancing mode"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				LoadBalancingMode: func(namespace string) string {
+					return tt.mode
+				},
+			}
+			changed, err := PlanRebalance(cfg, "test-namespace", &store.NamespaceState{}, nil)
+			require.Error(t, err)
+			assert.False(t, changed)
+			assert.ErrorContains(t, err, tt.wantErrMsg)
+		})
+	}
+}
