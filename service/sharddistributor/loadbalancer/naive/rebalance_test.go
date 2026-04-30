@@ -270,7 +270,7 @@ func TestRebalanceNaiveByReportedLoad(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			distributionChanged, err := PlanRebalance(
+			distributionChanged, err := Rebalance(
 				testNaiveConfig(tc.maxDeviation),
 				testNamespace,
 				testNamespaceState(tc.shardLoad),

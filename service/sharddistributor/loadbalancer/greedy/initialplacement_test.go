@@ -10,7 +10,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-func TestPlanInitialPlacement(t *testing.T) {
+func TestInitialPlacement(t *testing.T) {
 	t.Run("picks lowest smoothed load and bumps by average after each pick", func(t *testing.T) {
 		state := &store.NamespaceState{
 			Executors: map[string]store.HeartbeatState{
@@ -32,7 +32,7 @@ func TestPlanInitialPlacement(t *testing.T) {
 			},
 		}
 
-		assignments, err := PlanInitialPlacement(state, []string{"new-1", "new-2"})
+		assignments, err := InitialPlacement(state, []string{"new-1", "new-2"})
 		require.NoError(t, err)
 
 		// cold has the lowest smoothed load.
@@ -54,7 +54,7 @@ func TestPlanInitialPlacement(t *testing.T) {
 			},
 		}
 
-		assignments, err := PlanInitialPlacement(state, []string{"new-1"})
+		assignments, err := InitialPlacement(state, []string{"new-1"})
 		require.NoError(t, err)
 
 		// All shard stats are missing, so smoothed loads tie and shard count breaks the tie.
@@ -67,13 +67,13 @@ func TestPlanInitialPlacement(t *testing.T) {
 			ShardAssignments: map[string]store.AssignedState{},
 		}
 
-		assignments, err := PlanInitialPlacement(state, []string{"new-1"})
+		assignments, err := InitialPlacement(state, []string{"new-1"})
 		require.NoError(t, err)
 		assert.Equal(t, "new", assignments["new-1"])
 	})
 
 	t.Run("empty active executors returns error", func(t *testing.T) {
-		_, err := PlanInitialPlacement(&store.NamespaceState{}, []string{"new-1"})
+		_, err := InitialPlacement(&store.NamespaceState{}, []string{"new-1"})
 		assert.ErrorContains(t, err, "no active executors available")
 	})
 }
