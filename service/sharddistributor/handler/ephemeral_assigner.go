@@ -81,6 +81,9 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 // The AssignedShards maps are copied to avoid mutating the object returned by
 // GetState.
 func mergePlacements(state *store.NamespaceState, placements []plan.Placement) {
+	if state.ShardAssignments == nil {
+		state.ShardAssignments = make(map[string]store.AssignedState)
+	}
 	for executorID, shardsForExecutor := range placementsByExecutor(placements) {
 		existing := state.ShardAssignments[executorID]
 		newShards := make(map[string]*types.ShardAssignment, len(existing.AssignedShards)+len(shardsForExecutor))
