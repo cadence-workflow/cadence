@@ -12,6 +12,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -75,9 +76,10 @@ func TestLoadBalance_Convergence(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	changed, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
 	require.NoError(t, err)
-	require.True(t, changed)
+	require.NotEmpty(t, moves)
+	applyMoves(t, currentAssignments, moves)
 	assert.Less(t, len(currentAssignments[execA]), 50, "Overloaded executor should shed shards")
 	assert.Greater(t, len(currentAssignments[execB]), 50, "Underloaded executor should receive shards")
 }
@@ -112,9 +114,10 @@ func TestLoadBalance_SkipsNonBeneficialHotShard(t *testing.T) {
 		},
 	}
 
-	changed, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
 	require.NoError(t, err)
-	require.True(t, changed)
+	require.NotEmpty(t, moves)
+	applyMoves(t, currentAssignments, moves)
 	assert.True(t, slices.Contains(currentAssignments[execB], "warm"))
 	assert.False(t, slices.Contains(currentAssignments[execB], "hot"))
 }
@@ -157,9 +160,9 @@ func TestLoadBalance_NoMoveNeeded(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	changed, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
 	require.NoError(t, err)
-	require.False(t, changed)
+	require.Empty(t, moves)
 	assert.Len(t, currentAssignments[execA], 51)
 	assert.Len(t, currentAssignments[execB], 49)
 }
@@ -225,9 +228,10 @@ func TestLoadBalance_SevereImbalance_AllowsMoveWithoutDestinations(t *testing.T)
 	initialOther := len(currentAssignments[execB]) + len(currentAssignments[execC]) + len(currentAssignments[execD]) + len(currentAssignments[execE])
 	expectedBudget := computeMoveBudget(len(shardStats), cfg.MoveBudgetProportion(testNamespace))
 
-	changed, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
 	require.NoError(t, err)
-	require.True(t, changed)
+	require.NotEmpty(t, moves)
+	applyMoves(t, currentAssignments, moves)
 
 	assert.Len(t, currentAssignments[execA], initialA-expectedBudget, "execA should shed budgeted shards")
 	totalOther := len(currentAssignments[execB]) + len(currentAssignments[execC]) + len(currentAssignments[execD]) + len(currentAssignments[execE])
@@ -275,9 +279,9 @@ func TestLoadBalance_NoDestinations_NotSevere(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	changed, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
 	require.NoError(t, err)
-	require.False(t, changed)
+	require.Empty(t, moves)
 	assert.Len(t, currentAssignments[execA], 10)
 	assert.Len(t, currentAssignments[execB], 1)
 }
@@ -346,9 +350,10 @@ func TestLoadBalance_BudgetConstraint(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	changed, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
 	require.NoError(t, err)
-	require.True(t, changed)
+	require.NotEmpty(t, moves)
+	applyMoves(t, currentAssignments, moves)
 	shardsOnA := len(currentAssignments[execA])
 	shardsOnB := len(currentAssignments[execB])
 	shardsOnC := len(currentAssignments[execC])
@@ -399,9 +404,10 @@ func TestLoadBalance_MultiMovePerCycle(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	changed, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
 	require.NoError(t, err)
-	require.True(t, changed)
+	require.NotEmpty(t, moves)
+	applyMoves(t, currentAssignments, moves)
 	assert.Equal(t, 100-expectedBudget, len(currentAssignments[execA]), "ExecA should shed budgeted shards")
 	assert.Equal(t, 50+expectedBudget, len(currentAssignments[execB]), "ExecB should gain budgeted shards")
 }
@@ -448,9 +454,10 @@ func TestLoadBalance_PerShardCooldownSkipsHotShard(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	changed, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
 	require.NoError(t, err)
-	require.True(t, changed)
+	require.NotEmpty(t, moves)
+	applyMoves(t, currentAssignments, moves)
 	assert.True(t, slices.Contains(currentAssignments[execB], "hot-2"), "eligible hot shard should move")
 	assert.False(t, slices.Contains(currentAssignments[execB], "hot-1"), "recently moved shard should not move")
 }
@@ -499,9 +506,9 @@ func TestLoadBalance_NoDestinations(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	changed, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
 	require.NoError(t, err)
-	require.False(t, changed)
+	require.Empty(t, moves)
 	assert.Equal(t, []string{"s1"}, currentAssignments[execA])
 	assert.Equal(t, []string{"s2"}, currentAssignments[execB])
 	assert.Equal(t, []string{"s3"}, currentAssignments[execC])
@@ -555,9 +562,10 @@ func TestLoadBalance_ExecutorRemovedFromDestination(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	changed, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := Rebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
 	require.NoError(t, err)
-	require.True(t, changed)
+	require.NotEmpty(t, moves)
+	applyMoves(t, currentAssignments, moves)
 
 	shardsOnA := len(currentAssignments[execA])
 	shardsOnC := len(currentAssignments[execC])
@@ -574,4 +582,16 @@ func TestLoadBalance_ExecutorRemovedFromDestination(t *testing.T) {
 	assert.False(t, shardsOnA == 1 && shardsOnC == 1, "Not both execA and execC should shed a shard without receiving one")
 
 	assert.Len(t, currentAssignments[execF], 108, "Filler executor execF should be untouched")
+}
+
+func applyMoves(t *testing.T, assignments map[string][]string, moves []plan.Move) {
+	t.Helper()
+
+	for _, move := range moves {
+		idx := slices.Index(assignments[move.From], move.ShardID)
+		require.NotEqual(t, -1, idx, "planned move source should contain shard")
+
+		assignments[move.From] = append(assignments[move.From][:idx], assignments[move.From][idx+1:]...)
+		assignments[move.To] = append(assignments[move.To], move.ShardID)
+	}
 }

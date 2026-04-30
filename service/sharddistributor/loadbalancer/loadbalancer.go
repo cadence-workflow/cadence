@@ -32,7 +32,7 @@ func InitialPlacement(
 	}
 }
 
-// Rebalance updates currentAssignments with planned shard moves and returns whether the plan changed.
+// Rebalance returns the planned shard moves for the current assignment state.
 func Rebalance(
 	cfg *config.Config,
 	namespace string,
@@ -41,14 +41,18 @@ func Rebalance(
 	now time.Time,
 	logger log.Logger,
 	metricsScope metrics.Scope,
-) (bool, error) {
+) ([]plan.Move, error) {
 	mode := cfg.GetLoadBalancingMode(namespace)
 	switch mode {
 	case types.LoadBalancingModeNAIVE:
 		return naive.Rebalance(cfg.LoadBalancingNaive, namespace, state, currentAssignments, logger, metricsScope)
 	case types.LoadBalancingModeGREEDY:
-		return greedy.Rebalance(cfg.LoadBalancingGreedy, namespace, state, currentAssignments, now, metricsScope)
+		changed, err := greedy.Rebalance(cfg.LoadBalancingGreedy, namespace, state, currentAssignments, now, metricsScope)
+		if err != nil || !changed {
+			return nil, err
+		}
+		return nil, fmt.Errorf("greedy rebalance move planning is not implemented")
 	default:
-		return false, fmt.Errorf("unsupported load balancing mode: %s", mode)
+		return nil, fmt.Errorf("unsupported load balancing mode: %s", mode)
 	}
 }

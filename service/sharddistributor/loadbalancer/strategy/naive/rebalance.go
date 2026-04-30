@@ -8,10 +8,11 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-// Rebalance updates currentAssignments with planned shard moves and returns whether the plan changed.
+// Rebalance returns the planned shard moves for the current assignment state.
 func Rebalance(
 	cfg config.LoadBalancingNaiveConfig,
 	namespace string,
@@ -19,12 +20,12 @@ func Rebalance(
 	currentAssignments map[string][]string,
 	logger log.Logger,
 	metricsScope metrics.Scope,
-) (bool, error) {
+) ([]plan.Move, error) {
 	shardLoad := calcShardLoad(state)
 
 	// no rebalance if there are no more than 1 executor
 	if len(currentAssignments) < 2 {
-		return false, nil
+		return nil, nil
 	}
 
 	var (
@@ -67,12 +68,12 @@ func Rebalance(
 
 	// no rebalance if a deviation between coldest and hottest executors less than maxDeviation
 	if hottestExecutorLoad/coldestExecutorLoad < cfg.MaxDeviation(namespace) {
-		return false, nil
+		return nil, nil
 	}
 
 	// no rebalance if coldest executor becomes a hottest
 	if coldestExecutorLoad+hottestShardLoad >= hottestExecutorLoad {
-		return false, nil
+		return nil, nil
 	}
 
 	logger.Info("Load-based shard move",
@@ -89,16 +90,12 @@ func Rebalance(
 	metricsScope.AddCounter(metrics.ShardDistributorAssignLoopLoadBasedMoves, 1)
 	metricsScope.UpdateGauge(metrics.ShardDistributorAssignLoopMovedShardLoad, hottestShardLoad)
 
-	// remove the hottest Shard from the hottest executor
-	// put it to the coldest executor
-	for i, shardID := range currentAssignments[hottestExecutorID] {
-		if shardID == hottestShardID {
-			currentAssignments[hottestExecutorID] = append(currentAssignments[hottestExecutorID][:i], currentAssignments[hottestExecutorID][i+1:]...)
-		}
-	}
-	currentAssignments[coldestExecutorID] = append(currentAssignments[coldestExecutorID], hottestShardID)
-
-	return true, nil
+	// Plan moving the hottest shard from the hottest executor to the coldest executor.
+	return []plan.Move{{
+		ShardID: hottestShardID,
+		From:    hottestExecutorID,
+		To:      coldestExecutorID,
+	}}, nil
 }
 
 // calcShardLoad returns a map of shardID to its load based on the latest reported shard loads from executors

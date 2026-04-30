@@ -9,10 +9,11 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-// Rebalance updates currentAssignments with planned shard moves and returns whether the plan changed.
+// Rebalance returns the planned shard moves for the current assignment state.
 func Rebalance(
 	cfg config.LoadBalancingGreedyConfig,
 	namespace string,
@@ -20,11 +21,12 @@ func Rebalance(
 	currentAssignments map[string][]string,
 	now time.Time,
 	metricsScope metrics.Scope,
-) (bool, error) {
+) ([]plan.Move, error) {
 	now = now.UTC()
-	loads, totalLoad := computeExecutorLoads(currentAssignments, namespaceState)
+	workingAssignments := cloneAssignments(currentAssignments)
+	loads, totalLoad := computeExecutorLoads(workingAssignments, namespaceState)
 	if len(loads) == 0 {
-		return false, nil
+		return nil, nil
 	}
 
 	meanLoad := totalLoad / float64(len(loads))
@@ -34,10 +36,9 @@ func Rebalance(
 	}
 	moveBudget := computeMoveBudget(totalShards, cfg.MoveBudgetProportion(namespace))
 	if moveBudget <= 0 {
-		return false, nil
+		return nil, nil
 	}
-	shardsMoved := false
-	movesPlanned := 0
+	moves := make([]plan.Move, 0, moveBudget)
 	movedShards := make(map[string]struct{})
 
 	// Plan multiple moves per cycle (within budget), recomputing eligibility after each move.
@@ -62,7 +63,7 @@ func Rebalance(
 				break
 			}
 			relaxed := make(map[string]struct{})
-			for executorID := range currentAssignments {
+			for executorID := range workingAssignments {
 				if namespaceState.Executors[executorID].Status == types.ExecutorStatusACTIVE {
 					relaxed[executorID] = struct{}{}
 				}
@@ -89,7 +90,7 @@ func Rebalance(
 				continue
 			}
 			shardToMove, idx, found := findShardToMove(
-				currentAssignments,
+				workingAssignments,
 				namespaceState,
 				sourceExecutor,
 				destExecutor,
@@ -103,11 +104,14 @@ func Rebalance(
 				continue
 			}
 
-			if err := moveShard(currentAssignments, sourceExecutor, destExecutor, shardToMove, idx); err != nil {
-				return false, err
+			if err := moveShard(workingAssignments, sourceExecutor, destExecutor, shardToMove, idx); err != nil {
+				return nil, err
 			}
-			movesPlanned++
-			shardsMoved = true
+			moves = append(moves, plan.Move{
+				ShardID: shardToMove,
+				From:    sourceExecutor,
+				To:      destExecutor,
+			})
 			movedShards[shardToMove] = struct{}{}
 
 			if metricsScope != nil {
@@ -124,10 +128,10 @@ func Rebalance(
 			break
 		}
 	}
-	if movesPlanned > 0 && metricsScope != nil {
-		metricsScope.AddCounter(metrics.ShardDistributorAssignLoopLoadBasedMoves, int64(movesPlanned))
+	if len(moves) > 0 && metricsScope != nil {
+		metricsScope.AddCounter(metrics.ShardDistributorAssignLoopLoadBasedMoves, int64(len(moves)))
 	}
-	return shardsMoved, nil
+	return moves, nil
 }
 
 func computeExecutorLoads(currentAssignments map[string][]string, state *store.NamespaceState) (map[string]float64, float64) {
@@ -147,6 +151,16 @@ func computeExecutorLoads(currentAssignments map[string][]string, state *store.N
 	}
 
 	return loads, total
+}
+
+func cloneAssignments(assignments map[string][]string) map[string][]string {
+	cloned := make(map[string][]string, len(assignments))
+	for executorID, shardIDs := range assignments {
+		clonedShards := make([]string, len(shardIDs))
+		copy(clonedShards, shardIDs)
+		cloned[executorID] = clonedShards
+	}
+	return cloned
 }
 
 func isSevereImbalance(executorLoads map[string]float64, meanLoad, severeImbalanceRatio float64) bool {
