@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -651,6 +652,122 @@ func TestRebalanceShards_WithUnassignedShards(t *testing.T) {
 	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, _ string, request store.AssignShardsRequest, _ store.GuardFunc) error {
 			assert.Len(t, request.NewState.ShardAssignments["exec-1"].AssignedShards, 2, "Both shards should now be assigned to exec-1")
+			return nil
+		},
+	)
+
+	err := processor.rebalanceShards(context.Background())
+	require.NoError(t, err)
+}
+
+func TestRebalanceShards_AppliesNaiveLoadBalancingPlan(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	now := mocks.timeSource.Now()
+	// exec-2 is overloaded, so naive should move one shard to exec-1.
+	heartbeats := map[string]store.HeartbeatState{
+		"exec-1": {
+			Status:        types.ExecutorStatusACTIVE,
+			LastHeartbeat: now,
+			ReportedShards: map[string]*types.ShardStatusReport{
+				"shard-1": {ShardLoad: 5.0},
+			},
+		},
+		"exec-2": {
+			Status:        types.ExecutorStatusACTIVE,
+			LastHeartbeat: now,
+			ReportedShards: map[string]*types.ShardStatusReport{
+				"shard-2": {ShardLoad: 30.0},
+				"shard-3": {ShardLoad: 20.0},
+			},
+		},
+	}
+	assignments := map[string]store.AssignedState{
+		"exec-1": {AssignedShards: map[string]*types.ShardAssignment{"shard-1": {Status: types.AssignmentStatusREADY}}},
+		"exec-2": {AssignedShards: map[string]*types.ShardAssignment{"shard-2": {Status: types.AssignmentStatusREADY}, "shard-3": {Status: types.AssignmentStatusREADY}}},
+	}
+
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors:        heartbeats,
+		ShardAssignments: assignments,
+	}, nil)
+	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "shard-1").Return(&store.ShardOwner{ExecutorID: "exec-1"}, nil).AnyTimes()
+	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "shard-2").Return(&store.ShardOwner{ExecutorID: "exec-2"}, nil).AnyTimes()
+	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "shard-3").Return(&store.ShardOwner{ExecutorID: "exec-2"}, nil).AnyTimes()
+	mocks.election.EXPECT().Guard().Return(store.NopGuard())
+	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ string, request store.AssignShardsRequest, _ store.GuardFunc) error {
+			assert.Len(t, request.NewState.ShardAssignments["exec-1"].AssignedShards, 2)
+			assert.Len(t, request.NewState.ShardAssignments["exec-2"].AssignedShards, 1)
+			return nil
+		},
+	)
+
+	err := processor.rebalanceShards(context.Background())
+	require.NoError(t, err)
+}
+
+func TestRebalanceShards_AppliesGreedyLoadBalancingPlan(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	mocks.sdConfig.LoadBalancingMode = func(namespace string) string {
+		return config.LoadBalancingModeGREEDY
+	}
+	mocks.sdConfig.LoadBalancingGreedy = config.LoadBalancingGreedyConfig{
+		PerShardCooldown: func(namespace string) time.Duration {
+			return time.Minute
+		},
+		MoveBudgetProportion: func(namespace string) float64 {
+			return 0.01
+		},
+		HysteresisUpperBand: func(namespace string) float64 {
+			return 1.15
+		},
+		HysteresisLowerBand: func(namespace string) float64 {
+			return 0.90
+		},
+		SevereImbalanceRatio: func(namespace string) float64 {
+			return 1.3
+		},
+	}
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	now := mocks.timeSource.Now()
+	// exec-1 has higher smoothed load, so greedy should move one shard to exec-2.
+	heartbeats := map[string]store.HeartbeatState{
+		"exec-1": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		"exec-2": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+	}
+	assignments := map[string]store.AssignedState{
+		"exec-1": {AssignedShards: make(map[string]*types.ShardAssignment)},
+		"exec-2": {AssignedShards: make(map[string]*types.ShardAssignment)},
+	}
+	shardStats := make(map[string]store.ShardStatistics)
+	for i := range 50 {
+		shardID := "a-" + strconv.Itoa(i)
+		assignments["exec-1"].AssignedShards[shardID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
+		shardStats[shardID] = store.ShardStatistics{SmoothedLoad: 3.0, LastUpdateTime: now}
+		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, shardID).Return(&store.ShardOwner{ExecutorID: "exec-1"}, nil).AnyTimes()
+	}
+	for i := range 50 {
+		shardID := "b-" + strconv.Itoa(i)
+		assignments["exec-2"].AssignedShards[shardID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
+		shardStats[shardID] = store.ShardStatistics{SmoothedLoad: 1.0, LastUpdateTime: now}
+		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, shardID).Return(&store.ShardOwner{ExecutorID: "exec-2"}, nil).AnyTimes()
+	}
+
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors:        heartbeats,
+		ShardAssignments: assignments,
+		ShardStats:       shardStats,
+	}, nil)
+	mocks.election.EXPECT().Guard().Return(store.NopGuard())
+	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ string, request store.AssignShardsRequest, _ store.GuardFunc) error {
+			assert.Len(t, request.NewState.ShardAssignments["exec-1"].AssignedShards, 49)
+			assert.Len(t, request.NewState.ShardAssignments["exec-2"].AssignedShards, 51)
 			return nil
 		},
 	)
