@@ -471,6 +471,16 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 	return true
 }
 
+// effectiveFireOverlap returns the overlap policy applied to a single fire.
+// For backfill, BackfillSignal.overlap_policy may be INVALID (0) to inherit the
+// schedule's configured policy; any other value overrides for that backfill only.
+func effectiveFireOverlap(trigger TriggerSource, backfillOverlap, scheduleOverlap types.ScheduleOverlapPolicy) types.ScheduleOverlapPolicy {
+	if trigger == TriggerSourceBackfill && backfillOverlap != types.ScheduleOverlapPolicyInvalid {
+		return backfillOverlap
+	}
+	return scheduleOverlap
+}
+
 // processScheduleFire executes the configured action for a single schedule fire.
 // All side effects (overlap check, cancel/terminate, start) are encapsulated in
 // a single activity so that the overlap logic can evolve without introducing
@@ -488,16 +498,6 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 // the live-fire activity call, the previous workflow could complete.
 // tryStartFire would then start the live fire ahead of older queued fires,
 // breaking FIFO.
-// effectiveFireOverlap returns the overlap policy applied to a single fire.
-// For backfill, BackfillSignal.overlap_policy may be INVALID (0) to inherit the
-// schedule's configured policy; any other value overrides for that backfill only.
-func effectiveFireOverlap(trigger TriggerSource, backfillOverlap, scheduleOverlap types.ScheduleOverlapPolicy) types.ScheduleOverlapPolicy {
-	if trigger == TriggerSourceBackfill && backfillOverlap != types.ScheduleOverlapPolicyInvalid {
-		return backfillOverlap
-	}
-	return scheduleOverlap
-}
-
 func processScheduleFire(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource, overlapPolicy types.ScheduleOverlapPolicy) {
 	if overlapPolicy == types.ScheduleOverlapPolicyBuffer && len(state.BufferedFires) > 0 {
 		// Skipping tryStartFire, so advance LastRunTime here.
